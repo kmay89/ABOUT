@@ -40,6 +40,8 @@
     --c-puz:#d9a0e8;
     --c-utap:#ee6fbb;
     --c-sun:#ffd166;
+    --c-imp:#c77dff;
+    --c-pri:#ff5fd0;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -484,6 +486,110 @@
   .cs-tools button:disabled{opacity:.3;cursor:default}
   .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
 
+  /* ---------- the impossible object: a live ray-marched Mandelbulb ---------- */
+  .mandelstage{
+    --a:#c77dff;
+    --top-offset:max(1rem, calc(50svh - 21rem));
+    position:fixed;left:50%;top:var(--top-offset);z-index:42;
+    transform:translateX(-50%) scale(.85);
+    width:min(26rem,calc(100vw - 1.5rem));
+    max-height:calc(100svh - var(--top-offset) - 1rem);
+    overflow-y:auto;
+    background:linear-gradient(165deg,#1c1424,#120c18 60%);
+    border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
+    border-radius:14px;
+    box-shadow:0 40px 100px rgba(0,0,0,.75), 0 0 70px color-mix(in srgb, var(--a) 14%, transparent);
+    padding:1.1rem 1.2rem 1.3rem;
+    opacity:0;visibility:hidden;
+    transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .mandelstage.show{opacity:1;visibility:visible;transform:translateX(-50%) scale(1)}
+  #mnCanvas{
+    display:block;width:100%;aspect-ratio:1;
+    margin:.7rem auto .2rem;
+    border-radius:10px;
+    background:#0b0810;
+    touch-action:none;cursor:grab;
+  }
+  #mnCanvas:active{cursor:grabbing}
+  .mn-text{
+    margin-top:.6rem;color:var(--ink-dim);
+    line-height:1.5;font-size:.9rem;
+  }
+  .mn-text b,.mn-text i{color:var(--ink)}
+  .mn-row{
+    display:flex;align-items:center;gap:.7rem;margin-top:.8rem;
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .mn-row input[type="range"]{
+    flex:1;accent-color:var(--a);
+  }
+  .mn-row #mnPowerVal{color:var(--a);min-width:2.6em;text-align:right}
+  .mn-note{
+    margin-top:.6rem;
+    font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;
+    color:var(--ink-faint);
+  }
+
+  /* ---------- the light bench: color theory, mixed and split ---------- */
+  .lightstage{
+    --a:#ff5fd0;
+    --top-offset:max(1rem, calc(50svh - 21rem));
+    position:fixed;left:50%;top:var(--top-offset);z-index:42;
+    transform:translateX(-50%) scale(.85);
+    width:min(27rem,calc(100vw - 1.5rem));
+    max-height:calc(100svh - var(--top-offset) - 1rem);
+    overflow-y:auto;
+    background:linear-gradient(165deg,#221420,#140c14 60%);
+    border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
+    border-radius:14px;
+    box-shadow:0 40px 100px rgba(0,0,0,.75), 0 0 70px color-mix(in srgb, var(--a) 13%, transparent);
+    padding:1.1rem 1.2rem 1.3rem;
+    opacity:0;visibility:hidden;
+    transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .lightstage.show{opacity:1;visibility:visible;transform:translateX(-50%) scale(1)}
+  .lt-tabs{display:flex;gap:.5rem;margin-top:.7rem}
+  .lt-tabs button{
+    flex:1;
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-dim);background:transparent;
+    border:1px solid color-mix(in srgb, var(--a) 30%, transparent);
+    border-radius:8px;padding:.55em 0;cursor:pointer;
+  }
+  .lt-tabs button.on{color:var(--room);background:var(--a);border-color:var(--a)}
+  #ltCanvas{
+    display:block;width:100%;aspect-ratio:4/3;
+    margin:.7rem auto .2rem;
+    border-radius:10px;
+    background:#050505;
+    touch-action:none;cursor:grab;
+  }
+  #ltCanvas:active{cursor:grabbing}
+  .lt-row{
+    display:flex;align-items:center;justify-content:center;gap:.7rem;margin-top:.75rem;
+    font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .lt-sw{
+    position:relative;width:52px;height:26px;flex:none;
+    background:#241a26;border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
+    border-radius:999px;cursor:pointer;padding:0;
+  }
+  .lt-sw .knob{
+    position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+    background:var(--ink-dim);
+    transition:left .2s ease, background .2s ease;
+  }
+  .lt-sw.on .knob{left:28px;background:var(--a);box-shadow:0 0 10px color-mix(in srgb, var(--a) 60%, transparent)}
+  .lt-text{
+    min-height:4.6em;
+    margin-top:.7rem;color:var(--ink-dim);
+    line-height:1.5;font-size:.9rem;
+  }
+  .lt-text b,.lt-text i{color:var(--ink)}
+
   /* ---------- footer ---------- */
   footer{
     border-top:1px solid rgba(255,201,122,.14);
@@ -541,6 +647,8 @@
     <button data-id="scqcs" style="--a:var(--c-scqcs)">SCQCS</button>
     <button data-id="vinyl" style="--a:var(--c-vinyl)">Aethra Kairos</button>
     <button data-id="cam" style="--a:var(--c-cam)">securaCV</button>
+    <button data-id="mandel" style="--a:var(--c-imp)">The impossible object</button>
+    <button data-id="prism" style="--a:var(--c-pri)">The light bench</button>
     <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
     <span class="legend-sep" aria-hidden="true"></span>
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
@@ -580,6 +688,43 @@
     <button id="csSolve">Solve itself</button>
     <button id="csFlip">Superflip again</button>
   </div>
+</section>
+
+<section class="mandelstage" id="mandelStage" role="dialog" aria-modal="true" aria-label="The impossible object — a live Mandelbulb" hidden>
+  <div class="d-head">
+    <p class="d-kicker">The impossible object</p>
+    <button class="chip" id="mnClose">Put it down ×</button>
+  </div>
+  <canvas id="mnCanvas" aria-label="A ray-marched Mandelbulb fractal. Drag to turn it."></canvas>
+  <p class="mn-text">This is a <b>Mandelbulb</b> — the three-dimensional cousin of the Mandelbrot
+  set — and it is being computed <i>right now</i>, on your device, by one small program running on
+  the GPU. No libraries, no model files: every pixel casts a ray and marches it toward a shape
+  defined only by math. Drag to turn it. Scroll or pinch to lean in. Slide the power and watch
+  infinity change its mind.</p>
+  <div class="mn-row">
+    <label for="mnPower">power</label>
+    <input type="range" id="mnPower" min="2" max="12" step="0.05" value="8">
+    <span id="mnPowerVal">8.0</span>
+  </div>
+  <p class="mn-note" id="mnNote">z → z^8 + c, ray-marched by distance estimate · raw WebGL</p>
+</section>
+
+<section class="lightstage" id="lightStage" role="dialog" aria-modal="true" aria-label="The light bench — color, mixed and split" hidden>
+  <div class="d-head">
+    <p class="d-kicker">The light bench</p>
+    <button class="chip" id="ltClose">Lights off ×</button>
+  </div>
+  <div class="lt-tabs">
+    <button id="ltTabMix" class="on">Mixing</button>
+    <button id="ltTabBench">Laser bench</button>
+  </div>
+  <canvas id="ltCanvas" aria-label="An interactive color and optics playground"></canvas>
+  <div class="lt-row" id="ltSwitchRow">
+    <span>pigment</span>
+    <button id="ltSwitch" class="lt-sw on" role="switch" aria-checked="true" aria-label="Light switch: additive light or subtractive pigment"><span class="knob"></span></button>
+    <span>light</span>
+  </div>
+  <p class="lt-text" id="ltText"></p>
 </section>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -854,6 +999,8 @@
   S.push(shadowW(34,332,26,26,4,.22));           // rubik's cube
   S.push(shadowW(76,328,60,42,6,.24));           // Borrowed Sunlight novel
   S.push(shadowW(516,26,30,30,5,.22));           // flower pot
+  S.push(shadowW(518,216,30,30,5,.24));          // impossible object pedestal
+  S.push(shadowW(100,102,34,34,5,.20));          // glass prism
 
   /* ---------- charm: coffee mug (est. '89) ---------- */
   var mug = cyl(72,72,0,20,36,"#c8502f");
@@ -1138,6 +1285,58 @@
     txt(32,86,"SCQCS",6,"#7d7358",MONO + ' text-anchor="middle" letter-spacing="2"'));
   S.push(wrapObj("scqcs","SCQCS security","#ff5d5d",kp));
 
+  /* ---------- mandel: the impossible object, humming over its pedestal ---------- */
+  var imp = box(520,218,0,26,26,7,"#1c1520");
+  imp += gTop(520,218,7,'<rect width="26" height="26" rx="2" fill="#241a2e" stroke="rgba(120,80,180,.35)"/>' +
+    '<circle cx="13" cy="13" r="6" fill="none" stroke="#c77dff" stroke-width="1.2" opacity=".5"/>');
+  (function(){
+    var c = P(533,231,40); // the shard floats here
+    var star = "";
+    star += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="17" fill="rgba(199,125,255,.16)" filter="url(#soft)"/>';
+    star += '<g class="bob2">';
+    // a spiky, layered rosette — the flat ghost of the bulb
+    function spikes(n, r1, r2, rot, fill, op){
+      var pts = [];
+      for (var i = 0; i < n * 2; i++){
+        var a = Math.PI * i / n + rot, r = i % 2 ? r1 : r2;
+        pts.push((c[0] + Math.cos(a) * r).toFixed(1) + "," + (c[1] + Math.sin(a) * r * .86).toFixed(1));
+      }
+      return '<polygon points="' + pts.join(" ") + '" fill="' + fill + '"' + (op ? ' opacity="' + op + '"' : "") + ' stroke="rgba(40,16,60,.5)" stroke-width=".8"/>';
+    }
+    star += spikes(7, 5.5, 15, 0.3, "#8a4fd0", ".9");
+    star += spikes(7, 4.5, 12, 0.75, "#c77dff");
+    star += spikes(7, 3.2, 8.5, 1.2, "#ff8ac2");
+    star += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="3" fill="#ffe9ff"/>';
+    star += '<circle cx="' + (c[0]+9) + '" cy="' + (c[1]-11) + '" r="1.1" fill="#e8d4ff" class="led"/>';
+    star += '<circle cx="' + (c[0]-11) + '" cy="' + (c[1]+7) + '" r=".9" fill="#e8d4ff" class="led" style="animation-delay:-1.1s"/>';
+    star += "</g>";
+    imp += star;
+  })();
+  S.push(wrapObj("mandel","The impossible object — a living fractal","#c77dff",imp));
+
+  /* ---------- prism: a wedge of glass, quietly taking light apart ---------- */
+  var pri = "";
+  (function(){
+    // rainbow caustic fanning across the desk from the prism's far side
+    var RB = ["#ff5d5d","#ff9a3d","#ffe37a","#63e6a9","#7cd7e8","#8a7dff"];
+    var fan = "";
+    for (var i = 0; i < RB.length; i++){
+      var a0 = -0.42 + i * 0.115, a1 = a0 + 0.125;
+      fan += '<path d="M0 0 L' + (46 * Math.cos(a0)).toFixed(1) + " " + (46 * Math.sin(a0)).toFixed(1) +
+        " L" + (46 * Math.cos(a1)).toFixed(1) + " " + (46 * Math.sin(a1)).toFixed(1) + ' Z" fill="' + RB[i] + '" opacity=".28"/>';
+    }
+    pri += gTop(122,124,0, '<g transform="rotate(24)">' + fan + "</g>");
+    var b = P(117,119,0); // glass wedge, standing
+    pri += '<g>' +
+      '<polygon points="' + (b[0]-15) + "," + b[1] + " " + (b[0]+15) + "," + b[1] + " " + b[0] + "," + (b[1]-27) +
+        '" fill="rgba(190,225,245,.20)" stroke="rgba(210,235,250,.75)" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<polygon points="' + (b[0]-15) + "," + b[1] + " " + (b[0]-9) + "," + (b[1]+5) + " " + (b[0]+21) + "," + (b[1]+5) + " " + (b[0]+15) + "," + b[1] +
+        '" fill="rgba(160,200,225,.30)" stroke="rgba(210,235,250,.5)" stroke-width="1.2"/>' +
+      '<path d="M' + (b[0]-6) + " " + (b[1]-6) + " L" + (b[0]-1) + " " + (b[1]-16) + '" stroke="rgba(255,255,255,.8)" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<circle cx="' + (b[0]+8) + '" cy="' + (b[1]-9) + '" r="1.1" fill="#fff" class="led"/></g>';
+  })();
+  S.push(wrapObj("prism","A glass prism — light, taken apart","#ff5fd0",pri));
+
   /* ---------- vinyl→CD: open jewel case, Echoes of Us ---------- */
   var jc = box(382,278,0,92,7,64,"#7e858c");                       // lid standing open
   jc += gLeft(382,285,64,
@@ -1361,6 +1560,17 @@
       noise({filter:"highpass", freq:2400, dur:0.02, g:0.10});
       tone(760, {type:"triangle", at:0.02, dur:0.05, g:0.06});
     },
+    prism: function(){ // glass, struck gently by light
+      tone(1568, {type:"triangle", dur:0.35, g:0.05});
+      tone(2093, {type:"triangle", at:0.07, dur:0.4, g:0.04});
+      tone(3136, {type:"sine", at:0.15, dur:0.5, g:0.025});
+    },
+    mandel: function(){ // a deep hum from somewhere outside geometry
+      tone(55, {type:"sine", dur:1.4, g:0.07});
+      tone(82.4, {type:"sine", dur:1.4, g:0.05});
+      tone(1244, {type:"sine", at:0.25, dur:0.5, g:0.025});
+      tone(1864, {type:"sine", at:0.45, dur:0.6, g:0.02});
+    },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
       tone(880,  {type:"square", at:0.05, dur:0.09, g:0.05});
@@ -1499,6 +1709,8 @@
     if (!dossier.classList.contains("show")) dossier.hidden = true;
     if (!browser.classList.contains("show")) browser.hidden = true;
     if (!cubeStage.classList.contains("show")) cubeStage.hidden = true;
+    if (!mandelStage.classList.contains("show")) mandelStage.hidden = true;
+    if (!lightStage.classList.contains("show")) lightStage.hidden = true;
   }
   function scheduleHide(el, ms){
     var done = function(){ hideTimer = null; scrim.hidden = true; el.hidden = true; };
@@ -2094,24 +2306,549 @@
     frame: function(face, deg){ csRedraw([face, deg]); } // freeze one animation frame (testing)
   };
 
+  /* ================================================================
+     THE IMPOSSIBLE OBJECT — a Mandelbulb, ray-marched live on the GPU
+     by one hand-written fragment shader on raw WebGL. Every pixel
+     casts a ray and walks it toward a surface that exists only as a
+     distance estimate: DE(p) = 0.5·log(r)·r/dr for z → z^power + c.
+     ================================================================ */
+  var mandelStage = document.getElementById("mandelStage");
+  var MN = {
+    gl:null, canvas:null, inited:false, fail:false, raf:null,
+    yaw:0.7, pitch:-0.22, dist:3.1, power:8, scale:0.7,
+    ptrs:{}, lastPinch:0, lastT:0, slow:0
+  };
+  var MN_VS = "attribute vec2 aP; void main(){ gl_Position = vec4(aP,0.0,1.0); }";
+  var MN_FS =
+    "precision highp float;\n" +
+    "uniform vec2 uRes; uniform float uPower,uDist,uYaw,uPitch;\n" +
+    "float mapT(vec3 p, out float trap){\n" +
+    "  vec3 z = p; float dr = 1.0; float r = length(z); trap = 1e9;\n" +
+    "  for (int i = 0; i < 9; i++){\n" +
+    "    r = max(length(z), 1e-6);\n" +
+    "    trap = min(trap, r);\n" +
+    "    if (r > 2.0) break;\n" +
+    "    float th = acos(clamp(z.z/r, -1.0, 1.0)) * uPower;\n" +
+    "    float ph = atan(z.y, z.x) * uPower;\n" +
+    "    float zr = pow(r, uPower);\n" +
+    "    dr = pow(r, uPower - 1.0) * uPower * dr + 1.0;\n" +
+    "    z = zr * vec3(sin(th)*cos(ph), sin(th)*sin(ph), cos(th)) + p;\n" +
+    "  }\n" +
+    "  return 0.5 * log(r) * r / dr;\n" +
+    "}\n" +
+    "float map(vec3 p){ float t; return mapT(p, t); }\n" +
+    "void main(){\n" +
+    "  vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / uRes.y;\n" +
+    "  float cy = cos(uYaw), sy = sin(uYaw), cp = cos(uPitch), sp = sin(uPitch);\n" +
+    "  vec3 ro = vec3(uDist*cp*sy, uDist*sp, uDist*cp*cy);\n" +
+    "  vec3 ww = normalize(-ro);\n" +
+    "  vec3 uu = normalize(cross(vec3(0.0,1.0,0.0), ww));\n" +
+    "  vec3 vv = cross(ww, uu);\n" +
+    "  vec3 rd = normalize(uv.x*uu + uv.y*vv + 1.7*ww);\n" +
+    "  float t = max(uDist - 2.2, 0.0);\n" +
+    "  float trap = 1e9, glow = 0.0, ao = 1.0; bool hit = false;\n" +
+    "  for (int i = 0; i < 110; i++){\n" +
+    "    vec3 pos = ro + rd * t;\n" +
+    "    float tp; float d = mapT(pos, tp);\n" +
+    "    glow += exp(-22.0 * abs(d));\n" +
+    "    if (d < 0.0008 * t + 0.00015){ hit = true; trap = tp; ao = 1.0 - float(i)/110.0; break; }\n" +
+    "    t += d * 0.85;\n" +
+    "    if (t > 9.0) break;\n" +
+    "  }\n" +
+    "  vec3 col = vec3(0.045, 0.033, 0.028);\n" +
+    "  col += vec3(0.78, 0.49, 1.0) * glow * 0.006;\n" +
+    "  if (hit){\n" +
+    "    vec3 pos = ro + rd * t;\n" +
+    "    vec2 e = vec2(max(0.0009 * t, 0.0004), 0.0);\n" +
+    "    vec3 n = normalize(vec3(\n" +
+    "      map(pos + e.xyy) - map(pos - e.xyy),\n" +
+    "      map(pos + e.yxy) - map(pos - e.yxy),\n" +
+    "      map(pos + e.yyx) - map(pos - e.yyx)));\n" +
+    "    float m = clamp(trap * 0.85, 0.0, 1.0);\n" +
+    "    vec3 base = mix(vec3(0.30,0.10,0.46), vec3(0.78,0.49,1.0), m);\n" +
+    "    base = mix(base, vec3(1.0,0.79,0.48), pow(m, 6.0) * 0.7);\n" +
+    "    vec3 keyL = normalize(vec3(-0.5, 0.8, 0.35));\n" +
+    "    vec3 filL = normalize(vec3(0.6, -0.2, -0.7));\n" +
+    "    float dif = clamp(dot(n, keyL), 0.0, 1.0);\n" +
+    "    float fil = clamp(dot(n, filL), 0.0, 1.0);\n" +
+    "    float rim = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);\n" +
+    "    float aoc = ao * ao;\n" +
+    "    col = base * (vec3(0.16) + 0.95 * dif * vec3(1.0,0.88,0.72)) * aoc;\n" +
+    "    col += base * fil * vec3(0.30,0.20,0.50) * aoc;\n" +
+    "    col += rim * vec3(0.85,0.55,1.0) * 0.45 * aoc;\n" +
+    "    vec3 hf = normalize(keyL - rd);\n" +
+    "    col += pow(clamp(dot(n, hf), 0.0, 1.0), 32.0) * vec3(1.0,0.9,0.8) * 0.35 * aoc;\n" +
+    "  }\n" +
+    "  float vig = 1.0 - 0.35 * dot(uv, uv);\n" +
+    "  col *= vig;\n" +
+    "  gl_FragColor = vec4(pow(clamp(col, 0.0, 1.0), vec3(0.4545)), 1.0);\n" +
+    "}";
+  function mnInit(){
+    if (MN.inited) return !MN.fail;
+    MN.inited = true;
+    MN.canvas = document.getElementById("mnCanvas");
+    var gl = MN.canvas.getContext("webgl", {antialias:false, depth:false, stencil:false}) ||
+             MN.canvas.getContext("experimental-webgl");
+    if (!gl){ MN.fail = true; return false; }
+    function sh(type, src){
+      var s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || "shader");
+      return s;
+    }
+    try {
+      var pr = gl.createProgram();
+      gl.attachShader(pr, sh(gl.VERTEX_SHADER, MN_VS));
+      gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, MN_FS));
+      gl.linkProgram(pr);
+      if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr) || "link");
+      gl.useProgram(pr);
+      var buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(pr, "aP");
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      MN.gl = gl;
+      MN.u = {
+        res: gl.getUniformLocation(pr, "uRes"),
+        power: gl.getUniformLocation(pr, "uPower"),
+        dist: gl.getUniformLocation(pr, "uDist"),
+        yaw: gl.getUniformLocation(pr, "uYaw"),
+        pitch: gl.getUniformLocation(pr, "uPitch")
+      };
+    } catch(err){ MN.fail = true; return false; }
+    return true;
+  }
+  function mnResize(){
+    var c = MN.canvas, dpr = Math.min(devicePixelRatio || 1, 2);
+    var px = Math.max(1, Math.round(c.clientWidth * dpr * MN.scale));
+    if (c.width !== px){ c.width = px; c.height = px; }
+  }
+  function mnDraw(){
+    var gl = MN.gl; if (!gl) return;
+    mnResize();
+    gl.viewport(0, 0, MN.canvas.width, MN.canvas.height);
+    gl.uniform2f(MN.u.res, MN.canvas.width, MN.canvas.height);
+    gl.uniform1f(MN.u.power, MN.power);
+    gl.uniform1f(MN.u.dist, MN.dist);
+    gl.uniform1f(MN.u.yaw, MN.yaw);
+    gl.uniform1f(MN.u.pitch, MN.pitch);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  function mnFrame(now){
+    if (mandelStage.hidden){ MN.raf = null; return; }
+    var dt = MN.lastT ? Math.min(now - MN.lastT, 100) : 16;
+    MN.lastT = now;
+    // adaptive quality: drop the internal resolution if the GPU is straining
+    if (dt > 40 && MN.scale > 0.35){ MN.slow++; if (MN.slow > 8){ MN.scale *= 0.85; MN.slow = 0; } }
+    else if (dt < 20 && MN.scale < 0.8){ MN.slow--; if (MN.slow < -30){ MN.scale = Math.min(0.8, MN.scale * 1.1); MN.slow = 0; } }
+    if (!REDUCED && !MN.dragging) MN.yaw += dt * 0.00012;
+    mnDraw();
+    MN.raf = requestAnimationFrame(mnFrame);
+  }
+  function openMandel(){
+    lastFocus = document.activeElement;
+    cancelHide();
+    pickObjects("mandel");
+    markFound("mandel");
+    setActivePill("mandel");
+    setBackgroundInert(true);
+    scrim.hidden = false; mandelStage.hidden = false;
+    requestAnimationFrame(function(){ scrim.classList.add("show"); mandelStage.classList.add("show"); });
+    if (!mnInit()){
+      document.getElementById("mnNote").textContent = "this device kept its GPU to itself — the object stays in your imagination";
+    } else if (!MN.raf){
+      MN.lastT = 0;
+      MN.raf = requestAnimationFrame(mnFrame);
+    }
+    if (SOUNDS.mandel) SOUNDS.mandel();
+    document.getElementById("mnClose").focus();
+  }
+  function closeMandel(){
+    cancelHide();
+    clearPicked();
+    setActivePill(null);
+    scrim.classList.remove("show"); mandelStage.classList.remove("show");
+    scheduleHide(mandelStage, 320);
+    setBackgroundInert(false);
+    if (MN.raf){ cancelAnimationFrame(MN.raf); MN.raf = null; }
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.getElementById("mnClose").addEventListener("click", function(){ SOUNDS.hover(); closeMandel(); });
+  (function(){
+    var c = document.getElementById("mnCanvas");
+    c.addEventListener("pointerdown", function(e){
+      MN.ptrs[e.pointerId] = [e.clientX, e.clientY];
+      MN.dragging = true;
+      c.setPointerCapture(e.pointerId);
+    });
+    c.addEventListener("pointermove", function(e){
+      if (!MN.ptrs[e.pointerId]) return;
+      var ids = Object.keys(MN.ptrs);
+      if (ids.length === 2){ // pinch to zoom
+        MN.ptrs[e.pointerId] = [e.clientX, e.clientY];
+        var a = MN.ptrs[ids[0]], b = MN.ptrs[ids[1]];
+        var d = Math.hypot(a[0]-b[0], a[1]-b[1]);
+        if (MN.lastPinch) MN.dist = Math.min(6, Math.max(1.6, MN.dist * MN.lastPinch / d));
+        MN.lastPinch = d;
+        return;
+      }
+      var p = MN.ptrs[e.pointerId];
+      MN.yaw += (e.clientX - p[0]) * 0.008;
+      MN.pitch = Math.min(1.35, Math.max(-1.35, MN.pitch - (e.clientY - p[1]) * 0.006));
+      MN.ptrs[e.pointerId] = [e.clientX, e.clientY];
+    });
+    function up(e){
+      delete MN.ptrs[e.pointerId];
+      MN.lastPinch = 0;
+      if (!Object.keys(MN.ptrs).length) MN.dragging = false;
+    }
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", up);
+    c.addEventListener("wheel", function(e){
+      e.preventDefault();
+      MN.dist = Math.min(6, Math.max(1.6, MN.dist * (e.deltaY > 0 ? 1.08 : 0.93)));
+    }, {passive:false});
+  })();
+  var mnPowerEl = document.getElementById("mnPower");
+  mnPowerEl.addEventListener("input", function(){
+    MN.power = parseFloat(mnPowerEl.value);
+    document.getElementById("mnPowerVal").textContent = MN.power.toFixed(1);
+  });
+  window.KM_MANDEL = {
+    ok: function(){ return MN.inited && !MN.fail; },
+    sample: function(){ // render one frame and measure mean brightness (testing)
+      if (!MN.gl) return -1;
+      mnDraw();
+      var gl = MN.gl, w = MN.canvas.width, h = MN.canvas.height;
+      var px = new Uint8Array(4 * 64 * 64);
+      gl.readPixels((w-64)>>1, (h-64)>>1, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      var sum = 0;
+      for (var i = 0; i < px.length; i += 4) sum += px[i] + px[i+1] + px[i+2];
+      return sum / (64 * 64 * 3);
+    }
+  };
+
+  /* ================================================================
+     THE LIGHT BENCH — color theory, hand-rolled on a 2D canvas.
+     Mixing: additive RGB spotlights vs subtractive CMY pigment,
+     flipped by an actual light switch. Bench: a white laser traced
+     through a prism with per-wavelength Snell refraction (dispersion),
+     bounced off a mirror, glowing additively.
+     ================================================================ */
+  var lightStage = document.getElementById("lightStage");
+  var LT = {
+    ctx:null, canvas:null, raf:null, mode:"mix", additive:true, t:0,
+    drag:null, W:640, H:480,
+    lights:[{x:230,y:200,c:"#ff2a2a"},{x:410,y:200,c:"#26e626"},{x:320,y:330,c:"#2a6bff"}],
+    pigs:  [{x:230,y:200,c:"#00b7c9"},{x:410,y:200,c:"#e6007e"},{x:320,y:330,c:"#f2d500"}],
+    laser:{x:170,y:40,ang:1.15},
+    priC:{x:300,y:250}, priR:74,
+    mir:{x:470,y:360,ang:-0.55,len:170}
+  };
+  function ltCtx(){
+    if (LT.ctx) return LT.ctx;
+    LT.canvas = document.getElementById("ltCanvas");
+    LT.canvas.width = LT.W; LT.canvas.height = LT.H;
+    LT.ctx = LT.canvas.getContext("2d");
+    return LT.ctx;
+  }
+  function ltPrismEdges(){
+    var e = [], c = LT.priC;
+    for (var i = 0; i < 3; i++){
+      var a0 = -Math.PI/2 + i * 2.0944, a1 = -Math.PI/2 + (i+1) * 2.0944;
+      e.push([c.x + LT.priR*Math.cos(a0), c.y + LT.priR*Math.sin(a0),
+              c.x + LT.priR*Math.cos(a1), c.y + LT.priR*Math.sin(a1)]);
+    }
+    return e;
+  }
+  function ltMirrorSeg(){
+    var m = LT.mir, dx = Math.cos(m.ang)*m.len/2, dy = Math.sin(m.ang)*m.len/2;
+    return [m.x-dx, m.y-dy, m.x+dx, m.y+dy];
+  }
+  function ltHitSeg(px,py,dx,dy, s){
+    var ex = s[2]-s[0], ey = s[3]-s[1];
+    var den = dx*ey - dy*ex;
+    if (Math.abs(den) < 1e-9) return null;
+    var t = ((s[0]-px)*ey - (s[1]-py)*ex) / den;
+    var u = ((s[0]-px)*dy - (s[1]-py)*dx) / den;
+    if (t > 1e-4 && u >= 0 && u <= 1) return {t:t, nx:-ey, ny:ex};
+    return null;
+  }
+  function ltRefract(dx,dy, nx,ny, eta){
+    var ci = -(dx*nx + dy*ny);
+    var s2 = eta*eta*(1 - ci*ci);
+    if (s2 > 1) return null; // total internal reflection
+    var k = eta*ci - Math.sqrt(1 - s2);
+    return [eta*dx + k*nx, eta*dy + k*ny];
+  }
+  function ltTrace(ctx){
+    var edges = ltPrismEdges(), mir = ltMirrorSeg();
+    var shimmer = REDUCED ? 0 : LT.t;
+    function cast(px,py,dx,dy, color, width, inPrism, depth, splitDone, nIdx){
+      if (depth > 8) return;
+      var best = null, kind = "";
+      for (var i = 0; i < 3; i++){
+        var h = ltHitSeg(px,py,dx,dy, edges[i]);
+        if (h && (!best || h.t < best.t)){ best = h; kind = "prism"; }
+      }
+      var hm = ltHitSeg(px,py,dx,dy, mir);
+      if (hm && (!best || hm.t < best.t)){ best = hm; kind = "mirror"; }
+      var tEnd = best ? best.t : 2000;
+      var qx = px + dx*tEnd, qy = py + dy*tEnd;
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.30; ctx.lineWidth = width*3.4;   // continuous glow
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(qx,qy); ctx.stroke();
+      ctx.globalAlpha = 0.95; ctx.lineWidth = width;       // bright core, energy flowing
+      ctx.setLineDash([16, 6]);
+      ctx.lineDashOffset = -shimmer * 0.09;
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(qx,qy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      if (!best){
+        var g = ctx.createRadialGradient(qx,qy,0,qx,qy,26);
+        g.addColorStop(0, color); g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.5; ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(qx,qy,26,0,7); ctx.fill();
+        ctx.globalAlpha = 1;
+        return;
+      }
+      var nl = Math.hypot(best.nx, best.ny), nx = best.nx/nl, ny = best.ny/nl;
+      if (dx*nx + dy*ny > 0){ nx = -nx; ny = -ny; } // normal against the ray
+      if (kind === "mirror"){
+        var dot = dx*nx + dy*ny;
+        cast(qx,qy, dx - 2*dot*nx, dy - 2*dot*ny, color, width, inPrism, depth+1, splitDone, nIdx);
+        return;
+      }
+      // prism edge
+      if (!inPrism && !splitDone){
+        // white light enters: split into the spectrum, each wavelength
+        // carrying its own refractive index from here on
+        for (var k = 0; k < 12; k++){
+          var f = k/11;
+          var n = 1.38 + 0.18*f; // violet bends more (exaggerated to teach)
+          var rr = ltRefract(dx,dy, nx,ny, 1/n);
+          if (!rr) continue;
+          var hue = 356 - 300*f;
+          cast(qx,qy, rr[0], rr[1], "hsl(" + hue + ",100%,60%)", 1.5, true, depth+1, true, n);
+        }
+        // faint white partial reflection off the face
+        var dt = dx*nx + dy*ny;
+        cast(qx,qy, dx - 2*dt*nx, dy - 2*dt*ny, "rgba(255,246,230,.35)", 1, false, depth+3, true, 1.45);
+        return;
+      }
+      var n2 = nIdx || 1.45;
+      var eta = inPrism ? n2 : 1/n2;
+      var r2 = ltRefract(dx,dy, nx,ny, eta);
+      if (!r2){ // total internal reflection inside the glass
+        var d2 = dx*nx + dy*ny;
+        cast(qx,qy, dx - 2*d2*nx, dy - 2*d2*ny, color, width, inPrism, depth+1, splitDone, nIdx);
+        return;
+      }
+      cast(qx,qy, r2[0], r2[1], color, width, !inPrism, depth+1, splitDone, nIdx);
+    }
+    cast(LT.laser.x, LT.laser.y, Math.cos(LT.laser.ang), Math.sin(LT.laser.ang), "#fff6e6", 2.6, false, 0, false, 0);
+  }
+  function ltDraw(){
+    var ctx = ltCtx();
+    if (LT.mode === "mix"){
+      var add = LT.additive;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = add ? "#050505" : "#f2ecdd";
+      ctx.fillRect(0,0,LT.W,LT.H);
+      ctx.globalCompositeOperation = add ? "lighter" : "multiply";
+      var set = add ? LT.lights : LT.pigs;
+      var R = 150;
+      for (var i = 0; i < 3; i++){
+        var L = set[i];
+        var wob = REDUCED ? 0 : Math.sin(LT.t*0.0011 + i*2.1) * 3;
+        var g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, R + wob);
+        if (add){
+          g.addColorStop(0, L.c);
+          g.addColorStop(0.75, L.c);
+          g.addColorStop(1, "rgba(0,0,0,0)");
+        } else {
+          g.addColorStop(0, L.c);
+          g.addColorStop(0.78, L.c);
+          g.addColorStop(1, "#ffffff");
+        }
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(L.x, L.y, R + wob, 0, 7); ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#050505";
+      ctx.fillRect(0,0,LT.W,LT.H);
+      ctx.globalCompositeOperation = "lighter";
+      ltTrace(ctx);
+      ctx.globalCompositeOperation = "source-over";
+      // prism glass
+      var e = ltPrismEdges();
+      ctx.beginPath();
+      ctx.moveTo(e[0][0], e[0][1]); ctx.lineTo(e[1][0], e[1][1]); ctx.lineTo(e[2][0], e[2][1]);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(170,215,240,.09)";
+      ctx.strokeStyle = "rgba(205,235,250,.6)";
+      ctx.lineWidth = 1.6; ctx.fill(); ctx.stroke();
+      // mirror
+      var m = ltMirrorSeg();
+      ctx.strokeStyle = "#cfd8e6"; ctx.lineWidth = 4; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(m[0],m[1]); ctx.lineTo(m[2],m[3]); ctx.stroke();
+      ctx.strokeStyle = "rgba(120,130,150,.5)"; ctx.lineWidth = 1.6;
+      var bx = Math.sin(LT.mir.ang)*5, by = -Math.cos(LT.mir.ang)*5;
+      ctx.beginPath(); ctx.moveTo(m[0]-bx,m[1]-by); ctx.lineTo(m[2]-bx,m[3]-by); ctx.stroke();
+      // laser body + aim handle
+      ctx.save();
+      ctx.translate(LT.laser.x, LT.laser.y); ctx.rotate(LT.laser.ang);
+      ctx.fillStyle = "#2a2330";
+      ctx.strokeStyle = "rgba(255,95,208,.6)"; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-26, -9, 40, 18, 5); else ctx.rect(-26, -9, 40, 18);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#ff5fd0";
+      ctx.beginPath(); ctx.arc(22, 0, 5, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  }
+  function ltFrame(now){
+    if (lightStage.hidden){ LT.raf = null; return; }
+    LT.t = now;
+    ltDraw();
+    if (REDUCED && !LT.drag){ LT.raf = null; return; } // static unless interacting
+    LT.raf = requestAnimationFrame(ltFrame);
+  }
+  var LT_TEXT = {
+    add: 'The switch is set to <b>light</b>. Screens speak this language: red, green and blue <i>add</i>. Drag the lamps — where two overlap you get cyan, magenta or yellow, and where all three agree, light climbs all the way to white.',
+    sub: 'The switch is set to <b>pigment</b>. Ink and paint <i>subtract</i>: cyan, magenta and yellow each soak up a band of light. Drag them — overlaps fall to red, green and blue, and where all three pile up, darkness pools toward black.',
+    bench: 'White light is a chord, not a note. Inside the crystal each wavelength bends by its own amount — violet the most — so the chord opens into a spectrum (Snell&rsquo;s law, computed per ray). Drag the <b>laser</b> to aim it, drag the <b>crystal</b>, drag the <b>mirror</b> and bounce the rainbow.'
+  };
+  function ltRefreshText(){
+    document.getElementById("ltText").innerHTML =
+      LT.mode === "mix" ? (LT.additive ? LT_TEXT.add : LT_TEXT.sub) : LT_TEXT.bench;
+    document.getElementById("ltSwitchRow").style.display = LT.mode === "mix" ? "flex" : "none";
+    document.getElementById("ltTabMix").classList.toggle("on", LT.mode === "mix");
+    document.getElementById("ltTabBench").classList.toggle("on", LT.mode === "bench");
+  }
+  function ltKick(){ if (!LT.raf && !lightStage.hidden) LT.raf = requestAnimationFrame(ltFrame); }
+  document.getElementById("ltTabMix").addEventListener("click", function(){ LT.mode = "mix"; ltRefreshText(); ltDraw(); ltKick(); });
+  document.getElementById("ltTabBench").addEventListener("click", function(){ LT.mode = "bench"; ltRefreshText(); ltDraw(); ltKick(); });
+  document.getElementById("ltSwitch").addEventListener("click", function(){
+    LT.additive = !LT.additive;
+    this.classList.toggle("on", LT.additive);
+    this.setAttribute("aria-checked", String(LT.additive));
+    if (SOUNDS.hover) SOUNDS.hover();
+    ltRefreshText(); ltDraw(); ltKick();
+  });
+  (function(){
+    var c = document.getElementById("ltCanvas");
+    function pos(e){
+      var r = c.getBoundingClientRect();
+      return [ (e.clientX - r.left) * LT.W / r.width, (e.clientY - r.top) * LT.H / r.height ];
+    }
+    c.addEventListener("pointerdown", function(e){
+      var p = pos(e), best = null, bd = 1e9, d;
+      if (LT.mode === "mix"){
+        var set = LT.additive ? LT.lights : LT.pigs;
+        for (var i = 0; i < 3; i++){
+          d = Math.hypot(p[0]-set[i].x, p[1]-set[i].y);
+          if (d < bd){ bd = d; best = {kind:"light", i:i}; }
+        }
+      } else {
+        d = Math.hypot(p[0]-LT.priC.x, p[1]-LT.priC.y);
+        if (d < bd){ bd = d; best = {kind:"prism"}; }
+        d = Math.hypot(p[0]-LT.mir.x, p[1]-LT.mir.y);
+        if (d < bd){ bd = d; best = {kind:"mirror"}; }
+        d = Math.hypot(p[0]-LT.laser.x, p[1]-LT.laser.y) - 30;
+        if (d < bd){ bd = d; best = {kind:"laser"}; }
+      }
+      LT.drag = best;
+      c.setPointerCapture(e.pointerId);
+      ltKick();
+    });
+    c.addEventListener("pointermove", function(e){
+      if (!LT.drag) return;
+      var p = pos(e);
+      var cl = function(v, lo, hi){ return Math.min(hi, Math.max(lo, v)); };
+      if (LT.drag.kind === "light"){
+        var set = LT.additive ? LT.lights : LT.pigs;
+        set[LT.drag.i].x = cl(p[0], 20, LT.W-20);
+        set[LT.drag.i].y = cl(p[1], 20, LT.H-20);
+      } else if (LT.drag.kind === "prism"){
+        LT.priC.x = cl(p[0], 110, LT.W-90); LT.priC.y = cl(p[1], 110, LT.H-90);
+      } else if (LT.drag.kind === "mirror"){
+        LT.mir.x = cl(p[0], 40, LT.W-30); LT.mir.y = cl(p[1], 60, LT.H-30);
+      } else if (LT.drag.kind === "laser"){
+        LT.laser.ang = Math.atan2(p[1]-LT.laser.y, p[0]-LT.laser.x);
+      }
+      if (REDUCED) ltDraw();
+    });
+    function up(){ LT.drag = null; }
+    c.addEventListener("pointerup", up);
+    c.addEventListener("pointercancel", up);
+  })();
+  function openLight(){
+    lastFocus = document.activeElement;
+    cancelHide();
+    pickObjects("prism");
+    markFound("prism");
+    setActivePill("prism");
+    setBackgroundInert(true);
+    scrim.hidden = false; lightStage.hidden = false;
+    requestAnimationFrame(function(){ scrim.classList.add("show"); lightStage.classList.add("show"); });
+    ltCtx();
+    ltRefreshText();
+    ltDraw();
+    ltKick();
+    if (SOUNDS.prism) SOUNDS.prism();
+    document.getElementById("ltClose").focus();
+  }
+  function closeLight(){
+    cancelHide();
+    clearPicked();
+    setActivePill(null);
+    scrim.classList.remove("show"); lightStage.classList.remove("show");
+    scheduleHide(lightStage, 320);
+    setBackgroundInert(false);
+    if (LT.raf){ cancelAnimationFrame(LT.raf); LT.raf = null; }
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.getElementById("ltClose").addEventListener("click", function(){ SOUNDS.hover(); closeLight(); });
+  window.KM_LIGHT = {
+    mode: function(){ return LT.mode + "/" + (LT.additive ? "add" : "sub"); },
+    sample: function(){ // mean rgb of the canvas center (testing)
+      ltDraw();
+      var d = ltCtx().getImageData(LT.W/2 - 32, LT.H/2 - 32, 64, 64).data;
+      var r = 0, g = 0, b = 0;
+      for (var i = 0; i < d.length; i += 4){ r += d[i]; g += d[i+1]; b += d[i+2]; }
+      var n = d.length/4;
+      return [r/n, g/n, b/n];
+    }
+  };
+
   function activeModal(){
     if (!dossier.hidden) return dossier;
     if (!browser.hidden) return browser;
     if (!cubeStage.hidden) return cubeStage;
+    if (!mandelStage.hidden) return mandelStage;
+    if (!lightStage.hidden) return lightStage;
     return null;
   }
   function closeModal(){
     if (!dossier.hidden) closeWorld();
     else if (!browser.hidden) closeBrowser();
     else if (!cubeStage.hidden) closeCubeGame();
+    else if (!mandelStage.hidden) closeMandel();
+    else if (!lightStage.hidden) closeLight();
   }
   document.getElementById("dClose").addEventListener("click", function(){
     SOUNDS.hover(); closeWorld();
   });
   scrim.addEventListener("click", function(){
-    /* a stray tap outside shouldn't end the cube lesson — it closes only
-       via "Put it back" or Escape */
-    if (!cubeStage.hidden) return;
+    /* a stray tap outside shouldn't end the cube lesson or drop the
+       fractal — those close only via their button or Escape */
+    if (!cubeStage.hidden || !mandelStage.hidden || !lightStage.hidden) return;
     closeModal();
   });
   document.addEventListener("keydown", function(e){
@@ -2119,7 +2856,7 @@
     if (!m) return;
     if (e.key === "Escape"){ closeModal(); return; }
     if (e.key === "Tab"){ // keep focus inside the open dialog
-      var f = m.querySelectorAll("button, a[href]");
+      var f = m.querySelectorAll("button, a[href], input");
       if (!f.length) return;
       var first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
@@ -2156,6 +2893,8 @@
       if (SOUNDS[id]) SOUNDS[id]();
       if (id === "web") openBrowser();
       else if (id === "cube") openCubeGame();
+      else if (id === "mandel") openMandel();
+      else if (id === "prism") openLight();
       else openWorld(id, accent);
     });
     btn.addEventListener("keydown", function(e){
@@ -2171,7 +2910,9 @@
     btn.addEventListener("click", function(){
       ac(true);
       if (SOUNDS[id]) SOUNDS[id]();
-      openWorld(id, accent);
+      if (id === "mandel") openMandel();
+      else if (id === "prism") openLight();
+      else openWorld(id, accent);
     });
   });
 
