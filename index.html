@@ -119,6 +119,15 @@
   .iso-obj:hover,.iso-obj:focus-visible{
     filter:drop-shadow(0 0 14px color-mix(in srgb, var(--a) 55%, transparent));
   }
+  .iso-obj.picked > *{transform:translateY(-8px)}
+  .iso-obj.picked{
+    filter:drop-shadow(0 0 8px var(--a)) drop-shadow(0 0 22px var(--a));
+    animation:pickedPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pickedPulse{
+    0%,100%{filter:drop-shadow(0 0 5px var(--a)) drop-shadow(0 0 14px var(--a))}
+    50%{filter:drop-shadow(0 0 12px var(--a)) drop-shadow(0 0 30px var(--a))}
+  }
   .tip{
     position:absolute;z-index:6;
     transform:translate(-50%,-100%);
@@ -217,6 +226,11 @@
     opacity:0;transition:opacity .3s ease;
   }
   .scrim.show{opacity:1}
+  /* soft spotlight hole over the picked object so it stays lit while the room dims */
+  .scrim.spot{
+    -webkit-mask-image:radial-gradient(circle at var(--sx,50%) var(--sy,40%), transparent var(--sr,80px), #000 calc(var(--sr,80px)*2.6));
+    mask-image:radial-gradient(circle at var(--sx,50%) var(--sy,40%), transparent var(--sr,80px), #000 calc(var(--sr,80px)*2.6));
+  }
   .dossier{
     position:fixed;left:50%;bottom:0;z-index:41;
     transform:translate(-50%,105%);
@@ -338,6 +352,7 @@
   @media (prefers-reduced-motion:reduce){
     #iso{transform:none !important}
     .iso-obj > *,.dossier,.scrim{transition:none}
+    .iso-obj.picked{animation:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     html{scroll-behavior:auto}
   }
@@ -1204,6 +1219,36 @@
   function setBackgroundInert(on){
     bgEls.forEach(function(el){ el.inert = on; });
   }
+  /* highlight the object(s) a dialog belongs to, and pan it into view
+     so a legend tag always points back at something on the desk */
+  var pickedEls = [];
+  function clearPicked(){
+    pickedEls.forEach(function(el){ el.classList.remove("picked"); });
+    pickedEls = [];
+    scrim.classList.remove("spot");
+  }
+  function pickObjects(id){
+    clearPicked();
+    document.querySelectorAll('.iso-obj[data-id="' + id + '"]').forEach(function(el){
+      el.classList.add("picked");
+      pickedEls.push(el);
+    });
+    if (!pickedEls.length) return;
+    var el = pickedEls[0];
+    var r = el.getBoundingClientRect();
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (wrap.scrollWidth > wrap.clientWidth){
+      var w = wrap.getBoundingClientRect();
+      var target = Math.max(0, Math.min(wrap.scrollWidth - wrap.clientWidth,
+        wrap.scrollLeft + cx - (w.left + w.width / 2)));
+      cx -= target - wrap.scrollLeft; // where the object lands once the pan settles
+      wrap.scrollTo({ left: target, behavior: REDUCED ? "auto" : "smooth" });
+    }
+    scrim.classList.add("spot");
+    scrim.style.setProperty("--sx", cx.toFixed(0) + "px");
+    scrim.style.setProperty("--sy", cy.toFixed(0) + "px");
+    scrim.style.setProperty("--sr", (Math.max(r.width, r.height) / 2 + 30).toFixed(0) + "px");
+  }
   function openWorld(id, accent){
     var w = WORLDS[id]; if (!w) return;
     lastFocus = document.activeElement;
@@ -1225,6 +1270,7 @@
       links.appendChild(a);
     });
     cancelHide();
+    pickObjects(id);
     setBackgroundInert(true);
     scrim.hidden = false; dossier.hidden = false;
     requestAnimationFrame(function(){
@@ -1234,6 +1280,7 @@
   }
   function closeWorld(){
     cancelHide();
+    clearPicked();
     scrim.classList.remove("show"); dossier.classList.remove("show");
     scheduleHide(dossier, 460);
     setBackgroundInert(false);
@@ -1272,6 +1319,7 @@
   function openBrowser(){
     lastFocus = document.activeElement;
     cancelHide();
+    pickObjects("web");
     setBackgroundInert(true);
     scrim.hidden = false; browser.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); browser.classList.add("show"); });
@@ -1279,6 +1327,7 @@
   }
   function closeBrowser(){
     cancelHide();
+    clearPicked();
     scrim.classList.remove("show"); browser.classList.remove("show");
     scheduleHide(browser, 320);
     setBackgroundInert(false);
