@@ -1,0 +1,25 @@
+# kmay89.com — static site, no build step
+[build]
+  publish = "."
+
+# Canonical host: send www to the apex domain
+[[redirects]]
+  from = "https://www.kmay89.com/*"
+  to = "https://kmay89.com/:splat"
+  status = 301
+  force = true
+
+# Security headers for every page
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+
+# The social preview image rarely changes; let it cache hard
+[[headers]]
+  for = "/og-image.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"

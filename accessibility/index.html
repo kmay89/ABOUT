@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Accessibility statement for kmay89.com — how the desk works with keyboards, screen readers, and reduced motion, and how to report problems.">
+<meta name="theme-color" content="#0e0a07">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://kmay89.com/accessibility/">
+<title>Accessibility — Karl Meves</title>
+<style>
+  :root{
+    --room:#0e0a07;--lamp:#ffc97a;--ink:#f4e9d8;--ink-dim:#b9a88f;--ink-faint:#7e6f5b;
+    --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(120% 90% at 62% -10%, rgba(255,201,122,.12), transparent 55%),
+      var(--room);
+    color:var(--ink);font-family:var(--serif);min-height:100vh;
+    padding:clamp(1.5rem,5vw,4rem) clamp(1.25rem,6vw,5rem);
+  }
+  ::selection{background:var(--lamp);color:var(--room)}
+  main{max-width:40rem;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;color:var(--lamp);text-transform:uppercase}
+  h1{margin:.9rem 0 1.25rem;font-size:clamp(1.8rem,4.5vw,2.6rem);line-height:1.1;font-weight:600}
+  h2{margin:2rem 0 .6rem;font-size:1.15rem;color:var(--lamp);font-weight:600}
+  p{margin:.7rem 0;color:var(--ink-dim);line-height:1.65}
+  ul{margin:.7rem 0 .7rem 1.2rem;color:var(--ink-dim);line-height:1.65}
+  li{margin:.35rem 0}
+  a{color:var(--lamp)}
+  .back{display:inline-block;margin-bottom:2rem;font-family:var(--mono);font-size:.8rem;color:var(--ink-dim);text-decoration:none;border:1px solid var(--ink-faint);border-radius:999px;padding:.35rem .9rem}
+  .back:hover{color:var(--lamp);border-color:var(--lamp)}
+  footer{max-width:40rem;margin:3rem auto 0;padding-top:1.5rem;border-top:1px solid rgba(255,201,122,.15);font-family:var(--mono);font-size:.75rem;color:var(--ink-faint)}
+  footer a{color:var(--ink-dim);text-decoration:none;margin-right:1rem}
+  footer a:hover{color:var(--lamp)}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; Back to the desk</a>
+  <p class="eyebrow">kmay89.com</p>
+  <h1>Accessibility</h1>
+  <p>The desk is a playful, visual page, but it&rsquo;s meant to be usable by everyone.
+  Here&rsquo;s what it does today, where it falls short, and how to tell me when it
+  gets in your way.</p>
+
+  <h2>What the site does</h2>
+  <ul>
+    <li><strong>Keyboard access:</strong> every world on the desk is also available
+    through the legend of buttons below the scene, and dialogs open, trap focus,
+    and close with <kbd>Escape</kbd> like they should. While a dialog is open,
+    the background is marked inert so focus can&rsquo;t wander behind it.</li>
+    <li><strong>Screen readers:</strong> interactive elements carry labels, the
+    decorative parts of the illustration are hidden from assistive tech, and
+    dialogs are announced as dialogs.</li>
+    <li><strong>Reduced motion:</strong> if your system asks for reduced motion,
+    the ambient animation and transitions switch off.</li>
+    <li><strong>Sound is optional:</strong> the page&rsquo;s little synthesized sounds
+    can be toggled off, and nothing depends on hearing them.</li>
+    <li><strong>Responsive text:</strong> text scales with your browser settings
+    and the layout tolerates zoom.</li>
+  </ul>
+
+  <h2>Known limitations</h2>
+  <ul>
+    <li>The isometric scene is a large illustration; its fine details are visual
+    flavor rather than content. Everything meaningful is also in the text,
+    legend, and dialogs.</li>
+    <li>Some color pairings inside the illustration are decorative and may not
+    meet contrast ratios; the reading text aims higher.</li>
+  </ul>
+
+  <h2>Tell me what&rsquo;s broken</h2>
+  <p>If any part of this site is hard to use with your setup, I want to know
+  &mdash; that&rsquo;s a bug, not a bother. Please open an issue at
+  <a href="https://github.com/kmay89/ABOUT/issues" rel="noopener">github.com/kmay89/ABOUT/issues</a>
+  and I&rsquo;ll do my best to fix it.</p>
+
+  <p style="margin-top:2rem;font-family:var(--mono);font-size:.75rem;color:var(--ink-faint)">Last updated: July 2026</p>
+</main>
+<footer>
+  <a href="/privacy/">Privacy</a>
+  <a href="/terms/">Terms</a>
+  <a href="/legal/">Legal</a>
+  <a href="/accessibility/">Accessibility</a>
+  <p style="margin-top:.8rem">&copy; 2026 Karl Meves &middot; ERRER Labs</p>
+</footer>
+</body>
+</html>
