@@ -1793,6 +1793,7 @@
     scrim.style.setProperty("--sr", (Math.max(r.width, r.height) / 2 + 30).toFixed(0) + "px");
   }
   function openWorld(id, accent){
+    if (eraBusy) return; // the desk sleeps during the era ride
     var w = WORLDS[id]; if (!w) return;
     lastFocus = document.activeElement;
     dossier.style.setProperty("--a", accent);
@@ -1890,6 +1891,7 @@
     bGrid.appendChild(a);
   });
   function openBrowser(){
+    if (eraBusy) return; // the desk sleeps during the era ride
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("web");
@@ -2303,6 +2305,7 @@
     });
   });
   function openCubeGame(){
+    if (eraBusy) return; // the desk sleeps during the era ride
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("cube");
@@ -2490,6 +2493,7 @@
     MN.raf = requestAnimationFrame(mnFrame);
   }
   function openMandel(){
+    if (eraBusy) return; // the desk sleeps during the era ride
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("mandel");
@@ -2831,6 +2835,7 @@
     c.addEventListener("pointercancel", up);
   })();
   function openLight(){
+    if (eraBusy) return; // the desk sleeps during the era ride
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("prism");
@@ -3045,15 +3050,23 @@
       crtShow(CRT_SELFTEST);
       if (SOUNDS.degauss) SOUNDS.degauss();
       if (!REDUCED){
+        eraBusy = true;
+        eraBtn.disabled = true;
         isoEl.classList.add("deg");
-        setTimeout(function(){ isoEl.classList.remove("deg"); }, 850);
+        setTimeout(function(){
+          isoEl.classList.remove("deg");
+          eraBusy = false;
+          eraBtn.disabled = false;
+        }, 850);
       }
       return;
     }
     if (REDUCED){ land(true); SOUNDS.era(); return; }
-    // forward: defrag, then a quarter century of boot screens
+    // forward: defrag, then a quarter century of boot screens.
+    // The desk sleeps through the ride so nothing can half-open mid-era.
     eraBusy = true;
     eraBtn.disabled = true;
+    setBackgroundInert(true);
     var i = 0;
     (function step(){
       if (i < ERA_FRAMES.length){
@@ -3065,8 +3078,10 @@
         land(true);
         SOUNDS.era();
         crtShow(CRT_SELFTEST); // ready for the trip back
+        setBackgroundInert(false);
         eraBusy = false;
         eraBtn.disabled = false;
+        eraBtn.focus();
       }
     })();
   });
