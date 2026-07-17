@@ -752,6 +752,10 @@
     (function(){ var rows=""; for (var i=0;i<14;i++){ var rx=8+i*15.5;
       rows += '<path d="M'+rx+' 110 L'+rx+' 88" stroke="#4a4426" stroke-width="2.5"/>' +
               '<circle cx="'+rx+'" cy="86" r="1.6" fill="#5d5530"/>'; } return rows; })() +
+    // a tiny sprinkler keeping the rows green (see garden-lawn.com)
+    '<path d="M108 104 l0 -9" stroke="#8a8f6a" stroke-width="2" stroke-linecap="round"/>' +
+    '<path d="M104 95 h8" stroke="#8a8f6a" stroke-width="2" stroke-linecap="round"/>' +
+    '<g fill="#7cd7e8" opacity=".85"><circle cx="100" cy="90" r="1.3"/><circle cx="108" cy="87" r="1.3"/><circle cx="116" cy="90" r="1.3"/></g>' +
     '<ellipse cx="30" cy="100" rx="13" ry="5" fill="#ff9a3d" opacity=".28"/>' +
     '<path d="M24 102 L36 102 M26 104 L34 104" stroke="#4a3018" stroke-width="2.5" stroke-linecap="round"/>' +
     '<path class="flame" d="M30 101 q -4 -6 0 -12 q 1.5 4 4 6 q 2 3 -1 6 z" fill="#ffb347"/>' +
@@ -1241,9 +1245,9 @@
     outside: {
       kicker: "Field Notes",
       title: "The World Outside the Window",
-      story: "Everything I build gets refueled out there — waterfalls and mountains, cornfields and campfires, butterflies and hummingbirds, deer and the occasional unbothered skunk. Flowers, trees, insects, fungus: the original engineering portfolio, four billion years ahead of schedule. I keep the window in view while I work so the work remembers what it's for.",
-      chips: ["Mountains & waterfalls","Cornfields & campfires","Butterflies & hummingbirds","Deer & skunks","Flowers & trees","Insects & fungus"],
-      links: []
+      story: "Everything I build gets refueled out there — waterfalls and mountains, cornfields and campfires, butterflies and hummingbirds, deer and the occasional unbothered skunk. Flowers, trees, insects, fungus: the original engineering portfolio, four billion years ahead of schedule. I keep the window in view while I work so the work remembers what it's for. And the green down there gets the engineer treatment too: I built garden-lawn.com to run a lawn sustainably, with guides and more calculators than any lawn strictly needs.",
+      chips: ["Mountains & waterfalls","Cornfields & campfires","Butterflies & hummingbirds","Deer & skunks","Flowers & trees","Insects & fungus","A well-run lawn"],
+      links: [{label:"garden-lawn.com", href:"https://garden-lawn.com"}]
     },
     puzzle: {
       kicker: "The Thinking Wall",
@@ -1528,8 +1532,12 @@
      glyph:'<path d="M22 4 L38 10 V22 C38 32 31 38 22 42 C13 38 6 32 6 22 V10 Z" fill="none" stroke="#ff5d5d" stroke-width="3"/><circle cx="22" cy="20" r="4" fill="none" stroke="#ff5d5d" stroke-width="2.5"/><rect x="20.5" y="23" width="3" height="8" rx="1.5" fill="#ff5d5d"/>'},
     {name:"ERRERLabs.com", href:"https://errerlabs.com", a:"#7cd7e8", tg:"linear-gradient(150deg,#0f2e38,#091a20)",
      glyph:'<path d="M4 22 h6 l3 -10 4 20 4 -16 3 6 h16" fill="none" stroke="#7cd7e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'},
+    {name:"garden-lawn.com", href:"https://garden-lawn.com", a:"#8fd18a", tg:"linear-gradient(150deg,#173a26,#0d2417)",
+     glyph:'<g stroke="#8fd18a" stroke-width="2.5" stroke-linecap="round" fill="none"><path d="M9 35 q1 -8 -2 -13 M15 35 q0 -11 4 -17 M21 35 q-1 -9 2 -15 M27 35 q0 -8 -3 -13 M33 35 q1 -10 4 -15"/><path d="M6 35 h32"/></g><path d="M33 9 q4.5 5.5 0 9 q-4.5 -3.5 0 -9 z" fill="#7cd7e8"/>'},
     {name:"github.com/kmay89/securaCV", href:"https://github.com/kmay89/securaCV", a:"#8fb7ff", tg:"linear-gradient(150deg,#1c2536,#10151f)",
-     glyph:'<rect x="6" y="12" width="32" height="20" rx="5" fill="none" stroke="#8fb7ff" stroke-width="2.5"/><circle cx="22" cy="22" r="6" fill="none" stroke="#8fb7ff" stroke-width="2.5"/><circle cx="33" cy="16" r="1.8" fill="#63e6a9"/>'}
+     glyph:'<rect x="6" y="12" width="32" height="20" rx="5" fill="none" stroke="#8fb7ff" stroke-width="2.5"/><circle cx="22" cy="22" r="6" fill="none" stroke="#8fb7ff" stroke-width="2.5"/><circle cx="33" cy="16" r="1.8" fill="#63e6a9"/>'},
+    {name:"kmay89.com — you are here", href:"https://kmay89.com", a:"#ffc97a", tg:"linear-gradient(150deg,#3a2a14,#1c1408)",
+     glyph:'<rect x="6" y="9" width="32" height="22" rx="3" fill="none" stroke="#ffc97a" stroke-width="2.5"/><rect x="12" y="14" width="20" height="12" rx="2" fill="none" stroke="#ffc97a" stroke-width="1.8"/><rect x="17" y="17.5" width="10" height="5" rx="1.2" fill="#ffc97a"/><path d="M17 35 h10" stroke="#ffc97a" stroke-width="2.5" stroke-linecap="round"/>'}
   ];
   var bGrid = document.getElementById("bGrid");
   SITES.forEach(function(s){
