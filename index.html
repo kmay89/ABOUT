@@ -45,6 +45,8 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
+  /* buttons and links act on first tap — no double-tap zoom surprises */
+  button,a,.iso-obj{touch-action:manipulation}
   body{
     background:var(--room);
     color:var(--ink);
@@ -356,10 +358,12 @@
   /* ---------- the pocket cube (a tiny game and a math lesson) ---------- */
   .cubestage{
     --a:#d9a0e8;
-    position:fixed;left:50%;top:50%;z-index:42;
-    transform:translate(-50%,-46%) scale(.85);
+    /* anchored to a fixed top edge so content changes grow downward
+       instead of re-centering the whole panel */
+    position:fixed;left:50%;top:max(1rem, calc(50svh - 21rem));z-index:42;
+    transform:translateX(-50%) scale(.85);
     width:min(26rem,calc(100vw - 1.5rem));
-    max-height:min(88vh,46rem);
+    max-height:calc(100svh - 2rem);
     overflow-y:auto;
     background:linear-gradient(165deg,#1e1710,#140f09 60%);
     border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
@@ -369,13 +373,13 @@
     opacity:0;visibility:hidden;
     transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.3,1.2);
   }
-  .cubestage.show{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1)}
+  .cubestage.show{opacity:1;visibility:visible;transform:translateX(-50%) scale(1)}
   .cs-svg{display:block;width:min(58vw,230px);margin:.6rem auto .2rem;overflow:visible}
   .cubestage.solved .cs-svg{filter:drop-shadow(0 0 16px rgba(99,230,169,.55))}
   .cs-arrow{animation:csArrowPulse 1.5s ease-in-out infinite}
   @keyframes csArrowPulse{50%{opacity:.4}}
   .cs-text{
-    min-height:6.4em;
+    min-height:9.6em; /* room for the longest lesson so the controls below stay put */
     margin-top:.5rem;color:var(--ink-dim);
     line-height:1.5;font-size:.92rem;
   }
@@ -1971,7 +1975,12 @@
   document.getElementById("dClose").addEventListener("click", function(){
     SOUNDS.hover(); closeWorld();
   });
-  scrim.addEventListener("click", closeModal);
+  scrim.addEventListener("click", function(){
+    /* a stray tap outside shouldn't end the cube lesson — it closes only
+       via "Put it back" or Escape */
+    if (!cubeStage.hidden) return;
+    closeModal();
+  });
   document.addEventListener("keydown", function(e){
     var m = activeModal();
     if (!m) return;
