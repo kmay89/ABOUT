@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Karl Meves — engineer, author, toymaker, founder. A little isometric desk of things I've been lucky to make: ATM hardware, a bilingual book &amp; doll, Hive Mind, the Everything series, SCQCS, ERRER Labs, and securaCV.">
+<meta name="description" content="Karl Meves — engineer, author, toymaker, founder. A little isometric desk of things I've been lucky to make: ATM hardware, a bilingual book &amp; doll, Hive Mind, the Everything series, Borrowed Sunlight, SCQCS, ERRER Labs, and securaCV.">
 <meta name="theme-color" content="#0e0a07">
 <link rel="canonical" href="https://kmay89.com/">
 <meta property="og:type" content="website">
@@ -39,6 +39,7 @@
     --c-out:#8fd18a;
     --c-puz:#d9a0e8;
     --c-utap:#ee6fbb;
+    --c-sun:#ffd166;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -483,6 +484,7 @@
     <button data-id="toy" style="--a:var(--c-toy)">Book + toy</button>
     <button data-id="hive" style="--a:var(--c-hive)">Hive Mind</button>
     <button data-id="series" style="--a:var(--c-series)">Everything series</button>
+    <button data-id="sun" style="--a:var(--c-sun)">Borrowed Sunlight</button>
     <button data-id="scqcs" style="--a:var(--c-scqcs)">SCQCS</button>
     <button data-id="vinyl" style="--a:var(--c-vinyl)">Aethra Kairos</button>
     <button data-id="cam" style="--a:var(--c-cam)">securaCV</button>
@@ -774,6 +776,7 @@
   S.push(shadowW(150,300,90,70,4,.18));          // mousepad
   S.push(shadowW(310,36,52,44,6,.24));           // sourdough board
   S.push(shadowW(34,332,26,26,4,.22));           // rubik's cube
+  S.push(shadowW(76,328,60,42,6,.24));           // Borrowed Sunlight novel
   S.push(shadowW(516,26,30,30,5,.22));           // flower pot
 
   /* ---------- charm: coffee mug (est. '89) ---------- */
@@ -824,6 +827,23 @@
     '<rect width="46" height="46" fill="#171215" stroke="#2c2026"/>' +
     flor(12,12,3,"#7cd7e8") + flor(34,16,2.6,"#ff8ac2") + flor(16,34,2.6,"#e2603f") + flor(36,36,2.8,"#f5b63f"));
   S.push(wrapObj("toy","Lupita — book + doll · 3 awards","#ff8a5c",toy));
+
+  /* ---------- sun: Borrowed Sunlight — a novel, new for summer 2026 ---------- */
+  var sunb = box(76,328,0,60,42,8,"#233252");
+  sunb += gLeft(76,370,8,'<rect x="2" y="1.5" width="56" height="5" fill="#efe6cf" opacity=".9" stroke="rgba(26,14,6,.3)"/>');
+  sunb += gTop(76,328,8,
+    '<rect width="60" height="42" rx="2.5" fill="#233252" stroke="rgba(26,14,6,.5)" stroke-width="1.5"/>' +
+    '<rect y="27" width="60" height="15" fill="#1a2440"/>' +
+    '<circle cx="30" cy="27" r="11" fill="#ffd166" opacity=".22"/>' +
+    '<path d="M21 27 a9 9 0 0 1 18 0 z" fill="#ffd166"/>' +
+    '<polygon points="25,27 35,27 40,42 20,42" fill="rgba(255,209,102,.3)"/>' +
+    '<g stroke="#ffd166" stroke-width="1.4" stroke-linecap="round" opacity=".8">' +
+      '<path d="M14 22 l4 2 M46 22 l-4 2 M30 13 l0 4 M20 15.5 l2 3.4 M40 15.5 l-2 3.4"/></g>' +
+    '<rect x="49" y="0" width="4" height="9" fill="#e2603f"/>' +
+    txt(30,10,"Borrowed",8,"#f4e9d8",SERIF + ' text-anchor="middle" font-style="italic"') +
+    txt(30,20,"Sunlight",9.5,"#ffd166",SERIF + ' text-anchor="middle" font-style="italic" font-weight="bold"') +
+    txt(30,38,"a novel",5.5,"#efe6cf",SERIF + ' text-anchor="middle" font-style="italic" opacity=".85"'));
+  S.push(wrapObj("sun","Borrowed Sunlight — a novel, new for summer 2026","#ffd166",sunb));
 
   /* ---------- board: beige CRT + keyboard (the machine years) ---------- */
   var crt = "";
@@ -928,7 +948,7 @@
   S.push(wrapObj("utap","uTap — the campus app","#ee6fbb",ph));
 
   /* ---------- charm: sticky note (front-left) ---------- */
-  S.push('<g aria-hidden="true">' + gTop(92,320,0,
+  S.push('<g aria-hidden="true">' + gTop(38,278,0,
     '<rect width="36" height="36" fill="#ffe37a" stroke="rgba(120,90,20,.4)"/>' +
     '<g stroke="#7a5c16" stroke-width="1.6" opacity=".65" fill="none">' +
       '<path d="M6 12 h24"/><path d="M6 19 h18"/></g>' +
@@ -1138,6 +1158,16 @@
         {label:"everything-that-knows.com", href:"https://everything-that-knows.com"}
       ]
     },
+    sun: {
+      kicker: "Fiction · New for Summer 2026",
+      title: "Borrowed Sunlight",
+      story: "The newest trinket on the desk, still warm from the press: Borrowed Sunlight, a novel — new fiction arriving summer 2026. I won't say much here; the good parts are better found than told. It has its own little home on the web, and like everything else on this desk, its bones live on GitHub. Come read a while.",
+      chips: ["A novel","Fiction","Summer 2026"],
+      links: [
+        {label:"borrowedsunlightnovel.com", href:"https://borrowedsunlightnovel.com"},
+        {label:"github.com/kmay89/borrowedsunlight", href:"https://github.com/kmay89/borrowedsunlight"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -1268,6 +1298,11 @@
     series: function(){ // page turn
       noise({filter:"bandpass", freq:600, freqEnd:2600, q:1.1, dur:0.28, g:0.13});
       tone(523.25, {type:"sine", at:0.22, dur:0.25, g:0.05});
+    },
+    sun: function(){ // a page turn into warm morning light
+      noise({filter:"bandpass", freq:500, freqEnd:2200, q:1.1, dur:0.26, g:0.11});
+      tone(659.25, {type:"sine", at:0.18, dur:0.35, g:0.05});
+      tone(830.61, {type:"sine", at:0.30, dur:0.45, g:0.045});
     },
     scqcs: function(){ // alarm arming chirp
       tone(1200, {type:"sine", dur:0.07, g:0.09});
