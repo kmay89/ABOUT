@@ -278,6 +278,15 @@
   .d-links a:hover,.d-links a:focus-visible{filter:brightness(1.15)}
   .d-links a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   .d-links a::after{content:" ↗"}
+  .d-links .d-album{
+    flex-basis:100%;
+    display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;
+  }
+  .d-links .d-album span{
+    font-family:var(--mono);font-size:.64rem;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-faint);
+    min-width:5.2rem;
+  }
 
   /* ---------- the built-in browser (game within the game) ---------- */
   .browser{
@@ -1129,7 +1138,24 @@
       title: "Aethra Kairos — Echoes of Us, I–III",
       story: "ERRER Labs is my little studio for the things that don't fit anywhere else. One of them was an artist, Aethra Kairos — and somehow that turned into three full albums, Echoes of Us, volumes one through three. Give them a spin sometime.",
       chips: ["Echoes of Us — Album I","Echoes of Us — Album II","Echoes of Us — Album III"],
-      links: [{label:"ERRERLabs.com", href:"https://errerlabs.com"}]
+      links: [{label:"ERRERLabs.com", href:"https://errerlabs.com"}],
+      albums: [
+        {n:"Album I", links:[
+          {label:"Apple Music", href:"https://music.apple.com/us/search?term=Aethra%20Kairos%20Echoes%20of%20Us%20Album%20I"},
+          {label:"Spotify", href:"https://open.spotify.com/search/Aethra%20Kairos%20Echoes%20of%20Us%20Album%20I"},
+          {label:"YouTube", href:"https://www.youtube.com/results?search_query=Aethra+Kairos+Echoes+of+Us+Album+I"}
+        ]},
+        {n:"Album II", links:[
+          {label:"Apple Music", href:"https://music.apple.com/us/search?term=Aethra%20Kairos%20Echoes%20of%20Us%20Album%20II"},
+          {label:"Spotify", href:"https://open.spotify.com/search/Aethra%20Kairos%20Echoes%20of%20Us%20Album%20II"},
+          {label:"YouTube", href:"https://www.youtube.com/results?search_query=Aethra+Kairos+Echoes+of+Us+Album+II"}
+        ]},
+        {n:"Album III", links:[
+          {label:"Apple Music", href:"https://music.apple.com/us/search?term=Aethra%20Kairos%20Echoes%20of%20Us%20Album%20III"},
+          {label:"Spotify", href:"https://open.spotify.com/search/Aethra%20Kairos%20Echoes%20of%20Us%20Album%20III"},
+          {label:"YouTube", href:"https://www.youtube.com/results?search_query=Aethra+Kairos+Echoes+of+Us+Album+III"}
+        ]}
+      ]
     },
     cam: {
       kicker: "ERRER Labs · Open Source",
@@ -1370,6 +1396,20 @@
       a.href = l.href; a.textContent = l.label;
       a.target = "_blank"; a.rel = "noopener";
       links.appendChild(a);
+    });
+    (w.albums || []).forEach(function(al){
+      var row = document.createElement("div");
+      row.className = "d-album";
+      var lab = document.createElement("span");
+      lab.textContent = al.n;
+      row.appendChild(lab);
+      al.links.forEach(function(l){
+        var a = document.createElement("a");
+        a.href = l.href; a.textContent = l.label;
+        a.target = "_blank"; a.rel = "noopener";
+        row.appendChild(a);
+      });
+      links.appendChild(row);
     });
     cancelHide();
     pickObjects(id);
