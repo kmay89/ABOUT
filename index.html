@@ -191,6 +191,21 @@
     cursor:pointer;
     transition:color .25s ease, background .25s ease;
   }
+  .legend button.found{color:var(--ink)}
+  .legend button.found::before{content:"✓ ";color:var(--a)}
+  .legend button.active{
+    color:var(--room);background:var(--a);border-color:var(--a);
+    box-shadow:0 0 14px color-mix(in srgb, var(--a) 45%, transparent);
+  }
+  .legend .found-count{
+    align-self:center;
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);
+    border:1px dashed rgba(126,111,91,.5);
+    border-radius:999px;
+    padding:.48em 1em;
+  }
+  .legend .found-count.done{color:var(--lamp);border-color:var(--lamp);border-style:solid}
   .legend button:hover,.legend button:focus-visible{
     color:var(--a);
     background:color-mix(in srgb, var(--a) 18%, transparent);
@@ -531,6 +546,7 @@
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
     <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
     <button data-id="puzzle" style="--a:var(--c-puz)">The thinking wall</button>
+    <span class="found-count" id="foundCount" aria-live="polite"></span>
   </nav>
 
   <div class="hint">
@@ -801,7 +817,26 @@
     '<ellipse cx="470" cy="250" rx="7" ry="3.5" fill="none" stroke="#4a2c15" opacity=".2" stroke-width="2"/>'));
   // warm pool of light on the desk
   S.push(gTop(0,0,0,'<ellipse cx="270" cy="170" rx="290" ry="220" fill="url(#screenGlow)" opacity=".0"/>' +
-    '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>', ''));
+    '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>' +
+    '<ellipse cx="200" cy="130" rx="190" ry="150" fill="rgba(255,201,122,.07)"/>', ''));
+
+  /* ---------- the lamp the light has been coming from all along ---------- */
+  (function(){
+    var b1 = P(52,148,10);                              // base top
+    var j1 = P(42,138,82);                              // elbow
+    var hd = P(112,152,90);                             // head
+    var lamp = isoEllipse(52,148,0,17,"#23262e",'stroke="rgba(10,10,14,.6)" stroke-width="1.5"') +
+      isoEllipse(52,148,10,13,"#3a3f4a",'stroke="rgba(10,10,14,.5)" stroke-width="1.2"') +
+      '<path d="M' + b1[0] + " " + b1[1] + " L" + j1[0] + " " + j1[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
+      '<path d="M' + j1[0] + " " + j1[1] + " L" + hd[0] + " " + hd[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
+      '<circle cx="' + j1[0] + '" cy="' + j1[1] + '" r="3.6" fill="#454a58"/>' +
+      // shade: a cone aimed at the middle of the desk
+      '<g transform="translate(' + hd[0] + "," + hd[1] + ') rotate(50)">' +
+        '<path d="M-12 -9 L12 -9 L17 9 L-17 9 Z" fill="#2c2f38" stroke="rgba(10,10,14,.55)" stroke-width="1.4"/>' +
+        '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="#ffc97a" opacity=".95"/></g>' +
+      '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>';
+    S.push('<g aria-hidden="true">' + lamp + "</g>");
+  })();
 
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
@@ -814,7 +849,7 @@
   S.push(shadowW(250,290,64,106,6,.26));         // game boy
   S.push(shadowW(380,276,96,102,7,.26));         // jewel case
   S.push(shadowW(480,305,58,58,4,.22));          // floppy
-  S.push(shadowW(150,300,90,70,4,.18));          // mousepad
+  S.push(shadowW(328,194,90,70,4,.18));          // mousepad
   S.push(shadowW(310,36,52,44,6,.24));           // sourdough board
   S.push(shadowW(34,332,26,26,4,.22));           // rubik's cube
   S.push(shadowW(76,328,60,42,6,.24));           // Borrowed Sunlight novel
@@ -904,7 +939,18 @@
       txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9") + "</g>" +
     '<polygon points="16,12 52,12 26,92 16,92" fill="rgba(255,255,255,.07)"/>' +
     '<circle cx="136" cy="102" r="2.6" fill="#63e6a9" class="led"/>' +
-    txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO));
+    txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO) +
+    // the sticky note lives where sticky notes live: on the bezel
+    '<g transform="translate(103,84) rotate(-6)">' +
+      '<rect width="28" height="28" fill="#ffe37a" stroke="rgba(120,90,20,.45)"/>' +
+      '<g stroke="#7a5c16" stroke-width="1.4" opacity=".65" fill="none"><path d="M5 9 h18"/><path d="M5 15 h13"/></g>' +
+      txt(4,24,"buy AA batts",4.6,"#7a5c16",SERIF + ' font-style="italic"') + "</g>");
+  // phosphor bloom on the glass, and a faint green spill toward the keyboard
+  (function(){
+    var sc = P(225,124,72);
+    crt += '<ellipse cx="' + sc[0] + '" cy="' + sc[1] + '" rx="80" ry="54" fill="rgba(99,230,169,.10)" filter="url(#soft)"/>';
+  })();
+  crt += isoEllipse(250,168,0,58,"rgba(99,230,169,.05)",'filter="url(#soft)"');
   crt += box(160,200,0,170,62,10,"#d5c9ad");                      // keyboard
   var keys = "";
   for (var r = 0; r < 3; r++)
@@ -989,21 +1035,15 @@
   S.push(wrapObj("utap","uTap — the campus app","#ee6fbb",ph));
 
   /* ---------- charm: sticky note (front-left) ---------- */
-  S.push('<g aria-hidden="true">' + gTop(38,278,0,
-    '<rect width="36" height="36" fill="#ffe37a" stroke="rgba(120,90,20,.4)"/>' +
-    '<g stroke="#7a5c16" stroke-width="1.6" opacity=".65" fill="none">' +
-      '<path d="M6 12 h24"/><path d="M6 19 h18"/></g>' +
-    txt(6,30,"buy AA batts",5.6,"#7a5c16",SERIF + ' font-style="italic"'),
-    " rotate(8)") + "</g>");
 
-  /* ---------- charm: mousepad + ball mouse + cord ---------- */
-  var pad = gTop(150,300,0,
+  /* ---------- charm: mousepad + ball mouse, righty side, cord tucked behind ---------- */
+  var pad = gTop(328,194,0,
     '<rect width="90" height="70" rx="10" fill="#33517c" stroke="rgba(10,16,28,.6)" stroke-width="1.5"/>' +
     '<rect x="4" y="4" width="82" height="62" rx="8" fill="none" stroke="#4a6b9a" stroke-width="1.5" stroke-dasharray="4 4"/>');
-  var cordA = P(197,318,12), cordB = P(250,245,4), cordC = P(270,212,10);
+  var cordA = P(352,200,12), cordB = P(344,156,2), cordC = P(318,126,12);
   pad += '<path d="M' + cordA[0] + " " + cordA[1] + " Q " + cordB[0] + " " + cordB[1] + " " + cordC[0] + " " + cordC[1] + '" fill="none" stroke="#584a3a" stroke-width="2.5" opacity=".8"/>';
-  pad += box(180,316,0,32,46,13,"#dcd3bd");
-  pad += gTop(180,316,13,'<line x1="16" y1="4" x2="16" y2="20" stroke="#9a8e72" stroke-width="1.5"/>' +
+  pad += box(336,202,0,32,46,13,"#dcd3bd");
+  pad += gTop(336,202,13,'<line x1="16" y1="4" x2="16" y2="20" stroke="#9a8e72" stroke-width="1.5"/>' +
     '<rect x="4" y="4" width="24" height="16" rx="6" fill="none" stroke="#9a8e72" stroke-width="1.2"/>');
   S.push('<g aria-hidden="true">' + pad + "</g>");
 
@@ -1411,6 +1451,45 @@
     spotify: "M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z",
     youtube: "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
   };
+  /* ---------------- discovery tracker: check off found worlds ---------------- */
+  var FOUND_KEY = "km_found";
+  var foundSet = {};
+  try { (JSON.parse(localStorage.getItem(FOUND_KEY)) || []).forEach(function(id){ foundSet[id] = 1; }); } catch(e){}
+  var legendBtns = {};
+  document.querySelectorAll(".legend button").forEach(function(b){ legendBtns[b.dataset.id] = b; });
+  var PILL_IDS = Object.keys(legendBtns);
+  var SECRET_IDS = ["cube","web"]; // the playable cube and the hidden browser
+  function updateFoundUI(){
+    PILL_IDS.forEach(function(id){
+      legendBtns[id].classList.toggle("found", !!foundSet[id]);
+      legendBtns[id].setAttribute("aria-pressed", foundSet[id] ? "true" : "false");
+    });
+    var n = PILL_IDS.filter(function(id){ return foundSet[id]; }).length;
+    var s = SECRET_IDS.filter(function(id){ return foundSet[id]; }).length;
+    var el = document.getElementById("foundCount");
+    var all = n === PILL_IDS.length && s === SECRET_IDS.length;
+    el.textContent = all ? "every world found ✦" :
+      n + " / " + PILL_IDS.length + " found" + (s ? " · " + s + "/" + SECRET_IDS.length + " secrets" : "");
+    el.classList.toggle("done", all);
+  }
+  function markFound(id){
+    if (foundSet[id]) return;
+    foundSet[id] = 1;
+    try { localStorage.setItem(FOUND_KEY, JSON.stringify(Object.keys(foundSet))); } catch(e){}
+    updateFoundUI();
+    var n = PILL_IDS.filter(function(k){ return foundSet[k]; }).length;
+    var s = SECRET_IDS.filter(function(k){ return foundSet[k]; }).length;
+    if (n === PILL_IDS.length && s === SECRET_IDS.length && SOUNDS.toy) SOUNDS.toy();
+  }
+  function setActivePill(id){
+    PILL_IDS.forEach(function(k){
+      legendBtns[k].classList.toggle("active", k === id);
+      if (k === id) legendBtns[k].setAttribute("aria-current", "true");
+      else legendBtns[k].removeAttribute("aria-current");
+    });
+  }
+  updateFoundUI();
+
   var dossier = document.getElementById("dossier");
   var scrim   = document.getElementById("scrim");
   var lastFocus = null;
@@ -1498,6 +1577,8 @@
     });
     cancelHide();
     pickObjects(id);
+    markFound(id);
+    setActivePill(id);
     setBackgroundInert(true);
     scrim.hidden = false; dossier.hidden = false;
     requestAnimationFrame(function(){
@@ -1508,6 +1589,7 @@
   function closeWorld(){
     cancelHide();
     clearPicked();
+    setActivePill(null);
     scrim.classList.remove("show"); dossier.classList.remove("show");
     scheduleHide(dossier, 460);
     setBackgroundInert(false);
@@ -1557,6 +1639,7 @@
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("web");
+    markFound("web");
     setBackgroundInert(true);
     scrim.hidden = false; browser.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); browser.classList.add("show"); });
@@ -1969,6 +2052,7 @@
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("cube");
+    markFound("cube");
     setBackgroundInert(true);
     scrim.hidden = false; cubeStage.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); cubeStage.classList.add("show"); });
