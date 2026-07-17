@@ -351,11 +351,11 @@
   }
   .cubestage.show{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1)}
   .cs-svg{display:block;width:min(58vw,230px);margin:.6rem auto .2rem;overflow:visible}
-  .cs-svg.tick{animation:csTick .16s ease}
-  @keyframes csTick{50%{transform:scale(.96)}}
   .cubestage.solved .cs-svg{filter:drop-shadow(0 0 16px rgba(99,230,169,.55))}
+  .cs-arrow{animation:csArrowPulse 1.5s ease-in-out infinite}
+  @keyframes csArrowPulse{50%{opacity:.4}}
   .cs-text{
-    min-height:4.6em;
+    min-height:6.4em;
     margin-top:.5rem;color:var(--ink-dim);
     line-height:1.5;font-size:.92rem;
   }
@@ -419,6 +419,7 @@
     #iso{transform:none !important}
     .iso-obj > *,.dossier,.scrim{transition:none}
     .iso-obj.picked{animation:none}
+    .cs-arrow{animation:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     html{scroll-behavior:auto}
   }
@@ -1489,28 +1490,134 @@
     }
     return f;
   }
-  function csStickers(picks){
-    var s = "";
-    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++){
-      s += '<rect x="' + (2.4 + c*19.2) + '" y="' + (2.4 + r*19.2) + '" width="16.8" height="16.8" rx="2.4" fill="' + CUBE_C[picks[r*3+c]] + '"/>';
+  /* ---- stage renderer: every sticker is a 3D quad projected through P(),
+     so a turning slice can rotate for real — the projection of a rotating
+     plane stays affine, no 3D library needed ---- */
+  var CS_ROT = { // rotation axis index, slab layer, and engine-matching sign
+    U:{ai:2, layer:2, sign: 1}, D:{ai:2, layer:0, sign:-1},
+    R:{ai:0, layer:2, sign: 1}, L:{ai:0, layer:0, sign:-1},
+    F:{ai:1, layer:2, sign:-1}, B:{ai:1, layer:0, sign: 1}
+  };
+  function rot3(v, ai, r){
+    var c = Math.cos(r), s = Math.sin(r), x = v[0], y = v[1], z = v[2];
+    if (ai === 2) return [x*c - y*s, x*s + y*c, z];
+    if (ai === 0) return [x, y*c - z*s, y*s + z*c];
+    return [x*c - z*s, y, x*s + z*c];
+  }
+  function rotP(p, ai, r){ // rotate a point about the cube's center
+    var v = rot3([p[0]-30, p[1]-30, p[2]-30], ai, r);
+    return [v[0]+30, v[1]+30, v[2]+30];
+  }
+  /* each face of the cube as origin + u/v basis + outward normal, and the
+     cubie a (u,v) grid cell belongs to. Margins are symmetric, so rotated
+     quads land exactly on the destination grid. */
+  var FACE_Q = {
+    pz:{O:[0,0,60],   U:[1,0,0],  V:[0,1,0],  n:[0,0,1],  cell:function(x,y,z){return [x, y];}},
+    py:{O:[0,60,60],  U:[1,0,0],  V:[0,0,-1], n:[0,1,0],  cell:function(x,y,z){return [x, 2-z];}},
+    px:{O:[60,60,60], U:[0,-1,0], V:[0,0,-1], n:[1,0,0],  cell:function(x,y,z){return [2-y, 2-z];}},
+    ny:{O:[60,0,60],  U:[-1,0,0], V:[0,0,-1], n:[0,-1,0], cell:function(x,y,z){return [2-x, 2-z];}},
+    nx:{O:[0,0,60],   U:[0,1,0],  V:[0,0,-1], n:[-1,0,0], cell:function(x,y,z){return [y, 2-z];}},
+    nz:{O:[0,60,0],   U:[1,0,0],  V:[0,-1,0], n:[0,0,-1], cell:function(x,y,z){return [x, 2-y];}}
+  };
+  function vadd(a,b){ return [a[0]+b[0], a[1]+b[1], a[2]+b[2]]; }
+  function vscale(a,s){ return [a[0]*s, a[1]*s, a[2]*s]; }
+  function stickerQuad(x, y, z, key, ai, rad){
+    var q = FACE_Q[key], cc = q.cell(x, y, z);
+    var o = vadd(vadd(q.O, vscale(q.U, 2.4 + 19.2*cc[0])), vscale(q.V, 2.4 + 19.2*cc[1]));
+    var b1 = vscale(q.U, 16.8), b2 = vscale(q.V, 16.8), n = q.n;
+    if (rad){ o = rotP(o, ai, rad); b1 = rot3(b1, ai, rad); b2 = rot3(b2, ai, rad); n = rot3(n, ai, rad); }
+    if (n[0] + n[1] + n[2] < 0.02) return "";
+    var po = P(o[0],o[1],o[2]), pu = P(b1[0],b1[1],b1[2]), pv = P(b2[0],b2[1],b2[2]);
+    return '<g transform="matrix(' + [ (pu[0]/16.8).toFixed(4), (pu[1]/16.8).toFixed(4),
+      (pv[0]/16.8).toFixed(4), (pv[1]/16.8).toFixed(4), po[0].toFixed(2), po[1].toFixed(2) ].join(",") +
+      ')"><rect width="16.8" height="16.8" rx="2.4" fill="' + CUBE_C[cubeState[x*9+y*3+z][key]] + '"/></g>';
+  }
+  function plateQuad(o, b1, b2, n, ai, rad){
+    if (rad){ o = rotP(o, ai, rad); b1 = rot3(b1, ai, rad); b2 = rot3(b2, ai, rad); n = rot3(n, ai, rad); }
+    if (n[0] + n[1] + n[2] < 0.02) return "";
+    var f = 0.2*Math.max(n[2],0) - 0.24*Math.max(n[1],0) - 0.08*Math.max(n[0],0) - 0.18*(Math.max(-n[0],0)+Math.max(-n[1],0));
+    var pts = [o, vadd(o,b1), vadd(vadd(o,b1),b2), vadd(o,b2)].map(function(p){
+      var s = P(p[0],p[1],p[2]); return s[0].toFixed(1) + "," + s[1].toFixed(1);
+    });
+    return '<polygon points="' + pts.join(" ") + '" fill="' + shade("#141414", f) + '" ' + OUT + "/>";
+  }
+  function slabPlates(mv, rad){
+    var lo = [0,0,0], hi = [60,60,60];
+    lo[mv.ai] = mv.layer*20; hi[mv.ai] = mv.layer*20 + 20;
+    var s = "", d, e1, e2, o;
+    for (d = 0; d < 3; d++){
+      e1 = [0,0,0]; e2 = [0,0,0];
+      e1[(d+1)%3] = hi[(d+1)%3] - lo[(d+1)%3];
+      e2[(d+2)%3] = hi[(d+2)%3] - lo[(d+2)%3];
+      o = lo.slice(); o[d] = hi[d];
+      var nP = [0,0,0]; nP[d] = 1;
+      s += plateQuad(o, e1, e2, nP, mv.ai, rad);
+      o = lo.slice();
+      var nN = [0,0,0]; nN[d] = -1;
+      s += plateQuad(o, e2, e1, nN, mv.ai, rad);
     }
     return s;
   }
-  function csRender(){
-    var f = cubeFaces(cubeState);
-    document.getElementById("csCube").innerHTML =
-      box(0,0,0,60,60,60,"#141414") +
-      gTop(0,0,60, csStickers(f.top)) +
-      gLeft(0,60,60, csStickers(f.left)) +
-      gRight(60,60,60, csStickers(f.right));
+  function csDraw(face, deg){
+    var mv = face ? CS_ROT[face] : null;
+    var rad = mv ? deg * Math.PI/180 : 0;
+    var inSlab = function(x,y,z){ return mv && [x,y,z][mv.ai] === mv.layer; };
+    var bo = [0,0,0], bw = [60,60,60];
+    if (mv){ bw[mv.ai] = 40; if (mv.layer === 0) bo[mv.ai] = 20; }
+    var body = box(bo[0], bo[1], bo[2], bw[0], bw[1], bw[2], "#141414");
+    var statics = "", slab = "", x, y, z, k;
+    for (x = 0; x < 3; x++) for (y = 0; y < 3; y++) for (z = 0; z < 3; z++){
+      var cub = cubeState[x*9+y*3+z];
+      for (k in cub){
+        if (inSlab(x,y,z)) slab += stickerQuad(x, y, z, k, mv.ai, rad);
+        else if (k === "pz" || k === "py" || k === "px") statics += stickerQuad(x, y, z, k, 0, 0);
+      }
+    }
+    if (!mv) return body + statics;
+    slab = slabPlates(mv, rad) + slab;
+    return mv.layer === 2 ? body + statics + slab : slab + body + statics;
+  }
+  /* anticipation arrow: a ring around the layer that is about to turn,
+     arrowhead pointing the way it will go */
+  function csArrowSvg(tok){
+    var mv = CS_ROT[tok[0]];
+    var sign = mv.sign * (tok.slice(1) === "'" ? -1 : 1);
+    var dbl = tok.slice(1) === "2";
+    var ctr = [30,30,30]; ctr[mv.ai] = mv.layer === 2 ? 50 : 10;
+    var eb = [0,0,0], ec = [0,0,0];
+    if (mv.ai === 2){ eb[0] = 1; ec[1] = 1; } else if (mv.ai === 0){ eb[1] = 1; ec[2] = 1; } else { eb[0] = 1; ec[2] = 1; }
+    var R = 47, a0 = Math.PI/4 - 1.1, a1 = Math.PI/4 + 1.1;
+    function pt(phi, rr){
+      var p = vadd(ctr, vadd(vscale(eb, (rr||R)*Math.cos(phi)), vscale(ec, (rr||R)*Math.sin(phi))));
+      var s = P(p[0], p[1], p[2]); return s[0].toFixed(1) + "," + s[1].toFixed(1);
+    }
+    var pts = [], i, n = 26;
+    for (i = 0; i <= n; i++) pts.push(pt(a0 + (a1-a0)*i/n));
+    var head = function(base){
+      var tip = base + sign*0.24;
+      return '<polygon points="' + pt(tip) + " " + pt(base, R-3.6) + " " + pt(base, R+3.6) + '" fill="#ffc97a"/>';
+    };
+    var aEnd = sign > 0 ? a1 : a0;
+    var s = '<g class="cs-arrow"><polyline points="' + pts.join(" ") +
+      '" fill="none" stroke="#ffc97a" stroke-width="2.4" stroke-linecap="round" opacity=".95"/>' + head(aEnd);
+    if (dbl) s += head(aEnd + sign*0.30);
+    return s + "</g>";
+  }
+  var csArrowTok = null, csHoverTok = null;
+  function csRedraw(faceDeg){
+    var svg = document.getElementById("csCube");
+    if (faceDeg){ svg.innerHTML = csDraw(faceDeg[0], faceDeg[1]); return; }
+    var s = csDraw(null, 0);
+    if (csArrowTok) s += csArrowSvg(csArrowTok);
+    svg.innerHTML = s;
   }
   var CS_LESSONS = [
-    {t:'You picked up the <b>superflip</b>: every piece is home, but all twelve edges are flipped. Cubes speak in letters — <b>U</b> turns the Up face a quarter, clockwise. Try it.', allow:"U"},
-    {t:'One move. A tick mark undoes it: <b>U&prime;</b> turns Up the other way. Every move has an inverse — take the turn back.', allow:"U'"},
-    {t:'<b>R</b> is the Right face. Same grammar, new letter.', allow:"R"},
-    {t:'And <b>R&prime;</b> undoes it. Six faces, each with an inverse — that little alphabet reaches 43 quintillion positions.', allow:"R'"},
-    {t:'The good part: in 2010 it was proven that <b>20 moves</b> always suffice — God&rsquo;s Number — and the superflip is the position that needs all twenty. Stranger still, it is <i>its own inverse</i>: the recipe that builds it also unbuilds it. Walk it.', seq:true},
-    {t:'<b>Solved.</b> You just walked God&rsquo;s Number, move for move. Twist freely — or run the same twenty again and the flip comes back.', free:true}
+    {t:'Meet the <b>superflip</b> — named for what it is: all eight corners are already solved, and every one of the twelve edges sits in its home slot but <i>flipped inside-out</i>. Nothing is lost; everything is backwards. Cubes speak in letters: <b>U</b> turns the Up face a quarter, clockwise. The arrow shows what will happen — try it.', allow:"U"},
+    {t:'One move. The tick mark means the opposite turn: <b>U&prime;</b> spins Up counter-clockwise. Every move has an inverse — undo yours and the flip comes back.', allow:"U'"},
+    {t:'<b>R</b> is the Right face. Six faces, six letters — U, D, L, R, F, B — and a tick for each undo.', allow:"R"},
+    {t:'And <b>R&prime;</b> takes it back. That little alphabet of turns reaches every one of the cube&rsquo;s 43,252,003,274,489,856,000 positions.', allow:"R'"},
+    {t:'Here is why this scramble is famous. Of all 43 quintillion positions, the superflip was the <b>first proven to need every bit of 20 moves</b> — the case that pinned down &ldquo;God&rsquo;s Number&rdquo; in 2010. And it hides a deeper symmetry: it is the <i>only</i> position that commutes with every move, which makes it <i>its own inverse</i> — the recipe that builds it, unbuilds it. Walk all twenty.', seq:true},
+    {t:'<b>Solved.</b> Twenty moves — the exact worst case. You just walked God&rsquo;s Number, move for move. The cube is yours: twist freely, or run those same twenty again and watch the superflip put itself back.', free:true}
   ];
   var csStep = 0, csSeqPos = 0;
   var csPad = document.getElementById("csPad");
@@ -1519,6 +1626,13 @@
     b.textContent = tok.replace("'", "′");
     b.dataset.tok = tok;
     b.addEventListener("click", function(){ csPress(tok); });
+    /* in free play, hovering or focusing a move previews its arrow */
+    function preview(){ if (CS_LESSONS[csStep].free && !csAnimating){ csHoverTok = tok; csArrowTok = tok; csRedraw(); } }
+    function unpreview(){ if (csHoverTok === tok){ csHoverTok = null; csArrowTok = null; csRedraw(); } }
+    b.addEventListener("pointerenter", preview);
+    b.addEventListener("focus", preview);
+    b.addEventListener("pointerleave", unpreview);
+    b.addEventListener("blur", unpreview);
     csPad.appendChild(b);
   });
   var csSeqEl = document.getElementById("csSeq");
@@ -1527,12 +1641,30 @@
     sp.textContent = tok.replace("'", "′");
     csSeqEl.appendChild(sp);
   });
-  function csTickAnim(){
-    if (REDUCED) return;
-    var svg = document.getElementById("csCube");
-    svg.classList.remove("tick");
-    void svg.getBoundingClientRect();
-    svg.classList.add("tick");
+  var csAnimating = false;
+  function csDoMove(tok, after){
+    if (csAnimating) return;
+    ac(true);
+    csMoveSound(); buzz("cube");
+    if (REDUCED){
+      cubeState = cubeApply(cubeState, tok);
+      after();
+      return;
+    }
+    var mv = CS_ROT[tok[0]];
+    var quarters = tok.slice(1) === "2" ? 2 : 1;
+    var sign = mv.sign * (tok.slice(1) === "'" ? -1 : 1);
+    csAnimating = true;
+    var t0 = null, DUR = quarters === 2 ? 430 : 260;
+    function step(now){
+      if (t0 === null) t0 = now;
+      var p = Math.min(1, (now - t0) / DUR);
+      var e = 1 - Math.pow(1 - p, 3);
+      csRedraw([tok[0], sign * 90 * quarters * e]);
+      if (p < 1) requestAnimationFrame(step);
+      else { cubeState = cubeApply(cubeState, tok); csAnimating = false; after(); }
+    }
+    requestAnimationFrame(step);
   }
   function csMoveSound(){
     tone(640, {type:"triangle", dur:0.05, g:0.05});
@@ -1561,33 +1693,38 @@
       document.getElementById("csNext").textContent =
         "Turn " + CUBE_SEQ[csSeqPos].replace("'", "′") + " — move " + (csSeqPos + 1) + " of 20";
     }
-    csRender();
+    /* the next taught or scripted move always previews its arrow */
+    csArrowTok = L.allow || (L.seq ? CUBE_SEQ[csSeqPos] : csHoverTok);
+    csRedraw();
   }
   function csPress(tok){
-    ac(true);
-    cubeState = cubeApply(cubeState, tok);
-    csMoveSound(); csTickAnim(); buzz("cube");
     var L = CS_LESSONS[csStep];
-    if (!L.free && L.allow === tok) csStep++;
-    if (L.free && cubeIsSolved(cubeState)) csSolvedSound();
-    csRefresh();
-    var g = csPad.querySelector(".glow");
-    if (g) g.focus();
-    else if (CS_LESSONS[csStep].seq) document.getElementById("csNext").focus();
+    if (!L.free && L.allow !== tok) return;
+    csArrowTok = null;
+    csDoMove(tok, function(){
+      if (!L.free && L.allow === tok) csStep++;
+      if (L.free && cubeIsSolved(cubeState)) csSolvedSound();
+      csRefresh();
+      var g = csPad.querySelector(".glow");
+      if (g) g.focus();
+      else if (CS_LESSONS[csStep].seq) document.getElementById("csNext").focus();
+    });
   }
   document.getElementById("csNext").addEventListener("click", function(){
-    ac(true);
-    cubeState = cubeApply(cubeState, CUBE_SEQ[csSeqPos]);
-    csMoveSound(); csTickAnim(); buzz("cube");
-    csSeqPos++;
-    if (csSeqPos >= CUBE_SEQ.length){
-      csStep++;
-      csRefresh();
-      if (cubeIsSolved(cubeState)) csSolvedSound();
-      document.getElementById("csClose").focus();
-    } else {
-      csRefresh();
-    }
+    if (csAnimating) return;
+    var tok = CUBE_SEQ[csSeqPos];
+    csArrowTok = null;
+    csDoMove(tok, function(){
+      csSeqPos++;
+      if (csSeqPos >= CUBE_SEQ.length){
+        csStep++;
+        csRefresh();
+        if (cubeIsSolved(cubeState)) csSolvedSound();
+        document.getElementById("csClose").focus();
+      } else {
+        csRefresh();
+      }
+    });
   });
   function openCubeGame(){
     lastFocus = document.activeElement;
@@ -1611,8 +1748,9 @@
   document.getElementById("csClose").addEventListener("click", function(){ SOUNDS.hover(); closeCubeGame(); });
   window.KM_CUBE = {
     faces: function(){ return cubeFaces(cubeState); },
-    apply: function(tok){ cubeState = cubeApply(cubeState, tok); csRender(); },
-    solved: function(){ return cubeIsSolved(cubeState); }
+    apply: function(tok){ cubeState = cubeApply(cubeState, tok); csRedraw(); },
+    solved: function(){ return cubeIsSolved(cubeState); },
+    frame: function(face, deg){ csRedraw([face, deg]); } // freeze one animation frame (testing)
   };
 
   function activeModal(){
