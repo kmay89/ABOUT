@@ -191,6 +191,21 @@
     cursor:pointer;
     transition:color .25s ease, background .25s ease;
   }
+  .legend button.found{color:var(--ink)}
+  .legend button.found::before{content:"✓ ";color:var(--a)}
+  .legend button.active{
+    color:var(--room);background:var(--a);border-color:var(--a);
+    box-shadow:0 0 14px color-mix(in srgb, var(--a) 45%, transparent);
+  }
+  .legend .found-count{
+    align-self:center;
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);
+    border:1px dashed rgba(126,111,91,.5);
+    border-radius:999px;
+    padding:.48em 1em;
+  }
+  .legend .found-count.done{color:var(--lamp);border-color:var(--lamp);border-style:solid}
   .legend button:hover,.legend button:focus-visible{
     color:var(--a);
     background:color-mix(in srgb, var(--a) 18%, transparent);
@@ -531,6 +546,7 @@
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
     <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
     <button data-id="puzzle" style="--a:var(--c-puz)">The thinking wall</button>
+    <span class="found-count" id="foundCount" aria-live="polite"></span>
   </nav>
 
   <div class="hint">
@@ -1435,6 +1451,45 @@
     spotify: "M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z",
     youtube: "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
   };
+  /* ---------------- discovery tracker: check off found worlds ---------------- */
+  var FOUND_KEY = "km_found";
+  var foundSet = {};
+  try { (JSON.parse(localStorage.getItem(FOUND_KEY)) || []).forEach(function(id){ foundSet[id] = 1; }); } catch(e){}
+  var legendBtns = {};
+  document.querySelectorAll(".legend button").forEach(function(b){ legendBtns[b.dataset.id] = b; });
+  var PILL_IDS = Object.keys(legendBtns);
+  var SECRET_IDS = ["cube","web"]; // the playable cube and the hidden browser
+  function updateFoundUI(){
+    PILL_IDS.forEach(function(id){
+      legendBtns[id].classList.toggle("found", !!foundSet[id]);
+      legendBtns[id].setAttribute("aria-pressed", foundSet[id] ? "true" : "false");
+    });
+    var n = PILL_IDS.filter(function(id){ return foundSet[id]; }).length;
+    var s = SECRET_IDS.filter(function(id){ return foundSet[id]; }).length;
+    var el = document.getElementById("foundCount");
+    var all = n === PILL_IDS.length && s === SECRET_IDS.length;
+    el.textContent = all ? "every world found ✦" :
+      n + " / " + PILL_IDS.length + " found" + (s ? " · " + s + "/" + SECRET_IDS.length + " secrets" : "");
+    el.classList.toggle("done", all);
+  }
+  function markFound(id){
+    if (foundSet[id]) return;
+    foundSet[id] = 1;
+    try { localStorage.setItem(FOUND_KEY, JSON.stringify(Object.keys(foundSet))); } catch(e){}
+    updateFoundUI();
+    var n = PILL_IDS.filter(function(k){ return foundSet[k]; }).length;
+    var s = SECRET_IDS.filter(function(k){ return foundSet[k]; }).length;
+    if (n === PILL_IDS.length && s === SECRET_IDS.length && SOUNDS.toy) SOUNDS.toy();
+  }
+  function setActivePill(id){
+    PILL_IDS.forEach(function(k){
+      legendBtns[k].classList.toggle("active", k === id);
+      if (k === id) legendBtns[k].setAttribute("aria-current", "true");
+      else legendBtns[k].removeAttribute("aria-current");
+    });
+  }
+  updateFoundUI();
+
   var dossier = document.getElementById("dossier");
   var scrim   = document.getElementById("scrim");
   var lastFocus = null;
@@ -1522,6 +1577,8 @@
     });
     cancelHide();
     pickObjects(id);
+    markFound(id);
+    setActivePill(id);
     setBackgroundInert(true);
     scrim.hidden = false; dossier.hidden = false;
     requestAnimationFrame(function(){
@@ -1532,6 +1589,7 @@
   function closeWorld(){
     cancelHide();
     clearPicked();
+    setActivePill(null);
     scrim.classList.remove("show"); dossier.classList.remove("show");
     scheduleHide(dossier, 460);
     setBackgroundInert(false);
@@ -1581,6 +1639,7 @@
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("web");
+    markFound("web");
     setBackgroundInert(true);
     scrim.hidden = false; browser.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); browser.classList.add("show"); });
@@ -1993,6 +2052,7 @@
     lastFocus = document.activeElement;
     cancelHide();
     pickObjects("cube");
+    markFound("cube");
     setBackgroundInert(true);
     scrim.hidden = false; cubeStage.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); cubeStage.classList.add("show"); });
