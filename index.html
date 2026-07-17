@@ -278,6 +278,27 @@
   .d-links a:hover,.d-links a:focus-visible{filter:brightness(1.15)}
   .d-links a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   .d-links a::after{content:" ↗"}
+  .d-links .d-listen{
+    flex-basis:100%;
+    display:flex;align-items:center;flex-wrap:wrap;gap:.55rem;
+  }
+  .d-links .d-listen span{
+    font-family:var(--mono);font-size:.64rem;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-faint);
+    margin-right:.25rem;
+  }
+  .d-links .d-listen a{
+    width:40px;height:40px;border-radius:50%;padding:0;
+    display:grid;place-items:center;
+    color:var(--ink);
+    background:color-mix(in srgb, var(--a) 9%, transparent);
+    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
+  }
+  .d-links .d-listen a::after{content:none}
+  .d-links .d-listen a svg{width:20px;height:20px;fill:currentColor;display:block}
+  .d-links .d-listen a:hover,.d-links .d-listen a:focus-visible{
+    color:var(--room);background:var(--a);border-color:var(--a);filter:none;
+  }
 
   /* ---------- the built-in browser (game within the game) ---------- */
   .browser{
@@ -398,6 +419,18 @@
   }
   .cubestage.seq .cs-next{display:block}
   .cs-next:hover{filter:brightness(1.12)}
+  .cs-tools{display:none;gap:.5rem;margin-top:.7rem}
+  .cubestage.free .cs-tools{display:flex}
+  .cubestage.free.seq .cs-tools{display:none}
+  .cs-tools button{
+    flex:1;
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
+    color:var(--a);background:transparent;
+    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
+    border-radius:999px;padding:.55em 0;cursor:pointer;
+  }
+  .cs-tools button:disabled{opacity:.3;cursor:default}
+  .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
 
   /* ---------- footer ---------- */
   footer{
@@ -488,6 +521,10 @@
   <div class="cs-pad" id="csPad"></div>
   <div class="cs-seq" id="csSeq" aria-hidden="true"></div>
   <button class="cs-next" id="csNext"></button>
+  <div class="cs-tools">
+    <button id="csSolve">Solve itself</button>
+    <button id="csFlip">Superflip again</button>
+  </div>
 </section>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -1113,7 +1150,12 @@
       title: "Aethra Kairos — Echoes of Us, I–III",
       story: "ERRER Labs is my little studio for the things that don't fit anywhere else. One of them was an artist, Aethra Kairos — and somehow that turned into three full albums, Echoes of Us, volumes one through three. Give them a spin sometime.",
       chips: ["Echoes of Us — Album I","Echoes of Us — Album II","Echoes of Us — Album III"],
-      links: [{label:"ERRERLabs.com", href:"https://errerlabs.com"}]
+      links: [{label:"ERRERLabs.com", href:"https://errerlabs.com"}],
+      listen: [
+        {label:"Aethra Kairos on Apple Music", icon:"applemusic", href:"https://music.apple.com/us/artist/aethra-kairos/1817647448"},
+        {label:"Aethra Kairos on Spotify", icon:"spotify", href:"https://open.spotify.com/search/Aethra%20Kairos"},
+        {label:"Aethra Kairos on YouTube", icon:"youtube", href:"https://www.youtube.com/channel/UCe8L86GjBRIi7M2c-14w0Jg"}
+      ]
     },
     cam: {
       kicker: "ERRER Labs · Open Source",
@@ -1287,6 +1329,12 @@
   /* ================================================================
      DOSSIER dialog
      ================================================================ */
+  /* official brand glyphs (Simple Icons path data, 24x24) for listen links */
+  var BRAND_ICONS = {
+    applemusic: "M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043a5.022 5.022 0 00-1.877-.726 10.496 10.496 0 00-1.564-.15c-.04-.003-.083-.01-.124-.013H5.986c-.152.01-.303.017-.455.026-.747.043-1.49.123-2.193.4-1.336.53-2.3 1.452-2.865 2.78-.192.448-.292.925-.363 1.408-.056.392-.088.785-.1 1.18 0 .032-.007.062-.01.093v12.223c.01.14.017.283.027.424.05.815.154 1.624.497 2.373.65 1.42 1.738 2.353 3.234 2.801.42.127.856.187 1.293.228.555.053 1.11.06 1.667.06h11.03a12.5 12.5 0 001.57-.1c.822-.106 1.596-.35 2.295-.81a5.046 5.046 0 001.88-2.207c.186-.42.293-.87.37-1.324.113-.675.138-1.358.137-2.04-.002-3.8 0-7.595-.003-11.393zm-6.423 3.99v5.712c0 .417-.058.827-.244 1.206-.29.59-.76.962-1.388 1.14-.35.1-.706.157-1.07.173-.95.045-1.773-.6-1.943-1.536a1.88 1.88 0 011.038-2.022c.323-.16.67-.25 1.018-.324.378-.082.758-.153 1.134-.24.274-.063.457-.23.51-.516a.904.904 0 00.02-.193c0-1.815 0-3.63-.002-5.443a.725.725 0 00-.026-.185c-.04-.15-.15-.243-.304-.234-.16.01-.318.035-.475.066-.76.15-1.52.303-2.28.456l-2.325.47-1.374.278c-.016.003-.032.01-.048.013-.277.077-.377.203-.39.49-.002.042 0 .086 0 .13-.002 2.602 0 5.204-.003 7.805 0 .42-.047.836-.215 1.227-.278.64-.77 1.04-1.434 1.233-.35.1-.71.16-1.075.172-.96.036-1.755-.6-1.92-1.544-.14-.812.23-1.685 1.154-2.075.357-.15.73-.232 1.108-.31.287-.06.575-.116.86-.177.383-.083.583-.323.6-.714v-.15c0-2.96 0-5.922.002-8.882 0-.123.013-.25.042-.37.07-.285.273-.448.546-.518.255-.066.515-.112.774-.165.733-.15 1.466-.296 2.2-.444l2.27-.46c.67-.134 1.34-.27 2.01-.403.22-.043.442-.088.663-.106.31-.025.523.17.554.482.008.073.012.148.012.223.002 1.91.002 3.822 0 5.732z",
+    spotify: "M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z",
+    youtube: "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"
+  };
   var dossier = document.getElementById("dossier");
   var scrim   = document.getElementById("scrim");
   var lastFocus = null;
@@ -1355,6 +1403,22 @@
       a.target = "_blank"; a.rel = "noopener";
       links.appendChild(a);
     });
+    if (w.listen){
+      var row = document.createElement("div");
+      row.className = "d-listen";
+      var lab = document.createElement("span");
+      lab.textContent = "Listen";
+      row.appendChild(lab);
+      w.listen.forEach(function(l){
+        var a = document.createElement("a");
+        a.href = l.href; a.target = "_blank"; a.rel = "noopener";
+        a.setAttribute("aria-label", l.label);
+        a.title = l.label;
+        a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + BRAND_ICONS[l.icon] + '"/></svg>';
+        row.appendChild(a);
+      });
+      links.appendChild(row);
+    }
     cancelHide();
     pickObjects(id);
     setBackgroundInert(true);
@@ -1473,6 +1537,33 @@
      so from the flipped cube this exact sequence solves it. */
   var CUBE_SEQ = "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2".split(" ");
   var cubeState = CUBE_SEQ.reduce(cubeApply, cubeSolved());
+  /* every turn is recorded, so the cube always knows the word that made
+     its scramble — and solving is just reading that word backwards */
+  var cubeHist = CUBE_SEQ.slice();
+  var CUBE_OPP = {U:"D", D:"U", L:"R", R:"L", F:"B", B:"F"};
+  function tokQ(t){ var s = t.slice(1); return s === "2" ? 2 : s === "'" ? 3 : 1; }
+  function qTok(f, q){ return q === 1 ? f : q === 2 ? f + "2" : f + "'"; }
+  function cubeSimplify(tokens){
+    var out = tokens.slice(), changed = true;
+    while (changed){
+      changed = false;
+      for (var j = 1; j < out.length; j++){
+        var b = out[j], jj = -1;
+        if (out[j-1][0] === b[0]) jj = j - 1;
+        else if (out[j-1][0] === CUBE_OPP[b[0]] && j - 2 >= 0 && out[j-2][0] === b[0]) jj = j - 2;
+        if (jj >= 0){
+          var q = (tokQ(out[jj]) + tokQ(b)) % 4;
+          out.splice(j, 1);
+          if (q === 0) out.splice(jj, 1); else out[jj] = qTok(b[0], q);
+          changed = true; break;
+        }
+      }
+    }
+    return out;
+  }
+  function cubeInverse(tokens){
+    return tokens.slice().reverse().map(function(t){ return qTok(t[0], 4 - tokQ(t)); });
+  }
   var CUBE_HOME = cubeSolved();
   function cubeIsSolved(state){
     for (var i = 0; i < 27; i++){
@@ -1617,7 +1708,7 @@
     {t:'<b>R</b> is the Right face. Six faces, six letters — U, D, L, R, F, B — and a tick for each undo.', allow:"R"},
     {t:'And <b>R&prime;</b> takes it back. That little alphabet of turns reaches every one of the cube&rsquo;s 43,252,003,274,489,856,000 positions.', allow:"R'"},
     {t:'Here is why this scramble is famous. Of all 43 quintillion positions, the superflip was the <b>first proven to need every bit of 20 moves</b> — the case that pinned down &ldquo;God&rsquo;s Number&rdquo; in 2010. And it hides a deeper symmetry: it is the <i>only</i> position that commutes with every move, which makes it <i>its own inverse</i> — the recipe that builds it, unbuilds it. Walk all twenty.', seq:true},
-    {t:'<b>Solved.</b> Twenty moves — the exact worst case. You just walked God&rsquo;s Number, move for move. The cube is yours: twist freely, or run those same twenty again and watch the superflip put itself back.', free:true}
+    {t:'<b>Solved.</b> Twenty moves — the exact worst case. You just walked God&rsquo;s Number, move for move. The cube is yours now: twist it into any mess you like. It remembers every turn, so it can always <i>solve itself</i> — or rebuild the superflip on request.', free:true}
   ];
   var csStep = 0, csSeqPos = 0;
   var csPad = document.getElementById("csPad");
@@ -1642,12 +1733,14 @@
     csSeqEl.appendChild(sp);
   });
   var csAnimating = false;
-  function csDoMove(tok, after){
+  function csDoMove(tok, after, fast){
     if (csAnimating) return;
     ac(true);
     csMoveSound(); buzz("cube");
     if (REDUCED){
       cubeState = cubeApply(cubeState, tok);
+      cubeHist.push(tok);
+      if (cubeIsSolved(cubeState)) cubeHist.length = 0; // solved = empty word
       after();
       return;
     }
@@ -1655,16 +1748,70 @@
     var quarters = tok.slice(1) === "2" ? 2 : 1;
     var sign = mv.sign * (tok.slice(1) === "'" ? -1 : 1);
     csAnimating = true;
-    var t0 = null, DUR = quarters === 2 ? 430 : 260;
+    var t0 = null, DUR = quarters === 2 ? (fast ? 300 : 430) : (fast ? 180 : 260);
     function step(now){
       if (t0 === null) t0 = now;
       var p = Math.min(1, (now - t0) / DUR);
       var e = 1 - Math.pow(1 - p, 3);
       csRedraw([tok[0], sign * 90 * quarters * e]);
       if (p < 1) requestAnimationFrame(step);
-      else { cubeState = cubeApply(cubeState, tok); csAnimating = false; after(); }
+      else {
+        cubeState = cubeApply(cubeState, tok);
+        cubeHist.push(tok);
+        if (cubeIsSolved(cubeState)) cubeHist.length = 0; // solved = empty word
+        csAnimating = false; after();
+      }
     }
     requestAnimationFrame(step);
+  }
+  /* auto-play a word of moves (the solve, or the superflip rebuild) */
+  var csAuto = null;
+  function csTokensToStrip(tokens){
+    csSeqEl.innerHTML = "";
+    tokens.forEach(function(tok){
+      var sp = document.createElement("span");
+      sp.textContent = tok.replace("'", "′");
+      csSeqEl.appendChild(sp);
+    });
+  }
+  function csAutoStep(){
+    if (!csAuto) return;
+    var t = csAuto.tokens, i = csAuto.pos, k;
+    for (k = 0; k < csSeqEl.children.length; k++){
+      csSeqEl.children[k].className = k < i ? "done" : k === i ? "cur" : "";
+    }
+    if (i >= t.length){
+      var wasSolve = csAuto.solve;
+      csAuto = null;
+      if (wasSolve) cubeHist = [];
+      csRefresh();
+      if (cubeIsSolved(cubeState)){
+        csSolvedSound();
+        if (wasSolve) document.getElementById("csText").innerHTML =
+          '<b>Home.</b> That is all solving ever is: your scramble was a word, and the cube read it backwards, undoing each letter. Mess it up again — it always knows the way back.';
+      }
+      return;
+    }
+    csDoMove(t[i], function(){
+      if (!csAuto) return;
+      csAuto.pos++;
+      csAuto.timer = setTimeout(csAutoStep, REDUCED ? 30 : 80);
+    }, true);
+  }
+  function csAutoPlay(tokens, text, isSolve){
+    if (csAnimating || csAuto || !tokens.length) return;
+    csAuto = { tokens: tokens, pos: 0, solve: isSolve, timer: null };
+    document.getElementById("csText").innerHTML = text;
+    cubeStage.classList.add("seq");
+    cubeStage.classList.remove("solved");
+    csTokensToStrip(tokens);
+    document.getElementById("csNext").style.display = "none";
+    csArrowTok = null;
+    csRedraw();
+    csAutoStep();
+  }
+  function csAutoAbort(){
+    if (csAuto){ clearTimeout(csAuto.timer); csAuto = null; }
   }
   function csMoveSound(){
     tone(640, {type:"triangle", dur:0.05, g:0.05});
@@ -1680,7 +1827,11 @@
     var L = CS_LESSONS[csStep];
     document.getElementById("csText").innerHTML = L.t;
     cubeStage.classList.toggle("seq", !!L.seq);
+    cubeStage.classList.toggle("free", !!L.free);
     cubeStage.classList.toggle("solved", !!L.free && cubeIsSolved(cubeState));
+    document.getElementById("csNext").style.display = "";
+    document.getElementById("csSolve").disabled = cubeIsSolved(cubeState);
+    document.getElementById("csFlip").disabled = false;
     csPad.querySelectorAll("button").forEach(function(b){
       var on = !!L.free || b.dataset.tok === L.allow;
       b.disabled = !on;
@@ -1698,6 +1849,7 @@
     csRedraw();
   }
   function csPress(tok){
+    if (csAuto) return;
     var L = CS_LESSONS[csStep];
     if (!L.free && L.allow !== tok) return;
     csArrowTok = null;
@@ -1711,7 +1863,7 @@
     });
   }
   document.getElementById("csNext").addEventListener("click", function(){
-    if (csAnimating) return;
+    if (csAnimating || csAuto) return;
     var tok = CUBE_SEQ[csSeqPos];
     csArrowTok = null;
     csDoMove(tok, function(){
@@ -1738,6 +1890,7 @@
     (L.seq ? document.getElementById("csNext") : (csPad.querySelector(".glow") || document.getElementById("csClose"))).focus();
   }
   function closeCubeGame(){
+    csAutoAbort();
     cancelHide();
     clearPicked();
     scrim.classList.remove("show"); cubeStage.classList.remove("show");
@@ -1746,9 +1899,26 @@
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.getElementById("csClose").addEventListener("click", function(){ SOUNDS.hover(); closeCubeGame(); });
+  document.getElementById("csSolve").addEventListener("click", function(){
+    if (!CS_LESSONS[csStep].free || cubeIsSolved(cubeState)) return;
+    ac(true);
+    csAutoPlay(cubeInverse(cubeSimplify(cubeHist)),
+      'Watch closely — here is the secret. Every scramble you made is a <b>word</b> in the six-letter alphabet, and the cube remembers it. To solve, it reads your word <i>backwards</i>, undoing each letter as it goes. Any mess, every time.', true);
+  });
+  document.getElementById("csFlip").addEventListener("click", function(){
+    if (!CS_LESSONS[csStep].free) return;
+    ac(true);
+    csAutoPlay(CUBE_SEQ.slice(),
+      'Rebuilding the superflip — the same twenty moves that solved it, because it is its own inverse.', false);
+  });
   window.KM_CUBE = {
     faces: function(){ return cubeFaces(cubeState); },
-    apply: function(tok){ cubeState = cubeApply(cubeState, tok); csRedraw(); },
+    apply: function(tok){
+      cubeState = cubeApply(cubeState, tok);
+      cubeHist.push(tok);
+      if (cubeIsSolved(cubeState)) cubeHist.length = 0;
+      csRedraw();
+    },
     solved: function(){ return cubeIsSolved(cubeState); },
     frame: function(face, deg){ csRedraw([face, deg]); } // freeze one animation frame (testing)
   };
