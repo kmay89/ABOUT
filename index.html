@@ -239,6 +239,32 @@
   .era-now{display:none}
   #iso.now .era-now{display:inline}
   #iso.now .era-old{display:none}
+  .pool-warm,.pool-cool{transition:opacity .9s ease}
+  .pool-cool{opacity:0}
+  #iso.now .pool-cool{opacity:1}
+  #iso.now .pool-warm{opacity:.3}
+  /* the era chip is a real invitation, not a label */
+  #eraBtn{
+    color:var(--room);
+    background:var(--lamp);
+    border-color:var(--lamp);
+    box-shadow:0 0 10px rgba(255,201,122,.35);
+    animation:eraPulse 2.4s ease-in-out infinite;
+  }
+  #eraBtn:hover{filter:brightness(1.12)}
+  #eraBtn:disabled{opacity:.7;cursor:wait}
+  #eraBtn.used{animation:none}
+  @keyframes eraPulse{50%{box-shadow:0 0 24px rgba(255,201,122,.8)}}
+  /* CRT degauss: the whole tube shudders and the colors bloom for a beat */
+  .iso-obj > *{transform-box:fill-box;transform-origin:50% 50%}
+  #iso.deg .era-old > *{animation:degauss .8s ease-out}
+  @keyframes degauss{
+    0%{transform:scale(1.05,.92) skewX(2.5deg);filter:hue-rotate(80deg) saturate(2.6)}
+    18%{transform:scale(.94,1.07) skewX(-2deg);filter:hue-rotate(-70deg) saturate(2.2)}
+    40%{transform:scale(1.025,.975) skewX(.8deg);filter:hue-rotate(30deg) saturate(1.4)}
+    65%{transform:scale(.992,1.012);filter:none}
+    100%{transform:none;filter:none}
+  }
 
   .hint{
     position:relative;z-index:4;
@@ -612,6 +638,9 @@
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
     .pan-cue .cl,.pan-cue .cr{animation:none}
+    #eraBtn{animation:none}
+    #iso.deg .era-old > *{animation:none}
+    .pool-warm,.pool-cool{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     html{scroll-behavior:auto}
   }
@@ -660,7 +689,7 @@
   <div class="hint">
     <span>Hover to feel</span><span class="sep">/</span>
     <span>Click to pick up</span><span class="sep">/</span>
-    <button id="eraBtn" class="chip" aria-pressed="false">Year: 1999</button>
+    <button id="eraBtn" class="chip" aria-pressed="false" title="Flip the desk between 1999 and 2026">Year: 1999 ⇄</button>
     <button id="sndBtn" class="chip" aria-pressed="true">Sound: on</button>
   </div>
 </main>
@@ -960,10 +989,14 @@
       '<path d="M20 348 Q 300 338 540 352"/></g>' +
     '<ellipse cx="120" cy="86" rx="9" ry="4.5" fill="none" stroke="#4a2c15" opacity=".2" stroke-width="2"/>' +
     '<ellipse cx="470" cy="250" rx="7" ry="3.5" fill="none" stroke="#4a2c15" opacity=".2" stroke-width="2"/>'));
-  // warm pool of light on the desk
-  S.push(gTop(0,0,0,'<ellipse cx="270" cy="170" rx="290" ry="220" fill="url(#screenGlow)" opacity=".0"/>' +
-    '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>' +
-    '<ellipse cx="200" cy="130" rx="190" ry="150" fill="rgba(255,201,122,.07)"/>', ''));
+  // pools of light on the desk: lamp-warm for 1999, LCD-cool for 2026
+  S.push(gTop(0,0,0,
+    '<g class="pool-warm">' +
+      '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>' +
+      '<ellipse cx="200" cy="130" rx="190" ry="150" fill="rgba(255,201,122,.07)"/></g>' +
+    '<g class="pool-cool">' +
+      '<ellipse cx="250" cy="150" rx="300" ry="230" fill="rgba(143,183,255,.10)"/>' +
+      '<ellipse cx="235" cy="140" rx="180" ry="140" fill="rgba(190,216,255,.08)"/></g>', ''));
 
   /* ---------- the lamp the light has been coming from all along ---------- */
   (function(){
@@ -985,7 +1018,9 @@
 
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
-  S.push(shadowW(150,50,180,212,12,.30));        // CRT + keyboard
+  S.push('<g class="era-old">' + shadowW(150,50,180,212,12,.30) + "</g>"); // CRT + keyboard (1999)
+  S.push('<g class="era-now">' + shadowW(190,88,92,34,8,.26) +
+    shadowW(164,198,152,58,8,.24) + shadowW(340,142,72,76,8,.24) + "</g>"); // 2026 rig
   S.push(shadowW(386,58,116,84,9,.30));          // book stack
   S.push(shadowW(24,196,86,64,7,.24));           // Lupita book
   S.push(shadowW(118,208,46,46,6,.24));          // doll box
@@ -1069,6 +1104,12 @@
   S.push(wrapObj("sun","Borrowed Sunlight — a novel, new for summer 2026","#ffd166",sunb));
 
   /* ---------- board: beige CRT + keyboard (the machine years) ---------- */
+  var CRT_SELFTEST = '<g class="crt-line" ' + MONO + ' font-size="9" fill="#63e6a9">' +
+    txt(18,26,"C:\\ATM&gt; SELF-TEST",9,"#63e6a9") +
+    txt(18,40,"CARD READER ... OK",9,"#63e6a9") +
+    txt(18,54,"PSU +24V ...... OK",9,"#63e6a9") +
+    txt(18,68,"TOUCH PANEL ... OK",9,"#63e6a9") +
+    txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9") + "</g>";
   var crt = "";
   crt += box(195,96,0,64,30,14,"#c9bda2");                       // stand
   crt += box(170,42,14,110,52,92,"#c4b89c");                      // tube hump
@@ -1078,12 +1119,7 @@
   crt += box(150,90,14,150,34,112,"#d5c9ad");                     // bezel slab
   crt += gLeft(150,124,126,                                        // screen face
     '<rect x="10" y="10" width="130" height="84" rx="6" fill="#0a1a10" stroke="#8f8368" stroke-width="2"/>' +
-    '<g class="crt-line" ' + MONO + ' font-size="9" fill="#63e6a9">' +
-      txt(18,26,"C:\\ATM&gt; SELF-TEST",9,"#63e6a9") +
-      txt(18,40,"CARD READER ... OK",9,"#63e6a9") +
-      txt(18,54,"PSU +24V ...... OK",9,"#63e6a9") +
-      txt(18,68,"TOUCH PANEL ... OK",9,"#63e6a9") +
-      txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9") + "</g>" +
+    '<g id="crtOS">' + CRT_SELFTEST + "</g>" +
     '<polygon points="16,12 52,12 26,92 16,92" fill="rgba(255,255,255,.07)"/>' +
     '<circle cx="136" cy="102" r="2.6" fill="#63e6a9" class="led"/>' +
     txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO) +
@@ -1559,6 +1595,12 @@
     cube: function(){ // plastic ratchet
       noise({filter:"highpass", freq:2400, dur:0.02, g:0.10});
       tone(760, {type:"triangle", at:0.02, dur:0.05, g:0.06});
+    },
+    degauss: function(){ // the tube clears its throat: THUNK-wobble
+      noise({filter:"lowpass", freq:200, dur:0.5, g:0.30});
+      tone(46, {type:"sine", dur:0.6, g:0.22, end:28});
+      tone(92, {type:"sawtooth", dur:0.3, g:0.06, end:55});
+      tone(3200, {type:"sine", at:0.05, dur:0.08, g:0.02, end:2400});
     },
     prism: function(){ // glass, struck gently by light
       tone(1568, {type:"triangle", dur:0.35, g:0.05});
@@ -2917,16 +2959,116 @@
   });
 
   /* ---------------- era toggle: 1999 ⇄ 2026 ---------------- */
+  /* ---------------- era toggle: 1999 ⇄ 2026, with ceremony ----------------
+     Forward: the CRT defragments, then fast-forwards through a quarter
+     century of operating systems before the desk becomes 2026.
+     Back: the tube degausses with a THUNK, colors blooming for a beat. */
   var eraBtn = document.getElementById("eraBtn");
   var isoEl = document.getElementById("iso");
+  var eraBusy = false;
+  function crtShow(html){
+    var el = document.getElementById("crtOS");
+    if (el) el.innerHTML = html;
+  }
+  function osBG(fill){ return '<rect x="10" y="10" width="130" height="84" rx="6" fill="' + fill + '"/>'; }
+  var OS_SANS = 'font-family="Tahoma,Verdana,sans-serif"';
+  function osTitle(name, y, fill, size){
+    return txt(75, y || 58, name, size || 11, fill || "#f4f6fa", OS_SANS + ' text-anchor="middle" font-weight="bold"');
+  }
+  function frDefrag(p){
+    var s = osBG("#0d2440") + txt(16,20,"DEFRAG C: " + p + "%",7,"#9fc0ff",MONO);
+    var total = 108;
+    for (var i = 0; i < total; i++){
+      var c = i % 18, r = Math.floor(i / 18);
+      var done = i / total < p / 100;
+      var f = done ? "#3f6fd8" : "none";
+      if (done && Math.random() < 0.08) f = "#7cd7e8";       // just moved
+      if (!done && Math.random() < 0.03) f = "#ff5d5d";      // unmovable
+      s += '<rect x="' + (14 + c*6.9) + '" y="' + (25 + r*7.4) + '" width="5.6" height="6.1" fill="' + f +
+        '" stroke="#1c3a66" stroke-width=".7"/>';
+    }
+    s += '<rect x="14" y="72" width="122" height="5" fill="none" stroke="#3f6fd8" stroke-width="1"/>' +
+      '<rect x="15" y="73" width="' + (120 * p / 100) + '" height="3" fill="#63e6a9"/>';
+    return s;
+  }
+  function frFlag(x, y){
+    return '<g transform="translate(' + x + "," + y + ') rotate(-6)">' +
+      '<rect width="6" height="6" fill="#e04b3c"/><rect x="7" width="6" height="6" fill="#4aa651"/>' +
+      '<rect y="7" width="6" height="6" fill="#3c6fb0"/><rect x="7" y="7" width="6" height="6" fill="#f5b63f"/></g>';
+  }
+  var ERA_FRAMES = [
+    function(){ return frDefrag(24); },
+    function(){ return frDefrag(61); },
+    function(){ return frDefrag(97); },
+    function(){ return osBG("#177f7f") + frFlag(45,38) + osTitle("Windows 95", 62) +
+      '<rect x="10" y="86" width="130" height="8" fill="#c0c0c0"/><rect x="13" y="87.5" width="24" height="5" fill="#e6e6e6"/>'; },
+    function(){ return osBG("#177f7f") + frFlag(45,38) + osTitle("Windows 98", 62) +
+      '<ellipse cx="110" cy="28" rx="14" ry="6" fill="rgba(255,255,255,.5)"/><ellipse cx="30" cy="22" rx="10" ry="4.5" fill="rgba(255,255,255,.4)"/>' +
+      '<rect x="10" y="86" width="130" height="8" fill="#c0c0c0"/><rect x="13" y="87.5" width="24" height="5" fill="#e6e6e6"/>'; },
+    function(){ return osBG("#4a86e8") +
+      '<path d="M10 74 Q45 54 78 68 Q108 78 140 64 L140 94 L10 94 Z" fill="#4aa651"/>' +
+      '<ellipse cx="42" cy="26" rx="13" ry="5" fill="rgba(255,255,255,.75)"/>' +
+      osTitle("Windows XP", 50); },
+    function(){ return osBG("#0d1b2e") +
+      '<circle cx="75" cy="48" r="17" fill="rgba(120,200,255,.22)"/><circle cx="75" cy="48" r="10" fill="rgba(170,225,255,.45)"/><circle cx="75" cy="48" r="5" fill="rgba(230,245,255,.85)"/>' +
+      osTitle("Windows Vista", 78, "#cfe4f8", 9); },
+    function(){ return osBG("#123a6b") +
+      '<circle cx="75" cy="50" r="20" fill="rgba(110,190,255,.2)"/><circle cx="75" cy="50" r="12" fill="rgba(160,215,255,.4)"/>' +
+      '<g stroke="rgba(220,240,255,.8)" stroke-width="2" fill="none"><path d="M66 44 q9 -6 18 0 M66 50 h18 M66 56 q9 6 18 0"/></g>' +
+      osTitle("Windows 7", 80, "#cfe4f8", 9); },
+    function(){ return osBG("#180f2e") +
+      '<path d="M10 60 Q40 30 75 52 Q110 72 140 40 L140 94 L10 94 Z" fill="rgba(140,90,220,.45)"/>' +
+      '<path d="M10 76 Q50 56 90 70 Q120 78 140 66 L140 94 L10 94 Z" fill="rgba(255,110,199,.30)"/>' +
+      '<rect x="10" y="10" width="130" height="7" fill="rgba(242,242,247,.9)"/>' +
+      '<rect x="34" y="82" width="82" height="9" rx="4.5" fill="rgba(255,255,255,.22)"/>' +
+      (function(){ var d = "", cs = ["#ff5d5d","#f5b63f","#4aa651","#3c6fb0","#b79cff","#ff8ac2"];
+        for (var i = 0; i < 6; i++) d += '<circle cx="' + (43 + i*13) + '" cy="86.5" r="3.4" fill="' + cs[i] + '"/>';
+        return d; })() +
+      osTitle("macOS", 50, "#f4f6fa", 10); },
+    function(){ return osBG("#05070c") + txt(75,56,"→ 2026",12,"#8fb7ff",MONO + ' text-anchor="middle"'); }
+  ];
   eraBtn.addEventListener("click", function(){
+    if (eraBusy) return;
     ac(true);
-    var now = isoEl.classList.toggle("now");
-    eraBtn.setAttribute("aria-pressed", String(now));
-    eraBtn.textContent = now ? "Year: 2026" : "Year: 1999";
     hideTip();
-    SOUNDS.era();
-    if (navigator.vibrate){ try { navigator.vibrate([10,30,10,30,40]); } catch(err){} }
+    eraBtn.classList.add("used");
+    var goingNow = !isoEl.classList.contains("now");
+    function land(now){
+      isoEl.classList.toggle("now", now);
+      eraBtn.setAttribute("aria-pressed", String(now));
+      eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
+      if (navigator.vibrate){ try { navigator.vibrate([10,30,10,30,40]); } catch(err){} }
+    }
+    if (!goingNow){
+      // back to 1999: the tube degausses
+      land(false);
+      crtShow(CRT_SELFTEST);
+      if (SOUNDS.degauss) SOUNDS.degauss();
+      if (!REDUCED){
+        isoEl.classList.add("deg");
+        setTimeout(function(){ isoEl.classList.remove("deg"); }, 850);
+      }
+      return;
+    }
+    if (REDUCED){ land(true); SOUNDS.era(); return; }
+    // forward: defrag, then a quarter century of boot screens
+    eraBusy = true;
+    eraBtn.disabled = true;
+    var i = 0;
+    (function step(){
+      if (i < ERA_FRAMES.length){
+        crtShow(ERA_FRAMES[i]());
+        tone(540 + i * 55, {type:"square", dur:0.045, g:0.028});
+        i++;
+        setTimeout(step, i <= 3 ? 620 : 540);
+      } else {
+        land(true);
+        SOUNDS.era();
+        crtShow(CRT_SELFTEST); // ready for the trip back
+        eraBusy = false;
+        eraBtn.disabled = false;
+      }
+    })();
   });
 
   /* ---------------- sound toggle ---------------- */
