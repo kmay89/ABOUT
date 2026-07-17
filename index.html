@@ -398,6 +398,18 @@
   }
   .cubestage.seq .cs-next{display:block}
   .cs-next:hover{filter:brightness(1.12)}
+  .cs-tools{display:none;gap:.5rem;margin-top:.7rem}
+  .cubestage.free .cs-tools{display:flex}
+  .cubestage.free.seq .cs-tools{display:none}
+  .cs-tools button{
+    flex:1;
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
+    color:var(--a);background:transparent;
+    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
+    border-radius:999px;padding:.55em 0;cursor:pointer;
+  }
+  .cs-tools button:disabled{opacity:.3;cursor:default}
+  .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
 
   /* ---------- footer ---------- */
   footer{
@@ -488,6 +500,10 @@
   <div class="cs-pad" id="csPad"></div>
   <div class="cs-seq" id="csSeq" aria-hidden="true"></div>
   <button class="cs-next" id="csNext"></button>
+  <div class="cs-tools">
+    <button id="csSolve">Solve itself</button>
+    <button id="csFlip">Superflip again</button>
+  </div>
 </section>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -1473,6 +1489,33 @@
      so from the flipped cube this exact sequence solves it. */
   var CUBE_SEQ = "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2".split(" ");
   var cubeState = CUBE_SEQ.reduce(cubeApply, cubeSolved());
+  /* every turn is recorded, so the cube always knows the word that made
+     its scramble — and solving is just reading that word backwards */
+  var cubeHist = CUBE_SEQ.slice();
+  var CUBE_OPP = {U:"D", D:"U", L:"R", R:"L", F:"B", B:"F"};
+  function tokQ(t){ var s = t.slice(1); return s === "2" ? 2 : s === "'" ? 3 : 1; }
+  function qTok(f, q){ return q === 1 ? f : q === 2 ? f + "2" : f + "'"; }
+  function cubeSimplify(tokens){
+    var out = tokens.slice(), changed = true;
+    while (changed){
+      changed = false;
+      for (var j = 1; j < out.length; j++){
+        var b = out[j], jj = -1;
+        if (out[j-1][0] === b[0]) jj = j - 1;
+        else if (out[j-1][0] === CUBE_OPP[b[0]] && j - 2 >= 0 && out[j-2][0] === b[0]) jj = j - 2;
+        if (jj >= 0){
+          var q = (tokQ(out[jj]) + tokQ(b)) % 4;
+          out.splice(j, 1);
+          if (q === 0) out.splice(jj, 1); else out[jj] = qTok(b[0], q);
+          changed = true; break;
+        }
+      }
+    }
+    return out;
+  }
+  function cubeInverse(tokens){
+    return tokens.slice().reverse().map(function(t){ return qTok(t[0], 4 - tokQ(t)); });
+  }
   var CUBE_HOME = cubeSolved();
   function cubeIsSolved(state){
     for (var i = 0; i < 27; i++){
@@ -1617,7 +1660,7 @@
     {t:'<b>R</b> is the Right face. Six faces, six letters — U, D, L, R, F, B — and a tick for each undo.', allow:"R"},
     {t:'And <b>R&prime;</b> takes it back. That little alphabet of turns reaches every one of the cube&rsquo;s 43,252,003,274,489,856,000 positions.', allow:"R'"},
     {t:'Here is why this scramble is famous. Of all 43 quintillion positions, the superflip was the <b>first proven to need every bit of 20 moves</b> — the case that pinned down &ldquo;God&rsquo;s Number&rdquo; in 2010. And it hides a deeper symmetry: it is the <i>only</i> position that commutes with every move, which makes it <i>its own inverse</i> — the recipe that builds it, unbuilds it. Walk all twenty.', seq:true},
-    {t:'<b>Solved.</b> Twenty moves — the exact worst case. You just walked God&rsquo;s Number, move for move. The cube is yours: twist freely, or run those same twenty again and watch the superflip put itself back.', free:true}
+    {t:'<b>Solved.</b> Twenty moves — the exact worst case. You just walked God&rsquo;s Number, move for move. The cube is yours now: twist it into any mess you like. It remembers every turn, so it can always <i>solve itself</i> — or rebuild the superflip on request.', free:true}
   ];
   var csStep = 0, csSeqPos = 0;
   var csPad = document.getElementById("csPad");
@@ -1642,12 +1685,14 @@
     csSeqEl.appendChild(sp);
   });
   var csAnimating = false;
-  function csDoMove(tok, after){
+  function csDoMove(tok, after, fast){
     if (csAnimating) return;
     ac(true);
     csMoveSound(); buzz("cube");
     if (REDUCED){
       cubeState = cubeApply(cubeState, tok);
+      cubeHist.push(tok);
+      if (cubeIsSolved(cubeState)) cubeHist.length = 0; // solved = empty word
       after();
       return;
     }
@@ -1655,16 +1700,70 @@
     var quarters = tok.slice(1) === "2" ? 2 : 1;
     var sign = mv.sign * (tok.slice(1) === "'" ? -1 : 1);
     csAnimating = true;
-    var t0 = null, DUR = quarters === 2 ? 430 : 260;
+    var t0 = null, DUR = quarters === 2 ? (fast ? 300 : 430) : (fast ? 180 : 260);
     function step(now){
       if (t0 === null) t0 = now;
       var p = Math.min(1, (now - t0) / DUR);
       var e = 1 - Math.pow(1 - p, 3);
       csRedraw([tok[0], sign * 90 * quarters * e]);
       if (p < 1) requestAnimationFrame(step);
-      else { cubeState = cubeApply(cubeState, tok); csAnimating = false; after(); }
+      else {
+        cubeState = cubeApply(cubeState, tok);
+        cubeHist.push(tok);
+        if (cubeIsSolved(cubeState)) cubeHist.length = 0; // solved = empty word
+        csAnimating = false; after();
+      }
     }
     requestAnimationFrame(step);
+  }
+  /* auto-play a word of moves (the solve, or the superflip rebuild) */
+  var csAuto = null;
+  function csTokensToStrip(tokens){
+    csSeqEl.innerHTML = "";
+    tokens.forEach(function(tok){
+      var sp = document.createElement("span");
+      sp.textContent = tok.replace("'", "′");
+      csSeqEl.appendChild(sp);
+    });
+  }
+  function csAutoStep(){
+    if (!csAuto) return;
+    var t = csAuto.tokens, i = csAuto.pos, k;
+    for (k = 0; k < csSeqEl.children.length; k++){
+      csSeqEl.children[k].className = k < i ? "done" : k === i ? "cur" : "";
+    }
+    if (i >= t.length){
+      var wasSolve = csAuto.solve;
+      csAuto = null;
+      if (wasSolve) cubeHist = [];
+      csRefresh();
+      if (cubeIsSolved(cubeState)){
+        csSolvedSound();
+        if (wasSolve) document.getElementById("csText").innerHTML =
+          '<b>Home.</b> That is all solving ever is: your scramble was a word, and the cube read it backwards, undoing each letter. Mess it up again — it always knows the way back.';
+      }
+      return;
+    }
+    csDoMove(t[i], function(){
+      if (!csAuto) return;
+      csAuto.pos++;
+      csAuto.timer = setTimeout(csAutoStep, REDUCED ? 30 : 80);
+    }, true);
+  }
+  function csAutoPlay(tokens, text, isSolve){
+    if (csAnimating || csAuto || !tokens.length) return;
+    csAuto = { tokens: tokens, pos: 0, solve: isSolve, timer: null };
+    document.getElementById("csText").innerHTML = text;
+    cubeStage.classList.add("seq");
+    cubeStage.classList.remove("solved");
+    csTokensToStrip(tokens);
+    document.getElementById("csNext").style.display = "none";
+    csArrowTok = null;
+    csRedraw();
+    csAutoStep();
+  }
+  function csAutoAbort(){
+    if (csAuto){ clearTimeout(csAuto.timer); csAuto = null; }
   }
   function csMoveSound(){
     tone(640, {type:"triangle", dur:0.05, g:0.05});
@@ -1680,7 +1779,11 @@
     var L = CS_LESSONS[csStep];
     document.getElementById("csText").innerHTML = L.t;
     cubeStage.classList.toggle("seq", !!L.seq);
+    cubeStage.classList.toggle("free", !!L.free);
     cubeStage.classList.toggle("solved", !!L.free && cubeIsSolved(cubeState));
+    document.getElementById("csNext").style.display = "";
+    document.getElementById("csSolve").disabled = cubeIsSolved(cubeState);
+    document.getElementById("csFlip").disabled = false;
     csPad.querySelectorAll("button").forEach(function(b){
       var on = !!L.free || b.dataset.tok === L.allow;
       b.disabled = !on;
@@ -1698,6 +1801,7 @@
     csRedraw();
   }
   function csPress(tok){
+    if (csAuto) return;
     var L = CS_LESSONS[csStep];
     if (!L.free && L.allow !== tok) return;
     csArrowTok = null;
@@ -1711,7 +1815,7 @@
     });
   }
   document.getElementById("csNext").addEventListener("click", function(){
-    if (csAnimating) return;
+    if (csAnimating || csAuto) return;
     var tok = CUBE_SEQ[csSeqPos];
     csArrowTok = null;
     csDoMove(tok, function(){
@@ -1738,6 +1842,7 @@
     (L.seq ? document.getElementById("csNext") : (csPad.querySelector(".glow") || document.getElementById("csClose"))).focus();
   }
   function closeCubeGame(){
+    csAutoAbort();
     cancelHide();
     clearPicked();
     scrim.classList.remove("show"); cubeStage.classList.remove("show");
@@ -1746,9 +1851,26 @@
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.getElementById("csClose").addEventListener("click", function(){ SOUNDS.hover(); closeCubeGame(); });
+  document.getElementById("csSolve").addEventListener("click", function(){
+    if (!CS_LESSONS[csStep].free || cubeIsSolved(cubeState)) return;
+    ac(true);
+    csAutoPlay(cubeInverse(cubeSimplify(cubeHist)),
+      'Watch closely — here is the secret. Every scramble you made is a <b>word</b> in the six-letter alphabet, and the cube remembers it. To solve, it reads your word <i>backwards</i>, undoing each letter as it goes. Any mess, every time.', true);
+  });
+  document.getElementById("csFlip").addEventListener("click", function(){
+    if (!CS_LESSONS[csStep].free) return;
+    ac(true);
+    csAutoPlay(CUBE_SEQ.slice(),
+      'Rebuilding the superflip — the same twenty moves that solved it, because it is its own inverse.', false);
+  });
   window.KM_CUBE = {
     faces: function(){ return cubeFaces(cubeState); },
-    apply: function(tok){ cubeState = cubeApply(cubeState, tok); csRedraw(); },
+    apply: function(tok){
+      cubeState = cubeApply(cubeState, tok);
+      cubeHist.push(tok);
+      if (cubeIsSolved(cubeState)) cubeHist.length = 0;
+      csRedraw();
+    },
     solved: function(){ return cubeIsSolved(cubeState); },
     frame: function(face, deg){ csRedraw([face, deg]); } // freeze one animation frame (testing)
   };
