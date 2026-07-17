@@ -45,6 +45,8 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
+  /* buttons and links act on first tap — no double-tap zoom surprises */
+  button,a,.iso-obj{touch-action:manipulation}
   body{
     background:var(--room);
     color:var(--ink);
@@ -105,10 +107,40 @@
     overflow-y:hidden;
     -webkit-overflow-scrolling:touch;
     padding:clamp(.5rem,2vh,1.5rem) 0 0;
+    /* a slim lamp-lit scrollbar so the pannable desk reads as pannable */
+    scrollbar-width:thin;
+    scrollbar-color:rgba(255,201,122,.45) transparent;
   }
+  .desk-wrap::-webkit-scrollbar{height:6px}
+  .desk-wrap::-webkit-scrollbar-track{background:transparent}
+  .desk-wrap::-webkit-scrollbar-thumb{
+    background:rgba(255,201,122,.35);
+    border-radius:999px;
+  }
+  .desk-wrap::-webkit-scrollbar-thumb:hover{background:rgba(255,201,122,.6)}
+  .pan-cue{
+    position:absolute;left:50%;bottom:2.2rem;z-index:4;
+    transform:translateX(-50%);
+    display:none;align-items:center;gap:.55rem;
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--lamp);
+    background:rgba(14,10,7,.75);
+    border:1px solid rgba(255,201,122,.4);
+    border-radius:999px;
+    padding:.5em 1.1em;
+    white-space:nowrap;
+    pointer-events:none;
+    transition:opacity .5s ease;
+  }
+  .pan-cue .cl,.pan-cue .cr{display:inline-block}
+  .pan-cue .cl{animation:cueL 1.5s ease-in-out infinite}
+  .pan-cue .cr{animation:cueR 1.5s ease-in-out infinite}
+  @keyframes cueL{50%{transform:translateX(-4px)}}
+  @keyframes cueR{50%{transform:translateX(4px)}}
   #iso{
     display:block;
     width:100%;
+    min-width:720px;
     max-width:1180px;
     margin:0 auto;
     transform:translate3d(var(--px,0px),var(--py,0px),0);
@@ -279,24 +311,27 @@
   .d-links a::after{content:" ↗"}
   .d-links .d-listen{
     flex-basis:100%;
-    display:flex;align-items:center;flex-wrap:wrap;gap:.55rem;
+    display:flex;flex-wrap:wrap;gap:.5rem;
   }
-  .d-links .d-listen span{
+  .d-links .d-listen > span{
+    flex-basis:100%;
     font-family:var(--mono);font-size:.64rem;letter-spacing:.18em;
     text-transform:uppercase;color:var(--ink-faint);
-    margin-right:.25rem;
   }
   .d-links .d-listen a{
-    width:40px;height:40px;border-radius:50%;padding:0;
-    display:grid;place-items:center;
-    color:var(--ink);
-    background:color-mix(in srgb, var(--a) 9%, transparent);
-    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
+    flex:1 1 30%;min-width:7.5rem;
+    display:flex;align-items:center;justify-content:center;gap:.55rem;
+    border-radius:9px;
+    padding:.8em .5em;
+    font-family:var(--mono);font-size:.74rem;letter-spacing:.05em;
+    color:var(--room);background:var(--a);
+    box-shadow:0 0 18px color-mix(in srgb, var(--a) 22%, transparent);
   }
   .d-links .d-listen a::after{content:none}
-  .d-links .d-listen a svg{width:20px;height:20px;fill:currentColor;display:block}
+  .d-links .d-listen a svg{width:19px;height:19px;fill:currentColor;flex:none}
   .d-links .d-listen a:hover,.d-links .d-listen a:focus-visible{
-    color:var(--room);background:var(--a);border-color:var(--a);filter:none;
+    filter:brightness(1.15);
+    box-shadow:0 0 26px color-mix(in srgb, var(--a) 45%, transparent);
   }
 
   /* ---------- the built-in browser (game within the game) ---------- */
@@ -356,10 +391,13 @@
   /* ---------- the pocket cube (a tiny game and a math lesson) ---------- */
   .cubestage{
     --a:#d9a0e8;
-    position:fixed;left:50%;top:50%;z-index:42;
-    transform:translate(-50%,-46%) scale(.85);
+    /* anchored to a fixed top edge so content changes grow downward
+       instead of re-centering the whole panel */
+    --top-offset:max(1rem, calc(50svh - 21rem));
+    position:fixed;left:50%;top:var(--top-offset);z-index:42;
+    transform:translateX(-50%) scale(.85);
     width:min(26rem,calc(100vw - 1.5rem));
-    max-height:min(88vh,46rem);
+    max-height:calc(100svh - var(--top-offset) - 1rem);
     overflow-y:auto;
     background:linear-gradient(165deg,#1e1710,#140f09 60%);
     border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
@@ -369,13 +407,13 @@
     opacity:0;visibility:hidden;
     transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.3,1.2);
   }
-  .cubestage.show{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1)}
+  .cubestage.show{opacity:1;visibility:visible;transform:translateX(-50%) scale(1)}
   .cs-svg{display:block;width:min(58vw,230px);margin:.6rem auto .2rem;overflow:visible}
   .cubestage.solved .cs-svg{filter:drop-shadow(0 0 16px rgba(99,230,169,.55))}
   .cs-arrow{animation:csArrowPulse 1.5s ease-in-out infinite}
   @keyframes csArrowPulse{50%{opacity:.4}}
   .cs-text{
-    min-height:6.4em;
+    min-height:9.6em; /* room for the longest lesson so the controls below stay put */
     margin-top:.5rem;color:var(--ink-dim);
     line-height:1.5;font-size:.92rem;
   }
@@ -452,6 +490,7 @@
     .iso-obj > *,.dossier,.scrim{transition:none}
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
+    .pan-cue .cl,.pan-cue .cr{animation:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     html{scroll-behavior:auto}
   }
@@ -474,6 +513,7 @@
   <div class="desk-wrap">
     <svg id="iso" viewBox="-465 -245 1135 815" role="group"
          aria-label="An isometric 2000s room: a desk of seven interactive work objects, with hobbies filling the walls, window, and side table"></svg>
+    <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>drag to pan<span class="cr">›</span></div>
   </div>
   <div class="tip" id="tip" aria-hidden="true"></div>
 
@@ -1179,9 +1219,9 @@
       chips: ["Echoes of Us — Album I","Echoes of Us — Album II","Echoes of Us — Album III"],
       links: [{label:"ERRERLabs.com", href:"https://errerlabs.com"}],
       listen: [
-        {label:"Aethra Kairos on Apple Music", icon:"applemusic", href:"https://music.apple.com/us/artist/aethra-kairos/1817647448"},
-        {label:"Aethra Kairos on Spotify", icon:"spotify", href:"https://open.spotify.com/search/Aethra%20Kairos"},
-        {label:"Aethra Kairos on YouTube", icon:"youtube", href:"https://www.youtube.com/channel/UCe8L86GjBRIi7M2c-14w0Jg"}
+        {label:"Aethra Kairos on Apple Music", short:"Apple Music", icon:"applemusic", href:"https://music.apple.com/us/artist/aethra-kairos/1817647448"},
+        {label:"Aethra Kairos on Spotify", short:"Spotify", icon:"spotify", href:"https://open.spotify.com/search/Aethra%20Kairos"},
+        {label:"Aethra Kairos on YouTube", short:"YouTube", icon:"youtube", href:"https://www.youtube.com/channel/UCe8L86GjBRIi7M2c-14w0Jg"}
       ]
     },
     cam: {
@@ -1429,28 +1469,29 @@
     });
     var links = document.getElementById("dLinks");
     links.innerHTML = "";
-    w.links.forEach(function(l){
-      var a = document.createElement("a");
-      a.href = l.href; a.textContent = l.label;
-      a.target = "_blank"; a.rel = "noopener";
-      links.appendChild(a);
-    });
-    if (w.listen){
+    if (w.listen){ // the music comes first — it's the point
       var row = document.createElement("div");
       row.className = "d-listen";
       var lab = document.createElement("span");
-      lab.textContent = "Listen";
+      lab.textContent = "Hear the albums";
       row.appendChild(lab);
       w.listen.forEach(function(l){
         var a = document.createElement("a");
         a.href = l.href; a.target = "_blank"; a.rel = "noopener";
         a.setAttribute("aria-label", l.label);
         a.title = l.label;
-        a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + BRAND_ICONS[l.icon] + '"/></svg>';
+        a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + BRAND_ICONS[l.icon] + '"/></svg>' +
+          '<span>' + l.short + '</span>';
         row.appendChild(a);
       });
       links.appendChild(row);
     }
+    w.links.forEach(function(l){
+      var a = document.createElement("a");
+      a.href = l.href; a.textContent = l.label;
+      a.target = "_blank"; a.rel = "noopener";
+      links.appendChild(a);
+    });
     cancelHide();
     pickObjects(id);
     setBackgroundInert(true);
@@ -1971,7 +2012,12 @@
   document.getElementById("dClose").addEventListener("click", function(){
     SOUNDS.hover(); closeWorld();
   });
-  scrim.addEventListener("click", closeModal);
+  scrim.addEventListener("click", function(){
+    /* a stray tap outside shouldn't end the cube lesson — it closes only
+       via "Put it back" or Escape */
+    if (!cubeStage.hidden) return;
+    closeModal();
+  });
   document.addEventListener("keydown", function(e){
     var m = activeModal();
     if (!m) return;
@@ -2055,9 +2101,28 @@
     if (soundOn){ ac(true); SOUNDS.hover(); }
   });
 
-  /* the scene scales to fit, so the desk never needs panning; the wrap and
-     pan-to-center logic stay for safety if a min-width ever returns */
+  /* small screens: start panned to the desk's center, and show a gentle
+     cue that fades away the first time the visitor pans */
   var wrap = document.querySelector(".desk-wrap");
+  if (wrap.scrollWidth > wrap.clientWidth){
+    wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
+  }
+  var panCue = document.getElementById("panCue");
+  var cueDismissed = false;
+  function cueCheck(){
+    var on = !cueDismissed && wrap.scrollWidth > wrap.clientWidth + 4;
+    panCue.style.display = on ? "flex" : "none";
+    if (on) panCue.style.left = (wrap.scrollLeft + wrap.clientWidth / 2) + "px";
+  }
+  cueCheck();
+  addEventListener("resize", cueCheck);
+  var cueStart = wrap.scrollLeft;
+  wrap.addEventListener("scroll", function(){
+    if (cueDismissed || Math.abs(wrap.scrollLeft - cueStart) < 24) return;
+    cueDismissed = true;
+    panCue.style.opacity = "0";
+    setTimeout(function(){ panCue.style.display = "none"; }, 550);
+  });
 
   /* ---------------- gentle whole-scene parallax ---------------- */
   var iso = document.getElementById("iso");
