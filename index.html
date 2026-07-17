@@ -1168,6 +1168,20 @@
   var dossier = document.getElementById("dossier");
   var scrim   = document.getElementById("scrim");
   var lastFocus = null;
+  var hideTimer = null;
+  function cancelHide(){ // finalize any close still animating so its timeout can't hide a reopened modal
+    if (hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+    if (!dossier.classList.contains("show")) dossier.hidden = true;
+    if (!browser.classList.contains("show")) browser.hidden = true;
+  }
+  function scheduleHide(el, ms){
+    var done = function(){ hideTimer = null; scrim.hidden = true; el.hidden = true; };
+    if (REDUCED) done(); else hideTimer = setTimeout(done, ms);
+  }
+  var bgEls = [document.getElementById("scene"), document.querySelector("footer")];
+  function setBackgroundInert(on){
+    bgEls.forEach(function(el){ el.inert = on; });
+  }
   function openWorld(id, accent){
     var w = WORLDS[id]; if (!w) return;
     lastFocus = document.activeElement;
@@ -1188,6 +1202,8 @@
       a.target = "_blank"; a.rel = "noopener";
       links.appendChild(a);
     });
+    cancelHide();
+    setBackgroundInert(true);
     scrim.hidden = false; dossier.hidden = false;
     requestAnimationFrame(function(){
       scrim.classList.add("show"); dossier.classList.add("show");
@@ -1195,9 +1211,10 @@
     document.getElementById("dClose").focus();
   }
   function closeWorld(){
+    cancelHide();
     scrim.classList.remove("show"); dossier.classList.remove("show");
-    var done = function(){ scrim.hidden = true; dossier.hidden = true; };
-    if (REDUCED) done(); else setTimeout(done, 460);
+    scheduleHide(dossier, 460);
+    setBackgroundInert(false);
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   /* ---------------- the built-in browser ---------------- */
@@ -1232,14 +1249,17 @@
   });
   function openBrowser(){
     lastFocus = document.activeElement;
+    cancelHide();
+    setBackgroundInert(true);
     scrim.hidden = false; browser.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); browser.classList.add("show"); });
     document.getElementById("bClose").focus();
   }
   function closeBrowser(){
+    cancelHide();
     scrim.classList.remove("show"); browser.classList.remove("show");
-    var done = function(){ scrim.hidden = true; browser.hidden = true; };
-    if (REDUCED) done(); else setTimeout(done, 320);
+    scheduleHide(browser, 320);
+    setBackgroundInert(false);
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.getElementById("bClose").addEventListener("click", function(){ SOUNDS.hover(); closeBrowser(); });
