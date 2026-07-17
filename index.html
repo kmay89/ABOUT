@@ -844,7 +844,9 @@
     '<circle cx="54" cy="62" r="3.5" fill="#ffe37a"/>');
   S.push(wrapObj("series","The Everything series","#b79cff",series));
 
-  /* ---------- puzzle: scrambled Rubik's cube ---------- */
+  /* ---------- puzzle: Rubik's cube in superflip — every piece home, all
+     twelve edges flipped; the position that proved God's Number is 20.
+     Scheme: white up, red front-left, blue front-right. ---------- */
   var CUBE_C = ["#e04b3c","#f5b63f","#3c6fb0","#4aa651","#efe8dd","#e88a2e"];
   function stickers(pick){
     var s = "";
@@ -854,9 +856,9 @@
     return s;
   }
   var cube = box(34,332,0,24,24,24,"#141414");
-  cube += gTop(34,332,24, stickers([4,0,2,3,4,1,0,5,4]));
-  cube += gLeft(34,356,24, stickers([1,3,0,4,2,2,5,1,3]));
-  cube += gRight(58,356,24, stickers([2,5,4,0,1,3,3,4,0]));
+  cube += gTop(34,332,24, stickers([4,5,4,3,4,2,4,0,4]));
+  cube += gLeft(34,356,24, stickers([0,4,0,3,0,2,0,1,0]));
+  cube += gRight(58,356,24, stickers([2,4,2,0,2,5,2,1,2]));
   S.push(wrapObj("puzzle","Thought puzzles","#d9a0e8",cube));
 
   /* ---------- outside: flower pot, mushroom & butterfly ---------- */
