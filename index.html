@@ -801,7 +801,26 @@
     '<ellipse cx="470" cy="250" rx="7" ry="3.5" fill="none" stroke="#4a2c15" opacity=".2" stroke-width="2"/>'));
   // warm pool of light on the desk
   S.push(gTop(0,0,0,'<ellipse cx="270" cy="170" rx="290" ry="220" fill="url(#screenGlow)" opacity=".0"/>' +
-    '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>', ''));
+    '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>' +
+    '<ellipse cx="200" cy="130" rx="190" ry="150" fill="rgba(255,201,122,.07)"/>', ''));
+
+  /* ---------- the lamp the light has been coming from all along ---------- */
+  (function(){
+    var b1 = P(52,148,10);                              // base top
+    var j1 = P(42,138,82);                              // elbow
+    var hd = P(112,152,90);                             // head
+    var lamp = isoEllipse(52,148,0,17,"#23262e",'stroke="rgba(10,10,14,.6)" stroke-width="1.5"') +
+      isoEllipse(52,148,10,13,"#3a3f4a",'stroke="rgba(10,10,14,.5)" stroke-width="1.2"') +
+      '<path d="M' + b1[0] + " " + b1[1] + " L" + j1[0] + " " + j1[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
+      '<path d="M' + j1[0] + " " + j1[1] + " L" + hd[0] + " " + hd[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
+      '<circle cx="' + j1[0] + '" cy="' + j1[1] + '" r="3.6" fill="#454a58"/>' +
+      // shade: a cone aimed at the middle of the desk
+      '<g transform="translate(' + hd[0] + "," + hd[1] + ') rotate(50)">' +
+        '<path d="M-12 -9 L12 -9 L17 9 L-17 9 Z" fill="#2c2f38" stroke="rgba(10,10,14,.55)" stroke-width="1.4"/>' +
+        '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="#ffc97a" opacity=".95"/></g>' +
+      '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>';
+    S.push('<g aria-hidden="true">' + lamp + "</g>");
+  })();
 
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
@@ -814,7 +833,7 @@
   S.push(shadowW(250,290,64,106,6,.26));         // game boy
   S.push(shadowW(380,276,96,102,7,.26));         // jewel case
   S.push(shadowW(480,305,58,58,4,.22));          // floppy
-  S.push(shadowW(150,300,90,70,4,.18));          // mousepad
+  S.push(shadowW(328,194,90,70,4,.18));          // mousepad
   S.push(shadowW(310,36,52,44,6,.24));           // sourdough board
   S.push(shadowW(34,332,26,26,4,.22));           // rubik's cube
   S.push(shadowW(76,328,60,42,6,.24));           // Borrowed Sunlight novel
@@ -904,7 +923,18 @@
       txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9") + "</g>" +
     '<polygon points="16,12 52,12 26,92 16,92" fill="rgba(255,255,255,.07)"/>' +
     '<circle cx="136" cy="102" r="2.6" fill="#63e6a9" class="led"/>' +
-    txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO));
+    txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO) +
+    // the sticky note lives where sticky notes live: on the bezel
+    '<g transform="translate(103,84) rotate(-6)">' +
+      '<rect width="28" height="28" fill="#ffe37a" stroke="rgba(120,90,20,.45)"/>' +
+      '<g stroke="#7a5c16" stroke-width="1.4" opacity=".65" fill="none"><path d="M5 9 h18"/><path d="M5 15 h13"/></g>' +
+      txt(4,24,"buy AA batts",4.6,"#7a5c16",SERIF + ' font-style="italic"') + "</g>");
+  // phosphor bloom on the glass, and a faint green spill toward the keyboard
+  (function(){
+    var sc = P(225,124,72);
+    crt += '<ellipse cx="' + sc[0] + '" cy="' + sc[1] + '" rx="80" ry="54" fill="rgba(99,230,169,.10)" filter="url(#soft)"/>';
+  })();
+  crt += isoEllipse(250,168,0,58,"rgba(99,230,169,.05)",'filter="url(#soft)"');
   crt += box(160,200,0,170,62,10,"#d5c9ad");                      // keyboard
   var keys = "";
   for (var r = 0; r < 3; r++)
@@ -989,21 +1019,15 @@
   S.push(wrapObj("utap","uTap — the campus app","#ee6fbb",ph));
 
   /* ---------- charm: sticky note (front-left) ---------- */
-  S.push('<g aria-hidden="true">' + gTop(38,278,0,
-    '<rect width="36" height="36" fill="#ffe37a" stroke="rgba(120,90,20,.4)"/>' +
-    '<g stroke="#7a5c16" stroke-width="1.6" opacity=".65" fill="none">' +
-      '<path d="M6 12 h24"/><path d="M6 19 h18"/></g>' +
-    txt(6,30,"buy AA batts",5.6,"#7a5c16",SERIF + ' font-style="italic"'),
-    " rotate(8)") + "</g>");
 
-  /* ---------- charm: mousepad + ball mouse + cord ---------- */
-  var pad = gTop(150,300,0,
+  /* ---------- charm: mousepad + ball mouse, righty side, cord tucked behind ---------- */
+  var pad = gTop(328,194,0,
     '<rect width="90" height="70" rx="10" fill="#33517c" stroke="rgba(10,16,28,.6)" stroke-width="1.5"/>' +
     '<rect x="4" y="4" width="82" height="62" rx="8" fill="none" stroke="#4a6b9a" stroke-width="1.5" stroke-dasharray="4 4"/>');
-  var cordA = P(197,318,12), cordB = P(250,245,4), cordC = P(270,212,10);
+  var cordA = P(352,200,12), cordB = P(344,156,2), cordC = P(318,126,12);
   pad += '<path d="M' + cordA[0] + " " + cordA[1] + " Q " + cordB[0] + " " + cordB[1] + " " + cordC[0] + " " + cordC[1] + '" fill="none" stroke="#584a3a" stroke-width="2.5" opacity=".8"/>';
-  pad += box(180,316,0,32,46,13,"#dcd3bd");
-  pad += gTop(180,316,13,'<line x1="16" y1="4" x2="16" y2="20" stroke="#9a8e72" stroke-width="1.5"/>' +
+  pad += box(336,202,0,32,46,13,"#dcd3bd");
+  pad += gTop(336,202,13,'<line x1="16" y1="4" x2="16" y2="20" stroke="#9a8e72" stroke-width="1.5"/>' +
     '<rect x="4" y="4" width="24" height="16" rx="6" fill="none" stroke="#9a8e72" stroke-width="1.2"/>');
   S.push('<g aria-hidden="true">' + pad + "</g>");
 
