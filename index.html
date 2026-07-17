@@ -333,6 +333,72 @@
   }
   .b-card:hover .b-name{color:var(--a)}
 
+  /* ---------- the pocket cube (a tiny game and a math lesson) ---------- */
+  .cubestage{
+    --a:#d9a0e8;
+    position:fixed;left:50%;top:50%;z-index:42;
+    transform:translate(-50%,-46%) scale(.85);
+    width:min(26rem,calc(100vw - 1.5rem));
+    max-height:min(88vh,46rem);
+    overflow-y:auto;
+    background:linear-gradient(165deg,#1e1710,#140f09 60%);
+    border:1px solid color-mix(in srgb, var(--a) 45%, transparent);
+    border-radius:14px;
+    box-shadow:0 40px 100px rgba(0,0,0,.75), 0 0 70px color-mix(in srgb, var(--a) 12%, transparent);
+    padding:1.1rem 1.2rem 1.3rem;
+    opacity:0;visibility:hidden;
+    transition:opacity .3s ease, transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .cubestage.show{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1)}
+  .cs-svg{display:block;width:min(58vw,230px);margin:.6rem auto .2rem;overflow:visible}
+  .cs-svg.tick{animation:csTick .16s ease}
+  @keyframes csTick{50%{transform:scale(.96)}}
+  .cubestage.solved .cs-svg{filter:drop-shadow(0 0 16px rgba(99,230,169,.55))}
+  .cs-text{
+    min-height:4.6em;
+    margin-top:.5rem;color:var(--ink-dim);
+    line-height:1.5;font-size:.92rem;
+  }
+  .cs-text b,.cs-text i{color:var(--ink)}
+  .cs-pad{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem;margin-top:.8rem;
+  }
+  .cs-pad button{
+    font-family:var(--mono);font-size:.78rem;
+    color:var(--ink);
+    background:color-mix(in srgb, var(--a) 8%, transparent);
+    border:1px solid color-mix(in srgb, var(--a) 30%, transparent);
+    border-radius:6px;padding:.5em 0;cursor:pointer;
+  }
+  .cs-pad button:disabled{opacity:.25;cursor:default}
+  .cs-pad button.glow{
+    color:var(--room);background:var(--a);border-color:var(--a);
+    animation:csGlow 1.2s ease-in-out infinite;
+  }
+  @keyframes csGlow{50%{box-shadow:0 0 14px color-mix(in srgb, var(--a) 80%, transparent)}}
+  .cs-pad button:not(:disabled):hover{border-color:var(--a)}
+  .cs-seq{
+    display:none;flex-wrap:wrap;gap:.28rem;margin-top:.8rem;
+    font-family:var(--mono);font-size:.68rem;
+  }
+  .cubestage.seq .cs-seq{display:flex}
+  .cubestage.seq .cs-pad{display:none}
+  .cs-seq span{
+    color:var(--ink-faint);
+    border:1px solid rgba(126,111,91,.35);
+    border-radius:4px;padding:.25em .45em;
+  }
+  .cs-seq span.done{opacity:.35}
+  .cs-seq span.cur{color:var(--room);background:var(--a);border-color:var(--a)}
+  .cs-next{
+    display:none;width:100%;margin-top:.7rem;
+    font-family:var(--mono);font-size:.8rem;letter-spacing:.08em;
+    color:var(--room);background:var(--a);
+    border:0;border-radius:8px;padding:.7em 0;cursor:pointer;
+  }
+  .cubestage.seq .cs-next{display:block}
+  .cs-next:hover{filter:brightness(1.12)}
+
   /* ---------- footer ---------- */
   footer{
     border-top:1px solid rgba(255,201,122,.14);
@@ -409,6 +475,18 @@
     <button class="chip" id="bClose">Close ×</button>
   </div>
   <div class="b-grid" id="bGrid"></div>
+</section>
+
+<section class="cubestage" id="cubeStage" role="dialog" aria-modal="true" aria-label="The pocket cube — a tiny lesson" hidden>
+  <div class="d-head">
+    <p class="d-kicker">The pocket puzzle</p>
+    <button class="chip" id="csClose">Put it back ×</button>
+  </div>
+  <svg class="cs-svg" id="csCube" viewBox="-64 -66 128 132" aria-label="A Rubik's cube you can turn"></svg>
+  <p class="cs-text" id="csText" aria-live="polite"></p>
+  <div class="cs-pad" id="csPad"></div>
+  <div class="cs-seq" id="csSeq" aria-hidden="true"></div>
+  <button class="cs-next" id="csNext"></button>
 </section>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -859,7 +937,7 @@
   cube += gTop(34,332,24, stickers([4,5,4,3,4,2,4,0,4]));
   cube += gLeft(34,356,24, stickers([0,4,0,3,0,2,0,1,0]));
   cube += gRight(58,356,24, stickers([2,4,2,0,2,5,2,1,2]));
-  S.push(wrapObj("puzzle","Thought puzzles","#d9a0e8",cube));
+  S.push(wrapObj("cube","A pocket puzzle — pick it up","#d9a0e8",cube));
 
   /* ---------- outside: flower pot, mushroom & butterfly ---------- */
   var pot = cyl(530,40,0,13,20,"#b0603a");
@@ -1060,8 +1138,8 @@
     puzzle: {
       kicker: "The Thinking Wall",
       title: "Philosophy, Illusions, and Puzzles That Bite Back",
-      story: "I collect the things that make certainty wobble: optical illusions, thought puzzles, thrillers with clean mechanisms, documentaries about how anything actually works. The spiral on the wall isn't moving. But you checked.",
-      chips: ["Philosophy","Optical illusions","Thrillers","Documentaries","Thought puzzles"],
+      story: "I collect the things that make certainty wobble: optical illusions, thought puzzles, thrillers with clean mechanisms, documentaries about how anything actually works. The spiral on the wall isn't moving. But you checked. And the little cube on the desk plays for real — pick it up.",
+      chips: ["Philosophy","Optical illusions","Thrillers","Documentaries","Thought puzzles","A playable cube"],
       links: []
     }
   };
@@ -1125,6 +1203,10 @@
   }
   var SOUNDS = {
     hover: function(){ tone(1900, {type:"sine", dur:0.045, g:0.025}); },
+    cube: function(){ // plastic ratchet
+      noise({filter:"highpass", freq:2400, dur:0.02, g:0.10});
+      tone(760, {type:"triangle", at:0.02, dur:0.05, g:0.06});
+    },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
       tone(880,  {type:"square", at:0.05, dur:0.09, g:0.05});
@@ -1212,6 +1294,7 @@
     if (hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
     if (!dossier.classList.contains("show")) dossier.hidden = true;
     if (!browser.classList.contains("show")) browser.hidden = true;
+    if (!cubeStage.classList.contains("show")) cubeStage.hidden = true;
   }
   function scheduleHide(el, ms){
     var done = function(){ hideTimer = null; scrim.hidden = true; el.hidden = true; };
@@ -1337,14 +1420,211 @@
   }
   document.getElementById("bClose").addEventListener("click", function(){ SOUNDS.hover(); closeBrowser(); });
 
+  /* ================================================================
+     THE POCKET CUBE — a real 3x3 engine and a tiny lesson.
+     Cubies live at (x,y,z); visible faces are +z (white, top),
+     +y (red, front-left), +x (blue, right).
+     ================================================================ */
+  var cubeStage = document.getElementById("cubeStage");
+  function cubeSolved(){
+    var s = [];
+    for (var x = 0; x < 3; x++) for (var y = 0; y < 3; y++) for (var z = 0; z < 3; z++){
+      var c = {};
+      if (x === 2) c.px = 2; if (x === 0) c.nx = 3;
+      if (y === 2) c.py = 0; if (y === 0) c.ny = 5;
+      if (z === 2) c.pz = 4; if (z === 0) c.nz = 1;
+      s[x*9 + y*3 + z] = c;
+    }
+    return s;
+  }
+  /* per face: which slice turns, where a cubie lands after one clockwise
+     quarter (seen from outside that face), and how its stickers cycle */
+  var CUBE_MOVES = {
+    U: {sel:function(x,y,z){return z===2;}, map:function(x,y,z){return [2-y, x, z];}, cyc:["py","nx","ny","px"]},
+    D: {sel:function(x,y,z){return z===0;}, map:function(x,y,z){return [y, 2-x, z];}, cyc:["py","px","ny","nx"]},
+    R: {sel:function(x,y,z){return x===2;}, map:function(x,y,z){return [x, 2-z, y];}, cyc:["py","pz","ny","nz"]},
+    L: {sel:function(x,y,z){return x===0;}, map:function(x,y,z){return [x, z, 2-y];}, cyc:["py","nz","ny","pz"]},
+    F: {sel:function(x,y,z){return y===2;}, map:function(x,y,z){return [z, y, 2-x];}, cyc:["pz","px","nz","nx"]},
+    B: {sel:function(x,y,z){return y===0;}, map:function(x,y,z){return [2-z, y, x];}, cyc:["pz","nx","nz","px"]}
+  };
+  function cubeTurn(state, face, times){
+    var m = CUBE_MOVES[face];
+    for (var t = 0; t < times; t++){
+      var next = state.slice();
+      for (var x = 0; x < 3; x++) for (var y = 0; y < 3; y++) for (var z = 0; z < 3; z++){
+        if (!m.sel(x,y,z)) continue;
+        var from = state[x*9 + y*3 + z], to = m.map(x,y,z), c2 = {}, k, i;
+        for (k in from){
+          i = m.cyc.indexOf(k);
+          c2[i < 0 ? k : m.cyc[(i + 1) % 4]] = from[k];
+        }
+        next[to[0]*9 + to[1]*3 + to[2]] = c2;
+      }
+      state = next;
+    }
+    return state;
+  }
+  function cubeApply(state, token){
+    var suf = token.slice(1);
+    return cubeTurn(state, token[0], suf === "2" ? 2 : suf === "'" ? 3 : 1);
+  }
+  /* the classic 20-move superflip recipe. The superflip is its own inverse,
+     so from the flipped cube this exact sequence solves it. */
+  var CUBE_SEQ = "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2".split(" ");
+  var cubeState = CUBE_SEQ.reduce(cubeApply, cubeSolved());
+  var CUBE_HOME = cubeSolved();
+  function cubeIsSolved(state){
+    for (var i = 0; i < 27; i++){
+      var a = state[i], b = CUBE_HOME[i], k;
+      for (k in b) if (a[k] !== b[k]) return false;
+    }
+    return true;
+  }
+  function cubeFaces(state){
+    var f = { top: [], left: [], right: [] };
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++){
+      f.top.push(state[c*9 + r*3 + 2].pz);
+      f.left.push(state[c*9 + 6 + (2-r)].py);
+      f.right.push(state[18 + (2-c)*3 + (2-r)].px);
+    }
+    return f;
+  }
+  function csStickers(picks){
+    var s = "";
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++){
+      s += '<rect x="' + (2.4 + c*19.2) + '" y="' + (2.4 + r*19.2) + '" width="16.8" height="16.8" rx="2.4" fill="' + CUBE_C[picks[r*3+c]] + '"/>';
+    }
+    return s;
+  }
+  function csRender(){
+    var f = cubeFaces(cubeState);
+    document.getElementById("csCube").innerHTML =
+      box(0,0,0,60,60,60,"#141414") +
+      gTop(0,0,60, csStickers(f.top)) +
+      gLeft(0,60,60, csStickers(f.left)) +
+      gRight(60,60,60, csStickers(f.right));
+  }
+  var CS_LESSONS = [
+    {t:'You picked up the <b>superflip</b>: every piece is home, but all twelve edges are flipped. Cubes speak in letters — <b>U</b> turns the Up face a quarter, clockwise. Try it.', allow:"U"},
+    {t:'One move. A tick mark undoes it: <b>U&prime;</b> turns Up the other way. Every move has an inverse — take the turn back.', allow:"U'"},
+    {t:'<b>R</b> is the Right face. Same grammar, new letter.', allow:"R"},
+    {t:'And <b>R&prime;</b> undoes it. Six faces, each with an inverse — that little alphabet reaches 43 quintillion positions.', allow:"R'"},
+    {t:'The good part: in 2010 it was proven that <b>20 moves</b> always suffice — God&rsquo;s Number — and the superflip is the position that needs all twenty. Stranger still, it is <i>its own inverse</i>: the recipe that builds it also unbuilds it. Walk it.', seq:true},
+    {t:'<b>Solved.</b> You just walked God&rsquo;s Number, move for move. Twist freely — or run the same twenty again and the flip comes back.', free:true}
+  ];
+  var csStep = 0, csSeqPos = 0;
+  var csPad = document.getElementById("csPad");
+  ["U","U'","R","R'","F","F'","D","D'","L","L'","B","B'"].forEach(function(tok){
+    var b = document.createElement("button");
+    b.textContent = tok.replace("'", "′");
+    b.dataset.tok = tok;
+    b.addEventListener("click", function(){ csPress(tok); });
+    csPad.appendChild(b);
+  });
+  var csSeqEl = document.getElementById("csSeq");
+  CUBE_SEQ.forEach(function(tok){
+    var sp = document.createElement("span");
+    sp.textContent = tok.replace("'", "′");
+    csSeqEl.appendChild(sp);
+  });
+  function csTickAnim(){
+    if (REDUCED) return;
+    var svg = document.getElementById("csCube");
+    svg.classList.remove("tick");
+    void svg.getBoundingClientRect();
+    svg.classList.add("tick");
+  }
+  function csMoveSound(){
+    tone(640, {type:"triangle", dur:0.05, g:0.05});
+    noise({filter:"highpass", freq:2600, dur:0.015, g:0.06});
+  }
+  function csSolvedSound(){
+    tone(392, {type:"triangle", dur:0.25, g:0.08});
+    tone(523.25, {type:"triangle", at:0.10, dur:0.25, g:0.08});
+    tone(659.25, {type:"triangle", at:0.20, dur:0.30, g:0.08});
+    tone(783.99, {type:"triangle", at:0.30, dur:0.50, g:0.09});
+  }
+  function csRefresh(){
+    var L = CS_LESSONS[csStep];
+    document.getElementById("csText").innerHTML = L.t;
+    cubeStage.classList.toggle("seq", !!L.seq);
+    cubeStage.classList.toggle("solved", !!L.free && cubeIsSolved(cubeState));
+    csPad.querySelectorAll("button").forEach(function(b){
+      var on = !!L.free || b.dataset.tok === L.allow;
+      b.disabled = !on;
+      b.classList.toggle("glow", !L.free && on);
+    });
+    if (L.seq){
+      for (var i = 0; i < csSeqEl.children.length; i++){
+        csSeqEl.children[i].className = i < csSeqPos ? "done" : i === csSeqPos ? "cur" : "";
+      }
+      document.getElementById("csNext").textContent =
+        "Turn " + CUBE_SEQ[csSeqPos].replace("'", "′") + " — move " + (csSeqPos + 1) + " of 20";
+    }
+    csRender();
+  }
+  function csPress(tok){
+    ac(true);
+    cubeState = cubeApply(cubeState, tok);
+    csMoveSound(); csTickAnim(); buzz("cube");
+    var L = CS_LESSONS[csStep];
+    if (!L.free && L.allow === tok) csStep++;
+    if (L.free && cubeIsSolved(cubeState)) csSolvedSound();
+    csRefresh();
+    var g = csPad.querySelector(".glow");
+    if (g) g.focus();
+    else if (CS_LESSONS[csStep].seq) document.getElementById("csNext").focus();
+  }
+  document.getElementById("csNext").addEventListener("click", function(){
+    ac(true);
+    cubeState = cubeApply(cubeState, CUBE_SEQ[csSeqPos]);
+    csMoveSound(); csTickAnim(); buzz("cube");
+    csSeqPos++;
+    if (csSeqPos >= CUBE_SEQ.length){
+      csStep++;
+      csRefresh();
+      if (cubeIsSolved(cubeState)) csSolvedSound();
+      document.getElementById("csClose").focus();
+    } else {
+      csRefresh();
+    }
+  });
+  function openCubeGame(){
+    lastFocus = document.activeElement;
+    cancelHide();
+    pickObjects("cube");
+    setBackgroundInert(true);
+    scrim.hidden = false; cubeStage.hidden = false;
+    requestAnimationFrame(function(){ scrim.classList.add("show"); cubeStage.classList.add("show"); });
+    csRefresh();
+    var L = CS_LESSONS[csStep];
+    (L.seq ? document.getElementById("csNext") : (csPad.querySelector(".glow") || document.getElementById("csClose"))).focus();
+  }
+  function closeCubeGame(){
+    cancelHide();
+    clearPicked();
+    scrim.classList.remove("show"); cubeStage.classList.remove("show");
+    scheduleHide(cubeStage, 320);
+    setBackgroundInert(false);
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.getElementById("csClose").addEventListener("click", function(){ SOUNDS.hover(); closeCubeGame(); });
+  window.KM_CUBE = {
+    faces: function(){ return cubeFaces(cubeState); },
+    apply: function(tok){ cubeState = cubeApply(cubeState, tok); csRender(); },
+    solved: function(){ return cubeIsSolved(cubeState); }
+  };
+
   function activeModal(){
     if (!dossier.hidden) return dossier;
     if (!browser.hidden) return browser;
+    if (!cubeStage.hidden) return cubeStage;
     return null;
   }
   function closeModal(){
     if (!dossier.hidden) closeWorld();
     else if (!browser.hidden) closeBrowser();
+    else if (!cubeStage.hidden) closeCubeGame();
   }
   document.getElementById("dClose").addEventListener("click", function(){
     SOUNDS.hover(); closeWorld();
@@ -1391,6 +1671,7 @@
       ac(true); hideTip();
       if (SOUNDS[id]) SOUNDS[id]();
       if (id === "web") openBrowser();
+      else if (id === "cube") openCubeGame();
       else openWorld(id, accent);
     });
     btn.addEventListener("keydown", function(e){
