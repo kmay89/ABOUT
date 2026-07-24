@@ -370,6 +370,32 @@ function Solver3(ops){
     return best.map(function(m){ return ops[m].name; });
   };
 
+  /* where a cubie state sits in the two coordinate spaces — used by the
+     map view. d1 = proven minimum turns to reach G1; once inside G1,
+     d2 = proven minimum turns to home. */
+  self.coords=function(state){
+    if(!self.ready) throw new Error("solver not initialised");
+    var twist=co2twist(state.co), flip=eo2flip(state.eo), i;
+    var occ=new Array(12);
+    for(i=0;i<12;i++) occ[i]=(sliceIdxOf[state.ep[i]]!==undefined)?1:0;
+    var slice=occ2slice(occ);
+    var out={ twist:twist, flip:flip, slice:slice,
+              id:twist*N_SLICE+slice,
+              d1:Math.max(prunTS[twist*N_SLICE+slice], prunFS[flip*N_SLICE+slice]),
+              g:false, d2:0, id2:0 };
+    if(twist===0&&flip===0&&slice===sliceHome){
+      out.g=true;
+      var cp=permRank(state.cp), p8=new Array(8), p4=new Array(4), k;
+      for(k=0;k<8;k++) p8[k]=udIdxOf[state.ep[udPos[k]]];
+      for(k=0;k<4;k++) p4[k]=sliceIdxOf[state.ep[slicePos[k]]];
+      var e8=permRank(p8), s4=permRank(p4);
+      out.id2=cp*24+s4;
+      out.d2=Math.max(prunCS[cp*24+s4], prunES[e8*24+s4]);
+    }
+    return out;
+  };
+  self.tables=function(){ return { prunTS:prunTS, prunCS:prunCS }; };
+
   return self;
 }
 
@@ -473,6 +499,14 @@ function Solver2(ops, dbl){
   self.distance=function(state){
     return depth[encP(state.cp)*N_O+encO(state.co)];
   };
+
+  /* map-view helpers: where a state sits in the full 3,674,160-state
+     space, and the raw God table itself */
+  self.encode=function(state){
+    var p=encP(state.cp), o=encO(state.co);
+    return { id:p*N_O+o, d:depth[p*N_O+o] };
+  };
+  self.table=function(){ return depth; };
 
   return self;
 }

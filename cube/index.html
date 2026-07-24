@@ -33,6 +33,106 @@
   }
   #stage:active{cursor:grabbing}
   #stage.solved{filter:drop-shadow(0 0 34px rgba(99,230,169,.5))}
+
+  /* ---------- the map of everywhere ---------- */
+  #map{
+    position:fixed; top:0; right:0; width:45vw; height:100%;
+    display:none; touch-action:none; cursor:grab;
+    border-left:1px solid rgba(185,168,143,.14);
+    background:radial-gradient(90vmin 90vmin at 50% 45%, rgba(26,18,9,.55), transparent 70%);
+  }
+  #map:active{cursor:grabbing}
+  body.map-on #map{display:block}
+  body.map-on #stage{width:55vw}
+  body.map-on header{right:45vw}
+  body.map-on .picker{left:27.5vw; right:auto}
+  body.map-on .deskline{right:45vw}
+  #mapCap,#mapLive{
+    position:fixed; right:1rem; width:calc(45vw - 2rem); display:none;
+    font-family:ui-monospace,Menlo,Consolas,monospace; text-align:right;
+    pointer-events:none; z-index:5;
+  }
+  #mapCap{ top:1.1rem; font-size:.62rem; letter-spacing:.05em; color:var(--ink-faint); }
+  #mapLive{ top:auto; bottom:1.1rem; font-size:.8rem; color:var(--lamp); font-weight:bold; }
+  body.map-on #mapCap, body.map-on #mapLive{display:block}
+  @media (max-width:900px){
+    body.map-on #stage{width:100vw; height:54svh}
+    #map{width:100vw; height:46svh; top:auto; bottom:0; border-left:none;
+         border-top:1px solid rgba(185,168,143,.14)}
+    body.map-on header, body.map-on .picker, body.map-on .deskline{right:0}
+    body.map-on .deskline{bottom:auto; top:calc(54svh - 8.2rem); padding-bottom:0}
+    body.map-on #fact{display:none}
+    body.map-on #teachBadge{left:50%}
+    #mapCap{ top:auto; bottom:2.1rem; right:.8rem; width:auto; max-width:92vw }
+    #mapLive{ bottom:.55rem; right:.8rem; width:auto }
+  }
+
+  /* ---------- the teacher ---------- */
+  #teachBadge{
+    position:fixed; left:50%; top:16%; transform:translateX(-50%);
+    z-index:5; text-align:center; pointer-events:none;
+    background:rgba(8,6,4,.82); border:1px solid rgba(255,201,122,.35);
+    border-radius:14px; padding:.9rem 1.6rem; max-width:min(30rem,88vw);
+    backdrop-filter:blur(4px);
+  }
+  body.map-on #teachBadge{left:27.5vw}
+  #teachBadge b{
+    display:block; font:bold 2.4rem ui-monospace,Menlo,Consolas,monospace;
+    color:var(--lamp); letter-spacing:.04em;
+  }
+  #teachBadge span{display:block; font-style:italic; color:var(--ink-dim); font-size:.95rem}
+  #teachBadge i{
+    display:block; margin-top:.3rem;
+    font:italic .7rem ui-monospace,Menlo,Consolas,monospace; color:var(--ink-faint);
+  }
+  #teachBar{display:flex; gap:.6rem; pointer-events:auto}
+  #teachBar[hidden]{display:none}
+  #teachBadge[hidden]{display:none}
+  #teachBar button{
+    font:italic .85rem Georgia,serif; cursor:pointer; border-radius:999px;
+    padding:.4rem 1.1rem; border:1px solid rgba(255,201,122,.5);
+    background:rgba(14,10,7,.65); color:var(--lamp);
+  }
+  #teachBar button:hover{background:rgba(255,201,122,.14)}
+
+  /* ---------- the scanning booth ---------- */
+  #scan{
+    position:fixed; inset:0; z-index:7; overflow-y:auto;
+    background:rgba(8,6,4,.94); backdrop-filter:blur(6px);
+    opacity:0; visibility:hidden; transition:opacity .35s, visibility .35s;
+  }
+  #scan.show{opacity:1; visibility:visible}
+  .s-inner{max-width:34rem; margin:0 auto; padding:4.5rem 1.2rem 4rem}
+  .s-text{color:var(--ink-dim); font-size:.95rem}
+  .s-say{color:var(--ink); font-style:italic}
+  .s-row{display:flex; gap:.6rem; flex-wrap:wrap; margin:1rem 0}
+  .s-btn{
+    font:italic .95rem Georgia,serif; cursor:pointer; border-radius:999px;
+    padding:.5rem 1.3rem; border:1px solid rgba(99,230,169,.55);
+    background:rgba(14,10,7,.65); color:var(--ink);
+  }
+  .s-btn:hover:not(:disabled){border-color:var(--green); color:var(--green)}
+  .s-btn:disabled{opacity:.4; cursor:default}
+  .s-quiet{border-color:rgba(185,168,143,.4)}
+  .s-camwrap{position:relative; margin:.6rem 0}
+  .s-camwrap video{width:100%; border-radius:12px; display:block}
+  .s-grid{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:62%; aspect-ratio:1; display:grid;
+    grid-template:repeat(3,1fr)/repeat(3,1fr); gap:2px; pointer-events:none;
+  }
+  .s-grid span{border:2px dashed rgba(244,233,216,.55); border-radius:8px}
+  .s-net{display:flex; flex-direction:column; gap:4px; margin:.8rem 0; align-items:center}
+  .s-netrow{display:flex; gap:4px}
+  .s-face{
+    display:grid; grid-template:repeat(3,1.35rem)/repeat(3,1.35rem); gap:3px;
+    padding:3px; background:rgba(23,19,16,.9); border-radius:6px;
+  }
+  .s-hole{background:transparent}
+  .s-sw{border:none; border-radius:4px; cursor:pointer; padding:0}
+  .s-sw:not(:disabled):hover{outline:2px solid var(--lamp)}
+  .s-center{outline:2px solid rgba(244,233,216,.35); cursor:default}
+  .s-verdict{font-style:italic; color:var(--lamp); min-height:1.4rem; font-size:.9rem}
   .glowpool{
     position:fixed; left:50%; top:42%; width:56vmin; height:56vmin;
     transform:translate(-50%,-50%);
@@ -141,6 +241,9 @@
   @media (max-width:640px){
     h1{font-size:1.1rem}
     .picker{top:5.4rem}
+    .actions{flex-wrap:wrap; justify-content:center; gap:.4rem}
+    .actions button{padding:.34rem .75rem; font-size:.78rem; white-space:nowrap}
+    #teachBadge b{font-size:1.7rem}
   }
 </style>
 </head>
@@ -148,6 +251,10 @@
 
 <div class="glowpool" aria-hidden="true"></div>
 <canvas id="stage" aria-label="A twisty puzzle you can turn, fling, scramble and watch solve itself"></canvas>
+<canvas id="map" aria-label="A map of the puzzle's state space: every dot is a reachable position, and the glowing thread is the walk the cube is taking"></canvas>
+<p id="mapCap" aria-hidden="true"></p>
+<p id="mapLive" aria-live="polite"></p>
+<div id="teachBadge" hidden aria-live="polite"></div>
 
 <header>
   <div>
@@ -172,10 +279,26 @@
     <button id="btnScramble">Scramble</button>
     <button id="btnSolve">Solve</button>
     <button id="btnStop" hidden>Stop</button>
+    <button id="btnMap">the map ✦</button>
+    <button id="btnScan" hidden>scan your cube ✦</button>
     <button id="btnMaths">the mathematics ✦</button>
+  </div>
+  <div id="teachBar" hidden>
+    <button id="teachNext">next turn →</button>
+    <button id="teachAuto">auto: off</button>
+    <button id="teachExit">stop teaching ×</button>
   </div>
   <p id="fact"></p>
 </div>
+
+<section id="scan" hidden aria-label="Scan your real cube">
+  <div class="s-inner">
+    <p class="kicker">the scanning booth</p>
+    <h1 style="margin:.2rem 0 .8rem">Bring your real cube</h1>
+    <div id="scanStage"></div>
+    <p style="margin-top:2rem"><button class="s-btn s-quiet" id="scanClose">put the camera down ×</button></p>
+  </div>
+</section>
 
 <section id="maths" aria-label="The mathematics of the solving room">
   <div class="essay">
@@ -222,6 +345,44 @@
     word — simplified where turns cancel — back to the light. It is the one
     solution guaranteed shorter than the journey in.</p>
 
+    <h2>How to read the map</h2>
+    <p>Press <b>the map ✦</b> and the room unrolls a chart of everywhere the
+    puzzle can be. Every dot is real. For the 2×2 the dots <i>are</i> the
+    positions — shells of radius 1, 2, 3… hold the states exactly that many
+    turns from home, straight out of the God table, and you can watch the
+    solve fall inward one shell per turn, never a wasted move. For the 3×3 the
+    nebula is the solver's phase-one coordinate space — all
+    <span class="num">1,082,565</span> combinations of orientation and slice,
+    shaded by their <i>proven</i> minimum distance from G1 — with the
+    corner-permutation space of G1 as a bright nucleus at the centre. A solve
+    is a comet: it spirals down the nebula, dives into the nucleus, and lands
+    on the green star at the middle, which is home. The big puzzles chart the
+    only thing that can be charted at their size: the thread itself, winding
+    out with the scramble and back with the solve.</p>
+
+    <h2>Reading the turns</h2>
+    <p>The letters are the cube's old shorthand: <span class="num">U R F D L B</span>
+    are the Up, Right, Front, Down, Left and Back faces, each turned a quarter
+    clockwise <i>as you look at that face</i>. An apostrophe
+    (<span class="num">R'</span>, say "R prime") means counter-clockwise; a 2
+    (<span class="num">R2</span>) means a half turn; on the big cubes
+    <span class="num">2R</span> means the second layer in from the right. The
+    megaminx names its twelve faces A through L, with + and − for fifths of a
+    turn. Watch the ticker while anything plays and the notation teaches
+    itself.</p>
+
+    <h2>The scanning booth</h2>
+    <p>On the 3×3, <b>scan your cube ✦</b> reads a real cube through the
+    camera: six poses, one per face, each pinned down by which centre faces
+    the lens and which centre points up. The centre stickers of your six
+    captures become the six reference colours, every other sticker is matched
+    to its nearest reference, and you can tap any square the light misread.
+    Before teaching, the room checks the laws of the cube — corner twist a
+    multiple of three, edge flips even, permutation parity matched — because
+    a mis-scanned cube is usually an <i>impossible</i> cube, and impossibility
+    is easy to prove. Then Kociemba solves <i>your</i> cube, and the badge
+    walks you through it turn by turn. Camera frames never leave your device.</p>
+
     <h2>The camera</h2>
     <p>The puzzle hangs on a spring. Fling it and it keeps its momentum, bleeding
     speed exponentially the way a damped oscillator does; push it past the poles
@@ -240,7 +401,9 @@
 <p id="nogl" hidden>This room needs WebGL, and your browser is keeping the lights
 off. The desk is still there, though — <a href="/">go back</a>.</p>
 
-<script src="puzzle.js?v=1"></script>
-<script src="app.js?v=1"></script>
+<script src="puzzle.js?v=2"></script>
+<script src="map.js?v=2"></script>
+<script src="app.js?v=2"></script>
+<script src="scan.js?v=2"></script>
 </body>
 </html>
