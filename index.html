@@ -511,6 +511,14 @@
   }
   .cs-tools button:disabled{opacity:.3;cursor:default}
   .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
+  .cs-tools a{
+    flex:1;text-align:center;text-decoration:none;
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
+    color:var(--a);
+    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
+    border-radius:999px;padding:.55em 0;
+  }
+  .cs-tools a:hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
 
   /* ---------- the impossible object: a live ray-marched Mandelbulb ---------- */
   .mandelstage{
@@ -716,6 +724,7 @@
   <div class="cs-tools">
     <button id="csSolve">Solve itself</button>
     <button id="csFlip">Superflip again</button>
+    <a href="/cube/">The big ones →</a>
   </div>
 </section>
 
@@ -773,6 +782,7 @@
     <a href="https://errerlabs.com">ERRERLabs.com</a>
     <a href="https://scqcs.com">scqcs.com</a>
     <a href="https://github.com/kmay89">github.com/kmay89</a>
+    <a href="/cube/">The solving room</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
