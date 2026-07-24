@@ -73,6 +73,11 @@ var btnSolve=document.getElementById("btnSolve");
 var btnStop=document.getElementById("btnStop");
 var btnMap=document.getElementById("btnMap");
 var btnScan=document.getElementById("btnScan");
+var btnStats=document.getElementById("btnStats");
+var statsCard=document.getElementById("stats");
+var statBars=document.getElementById("statBars");
+var statCap=document.getElementById("statCap");
+var statLines=document.getElementById("statLines");
 var mapCanvas=document.getElementById("map");
 var mapCap=document.getElementById("mapCap");
 var mapLive=document.getElementById("mapLive");
@@ -381,8 +386,8 @@ function requestCloud(){
 }
 
 function requestWalk(moves){
-  if(!mapView) return;
-  walkSteps=null; threadRadii=null;
+  if(!mapView&&!statsOpen) return;
+  walkSteps=null; threadRadii=null; hereNow=null;
   if(kind==="cube2"||kind==="cube3"){
     var id=++walkReqId;
     getWorker().postMessage({cmd:"walk", kind:kind, id:id,
@@ -395,12 +400,116 @@ function requestWalk(moves){
       radii.push(simplifyWord(hist).length);
     }
     threadRadii=radii;
-    mapView.setWalk(mapView.threadWalk(radii));
+    if(mapView) mapView.setWalk(mapView.threadWalk(radii));
     updateReadout();
   }
 }
 
+/* ---------- the numbers: an exact statistical engine ----------
+   Distributions and means computed live from the God table and the
+   pruning tables — nothing here is hard-coded except the labels. */
+var statsOpen=false, statsCache={}, hereNow=null, locateId=0;
+
+var THREAD_DIGITS={ cube4:45.87, cube5:74.45, mega:68.0 };
+
+function depthColor(f){ /* the map's ramp, for histogram bars */
+  function mix(a,b,t){ return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]; }
+  var cN=[99,230,169], cM=[186,168,143], cF=[255,201,122], cE=[255,107,92];
+  var c=f<0.35?mix(cN,cM,f/0.35):f<0.7?mix(cM,cF,(f-0.35)/0.35):mix(cF,cE,(f-0.7)/0.3);
+  return "rgb("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+")";
+}
+
+function renderStats(){
+  if(!statsOpen) return;
+  statBars.innerHTML=""; statLines.innerHTML="";
+  var s=statsCache[kind];
+  if(kind==="cube2"||kind==="cube3"){
+    if(!s){ statCap.textContent="counting every state…"; return; }
+    var main=s.main, i;
+    var logMax=Math.log10(Math.max.apply(null,main.hist)+1);
+    for(i=0;i<main.hist.length;i++){
+      var bar=document.createElement("div");
+      bar.className="sb";
+      bar.style.height=Math.max(2,(Math.log10(main.hist[i]+1)/logMax*100))+"%";
+      bar.style.background=depthColor(i/main.maxd);
+      bar.dataset.d=i;
+      bar.title=i+" turns: "+main.hist[i].toLocaleString()+" states";
+      statBars.appendChild(bar);
+    }
+    statCap.textContent= kind==="cube2"
+      ? "all "+main.total.toLocaleString()+" positions, by exact distance from home (log scale)"
+      : "all "+main.total.toLocaleString()+" phase-1 coordinates, by proven minimum turns to G1 (log scale)";
+    var l1=document.createElement("p");
+    l1.innerHTML= kind==="cube2"
+      ? "a random scramble lands, on average, <b>"+main.mean.toFixed(3)+" turns</b> from home"
+      : "a random state needs, on average, at least <b>"+main.mean.toFixed(3)+" turns</b> to reach G1"+
+        " · inside G1: at least <b>"+s.core.mean.toFixed(2)+"</b> more";
+    statLines.appendChild(l1);
+    var l2=document.createElement("p");
+    l2.id="statHere";
+    statLines.appendChild(l2);
+    renderStatsLive();
+  } else {
+    var c2=P.scrambleTwists.length*(P.twists[0].order-1);
+    statCap.textContent="too many states to count — so count the words instead";
+    var n=threadRadii?threadRadii[Math.min(playing?Math.max(0,playing.at+(anim?0:1)):threadRadii.length-1,threadRadii.length-1)]:simplifyWord(history).length;
+    var digits=(n*Math.log10(c2));
+    var lines=[
+      "every turn picks one of <b>"+c2+"</b> possible moves",
+      "a thread "+n+" turns long is one of ~<b>10<sup>"+digits.toFixed(1)+"</sup></b> possible move-words",
+      "the puzzle itself has ~<b>10<sup>"+THREAD_DIGITS[kind]+"</sup></b> positions — "+
+        (digits>=THREAD_DIGITS[kind] ? "the words now outnumber the states" :
+         "at ~"+Math.ceil(THREAD_DIGITS[kind]/Math.log10(c2))+" turns the words outnumber the states")
+    ];
+    lines.forEach(function(t){
+      var p=document.createElement("p"); p.innerHTML=t; statLines.appendChild(p);
+    });
+    var bar=document.createElement("div");
+    bar.className="sb-growth";
+    bar.innerHTML="<i style='width:"+Math.min(100,digits/THREAD_DIGITS[kind]*100)+"%'></i>";
+    statBars.innerHTML=""; statBars.appendChild(bar);
+  }
+}
+
+function renderStatsLive(){
+  if(!statsOpen||!(kind==="cube2"||kind==="cube3")) return;
+  var s=statsCache[kind];
+  var here=document.getElementById("statHere");
+  if(!s||!here) return;
+  var info=null;
+  if(walkSteps&&playing){
+    var i=Math.max(0, playing.at+(anim?0:1));
+    info=walkSteps[Math.min(i,walkSteps.length-1)];
+  } else if(hereNow) info=hereNow;
+  Array.prototype.forEach.call(statBars.children,function(b){ b.classList.remove("here"); });
+  if(!info){ here.textContent=""; return; }
+  var d=info.g?0:info.d;
+  var cum=0, main=s.main;
+  for(var k2=0;k2<d;k2++) cum+=main.hist[k2];
+  var pct=100*cum/main.total;
+  var bar=statBars.children[d];
+  if(bar) bar.classList.add("here");
+  if(kind==="cube2"){
+    here.innerHTML= d===0 ? "you are <b>home</b> — the single state at distance zero"
+      : "you are here: <b>"+d+" turns out</b> — deeper than <b>"+pct.toFixed(2)+"%</b> of all positions";
+  } else {
+    here.innerHTML= info.g
+      ? (info.d2===0 ? "you are <b>home</b>"
+         : "inside G1 — proven ≥ <b>"+info.d2+"</b> turns from home")
+      : "you are here: proven ≥ <b>"+info.d+"</b> turns from G1 — deeper than <b>"+pct.toFixed(2)+"%</b> of coordinates";
+  }
+}
+
+function requestLocate(){
+  if(!statsOpen||!(kind==="cube2"||kind==="cube3")) return;
+  var id=++locateId;
+  getWorker().postMessage({cmd:"locate", kind:kind, id:id,
+                           colors:Array.prototype.slice.call(colors)});
+}
+
 function updateReadout(){
+  renderStatsLive();
+  if(kind!=="cube2"&&kind!=="cube3"&&statsOpen&&playing) renderStats();
   if(!mapOpen) return;
   var i=playing ? Math.max(0, playing.at+(anim?0:1)) : 0;
   if(walkSteps){
@@ -519,6 +628,7 @@ function onProgramDone(){
   } else {
     setStatus("scrambled — "+history.length+" turns deep · press solve");
   }
+  requestLocate();
   setTimeout(function(){ if(!playing) elTicker.classList.remove("show"); }, 1600);
 }
 var wasSolvingT0=0;
@@ -630,6 +740,14 @@ function getWorker(){
         mapView.setWalk(d.steps.map(function(s){ return [s.x,s.y,s.z]; }));
         updateReadout();
       }
+    } else if(d.type==="stats"){
+      statsCache[d.kind]={main:d.main, core:d.core};
+      if(d.kind===kind) renderStats();
+    } else if(d.type==="locate"){
+      if(d.id===locateId&&d.kind===kind){
+        hereNow={d:d.d, g:d.g, d2:d.d2};
+        renderStatsLive();
+      }
     } else if(d.type==="check"){
       var cb=pendingChecks[d.id];
       delete pendingChecks[d.id];
@@ -680,6 +798,19 @@ btnMap.addEventListener("click", function(){
   if(mapOpen){ requestCloud(); updateReadout(); }
 });
 
+btnStats.addEventListener("click", function(){
+  statsOpen=!statsOpen;
+  statsCard.hidden=!statsOpen;
+  document.body.classList.toggle("stats-on", statsOpen);
+  btnStats.textContent=statsOpen?"fold the numbers ✦":"the numbers ✦";
+  if(statsOpen){
+    if((kind==="cube2"||kind==="cube3")&&!statsCache[kind])
+      getWorker().postMessage({cmd:"stats", kind:kind});
+    renderStats();
+    requestLocate();
+  }
+});
+
 pickers.forEach(function(btn){
   btn.addEventListener("click", function(){ setKind(btn.dataset.kind); });
 });
@@ -691,9 +822,15 @@ function setKind(k){
   colors=P.newColors();
   history=[]; queue=[]; anim=null; playing=null; pendingSolve=null; glow=0;
   teach=null; teachBar.hidden=true; teachBadge.hidden=true;
-  walkSteps=null; threadRadii=null;
+  walkSteps=null; threadRadii=null; hereNow=null;
   if(mapView) mapView.setWalk(null);
   btnScan.hidden = k!=="cube3";
+  if(statsOpen){
+    if((k==="cube2"||k==="cube3")&&!statsCache[k])
+      getWorker().postMessage({cmd:"stats", kind:k});
+    renderStats();
+    requestLocate();
+  }
   buildGeometry();
   pickers.forEach(function(p){ p.classList.toggle("on", p.dataset.kind===k); });
   elFact.textContent=KINDS[k].fact;

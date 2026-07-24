@@ -95,6 +95,20 @@ function opsByName(b){
   return m;
 }
 
+/* exact distribution of a distance table: how many states sit on each
+   shell, and the exact mean distance of a uniformly random state */
+function tableStats(table, size){
+  var hist=[], i, d, n=0, sum=0;
+  for(i=0;i<size;i++){
+    d=table[i];
+    if(d===255) continue;
+    hist[d]=(hist[d]||0)+1;
+    sum+=d; n++;
+  }
+  for(i=0;i<hist.length;i++) if(!hist[i]) hist[i]=0;
+  return { hist:hist, total:n, mean:sum/n, maxd:hist.length-1 };
+}
+
 /* compress a cloud built on shells d∈[0..18] into a small nucleus
    (radius ≈ 0.05 + 0.05·d) so the G1 core sits inside phase 1's
    innermost shell. Same formula for cloud and walk, so they agree. */
@@ -137,6 +151,31 @@ onmessage = function(e){
         res.ok = true;
       } catch (err2){ res.reason = String((err2 && err2.message) || err2); }
       postMessage(res);
+      return;
+    }
+    if (d.cmd === "stats"){
+      if (d.kind === "cube2"){
+        postMessage({ type:"stats", kind:d.kind,
+                      main:tableStats(b.sv.table(), 5040*729) });
+      } else {
+        var tb=b.sv.tables();
+        postMessage({ type:"stats", kind:d.kind,
+                      main:tableStats(tb.prunTS, 2187*495),
+                      core:tableStats(tb.prunCS, 40320*24) });
+      }
+      return;
+    }
+    if (d.cmd === "locate"){
+      var lc = Uint8Array.from(d.colors);
+      var lst = CubeSolver.analyze(b.P.cubies, lc, b.P.faceOf);
+      if (d.kind === "cube2"){
+        var len = b.sv.encode(lst);
+        postMessage({ type:"locate", kind:d.kind, id:d.id, d:len.d, g:false, d2:0 });
+      } else {
+        var lco = b.sv.coords(lst);
+        postMessage({ type:"locate", kind:d.kind, id:d.id,
+                      d:lco.d1, g:lco.g, d2:lco.d2 });
+      }
       return;
     }
     if (d.cmd === "map"){
