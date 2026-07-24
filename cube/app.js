@@ -74,6 +74,7 @@ var btnStop=document.getElementById("btnStop");
 var btnMap=document.getElementById("btnMap");
 var btnScan=document.getElementById("btnScan");
 var btnStats=document.getElementById("btnStats");
+var btnSpecimen=document.getElementById("btnSpecimen");
 var statsCard=document.getElementById("stats");
 var statBars=document.getElementById("statBars");
 var statCap=document.getElementById("statCap");
@@ -262,6 +263,79 @@ function splitIndex(members){
   staticCount=sArr.length; movingCount=mArr.length;
 }
 
+/* ---------- the teacher's arrow: which layer, which way ----------
+   A glowing arc drawn on the turning face before each taught move,
+   sweeping in the direction the hand should go, riding the layer
+   while it rotates. */
+function crossv(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function normv(a){ var l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l]; }
+
+var arrowBufs=null, arrowFor=null, arrowIdxCount=0;
+function buildArrow(mv){
+  arrowFor=mv;
+  var tw=P.twists[mv.t];
+  var n=P.n||3, ua=tw.axis;
+  var posEnd = tw.layer >= n/2;
+  var w = posEnd ? ua.slice() : [-ua[0],-ua[1],-ua[2]];
+  var h = 1.3 + 0.05;
+  var pick = Math.abs(w[1])>0.9 ? [0,0,1] : [0,1,0];
+  var u = normv(crossv(pick, w));
+  var v = crossv(w, u);
+  var tSigned = mv.n>tw.order/2 ? mv.n-tw.order : mv.n;
+  /* which way the stickers will visibly travel, seen from outside */
+  var visSign = (posEnd?1:-1) * (tSigned>0?1:-1);
+  var sweep = Math.abs(tSigned)===2 ? 3.0 : 1.8;
+  var r=0.82, wd=0.13, STEPS=20;
+  var pos=[], nrm=[], col=[], top=[], idx=[];
+  function push(p){
+    pos.push(p[0],p[1],p[2]); nrm.push(w[0],w[1],w[2]);
+    col.push(1.0,0.79,0.48); top.push(1);
+  }
+  function pt(th, rr){
+    var cu=rr*Math.cos(th), cv=rr*Math.sin(th);
+    return [ w[0]*h+u[0]*cu+v[0]*cv, w[1]*h+u[1]*cu+v[1]*cv, w[2]*h+u[2]*cu+v[2]*cv ];
+  }
+  for(var s=0;s<=STEPS;s++){
+    var th=(-sweep/2 + sweep*s/STEPS)*visSign;
+    var base=pos.length/3;
+    push(pt(th, r-wd)); push(pt(th, r+wd));
+    if(s>0) idx.push(base-2,base-1,base, base,base-1,base+1);
+  }
+  var thE=(sweep/2)*visSign;
+  var b2=pos.length/3;
+  push(pt(thE, r-0.30)); push(pt(thE, r+0.30)); push(pt(thE+0.45*visSign, r));
+  idx.push(b2,b2+1,b2+2);
+
+  if(!arrowBufs) arrowBufs={p:gl.createBuffer(), n:gl.createBuffer(),
+                            c:gl.createBuffer(), t:gl.createBuffer(), i:gl.createBuffer()};
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.p);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(pos),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.n);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(nrm),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.c);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(col),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.t);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(top),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,arrowBufs.i);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.DYNAMIC_DRAW);
+  arrowIdxCount=idx.length;
+}
+
+function drawArrow(model, now){
+  gl.uniformMatrix4fv(loc.uModel,false,model);
+  gl.uniform1f(loc.uGlow, 0.55+0.35*Math.sin(now/260));
+  [[arrowBufs.p,loc.aPos,3],[arrowBufs.n,loc.aNrm,3],
+   [arrowBufs.c,loc.aCol,3],[arrowBufs.t,loc.aTop,1]].forEach(function(b){
+    gl.bindBuffer(gl.ARRAY_BUFFER,b[0]);
+    gl.enableVertexAttribArray(b[1]);
+    gl.vertexAttribPointer(b[1],b[2],gl.FLOAT,false,0,0);
+  });
+  gl.disable(gl.CULL_FACE);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,arrowBufs.i);
+  gl.drawElements(gl.TRIANGLES,arrowIdxCount,gl.UNSIGNED_SHORT,0);
+  gl.enable(gl.CULL_FACE);
+}
+
 /* ---------- camera: a mass on a spring ---------- */
 var cam={
   yaw:-0.62, pitch:0.44, dist:7.4,
@@ -271,7 +345,15 @@ var cam={
 };
 var PITCH_MAX=1.35, BASE_DIST=7.4;
 
+var teachAim=null;   /* {yaw,pitch} — the room shows you the face to turn */
 function camTick(dt){
+  if(teachAim && !cam.dragging){
+    var dy=teachAim.yaw-cam.yaw;
+    dy-=Math.round(dy/(2*Math.PI))*2*Math.PI;   /* shortest way round */
+    cam.yaw += dy*Math.min(1,2.6*dt);
+    cam.pitch += (teachAim.pitch-cam.pitch)*Math.min(1,2.6*dt);
+    cam.vyaw=0; cam.vpitch=0;
+  }
   if(!cam.dragging){
     cam.yaw += cam.vyaw*dt;
     cam.pitch += cam.vpitch*dt;
@@ -560,11 +642,16 @@ function animTick(now){
   if(t>=1){
     P.applyMove(colors, anim.mv);
     history.push(anim.mv);
+    if(teach) lastTaught=anim.mv;
     anim=null;
     refreshColors();
     setIndexAll();
     updateReadout();
-    if(queue.length===0) onProgramDone();
+    if(queue.length===0){ onProgramDone(); }
+    else if(teach && playing){
+      /* point badge, arrow and camera at the turn now waiting */
+      showTeachMove(playing.names[playing.at+1], playing.at+2, playing.names.length);
+    }
   }
 }
 
@@ -584,6 +671,15 @@ function showTeachMove(name, at, total){
   teachBadge.hidden=false;
   teachBadge.innerHTML="<b>"+name+"</b><span>"+moveDesc(name)+
     "</span><i>turn "+at+" of "+total+"</i>";
+  /* swing the camera so the face about to turn is in view */
+  try{
+    var tw=P.twists[P.namedMove(name).t];
+    var n=P.n||3, posEnd=tw.layer>=n/2;
+    var w=posEnd?tw.axis:[-tw.axis[0],-tw.axis[1],-tw.axis[2]];
+    var yaw = Math.abs(w[1])>0.9 ? cam.yaw : Math.atan2(-w[0], w[2])+0.45;
+    var pitch = w[1]*0.85 + 0.28;
+    teachAim={yaw:yaw, pitch:Math.max(-1.15,Math.min(1.15,pitch))};
+  }catch(e){ teachAim=null; }
 }
 function showTeachIntro(total){
   teachBadge.hidden=false;
@@ -592,21 +688,35 @@ function showTeachIntro(total){
     "along with the screen.</span><i>"+total+" turns to home</i>";
 }
 btnTeachNext.addEventListener("click", function(){ if(teach) teach.armed=true; });
+var btnTeachAgain=document.getElementById("teachAgain");
+btnTeachAgain.addEventListener("click", function(){
+  /* undo the last taught turn instantly, then offer it again slowly */
+  if(!teach||anim||!playing||playing.at<0||lastTaught===null) return;
+  P.applyMove(colors, P.invert(lastTaught));
+  history.push(P.invert(lastTaught));
+  refreshColors();
+  queue.unshift({mv:lastTaught, dur:680});
+  playing.at--;
+  teach.armed=true;   /* replay immediately */
+  renderTicker();
+});
+var lastTaught=null;
 btnTeachAuto.addEventListener("click", function(){
   if(!teach) return;
   teach.auto=!teach.auto;
   btnTeachAuto.textContent="auto: "+(teach.auto?"on":"off");
 });
 btnTeachExit.addEventListener("click", function(){
-  teach=null; teachBar.hidden=true; teachBadge.hidden=true;
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
 });
 
 function onProgramDone(){
   var wasSolving=playing&&playing.solving;
   var wasTeach=playing&&playing.teach;
+  var wasDoneLabel=playing&&playing.doneLabel;
   playing=null;
   if(wasTeach){
-    teach=null; teachBar.hidden=true;
+    teach=null; teachBar.hidden=true; teachAim=null;
     teachBadge.innerHTML="<b>solved</b><span>and now your real cube is home too. "+
       "scramble it and come back any time.</span><i>🎉</i>";
     setTimeout(function(){ teachBadge.hidden=true; }, 5200);
@@ -625,6 +735,8 @@ function onProgramDone(){
     }
   } else if(wasSolving){
     setStatus("stopped mid-thought — press solve to finish");
+  } else if(wasDoneLabel){
+    setStatus(wasDoneLabel);
   } else {
     setStatus("scrambled — "+history.length+" turns deep · press solve");
   }
@@ -637,6 +749,8 @@ var wasSolvingT0=0;
 function enqueueProgram(moves, opts){
   var names=moves.map(function(m){ return P.moveName(m); });
   playing={ names:names, at:-1, teach:!!opts.teach,
+            split:(opts.split!==undefined&&opts.split>=0)?opts.split:null,
+            doneLabel:opts.doneLabel||null,
             solving:opts.solving?{count:moves.length}:null };
   if(opts.solving) wasSolvingT0=performance.now();
   if(opts.teach){
@@ -686,11 +800,21 @@ function renderTicker(){
   var upto=Math.min(playing.names.length, playing.at+9);
   if(from>0) html+="<span class='dim'>…</span>";
   for(var i=from;i<upto;i++){
-    html+="<span class='"+(i===playing.at?"now":i<playing.at?"done":"")+"'>"+playing.names[i]+"</span>";
+    var cls=(i===playing.at?"now":i<playing.at?"done":"");
+    /* Kociemba's two phases, visible in the notation itself */
+    if(playing.split!==null) cls+=(i<playing.split?" ph1":" ph2");
+    html+="<span class='"+cls+"'>"+playing.names[i]+"</span>";
   }
   if(upto<playing.names.length) html+="<span class='dim'>…</span>";
   elTicker.innerHTML=html;
 }
+/* click the ticker to copy the whole move word */
+elTicker.addEventListener("click", function(){
+  if(!playing||!navigator.clipboard) return;
+  navigator.clipboard.writeText(playing.names.join(" ")).then(function(){
+    setStatus("move word copied — take it with you");
+  });
+});
 function setStatus(t){ elStatus.textContent=t; }
 function setBusy(b){
   btnScramble.disabled=b; btnSolve.disabled=b;
@@ -703,7 +827,7 @@ var worker=null, solveId=0, pendingSolve=null, workerReady={};
 var checkId=0, pendingChecks={};
 function getWorker(){
   if(worker) return worker;
-  worker=new Worker("worker.js?v=2");
+  worker=new Worker("worker.js?v=3");
   worker.onmessage=function(e){
     var d=e.data;
     if(d.type==="progress"){
@@ -719,10 +843,20 @@ function getWorker(){
         var wasTeach=pendingSolve.teach;
         pendingSolve=null;
         var moves=d.moves.map(P.namedMove);
+        var split=(kind==="cube3"&&d.split>=0)?d.split:undefined;
         setStatus(wasTeach
           ? "your cube's solution — "+moves.length+" turns, one at a time"
-          : KINDS[kind].method+" · "+moves.length+" turns");
-        enqueueProgram(moves,{solving:true, teach:wasTeach});
+          : split!==undefined
+            ? "Kociemba two-phase · "+split+" turns to G1 + "+(moves.length-split)+" inside"
+            : KINDS[kind].method+" · "+moves.length+" turns");
+        enqueueProgram(moves,{solving:true, teach:wasTeach, split:split});
+      }
+    } else if(d.type==="antipode"){
+      if(d.kind===kind&&kind==="cube2"){
+        var amoves=d.moves.map(P.namedMove);
+        setStatus("walking to an antipode — "+amoves.length+" turns out");
+        enqueueProgram(amoves,{solving:false,
+          doneLabel:"an antipode — one of only 2,644 positions a proven maximum 11 turns from home"});
       }
     } else if(d.type==="map"){
       if(mapView && d.kind===kind){
@@ -787,7 +921,7 @@ btnSolve.addEventListener("click", function(){
 btnStop.addEventListener("click", function(){
   queue=[];
   if(playing){ playing.solving=null; playing.teach=false; }
-  teach=null; teachBar.hidden=true; teachBadge.hidden=true;
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
 });
 
 btnMap.addEventListener("click", function(){
@@ -811,6 +945,24 @@ btnStats.addEventListener("click", function(){
   }
 });
 
+/* famous specimens: positions worth meeting by name */
+var SUPERFLIP="U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2";
+btnSpecimen.addEventListener("click", function(){
+  if(kind==="cube2"){
+    setBusy(true);
+    setStatus("finding a farthest place…");
+    getWorker().postMessage({cmd:"antipode", kind:"cube2", id:++solveId,
+      seed:(Date.now()%2147483000)+1,
+      colors:Array.prototype.slice.call(colors)});
+  } else if(kind==="cube3"){
+    if(!P.isSolved(colors)){ setStatus("solve it first — the superflip is measured from home"); return; }
+    var moves=SUPERFLIP.split(" ").map(P.namedMove);
+    setStatus("applying the superflip…");
+    enqueueProgram(moves,{solving:false,
+      doneLabel:"the superflip — every edge flipped in place; the first position proven to need all 20 turns"});
+  }
+});
+
 pickers.forEach(function(btn){
   btn.addEventListener("click", function(){ setKind(btn.dataset.kind); });
 });
@@ -821,10 +973,12 @@ function setKind(k){
   pal=KINDS[k].pal.map(hex2rgb);
   colors=P.newColors();
   history=[]; queue=[]; anim=null; playing=null; pendingSolve=null; glow=0;
-  teach=null; teachBar.hidden=true; teachBadge.hidden=true;
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
   walkSteps=null; threadRadii=null; hereNow=null;
   if(mapView) mapView.setWalk(null);
   btnScan.hidden = k!=="cube3";
+  btnSpecimen.hidden = !(k==="cube2"||k==="cube3");
+  btnSpecimen.textContent = k==="cube2" ? "the antipode ✦" : "the superflip ✦";
   if(statsOpen){
     if((k==="cube2"||k==="cube3")&&!statsCache[k])
       getWorker().postMessage({cmd:"stats", kind:k});
@@ -908,6 +1062,19 @@ function frame(now){
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxMoving);
     gl.drawElements(gl.TRIANGLES, movingCount, gl.UNSIGNED_SHORT, 0);
   }
+
+  /* the teacher's arrow: shown while a taught turn waits, and riding
+     the layer while it plays */
+  if(teach && playing){
+    var mvA = anim ? anim.mv : (queue[0] && queue[0].mv);
+    if(mvA){
+      if(mvA!==arrowFor) buildArrow(mvA);
+      var am = (anim && anim.mv===mvA)
+        ? mAxisAngle(anim.twist.axis, anim.target*ease((now-anim.t0)/anim.dur))
+        : mIdentity();
+      drawArrow(am, now);
+    } else arrowFor=null;
+  } else arrowFor=null;
 }
 
 /* ---------- maths panel ---------- */
@@ -949,6 +1116,7 @@ window.RoomAPI={
   }
 };
 
+if(/[?&]og=1/.test(location.search)) document.body.classList.add("og");
 setKind("mega");
 requestAnimationFrame(frame);
 })();

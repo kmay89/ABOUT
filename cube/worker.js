@@ -2,7 +2,7 @@
    Builds the solvers' tables off the main thread so the cube never
    stutters, then answers "solve" requests with move words. */
 /* global PuzzleEngine, CubeSolver */
-importScripts("puzzle.js?v=2", "solver.js?v=2");
+importScripts("puzzle.js?v=2", "solver.js?v=3");
 
 var built = {};
 
@@ -132,7 +132,29 @@ onmessage = function(e){
       var st = CubeSolver.analyze(b.P.cubies, colors, b.P.faceOf);
       var moves = (d.kind === "cube3") ? b.sv.solve(st, 900) : b.sv.solve(st);
       if (!moves) throw new Error("search timed out");
-      postMessage({ type:"solution", kind:d.kind, id:d.id, moves:moves });
+      postMessage({ type:"solution", kind:d.kind, id:d.id,
+                    moves:Array.prototype.slice.call(moves),
+                    split:(moves.split !== undefined ? moves.split : -1) });
+    }
+    if (d.cmd === "antipode"){
+      /* walk from the current position to a true antipode: one of the
+         2,644 states a proven maximum 11 turns from home */
+      var ac = Uint8Array.from(d.colors);
+      var ast = CubeSolver.analyze(b.P.cubies, ac, b.P.faceOf);
+      var toHome = b.sv.solve(ast);
+      var tbl = b.sv.table(), pick = -1;
+      var seed = (d.seed|0) || 1;
+      function rnd(){ seed = (Math.imul(seed, 48271) % 2147483647 + 2147483647) % 2147483647; return seed/2147483647; }
+      while (pick < 0){
+        var cand = (rnd()*3674160)|0;
+        if (tbl[cand] === 11) pick = cand;
+      }
+      var homeToAnti = b.sv.routeFromId(pick).reverse().map(function(nm){
+        return nm.length===1 ? nm+"'" : nm.charAt(1)==="2" ? nm : nm.charAt(0);
+      });
+      postMessage({ type:"antipode", kind:d.kind, id:d.id,
+                    moves:toHome.concat(homeToAnti), tail:homeToAnti.length });
+      return;
     }
     if (d.cmd === "check"){
       /* is this scan a possible cube? */

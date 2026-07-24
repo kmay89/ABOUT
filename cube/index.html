@@ -11,8 +11,30 @@
 <meta property="og:title" content="The solving room — puzzles that solve themselves">
 <meta property="og:description" content="Five twisty puzzles, two real solving algorithms, one camera on a spring. Watch a megaminx untie itself.">
 <meta property="og:url" content="https://kmay89.com/cube/">
+<meta property="og:image" content="https://kmay89.com/cube/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A glowing megaminx beside a galaxy of puzzle states — the solving room.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kmay89.com/cube/og.png">
 <title>The solving room — Karl Meves</title>
 <style>
+  /* ================= design tokens =================
+     The whole room is built from these. Steal freely (MIT).
+
+     Surfaces — a warm dark room, lit from within:
+       --room       the walls          --room-deep  the corners
+     Ink — parchment text, three strengths:
+       --ink        speaking           --ink-dim    murmuring
+       --ink-faint  labels & captions
+     Light — the two meanings of the room:
+       --lamp       attention, warmth, "you are here"
+       --green      home, correctness, arrival
+
+     Type: Georgia italic for the voice, ui-monospace for the facts.
+     Motion: easeOutBack for snaps (k≈0.9), exponential damping for
+     momentum (v *= 0.14^dt), critically-damped springs at the limits.
+     ================================================== */
   :root{
     --room:#0e0a07; --room-deep:#080604;
     --lamp:#ffc97a; --ink:#f4e9d8; --ink-dim:#b9a88f; --ink-faint:#7e6f5b;
@@ -231,9 +253,14 @@
     opacity:0; transition:opacity .5s;
   }
   #ticker.show{opacity:1}
+  #ticker{cursor:copy}
   #ticker .now{color:var(--lamp); font-weight:bold}
   #ticker .done{color:var(--ink-dim)}
   #ticker .dim{opacity:.5}
+  /* Kociemba's two phases, visible in the notation */
+  #ticker .ph1{border-bottom:1px solid rgba(255,201,122,.5)}
+  #ticker .ph2{border-bottom:1px solid rgba(99,230,169,.6)}
+  #ticker .ph2.now{color:var(--green)}
   #status{
     margin:0; font-style:italic; font-size:.92rem; color:var(--ink-dim);
     text-align:center; min-height:1.4rem;
@@ -282,6 +309,8 @@
     text-align:center; padding:2rem; font-style:italic; color:var(--ink-dim);
   }
   #nogl[hidden]{display:none}
+  /* ?og=1 — a bare stage for the social-preview photograph */
+  body.og header, body.og .picker, body.og .deskline{display:none}
   @media (max-width:640px){
     h1{font-size:1.1rem}
     .picker{top:5.4rem}
@@ -332,10 +361,12 @@
     <button id="btnMap">the map ✦</button>
     <button id="btnStats">the numbers ✦</button>
     <button id="btnScan" hidden>scan your cube ✦</button>
+    <button id="btnSpecimen" hidden>the antipode ✦</button>
     <button id="btnMaths">the mathematics ✦</button>
   </div>
   <div id="teachBar" hidden>
     <button id="teachNext">next turn →</button>
+    <button id="teachAgain">again ↺</button>
     <button id="teachAuto">auto: off</button>
     <button id="teachExit">stop teaching ×</button>
   </div>
@@ -454,6 +485,43 @@
     and a rubber band pulls it back. Leave it alone long enough and it turns
     slowly by itself, the way anything well-made asks to be looked at.</p>
 
+    <h2>Two positions worth meeting</h2>
+    <p>On the 2×2, <b>the antipode ✦</b> walks you to one of the
+    <span class="num">2,644</span> positions that are a proven maximum of
+    <b>11 turns</b> from home — the far shore of the whole space, chosen at
+    random from the God table and reached by an optimal route. Watch it on the
+    map: the comet flies to the very outermost shell and stops, because there
+    is nowhere farther to go. On the 3×3, <b>the superflip ✦</b> builds the
+    most famous position in cubing — every edge flipped in place, everything
+    else untouched — the first position ever <i>proven</i> to need all 20
+    turns, which is how mathematicians learned God's number is at least 20.
+    During any 3×3 solve, look at the ticker: the underline changes colour
+    where phase one hands over to phase two — the exact turn where the cube
+    enters G1 and the algebra changes gears. Click the ticker to copy the
+    whole move word.</p>
+
+    <h2>For small hands</h2>
+    <p>Teach mode is built for learning with a real cube in your lap: hold it
+    the way you scanned it, and a glowing arrow appears <i>on the face that
+    should turn</i>, sweeping the way your hand should go, before every move.
+    Press <b>again ↺</b> as many times as you like — the room will happily
+    re-turn the same layer until it feels easy. Nothing is timed, nothing is
+    scored, and the cube never gets impatient.</p>
+
+    <h2>The design, if you'd like to steal it</h2>
+    <p>View source — it's meant to be read. The whole room is six colour
+    tokens (a warm dark room, three strengths of parchment ink, lamp-amber
+    for attention and home-green for arrival), two typefaces that ship with
+    every computer (Georgia italic for the voice, the system monospace for
+    the facts), and three rules of motion: snaps land with a little
+    overshoot (easeOutBack), flung things keep momentum that bleeds
+    exponentially, and everything past a limit comes back on a spring.
+    Buttons are pills, panels are frosted cards, numbers glow when they
+    matter, and nothing animates that isn't saying something. The tokens are
+    documented at the top of this page's stylesheet, the architecture in the
+    repo's <span class="num">cube/README.md</span>, and the licence is MIT —
+    take it, retune the six colours, and it becomes yours.</p>
+
     <h2>The build</h2>
     <p>No libraries, no frameworks, no model files — raw WebGL and three small
     JavaScript files. The solver runs in a worker so the room never stutters. The
@@ -468,7 +536,7 @@ off. The desk is still there, though — <a href="/">go back</a>.</p>
 
 <script src="puzzle.js?v=2"></script>
 <script src="map.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 <script src="scan.js?v=2"></script>
 </body>
 </html>
