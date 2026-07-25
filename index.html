@@ -807,6 +807,7 @@
     <a href="https://scqcs.com">scqcs.com</a>
     <a href="https://github.com/kmay89">github.com/kmay89</a>
     <a href="/cube/">The solving room</a>
+    <a href="https://kmay89.github.io/puzzles/chess/">The chess room</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1318,6 +1319,50 @@
     '<ellipse cx="0" cy="1" rx="1.1" ry="3" fill="#3a2415"/></g></g>';
   S.push(wrapObj("outside","Garden — the world outside","#8fd18a",pot));
 
+  /* ---------- chess: the chess room — a game paused mid-Italian ---------- */
+  var CHX = 150, CHY = 300, CHC = 7, CHM = 4;      // board origin, cell, rim
+  function chSqC(f,r){ return [CHX + CHM + f*CHC + CHC/2, CHY + CHM + r*CHC + CHC/2]; }
+  function chBall(cx,cy,z,r,c){ var p = P(cx,cy,z);
+    return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + r + '" fill="' + shade(c,.10) + '" ' + OUT + "/>"; }
+  function chPiece(f,r,kind,white){
+    var c = white ? "#efe6cf" : "#332a20";
+    var q = chSqC(f,r), cx = q[0], cy = q[1];
+    var s = isoEllipse(cx,cy,5.1,2.4,"rgba(12,6,2,.25)",'stroke="none"');
+    s += cyl(cx,cy,5,2,1.3,c);
+    if (kind === "p"){ s += cyl(cx,cy,6.3,1.1,1.9,c) + chBall(cx,cy,9.4,1.7,c); }
+    if (kind === "r"){ s += cyl(cx,cy,6.3,1.5,3.6,c) + cyl(cx,cy,9.9,1.8,1.2,c); }
+    if (kind === "n"){ var pn = P(cx,cy,6.3);
+      s += '<path d="M-1.7 0 L-1.7 -3 Q-1.7 -5.6 .6 -5.4 L2.6 -3.8 L1.4 -3.3 L2 -1.4 L2 0 Z" transform="translate(' + pn[0].toFixed(1) + "," + pn[1].toFixed(1) + ')" fill="' + shade(c,.06) + '" ' + OUT + "/>"; }
+    if (kind === "b"){ s += cyl(cx,cy,6.3,1,3,c) + chBall(cx,cy,10.3,1.4,c) + chBall(cx,cy,11.7,.6,c); }
+    if (kind === "q"){ s += cyl(cx,cy,6.3,1.2,4.2,c) + chBall(cx,cy,11.6,1.6,c) + chBall(cx,cy,13.1,.7,c); }
+    if (kind === "k"){ s += cyl(cx,cy,6.3,1.2,4.6,c) + chBall(cx,cy,11.9,1.4,c);
+      var pk = P(cx,cy,14.2);
+      s += '<g transform="translate(' + pk[0].toFixed(1) + "," + pk[1].toFixed(1) + ')" fill="' + shade(c,.06) + '">' +
+        '<rect x="-.45" y="-1.7" width=".9" height="3.4"/><rect x="-1.35" y="-.85" width="2.7" height=".9"/></g>'; }
+    return s;
+  }
+  var chess = shadowW(CHX,CHY,64,64,7,.26) + shadowW(168,287,30,10,5,.22);
+  chess += box(CHX,CHY,0,64,64,5,"#54382a");
+  var chSquares = "";
+  for (var chr2 = 0; chr2 < 8; chr2++)
+    for (var chf = 0; chf < 8; chf++)
+      chSquares += '<rect x="' + (CHM + chf*CHC) + '" y="' + (CHM + chr2*CHC) + '" width="' + CHC + '" height="' + CHC + '" fill="' + (((chf+chr2)%2===0) ? "#ecdcc0" : "#a97d55") + '"/>';
+  chess += gTop(CHX,CHY,5, chSquares);
+  /* the position: an Italian Game, a few moves in — the oldest opening there is
+     (black toward the wall: Ke8 d7 Nc6 e5 · white toward the viewer: Bc4 e4 Nf3 d2 f2 Ke1) */
+  chess += chPiece(4,0,"k",false) + chPiece(3,1,"p",false) + chPiece(2,2,"n",false) + chPiece(4,3,"p",false);
+  chess += chPiece(2,4,"b",true) + chPiece(4,4,"p",true) + chPiece(5,5,"n",true) +
+           chPiece(3,6,"p",true) + chPiece(5,6,"p",true) + chPiece(4,7,"k",true);
+  /* the little tournament clock — white's button is down, black to move */
+  chess += box(168,287,0,30,10,9,"#3a2c1f");
+  chess += gLeft(168,297,9,
+    '<rect x="1.5" y="1.2" width="27" height="6.6" rx="1.2" fill="#efe6cf" stroke="rgba(26,14,6,.4)"/>' +
+    '<circle cx="8.5" cy="4.5" r="2.7" fill="#fdf8ec" stroke="#6b5232" stroke-width=".7"/>' +
+    '<circle cx="21.5" cy="4.5" r="2.7" fill="#fdf8ec" stroke="#6b5232" stroke-width=".7"/>' +
+    '<path d="M8.5 4.5 L8.5 2.5 M8.5 4.5 L10 4.9 M21.5 4.5 L21.5 2.6 M21.5 4.5 L20 5.3" stroke="#3a2c1f" stroke-width=".7" stroke-linecap="round"/>');
+  chess += cyl(175,292,9,1.3,1,"#efe6cf") + cyl(191,292,9,1.3,2,"#332a20");
+  S.push(wrapObj("chess","The chess room — a game paused mid-opening","#3fc472",chess));
+
   /* ---------- hive: atomic-purple Game Boy ---------- */
   var gb = box(250,290,0,64,106,11,"#7e63cf");
   var hex = function(cx,cy,r,fill){
@@ -1516,6 +1561,16 @@
       links: [
         {label:"borrowedsunlightnovel.com", href:"https://borrowedsunlightnovel.com"},
         {label:"github.com/kmay89/borrowedsunlight", href:"https://github.com/kmay89/borrowedsunlight"}
+      ]
+    },
+    chess: {
+      kicker: "The Solving Room · New",
+      title: "The Chess Room — Chess, Taught Kindly",
+      story: "The newest door in the solving room: a whole chess app that runs in your browser and asks nothing of you — no account, no ads, nothing tracked. A full 3D board (a lovely flat one is one tap away), a patient coach who hints in plain words and lets you take moves back, the famous openings told as little stories, a real tournament clock, and two-device play for people in the same room: a pasted or scanned code links the boards directly, no server anywhere. The rules engine is proven against millions of known-good positions. The set on this desk is paused a few moves into the Italian Game — the oldest opening in the book, and still lovely.",
+      chips: ["3D & 2D boards","A patient coach","Opening stories","Nearby 2-player","Tournament clock","Works offline","Open source"],
+      links: [
+        {label:"Play — the chess room", href:"https://kmay89.github.io/puzzles/chess/"},
+        {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
     scqcs: {
