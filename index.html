@@ -511,14 +511,15 @@
   }
   .cs-tools button:disabled{opacity:.3;cursor:default}
   .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
-  .cs-tools a{
-    flex:1;text-align:center;text-decoration:none;
-    font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
-    color:var(--a);
-    border:1px solid color-mix(in srgb, var(--a) 40%, transparent);
-    border-radius:999px;padding:.55em 0;
+  .cs-room{
+    display:block;margin-top:.85rem;padding:.6rem .9rem;text-align:center;
+    font-style:italic;font-size:.82rem;line-height:1.5;text-decoration:none;
+    color:var(--ink-dim);border:1px solid rgba(255,201,122,.4);
+    border-radius:12px;background:rgba(255,201,122,.05);
   }
-  .cs-tools a:hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
+  .cs-room b{color:var(--lamp);font-weight:normal}
+  .cs-room:hover{border-color:var(--lamp);color:var(--ink);
+    box-shadow:0 0 14px rgba(255,201,122,.18)}
 
   /* ---------- the impossible object: a live ray-marched Mandelbulb ---------- */
   .mandelstage{
@@ -724,8 +725,10 @@
   <div class="cs-tools">
     <button id="csSolve">Solve itself</button>
     <button id="csFlip">Superflip again</button>
-    <a href="/cube/">The big ones →</a>
   </div>
+  <a class="cs-room" href="/cube/">✦ this little cube is chapter one — the
+  <b>solving room</b> has five puzzles that solve themselves, a map of every
+  position, and one you can put in your own room →</a>
 </section>
 
 <section class="mandelstage" id="mandelStage" role="dialog" aria-modal="true" aria-label="The impossible object — a live Mandelbulb" hidden>
@@ -1269,7 +1272,7 @@
   cube += gTop(34,332,24, stickers([4,5,4,3,4,2,4,0,4]));
   cube += gLeft(34,356,24, stickers([0,4,0,3,0,2,0,1,0]));
   cube += gRight(58,356,24, stickers([2,4,2,0,2,5,2,1,2]));
-  S.push(wrapObj("cube","A pocket puzzle — pick it up","#d9a0e8",cube));
+  S.push(wrapObj("cube","A pocket puzzle — a whole room hides behind it","#d9a0e8",cube));
 
   /* ---------- outside: flower pot, mushroom & butterfly ---------- */
   var pot = cyl(530,40,0,13,20,"#b0603a");

@@ -311,6 +311,19 @@
   #nogl[hidden]{display:none}
   /* ?og=1 — a bare stage for the social-preview photograph */
   body.og header, body.og .picker, body.og .deskline{display:none}
+
+  /* ---------- put it in your room ---------- */
+  .ar-video{
+    position:fixed; inset:0; width:100%; height:100%;
+    object-fit:cover; z-index:0;
+  }
+  #stage{z-index:1}
+  body.ar{background:#000}
+  body.ar .glowpool{display:none}
+  body.ar #btnMap, body.ar #btnStats, body.ar #btnScan,
+  body.ar #btnSpecimen, body.ar #btnMaths, body.ar #fact{display:none}
+  body.ar .picker button{background:rgba(8,6,4,.55)}
+  body.ar #status{text-shadow:0 1px 6px rgba(0,0,0,.8)}
   @media (max-width:640px){
     h1{font-size:1.1rem}
     .picker{top:5.4rem}
@@ -362,6 +375,7 @@
     <button id="btnStats">the numbers ✦</button>
     <button id="btnScan" hidden>scan your cube ✦</button>
     <button id="btnSpecimen" hidden>the antipode ✦</button>
+    <button id="btnRoom">put it in your room ✦</button>
     <button id="btnMaths">the mathematics ✦</button>
   </div>
   <div id="teachBar" hidden>
@@ -508,6 +522,21 @@
     re-turn the same layer until it feels easy. Nothing is timed, nothing is
     scored, and the cube never gets impatient.</p>
 
+    <h2>Putting it in your room</h2>
+    <p><b>Put it in your room ✦</b> opens whichever doorway your device
+    offers. Where the browser speaks WebXR — Android phones, mostly — you get
+    true augmented reality: the camera looks for a surface, the puzzle rides
+    your aim until you tap to set it down at hand size, and then it simply
+    <i>stays there</i> while you walk around it. On iPhones, Safari keeps real
+    AR to itself, so the room does the honest next-best thing: the rear camera
+    becomes the backdrop, the gyroscope steers the view, and the puzzle hangs
+    pinned in a direction of your room — a window, not a world-lock, and
+    labelled as such. Either way, while it lives in your room it behaves like
+    an ornament that thinks: scramble, solve, breathe, repeat, with the same
+    honest mathematics underneath. No frameworks were harmed: WebXR is just
+    an API, and the window is a video element, a quaternion, and the same
+    renderScene call as the flat screen.</p>
+
     <h2>The design, if you'd like to steal it</h2>
     <p>View source — it's meant to be read. The whole room is six colour
     tokens (a warm dark room, three strengths of parchment ink, lamp-amber
@@ -536,7 +565,8 @@ off. The desk is still there, though — <a href="/">go back</a>.</p>
 
 <script src="puzzle.js?v=2"></script>
 <script src="map.js?v=2"></script>
-<script src="app.js?v=3"></script>
+<script src="ar.js?v=1"></script>
+<script src="app.js?v=5"></script>
 <script src="scan.js?v=2"></script>
 </body>
 </html>

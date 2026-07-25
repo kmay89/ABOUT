@@ -372,6 +372,8 @@ function camTick(dt){
 }
 
 canvas.addEventListener("pointerdown", function(e){
+  if(AR&&AR.mode()==="window"){ AR.tap(); return; }
+  if(AR&&AR.mode()) return;
   canvas.setPointerCapture(e.pointerId);
   cam.dragging=true; cam.lastX=e.clientX; cam.lastY=e.clientY;
   cam.lastT=performance.now(); cam.vyaw=0; cam.vpitch=0;
@@ -739,6 +741,7 @@ function onProgramDone(){
     setStatus(wasDoneLabel);
   } else {
     setStatus("scrambled — "+history.length+" turns deep · press solve");
+    overtureAfterScramble();
   }
   requestLocate();
   setTimeout(function(){ if(!playing) elTicker.classList.remove("show"); }, 1600);
@@ -896,13 +899,12 @@ function getWorker(){
 }
 
 /* ---------- actions ---------- */
-btnScramble.addEventListener("click", function(){
+function doScramble(){
   var moves=P.scramble(KINDS[kind].scramble);
   setStatus("scrambling…");
   enqueueProgram(moves,{solving:false});
-});
-
-btnSolve.addEventListener("click", function(){
+}
+function doSolve(){
   if(P.isSolved(colors)){ setStatus("already home — scramble it first"); return; }
   if(kind==="cube2"||kind==="cube3"){
     setBusy(true);
@@ -916,7 +918,31 @@ btnSolve.addEventListener("click", function(){
     setStatus(KINDS[kind].method+" · "+thread.length+" turns");
     enqueueProgram(thread,{solving:true});
   }
-});
+}
+btnScramble.addEventListener("click", function(){ overtureStage=2; doScramble(); });
+btnSolve.addEventListener("click", function(){ overtureStage=2; doSolve(); });
+
+/* ---------- the overture ----------
+   Nobody should have to press a button to see the point. If the
+   visitor touches nothing, the room clears its throat, scrambles,
+   and unties itself — once. Any real interaction cancels it. */
+var overtureStage = REDUCED ? 2 : 0;   /* 0 waiting · 1 mid-show · 2 done */
+setTimeout(function(){
+  if(overtureStage===0 && !playing && queue.length===0 && P.isSolved(colors)){
+    overtureStage=1;
+    doScramble();
+    setStatus("watch — it scrambles itself, then unties the knot");
+  } else overtureStage=2;
+}, 1700);
+function overtureAfterScramble(){
+  if(overtureStage!==1) return;
+  setTimeout(function(){
+    if(overtureStage===1 && !playing && queue.length===0){
+      overtureStage=2;
+      doSolve();
+    }
+  }, 1100);
+}
 
 btnStop.addEventListener("click", function(){
   queue=[];
@@ -948,6 +974,7 @@ btnStats.addEventListener("click", function(){
 /* famous specimens: positions worth meeting by name */
 var SUPERFLIP="U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2";
 btnSpecimen.addEventListener("click", function(){
+  overtureStage=2;
   if(kind==="cube2"){
     setBusy(true);
     setStatus("finding a farthest place…");
@@ -968,6 +995,7 @@ pickers.forEach(function(btn){
 });
 
 function setKind(k){
+  if(kind!==null) overtureStage=2;   /* a choice was made; no need to perform */
   kind=k;
   P=PuzzleEngine.build(k==="mega"?"mega":k);
   pal=KINDS[k].pal.map(hex2rgb);
@@ -1009,40 +1037,22 @@ function resize(){
   cam.fit=Math.min(1.9, Math.max(1, 0.92/aspect));
 }
 
-var lastFrame=performance.now();
-function frame(now){
-  requestAnimationFrame(frame);
-  var dt=Math.min(0.05,(now-lastFrame)/1000);
-  lastFrame=now;
-  resize();
-  camTick(dt);
-  pump(now);
-  animTick(now);
-  if(glow>0) glow=Math.max(0, glow-dt*1.1);
+/* the camera's position in the world, recovered from a view matrix */
+function eyeFromView(V){
+  return [
+    -(V[0]*V[12]+V[1]*V[13]+V[2]*V[14]),
+    -(V[4]*V[12]+V[5]*V[13]+V[6]*V[14]),
+    -(V[8]*V[12]+V[9]*V[13]+V[10]*V[14])
+  ];
+}
 
-  if(mapOpen&&mapView){
-    if(playing&&playing.at>=0){
-      var mt=anim?Math.max(0,Math.min(1,(now-anim.t0)/anim.dur)):1;
-      mapView.setProgress(playing.at, mt);
-    }
-    mapView.frame(dt, true);
-  }
-
-  gl.clearColor(0,0,0,0);
-  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-
-  var aspect=canvas.width/canvas.height;
-  var proj=mPersp(0.62, aspect, 0.1, 60);
-  var view=mMul(mTranslate(0,0,-cam.dist), mMul(mRotX(cam.pitch), mRotY(cam.yaw)));
-  /* eye position in world space (inverse of the two rotations) */
-  var cy=Math.cos(cam.yaw), sy=Math.sin(cam.yaw);
-  var cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
-  var eye=[ -cam.dist*sy*cp, cam.dist*sp, cam.dist*cy*cp ];
-
+/* draw the puzzle with any camera and any world placement — the flat
+   screen, the gyro window, and WebXR all come through here */
+function renderScene(proj, view, world, now){
   gl.uniformMatrix4fv(loc.uProj,false,proj);
   gl.uniformMatrix4fv(loc.uView,false,view);
   gl.uniform1f(loc.uGlow, Math.min(1,glow));
-  gl.uniform3fv(loc.uEye, eye);
+  gl.uniform3fv(loc.uEye, eyeFromView(view));
 
   [[bufPos,loc.aPos,3],[bufNrm,loc.aNrm,3],[bufCol,loc.aCol,3],[bufTop,loc.aTop,1]]
   .forEach(function(b){
@@ -1051,14 +1061,14 @@ function frame(now){
     gl.vertexAttribPointer(b[1],b[2],gl.FLOAT,false,0,0);
   });
 
-  gl.uniformMatrix4fv(loc.uModel,false,mIdentity());
+  gl.uniformMatrix4fv(loc.uModel,false,world);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxStatic);
   gl.drawElements(gl.TRIANGLES, staticCount, gl.UNSIGNED_SHORT, 0);
 
   if(anim && movingCount>0){
     var t=(now-anim.t0)/anim.dur;
     var a=anim.target*ease(t);
-    gl.uniformMatrix4fv(loc.uModel,false,mAxisAngle(anim.twist.axis,a));
+    gl.uniformMatrix4fv(loc.uModel,false,mMul(world, mAxisAngle(anim.twist.axis,a)));
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxMoving);
     gl.drawElements(gl.TRIANGLES, movingCount, gl.UNSIGNED_SHORT, 0);
   }
@@ -1072,9 +1082,60 @@ function frame(now){
       var am = (anim && anim.mv===mvA)
         ? mAxisAngle(anim.twist.axis, anim.target*ease((now-anim.t0)/anim.dur))
         : mIdentity();
-      drawArrow(am, now);
+      drawArrow(mMul(world, am), now);
     } else arrowFor=null;
   } else arrowFor=null;
+}
+
+/* while it lives in your room it behaves like an ornament that
+   thinks: scramble, solve, breathe, repeat */
+var arIdleAt=0;
+function arAmbient(now){
+  if(teach){ arIdleAt=now; return; }
+  if(playing||queue.length||anim||pendingSolve){ arIdleAt=now; return; }
+  if(now-arIdleAt<2800) return;
+  arIdleAt=now;
+  if(P.isSolved(colors)) doScramble();
+  else if(kind==="cube2"||kind==="cube3") doSolve();
+  else doSolve();
+}
+
+var lastFrame=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt=Math.min(0.05,(now-lastFrame)/1000);
+  lastFrame=now;
+  var arMode=AR?AR.mode():null;
+  camTick(dt);
+  pump(now);
+  animTick(now);
+  if(glow>0) glow=Math.max(0, glow-dt*1.1);
+  if(arMode) arAmbient(now);
+
+  if(mapOpen&&mapView){
+    if(playing&&playing.at>=0){
+      var mt=anim?Math.max(0,Math.min(1,(now-anim.t0)/anim.dur)):1;
+      mapView.setProgress(playing.at, mt);
+    }
+    mapView.frame(dt, true);
+  }
+
+  if(arMode==="xr") return;      /* the XR loop draws for itself */
+
+  resize();
+  gl.clearColor(0,0,0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  if(arMode==="window"){
+    var camA=AR.windowCamera(canvas.width/canvas.height);
+    if(camA) renderScene(camA.proj, camA.view, camA.world, now);
+    return;
+  }
+
+  var aspect=canvas.width/canvas.height;
+  var proj=mPersp(0.62, aspect, 0.1, 60);
+  var view=mMul(mTranslate(0,0,-cam.dist), mMul(mRotX(cam.pitch), mRotY(cam.yaw)));
+  renderScene(proj, view, mIdentity(), now);
 }
 
 /* ---------- maths panel ---------- */
@@ -1084,6 +1145,37 @@ mathsBtn.addEventListener("click", function(){
   var open=!mathsPanel.classList.contains("show");
   mathsPanel.classList.toggle("show", open);
   mathsBtn.textContent=open?"back to the puzzle ×":"the mathematics ✦";
+});
+
+/* ---------- put it in your room ---------- */
+var btnRoom=document.getElementById("btnRoom");
+var AR=null;
+if(window.RoomAR){
+  AR=RoomAR({
+    gl:gl, canvas:canvas, renderScene:renderScene,
+    onStatus:setStatus,
+    onEnter:function(m){
+      overtureStage=2;
+      if(mapOpen){ btnMap.click(); }
+      if(statsOpen){ btnStats.click(); }
+      document.body.classList.add("ar");
+      btnRoom.textContent="back to the flat screen ×";
+      arIdleAt=performance.now();
+      elFact.textContent = m==="xr"
+        ? "true augmented reality — walk around it while it thinks"
+        : "the window — a gyroscope and a camera, honestly; Safari keeps real AR to itself";
+    },
+    onExit:function(){
+      document.body.classList.remove("ar");
+      btnRoom.textContent="put it in your room ✦";
+      elFact.textContent=KINDS[kind].fact;
+      setStatus("back on the desk");
+    }
+  });
+}
+btnRoom.addEventListener("click", function(){
+  if(!AR){ setStatus("the doorway is missing — ar.js didn't load"); return; }
+  if(AR.mode()) AR.exit(); else AR.enter();
 });
 
 /* ---------- the scanner's doorway into the room ---------- */
@@ -1105,6 +1197,7 @@ window.RoomAPI={
     setStatus("your cube, read from the stickers — press solve, or let it teach you");
   },
   teachSolve:function(){
+    overtureStage=2;
     if(kind!=="cube3") return;
     if(P.isSolved(colors)){ setStatus("this cube is already home"); return; }
     setBusy(true);
