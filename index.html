@@ -353,6 +353,15 @@
   .d-links a:hover,.d-links a:focus-visible{filter:brightness(1.15)}
   .d-links a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   .d-links a::after{content:" ↗"}
+  /* a world's front door: one big unmissable button (links with cta:true) */
+  .d-links a.d-cta{
+    flex-basis:100%;display:flex;align-items:center;justify-content:center;gap:.6rem;
+    font-size:.95rem;font-weight:700;letter-spacing:.14em;
+    padding:1em .9em;border-radius:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .d-links a.d-cta::after{content:" →"}
+  .d-links a.d-cta:hover,.d-links a.d-cta:focus-visible{filter:brightness(1.1);transform:translateY(-1px)}
   .d-links .d-listen{
     flex-basis:100%;
     display:flex;flex-wrap:wrap;gap:.5rem;
@@ -807,7 +816,7 @@
     <a href="https://scqcs.com">scqcs.com</a>
     <a href="https://github.com/kmay89">github.com/kmay89</a>
     <a href="/cube/">The solving room</a>
-    <a href="https://kmay89.github.io/puzzles/chess/">The chess room</a>
+    <a href="/chess/">The chess room</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1569,7 +1578,7 @@
       story: "The newest door in the solving room: a whole chess app that runs in your browser and asks nothing of you — no account, no ads, nothing tracked. A full 3D board (a lovely flat one is one tap away), a patient coach who hints in plain words and lets you take moves back, the famous openings told as little stories, a real tournament clock, and two-device play for people in the same room: a pasted or scanned code links the boards directly, no server anywhere. The rules engine is proven against millions of known-good positions. The set on this desk is paused a few moves into the Italian Game — the oldest opening in the book, and still lovely.",
       chips: ["3D & 2D boards","A patient coach","Opening stories","Nearby 2-player","Tournament clock","Works offline","Open source"],
       links: [
-        {label:"Play — the chess room", href:"https://kmay89.github.io/puzzles/chess/"},
+        {label:"♞ Play — the chess room", href:"/chess/", cta:true, sameTab:true},
         {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
@@ -1916,7 +1925,8 @@
     w.links.forEach(function(l){
       var a = document.createElement("a");
       a.href = l.href; a.textContent = l.label;
-      a.target = "_blank"; a.rel = "noopener";
+      if (l.cta) a.className = "d-cta";                  // the big front-door button
+      if (!l.sameTab){ a.target = "_blank"; a.rel = "noopener"; }
       links.appendChild(a);
     });
     cancelHide();

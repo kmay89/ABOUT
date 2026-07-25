@@ -24,3 +24,10 @@
   for = "/og-image.png"
   [headers.values]
     Cache-Control = "public, max-age=604800"
+
+# The chess room's service worker must never be cached long, or installed
+# players would stop hearing about new versions
+[[headers]]
+  for = "/chess/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
