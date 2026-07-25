@@ -1,7 +1,7 @@
 # The solving room
 
-Five twisty puzzles that scramble and solve themselves — a 2×2, 3×3, 4×4,
-5×5 and a megaminx — with a live map of their state spaces, a statistical
+Seven twisty puzzles that scramble and solve themselves — a 2×2, 3×3, 4×4, 5×5,
+a megaminx, a pyraminx and a skewb — with a live map of their state spaces, a statistical
 engine, a camera-based cube scanner, and a turn-by-turn teacher. Raw WebGL
 and vanilla JavaScript: no libraries, no build step, no trackers. MIT.
 
@@ -31,7 +31,7 @@ planes into 132 stickers. Cubes 2–5 come from one parameterised builder.
 
 ### solver.js — two honest solvers
 
-- **2×2 — God's algorithm.** Breadth-first search over all 3,674,160
+- **2×2 and Pyraminx — God's algorithm.** Breadth-first search over all 3,674,160
   states (7! permutations × 3⁶ orientations, one corner fixed). Every
   solution is provably optimal; ≤ 11 turns always.
 - **3×3 — Kociemba's two-phase.** Phase 1 drives orientation + slice
