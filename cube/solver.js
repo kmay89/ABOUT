@@ -298,7 +298,7 @@ function Solver3(ops){
     for(i=0;i<12;i++) occ[i]= (sliceIdxOf[state.ep[i]]!==undefined)?1:0;
     var slice0=occ2slice(occ);
 
-    var best=null;
+    var best=null, bestSplit=0;
     var ph1=new Array(13), TIMEOUT={};
 
     function phase2From(st, d1){
@@ -320,6 +320,7 @@ function Solver3(ops){
         if(depth===0){
           if(cp2===0&&e82===0&&s42===0){
             best=ph1.slice(0,d1).concat(moves2.slice(0,idx));
+            bestSplit=d1;
             return true;
           }
           return false;
@@ -367,8 +368,36 @@ function Solver3(ops){
     }catch(e){ if(e!==TIMEOUT) throw e; }
 
     if(!best) return null;
-    return best.map(function(m){ return ops[m].name; });
+    var out=best.map(function(m){ return ops[m].name; });
+    out.split=bestSplit;   /* moves 0..split-1 are phase 1 (reaching G1) */
+    return out;
   };
+
+  /* where a cubie state sits in the two coordinate spaces — used by the
+     map view. d1 = proven minimum turns to reach G1; once inside G1,
+     d2 = proven minimum turns to home. */
+  self.coords=function(state){
+    if(!self.ready) throw new Error("solver not initialised");
+    var twist=co2twist(state.co), flip=eo2flip(state.eo), i;
+    var occ=new Array(12);
+    for(i=0;i<12;i++) occ[i]=(sliceIdxOf[state.ep[i]]!==undefined)?1:0;
+    var slice=occ2slice(occ);
+    var out={ twist:twist, flip:flip, slice:slice,
+              id:twist*N_SLICE+slice,
+              d1:Math.max(prunTS[twist*N_SLICE+slice], prunFS[flip*N_SLICE+slice]),
+              g:false, d2:0, id2:0 };
+    if(twist===0&&flip===0&&slice===sliceHome){
+      out.g=true;
+      var cp=permRank(state.cp), p8=new Array(8), p4=new Array(4), k;
+      for(k=0;k<8;k++) p8[k]=udIdxOf[state.ep[udPos[k]]];
+      for(k=0;k<4;k++) p4[k]=sliceIdxOf[state.ep[slicePos[k]]];
+      var e8=permRank(p8), s4=permRank(p4);
+      out.id2=cp*24+s4;
+      out.d2=Math.max(prunCS[cp*24+s4], prunES[e8*24+s4]);
+    }
+    return out;
+  };
+  self.tables=function(){ return { prunTS:prunTS, prunCS:prunCS }; };
 
   return self;
 }
@@ -452,11 +481,7 @@ function Solver2(ops, dbl){
     self.ready=true;
   };
 
-  self.solve=function(state){
-    if(!self.ready) throw new Error("solver not initialised");
-    if(state.cp[dbl]!==dbl || state.co[dbl]!==0)
-      throw new Error("DBL corner is not anchored");
-    var p=encP(state.cp), o=encO(state.co);
+  function descend(p, o){
     var moves=[], guard=0;
     while(depth[p*N_O+o]>0){
       var d=depth[p*N_O+o], taken=-1;
@@ -468,11 +493,33 @@ function Solver2(ops, dbl){
       moves.push(ops[taken].name);
     }
     return moves;
+  }
+
+  self.solve=function(state){
+    if(!self.ready) throw new Error("solver not initialised");
+    if(state.cp[dbl]!==dbl || state.co[dbl]!==0)
+      throw new Error("DBL corner is not anchored");
+    return descend(encP(state.cp), encO(state.co));
+  };
+
+  /* optimal route from an encoded state id to home — used to walk to
+     named specimens like the 2,644 antipodes at distance 11 */
+  self.routeFromId=function(id){
+    if(!self.ready) throw new Error("solver not initialised");
+    return descend((id/N_O)|0, id%N_O);
   };
 
   self.distance=function(state){
     return depth[encP(state.cp)*N_O+encO(state.co)];
   };
+
+  /* map-view helpers: where a state sits in the full 3,674,160-state
+     space, and the raw God table itself */
+  self.encode=function(state){
+    var p=encP(state.cp), o=encO(state.co);
+    return { id:p*N_O+o, d:depth[p*N_O+o] };
+  };
+  self.table=function(){ return depth; };
 
   return self;
 }

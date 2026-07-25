@@ -3,7 +3,7 @@
    rotation of one slab of prisms; the camera is a mass on a spring so
    the puzzle carries momentum when you fling it and rubber-bands back
    when you push it past the poles. No libraries. */
-/* global PuzzleEngine */
+/* global PuzzleEngine, MapView */
 (function(){
 "use strict";
 var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -71,6 +71,22 @@ var elTicker=document.getElementById("ticker");
 var btnScramble=document.getElementById("btnScramble");
 var btnSolve=document.getElementById("btnSolve");
 var btnStop=document.getElementById("btnStop");
+var btnMap=document.getElementById("btnMap");
+var btnScan=document.getElementById("btnScan");
+var btnStats=document.getElementById("btnStats");
+var btnSpecimen=document.getElementById("btnSpecimen");
+var statsCard=document.getElementById("stats");
+var statBars=document.getElementById("statBars");
+var statCap=document.getElementById("statCap");
+var statLines=document.getElementById("statLines");
+var mapCanvas=document.getElementById("map");
+var mapCap=document.getElementById("mapCap");
+var mapLive=document.getElementById("mapLive");
+var teachBadge=document.getElementById("teachBadge");
+var teachBar=document.getElementById("teachBar");
+var btnTeachNext=document.getElementById("teachNext");
+var btnTeachAuto=document.getElementById("teachAuto");
+var btnTeachExit=document.getElementById("teachExit");
 var pickers=Array.prototype.slice.call(document.querySelectorAll("[data-kind]"));
 
 var gl=canvas.getContext("webgl",{antialias:true, alpha:true, premultipliedAlpha:true});
@@ -247,6 +263,79 @@ function splitIndex(members){
   staticCount=sArr.length; movingCount=mArr.length;
 }
 
+/* ---------- the teacher's arrow: which layer, which way ----------
+   A glowing arc drawn on the turning face before each taught move,
+   sweeping in the direction the hand should go, riding the layer
+   while it rotates. */
+function crossv(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function normv(a){ var l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l]; }
+
+var arrowBufs=null, arrowFor=null, arrowIdxCount=0;
+function buildArrow(mv){
+  arrowFor=mv;
+  var tw=P.twists[mv.t];
+  var n=P.n||3, ua=tw.axis;
+  var posEnd = tw.layer >= n/2;
+  var w = posEnd ? ua.slice() : [-ua[0],-ua[1],-ua[2]];
+  var h = 1.3 + 0.05;
+  var pick = Math.abs(w[1])>0.9 ? [0,0,1] : [0,1,0];
+  var u = normv(crossv(pick, w));
+  var v = crossv(w, u);
+  var tSigned = mv.n>tw.order/2 ? mv.n-tw.order : mv.n;
+  /* which way the stickers will visibly travel, seen from outside */
+  var visSign = (posEnd?1:-1) * (tSigned>0?1:-1);
+  var sweep = Math.abs(tSigned)===2 ? 3.0 : 1.8;
+  var r=0.82, wd=0.13, STEPS=20;
+  var pos=[], nrm=[], col=[], top=[], idx=[];
+  function push(p){
+    pos.push(p[0],p[1],p[2]); nrm.push(w[0],w[1],w[2]);
+    col.push(1.0,0.79,0.48); top.push(1);
+  }
+  function pt(th, rr){
+    var cu=rr*Math.cos(th), cv=rr*Math.sin(th);
+    return [ w[0]*h+u[0]*cu+v[0]*cv, w[1]*h+u[1]*cu+v[1]*cv, w[2]*h+u[2]*cu+v[2]*cv ];
+  }
+  for(var s=0;s<=STEPS;s++){
+    var th=(-sweep/2 + sweep*s/STEPS)*visSign;
+    var base=pos.length/3;
+    push(pt(th, r-wd)); push(pt(th, r+wd));
+    if(s>0) idx.push(base-2,base-1,base, base,base-1,base+1);
+  }
+  var thE=(sweep/2)*visSign;
+  var b2=pos.length/3;
+  push(pt(thE, r-0.30)); push(pt(thE, r+0.30)); push(pt(thE+0.45*visSign, r));
+  idx.push(b2,b2+1,b2+2);
+
+  if(!arrowBufs) arrowBufs={p:gl.createBuffer(), n:gl.createBuffer(),
+                            c:gl.createBuffer(), t:gl.createBuffer(), i:gl.createBuffer()};
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.p);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(pos),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.n);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(nrm),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.c);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(col),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,arrowBufs.t);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(top),gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,arrowBufs.i);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(idx),gl.DYNAMIC_DRAW);
+  arrowIdxCount=idx.length;
+}
+
+function drawArrow(model, now){
+  gl.uniformMatrix4fv(loc.uModel,false,model);
+  gl.uniform1f(loc.uGlow, 0.55+0.35*Math.sin(now/260));
+  [[arrowBufs.p,loc.aPos,3],[arrowBufs.n,loc.aNrm,3],
+   [arrowBufs.c,loc.aCol,3],[arrowBufs.t,loc.aTop,1]].forEach(function(b){
+    gl.bindBuffer(gl.ARRAY_BUFFER,b[0]);
+    gl.enableVertexAttribArray(b[1]);
+    gl.vertexAttribPointer(b[1],b[2],gl.FLOAT,false,0,0);
+  });
+  gl.disable(gl.CULL_FACE);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,arrowBufs.i);
+  gl.drawElements(gl.TRIANGLES,arrowIdxCount,gl.UNSIGNED_SHORT,0);
+  gl.enable(gl.CULL_FACE);
+}
+
 /* ---------- camera: a mass on a spring ---------- */
 var cam={
   yaw:-0.62, pitch:0.44, dist:7.4,
@@ -256,7 +345,15 @@ var cam={
 };
 var PITCH_MAX=1.35, BASE_DIST=7.4;
 
+var teachAim=null;   /* {yaw,pitch} — the room shows you the face to turn */
 function camTick(dt){
+  if(teachAim && !cam.dragging){
+    var dy=teachAim.yaw-cam.yaw;
+    dy-=Math.round(dy/(2*Math.PI))*2*Math.PI;   /* shortest way round */
+    cam.yaw += dy*Math.min(1,2.6*dt);
+    cam.pitch += (teachAim.pitch-cam.pitch)*Math.min(1,2.6*dt);
+    cam.vyaw=0; cam.vpitch=0;
+  }
   if(!cam.dragging){
     cam.yaw += cam.vyaw*dt;
     cam.pitch += cam.vpitch*dt;
@@ -330,6 +427,189 @@ canvas.addEventListener("touchend", function(){ pinch=null; },{passive:true});
 var queue=[];         /* [{mv, dur}] */
 var anim=null;        /* {mv, twist, t0, dur, target} */
 var glow=0, playing=null; /* playing: {label, names, at, t0} for the ticker */
+var teach=null;       /* {auto, armed} while the guided solve is on */
+
+/* ---------- the map of everywhere ---------- */
+var mapView=null, mapOpen=false, mapCloudKind=null;
+var walkReqId=0, walkSteps=null, threadRadii=null;
+
+var MAP_CAPTIONS={
+  cube2:"every dot is a real position of the pocket cube · shells = exact turns from home (the God table)",
+  cube3:"nebula: all 1,082,565 orientation×slice coordinates, shells = proven turns to G1 · nucleus: the corner-permutation space inside G1",
+  other:"Ariadne's thread — the walk itself · shells = length of the simplified move word"
+};
+
+function mapStride(){
+  var small=Math.min(innerWidth,innerHeight)<700;
+  return kind==="cube2" ? (small?8:2) : (small?4:1);
+}
+
+function ensureMap(){
+  if(!mapView){
+    mapView=MapView(mapCanvas);
+    if(!mapView){ setStatus("the map needs WebGL too — it stays rolled up"); return false; }
+  }
+  return true;
+}
+
+function requestCloud(){
+  if(!mapView||!mapOpen) return;
+  if(kind==="cube2"||kind==="cube3"){
+    mapCap.textContent="charting the space…";
+    if(mapCloudKind!==kind)
+      getWorker().postMessage({cmd:"map", kind:kind, stride:mapStride()});
+    else mapCap.textContent=MAP_CAPTIONS[kind];
+  } else {
+    mapView.clearClouds();
+    mapView.setMaxR(KINDS[kind].scramble*1.02);
+    mapCloudKind=null;
+    mapCap.textContent=MAP_CAPTIONS.other;
+  }
+}
+
+function requestWalk(moves){
+  if(!mapView&&!statsOpen) return;
+  walkSteps=null; threadRadii=null; hereNow=null;
+  if(kind==="cube2"||kind==="cube3"){
+    var id=++walkReqId;
+    getWorker().postMessage({cmd:"walk", kind:kind, id:id,
+      colors:Array.prototype.slice.call(colors),
+      names:moves.map(function(m){ return P.moveName(m); })});
+  } else {
+    var hist=history.slice(), radii=[simplifyWord(hist).length];
+    for(var i=0;i<moves.length;i++){
+      hist.push(moves[i]);
+      radii.push(simplifyWord(hist).length);
+    }
+    threadRadii=radii;
+    if(mapView) mapView.setWalk(mapView.threadWalk(radii));
+    updateReadout();
+  }
+}
+
+/* ---------- the numbers: an exact statistical engine ----------
+   Distributions and means computed live from the God table and the
+   pruning tables — nothing here is hard-coded except the labels. */
+var statsOpen=false, statsCache={}, hereNow=null, locateId=0;
+
+var THREAD_DIGITS={ cube4:45.87, cube5:74.45, mega:68.0 };
+
+function depthColor(f){ /* the map's ramp, for histogram bars */
+  function mix(a,b,t){ return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]; }
+  var cN=[99,230,169], cM=[186,168,143], cF=[255,201,122], cE=[255,107,92];
+  var c=f<0.35?mix(cN,cM,f/0.35):f<0.7?mix(cM,cF,(f-0.35)/0.35):mix(cF,cE,(f-0.7)/0.3);
+  return "rgb("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+")";
+}
+
+function renderStats(){
+  if(!statsOpen) return;
+  statBars.innerHTML=""; statLines.innerHTML="";
+  var s=statsCache[kind];
+  if(kind==="cube2"||kind==="cube3"){
+    if(!s){ statCap.textContent="counting every state…"; return; }
+    var main=s.main, i;
+    var logMax=Math.log10(Math.max.apply(null,main.hist)+1);
+    for(i=0;i<main.hist.length;i++){
+      var bar=document.createElement("div");
+      bar.className="sb";
+      bar.style.height=Math.max(2,(Math.log10(main.hist[i]+1)/logMax*100))+"%";
+      bar.style.background=depthColor(i/main.maxd);
+      bar.dataset.d=i;
+      bar.title=i+" turns: "+main.hist[i].toLocaleString()+" states";
+      statBars.appendChild(bar);
+    }
+    statCap.textContent= kind==="cube2"
+      ? "all "+main.total.toLocaleString()+" positions, by exact distance from home (log scale)"
+      : "all "+main.total.toLocaleString()+" phase-1 coordinates, by proven minimum turns to G1 (log scale)";
+    var l1=document.createElement("p");
+    l1.innerHTML= kind==="cube2"
+      ? "a random scramble lands, on average, <b>"+main.mean.toFixed(3)+" turns</b> from home"
+      : "a random state needs, on average, at least <b>"+main.mean.toFixed(3)+" turns</b> to reach G1"+
+        " · inside G1: at least <b>"+s.core.mean.toFixed(2)+"</b> more";
+    statLines.appendChild(l1);
+    var l2=document.createElement("p");
+    l2.id="statHere";
+    statLines.appendChild(l2);
+    renderStatsLive();
+  } else {
+    var c2=P.scrambleTwists.length*(P.twists[0].order-1);
+    statCap.textContent="too many states to count — so count the words instead";
+    var n=threadRadii?threadRadii[Math.min(playing?Math.max(0,playing.at+(anim?0:1)):threadRadii.length-1,threadRadii.length-1)]:simplifyWord(history).length;
+    var digits=(n*Math.log10(c2));
+    var lines=[
+      "every turn picks one of <b>"+c2+"</b> possible moves",
+      "a thread "+n+" turns long is one of ~<b>10<sup>"+digits.toFixed(1)+"</sup></b> possible move-words",
+      "the puzzle itself has ~<b>10<sup>"+THREAD_DIGITS[kind]+"</sup></b> positions — "+
+        (digits>=THREAD_DIGITS[kind] ? "the words now outnumber the states" :
+         "at ~"+Math.ceil(THREAD_DIGITS[kind]/Math.log10(c2))+" turns the words outnumber the states")
+    ];
+    lines.forEach(function(t){
+      var p=document.createElement("p"); p.innerHTML=t; statLines.appendChild(p);
+    });
+    var bar=document.createElement("div");
+    bar.className="sb-growth";
+    bar.innerHTML="<i style='width:"+Math.min(100,digits/THREAD_DIGITS[kind]*100)+"%'></i>";
+    statBars.innerHTML=""; statBars.appendChild(bar);
+  }
+}
+
+function renderStatsLive(){
+  if(!statsOpen||!(kind==="cube2"||kind==="cube3")) return;
+  var s=statsCache[kind];
+  var here=document.getElementById("statHere");
+  if(!s||!here) return;
+  var info=null;
+  if(walkSteps&&playing){
+    var i=Math.max(0, playing.at+(anim?0:1));
+    info=walkSteps[Math.min(i,walkSteps.length-1)];
+  } else if(hereNow) info=hereNow;
+  Array.prototype.forEach.call(statBars.children,function(b){ b.classList.remove("here"); });
+  if(!info){ here.textContent=""; return; }
+  var d=info.g?0:info.d;
+  var cum=0, main=s.main;
+  for(var k2=0;k2<d;k2++) cum+=main.hist[k2];
+  var pct=100*cum/main.total;
+  var bar=statBars.children[d];
+  if(bar) bar.classList.add("here");
+  if(kind==="cube2"){
+    here.innerHTML= d===0 ? "you are <b>home</b> — the single state at distance zero"
+      : "you are here: <b>"+d+" turns out</b> — deeper than <b>"+pct.toFixed(2)+"%</b> of all positions";
+  } else {
+    here.innerHTML= info.g
+      ? (info.d2===0 ? "you are <b>home</b>"
+         : "inside G1 — proven ≥ <b>"+info.d2+"</b> turns from home")
+      : "you are here: proven ≥ <b>"+info.d+"</b> turns from G1 — deeper than <b>"+pct.toFixed(2)+"%</b> of coordinates";
+  }
+}
+
+function requestLocate(){
+  if(!statsOpen||!(kind==="cube2"||kind==="cube3")) return;
+  var id=++locateId;
+  getWorker().postMessage({cmd:"locate", kind:kind, id:id,
+                           colors:Array.prototype.slice.call(colors)});
+}
+
+function updateReadout(){
+  renderStatsLive();
+  if(kind!=="cube2"&&kind!=="cube3"&&statsOpen&&playing) renderStats();
+  if(!mapOpen) return;
+  var i=playing ? Math.max(0, playing.at+(anim?0:1)) : 0;
+  if(walkSteps){
+    var s=walkSteps[Math.min(i,walkSteps.length-1)];
+    if(kind==="cube2")
+      mapLive.textContent="exactly "+s.d+" turn"+(s.d===1?"":"s")+" from home";
+    else
+      mapLive.textContent= s.g
+        ? (s.d2===0 ? "home — the centre of everything"
+                    : "inside G1 · proven ≥ "+s.d2+" turns to home")
+        : "outside G1 · proven ≥ "+s.d+" turns to reach it";
+  } else if(threadRadii){
+    var r=threadRadii[Math.min(i,threadRadii.length-1)];
+    mapLive.textContent="thread length: "+r+" turn"+(r===1?"":"s");
+  } else if(!playing){
+    mapLive.textContent="";
+  }
+}
 
 function easeOutBack(t){
   var c1=0.9, c3=c1+1;
@@ -339,6 +619,8 @@ function ease(t){ return t<0?0:t>1?1:easeOutBack(t); }
 
 function pump(now){
   if(anim || queue.length===0) return;
+  if(teach && !teach.auto && !teach.armed) return;  /* wait for "next" */
+  if(teach) teach.armed=false;
   var next=queue.shift();
   var tw=P.twists[next.mv.t];
   var turns=next.mv.n>tw.order/2 ? next.mv.n-tw.order : next.mv.n; /* shortest arc */
@@ -348,6 +630,9 @@ function pump(now){
   if(playing){
     playing.at++;
     renderTicker();
+    if(teach) showTeachMove(playing.names[playing.at],
+                            playing.at+1, playing.names.length);
+    updateReadout();
   }
 }
 
@@ -357,16 +642,85 @@ function animTick(now){
   if(t>=1){
     P.applyMove(colors, anim.mv);
     history.push(anim.mv);
+    if(teach) lastTaught=anim.mv;
     anim=null;
     refreshColors();
     setIndexAll();
-    if(queue.length===0) onProgramDone();
+    updateReadout();
+    if(queue.length===0){ onProgramDone(); }
+    else if(teach && playing){
+      /* point badge, arrow and camera at the turn now waiting */
+      showTeachMove(playing.names[playing.at+1], playing.at+2, playing.names.length);
+    }
   }
 }
 
+/* ---------- the teacher's voice ---------- */
+var FACE_WORDS={U:"top",D:"bottom",R:"right",L:"left",F:"front",B:"back"};
+function moveDesc(name){
+  var m=/^(\d*)([URFDLB])(2|')?$/.exec(name);
+  if(!m) return "turn face "+name;
+  var layer=m[1]?["","","second ","third "][+m[1]]+"layer from the ":"";
+  var amt=m[3]==="2"?"a half turn":
+          m[3]==="'"?"a quarter turn counter-clockwise":
+          "a quarter turn clockwise";
+  return "turn the "+layer+FACE_WORDS[m[2]].toUpperCase()+" face "+amt+
+         (m[3]==="'"?" (that's what the ' mark means)":"");
+}
+function showTeachMove(name, at, total){
+  teachBadge.hidden=false;
+  teachBadge.innerHTML="<b>"+name+"</b><span>"+moveDesc(name)+
+    "</span><i>turn "+at+" of "+total+"</i>";
+  /* swing the camera so the face about to turn is in view */
+  try{
+    var tw=P.twists[P.namedMove(name).t];
+    var n=P.n||3, posEnd=tw.layer>=n/2;
+    var w=posEnd?tw.axis:[-tw.axis[0],-tw.axis[1],-tw.axis[2]];
+    var yaw = Math.abs(w[1])>0.9 ? cam.yaw : Math.atan2(-w[0], w[2])+0.45;
+    var pitch = w[1]*0.85 + 0.28;
+    teachAim={yaw:yaw, pitch:Math.max(-1.15,Math.min(1.15,pitch))};
+  }catch(e){ teachAim=null; }
+}
+function showTeachIntro(total){
+  teachBadge.hidden=false;
+  teachBadge.innerHTML="<b>ready</b><span>hold your cube exactly as you scanned it — "+
+    "white on top, green facing you. press <em>next turn</em> and make each move "+
+    "along with the screen.</span><i>"+total+" turns to home</i>";
+}
+btnTeachNext.addEventListener("click", function(){ if(teach) teach.armed=true; });
+var btnTeachAgain=document.getElementById("teachAgain");
+btnTeachAgain.addEventListener("click", function(){
+  /* undo the last taught turn instantly, then offer it again slowly */
+  if(!teach||anim||!playing||playing.at<0||lastTaught===null) return;
+  P.applyMove(colors, P.invert(lastTaught));
+  history.push(P.invert(lastTaught));
+  refreshColors();
+  queue.unshift({mv:lastTaught, dur:680});
+  playing.at--;
+  teach.armed=true;   /* replay immediately */
+  renderTicker();
+});
+var lastTaught=null;
+btnTeachAuto.addEventListener("click", function(){
+  if(!teach) return;
+  teach.auto=!teach.auto;
+  btnTeachAuto.textContent="auto: "+(teach.auto?"on":"off");
+});
+btnTeachExit.addEventListener("click", function(){
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
+});
+
 function onProgramDone(){
   var wasSolving=playing&&playing.solving;
+  var wasTeach=playing&&playing.teach;
+  var wasDoneLabel=playing&&playing.doneLabel;
   playing=null;
+  if(wasTeach){
+    teach=null; teachBar.hidden=true; teachAim=null;
+    teachBadge.innerHTML="<b>solved</b><span>and now your real cube is home too. "+
+      "scramble it and come back any time.</span><i>🎉</i>";
+    setTimeout(function(){ teachBadge.hidden=true; }, 5200);
+  }
   setBusy(false);
   if(P.isSolved(colors)){
     history=[];
@@ -381,9 +735,12 @@ function onProgramDone(){
     }
   } else if(wasSolving){
     setStatus("stopped mid-thought — press solve to finish");
+  } else if(wasDoneLabel){
+    setStatus(wasDoneLabel);
   } else {
     setStatus("scrambled — "+history.length+" turns deep · press solve");
   }
+  requestLocate();
   setTimeout(function(){ if(!playing) elTicker.classList.remove("show"); }, 1600);
 }
 var wasSolvingT0=0;
@@ -391,12 +748,23 @@ var wasSolvingT0=0;
 /* ---------- program helpers ---------- */
 function enqueueProgram(moves, opts){
   var names=moves.map(function(m){ return P.moveName(m); });
-  playing={ names:names, at:-1, solving:opts.solving?{count:moves.length}:null };
+  playing={ names:names, at:-1, teach:!!opts.teach,
+            split:(opts.split!==undefined&&opts.split>=0)?opts.split:null,
+            doneLabel:opts.doneLabel||null,
+            solving:opts.solving?{count:moves.length}:null };
   if(opts.solving) wasSolvingT0=performance.now();
+  if(opts.teach){
+    teach={auto:false, armed:false};
+    teachBar.hidden=false;
+    btnTeachAuto.textContent="auto: off";
+    showTeachIntro(moves.length);
+  }
   var total=moves.length;
   queue=moves.map(function(m,i){
     var dur;
-    if(opts.solving){
+    if(opts.teach){
+      dur = 680;
+    } else if(opts.solving){
       /* a performance: set off briskly, land the final turns with weight */
       var tail=total-1-i;
       dur = tail>6 ? Math.max(95, 240-18*Math.min(i,8)) : 180+40*(6-tail);
@@ -408,6 +776,7 @@ function enqueueProgram(moves, opts){
   renderTicker();
   elTicker.classList.add("show");
   setBusy(true);
+  requestWalk(moves);
 }
 
 function simplifyWord(moves){
@@ -431,11 +800,21 @@ function renderTicker(){
   var upto=Math.min(playing.names.length, playing.at+9);
   if(from>0) html+="<span class='dim'>…</span>";
   for(var i=from;i<upto;i++){
-    html+="<span class='"+(i===playing.at?"now":i<playing.at?"done":"")+"'>"+playing.names[i]+"</span>";
+    var cls=(i===playing.at?"now":i<playing.at?"done":"");
+    /* Kociemba's two phases, visible in the notation itself */
+    if(playing.split!==null) cls+=(i<playing.split?" ph1":" ph2");
+    html+="<span class='"+cls+"'>"+playing.names[i]+"</span>";
   }
   if(upto<playing.names.length) html+="<span class='dim'>…</span>";
   elTicker.innerHTML=html;
 }
+/* click the ticker to copy the whole move word */
+elTicker.addEventListener("click", function(){
+  if(!playing||!navigator.clipboard) return;
+  navigator.clipboard.writeText(playing.names.join(" ")).then(function(){
+    setStatus("move word copied — take it with you");
+  });
+});
 function setStatus(t){ elStatus.textContent=t; }
 function setBusy(b){
   btnScramble.disabled=b; btnSolve.disabled=b;
@@ -445,24 +824,68 @@ function setBusy(b){
 
 /* ---------- the solver in the back office ---------- */
 var worker=null, solveId=0, pendingSolve=null, workerReady={};
+var checkId=0, pendingChecks={};
 function getWorker(){
   if(worker) return worker;
-  worker=new Worker("worker.js?v=1");
+  worker=new Worker("worker.js?v=3");
   worker.onmessage=function(e){
     var d=e.data;
     if(d.type==="progress"){
       if(pendingSolve && pendingSolve.kind===d.kind)
         setStatus("preparing the mathematics — "+d.label+" ("+Math.round(d.pct*100)+"%)");
+      else if(mapOpen && mapCloudKind!==kind && d.kind===kind)
+        mapCap.textContent="charting the space — "+d.label+" ("+Math.round(d.pct*100)+"%)";
     } else if(d.type==="ready"){
       workerReady[d.kind]=true;
     } else if(d.type==="solution"){
       workerReady[d.kind]=true;
       if(pendingSolve && d.id===pendingSolve.id && d.kind===kind){
+        var wasTeach=pendingSolve.teach;
         pendingSolve=null;
         var moves=d.moves.map(P.namedMove);
-        setStatus(KINDS[kind].method+" · "+moves.length+" turns");
-        enqueueProgram(moves,{solving:true});
+        var split=(kind==="cube3"&&d.split>=0)?d.split:undefined;
+        setStatus(wasTeach
+          ? "your cube's solution — "+moves.length+" turns, one at a time"
+          : split!==undefined
+            ? "Kociemba two-phase · "+split+" turns to G1 + "+(moves.length-split)+" inside"
+            : KINDS[kind].method+" · "+moves.length+" turns");
+        enqueueProgram(moves,{solving:true, teach:wasTeach, split:split});
       }
+    } else if(d.type==="antipode"){
+      if(d.kind===kind&&kind==="cube2"){
+        var amoves=d.moves.map(P.namedMove);
+        setStatus("walking to an antipode — "+amoves.length+" turns out");
+        enqueueProgram(amoves,{solving:false,
+          doneLabel:"an antipode — one of only 2,644 positions a proven maximum 11 turns from home"});
+      }
+    } else if(d.type==="map"){
+      if(mapView && d.kind===kind){
+        var list=[{pos:d.cloud.pos, dep:d.cloud.dep, n:d.cloud.n, maxd:d.cloud.maxd,
+                   alpha:kind==="cube2"?0.22:0.28, ptScale:kind==="cube2"?34:44}];
+        if(d.core) list.push({pos:d.core.pos, dep:d.core.dep, n:d.core.n,
+                              maxd:d.core.maxd, alpha:0.5, ptScale:20, core:true});
+        mapView.setClouds(list);
+        mapCloudKind=d.kind;
+        mapCap.textContent=MAP_CAPTIONS[d.kind]+" · "+d.cloud.n.toLocaleString()+" dots";
+      }
+    } else if(d.type==="walk"){
+      if(mapView && d.id===walkReqId && d.kind===kind){
+        walkSteps=d.steps;
+        mapView.setWalk(d.steps.map(function(s){ return [s.x,s.y,s.z]; }));
+        updateReadout();
+      }
+    } else if(d.type==="stats"){
+      statsCache[d.kind]={main:d.main, core:d.core};
+      if(d.kind===kind) renderStats();
+    } else if(d.type==="locate"){
+      if(d.id===locateId&&d.kind===kind){
+        hereNow={d:d.d, g:d.g, d2:d.d2};
+        renderStatsLive();
+      }
+    } else if(d.type==="check"){
+      var cb=pendingChecks[d.id];
+      delete pendingChecks[d.id];
+      if(cb) cb(d.ok, d.reason);
     } else if(d.type==="error"){
       pendingSolve=null;
       setBusy(false);
@@ -497,7 +920,47 @@ btnSolve.addEventListener("click", function(){
 
 btnStop.addEventListener("click", function(){
   queue=[];
-  if(playing) playing.solving=null;
+  if(playing){ playing.solving=null; playing.teach=false; }
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
+});
+
+btnMap.addEventListener("click", function(){
+  if(!ensureMap()) return;
+  mapOpen=!mapOpen;
+  document.body.classList.toggle("map-on", mapOpen);
+  btnMap.textContent=mapOpen?"roll up the map ✦":"the map ✦";
+  if(mapOpen){ requestCloud(); updateReadout(); }
+});
+
+btnStats.addEventListener("click", function(){
+  statsOpen=!statsOpen;
+  statsCard.hidden=!statsOpen;
+  document.body.classList.toggle("stats-on", statsOpen);
+  btnStats.textContent=statsOpen?"fold the numbers ✦":"the numbers ✦";
+  if(statsOpen){
+    if((kind==="cube2"||kind==="cube3")&&!statsCache[kind])
+      getWorker().postMessage({cmd:"stats", kind:kind});
+    renderStats();
+    requestLocate();
+  }
+});
+
+/* famous specimens: positions worth meeting by name */
+var SUPERFLIP="U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2";
+btnSpecimen.addEventListener("click", function(){
+  if(kind==="cube2"){
+    setBusy(true);
+    setStatus("finding a farthest place…");
+    getWorker().postMessage({cmd:"antipode", kind:"cube2", id:++solveId,
+      seed:(Date.now()%2147483000)+1,
+      colors:Array.prototype.slice.call(colors)});
+  } else if(kind==="cube3"){
+    if(!P.isSolved(colors)){ setStatus("solve it first — the superflip is measured from home"); return; }
+    var moves=SUPERFLIP.split(" ").map(P.namedMove);
+    setStatus("applying the superflip…");
+    enqueueProgram(moves,{solving:false,
+      doneLabel:"the superflip — every edge flipped in place; the first position proven to need all 20 turns"});
+  }
 });
 
 pickers.forEach(function(btn){
@@ -510,9 +973,22 @@ function setKind(k){
   pal=KINDS[k].pal.map(hex2rgb);
   colors=P.newColors();
   history=[]; queue=[]; anim=null; playing=null; pendingSolve=null; glow=0;
+  teach=null; teachBar.hidden=true; teachBadge.hidden=true; teachAim=null;
+  walkSteps=null; threadRadii=null; hereNow=null;
+  if(mapView) mapView.setWalk(null);
+  btnScan.hidden = k!=="cube3";
+  btnSpecimen.hidden = !(k==="cube2"||k==="cube3");
+  btnSpecimen.textContent = k==="cube2" ? "the antipode ✦" : "the superflip ✦";
+  if(statsOpen){
+    if((k==="cube2"||k==="cube3")&&!statsCache[k])
+      getWorker().postMessage({cmd:"stats", kind:k});
+    renderStats();
+    requestLocate();
+  }
   buildGeometry();
   pickers.forEach(function(p){ p.classList.toggle("on", p.dataset.kind===k); });
   elFact.textContent=KINDS[k].fact;
+  if(mapOpen){ requestCloud(); mapLive.textContent=""; }
   setStatus(k==="mega"
     ? "the shape from the photographs — drag it, fling it, scramble it"
     : "drag to turn it · fling it and it keeps going");
@@ -543,6 +1019,14 @@ function frame(now){
   pump(now);
   animTick(now);
   if(glow>0) glow=Math.max(0, glow-dt*1.1);
+
+  if(mapOpen&&mapView){
+    if(playing&&playing.at>=0){
+      var mt=anim?Math.max(0,Math.min(1,(now-anim.t0)/anim.dur)):1;
+      mapView.setProgress(playing.at, mt);
+    }
+    mapView.frame(dt, true);
+  }
 
   gl.clearColor(0,0,0,0);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -578,6 +1062,19 @@ function frame(now){
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxMoving);
     gl.drawElements(gl.TRIANGLES, movingCount, gl.UNSIGNED_SHORT, 0);
   }
+
+  /* the teacher's arrow: shown while a taught turn waits, and riding
+     the layer while it plays */
+  if(teach && playing){
+    var mvA = anim ? anim.mv : (queue[0] && queue[0].mv);
+    if(mvA){
+      if(mvA!==arrowFor) buildArrow(mvA);
+      var am = (anim && anim.mv===mvA)
+        ? mAxisAngle(anim.twist.axis, anim.target*ease((now-anim.t0)/anim.dur))
+        : mIdentity();
+      drawArrow(am, now);
+    } else arrowFor=null;
+  } else arrowFor=null;
 }
 
 /* ---------- maths panel ---------- */
@@ -589,6 +1086,37 @@ mathsBtn.addEventListener("click", function(){
   mathsBtn.textContent=open?"back to the puzzle ×":"the mathematics ✦";
 });
 
+/* ---------- the scanner's doorway into the room ---------- */
+window.RoomAPI={
+  getKind:function(){ return kind; },
+  palette:CUBE_PAL,
+  ensureCube3:function(){ if(kind!=="cube3") setKind("cube3"); },
+  check:function(cols, cb){
+    var id=++checkId;
+    pendingChecks[id]=cb;
+    getWorker().postMessage({cmd:"check", kind:"cube3", id:id,
+                             colors:Array.prototype.slice.call(cols)});
+  },
+  applyScan:function(cols){
+    if(kind!=="cube3") setKind("cube3");
+    colors.set(cols);
+    history=[];
+    refreshColors();
+    setStatus("your cube, read from the stickers — press solve, or let it teach you");
+  },
+  teachSolve:function(){
+    if(kind!=="cube3") return;
+    if(P.isSolved(colors)){ setStatus("this cube is already home"); return; }
+    setBusy(true);
+    setStatus("reading the stickers…");
+    var id=++solveId;
+    pendingSolve={id:id, kind:kind, teach:true};
+    getWorker().postMessage({cmd:"solve", kind:kind, id:id,
+                             colors:Array.prototype.slice.call(colors)});
+  }
+};
+
+if(/[?&]og=1/.test(location.search)) document.body.classList.add("og");
 setKind("mega");
 requestAnimationFrame(frame);
 })();
