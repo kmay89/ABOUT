@@ -5,9 +5,13 @@ every trinket on the desk opens into a little world — the things I've
 been lucky to make (ATM hardware, a bilingual book & doll, Hive Mind,
 the Everything series, Borrowed Sunlight, SCQCS, ERRER Labs, securaCV),
 plus a few rooms that exist purely for the joy of it: a pocket Rubik's
-cube that teaches, a ray-marched Mandelbulb, a light bench, and
+cube that teaches, a ray-marched Mandelbulb, a light bench,
 [the solving room](https://kmay89.com/cube/) — five twisty puzzles that
-scramble and solve themselves with the real mathematics on display.
+scramble and solve themselves with the real mathematics on display —
+and [the chess room](https://kmay89.github.io/puzzles/chess/), chess
+taught kindly: a 3D board, a patient coach, opening stories, and
+same-room two-player with no accounts (the tiny set on the desk is
+paused mid-Italian Game).
 
 **Live:** <https://kmay89.com>
 
