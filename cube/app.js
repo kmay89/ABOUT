@@ -274,18 +274,27 @@ var arrowBufs=null, arrowFor=null, arrowIdxCount=0;
 function buildArrow(mv){
   arrowFor=mv;
   var tw=P.twists[mv.t];
-  var n=P.n||3, ua=tw.axis;
-  var posEnd = tw.layer >= n/2;
+  var n=P.n||3, ua=tw.axis, i2;
+  /* megaminx twists have no layer: the face normal is the outside */
+  var posEnd = tw.layer===undefined ? true : tw.layer >= n/2;
   var w = posEnd ? ua.slice() : [-ua[0],-ua[1],-ua[2]];
-  var h = 1.3 + 0.05;
+  /* how far out this face sits, measured off the actual stickers */
+  var h=0;
+  for(i2=0;i2<P.stickers.length;i2++){
+    var cc=P.stickers[i2].center;
+    var dd=cc[0]*w[0]+cc[1]*w[1]+cc[2]*w[2];
+    if(dd>h) h=dd;
+  }
+  h+=0.05;
   var pick = Math.abs(w[1])>0.9 ? [0,0,1] : [0,1,0];
   var u = normv(crossv(pick, w));
   var v = crossv(w, u);
   var tSigned = mv.n>tw.order/2 ? mv.n-tw.order : mv.n;
   /* which way the stickers will visibly travel, seen from outside */
   var visSign = (posEnd?1:-1) * (tSigned>0?1:-1);
-  var sweep = Math.abs(tSigned)===2 ? 3.0 : 1.8;
-  var r=0.82, wd=0.13, STEPS=20;
+  var sweep = tw.order===5 ? (Math.abs(tSigned)===2 ? 2.2 : 1.35)
+                           : (Math.abs(tSigned)===2 ? 3.0 : 1.8);
+  var r=0.62*h, wd=0.13, STEPS=20;
   var pos=[], nrm=[], col=[], top=[], idx=[];
   function push(p){
     pos.push(p[0],p[1],p[2]); nrm.push(w[0],w[1],w[2]);
@@ -617,7 +626,32 @@ function easeOutBack(t){
   var c1=0.9, c3=c1+1;
   return 1 + c3*Math.pow(t-1,3) + c1*Math.pow(t-1,2);
 }
-function ease(t){ return t<0?0:t>1?1:easeOutBack(t); }
+function easeOutQuad(t){ return 1-(1-t)*(1-t); }
+function clamp01(f){ return function(t){ return t<0?0:t>1?1:f(t); }; }
+var easeSnap=clamp01(easeOutBack), easeBlur=clamp01(easeOutQuad);
+function ease(t){ return easeSnap(t); }
+
+/* magician pacing: open deliberately, blur through the middle like a
+   film wound forward, then land the last turns with weight */
+function showmanSolveDur(i, total){
+  var fromEnd=total-1-i;
+  if(i===0) return 470;
+  if(i===1) return 360;
+  if(i===2) return 280;
+  if(fromEnd===0) return 640;
+  if(fromEnd===1) return 430;
+  if(fromEnd===2) return 330;
+  if(fromEnd===3) return 260;
+  return Math.max(68, 250-28*(i-2));
+}
+function showmanScrambleDur(i, total){
+  var fromEnd=total-1-i;
+  if(i===0) return 400;
+  if(i===1) return 300;
+  if(fromEnd===0) return 280;
+  if(fromEnd===1) return 210;
+  return Math.max(60, 210-32*(i-1));
+}
 
 function pump(now){
   if(anim || queue.length===0) return;
@@ -627,7 +661,9 @@ function pump(now){
   var tw=P.twists[next.mv.t];
   var turns=next.mv.n>tw.order/2 ? next.mv.n-tw.order : next.mv.n; /* shortest arc */
   splitIndex(tw.members);
-  anim={ mv:next.mv, twist:tw, t0:now, dur:REDUCED?80:next.dur,
+  var dur=REDUCED?80:next.dur;
+  anim={ mv:next.mv, twist:tw, t0:now, dur:dur,
+         easeFn: dur<140 ? easeBlur : easeSnap,
          target:turns*tw.step };
   if(playing){
     playing.at++;
@@ -644,11 +680,23 @@ function animTick(now){
   if(t>=1){
     P.applyMove(colors, anim.mv);
     history.push(anim.mv);
-    if(teach) lastTaught=anim.mv;
+    var wasSilent=anim.silent;
+    if(teach && !wasSilent) lastTaught=anim.mv;
     anim=null;
     refreshColors();
     setIndexAll();
     updateReadout();
+    if(wasSilent){
+      /* a back-step: the program didn't advance — it retreated */
+      if(playing){
+        playing.at--;
+        lastTaught = playing.at>=0 ? playing.moves[playing.at] : null;
+        renderTicker();
+        if(teach) showTeachMove(playing.names[playing.at+1],
+                                playing.at+2, playing.names.length);
+      }
+      return;
+    }
     if(queue.length===0){ onProgramDone(); }
     else if(teach && playing){
       /* point badge, arrow and camera at the turn now waiting */
@@ -660,6 +708,14 @@ function animTick(now){
 /* ---------- the teacher's voice ---------- */
 var FACE_WORDS={U:"top",D:"bottom",R:"right",L:"left",F:"front",B:"back"};
 function moveDesc(name){
+  var mg=/^([A-L])(\+\+|\+|−−|−|--|-)$/.exec(name);
+  if(mg){
+    var amt5 = mg[2]==="+" ? "one fifth clockwise"
+             : mg[2]==="++" ? "two fifths clockwise"
+             : (mg[2]==="−−"||mg[2]==="--") ? "two fifths counter-clockwise"
+             : "one fifth counter-clockwise";
+    return "turn face "+mg[1]+" "+amt5;
+  }
   var m=/^(\d*)([URFDLB])(2|')?$/.exec(name);
   if(!m) return "turn face "+name;
   var layer=m[1]?["","","second ","third "][+m[1]]+"layer from the ":"";
@@ -676,7 +732,8 @@ function showTeachMove(name, at, total){
   /* swing the camera so the face about to turn is in view */
   try{
     var tw=P.twists[P.namedMove(name).t];
-    var n=P.n||3, posEnd=tw.layer>=n/2;
+    var n=P.n||3;
+    var posEnd = tw.layer===undefined ? true : tw.layer>=n/2;
     var w=posEnd?tw.axis:[-tw.axis[0],-tw.axis[1],-tw.axis[2]];
     var yaw = Math.abs(w[1])>0.9 ? cam.yaw : Math.atan2(-w[0], w[2])+0.45;
     var pitch = w[1]*0.85 + 0.28;
@@ -690,6 +747,22 @@ function showTeachIntro(total){
     "along with the screen.</span><i>"+total+" turns to home</i>";
 }
 btnTeachNext.addEventListener("click", function(){ if(teach) teach.armed=true; });
+var btnTeachBack=document.getElementById("teachBack");
+btnTeachBack.addEventListener("click", function(){
+  /* walk the sequence backwards: animate the inverse of the last
+     executed turn and hand that turn back to the queue */
+  if(!teach||anim||!playing||playing.at<0) return;
+  teach.auto=false; btnTeachAuto.textContent="auto: off";
+  teach.armed=false;
+  var mv=playing.moves[playing.at];
+  var inv=P.invert(mv);
+  var tw=P.twists[inv.t];
+  var turns=inv.n>tw.order/2 ? inv.n-tw.order : inv.n;
+  splitIndex(tw.members);
+  queue.unshift({mv:mv, dur:680});
+  anim={ mv:inv, twist:tw, t0:performance.now(), dur:REDUCED?80:480,
+         easeFn:easeSnap, target:turns*tw.step, silent:true };
+});
 var btnTeachAgain=document.getElementById("teachAgain");
 btnTeachAgain.addEventListener("click", function(){
   /* undo the last taught turn instantly, then offer it again slowly */
@@ -762,15 +835,16 @@ function enqueueProgram(moves, opts){
     btnTeachAuto.textContent="auto: off";
     showTeachIntro(moves.length);
   }
+  playing.moves=moves;
   var total=moves.length;
   queue=moves.map(function(m,i){
     var dur;
     if(opts.teach){
       dur = 680;
     } else if(opts.solving){
-      /* a performance: set off briskly, land the final turns with weight */
-      var tail=total-1-i;
-      dur = tail>6 ? Math.max(95, 240-18*Math.min(i,8)) : 180+40*(6-tail);
+      dur = showmanSolveDur(i,total);
+    } else if(opts.showman){
+      dur = showmanScrambleDur(i,total);
     } else {
       dur = 88;
     }
@@ -899,10 +973,10 @@ function getWorker(){
 }
 
 /* ---------- actions ---------- */
-function doScramble(){
+function doScramble(showman){
   var moves=P.scramble(KINDS[kind].scramble);
   setStatus("scrambling…");
-  enqueueProgram(moves,{solving:false});
+  enqueueProgram(moves,{solving:false, showman:!!showman});
 }
 function doSolve(){
   if(P.isSolved(colors)){ setStatus("already home — scramble it first"); return; }
@@ -930,7 +1004,7 @@ var overtureStage = REDUCED ? 2 : 0;   /* 0 waiting · 1 mid-show · 2 done */
 setTimeout(function(){
   if(overtureStage===0 && !playing && queue.length===0 && P.isSolved(colors)){
     overtureStage=1;
-    doScramble();
+    doScramble(true);
     setStatus("watch — it scrambles itself, then unties the knot");
   } else overtureStage=2;
 }, 1700);
@@ -1067,7 +1141,7 @@ function renderScene(proj, view, world, now){
 
   if(anim && movingCount>0){
     var t=(now-anim.t0)/anim.dur;
-    var a=anim.target*ease(t);
+    var a=anim.target*anim.easeFn(t);
     gl.uniformMatrix4fv(loc.uModel,false,mMul(world, mAxisAngle(anim.twist.axis,a)));
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxMoving);
     gl.drawElements(gl.TRIANGLES, movingCount, gl.UNSIGNED_SHORT, 0);
@@ -1080,7 +1154,7 @@ function renderScene(proj, view, world, now){
     if(mvA){
       if(mvA!==arrowFor) buildArrow(mvA);
       var am = (anim && anim.mv===mvA)
-        ? mAxisAngle(anim.twist.axis, anim.target*ease((now-anim.t0)/anim.dur))
+        ? mAxisAngle(anim.twist.axis, anim.target*anim.easeFn((now-anim.t0)/anim.dur))
         : mIdentity();
       drawArrow(mMul(world, am), now);
     } else arrowFor=null;
@@ -1095,8 +1169,7 @@ function arAmbient(now){
   if(playing||queue.length||anim||pendingSolve){ arIdleAt=now; return; }
   if(now-arIdleAt<2800) return;
   arIdleAt=now;
-  if(P.isSolved(colors)) doScramble();
-  else if(kind==="cube2"||kind==="cube3") doSolve();
+  if(P.isSolved(colors)) doScramble(true);
   else doSolve();
 }
 
@@ -1137,6 +1210,100 @@ function frame(now){
   var view=mMul(mTranslate(0,0,-cam.dist), mMul(mRotX(cam.pitch), mRotY(cam.yaw)));
   renderScene(proj, view, mIdentity(), now);
 }
+
+/* ---------- the score: write a sequence, the room performs it ---------- */
+var btnScore=document.getElementById("btnScore");
+var scorePanel=document.getElementById("score");
+var scoreInput=document.getElementById("scoreInput");
+var scoreTokens=document.getElementById("scoreTokens");
+var scorePerform=document.getElementById("scorePerform");
+var scoreStep=document.getElementById("scoreStep");
+var scorePatterns=document.getElementById("scorePatterns");
+var scoreClose=document.getElementById("scoreClose");
+var scoreMoves=[];
+
+var PATTERNS3=[
+  {name:"checkerboard", word:"U2 D2 F2 B2 L2 R2"},
+  {name:"cube in a cube", word:"F L F U' R U F2 L2 U' L' B D' B' L2 U"},
+  {name:"six spots", word:"U D' R L' F B' U D'"},
+  {name:"the superflip", word:"U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"}
+];
+
+function scoreParse(){
+  var raw=scoreInput.value.trim();
+  var tokens=raw?raw.split(/\s+/):[];
+  scoreMoves=[];
+  var ok=tokens.length>0, html="";
+  tokens.forEach(function(tk){
+    var good=true;
+    try{ scoreMoves.push(P.namedMove(tk)); }
+    catch(e){ good=false; ok=false; }
+    html+="<span class='"+(good?"ok":"bad")+"'>"+tk.replace(/</g,"&lt;")+"</span>";
+  });
+  scoreTokens.innerHTML=html || "<span class='dim'>the notation appears here as you type</span>";
+  scorePerform.disabled=!ok;
+  scoreStep.disabled=!ok;
+}
+scoreInput.addEventListener("input", scoreParse);
+
+function openScore(){
+  overtureStage=2;
+  scorePanel.hidden=false;
+  requestAnimationFrame(function(){ scorePanel.classList.add("show"); });
+  /* pattern chips only where they mean something */
+  scorePatterns.innerHTML="";
+  if(kind==="cube3"){
+    PATTERNS3.forEach(function(p){
+      var b=document.createElement("button");
+      b.textContent=p.name;
+      b.addEventListener("click", function(){
+        scoreInput.value=p.word;
+        scoreParse();
+      });
+      scorePatterns.appendChild(b);
+    });
+  }
+  document.getElementById("scoreHint").textContent =
+    kind==="mega" ? "megaminx notation: faces A–L with +, ++, − or −− (fifths of a turn)"
+    : (kind==="cube4"||kind==="cube5") ? "notation: U R F D L B, with ' and 2 — and 2R, 3L for inner layers"
+    : "notation: U R F D L B · ' means counter-clockwise · 2 means a half turn";
+  scoreParse();
+  scoreInput.focus();
+}
+function closeScore(){
+  scorePanel.classList.remove("show");
+  setTimeout(function(){ scorePanel.hidden=true; }, 300);
+}
+btnScore.addEventListener("click", openScore);
+scoreClose.addEventListener("click", closeScore);
+scorePerform.addEventListener("click", function(){
+  if(!scoreMoves.length) return;
+  closeScore();
+  setStatus("your sequence — performed");
+  enqueueProgram(scoreMoves.slice(),{solving:false, showman:true,
+    doneLabel:"your sequence, performed — "+scoreMoves.length+" turns · press solve to watch it untied"});
+});
+scoreStep.addEventListener("click", function(){
+  if(!scoreMoves.length) return;
+  closeScore();
+  setStatus("your sequence — one turn at a time, forwards and back");
+  enqueueProgram(scoreMoves.slice(),{solving:false, teach:true,
+    doneLabel:"your sequence, complete — "+scoreMoves.length+" turns"});
+});
+
+/* ---------- ?ar=1 — arrive with the door already ajar ---------- */
+var arPrompt=document.getElementById("arPrompt");
+if(/[?&]ar=1/.test(location.search)){
+  overtureStage=2;
+  arPrompt.hidden=false;
+}
+document.getElementById("arPromptGo").addEventListener("click", function(){
+  arPrompt.hidden=true;
+  if(AR) AR.enter();
+});
+document.getElementById("arPromptNo").addEventListener("click", function(){
+  arPrompt.hidden=true;
+});
 
 /* ---------- maths panel ---------- */
 var mathsBtn=document.getElementById("btnMaths");

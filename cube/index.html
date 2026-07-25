@@ -160,6 +160,50 @@
   }
   #teachBar button:hover{background:rgba(255,201,122,.14)}
 
+  /* ---------- the score ---------- */
+  #score{
+    position:fixed; inset:0; z-index:7; overflow-y:auto;
+    background:rgba(8,6,4,.94); backdrop-filter:blur(6px);
+    opacity:0; visibility:hidden; transition:opacity .35s, visibility .35s;
+  }
+  #score.show{opacity:1; visibility:visible}
+  #score[hidden]{display:none}
+  #scoreInput{
+    width:100%; resize:vertical; border-radius:10px; padding:.7rem .9rem;
+    font:1rem ui-monospace,Menlo,Consolas,monospace; letter-spacing:.06em;
+    color:var(--ink); background:rgba(23,19,16,.9);
+    border:1px solid rgba(185,168,143,.35);
+  }
+  #scoreInput:focus{outline:none; border-color:var(--lamp)}
+  #scoreTokens{
+    min-height:1.6rem; margin:.5rem 0; display:flex; flex-wrap:wrap; gap:.4rem;
+    font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85rem;
+  }
+  #scoreTokens .ok{color:var(--green)}
+  #scoreTokens .bad{color:#ff6b5c; text-decoration:line-through}
+  #scoreTokens .dim{color:var(--ink-faint); font-style:italic}
+  #scorePatterns button{
+    font:italic .8rem Georgia,serif; cursor:pointer; border-radius:999px;
+    padding:.35rem .9rem; border:1px solid rgba(183,156,255,.45);
+    background:rgba(14,10,7,.65); color:var(--ink-dim);
+  }
+  #scorePatterns button:hover{color:#b79cff; border-color:#b79cff}
+
+  /* ---------- the AR doorway prompt ---------- */
+  #arPrompt{
+    position:fixed; inset:0; z-index:8; display:flex;
+    align-items:center; justify-content:center; padding:1.2rem;
+    background:rgba(8,6,4,.8); backdrop-filter:blur(5px);
+  }
+  #arPrompt[hidden]{display:none}
+  .arp-card{
+    max-width:22rem; text-align:center; padding:1.4rem 1.6rem;
+    background:rgba(14,10,7,.95); border:1px solid rgba(255,201,122,.4);
+    border-radius:16px;
+  }
+  .arp-card p{color:var(--ink-dim); font-size:.92rem}
+  .arp-card .s-row{justify-content:center}
+
   /* ---------- the scanning booth ---------- */
   #scan{
     position:fixed; inset:0; z-index:7; overflow-y:auto;
@@ -375,16 +419,51 @@
     <button id="btnStats">the numbers ✦</button>
     <button id="btnScan" hidden>scan your cube ✦</button>
     <button id="btnSpecimen" hidden>the antipode ✦</button>
+    <button id="btnScore">the score ✦</button>
     <button id="btnRoom">put it in your room ✦</button>
     <button id="btnMaths">the mathematics ✦</button>
   </div>
   <div id="teachBar" hidden>
+    <button id="teachBack">← back</button>
     <button id="teachNext">next turn →</button>
     <button id="teachAgain">again ↺</button>
     <button id="teachAuto">auto: off</button>
-    <button id="teachExit">stop teaching ×</button>
+    <button id="teachExit">stop ×</button>
   </div>
   <p id="fact"></p>
+</div>
+
+<section id="score" hidden aria-label="Write a move sequence for the room to perform">
+  <div class="s-inner">
+    <p class="kicker">the score</p>
+    <h1 style="margin:.2rem 0 .8rem">Write it a sequence</h1>
+    <p class="s-text">Any pattern you know, any algorithm you found, anything you
+    want to see the room's hands do — write it in notation and it will be
+    performed with full showmanship, or taught back one turn at a time with
+    the arrows, forwards <i>and</i> backwards.</p>
+    <p class="s-text" id="scoreHint"></p>
+    <textarea id="scoreInput" rows="3" spellcheck="false"
+      placeholder="R U R' U'  …"></textarea>
+    <div id="scoreTokens"></div>
+    <div id="scorePatterns" class="s-row"></div>
+    <div class="s-row">
+      <button class="s-btn" id="scorePerform" disabled>perform it ▶</button>
+      <button class="s-btn" id="scoreStep" disabled>step through ✦</button>
+    </div>
+    <p style="margin-top:1.6rem"><button class="s-btn s-quiet" id="scoreClose">close the score ×</button></p>
+  </div>
+</section>
+
+<div id="arPrompt" hidden>
+  <div class="arp-card">
+    <p class="kicker">put it in your room</p>
+    <p>You came in through the AR door. One tap opens it — your browser will
+    ask for the camera (and on iPhones, motion). Nothing leaves your device.</p>
+    <div class="s-row">
+      <button class="s-btn" id="arPromptGo">step inside ✦</button>
+      <button class="s-btn s-quiet" id="arPromptNo">just the flat screen</button>
+    </div>
+  </div>
 </div>
 
 <section id="scan" hidden aria-label="Scan your real cube">
@@ -563,10 +642,10 @@
 <p id="nogl" hidden>This room needs WebGL, and your browser is keeping the lights
 off. The desk is still there, though — <a href="/">go back</a>.</p>
 
-<script src="puzzle.js?v=2"></script>
+<script src="puzzle.js?v=3"></script>
 <script src="map.js?v=2"></script>
 <script src="ar.js?v=1"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 <script src="scan.js?v=2"></script>
 </body>
 </html>

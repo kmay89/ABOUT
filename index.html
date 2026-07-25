@@ -512,14 +512,28 @@
   .cs-tools button:disabled{opacity:.3;cursor:default}
   .cs-tools button:not(:disabled):hover{background:color-mix(in srgb, var(--a) 12%, transparent)}
   .cs-room{
-    display:block;margin-top:.85rem;padding:.6rem .9rem;text-align:center;
-    font-style:italic;font-size:.82rem;line-height:1.5;text-decoration:none;
-    color:var(--ink-dim);border:1px solid rgba(255,201,122,.4);
+    display:block;margin-top:.85rem;padding:.7rem .9rem .8rem;text-align:center;
+    border:1px solid rgba(255,201,122,.4);
     border-radius:12px;background:rgba(255,201,122,.05);
   }
+  .cs-room p{
+    margin:0 0 .6rem;font-style:italic;font-size:.82rem;line-height:1.5;
+    color:var(--ink-dim);
+  }
   .cs-room b{color:var(--lamp);font-weight:normal}
-  .cs-room:hover{border-color:var(--lamp);color:var(--ink);
-    box-shadow:0 0 14px rgba(255,201,122,.18)}
+  .cs-room-btns{display:flex;gap:.55rem;justify-content:center}
+  .cs-room-btns a{
+    flex:1;max-width:11rem;text-decoration:none;text-align:center;
+    font:italic .88rem Georgia,serif;color:var(--ink);
+    border:1px solid rgba(185,168,143,.5);border-radius:999px;
+    padding:.5rem .4rem;
+  }
+  .cs-room-btns a:hover{border-color:var(--lamp);color:var(--lamp)}
+  .cs-room-btns a.cs-ar{
+    border-color:rgba(255,201,122,.75);color:var(--lamp);
+    background:rgba(255,201,122,.08);
+  }
+  .cs-room-btns a.cs-ar:hover{box-shadow:0 0 14px rgba(255,201,122,.3)}
 
   /* ---------- the impossible object: a live ray-marched Mandelbulb ---------- */
   .mandelstage{
@@ -726,9 +740,15 @@
     <button id="csSolve">Solve itself</button>
     <button id="csFlip">Superflip again</button>
   </div>
-  <a class="cs-room" href="/cube/">✦ this little cube is chapter one — the
-  <b>solving room</b> has five puzzles that solve themselves, a map of every
-  position, and one you can put in your own room →</a>
+  <div class="cs-room">
+    <p>✦ this little cube is chapter one — the <b>solving room</b> has five
+    puzzles that solve themselves, a map of every position, and a door into
+    your own room</p>
+    <div class="cs-room-btns">
+      <a href="/cube/">view in 3D →</a>
+      <a class="cs-ar" href="/cube/?ar=1">view in AR ✦</a>
+    </div>
+  </div>
 </section>
 
 <section class="mandelstage" id="mandelStage" role="dialog" aria-modal="true" aria-label="The impossible object — a live Mandelbulb" hidden>
