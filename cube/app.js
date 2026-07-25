@@ -741,6 +741,7 @@ function onProgramDone(){
     setStatus(wasDoneLabel);
   } else {
     setStatus("scrambled — "+history.length+" turns deep · press solve");
+    overtureAfterScramble();
   }
   requestLocate();
   setTimeout(function(){ if(!playing) elTicker.classList.remove("show"); }, 1600);
@@ -918,8 +919,30 @@ function doSolve(){
     enqueueProgram(thread,{solving:true});
   }
 }
-btnScramble.addEventListener("click", doScramble);
-btnSolve.addEventListener("click", doSolve);
+btnScramble.addEventListener("click", function(){ overtureStage=2; doScramble(); });
+btnSolve.addEventListener("click", function(){ overtureStage=2; doSolve(); });
+
+/* ---------- the overture ----------
+   Nobody should have to press a button to see the point. If the
+   visitor touches nothing, the room clears its throat, scrambles,
+   and unties itself — once. Any real interaction cancels it. */
+var overtureStage = REDUCED ? 2 : 0;   /* 0 waiting · 1 mid-show · 2 done */
+setTimeout(function(){
+  if(overtureStage===0 && !playing && queue.length===0 && P.isSolved(colors)){
+    overtureStage=1;
+    doScramble();
+    setStatus("watch — it scrambles itself, then unties the knot");
+  } else overtureStage=2;
+}, 1700);
+function overtureAfterScramble(){
+  if(overtureStage!==1) return;
+  setTimeout(function(){
+    if(overtureStage===1 && !playing && queue.length===0){
+      overtureStage=2;
+      doSolve();
+    }
+  }, 1100);
+}
 
 btnStop.addEventListener("click", function(){
   queue=[];
@@ -951,6 +974,7 @@ btnStats.addEventListener("click", function(){
 /* famous specimens: positions worth meeting by name */
 var SUPERFLIP="U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2";
 btnSpecimen.addEventListener("click", function(){
+  overtureStage=2;
   if(kind==="cube2"){
     setBusy(true);
     setStatus("finding a farthest place…");
@@ -971,6 +995,7 @@ pickers.forEach(function(btn){
 });
 
 function setKind(k){
+  if(kind!==null) overtureStage=2;   /* a choice was made; no need to perform */
   kind=k;
   P=PuzzleEngine.build(k==="mega"?"mega":k);
   pal=KINDS[k].pal.map(hex2rgb);
@@ -1130,6 +1155,7 @@ if(window.RoomAR){
     gl:gl, canvas:canvas, renderScene:renderScene,
     onStatus:setStatus,
     onEnter:function(m){
+      overtureStage=2;
       if(mapOpen){ btnMap.click(); }
       if(statsOpen){ btnStats.click(); }
       document.body.classList.add("ar");
@@ -1171,6 +1197,7 @@ window.RoomAPI={
     setStatus("your cube, read from the stickers — press solve, or let it teach you");
   },
   teachSolve:function(){
+    overtureStage=2;
     if(kind!=="cube3") return;
     if(P.isSolved(colors)){ setStatus("this cube is already home"); return; }
     setBusy(true);
