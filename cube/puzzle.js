@@ -172,15 +172,22 @@ function buildCube(n){
   };
   function twistIndex(ax,layer){ return ax*n+layer; }
 
-  /* "R"→move. A clockwise turn of a +end face is −90° about the +axis,
-     i.e. three +90° steps; on a −end face it is one +90° step. */
+  /* "R", "R'", "R2", "2R", "3L'" → move. A clockwise turn of a +end
+     face is −90° about the +axis, i.e. three +90° steps; on a −end
+     face it is one +90° step. A leading digit picks the layer counted
+     in from that face (SiGN style). */
   P.namedMove=function(name){
-    var m=/^([URFDLB])(2|')?$/.exec(name);
+    var m=/^(\d*)([URFDLB])(2|')?$/.exec(name);
     if(!m) throw new Error("bad cube move "+name);
-    var ft=faceTwist[m[1]];
-    var base=ft.pos?3:1;
-    var turns = m[2]==="2" ? 2 : m[2]==="'" ? (4-base) : base;
-    return { t:twistIndex(ft.ax, ft.layer), n:turns };
+    var depth=m[1]?parseInt(m[1],10):1;
+    if(depth<1||depth>n) throw new Error("no layer "+depth+" on a "+n+"×"+n);
+    var letter=m[2];
+    var ax = (letter==="R"||letter==="L") ? 0 : (letter==="U"||letter==="D") ? 1 : 2;
+    var pos = letter==="R"||letter==="U"||letter==="F";
+    var layer = pos ? n-depth : depth-1;
+    var base = pos?3:1;
+    var turns = m[3]==="2" ? 2 : m[3]==="'" ? (4-base) : base;
+    return { t:twistIndex(ax, layer), n:turns };
   };
 
   P.moveName=function(mv){
@@ -369,6 +376,14 @@ function buildMegaminx(){
   P.moveName=function(mv){
     var sfx = mv.n===1?"+" : mv.n===2?"++" : mv.n===3?"−−" : "−";
     return letters[P.twists[mv.t].faceIdx]+sfx;
+  };
+  /* "C+", "F−−", ascii minus accepted too */
+  P.namedMove=function(name){
+    var m=/^([A-L])(\+\+|\+|−−|−|--|-)$/.exec(name);
+    if(!m) throw new Error("bad megaminx move "+name);
+    var turns = m[2]==="+" ? 1 : m[2]==="++" ? 2 :
+                (m[2]==="−−"||m[2]==="--") ? 3 : 4;
+    return { t:letters.indexOf(m[1]), n:turns };
   };
   return P;
 }

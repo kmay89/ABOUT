@@ -2,7 +2,7 @@
    Builds the solvers' tables off the main thread so the cube never
    stutters, then answers "solve" requests with move words. */
 /* global PuzzleEngine, CubeSolver */
-importScripts("puzzle.js?v=2", "solver.js?v=3");
+importScripts("puzzle.js?v=3", "solver.js?v=3");
 
 var built = {};
 
