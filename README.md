@@ -8,7 +8,7 @@ plus a few rooms that exist purely for the joy of it: a pocket Rubik's
 cube that teaches, a ray-marched Mandelbulb, a light bench,
 [the solving room](https://kmay89.com/cube/) — five twisty puzzles that
 scramble and solve themselves with the real mathematics on display —
-and [the chess room](https://kmay89.github.io/puzzles/chess/), chess
+and [the chess room](https://kmay89.com/chess/), chess
 taught kindly: a 3D board, a patient coach, opening stories, and
 same-room two-player with no accounts (the tiny set on the desk is
 paused mid-Italian Game).
@@ -28,6 +28,12 @@ paused mid-Italian Game).
   notes in `cube/README.md`. Also published standalone at
   [kmay89.github.io/puzzles](https://kmay89.github.io/puzzles/)
   ([kmay89/puzzles](https://github.com/kmay89/puzzles)).
+- `chess/` — the chess room: chess taught kindly, with a full 3D board
+  (2D one tap away), a patient coach, opening stories, a tournament
+  clock, and same-room two-player over WebRTC with no accounts. A
+  mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
+  `chess/` (see its README there); update it by copying that directory
+  over this one.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify.toml` — hosting config: canonical-host redirect and security
