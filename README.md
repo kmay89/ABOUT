@@ -14,7 +14,11 @@ same-room two-player with no accounts (the tiny set on the desk is
 paused mid-Italian Game), and [the sudoku
 room](https://kmay89.com/sudoku/), which shows you how its puzzles are
 made and teaches the nineteen techniques that solve them (the folded
-newspaper on the desk carries a real one).
+newspaper on the desk carries a real one), and [the domino
+table](https://kmay89.com/domino/) — dominoes on a table of four
+chairs, cantina style, with the little table on the desk set the way one
+always is: a line going across it and the six-six laid crosswise where
+it opened.
 
 **Live:** <https://kmay89.com>
 
@@ -46,6 +50,15 @@ newspaper on the desk carries a real one).
   techniques cannot finish. A mirror of
   [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `sudoku/` (see
   its README there); update it by copying that directory over this one.
+- `domino/` — the domino table: dominoes on a table of four chairs,
+  cantina style. Four seats, partners across from each other, seven
+  bones each and nothing left in the pile — which is the whole game,
+  because every bone you cannot see is in somebody's hand and working
+  out whose is the entire skill. Play alone against three who count the
+  bones and hear every *paso*, or put four phones around one table. A
+  mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
+  `domino/` (see its README there); update it by copying that directory
+  over this one.
 - `logic/` — *Yes or No*: Boolean logic explained from nothing, in
   plain language and entirely by hand. Flip two switches and watch a
   truth table fill itself in, race a ten-level wire against a two-level

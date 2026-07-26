@@ -841,6 +841,7 @@
     <a href="/cube/">The solving room</a>
     <a href="/chess/">The chess room</a>
     <a href="/sudoku/">The sudoku room</a>
+    <a href="/domino/">The domino table</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1440,6 +1441,67 @@
   sudoku += gTop(SDX,SDY,4, page);
   S.push(wrapObj("sudoku","The sudoku room — the paper, half worked","#ffc97a",sudoku));
 
+  /* ---------- domino: the cantina table — four chairs, a game going ----------
+     A little cantina table stood on the desk: round top on a pedestal,
+     four chairs pulled up to it, and a hand of dominoes going across the
+     middle with the 6|6 laid crosswise where it opened.
+
+     Drawn back-to-front, because an isometric scene has no z-buffer and
+     the painter's algorithm is the whole of the depth sorting: with
+     +x running screen right-down and +y left-down, an object is nearer
+     the viewer the larger its x+y, so the two far chairs go down before
+     the table and the two near ones after it. Get that order wrong and a
+     chair back is sliced in half by the tabletop. */
+  /* The desk lamp stands at (52,148) on a base of radius 17, and it is
+     drawn as an ellipse rather than a box — so a free-space sweep that
+     only knows about boxes says that corner is empty, and the first
+     attempt put this table straight through it. The clear ground is the
+     front-left corner, between the Rubik's cube and the chess board. */
+  var DCX = 38, DCY = 296;                        // the table's centre
+  var DW = "#6d4a2f", DTOP = "#7d5636", DCH = "#5a3d27";
+  function dChair(dx, dy){
+    var x = DCX + dx, y = DCY + dy;
+    // a plinth, a seat slab sitting proud of it, then the back — three
+    // pieces, because one box at this size just reads as a brick
+    var s = box(x - 3.4, y - 3.4, 0, 6.8, 6.8, 4.4, shade(DCH, -.18));
+    s += box(x - 5, y - 5, 4.4, 10, 10, 2.4, DCH);
+    if (dx > 0) s += box(x + 2.7, y - 5, 6.8, 2.3, 10, 8, DCH);
+    else if (dx < 0) s += box(x - 5, y - 5, 6.8, 2.3, 10, 8, DCH);
+    else if (dy > 0) s += box(x - 5, y + 2.7, 6.8, 10, 2.3, 8, DCH);
+    else s += box(x - 5, y - 5, 6.8, 10, 2.3, 8, DCH);
+    return s;
+  }
+  var domino = shadowW(DCX - 32, DCY - 32, 64, 64, 7, .24);
+  domino += dChair(0, -22) + dChair(-22, 0);      // the two far chairs first
+  domino += cyl(DCX, DCY, 0, 3.2, 11, DW);        // the pedestal
+  domino += cyl(DCX, DCY, 11, 16, 2, DTOP);       // the top
+  /* the bones. A domino is twice as long as it is wide and a double is
+     laid crosswise — the one piece of domino grammar that has to survive
+     being drawn this small, so the line is four bones and the mula that
+     opened it, sitting across them. */
+  function dBone(u, v, cross){
+    var w = cross ? 7 : 3.5, h = cross ? 3.5 : 7;
+    var s = '<rect x="' + (u - w/2) + '" y="' + (v - h/2) + '" width="' + w + '" height="' + h +
+      '" rx=".9" fill="#f2e6cf" stroke="rgba(26,14,6,.5)" stroke-width=".4"/>';
+    s += cross
+      ? '<line x1="' + u + '" y1="' + (v - h/2 + .5) + '" x2="' + u + '" y2="' + (v + h/2 - .5) + '" stroke="#231a12" stroke-width=".4" opacity=".55"/>'
+      : '<line x1="' + (u - w/2 + .5) + '" y1="' + v + '" x2="' + (u + w/2 - .5) + '" y2="' + v + '" stroke="#231a12" stroke-width=".4" opacity=".55"/>';
+    // one pip a half is all that survives at this size, and it is enough
+    var o = cross ? [[-1.7, 0], [1.7, 0]] : [[0, -1.7], [0, 1.7]];
+    s += '<circle cx="' + (u + o[0][0]) + '" cy="' + (v + o[0][1]) + '" r=".55" fill="#231a12"/>';
+    s += '<circle cx="' + (u + o[1][0]) + '" cy="' + (v + o[1][1]) + '" r=".55" fill="#231a12"/>';
+    return s;
+  }
+  var bones = dBone(7, 16, true) + dBone(14, 16, true) +
+              dBone(19.25, 16, false) +           // la mula, laid across the line
+              dBone(24.5, 16, true);
+  domino += gTop(DCX - 16, DCY - 16, 13, bones);
+  // two little glasses, because nobody plays dominoes dry
+  domino += cyl(DCX - 9, DCY + 8, 13, 1.4, 4.4, "#e8a33c");
+  domino += cyl(DCX + 8, DCY - 7, 13, 1.4, 3.2, "#e8a33c");
+  domino += dChair(22, 0) + dChair(0, 22);        // the two near chairs last
+  S.push(wrapObj("domino","The domino table — four chairs, a game going","#f0a83c",domino));
+
   /* ---------- hive: atomic-purple Game Boy ---------- */
   var gb = box(250,290,0,64,106,11,"#7e63cf");
   var hex = function(cx,cy,r,fill){
@@ -1698,6 +1760,16 @@
         {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
+    domino: {
+      kicker: "The Solving Room · New",
+      title: "The Domino Table — Four Chairs, Cantina Style",
+      story: "Dominoes the way they are actually played, which is not the way most apps play them: four people, partners sitting opposite each other, seven bones each and nothing left in the pile. That empty boneyard is the whole game — nothing is drawn and nothing is held back, so every bone you cannot see is in somebody's hand, and working out whose is the entire skill. When a player says paso, they have neither open number and they never will again; it is the loudest thing said all evening, and good players never forget it. The room keeps that count in front of you until you are keeping it yourself. Play alone against three who count the bones and hear every pass, or put four phones around one table — the invite is a code you hold up to a camera, and the empty chairs are played by the house until somebody sits down in them. The table on the desk is set the way one always is: a line going across it, the six-six laid crosswise where it opened, and two glasses nobody has finished.",
+      chips: ["Four seats, two parejas","Nothing in the boneyard","Four phones, one table","Hints that count","Capicúa & tranca","A 3D table","Works offline","Free, no accounts"],
+      links: [
+        {label:"🁫 Play — the domino table", href:"/domino/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -1836,6 +1908,12 @@
       noise({filter:"bandpass", freq:1800, freqEnd:3200, q:1.4, dur:0.09, g:0.07});
       tone(659.25, {type:"sine", at:0.05, dur:0.22, g:0.05});
       tone(1318.5, {type:"triangle", at:0.05, dur:0.16, g:0.02});
+    },
+    domino: function(){ // the slam — a bone brought down hard on wood, then the click of the one after it
+      noise({filter:"lowpass", freq:420, dur:0.07, g:0.16});
+      tone(196, {type:"triangle", dur:0.13, g:0.07});
+      tone(98,  {type:"sine", dur:0.20, g:0.05});
+      noise({filter:"bandpass", freq:2600, q:2.2, at:0.14, dur:0.035, g:0.06});
     },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
