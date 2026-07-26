@@ -31,3 +31,9 @@
   for = "/chess/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Same for the sudoku room's
+[[headers]]
+  for = "/sudoku/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
