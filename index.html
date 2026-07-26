@@ -840,6 +840,7 @@
     <a href="https://github.com/kmay89">github.com/kmay89</a>
     <a href="/cube/">The solving room</a>
     <a href="/chess/">The chess room</a>
+    <a href="/sudoku/">The sudoku room</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1099,6 +1100,7 @@
   S.push(shadowW(328,194,90,70,4,.18));          // mousepad
   S.push(shadowW(310,36,52,44,6,.24));           // sourdough board
   S.push(shadowW(34,332,26,26,4,.22));           // rubik's cube
+  S.push(shadowW(504,64,52,88,6,.22));           // the sudoku paper
   S.push(shadowW(76,328,60,42,6,.24));           // Borrowed Sunlight novel
   S.push(shadowW(516,26,30,30,5,.22));           // flower pot
   S.push(shadowW(518,216,30,30,5,.24));          // impossible object pedestal
@@ -1395,6 +1397,49 @@
   chess += cyl(175,292,9,1.3,1,"#efe6cf") + cyl(191,292,9,1.3,2,"#332a20");
   S.push(wrapObj("chess","The chess room — a game paused mid-opening","#3fc472",chess));
 
+  /* ---------- sudoku: the sudoku room — the paper, half worked ----------
+     A newspaper folded to the puzzle page with a pencil across it. The
+     grid is a real Gentle puzzle from the room's own forge (seed
+     20260726), thirty clues, exactly one answer. */
+  var SDX = 504, SDY = 64, SDC = 4.6, SDG = 3.6, SDT = 17;
+  var SUDOKU_CLUES = [
+    [0,1,5],[0,2,9],[0,3,8],[0,8,4],[1,3,2],[1,4,5],[1,7,9],[1,8,1],
+    [2,2,6],[2,3,9],[2,5,4],[2,6,3],[3,2,3],[3,7,5],[3,8,7],[5,0,7],
+    [5,1,1],[5,6,4],[6,2,7],[6,3,1],[6,5,8],[6,6,5],[7,0,5],[7,1,8],
+    [7,4,6],[7,5,9],[8,0,6],[8,5,5],[8,6,2],[8,7,8]
+  ];
+  var sudoku = shadowW(SDX,SDY,52,88,6,.24);
+  sudoku += box(SDX,SDY,0,52,88,4,"#efe3ce");
+  var page = "";
+  // masthead
+  page += txt(SDG, 11, "SUDOKU", 5.4, "#3a2c1f", MONO + ' letter-spacing="1.4"');
+  page += '<line x1="' + SDG + '" y1="13" x2="' + (SDG + 44.4) + '" y2="13" stroke="#8a7355" stroke-width=".6"/>';
+  // the grid
+  for (var sdi = 0; sdi <= 9; sdi++){
+    var sdw = (sdi % 3 === 0) ? 1 : .4;
+    page += '<line x1="' + (SDG + sdi*SDC) + '" y1="' + SDT + '" x2="' + (SDG + sdi*SDC) +
+      '" y2="' + (SDT + 9*SDC) + '" stroke="#7d6749" stroke-width="' + sdw + '"/>';
+    page += '<line x1="' + SDG + '" y1="' + (SDT + sdi*SDC) + '" x2="' + (SDG + 9*SDC) +
+      '" y2="' + (SDT + sdi*SDC) + '" stroke="#7d6749" stroke-width="' + sdw + '"/>';
+  }
+  SUDOKU_CLUES.forEach(function(c){
+    page += txt(SDG + c[1]*SDC + SDC/2, SDT + c[0]*SDC + SDC*0.78, c[2], 3.6, "#2a2018",
+      SERIF + ' text-anchor="middle"');
+  });
+  // the column of type under it, and the pencil lying across the page
+  page += '<g fill="#6b5232" opacity=".5">' +
+    '<rect x="' + SDG + '" y="63" width="20" height=".7"/><rect x="' + SDG + '" y="66" width="26" height=".7"/>' +
+    '<rect x="' + SDG + '" y="69" width="16" height=".7"/><rect x="' + (SDG+28) + '" y="63" width="16" height=".7"/>' +
+    '<rect x="' + (SDG+28) + '" y="66" width="12" height=".7"/></g>';
+  page += txt(SDG, 79, "ONE ANSWER · NO GUESSING", 3.2, "#8a7355", MONO + ' letter-spacing=".5"');
+  page += '<g transform="translate(7,62.5) rotate(-13)">' +
+    '<rect x="0" y="0" width="27" height="3.4" rx="1.1" fill="#e5a93c" stroke="rgba(26,14,6,.35)" stroke-width=".5"/>' +
+    '<path d="M0 0 L-4.4 1.7 L0 3.4 Z" fill="#e8d8b8" stroke="rgba(26,14,6,.35)" stroke-width=".4"/>' +
+    '<path d="M-4.4 1.7 L-2.4 .95 L-2.4 2.45 Z" fill="#2a2018"/>' +
+    '<rect x="22.6" y="0" width="4.4" height="3.4" rx=".6" fill="#d3697f"/></g>';
+  sudoku += gTop(SDX,SDY,4, page);
+  S.push(wrapObj("sudoku","The sudoku room — the paper, half worked","#ffc97a",sudoku));
+
   /* ---------- hive: atomic-purple Game Boy ---------- */
   var gb = box(250,290,0,64,106,11,"#7e63cf");
   var hex = function(cx,cy,r,fill){
@@ -1643,6 +1688,16 @@
         {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
+    sudoku: {
+      kicker: "The Solving Room · New",
+      title: "The Sudoku Room — Puzzles That Show Their Working",
+      story: "Every sudoku app hands you a grid and a difficulty label and asks you to take both on trust. This one hands you the label and the argument behind it. Press forge and you watch a puzzle being made: a blank grid filling itself by constraint propagation, then clues taken away one at a time, each removal tested twice — does this still have exactly one answer, and can a person still finish it with the techniques this difficulty promises? Fail either and the clue goes back, in front of you. The difficulty is measured rather than guessed: the room solves each puzzle the way a person would, simplest step first, out of nineteen named techniques, and the hardest thing it needed gives the puzzle its name. That same solver is the hint button, which is why a hint can name a technique, show you where it lives and explain the argument in plain words instead of just filling in a square — and why every technique it uses on your behalf joins your codex with a real position to practise on. Two promises hold: every puzzle has exactly one answer, and every puzzle can be reasoned to the end, never guessed. The page on the desk is a real Gentle puzzle from its own forge.",
+      chips: ["Nineteen techniques","Watch it being made","Hints that teach","Five difficulties","A daily","Zen mode","Works offline","Free, no accounts"],
+      links: [
+        {label:"▦ Play — the sudoku room", href:"/sudoku/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -1776,6 +1831,11 @@
       tone(82.4, {type:"sine", dur:1.4, g:0.05});
       tone(1244, {type:"sine", at:0.25, dur:0.5, g:0.025});
       tone(1864, {type:"sine", at:0.45, dur:0.6, g:0.02});
+    },
+    sudoku: function(){ // pencil on newsprint, then the note a digit makes
+      noise({filter:"bandpass", freq:1800, freqEnd:3200, q:1.4, dur:0.09, g:0.07});
+      tone(659.25, {type:"sine", at:0.05, dur:0.22, g:0.05});
+      tone(1318.5, {type:"triangle", at:0.05, dur:0.16, g:0.02});
     },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});

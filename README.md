@@ -8,10 +8,13 @@ plus a few rooms that exist purely for the joy of it: a pocket Rubik's
 cube that teaches, a ray-marched Mandelbulb, a light bench,
 [the solving room](https://kmay89.com/cube/) — five twisty puzzles that
 scramble and solve themselves with the real mathematics on display —
-and [the chess room](https://kmay89.com/chess/), chess
+[the chess room](https://kmay89.com/chess/), chess
 taught kindly: a 3D board, a patient coach, opening stories, and
 same-room two-player with no accounts (the tiny set on the desk is
-paused mid-Italian Game).
+paused mid-Italian Game), and [the sudoku
+room](https://kmay89.com/sudoku/), which shows you how its puzzles are
+made and teaches the nineteen techniques that solve them (the folded
+newspaper on the desk carries a real one).
 
 **Live:** <https://kmay89.com>
 
@@ -34,6 +37,15 @@ paused mid-Italian Game).
   mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
   `chess/` (see its README there); update it by copying that directory
   over this one.
+- `sudoku/` — the sudoku room: puzzles forged in front of you from a
+  blank grid, five difficulties graded by *solving* rather than
+  guessing, nineteen techniques taught from positions that genuinely
+  arose, and a hint button that names, shows and explains before it
+  ever fills a square. Every puzzle has exactly one answer and can be
+  reasoned to the end — the generator refuses to ship a grid its own
+  techniques cannot finish. A mirror of
+  [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `sudoku/` (see
+  its README there); update it by copying that directory over this one.
 - `logic/` — *Yes or No*: Boolean logic explained from nothing, in
   plain language and entirely by hand. Flip two switches and watch a
   truth table fill itself in, race a ten-level wire against a two-level
