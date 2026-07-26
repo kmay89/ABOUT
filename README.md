@@ -15,10 +15,10 @@ paused mid-Italian Game), and [the sudoku
 room](https://kmay89.com/sudoku/), which shows you how its puzzles are
 made and teaches the nineteen techniques that solve them (the folded
 newspaper on the desk carries a real one), and [the domino
-table](https://kmay89.com/domino/) — dominoes on a table of four
-chairs, cantina style, with the little table on the desk set the way one
-always is: a line going across it and the six-six laid crosswise where
-it opened.
+table](https://kmay89.com/domino/) — four seats and two *parejas*,
+cantina style, with a pile of bones on the desk: four squared up with
+the six-six on top the way it always ends up, and a few loose ones face
+up beside them.
 
 **Live:** <https://kmay89.com>
 
@@ -50,8 +50,8 @@ it opened.
   techniques cannot finish. A mirror of
   [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `sudoku/` (see
   its README there); update it by copying that directory over this one.
-- `domino/` — the domino table: dominoes on a table of four chairs,
-  cantina style. Four seats, partners across from each other, seven
+- `domino/` — the domino table, cantina style (a pile of bones on the
+  desk opens it). Four seats, partners across from each other, seven
   bones each and nothing left in the pile — which is the whole game,
   because every bone you cannot see is in somebody's hand and working
   out whose is the entire skill. Play alone against three who count the
