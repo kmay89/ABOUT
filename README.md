@@ -14,7 +14,13 @@ same-room two-player with no accounts (the tiny set on the desk is
 paused mid-Italian Game), and [the sudoku
 room](https://kmay89.com/sudoku/), which shows you how its puzzles are
 made and teaches the nineteen techniques that solve them (the folded
-newspaper on the desk carries a real one).
+newspaper on the desk carries a real one), and [the domino
+table](https://kmay89.com/domino/) — four seats and two *parejas*,
+cantina style, with a pile of bones on the desk: four squared up with
+the six-six on top the way it always ends up, and a few loose ones face
+up beside them; and [the reading room](https://kmay89.com/library/) — a
+block world you can walk through, opened by the console standing next to
+the Game Boy.
 
 **Live:** <https://kmay89.com>
 
@@ -45,6 +51,26 @@ newspaper on the desk carries a real one).
   reasoned to the end — the generator refuses to ship a grid its own
   techniques cannot finish. A mirror of
   [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `sudoku/` (see
+  its README there); update it by copying that directory over this one.
+- `domino/` — the domino table, cantina style (a pile of bones on the
+  desk opens it). Four seats, partners across from each other, seven
+  bones each and nothing left in the pile — which is the whole game,
+  because every bone you cannot see is in somebody's hand and working
+  out whose is the entire skill. Play alone against three who count the
+  bones and hear every *paso*, or put four phones around one table. A
+  mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
+  `domino/` (see its README there); update it by copying that directory
+  over this one.
+- `library/` — the reading room: a voxel engine written from scratch
+  that renders block worlds in a browser. An NBT reader and an Anvil
+  region reader built from the documented formats, our own palette of
+  materials, a greedy mesher and raw WebGL — so it ships none of
+  Mojang's code and none of their artwork, and will render a Minecraft
+  world you drop on it. It comes with an original library of its own,
+  built in tribute to the Uncensored Library that Reporters Without
+  Borders and BlockWorks put inside Minecraft in 2020. Reached from the
+  desk by the console beside the Game Boy. A mirror of
+  [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `library/` (see
   its README there); update it by copying that directory over this one.
 - `logic/` — *Yes or No*: Boolean logic explained from nothing, in
   plain language and entirely by hand. Flip two switches and watch a

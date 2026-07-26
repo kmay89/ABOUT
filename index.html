@@ -841,6 +841,8 @@
     <a href="/cube/">The solving room</a>
     <a href="/chess/">The chess room</a>
     <a href="/sudoku/">The sudoku room</a>
+    <a href="/domino/">The domino table</a>
+    <a href="/library/">The reading room</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1440,6 +1442,113 @@
   sudoku += gTop(SDX,SDY,4, page);
   S.push(wrapObj("sudoku","The sudoku room — the paper, half worked","#ffc97a",sudoku));
 
+  /* ---------- domino: a pile of bones on the desk ----------
+     Just dominoes. A stack somebody has squared up, a few loose ones
+     face up beside it, and the 6|6 sitting on top of the pile where it
+     always ends up.
+
+     Drawn back to front, because an isometric scene has no depth buffer
+     and the painter's algorithm is the whole of the sorting: with +x
+     running screen right-down and +y left-down, a thing is nearer the
+     viewer the larger its x+y. Sorting the loose bones by x+y before
+     drawing them is what stops the near one being overdrawn by the far
+     one. */
+  var DBX = 26, DBY = 286;                       /* the pile's corner */
+  /* Two hex colours, not one plus a shade() of it. `shade()` returns an
+     rgb(...) string, and `box()` shades whatever it is given again to
+     light its three faces — so handing it shade(BONE, …) makes it parse
+     "rgb" as hex, get NaN, and draw the bone solid black. Which is
+     exactly what the stack did. */
+  var BONE = "#f2e6cf", BONE_DIM = "#e4d8bd", PIP = "#231a12";
+  var BL = 15, BW = 7.5, BT = 2.4;               /* a bone: long, wide, thick */
+
+  /* the pips of one half, on a face of BL × BW laid flat */
+  var PIPS = [[], [[1,1]], [[0,0],[2,2]], [[0,0],[1,1],[2,2]],
+              [[0,0],[2,0],[0,2],[2,2]], [[0,0],[2,0],[1,1],[0,2],[2,2]],
+              [[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]]];
+  function domHalf(n, cx, cy) {
+    var set = PIPS[n] || [], out = "", sp = 1.9, r = 0.62;
+    for (var i = 0; i < set.length; i++) {
+      out += '<circle cx="' + (cx + (set[i][0] - 1) * sp).toFixed(2) +
+             '" cy="' + (cy + (set[i][1] - 1) * sp).toFixed(2) +
+             '" r="' + r + '" fill="' + PIP + '"/>';
+    }
+    return out;
+  }
+  /* one bone lying flat, its long axis along x, face up */
+  function domBone(x, y, z, a, b, dim) {
+    var s = box(x, y, z, BL, BW, BT, dim ? BONE_DIM : BONE);
+    s += gTop(x, y, z + BT,
+      '<rect x=".5" y=".5" width="' + (BL - 1) + '" height="' + (BW - 1) +
+        '" rx="1.1" fill="none" stroke="rgba(26,14,6,.30)" stroke-width=".4"/>' +
+      '<line x1="' + (BL / 2) + '" y1="1.2" x2="' + (BL / 2) + '" y2="' + (BW - 1.2) +
+        '" stroke="' + PIP + '" stroke-width=".45" opacity=".55"/>' +
+      domHalf(a, BL * 0.27, BW / 2) + domHalf(b, BL * 0.73, BW / 2));
+    return s;
+  }
+
+  var domino = shadowW(DBX - 8, DBY - 10, 70, 42, 7, .26);
+
+  /* the stack: four squared-up bones with the 6|6 crowning it */
+  var stack = [[0, 0, 0, 5, 3], [0.6, 0.4, BT, 2, 4], [-0.4, 0.8, BT * 2, 0, 1], [0.3, 0.2, BT * 3, 6, 6]];
+  for (var si = 0; si < stack.length; si++) {
+    var q = stack[si];
+    domino += domBone(DBX + q[0], DBY + q[1], q[2], q[3], q[4], si < stack.length - 1);
+  }
+
+  /* And a few loose beside it, near ones drawn last. They all live to the
+     +x side of the stack, and that is not decoration: the desk paints in
+     push order and the pile is pushed after the Rubik's cube, so a bone
+     laid anywhere in the cube's screen footprint — grid x 34-58, y 332-356,
+     but standing 24 tall, which lifts its top face a long way up the
+     screen — overdraws it and reads as floating in mid-air. Keeping the
+     bones at y < 300 keeps them off it. */
+  var loose = [
+    { x: DBX + 20, y: DBY - 3, a: 3, b: 6 },
+    { x: DBX + 19, y: DBY + 10, a: 4, b: 4 },
+    { x: DBX + 38, y: DBY - 6, a: 2, b: 5 }
+  ];
+  loose.sort(function (m, n) { return (m.x + m.y) - (n.x + n.y); });
+  for (var li = 0; li < loose.length; li++) {
+    domino += domBone(loose[li].x, loose[li].y, 0, loose[li].a, loose[li].b, false);
+  }
+  S.push(wrapObj("domino","A pile of dominoes — a game waiting to start","#f0a83c",domino));
+
+  /* ---------- library: a games console, and a pad left on the desk ----------
+     Stood next to the Game Boy on purpose: the 1999 handheld and the
+     black tower, the same idea twenty-five years apart.
+
+     Drawn as a generic console rather than anybody's: a dark monolith
+     with a lit vent on top and a pad in front of it. That reads as what
+     it is from across the room without reproducing a logo that belongs
+     to somebody else — the same care the room it opens takes about
+     shipping none of Mojang's artwork. */
+  var CVX = 330, CVY = 276, CVW = 20, CVD = 20, CVH = 42;
+  var lib = shadowW(CVX - 3, CVY - 3, CVW + 6, CVD + 6, 6, .30);
+  lib += box(CVX, CVY, 0, CVW, CVD, CVH, "#16181c");
+  /* the vent across the top, lit from inside */
+  lib += gTop(CVX, CVY, CVH,
+    '<rect x="2.4" y="2.4" width="' + (CVW - 4.8) + '" height="' + (CVD - 4.8) + '" rx="2" fill="#0d0f12"/>' +
+    '<ellipse cx="' + (CVW / 2) + '" cy="' + (CVD / 2) + '" rx="5.6" ry="5.6" fill="#6cc24a" opacity=".85"/>' +
+    '<ellipse cx="' + (CVW / 2) + '" cy="' + (CVD / 2) + '" rx="3.2" ry="3.2" fill="#0d0f12" opacity=".55"/>');
+  /* the power light at the foot */
+  lib += gLeft(CVX, CVY + CVD, 3, '<circle cx="' + (CVW / 2) + '" cy="0" r="1.1" fill="#6cc24a"/>');
+
+  /* the pad, dropped in front of it */
+  var PX = 316, PY = 306;
+  lib += shadowW(PX, PY, 26, 15, 4, .22);
+  lib += box(PX, PY, 0, 26, 15, 5, "#2a2e34");
+  lib += box(PX + 2, PY + 2, 5, 22, 11, 1.4, "#33383f");
+  lib += gTop(PX + 2, PY + 2, 6.4,
+    /* two sticks, a d-pad and four face buttons — enough to read as a pad */
+    '<circle cx="6" cy="4" r="2.1" fill="#15181c"/><circle cx="6" cy="4" r="1.2" fill="#4a5058"/>' +
+    '<circle cx="13.5" cy="7.5" r="2.1" fill="#15181c"/><circle cx="13.5" cy="7.5" r="1.2" fill="#4a5058"/>' +
+    '<rect x="5" y="7.2" width="3.4" height="1.1" rx=".5" fill="#15181c"/>' +
+    '<rect x="6.15" y="6.05" width="1.1" height="3.4" rx=".5" fill="#15181c"/>' +
+    '<circle cx="17.5" cy="3" r="1.05" fill="#6cc24a"/><circle cx="19.6" cy="4.6" r="1.05" fill="#e5484d"/>' +
+    '<circle cx="15.4" cy="4.6" r="1.05" fill="#4a90e2"/><circle cx="17.5" cy="6.2" r="1.05" fill="#f0b429"/>');
+  S.push(wrapObj("library","The reading room — a block world on a console","#6cc24a",lib));
+
   /* ---------- hive: atomic-purple Game Boy ---------- */
   var gb = box(250,290,0,64,106,11,"#7e63cf");
   var hex = function(cx,cy,r,fill){
@@ -1698,6 +1807,27 @@
         {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
+    domino: {
+      kicker: "The Solving Room · New",
+      title: "The Domino Table — Four Chairs, Cantina Style",
+      story: "Dominoes the way they are actually played, which is not the way most apps play them: four people, partners sitting opposite each other, seven bones each and nothing left in the pile. That empty boneyard is the whole game — nothing is drawn and nothing is held back, so every bone you cannot see is in somebody's hand, and working out whose is the entire skill. When a player says paso, they have neither open number and they never will again; it is the loudest thing said all evening, and good players never forget it. The room keeps that count in front of you until you are keeping it yourself. Play alone against three who count the bones and hear every pass, or put four phones around one table — the invite is a code you hold up to a camera, and the empty chairs are played by the house until somebody sits down in them. On the desk they are only a pile: four squared up with the six-six on top, the way it always ends up, and a few loose ones face up beside them, waiting for somebody to shuffle.",
+      chips: ["Four seats, two parejas","Nothing in the boneyard","Four phones, one table","Hints that count","Capicúa & tranca","A 3D table","Works offline","Free, no accounts"],
+      links: [
+        {label:"🁫 Play — the domino table", href:"/domino/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
+      ]
+    },
+    library: {
+      kicker: "The Solving Room · New",
+      title: "The Reading Room — A Block World, and an Engine That Reads Real Ones",
+      story: "In 2020 Reporters Without Borders and the build studio BlockWorks put a library inside Minecraft. Journalism that had been censored in Russia, Saudi Arabia, Egypt, Mexico and Vietnam was reprinted into books on its shelves, in a game that was not blocked in any of those countries — so the writing could be read where the websites could not. They called it The Uncensored Library. This room is a voxel engine written from scratch that renders block worlds in a browser: an NBT reader and an Anvil region reader built from the documented formats, our own palette of materials, a greedy mesher, and raw WebGL. It ships with an original library of its own — a hall, two galleries of shelves, a rotunda under a dome — built in tribute, so there is somewhere to walk the moment it opens. Nothing of Mojang's is in it: a Minecraft world stores block names rather than pictures, so this one looks them up in its own palette and paints every texture as the page loads. Which means you can download the real Uncensored Library, drop it on the page, and walk the actual building in the same engine. Keyboard, touch, or a controller — the console on the desk is not decoration, the pad works.",
+      chips: ["A voxel engine from scratch","Walk a real Minecraft world","Reads NBT & Anvil","Greedy meshing","Controller support","No game assets","Works offline","Open source"],
+      links: [
+        {label:"📚 Enter — the reading room", href:"/library/", cta:true, sameTab:true},
+        {label:"The Uncensored Library (RSF)", href:"https://www.uncensoredlibrary.com/"},
+        {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -1836,6 +1966,18 @@
       noise({filter:"bandpass", freq:1800, freqEnd:3200, q:1.4, dur:0.09, g:0.07});
       tone(659.25, {type:"sine", at:0.05, dur:0.22, g:0.05});
       tone(1318.5, {type:"triangle", at:0.05, dur:0.16, g:0.02});
+    },
+    library: function(){ // a console waking, then a block set down on stone
+      tone(196, {type:"sine", dur:0.30, g:0.05});
+      tone(392, {type:"sine", at:0.06, dur:0.34, g:0.045});
+      tone(587.33, {type:"sine", at:0.14, dur:0.40, g:0.035});
+      noise({filter:"lowpass", freq:700, at:0.34, dur:0.06, g:0.10});
+    },
+    domino: function(){ // the slam — a bone brought down hard on wood, then the click of the one after it
+      noise({filter:"lowpass", freq:420, dur:0.07, g:0.16});
+      tone(196, {type:"triangle", dur:0.13, g:0.07});
+      tone(98,  {type:"sine", dur:0.20, g:0.05});
+      noise({filter:"bandpass", freq:2600, q:2.2, at:0.14, dur:0.035, g:0.06});
     },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
