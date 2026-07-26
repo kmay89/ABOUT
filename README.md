@@ -18,7 +18,9 @@ newspaper on the desk carries a real one), and [the domino
 table](https://kmay89.com/domino/) — four seats and two *parejas*,
 cantina style, with a pile of bones on the desk: four squared up with
 the six-six on top the way it always ends up, and a few loose ones face
-up beside them.
+up beside them; and [the reading room](https://kmay89.com/library/) — a
+block world you can walk through, opened by the console standing next to
+the Game Boy.
 
 **Live:** <https://kmay89.com>
 
@@ -59,6 +61,17 @@ up beside them.
   mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
   `domino/` (see its README there); update it by copying that directory
   over this one.
+- `library/` — the reading room: a voxel engine written from scratch
+  that renders block worlds in a browser. An NBT reader and an Anvil
+  region reader built from the documented formats, our own palette of
+  materials, a greedy mesher and raw WebGL — so it ships none of
+  Mojang's code and none of their artwork, and will render a Minecraft
+  world you drop on it. It comes with an original library of its own,
+  built in tribute to the Uncensored Library that Reporters Without
+  Borders and BlockWorks put inside Minecraft in 2020. Reached from the
+  desk by the console beside the Game Boy. A mirror of
+  [kmay89/puzzles](https://github.com/kmay89/puzzles)'s `library/` (see
+  its README there); update it by copying that directory over this one.
 - `logic/` — *Yes or No*: Boolean logic explained from nothing, in
   plain language and entirely by hand. Flip two switches and watch a
   truth table fill itself in, race a ten-level wire against a two-level
