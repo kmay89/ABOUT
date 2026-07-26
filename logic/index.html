@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="An interactive, plain-language tour of Boolean logic: why nobody thought of it for 2,000 years, why electricity loves it, how code uses it, and the road from analog to digital to quantum.">
+<meta name="theme-color" content="#faf6ee">
+<link rel="canonical" href="https://kmay89.com/logic/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Karl Meves">
+<meta property="og:title" content="Yes or No — the switch behind every computer">
+<meta property="og:description" content="Flip, drag and press your way through Boolean logic: why nobody thought of it for 2,000 years, why electricity loves it, and the road from analog to digital to quantum.">
+<meta property="og:url" content="https://kmay89.com/logic/">
+<meta name="twitter:card" content="summary">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Yes or No — how one tiny idea became every computer on Earth</title>
+<style>
+  :root{
+    --paper:#faf6ee;
+    --card:#ffffff;
+    --ink:#22252c;
+    --soft:#6b7280;
+    --line:#22252c;
+    --amber:#f0a020;
+    --glow:#ffd166;
+    --wire:#a8adb8;
+    --good:#177a4c;
+    --bad:#c23c2f;
+    --blue:#2b5fd9;
+    --chip:#f1ede3;
+    --shadow:0 5px 0 rgba(34,37,44,.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#191b20;
+      --card:#22252c;
+      --ink:#f0ede6;
+      --soft:#a3a8b3;
+      --line:#f0ede6;
+      --wire:#5c626e;
+      --chip:#2c3038;
+      --shadow:0 5px 0 rgba(0,0,0,.35);
+      --good:#3ecf8e;
+      --bad:#ff7b6e;
+      --blue:#8fb0ff;
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    *{transition:none !important; animation:none !important}
+  }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:19px; line-height:1.65;
+  }
+  .skip{position:absolute; left:-9999px; top:0; background:var(--ink); color:var(--paper); padding:.6rem 1rem; z-index:99; border-radius:0 0 10px 0}
+  .skip:focus{left:0}
+  main{display:block}
+  section{padding:4.5rem 1.25rem}
+  .wrap{max-width:720px; margin:0 auto}
+  .wrap.wide{max-width:860px}
+  h1{font-size:clamp(2.4rem,7vw,4rem); line-height:1.08; margin:.2em 0 .3em; letter-spacing:-.02em}
+  h2{font-size:clamp(1.7rem,4.5vw,2.4rem); line-height:1.15; margin:0 0 .6em; letter-spacing:-.01em}
+  h3{font-size:1.15rem; margin:1.4em 0 .5em}
+  p{margin:.9em 0}
+  .kicker{
+    display:inline-block; font-size:.85rem; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--soft); margin-bottom:.6rem;
+  }
+  .big{font-size:1.18em}
+  .soft{color:var(--soft)}
+  .center{text-align:center}
+  em{font-style:italic}
+  strong{font-weight:700}
+  mark{background:var(--glow); color:#22252c; padding:0 .25em; border-radius:4px}
+  a{color:var(--blue)}
+  section:nth-of-type(even){background:color-mix(in srgb, var(--paper) 88%, var(--wire) 12%)}
+
+  /* ---------- cards / interactive frames ---------- */
+  .toy{
+    background:var(--card); border:2px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:1.4rem 1.3rem; margin:1.6rem 0;
+  }
+  .toy .hint{font-size:.9rem; color:var(--soft); margin-top:.8rem; margin-bottom:0}
+  .row{display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:center}
+  .row.top{align-items:flex-start}
+  .col{display:flex; flex-direction:column; gap:.4rem; align-items:center}
+
+  /* ---------- buttons / switches ---------- */
+  button{
+    font:inherit; color:inherit; cursor:pointer;
+    background:var(--chip); border:2px solid var(--line); border-radius:12px;
+    padding:.55rem 1.1rem; box-shadow:var(--shadow);
+  }
+  button:active{transform:translateY(2px); box-shadow:0 3px 0 rgba(34,37,44,.10)}
+  button:focus-visible, .flip:focus-visible, input:focus-visible{
+    outline:3px solid var(--blue); outline-offset:3px;
+  }
+  .flip{
+    min-width:6.2rem; font-weight:700; font-size:1.05rem;
+    transition:background .15s;
+  }
+  .flip[aria-checked="true"]{background:var(--glow); color:#22252c}
+  .flip .st{font-weight:800}
+  .bigflip{font-size:1.3rem; padding:.9rem 1.6rem; border-radius:16px}
+
+  /* ---------- hero bulb ---------- */
+  .bulbwrap{position:relative; width:150px; height:150px; margin:0 auto}
+  .bulb{
+    position:absolute; inset:25px; border-radius:50%;
+    border:3px solid var(--line); background:var(--card);
+    transition:background .2s, box-shadow .2s;
+  }
+  .bulb::after{
+    content:""; position:absolute; inset:30%;
+    border-radius:50%; opacity:.25;
+    background:radial-gradient(circle at 35% 30%, #fff, transparent 60%);
+  }
+  .on .bulb{background:var(--glow); box-shadow:0 0 40px 12px rgba(255,196,64,.55)}
+
+  /* ---------- boole calculator ---------- */
+  .mathlines{font-size:1.15rem; line-height:2.1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .mathlines b{font-weight:800}
+  .tv-true{color:var(--good); font-weight:800}
+  .tv-false{color:var(--bad); font-weight:800}
+
+  /* ---------- circuits ---------- */
+  .circ{width:100%; max-width:360px; height:auto; display:block}
+  .circ .w{stroke:var(--wire); stroke-width:4; fill:none; stroke-linecap:round; transition:stroke .15s}
+  .circ .live{stroke:var(--amber)}
+  .circ .bat{stroke:var(--ink); stroke-width:3}
+  .circ .bat.thick{stroke-width:6}
+  .circ .dot{fill:var(--ink)}
+  .circ .lever line{stroke:var(--ink); stroke-width:5; stroke-linecap:round}
+  .circ .bulbc{fill:var(--card); stroke:var(--ink); stroke-width:3; transition:fill .15s}
+  .circ .fil{stroke:var(--ink); stroke-width:2}
+  .circ .glowc{fill:var(--glow); opacity:0; transition:opacity .15s}
+  .circ.lit .bulbc{fill:var(--glow)}
+  .circ.lit .glowc{opacity:.45}
+  .circ text{fill:var(--soft); font-size:13px; font-family:inherit}
+  .gatecard{flex:1 1 260px; max-width:380px; text-align:center}
+  .gatecard h3{margin-top:0}
+  .verdict{font-weight:800; font-size:1.05rem; min-height:1.6em}
+
+  /* ---------- truth table ---------- */
+  table.truth{border-collapse:collapse; margin:0 auto; font-size:1.05rem}
+  table.truth th, table.truth td{
+    border:2px solid var(--line); padding:.45rem .9rem; text-align:center; min-width:3.2rem;
+  }
+  table.truth th{background:var(--chip)}
+  table.truth tr.now td{background:color-mix(in srgb, var(--glow) 45%, var(--card))}
+  table.truth td.unseen{color:transparent; background:color-mix(in srgb, var(--wire) 25%, var(--card))}
+  .tt-msg{min-height:1.8em; font-weight:700; text-align:center; margin-top:.8rem}
+
+  /* ---------- noise meters ---------- */
+  .meterbox{flex:1 1 240px; max-width:320px; text-align:center}
+  .meter{
+    position:relative; height:230px; width:120px; margin:0 auto;
+    border:2px solid var(--line); border-radius:10px; background:var(--card);
+    overflow:hidden;
+  }
+  .meter .tick{position:absolute; left:0; right:0; height:0; border-top:2px dashed var(--wire)}
+  .meter .band{position:absolute; left:0; right:0; opacity:.12; background:var(--blue)}
+  .meter .needle{
+    position:absolute; left:6px; right:6px; height:8px; border-radius:4px;
+    background:var(--amber); border:2px solid var(--line);
+    transform:translateY(4px); transition:bottom .18s;
+  }
+  .meter.err .needle{background:var(--bad)}
+  .mstats{font-size:.95rem; margin-top:.5rem; min-height:3em}
+  .mstats .pct{font-weight:800; font-size:1.2rem}
+  .noisectl{margin:1.2rem auto .3rem; max-width:420px; text-align:center}
+  input[type="range"]{width:100%; max-width:380px; accent-color:var(--amber); height:2rem}
+
+  /* ---------- bits ---------- */
+  .bitrow{display:flex; gap:.45rem; flex-wrap:wrap; justify-content:center}
+  .bit{
+    width:3.1rem; height:3.1rem; border-radius:12px; font-size:1.3rem; font-weight:800;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .bit[aria-checked="true"]{background:var(--glow); color:#22252c}
+  .pl{font-size:.75rem; color:var(--soft); text-align:center; margin-top:.2rem}
+  .bignum{font-size:2.4rem; font-weight:800; text-align:center; margin:.6rem 0 0}
+  .lamp{
+    width:2.6rem; height:2.6rem; border-radius:50%; border:2px solid var(--line);
+    background:var(--card); display:flex; align-items:center; justify-content:center;
+    font-weight:800; transition:background .15s;
+  }
+  .lamp.on{background:var(--glow); color:#22252c; box-shadow:0 0 14px 2px rgba(255,196,64,.5)}
+  .oplabel{font-size:2rem; font-weight:800; align-self:center}
+
+  /* ---------- code ---------- */
+  pre.code{
+    background:#22252c; color:#f0ede6; border-radius:12px; padding:1rem 1.2rem;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:1rem;
+    overflow-x:auto; line-height:1.7; border:2px solid var(--line);
+  }
+  pre.code .kw{color:#8fb0ff}
+  pre.code .tv-true{color:#3ecf8e}
+  pre.code .tv-false{color:#ff7b6e}
+  pre.code .dim{opacity:.45}
+  pre.code .runline{background:rgba(255,209,102,.18); display:inline-block; width:100%; border-radius:4px}
+  .valuechip{
+    display:inline-block; background:var(--chip); border:2px solid var(--line);
+    border-radius:8px; padding:.05rem .6rem; font-weight:800; font-family:ui-monospace,Menlo,Consolas,monospace;
+  }
+
+  /* ---------- decimal vs binary lamps ---------- */
+  .ring{display:flex; flex-direction:column-reverse; gap:.3rem; align-items:center}
+  .ring .lamp{width:1.55rem; height:1.55rem; font-size:.7rem}
+  .hwcount{font-weight:800; margin-top:.6rem}
+
+  /* ---------- analog ---------- */
+  .dimmerbulb{
+    width:110px; height:110px; border-radius:50%; border:3px solid var(--line);
+    background:var(--glow); margin:0 auto; transition:opacity .1s;
+    box-shadow:0 0 30px 6px rgba(255,196,64,.4);
+  }
+  canvas{max-width:100%; border:2px solid var(--line); border-radius:10px; background:var(--card)}
+  .genlabel{font-weight:800; font-size:1.1rem}
+
+  /* ---------- quantum ---------- */
+  .hist{display:flex; gap:1rem; align-items:flex-end; height:150px; justify-content:center}
+  .hist .bar{
+    width:70px; background:var(--amber); border:2px solid var(--line);
+    border-radius:8px 8px 0 0; height:2px; transition:height .2s;
+  }
+  .hist .bar.b0{background:var(--wire)}
+  .histlabels{display:flex; gap:1rem; justify-content:center; font-weight:800; margin-top:.4rem}
+  .histlabels span{width:70px; text-align:center}
+
+  /* ---------- timeline ---------- */
+  .timeline{display:flex; flex-wrap:wrap; gap:.8rem; justify-content:center; margin:1.5rem 0}
+  .tstop{
+    flex:1 1 150px; max-width:190px; background:var(--card); border:2px solid var(--line);
+    border-radius:12px; padding:.8rem .9rem; box-shadow:var(--shadow); text-align:center;
+  }
+  .tstop .yr{font-weight:800; font-size:1.15rem}
+  .tstop .who{font-size:.95rem; color:var(--soft)}
+  .tstop .what{font-size:.95rem; margin-top:.3rem}
+
+  /* ---------- era cards ---------- */
+  .eras{display:flex; flex-wrap:wrap; gap:1rem; margin-top:1.5rem}
+  .era{flex:1 1 220px; background:var(--card); border:2px solid var(--line); border-radius:14px; padding:1rem 1.1rem; box-shadow:var(--shadow)}
+  .era h3{margin:.1em 0 .4em}
+  .era .up{color:var(--good); font-weight:700}
+  .era .down{color:var(--bad); font-weight:700}
+  .era p{font-size:.98rem; margin:.4em 0}
+
+  /* ---------- the way back to the desk ---------- */
+  .deskbar{
+    display:flex; flex-wrap:wrap; gap:.6rem 1rem; align-items:baseline; justify-content:space-between;
+    max-width:860px; margin:0 auto; padding:1rem 1.25rem 0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.72rem;
+    letter-spacing:.1em; text-transform:uppercase; color:var(--soft);
+  }
+  .deskbar a{color:var(--soft); text-decoration:none; border-bottom:1px solid currentColor}
+  .deskbar a:hover{color:var(--ink)}
+
+  footer{padding:3rem 1.25rem 4rem; text-align:center; color:var(--soft); font-size:.95rem}
+  footer a{color:var(--soft)}
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+</style>
+</head>
+<body>
+<a class="skip" href="#start">Skip to content</a>
+
+<div class="deskbar">
+  <span>kmay89.com — the desk of worlds</span>
+  <a href="/">← back to the desk</a>
+</div>
+
+<main id="start">
+
+<!-- ============================================================ HERO -->
+<section class="center">
+  <div class="wrap">
+    <span class="kicker">A guided tour, with things to press</span>
+    <h1>Yes or No</h1>
+    <p class="big">The one tiny idea underneath every computer on Earth.</p>
+
+    <div class="toy" id="heroToy">
+      <div class="bulbwrap"><div class="bulb"></div></div>
+      <p class="verdict" aria-live="polite" id="heroVerdict">The light is OFF.</p>
+      <button class="flip bigflip" id="heroSwitch" role="switch" aria-checked="false">
+        Flip the switch
+      </button>
+      <p class="hint">Tap it, click it, or press <kbd>Enter</kbd>. Everything on this page works with a keyboard too.</p>
+    </div>
+
+    <p>That switch can answer exactly one question: <strong>yes or no</strong>.
+    It sounds like almost nothing. But every photo, song, message, and game you've
+    ever seen on a screen is made of switches like this one — asked very, very
+    clever questions.</p>
+    <p class="soft">Scroll. By the end, you'll know the whole trick.</p>
+  </div>
+</section>
+
+<!-- ============================================================ BOOLE -->
+<section>
+  <div class="wrap">
+    <span class="kicker">Part 1</span>
+    <h2>The idea nobody had for 2,000 years</h2>
+
+    <p>For most of history, <strong>logic</strong> and <strong>math</strong> lived in different buildings.
+    Logic was philosophy — arguments, words, Aristotle. Math was numbers. Nobody mixed them,
+    because a sentence being <em>true</em> didn't seem like something you could <em>calculate</em>.</p>
+
+    <p>In 1847, a self-taught English school teacher named <strong>George Boole</strong> tried something
+    that sounds almost childish:</p>
+
+    <p class="big center"><mark>What if TRUE is just the number 1, and FALSE is just the number 0?</mark></p>
+
+    <p>Then reasoning stops being words and becomes <em>arithmetic</em>. Try it — set two
+    statements to true or false and watch logic turn into grade-school math:</p>
+
+    <div class="toy">
+      <div class="row">
+        <button class="flip" id="booleA" role="switch" aria-checked="true">A = <span class="st">true</span></button>
+        <button class="flip" id="booleB" role="switch" aria-checked="false">B = <span class="st">false</span></button>
+      </div>
+      <div class="mathlines" id="booleOut" aria-live="polite"></div>
+      <p class="hint">AND is just multiplication. NOT is just “one minus”. That's Boole's whole move: thinking, done with arithmetic.</p>
+    </div>
+
+    <p><strong>Why did nobody think of it earlier?</strong> Because it looked like a category
+    error — sentences aren't numbers, everyone “knew” that. And when Boole finally did it,
+    the world mostly shrugged. It was a curiosity with no use. There was no machine that
+    needed to reason.</p>
+
+    <div class="timeline" role="list">
+      <div class="tstop" role="listitem"><div class="yr">~350 BC</div><div class="who">Aristotle</div><div class="what">Logic is <em>words</em> — and stays that way for 2,000 years</div></div>
+      <div class="tstop" role="listitem"><div class="yr">1847</div><div class="who">George Boole</div><div class="what">Logic is <em>math</em>: true = 1, false = 0</div></div>
+      <div class="tstop" role="listitem"><div class="yr">1937</div><div class="who">Claude Shannon</div><div class="what">Logic is <em>circuits</em>: switches can do Boole's math</div></div>
+      <div class="tstop" role="listitem"><div class="yr">1945 →</div><div class="who">Everyone</div><div class="what">Computers. All of them run on Boole.</div></div>
+    </div>
+
+    <p>Boole died in 1864 thinking his idea was a philosophical footnote. It sat on
+    the shelf for <strong>90 years</strong> — until a 21-year-old student named Claude Shannon
+    noticed something about electrical switches. That's the next part.</p>
+  </div>
+</section>
+
+<!-- ============================================================ GATES -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 2</span>
+    <h2>Three tiny words: AND, OR, NOT</h2>
+
+    <p class="wrap" style="padding:0">Shannon's discovery: you don't need a brain to do Boole's math.
+    <strong>Wired-up switches do it by themselves.</strong> Put two switches in a row, side by side,
+    or backwards — and electricity computes the answer for free. These two buttons control all
+    three circuits below:</p>
+
+    <div class="toy">
+      <div class="row" style="margin-bottom:1.2rem">
+        <button class="flip bigflip" id="swA" role="switch" aria-checked="false">A: <span class="st">OFF</span></button>
+        <button class="flip bigflip" id="swB" role="switch" aria-checked="false">B: <span class="st">OFF</span></button>
+      </div>
+
+      <div class="row top">
+        <!-- AND -->
+        <div class="gatecard">
+          <h3>AND — switches in a row</h3>
+          <svg class="circ" id="circAnd" viewBox="0 0 340 150" role="img" aria-label="A series circuit: battery, switch A, then switch B, then a bulb. Current flows only if both switches are closed.">
+            <path class="w" id="andWire" d="M40 115 V85 M40 70 V30 H95 M145 30 H195 M245 30 H300 V56 M300 92 V115 H40"/>
+            <line class="bat" x1="26" y1="70" x2="54" y2="70"/>
+            <line class="bat thick" x1="33" y1="85" x2="47" y2="85"/>
+            <circle class="dot" cx="95" cy="30" r="4"/><circle class="dot" cx="145" cy="30" r="4"/>
+            <circle class="dot" cx="195" cy="30" r="4"/><circle class="dot" cx="245" cy="30" r="4"/>
+            <g transform="translate(95,30)"><g class="lever" id="andLevA"><line x1="0" y1="0" x2="50" y2="0"/></g></g>
+            <g transform="translate(195,30)"><g class="lever" id="andLevB"><line x1="0" y1="0" x2="50" y2="0"/></g></g>
+            <circle class="glowc" cx="300" cy="74" r="27"/>
+            <circle class="bulbc" cx="300" cy="74" r="17"/>
+            <path class="fil" d="M290 64 L310 84 M310 64 L290 84"/>
+            <text x="112" y="18">A</text><text x="212" y="18">B</text>
+          </svg>
+          <p class="verdict" id="andVerdict" aria-live="polite"></p>
+        </div>
+
+        <!-- OR -->
+        <div class="gatecard">
+          <h3>OR — switches side by side</h3>
+          <svg class="circ" id="circOr" viewBox="0 0 340 170" role="img" aria-label="A parallel circuit: the wire splits into two branches, switch A on the top branch, switch B on the bottom branch, then rejoins into a bulb. Current flows if either switch is closed.">
+            <path class="w" id="orSrc" d="M40 135 V110 M40 95 V70 H75 M75 40 V100"/>
+            <path class="w" id="orBrA" d="M75 40 H105 M155 40 H235"/>
+            <path class="w" id="orBrB" d="M75 100 H105 M155 100 H235"/>
+            <path class="w" id="orOut" d="M235 40 V100 M235 70 H283 M283 70 H283 M300 87 V135 H40 M300 53 V53"/>
+            <line class="bat" x1="26" y1="95" x2="54" y2="95"/>
+            <line class="bat thick" x1="33" y1="110" x2="47" y2="110"/>
+            <circle class="dot" cx="105" cy="40" r="4"/><circle class="dot" cx="155" cy="40" r="4"/>
+            <circle class="dot" cx="105" cy="100" r="4"/><circle class="dot" cx="155" cy="100" r="4"/>
+            <g transform="translate(105,40)"><g class="lever" id="orLevA"><line x1="0" y1="0" x2="50" y2="0"/></g></g>
+            <g transform="translate(105,100)"><g class="lever" id="orLevB"><line x1="0" y1="0" x2="50" y2="0"/></g></g>
+            <circle class="glowc" cx="300" cy="70" r="27"/>
+            <circle class="bulbc" cx="300" cy="70" r="17"/>
+            <path class="fil" d="M290 60 L310 80 M310 60 L290 80"/>
+            <text x="122" y="28">A</text><text x="122" y="128">B</text>
+          </svg>
+          <p class="verdict" id="orVerdict" aria-live="polite"></p>
+        </div>
+
+        <!-- NOT -->
+        <div class="gatecard">
+          <h3>NOT — a backwards switch</h3>
+          <svg class="circ" id="circNot" viewBox="0 0 340 150" role="img" aria-label="A circuit with one spring-loaded switch that is closed when A is off and pushed open when A is on, so the bulb shows the opposite of A.">
+            <path class="w" id="notWire" d="M40 115 V85 M40 70 V30 H120 M170 30 H300 V56 M300 92 V115 H40"/>
+            <line class="bat" x1="26" y1="70" x2="54" y2="70"/>
+            <line class="bat thick" x1="33" y1="85" x2="47" y2="85"/>
+            <circle class="dot" cx="120" cy="30" r="4"/><circle class="dot" cx="170" cy="30" r="4"/>
+            <g transform="translate(120,30)"><g class="lever" id="notLev"><line x1="0" y1="0" x2="50" y2="0"/></g></g>
+            <circle class="glowc" cx="300" cy="74" r="27"/>
+            <circle class="bulbc" cx="300" cy="74" r="17"/>
+            <path class="fil" d="M290 64 L310 84 M310 64 L290 84"/>
+            <text x="88" y="130" id="notLabel">spring switch: A pushes it OPEN</text>
+          </svg>
+          <p class="verdict" id="notVerdict" aria-live="polite"></p>
+        </div>
+      </div>
+      <p class="hint">Notice: no one “computes” anything. The wiring <em>is</em> the logic. Real chips do exactly this with transistors — switches with no moving parts, flipped billions of times per second.</p>
+    </div>
+
+    <div class="toy">
+      <h3 style="margin-top:0" class="center">Your play, written down</h3>
+      <p class="center soft" style="margin-top:0">Every combination of A and B you try fills in a row.</p>
+      <table class="truth" id="truthTable">
+        <thead><tr><th>A</th><th>B</th><th>A AND B</th><th>A OR B</th><th>NOT A</th></tr></thead>
+        <tbody>
+          <tr data-combo="00"><td>off</td><td>off</td><td class="unseen">off</td><td class="unseen">off</td><td class="unseen">ON</td></tr>
+          <tr data-combo="01"><td>off</td><td>ON</td><td class="unseen">off</td><td class="unseen">ON</td><td class="unseen">ON</td></tr>
+          <tr data-combo="10"><td>ON</td><td>off</td><td class="unseen">off</td><td class="unseen">ON</td><td class="unseen">off</td></tr>
+          <tr data-combo="11"><td>ON</td><td>ON</td><td class="unseen">ON</td><td class="unseen">ON</td><td class="unseen">off</td></tr>
+        </tbody>
+      </table>
+      <p class="tt-msg" id="ttMsg" aria-live="polite"></p>
+    </div>
+
+    <p class="wrap" style="padding:0">Here's the astonishing part: <strong>AND, OR, and NOT are enough.</strong>
+    Chain enough of them together and you can build anything computable — arithmetic, memory,
+    video, artificial intelligence. There is no fourth ingredient. Everything below is just these three, stacked.</p>
+  </div>
+</section>
+
+<!-- ============================================================ NOISE -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 3</span>
+    <h2>Why electricity loves yes/no</h2>
+
+    <p class="wrap" style="padding:0">A wire never carries an <em>exact</em> voltage. Heat, nearby wires, even
+    cosmic rays constantly jiggle it. So here's the engineering question that decided the future:
+    <strong>how many different meanings can one wire safely carry?</strong></p>
+
+    <p class="wrap" style="padding:0">Below, two wires try to send messages. The left wire uses <strong>ten</strong> voltage
+    levels (one per decimal digit). The right wire uses <strong>two</strong> (yes/no). Both suffer the same noise.
+    Drag the slider and watch which one breaks first:</p>
+
+    <div class="toy">
+      <div class="noisectl">
+        <label for="noiseSlider"><strong>Wire noise:</strong> <span id="noiseLabel">gentle</span></label><br>
+        <input type="range" id="noiseSlider" min="0" max="100" value="18" aria-describedby="noiseLabel">
+      </div>
+      <div class="row top">
+        <div class="meterbox">
+          <h3>10 levels (decimal)</h3>
+          <div class="meter" id="meter10" aria-hidden="true"></div>
+          <p class="mstats" id="stats10" aria-live="off"></p>
+        </div>
+        <div class="meterbox">
+          <h3>2 levels (binary)</h3>
+          <div class="meter" id="meter2" aria-hidden="true"></div>
+          <p class="mstats" id="stats2" aria-live="off"></p>
+        </div>
+      </div>
+      <div class="center">
+        <button id="burstBtn">Send 500 messages at once</button>
+        <p class="hint" id="noiseSummary" aria-live="polite">Each moment, a random message is sent down both wires. A message is <strong>misread</strong> when noise pushes it closer to a wrong level.</p>
+      </div>
+    </div>
+
+    <p class="wrap" style="padding:0">That's the real reason computers are binary. Not because engineers love 0 and 1 —
+    because <strong>a two-level signal is almost impossible to fool</strong>. Better still, it can be
+    <em>cleaned</em>: any signal above the middle snaps back to a perfect “yes”, anything below to a perfect “no”.</p>
+    <p class="wrap big" style="padding:0"><mark>“Digital” doesn't mean electronic. It means restorable.</mark>
+    A copy of a copy of a copy is still perfect — you'll see why that matters in Part 7.</p>
+  </div>
+</section>
+
+<!-- ============================================================ BITS -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 4</span>
+    <h2>But can yes/no <em>count</em>?</h2>
+
+    <p class="wrap" style="padding:0">A single switch says yes or no. But give each switch in a row a
+    <strong>value</strong> — 1, 2, 4, 8, doubling each time — and “which switches are on” becomes a number.
+    Try to make your age:</p>
+
+    <div class="toy center">
+      <div class="bitrow" id="byteRow"></div>
+      <p class="bignum" aria-live="polite" id="byteNum">= 0</p>
+      <p class="hint">Eight switches — one “byte” — can make any number from 0 to 255. Thirty-two of them: over 4 billion. This is all a number is, inside any computer.</p>
+    </div>
+
+    <p class="wrap" style="padding:0">And here's where Parts 1–3 snap together. Addition itself is made of AND and OR gates —
+    the “carry the one” from school <em>is</em> an AND gate. Set two numbers; wires do the rest:</p>
+
+    <div class="toy">
+      <div class="row" style="gap:1.6rem">
+        <div class="col">
+          <div class="bitrow" id="addA"></div>
+          <div class="pl">first number: <strong id="addALabel">0</strong></div>
+        </div>
+        <div class="oplabel" aria-hidden="true">+</div>
+        <div class="col">
+          <div class="bitrow" id="addB"></div>
+          <div class="pl">second number: <strong id="addBLabel">0</strong></div>
+        </div>
+        <div class="oplabel" aria-hidden="true">=</div>
+        <div class="col">
+          <div class="bitrow" id="addOut"></div>
+          <div class="pl">sum: <strong id="addOutLabel">0</strong></div>
+        </div>
+      </div>
+      <p class="center" id="addSentence" aria-live="polite" style="font-weight:700; margin-top:1rem">0 + 0 = 0</p>
+      <p class="hint">In the ones place right now: sum-light = (A OR B) AND NOT (A AND B) · carry = A AND B.
+      Your phone's chip has billions of these gates and runs them billions of times a second. That's the whole magic: <strong>trivial logic, unthinkable speed.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ CODE -->
+<section>
+  <div class="wrap">
+    <span class="kicker">Part 5</span>
+    <h2>This is what code is</h2>
+
+    <p>Programmers don't wire switches by hand. They write questions, and every question
+    boils down to a yes/no. A comparison <em>is</em> a switch:</p>
+
+    <div class="toy">
+      <label for="ageSlider"><strong>Drag the age:</strong></label>
+      <input type="range" id="ageSlider" min="0" max="30" value="12" style="max-width:100%">
+      <pre class="code" aria-live="polite" id="ageCode"></pre>
+      <p class="verdict center" id="ageVerdict"></p>
+    </div>
+
+    <p>And Boole's AND / OR / NOT show up in code as <code class="valuechip">&amp;&amp;</code> /
+    <code class="valuechip">||</code> / <code class="valuechip">!</code>. Flip the world; watch the
+    program choose a path:</p>
+
+    <div class="toy">
+      <div class="row" style="margin-bottom:1rem">
+        <button class="flip" id="rainBtn" role="switch" aria-checked="true">🌧 raining: <span class="st">true</span></button>
+        <button class="flip" id="umbBtn" role="switch" aria-checked="false">☂ umbrella: <span class="st">false</span></button>
+      </div>
+      <pre class="code" id="rainCode" aria-live="polite"></pre>
+    </div>
+
+    <p>That's genuinely all software is: <strong>mountains of yes/no questions</strong>, answered by
+    switch-circuits, millions of layers deep, so fast it looks like thought. Your thumb scrolling
+    this page is being turned into booleans right now.</p>
+  </div>
+</section>
+
+<!-- ============================================================ ALTERNATIVES -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 6</span>
+    <h2>The roads not taken</h2>
+
+    <p class="wrap" style="padding:0">Binary wasn't automatic — real machines tried other bases.
+    ENIAC (1945) counted in <strong>decimal</strong>, like humans. The Soviet <strong>Setun</strong> (1958)
+    used three-valued logic: yes / no / maybe. Why did they lose? Count the hardware yourself:</p>
+
+    <div class="toy">
+      <div class="center" style="margin-bottom:1rem">
+        <button id="hwPlus1">+1</button>
+        <button id="hwPlus10">+10</button>
+        <button id="hwReset">reset</button>
+        <p class="bignum" id="hwNum" aria-live="polite" style="margin-top:.5rem">0</p>
+      </div>
+      <div class="row top">
+        <div class="col">
+          <h3 style="margin:0">Decimal (ENIAC's way)</h3>
+          <div class="row" style="gap:1.4rem">
+            <div class="col"><div class="ring" id="ringTens"></div><div class="pl">tens</div></div>
+            <div class="col"><div class="ring" id="ringOnes"></div><div class="pl">ones</div></div>
+          </div>
+          <p class="hwcount">20 lamps — and each must tell 10 voltage levels apart</p>
+        </div>
+        <div class="col">
+          <h3 style="margin:0">Binary</h3>
+          <div class="bitrow" id="binLamps" style="margin-top:.6rem"></div>
+          <p class="hwcount">7 lamps — each only needs to tell 2 apart</p>
+        </div>
+      </div>
+      <p class="hint">Same number, both sides. Decimal needs ~3× the parts, and every part is 5× easier to fool (you saw that in Part 3). Fewer parts × harder to fool: binary wins twice. ENIAC's own designers switched to binary for the very next machine and no one ever went back.</p>
+    </div>
+
+    <p class="wrap" style="padding:0">The other alternative wasn't a different <em>base</em> at all —
+    it was refusing to use steps entirely. That road is called <strong>analog</strong>, and it's next.</p>
+  </div>
+</section>
+
+<!-- ============================================================ ANALOG -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 7</span>
+    <h2>So what's “analog”?</h2>
+
+    <p class="wrap" style="padding:0"><strong>Analog means smooth.</strong> No steps, no levels — a quantity
+    just <em>is</em> some amount, like a dimmer knob or the position of a violin string.
+    One slider, two philosophies:</p>
+
+    <div class="toy">
+      <div class="noisectl">
+        <label for="dimSlider"><strong>Brightness:</strong></label><br>
+        <input type="range" id="dimSlider" min="0" max="100" value="62">
+      </div>
+      <div class="row top">
+        <div class="col">
+          <h3 style="margin:0">Analog bulb</h3>
+          <div class="dimmerbulb" id="bulbAnalog"></div>
+          <p class="pl">infinitely many possible brightnesses<br><span id="dimAnalogVal"></span></p>
+        </div>
+        <div class="col">
+          <h3 style="margin:0">Digital bulb (3 switches)</h3>
+          <div class="dimmerbulb" id="bulbDigital"></div>
+          <p class="pl">only 8 possible brightnesses<br>stored as <strong id="dimBits">101</strong></p>
+        </div>
+      </div>
+      <p class="hint">The analog side is <em>more</em> faithful — it captures every shade. The world itself is analog: sound, light, temperature. So why did digital take over? Because of what happens when you copy…</p>
+    </div>
+
+    <div class="toy">
+      <h3 class="center" style="margin-top:0">The copy machine</h3>
+      <p class="center soft" style="margin-top:0">The same sound wave, stored two ways. Every copy adds a little noise to both.</p>
+      <div class="row top">
+        <div class="col">
+          <canvas id="cvAnalog" width="300" height="110"></canvas>
+          <div class="pl">analog (like a cassette tape)</div>
+        </div>
+        <div class="col">
+          <canvas id="cvDigital" width="300" height="110"></canvas>
+          <div class="pl">digital (stored as steps)</div>
+        </div>
+      </div>
+      <div class="center" style="margin-top:1rem">
+        <button id="copyBtn">Make a copy</button>
+        <button id="copy10Btn">Copy ×10</button>
+        <button id="copyReset">start over</button>
+        <p class="genlabel" id="genLabel" aria-live="polite">Original recording</p>
+        <p class="hint" id="copyHint">The digital side gets the <em>same</em> noise — but because its values snap back to the nearest step, the noise is erased at every copy. That “snap” is Part 3's two-level trick. It's why a 40-year-old CD sounds new and a 40-year-old cassette hisses.</p>
+      </div>
+    </div>
+
+    <p class="wrap" style="padding:0">Analog computers were real and brilliant — machines of gears and
+    voltages predicted tides and aimed telescopes. But their errors <em>accumulated</em>, step after step,
+    copy after copy. Digital trades a little smoothness for something priceless: <strong>perfection that lasts</strong>.</p>
+  </div>
+</section>
+
+<!-- ============================================================ QUANTUM -->
+<section>
+  <div class="wrap wide">
+    <span class="kicker">Part 8</span>
+    <h2>Analog → Digital → Quantum</h2>
+
+    <p class="wrap" style="padding:0">So is yes/no the end of the story? Almost. There's one more kind of
+    switch — the strangest one physics allows. A <strong>qubit</strong> isn't a dimmer stuck between
+    yes and no. Before you look at it, it genuinely holds a <em>blend</em> of both. The moment you
+    measure, it snaps to one answer — with odds set by the blend:</p>
+
+    <div class="toy">
+      <div class="noisectl">
+        <label for="qSlider"><strong>Lean the qubit:</strong> <span id="qLabel">50% toward YES</span></label><br>
+        <input type="range" id="qSlider" min="0" max="100" value="50">
+      </div>
+      <div class="center" style="margin-bottom:1rem">
+        <button id="qMeasure1">Measure once</button>
+        <button id="qMeasure100">Measure ×100</button>
+      </div>
+      <div class="hist" aria-hidden="true">
+        <div class="bar b0" id="qBar0"></div>
+        <div class="bar" id="qBar1"></div>
+      </div>
+      <div class="histlabels" aria-hidden="true"><span>NO (0)</span><span>YES (1)</span></div>
+      <p class="verdict center" id="qVerdict" aria-live="polite">No measurements yet.</p>
+      <p class="hint">Every single measurement is still a plain 0 or 1 — Boole survives! The blend only shows up in the <em>pattern</em>. Moving the slider resets the qubit.</p>
+    </div>
+
+    <p class="wrap" style="padding:0">Why is that powerful? Because blends can <strong>interfere</strong> —
+    like waves. A quantum computer choreographs its qubits so the paths leading to <em>wrong</em> answers
+    cancel each other out, and only right answers survive the measurement. Cancel a wave yourself:</p>
+
+    <div class="toy center">
+      <canvas id="cvWave" width="620" height="150" style="width:100%"></canvas>
+      <div class="noisectl">
+        <label for="phaseSlider"><strong>Shift the second wave:</strong></label><br>
+        <input type="range" id="phaseSlider" min="0" max="180" value="0">
+      </div>
+      <p class="verdict" id="waveVerdict" aria-live="polite"></p>
+      <p class="hint">Two waves (thin lines) and their sum (thick line). At a half-step shift they erase each other. Quantum algorithms do this to <em>possibilities</em>: wrong answers arrive out of phase and vanish.</p>
+    </div>
+
+    <div class="eras">
+      <div class="era">
+        <h3>Analog</h3>
+        <p><em>A quantity IS an amount.</em></p>
+        <p class="up">Smooth, natural, instant</p>
+        <p class="down">Every step and every copy adds error — forever</p>
+      </div>
+      <div class="era">
+        <h3>Digital</h3>
+        <p><em>A quantity is yes/no switches.</em></p>
+        <p class="up">Self-cleaning, perfectly copyable, absurdly fast</p>
+        <p class="down">Checks possibilities mostly one at a time</p>
+      </div>
+      <div class="era">
+        <h3>Quantum</h3>
+        <p><em>A switch holds a blend until you look.</em></p>
+        <p class="up">Wrong answers can cancel themselves out</p>
+        <p class="down">Blends are fragile — a stray nudge destroys them</p>
+      </div>
+    </div>
+
+    <p class="wrap" style="padding:0; margin-top:1.5rem">Notice the shape of the story: analog was rich but fragile;
+    digital gave up richness for reliability and conquered the world; quantum tries to win the richness back
+    <em>without</em> losing Boole — every quantum answer still comes out as good old 0s and 1s.
+    It won't replace your laptop; it's a new floor on the same building.</p>
+  </div>
+</section>
+
+<!-- ============================================================ CLOSE -->
+<section class="center">
+  <div class="wrap">
+    <span class="kicker">The end — which is the beginning</span>
+    <h2>Back to the switch</h2>
+    <div class="toy" id="endToy">
+      <div class="bulbwrap"><div class="bulb"></div></div>
+      <button class="flip bigflip" id="endSwitch" role="switch" aria-checked="false">Flip it once more</button>
+    </div>
+    <p class="big">Same switch as the top of the page. But now you know:</p>
+    <p>a schoolteacher turned truth into arithmetic · a student noticed switches could do that arithmetic ·
+    two levels beat ten because noise is real · doubling values made switches count ·
+    every line of code is these switches asking questions · analog lost because errors pile up ·
+    and quantum is teaching the humble yes/no to hold a maybe.</p>
+    <p class="big"><mark>Yes or no. That's the whole trick. Now you're in on it.</mark></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>Built to be understood by everyone: works with keyboard, screen readers, and reduced-motion settings ·
+  no tracking, no libraries, one file · flip things until it clicks.</p>
+  <p style="margin-top:1rem">You got here by flipping a switch on a wall.
+  <a href="/">Go back to the desk</a> — everything on it is made of what you just learned.</p>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function gauss(sigma){
+  var u = 0, v = 0;
+  while(u === 0) u = Math.random();
+  while(v === 0) v = Math.random();
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v) * sigma;
+}
+function makeSwitch(btn, onChange){
+  function toggle(){
+    var now = btn.getAttribute("aria-checked") !== "true";
+    btn.setAttribute("aria-checked", now ? "true" : "false");
+    onChange(now);
+  }
+  btn.addEventListener("click", toggle);
+  return function(){ return btn.getAttribute("aria-checked") === "true"; };
+}
+
+/* ============================== hero + closing switch */
+function wireBulbToy(toyId, btnId, verdictId){
+  var toy = $(toyId), btn = $(btnId);
+  makeSwitch(btn, function(on){
+    toy.classList.toggle("on", on);
+    if(verdictId) $(verdictId).textContent = on ? "The light is ON." : "The light is OFF.";
+  });
+}
+wireBulbToy("heroToy","heroSwitch","heroVerdict");
+wireBulbToy("endToy","endSwitch",null);
+
+/* ============================== Boole calculator */
+var bA = true, bB = false;
+function tv(x){ return '<span class="'+(x ? "tv-true" : "tv-false")+'">'+(x ? "true" : "false")+"</span>"; }
+function renderBoole(){
+  var a = bA ? 1 : 0, b = bB ? 1 : 0;
+  $("booleA").innerHTML = "A = <span class='st'>" + (bA?"true":"false") + "</span>";
+  $("booleB").innerHTML = "B = <span class='st'>" + (bB?"true":"false") + "</span>";
+  var and = a*b, or = a+b-a*b, not = 1-a;
+  $("booleOut").innerHTML =
+    "<b>A AND B</b> &nbsp;=&nbsp; A × B &nbsp;=&nbsp; "+a+" × "+b+" &nbsp;=&nbsp; "+and+" &nbsp;→&nbsp; "+tv(!!and)+"<br>"+
+    "<b>A OR B</b> &nbsp;&nbsp;=&nbsp; A + B − A×B &nbsp;=&nbsp; "+a+" + "+b+" − "+(a*b)+" &nbsp;=&nbsp; "+or+" &nbsp;→&nbsp; "+tv(!!or)+"<br>"+
+    "<b>NOT A</b> &nbsp;&nbsp;&nbsp;=&nbsp; 1 − A &nbsp;=&nbsp; 1 − "+a+" &nbsp;=&nbsp; "+not+" &nbsp;→&nbsp; "+tv(!!not);
+}
+makeSwitch($("booleA"), function(on){ bA = on; renderBoole(); });
+makeSwitch($("booleB"), function(on){ bB = on; renderBoole(); });
+renderBoole();
+
+/* ============================== circuits + truth table */
+var cA = false, cB = false;
+var visited = {};
+function setLever(id, closed){
+  $(id).setAttribute("transform", closed ? "rotate(0)" : "rotate(-32)");
+}
+function renderCircuits(){
+  $("swA").innerHTML = "A: <span class='st'>" + (cA?"ON":"OFF") + "</span>";
+  $("swB").innerHTML = "B: <span class='st'>" + (cB?"ON":"OFF") + "</span>";
+
+  var and = cA && cB, or = cA || cB, not = !cA;
+
+  setLever("andLevA", cA); setLever("andLevB", cB);
+  $("andWire").classList.toggle("live", and);
+  $("circAnd").classList.toggle("lit", and);
+  $("andVerdict").innerHTML = and
+    ? "Both closed → current flows → <strong>lit</strong>"
+    : "Any gap stops everything → <strong>dark</strong>";
+
+  setLever("orLevA", cA); setLever("orLevB", cB);
+  $("orSrc").classList.toggle("live", or);
+  $("orOut").classList.toggle("live", or);
+  $("orBrA").classList.toggle("live", cA);
+  $("orBrB").classList.toggle("live", cB);
+  $("circOr").classList.toggle("lit", or);
+  $("orVerdict").innerHTML = or
+    ? "Current found a path → <strong>lit</strong>"
+    : "No path at all → <strong>dark</strong>";
+
+  setLever("notLev", !cA);
+  $("notWire").classList.toggle("live", not);
+  $("circNot").classList.toggle("lit", not);
+  $("notVerdict").innerHTML = not
+    ? "A is off, so the spring holds it closed → <strong>lit</strong>"
+    : "A pushes the switch open → <strong>dark</strong>";
+
+  var combo = (cA?"1":"0") + (cB?"1":"0");
+  visited[combo] = true;
+  var rows = document.querySelectorAll("#truthTable tbody tr");
+  var seen = 0;
+  rows.forEach(function(tr){
+    var c = tr.getAttribute("data-combo");
+    tr.classList.toggle("now", c === combo);
+    if(visited[c]){
+      seen++;
+      tr.querySelectorAll("td.unseen").forEach(function(td){ td.classList.remove("unseen"); });
+    }
+  });
+  $("ttMsg").textContent = seen === 4
+    ? "All 4 combinations — you just wrote a truth table. In 1854 that was philosophy; today it's the datasheet of every chip."
+    : "Rows discovered: " + seen + " of 4 — keep flipping!";
+}
+makeSwitch($("swA"), function(on){ cA = on; renderCircuits(); });
+makeSwitch($("swB"), function(on){ cB = on; renderCircuits(); });
+renderCircuits();
+
+/* ============================== noise game */
+var VMAX = 9;
+function buildMeter(el, levels){
+  for(var i = 0; i < levels; i++){
+    var frac = levels === 2 ? (i === 0 ? 0 : 1) : i/(levels-1);
+    var t = document.createElement("div");
+    t.className = "tick";
+    t.style.bottom = "calc(" + (frac*92 + 4) + "% )";
+    el.appendChild(t);
+  }
+  var n = document.createElement("div");
+  n.className = "needle";
+  n.style.bottom = "4%";
+  el.appendChild(n);
+  return n;
+}
+var needle10 = buildMeter($("meter10"), 10);
+var needle2  = buildMeter($("meter2"), 2);
+var st10 = {sent:0, wrong:0}, st2 = {sent:0, wrong:0};
+
+function sigmaVolts(){ return ($("noiseSlider").value/100) * 2.6; }
+function sendOne(levels, stats){
+  var idx = Math.floor(Math.random()*levels);
+  var sentV = levels === 2 ? idx * VMAX : idx * (VMAX/(levels-1));
+  var recvV = sentV + gauss(sigmaVolts());
+  var decoded;
+  if(levels === 2) decoded = recvV > VMAX/2 ? 1 : 0;
+  else decoded = Math.max(0, Math.min(levels-1, Math.round(recvV/(VMAX/(levels-1)))));
+  stats.sent++;
+  var err = decoded !== idx;
+  if(err) stats.wrong++;
+  return {recvV: recvV, err: err};
+}
+function pct(s){ return s.sent ? (100*s.wrong/s.sent).toFixed(1) : "0.0"; }
+function renderStats(){
+  $("stats10").innerHTML = "sent " + st10.sent + " · misread " + st10.wrong +
+    "<br><span class='pct' style='color:" + (st10.wrong ? "var(--bad)" : "var(--good)") + "'>" + pct(st10) + "% wrong</span>";
+  $("stats2").innerHTML = "sent " + st2.sent + " · misread " + st2.wrong +
+    "<br><span class='pct' style='color:" + (st2.wrong ? "var(--bad)" : "var(--good)") + "'>" + pct(st2) + "% wrong</span>";
+}
+function place(needle, meterEl, r){
+  var frac = Math.max(0, Math.min(1, r.recvV/VMAX));
+  needle.style.bottom = (frac*92 + 4) + "%";
+  meterEl.classList.toggle("err", r.err);
+}
+function noiseTick(){
+  place(needle10, $("meter10"), sendOne(10, st10));
+  place(needle2,  $("meter2"),  sendOne(2, st2));
+  renderStats();
+}
+$("noiseSlider").addEventListener("input", function(){
+  var v = +this.value;
+  $("noiseLabel").textContent = v < 25 ? "gentle" : v < 55 ? "noticeable" : v < 80 ? "rough" : "brutal";
+  st10 = {sent:0, wrong:0}; st2 = {sent:0, wrong:0};
+  renderStats();
+});
+$("burstBtn").addEventListener("click", function(){
+  var last10, last2;
+  for(var i = 0; i < 500; i++){
+    last10 = sendOne(10, st10);
+    last2 = sendOne(2, st2);
+  }
+  place(needle10, $("meter10"), last10);
+  place(needle2, $("meter2"), last2);
+  renderStats();
+  $("noiseSummary").innerHTML = "After this burst: the 10-level wire misread <strong>" + pct(st10) +
+    "%</strong> of messages; the 2-level wire misread <strong>" + pct(st2) + "%</strong>. Same wire, same noise — the only difference is how much each level has to mean.";
+});
+renderStats();
+if(!reduceMotion){ setInterval(noiseTick, 420); }
+else { noiseTick(); }
+
+/* ============================== byte counter */
+function makeBits(container, count, values, onChange){
+  var state = [];
+  for(var i = 0; i < count; i++){
+    (function(i){
+      state[i] = false;
+      var col = document.createElement("div");
+      var b = document.createElement("button");
+      b.className = "flip bit";
+      b.setAttribute("role","switch");
+      b.setAttribute("aria-checked","false");
+      b.setAttribute("aria-label","switch worth " + values[i]);
+      b.textContent = "0";
+      b.addEventListener("click", function(){
+        state[i] = !state[i];
+        b.setAttribute("aria-checked", state[i] ? "true" : "false");
+        b.textContent = state[i] ? "1" : "0";
+        onChange();
+      });
+      var lbl = document.createElement("div");
+      lbl.className = "pl";
+      lbl.textContent = values[i];
+      col.appendChild(b); col.appendChild(lbl);
+      container.appendChild(col);
+    })(i);
+  }
+  return {
+    value: function(){
+      var t = 0;
+      for(var i = 0; i < count; i++) if(state[i]) t += values[i];
+      return t;
+    }
+  };
+}
+var byteVals = [128,64,32,16,8,4,2,1];
+var byte = makeBits($("byteRow"), 8, byteVals, function(){
+  $("byteNum").textContent = "= " + byte.value();
+});
+
+/* ============================== adder */
+var nibVals = [8,4,2,1];
+function makeLamps(container, values){
+  var lamps = [];
+  values.forEach(function(v){
+    var col = document.createElement("div");
+    var l = document.createElement("div");
+    l.className = "lamp"; l.textContent = "0";
+    var lbl = document.createElement("div");
+    lbl.className = "pl"; lbl.textContent = v;
+    col.appendChild(l); col.appendChild(lbl);
+    container.appendChild(col);
+    lamps.push(l);
+  });
+  return lamps;
+}
+var outLamps = makeLamps($("addOut"), [16,8,4,2,1]);
+function renderAdd(){
+  var a = adderA.value(), b = adderB.value(), s = a + b;
+  $("addALabel").textContent = a;
+  $("addBLabel").textContent = b;
+  $("addOutLabel").textContent = s;
+  for(var i = 0; i < 5; i++){
+    var bit = (s >> (4-i)) & 1;
+    outLamps[i].textContent = bit;
+    outLamps[i].classList.toggle("on", !!bit);
+  }
+  $("addSentence").textContent = a + " + " + b + " = " + s;
+}
+var adderA = makeBits($("addA"), 4, nibVals, function(){ renderAdd(); });
+var adderB = makeBits($("addB"), 4, nibVals, function(){ renderAdd(); });
+renderAdd();
+
+/* ============================== code: age */
+function renderAge(){
+  var age = +$("ageSlider").value;
+  var ok = age >= 18;
+  $("ageCode").innerHTML =
+    "age = <span class='valuechip' style='background:#33384a;border-color:#8fb0ff'>" + age + "</span>\n\n" +
+    "<span class='kw'>if</span> (age &gt;= 18) {        <span class='dim'>// " + age + " &gt;= 18 → </span>" + tv(ok) + "\n" +
+    "  <span class='" + (ok ? "runline" : "dim") + "'>  openDoor()</span>\n" +
+    "} <span class='kw'>else</span> {\n" +
+    "  <span class='" + (ok ? "dim" : "runline") + "'>  showSign(\"18+\")</span>\n" +
+    "}";
+  $("ageVerdict").innerHTML = ok ? "✅ The door opens." : "🚫 The sign goes up.";
+}
+$("ageSlider").addEventListener("input", renderAge);
+renderAge();
+
+/* ============================== code: rain */
+var raining = true, umbrella = false;
+function renderRain(){
+  $("rainBtn").innerHTML = "🌧 raining: <span class='st'>" + raining + "</span>";
+  $("umbBtn").innerHTML = "☂ umbrella: <span class='st'>" + umbrella + "</span>";
+  var stay = raining && !umbrella;
+  $("rainCode").innerHTML =
+    "raining  = " + tv(raining) + "\n" +
+    "umbrella = " + tv(umbrella) + "\n\n" +
+    "<span class='kw'>if</span> (raining <span class='kw'>&amp;&amp;</span> !umbrella) {   <span class='dim'>// " +
+      tv(raining) + " AND NOT " + tv(umbrella) + " → </span>" + tv(stay) + "\n" +
+    "  <span class='" + (stay ? "runline" : "dim") + "'>  stayInside()</span>\n" +
+    "} <span class='kw'>else</span> {\n" +
+    "  <span class='" + (stay ? "dim" : "runline") + "'>  goOutside()</span>\n" +
+    "}";
+}
+makeSwitch($("rainBtn"), function(on){ raining = on; renderRain(); });
+makeSwitch($("umbBtn"), function(on){ umbrella = on; renderRain(); });
+renderRain();
+
+/* ============================== decimal vs binary hardware */
+var hwN = 0;
+function buildRing(el){
+  var lamps = [];
+  for(var i = 0; i < 10; i++){
+    var l = document.createElement("div");
+    l.className = "lamp"; l.textContent = i;
+    el.appendChild(l);
+    lamps.push(l);
+  }
+  return lamps;
+}
+var ringTens = buildRing($("ringTens"));
+var ringOnes = buildRing($("ringOnes"));
+var binLamps = [];
+(function(){
+  var vals = [64,32,16,8,4,2,1];
+  vals.forEach(function(v){
+    var col = document.createElement("div");
+    var l = document.createElement("div");
+    l.className = "lamp"; l.textContent = "0";
+    var lbl = document.createElement("div"); lbl.className = "pl"; lbl.textContent = v;
+    col.appendChild(l); col.appendChild(lbl);
+    $("binLamps").appendChild(col);
+    binLamps.push(l);
+  });
+})();
+function renderHw(){
+  $("hwNum").textContent = hwN;
+  var tens = Math.floor(hwN/10), ones = hwN % 10;
+  ringTens.forEach(function(l,i){ l.classList.toggle("on", i === tens); });
+  ringOnes.forEach(function(l,i){ l.classList.toggle("on", i === ones); });
+  binLamps.forEach(function(l,i){
+    var bit = (hwN >> (6-i)) & 1;
+    l.textContent = bit;
+    l.classList.toggle("on", !!bit);
+  });
+}
+$("hwPlus1").addEventListener("click", function(){ hwN = (hwN+1) % 100; renderHw(); });
+$("hwPlus10").addEventListener("click", function(){ hwN = (hwN+10) % 100; renderHw(); });
+$("hwReset").addEventListener("click", function(){ hwN = 0; renderHw(); });
+renderHw();
+
+/* ============================== analog dimmer */
+function renderDim(){
+  var v = +$("dimSlider").value;
+  var frac = v/100;
+  $("bulbAnalog").style.opacity = 0.12 + 0.88*frac;
+  var level = Math.round(frac*7);
+  $("bulbDigital").style.opacity = 0.12 + 0.88*(level/7);
+  $("dimBits").textContent = level.toString(2).padStart(3,"0");
+  $("dimAnalogVal").textContent = "right now: " + (frac*100).toFixed(1) + "%";
+}
+$("dimSlider").addEventListener("input", renderDim);
+renderDim();
+
+/* ============================== copy machine */
+var N = 150, LEVELS = 8, LO = -1, HI = 1;
+var STEP = (HI-LO)/(LEVELS-1);
+function original(i){
+  var x = i/N;
+  return 0.55*Math.sin(2*Math.PI*3*x) + 0.3*Math.sin(2*Math.PI*7*x + 1.2);
+}
+var analogArr, digitalArr, gen;
+function quant(v){
+  var lv = Math.max(0, Math.min(LEVELS-1, Math.round((v-LO)/STEP)));
+  return LO + lv*STEP;
+}
+function resetCopies(){
+  analogArr = []; digitalArr = []; gen = 0;
+  for(var i = 0; i < N; i++){
+    analogArr.push(original(i));
+    digitalArr.push(quant(original(i)));
+  }
+  drawCopies();
+}
+function drawWave(cv, arr, stepped){
+  var ctx = cv.getContext("2d");
+  var w = cv.width, h = cv.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--amber").trim() || "#f0a020";
+  ctx.beginPath();
+  for(var i = 0; i < N; i++){
+    var x = i/(N-1)*w;
+    var y = h/2 - arr[i]*(h/2 - 8);
+    if(i === 0) ctx.moveTo(x,y);
+    else if(stepped){ ctx.lineTo(x, h/2 - arr[i-1]*(h/2-8)); ctx.lineTo(x,y); }
+    else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+function drawCopies(){
+  drawWave($("cvAnalog"), analogArr, false);
+  drawWave($("cvDigital"), digitalArr, true);
+  $("genLabel").textContent = gen === 0 ? "Original recording" : "Copy #" + gen;
+}
+function makeCopy(){
+  gen++;
+  for(var i = 0; i < N; i++){
+    analogArr[i] = Math.max(LO, Math.min(HI, analogArr[i] + gauss(0.05)));
+    digitalArr[i] = quant(digitalArr[i] + gauss(0.05));
+  }
+  drawCopies();
+}
+$("copyBtn").addEventListener("click", makeCopy);
+$("copy10Btn").addEventListener("click", function(){ for(var k = 0; k < 10; k++) makeCopy(); });
+$("copyReset").addEventListener("click", resetCopies);
+resetCopies();
+
+/* ============================== qubit */
+var q0 = 0, q1 = 0;
+function qP(){ return (+$("qSlider").value)/100; }
+function renderQ(){
+  var total = q0 + q1;
+  var h0 = total ? Math.max(2, 148*q0/total) : 2;
+  var h1 = total ? Math.max(2, 148*q1/total) : 2;
+  $("qBar0").style.height = h0 + "px";
+  $("qBar1").style.height = h1 + "px";
+  if(total === 0){ $("qVerdict").textContent = "No measurements yet."; return; }
+  $("qVerdict").textContent = "Results: " + q0 + "× NO, " + q1 + "× YES — every answer a plain 0 or 1, but the blend shows in the pattern.";
+}
+$("qSlider").addEventListener("input", function(){
+  $("qLabel").textContent = this.value + "% toward YES";
+  q0 = 0; q1 = 0;
+  renderQ();
+});
+$("qMeasure1").addEventListener("click", function(){
+  if(Math.random() < qP()) q1++; else q0++;
+  renderQ();
+});
+$("qMeasure100").addEventListener("click", function(){
+  for(var i = 0; i < 100; i++){ if(Math.random() < qP()) q1++; else q0++; }
+  renderQ();
+});
+renderQ();
+
+/* ============================== interference */
+function renderWave(){
+  var cv = $("cvWave"), ctx = cv.getContext("2d");
+  var w = cv.width, h = cv.height;
+  var phase = (+$("phaseSlider").value) * Math.PI/180;
+  ctx.clearRect(0,0,w,h);
+  var ink = getComputedStyle(document.body).getPropertyValue("--wire").trim() || "#a8adb8";
+  var amber = getComputedStyle(document.body).getPropertyValue("--amber").trim() || "#f0a020";
+  function plot(fn, color, width){
+    ctx.lineWidth = width; ctx.strokeStyle = color; ctx.beginPath();
+    for(var i = 0; i <= 200; i++){
+      var x = i/200*w;
+      var t = i/200 * Math.PI*6;
+      var y = h/2 - fn(t)*(h/2 - 10);
+      if(i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  plot(function(t){ return 0.45*Math.sin(t); }, ink, 1.5);
+  plot(function(t){ return 0.45*Math.sin(t+phase); }, ink, 1.5);
+  plot(function(t){ return 0.45*Math.sin(t) + 0.45*Math.sin(t+phase); }, amber, 3.5);
+  var deg = +$("phaseSlider").value;
+  $("waveVerdict").textContent =
+    deg >= 172 ? "Gone. Two real waves, adding up to nothing — this is how a quantum computer deletes a wrong answer." :
+    deg <= 8 ? "In step: the waves reinforce — a “right answer” getting louder." :
+    "Partly out of step — the sum is shrinking…";
+}
+$("phaseSlider").addEventListener("input", renderWave);
+renderWave();
+
+})();
+</script>
+</body>
+</html>

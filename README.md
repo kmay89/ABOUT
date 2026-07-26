@@ -34,11 +34,36 @@ paused mid-Italian Game).
   mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
   `chess/` (see its README there); update it by copying that directory
   over this one.
+- `logic/` — *Yes or No*: Boolean logic explained from nothing, in
+  plain language and entirely by hand. Flip two switches and watch a
+  truth table fill itself in, race a ten-level wire against a two-level
+  one under the same noise, add two numbers with AND and OR gates, wear
+  out an analog tape while its digital twin stays perfect, and measure
+  a qubit until the pattern shows. Reached from the desk by the light
+  switch on the wall (below), or directly at
+  [kmay89.com/logic](https://kmay89.com/logic/). A mirror of
+  [kmay89/logic](https://github.com/kmay89/logic); update it by copying
+  that repo's `index.html` over this one and re-adding the `<head>`
+  block and the back-to-the-desk links.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify.toml` — hosting config: canonical-host redirect and security
   headers. Netlify serves the repo as-is; every pull request gets a
   deploy preview automatically.
+
+## The light switch
+
+There is a switch screwed to the wall behind the desk, right of the
+window, at about the height a light switch actually lives. It is the
+only thing in the room that isn't a world to pick up — it's a thing to
+throw. Flipping it turns the room off for real: the lamp dies, the desk
+goes dark, and the wall — which has had nothing to say all this time —
+starts glowing. Follow the writing and you land in `logic/`, which is
+the joke: every object on that desk, and the screen you're reading it
+on, is made of the one question that switch can ask.
+
+Escape turns the lights back on, for anyone who'd rather not hunt for
+the switch in the dark.
 
 ## How it's made
 
