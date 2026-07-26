@@ -163,6 +163,28 @@
     0%,100%{filter:drop-shadow(0 0 5px var(--a)) drop-shadow(0 0 14px var(--a))}
     50%{filter:drop-shadow(0 0 12px var(--a)) drop-shadow(0 0 30px var(--a))}
   }
+
+  /* ---------- the light switch on the wall, and what the dark says ----------
+     A switch screwed to a wall shouldn't hop when you point at it, so this one
+     opts out of the lift and answers with its own toggle instead. */
+  .iso-obj.wallsw:hover > *,.iso-obj.wallsw:focus-visible > *{transform:none}
+  #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
+  body.lights-out #swLever{transform:translate(0,9px)}
+  /* the glow-in-the-dark plate ring — the whole point of buying those */
+  #swGlow{opacity:0;transition:opacity 1.1s ease .2s}
+  body.lights-out #swGlow{opacity:1}
+  /* the room losing its lamp */
+  #darkness{opacity:0;transition:opacity .8s ease;pointer-events:none}
+  body.lights-out #darkness{opacity:1}
+  #eggWall{opacity:0;transition:opacity 1.1s ease .55s;pointer-events:none;text-decoration:none}
+  body.lights-out #eggWall{opacity:1;pointer-events:auto}
+  #eggWall .eg1{fill:#ffd166}
+  #eggWall .eg2{fill:#b98f3e}
+  #eggWall:hover .eg1,#eggWall:focus-visible .eg1{fill:#fff3cd}
+  #eggWall:hover .eg2,#eggWall:focus-visible .eg2{fill:#ffd166}
+  .scene,.intro,.legend .found-count{transition:background .8s ease,opacity .8s ease}
+  body.lights-out .scene{background:linear-gradient(#050403,#0a0705 45%)}
+  body.lights-out .intro{opacity:.5}
   .tip{
     position:absolute;z-index:6;
     transform:translate(-50%,-100%);
@@ -674,6 +696,7 @@
     #eraBtn{animation:none}
     #iso.deg .era-old > *{animation:none}
     .pool-warm,.pool-cool{transition:none}
+    #swLever,#swGlow,#darkness,#eggWall,.scene,.intro{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     html{scroll-behavior:auto}
   }
@@ -1516,6 +1539,44 @@
     '<g stroke="#8a3a52" stroke-width="1.5" opacity=".6" fill="none"><path d="M5 11 h22"/><path d="M5 17 h16"/><path d="M5 23 h19"/></g>',
     " rotate(-7)") + "</g>");
 
+  /* ================================================================
+     THE LIGHT SWITCH — wall A, at the height a light switch actually
+     lives (the desk is 180 units tall, so z 120 is about waist-high on
+     the wall behind it). Everything else here is a world you pick up;
+     this is the one thing you throw. It turns the room off for real,
+     which is the only condition under which the wall has anything to
+     say. Drawn dead last, after the darkness, so it stays findable
+     when nothing else is.
+     ================================================================ */
+  S.push('<g id="darkness" aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
+
+  /* what the dark writes on the wall, in the plane of the wall itself */
+  S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
+    gLeft(284,-30,184,
+      '<ellipse cx="74" cy="18" rx="98" ry="30" fill="#ffd166" opacity=".06" filter="url(#soft)"/>' +
+      txt(0,15,"yes … or no",17,"#ffd166",'class="eg1" ' + MONO) +
+      txt(2,36,"ALL OF IT IS MADE OF THIS →",7.5,"#b98f3e",'class="eg2" ' + MONO + ' letter-spacing=".6"') +
+      '<rect x="-6" y="-2" width="164" height="46" fill="transparent"/>') +  // thin glyphs, honest hit area
+    "</a>");
+
+  var wallsw =
+    // the glow-in-the-dark plate you only ever see once the lamp is off
+    '<g id="swGlow">' +
+      '<rect x="-3.5" y="-3.5" width="25" height="37" rx="5" fill="none" stroke="#6ff0ad" ' +
+        'stroke-width="4" opacity=".45" filter="url(#soft)"/>' +
+      '<rect x="-2" y="-2" width="22" height="34" rx="3.5" fill="none" stroke="#9dfbcd" ' +
+        'stroke-width="1.2" opacity=".8"/></g>' +
+    '<rect x="0" y="0" width="18" height="30" rx="2" fill="#d6c8ad" stroke="rgba(26,14,6,.55)" stroke-width="1"/>' +
+    '<rect x="1.7" y="1.7" width="14.6" height="26.6" rx="1.4" fill="none" stroke="rgba(26,14,6,.16)" stroke-width=".8"/>' +
+    '<circle cx="9" cy="4.3" r=".95" fill="rgba(26,14,6,.5)"/>' +
+    '<circle cx="9" cy="25.7" r=".95" fill="rgba(26,14,6,.5)"/>' +
+    '<rect x="5.7" y="8" width="6.6" height="14" rx="1.5" fill="#372b1c"/>' +   // the slot
+    '<g id="swLever">' +                                                        // the toggle, up = on
+      '<path d="M6.4 8.7 h5.2 l.9 4.4 h-7 z" fill="#f4ecd8" stroke="rgba(26,14,6,.5)" stroke-width=".7" stroke-linejoin="round"/>' +
+    "</g>" +
+    '<rect x="-9" y="-9" width="36" height="48" fill="transparent"/>';          // a hit area worth aiming at
+  S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
+
   document.getElementById("iso").innerHTML = S.join("");
 
   /* ================================================================
@@ -1690,6 +1751,11 @@
   }
   var SOUNDS = {
     hover: function(){ tone(1900, {type:"sine", dur:0.045, g:0.025}); },
+    "switch": function(){ // the flat plastic clack of a wall switch, and the room going quiet
+      noise({filter:"highpass", freq:2800, dur:0.014, g:0.18});
+      tone(430, {type:"square", at:0.004, dur:0.04, g:0.07, end:170});
+      tone(140, {type:"sine", at:0.02, dur:0.10, g:0.05, end:80});
+    },
     cube: function(){ // plastic ratchet
       noise({filter:"highpass", freq:2400, dur:0.02, g:0.10});
       tone(760, {type:"triangle", at:0.02, dur:0.05, g:0.06});
@@ -1786,7 +1852,7 @@
     board:[10,40,10,40,20], toy:[12,30,12,30,12], hive:[70],
     series:[10,25,10], scqcs:[25,60,25], vinyl:[8,90,8,90,8], cam:[18],
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
-    utap:[20,40,20], web:[10,20,10]
+    utap:[20,40,20], web:[10,20,10], "switch":[22]
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }
@@ -1808,7 +1874,7 @@
   var legendBtns = {};
   document.querySelectorAll(".legend button").forEach(function(b){ legendBtns[b.dataset.id] = b; });
   var PILL_IDS = Object.keys(legendBtns);
-  var SECRET_IDS = ["cube","web"]; // the playable cube and the hidden browser
+  var SECRET_IDS = ["cube","web","switch"]; // the playable cube, the hidden browser, the wall switch
   function updateFoundUI(){
     PILL_IDS.forEach(function(id){
       legendBtns[id].classList.toggle("found", !!foundSet[id]);
@@ -2973,6 +3039,44 @@
     }
   };
 
+  /* ---------------- the wall switch: the room's own lamp ----------------
+     No dialog, no dossier — it just does what a light switch does. The
+     reward for flipping it is that the room is dark enough to read the
+     wall, which has been waiting there the whole time. */
+  var lightsOut = false;
+  function flipRoomLight(force){
+    if (eraBusy) return;                      // the desk sleeps during the era ride
+    var next = force === undefined ? !lightsOut : force;
+    if (next === lightsOut) return;
+    lightsOut = next;
+    document.body.classList.toggle("lights-out", lightsOut);
+    var el = document.querySelector('.iso-obj[data-id="switch"]');
+    if (el) el.setAttribute("aria-checked", lightsOut ? "true" : "false");
+    // the writing on the wall is only a tab stop while it's legible
+    var egg = document.getElementById("eggWall");
+    if (egg) egg.setAttribute("tabindex", lightsOut ? "0" : "-1");
+    if (!lightsOut) return;
+    markFound("switch");
+    // on a narrow screen the wall lives off the right edge — bring it over,
+    // so nobody flips the lights and then can't find what the dark said
+    if (egg && wrap && wrap.scrollWidth > wrap.clientWidth){
+      var r = egg.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+      wrap.scrollTo({
+        left: Math.max(0, Math.min(wrap.scrollWidth - wrap.clientWidth,
+          wrap.scrollLeft + (r.left + r.width / 2) - (w.left + w.width / 2))),
+        behavior: REDUCED ? "auto" : "smooth"
+      });
+    }
+  }
+  /* it reads as a switch to a screen reader, not as a thing that opens a dialog */
+  (function(){
+    var el = document.querySelector('.iso-obj[data-id="switch"]');
+    if (!el) return;
+    el.setAttribute("role", "switch");
+    el.setAttribute("aria-checked", "false");
+    el.removeAttribute("aria-haspopup");
+  })();
+
   function activeModal(){
     if (!dossier.hidden) return dossier;
     if (!browser.hidden) return browser;
@@ -2999,7 +3103,11 @@
   });
   document.addEventListener("keydown", function(e){
     var m = activeModal();
-    if (!m) return;
+    if (!m){
+      // Escape is also the way back to the light, for anyone who'd rather not hunt for the switch
+      if (e.key === "Escape" && lightsOut){ SOUNDS["switch"](); flipRoomLight(false); }
+      return;
+    }
     if (e.key === "Escape"){ closeModal(); return; }
     if (e.key === "Tab"){ // keep focus inside the open dialog
       var f = m.querySelectorAll("button, a[href], input");
@@ -3041,10 +3149,15 @@
       else if (id === "cube") openCubeGame();
       else if (id === "mandel") openMandel();
       else if (id === "prism") openLight();
+      else if (id === "switch") flipRoomLight();
       else openWorld(id, accent);
     });
     btn.addEventListener("keydown", function(e){
-      if (e.key === "Enter" || e.key === " "){ e.preventDefault(); btn.click(); }
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        /* SVG elements have no .click() of their own, so send the real event */
+        btn.dispatchEvent(new MouseEvent("click", {bubbles:true, cancelable:true}));
+      }
     });
   });
 
