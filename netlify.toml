@@ -2,6 +2,15 @@
 [build]
   publish = "."
 
+# The one piece of server-side code on the site: the room mailbox, an
+# ephemeral WebRTC-handshake pigeonhole that gives every game here the same
+# four-letter join code (and the list of rooms waiting for someone). Served
+# same-origin at /api/room. It stores nothing but handshakes, and every game
+# keeps working with it unreachable — see netlify/functions/room.js.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Canonical host: send www to the apex domain
 [[redirects]]
   from = "https://www.kmay89.com/*"

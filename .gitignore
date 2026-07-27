@@ -1,0 +1,4 @@
+# playwright-core is installed on demand for tools/join-check.js and for the
+# per-game browser checks; it is never part of any shipped page.
+node_modules/
+package-lock.json

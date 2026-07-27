@@ -85,9 +85,49 @@ the Game Boy.
   block and the back-to-the-desk links.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
-- `netlify.toml` — hosting config: canonical-host redirect and security
-  headers. Netlify serves the repo as-is; every pull request gets a
-  deploy preview automatically.
+- `netlify/functions/room.js` — the room mailbox, and the only
+  server-side code on the site (see **One front door**, below).
+- `tools/` — dev-only checks for the shared join flow, never shipped:
+  `room-check.js` runs the real mailbox and the real client against an
+  in-memory store; `join-check.js` opens two browsers, links them with
+  four letters, then cuts the wire and watches them put it back;
+  `room-parity.js` proves every game's copy of the door is identical.
+- `netlify.toml` — hosting config: canonical-host redirect, security
+  headers, and the one functions directory. Netlify serves the repo
+  as-is; every pull request gets a deploy preview automatically.
+
+## One front door
+
+Every game here that two people can play together is joined the same
+way: whoever starts it reads out four letters, and everybody else types
+them. Same words, same screen, same four letters — the chess room, the
+domino table, and HIVEMIND next door.
+
+Behind it is `netlify/functions/room.js`, a pigeonhole that holds a
+WebRTC handshake under a code for a few minutes and then forgets it. It
+exists for one reason: a handshake is about 600 characters and can
+never be read across a table, while four letters can. **Nothing about
+any game passes through it** — no boards, no bones, no scores, no
+accounts — and the moment two devices have shaken hands they talk
+directly to each other and the mailbox is out of the picture.
+
+Three things follow from that, and they are the point:
+
+- **It is optional.** Offline, on `file://`, or on the GitHub Pages
+  mirror, each game falls back by itself to the handshake it always had
+  — a code you scan or paste — and says so plainly.
+- **The link is watched.** A heartbeat rides the same channel the game
+  does, so a chip on screen can show the round trip and tell the
+  difference between somebody thinking and somebody in a tunnel.
+- **It heals.** When a link dies, both sides find each other again
+  under *the same four letters* — the host holds a key that reclaims
+  them — and the game re-states itself. A chair keeps its seat, a board
+  keeps its position and clocks, and nobody has to read out a new code,
+  because there isn't one. The code and your seat are written down, so
+  a phone that ran out of battery comes back to a **Rejoin** button.
+
+`node tools/room-check.js` proves the mailbox and the client without a
+browser; `node tools/join-check.js` proves the whole thing with two.
 
 ## The light switch
 

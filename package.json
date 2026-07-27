@@ -1,0 +1,14 @@
+{
+  "name": "kmay89-devtools",
+  "private": true,
+  "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) — never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
+  "scripts": {
+    "check": "npm run check:parity && npm run check:room",
+    "check:parity": "node tools/room-parity.js",
+    "check:room": "node tools/room-check.js",
+    "check:join": "node tools/join-check.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
