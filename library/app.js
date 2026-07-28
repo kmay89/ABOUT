@@ -248,6 +248,7 @@ function step(dt) {
     G.pos[2] += wz * sp * dt;
     G.pos[1] += (input.jump ? sp : (keys.ShiftLeft ? -sp : 0)) * dt;
     G.vel[1] = 0;
+    clampToWorld();
     return;
   }
 
@@ -287,6 +288,22 @@ function step(dt) {
     G.pos[0] = sp.x + 0.5; G.pos[1] = sp.y; G.pos[2] = sp.z + 0.5;
     G.vel = [0, 0, 0];
   }
+  clampToWorld();
+}
+
+/* the world has edges, and the player does not get to leave them. The
+   floor ensureFloor lays reaches 8 blocks past the world's bounds;
+   holding the player 6 inside that means there is *always* ground
+   underfoot — walking off the edge of a loaded region, the way a fall
+   into the void usually starts, simply stops at an invisible wall. */
+function clampToWorld() {
+  var w = G.world;
+  if (!w || !isFinite(w.min.x)) return;
+  var pad = 6;
+  if (G.pos[0] < w.min.x - pad) G.pos[0] = w.min.x - pad;
+  if (G.pos[0] > w.max.x + 1 + pad) G.pos[0] = w.max.x + 1 + pad;
+  if (G.pos[2] < w.min.z - pad) G.pos[2] = w.min.z - pad;
+  if (G.pos[2] > w.max.z + 1 + pad) G.pos[2] = w.max.z + 1 + pad;
 }
 
 /* ---------- meshing ---------- */
@@ -412,26 +429,51 @@ function placeSpawn(world) {
 }
 
 /* ---------- the base world, preloaded ----------
-   The room ships a region file of its own, fetched alongside the page,
-   so a real world is already loading while the boot screen is still
-   up — nobody has to go and find a save folder first. If the fetch
-   fails (offline before the first visit finished, or the file is
-   gone), the tribute build quietly stands in as the base instead. */
-var BASE = { url: "world/r.5.4.mca", world: null, note: "", job: null };
+   The room ships its world in `world/`: every region file in that
+   folder, listed by `world/index.json` (written at deploy time, so
+   dropping a new .mca into the folder is the whole job of adding it).
+   All of it is fetched behind the boot screen and imported into one
+   world — nobody has to go and find a save folder first. If nothing
+   can be fetched (offline before the first visit finished, or the
+   folder is empty), the tribute build quietly stands in as the base. */
+var BASE = { dir: "world/", world: null, note: "", job: null };
 function preloadBase() {
   if (BASE.job) return BASE.job;
-  BASE.job = fetch(BASE.url).then(function (res) {
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    return res.arrayBuffer();
-  }).then(function (buf) {
-    var w = new WorldLib.World({ name: "Your world" });
-    return WorldLib.importRegion(w, new Uint8Array(buf), { maxChunks: PERF.chunks }).then(function (r) {
-      if (w.isEmpty()) throw new Error("region held no blocks");
-      WorldLib.ensureFloor(w);
-      placeSpawn(w);
-      BASE.world = w;
-      BASE.note = " · " + r.chunks + " chunks, " + r.blocks.toLocaleString() + " blocks";
-      return w;
+  BASE.job = fetch(BASE.dir + "index.json").then(function (res) {
+    if (!res.ok) throw new Error("no index");
+    return res.json();
+  }).catch(function () {
+    return ["r.5.4.mca"];            /* no index yet: the file we know shipped */
+  }).then(function (names) {
+    if (!names || !names.length) throw new Error("the world folder is empty");
+    var world = new WorldLib.World({ name: "Your world" });
+    var chunks = 0, blocks = 0;
+    /* one budget across every file, so eight regions on a phone cannot
+       ask for eight regions' worth of meshing */
+    var budget = PERF.chunks * 2;
+    var chain = Promise.resolve();
+    names.slice(0, 8).forEach(function (nm) {
+      chain = chain.then(function () {
+        if (budget <= 0 || !Anvil.regionName(String(nm))) return;
+        return fetch(BASE.dir + nm).then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.arrayBuffer();
+        }).then(function (buf) {
+          return WorldLib.importRegion(world, new Uint8Array(buf), {
+            maxChunks: Math.min(PERF.chunks, budget)
+          });
+        }).then(function (r) {
+          budget -= r.chunks; chunks += r.chunks; blocks += r.blocks;
+        }).catch(function () { /* one bad file must not sink the boot */ });
+      });
+    });
+    return chain.then(function () {
+      if (world.isEmpty()) throw new Error("nothing to stand in");
+      WorldLib.ensureFloor(world);
+      placeSpawn(world);
+      BASE.world = world;
+      BASE.note = " · " + chunks + " chunks, " + blocks.toLocaleString() + " blocks";
+      return world;
     });
   }).catch(function () {
     BASE.world = null;
@@ -588,9 +630,17 @@ window.addEventListener("gamepaddisconnected", function () { G.pad = false; });
   }
   G.gfx = g;
   resize();
-  /* start fetching the base world now, behind the boot screen, so
-     stepping inside is instant by the time anyone presses the button */
-  preloadBase();
+  /* fetch the base world now, behind the boot screen — and once it is
+     ready, walk straight in. Nobody should have to press anything to
+     be standing somewhere: the buttons are for going elsewhere, and
+     pressing one first (a load, the about page) waives the auto-entry. */
+  preloadBase().then(function (w) {
+    var b = $("boot");
+    if (G.running || b.classList.contains("gone")) return;
+    boot();
+    if (w) play(w, "Your world", BASE.note);
+    else startTribute();
+  });
   /* the ring on the case comes to rest once there is something to draw */
   $("ring").classList.remove("boot");
 })();
