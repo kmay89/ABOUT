@@ -262,9 +262,48 @@ function importRegion(world, bytes, opts) {
   });
 }
 
+/* ---------- a floor under everything ----------
+   An imported region often stops at the edge of what was generated:
+   whole columns of it — and whole absent chunks between the loaded
+   ones — can be pure void, and a player who steps over one falls out
+   of the world. This lays one plane of stone under the world's whole
+   footprint, a little past its edges, one block below the lowest thing
+   in it, so every fall ends on something. The greedy mesher folds the
+   plane into one quad per section, so it is close to free to draw.
+
+   The one thing it must not do is obey two regions loaded a kilometre
+   apart, whose shared bounding box is a continent: past a sane area
+   the plane falls back to covering only the chunk columns that exist,
+   and the void between the regions stays void — falling into it ends
+   at the spawn point, not at the bottom of an infinite drop. */
+function ensureFloor(w, mat) {
+  if (w.isEmpty()) return 0;
+  var m = mat || Blocks.BY_KEY.stone.id;
+  var y = w.min.y - 1;
+  var pad = 8;
+  var x0 = w.min.x - pad, x1 = w.max.x + pad, z0 = w.min.z - pad, z1 = w.max.z + pad;
+  var laid = 0, x, z;
+  if ((x1 - x0 + 1) * (z1 - z0 + 1) <= 2000000) {
+    for (z = z0; z <= z1; z++)
+      for (x = x0; x <= x1; x++) { w.set(x, y, z, m); laid++; }
+    return laid;
+  }
+  var cols = new Map();
+  w.sections.forEach(function (v, k) {
+    var p = k.split(",");
+    cols.set(p[0] + "," + p[2], [+p[0], +p[2]]);
+  });
+  cols.forEach(function (c) {
+    var bx = c[0] * S, bz = c[1] * S;
+    for (z = 0; z < S; z++)
+      for (x = 0; x < S; x++) { w.set(bx + x, y, bz + z, m); laid++; }
+  });
+  return laid;
+}
+
 var W = {
   S: S, World: World, buildTribute: buildTribute, importRegion: importRegion,
-  fill: fill, shell: shell
+  ensureFloor: ensureFloor, fill: fill, shell: shell
 };
 if (typeof module !== "undefined" && module.exports) module.exports = W;
 else root.WorldLib = W;

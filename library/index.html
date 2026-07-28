@@ -208,9 +208,9 @@
 <div id="boot">
   <div class="mark"><span>📚</span></div>
   <h1>The Reading Room</h1>
-  <p class="sub">A block world, rendered by an engine written from scratch — walk a library about the freedom to read, or bring a world of your own.</p>
+  <p class="sub">A block world, rendered by an engine written from scratch — a world is already loading behind this screen, and you can bring one of your own.</p>
   <div class="row">
-    <button class="btn" id="goWalk" style="flex:2"><span class="pad a">A</span>Walk the library</button>
+    <button class="btn" id="goWalk" style="flex:2"><span class="pad a">A</span>Step inside</button>
     <button class="btn" id="goLoad"><span class="pad x">X</span>Load a world</button>
   </div>
   <div class="row"><button class="btn" id="goAbout">What is this?</button></div>
@@ -222,12 +222,15 @@
   <h2>The console</h2>
   <p class="lead" id="menuState"></p>
   <div class="row">
-    <button class="btn" id="mWalk">Back to the library</button>
+    <button class="btn" id="mBase">Back to the world</button>
     <button class="btn" id="mWorld">Load a world</button>
   </div>
   <div class="row">
-    <button class="btn" id="mAbout">About this room</button>
+    <button class="btn" id="mWalk">The tribute library</button>
     <button class="btn" id="mControls">Controls</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mAbout">About this room</button>
   </div>
   <p class="note" id="menuNote"></p>
 </div></div>
@@ -235,7 +238,7 @@
 <div class="ov hide" id="ovWorld"><div class="sheet">
   <button class="close" data-close="ovWorld">✕</button>
   <h2>Load a world</h2>
-  <p class="lead">This room reads real Minecraft save data. Nothing is uploaded anywhere — the file is opened in your browser and stays there.</p>
+  <p class="lead">This room reads real Minecraft save data. One region file ships with the page and loads on its own — anything you drop here replaces it. Nothing is uploaded anywhere: the file is opened in your browser and stays there.</p>
   <div id="drop">
     <b>Drop region files here</b>
     the <code>region/</code> folder of a save, or any <code>r.0.0.mca</code>

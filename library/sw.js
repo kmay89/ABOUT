@@ -4,14 +4,17 @@
    a page, none of which change between releases. Bump VERSION on every
    release or installed players keep the old one for ever.
 
-   Worlds are never cached. A region file is opened from your disk and
-   never leaves the tab; there is nothing here that would want to keep
-   a copy of it. */
-var VERSION = "reading-room-v1";
+   Worlds *you* load are never cached: a region file opened from your
+   disk never leaves the tab, and there is nothing here that would want
+   to keep a copy of it. The one exception is the room's own preloaded
+   world, which ships with the page like any other asset and is cached
+   with the shell so the room still has ground to stand on offline. */
+var VERSION = "reading-room-v2";
 var SHELL = [
   "./", "./index.html",
   "./nbt.js", "./anvil.js", "./blocks.js", "./mesher.js",
   "./world.js", "./gfx.js", "./app.js",
+  "./world/r.5.4.mca",
   "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",
   "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"

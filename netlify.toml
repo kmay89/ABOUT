@@ -34,6 +34,13 @@
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
+# The reading room's preloaded world: raw region-file bytes that only
+# change when the file is replaced wholesale, so let them cache
+[[headers]]
+  for = "/library/world/*.mca"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
 # The chess room's service worker must never be cached long, or installed
 # players would stop hearing about new versions
 [[headers]]
@@ -44,5 +51,11 @@
 # Same for the sudoku room's
 [[headers]]
   for = "/sudoku/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# And the reading room's
+[[headers]]
+  for = "/library/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"

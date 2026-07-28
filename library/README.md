@@ -57,6 +57,10 @@ world.js      a sparse store of 16³ sections, the tribute build, and
 gfx.js        raw WebGL 1: one shader pair, one procedurally painted
               atlas, one buffer per section
 sw.js         offline shell (bump VERSION on release)
+world/        the preloaded base world: a raw region file fetched at
+              boot so there is somewhere real to stand before anyone
+              has found a save folder — replace the .mca (and the
+              filename in app.js and sw.js) to change the base
 manifest.webmanifest, icons/
 tools/        dev-only, never shipped — see below
 ```
@@ -140,6 +144,12 @@ installs is ever shipped — the room itself has no dependencies at all.
 …and bump `VERSION` in `sw.js` so installed visitors hear about it.
 
 ## Loading a real world
+
+One region file ships in `world/` and loads on its own at boot, so the
+room opens onto real save data with no steps at all. A stone floor is
+laid one block beneath the lowest thing in every loaded chunk column
+(`ensureFloor` in `world.js`), because an imported region often has
+columns of pure void in it and a fall should end on something.
 
 Any Minecraft Java save has a `region/` folder full of `r.<x>.<z>.mca`
 files. Open **Load a world** and drop them in — or the whole folder.

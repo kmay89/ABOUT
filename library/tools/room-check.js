@@ -130,9 +130,32 @@ var VARIED = "(() => { const c = document.getElementById('view');" +
   ok("every module is on the page", mods === true);
   ok("WebGL came up", await page.evaluate("!!(window.__rr && window.__rr().G.gfx && window.__rr().G.gfx.ok)"));
 
-  /* ---------- the tribute build ---------- */
+  /* ---------- the preloaded base world ----------
+     The page fetched its own region file behind the boot screen; the
+     front door should open onto it with no file-picking at all. */
   await page.click("#goWalk");
   await page.waitForFunction("window.__rr().G.running === true", null, { timeout: 30000 });
+  await page.waitForTimeout(700);
+
+  var bw = await page.evaluate("(()=>{const g=window.__rr().G;return {title:g.title,blocks:g.world.count,minY:g.world.min.y,pos:g.pos.slice()};})()");
+  ok("the base world preloads itself", bw.title === "Your world", "title was " + JSON.stringify(bw.title));
+  ok("and holds the shipped region", bw.blocks > 50000, bw.blocks + " blocks");
+  ok("with the player standing on it, not falling through",
+     bw.pos[1] >= bw.minY, "y=" + bw.pos[1].toFixed(1) + " against floor " + bw.minY);
+
+  /* drop the player from height: terminal velocity and sub-block
+     collision must land this on the floor, not sample past it */
+  await page.evaluate("(()=>{const g=window.__rr().G; g.pos[1]=80; g.vel=[0,0,0];})()");
+  await page.waitForTimeout(3500);
+  var fell = await page.evaluate("(()=>{const g=window.__rr().G;return {y:g.pos[1],minY:g.world.min.y,ground:g.onGround};})()");
+  ok("a long fall ends on the floor", fell.ground === true && fell.y >= fell.minY,
+     "y=" + fell.y.toFixed(1) + " onGround=" + fell.ground);
+
+  /* ---------- the tribute build ---------- */
+  await page.click("#btnMenu");
+  await page.waitForTimeout(200);
+  await page.click("#mWalk");
+  await page.waitForFunction("window.__rr().G.title === 'The Reading Room'", null, { timeout: 30000 });
   await page.waitForTimeout(700);
 
   var st = await page.evaluate("(()=>{const g=window.__rr().G;return {blocks:g.world.count,tris:g.tris,pos:g.pos.map(Math.round),title:g.title};})()");

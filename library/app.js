@@ -46,7 +46,32 @@ var G = {
   fly: false, meshed: 0, tris: 0, fps: 0,
   title: "", note: "", pad: false
 };
-var EYE = 1.62, SPEED = 5.2, SPRINT = 9.4, GRAV = 22, JUMP = 7.6;
+var EYE = 1.62, SPEED = 5.2, SPRINT = 9.4, GRAV = 22, JUMP = 7.6, FALL = 38;
+
+/* ---------- what this device can carry ----------
+   Read once at boot: cores and memory where the browser will say
+   (Safari says nothing about memory, but a big-screened touch device
+   running it is a modern iPad and has the GPU for the high tier), and
+   the tier picks the render resolution cap, the draw distance, and how
+   many chunks an import takes on. The guess only has to be close: a
+   frame-rate governor in the loop trims resolution if a big world
+   proves it wrong, and restores it when the world turns out light. */
+var PERF = (function () {
+  var cores = navigator.hardwareConcurrency || 4;
+  var mem = navigator.deviceMemory;              /* undefined on Safari */
+  var coarse = matchMedia("(pointer: coarse)").matches;
+  var bigTouch = coarse && Math.min(screen.width, screen.height) >= 744;
+  var tier = 1;
+  if (cores >= 8 || bigTouch) tier = 2;
+  if ((mem && mem <= 2) || cores <= 2) tier = 0;
+  return {
+    tier: tier,
+    dprCap: [1.25, 1.75, 2][tier],
+    far: [170, 240, 300][tier],
+    chunks: [140, 260, 460][tier]
+  };
+})();
+var renderScale = 1, tunedAt = 0;
 
 /* ---------- input, reduced to four numbers ---------- */
 var keys = Object.create(null);
@@ -232,17 +257,36 @@ function step(dt) {
   if (!hits(G.pos[0], G.pos[1], nz)) G.pos[2] = nz;
 
   G.vel[1] -= GRAV * dt;
+  /* terminal velocity, and the fall taken in sub-block steps. Without
+     both, a long fall crosses several blocks in one frame and the
+     collision check never samples the one-block floor it passed — the
+     player falls *through* solid ground, which reads as a broken world
+     rather than the sampling artefact it is. */
+  if (G.vel[1] < -FALL) G.vel[1] = -FALL;
   if (input.jump && G.onGround) { G.vel[1] = JUMP; G.onGround = false; }
-  var ny = G.pos[1] + G.vel[1] * dt;
-  if (hits(G.pos[0], ny, G.pos[2])) {
-    if (G.vel[1] < 0) { G.onGround = true; G.pos[1] = Math.floor(ny) + 1.0; }
-    G.vel[1] = 0;
-  } else {
-    G.pos[1] = ny;
-    G.onGround = false;
+  var dy = G.vel[1] * dt;
+  while (dy !== 0) {
+    var d = dy > 0.45 ? 0.45 : (dy < -0.45 ? -0.45 : dy);
+    dy -= d;
+    var ny = G.pos[1] + d;
+    if (hits(G.pos[0], ny, G.pos[2])) {
+      if (d < 0) { G.onGround = true; G.pos[1] = Math.floor(ny) + 1.0; }
+      G.vel[1] = 0;
+      dy = 0;
+    } else {
+      G.pos[1] = ny;
+      G.onGround = false;
+    }
   }
-  /* a floor to fall to, if a world is loaded with nothing under you */
-  if (G.pos[1] < -80) { G.pos[1] = 40; G.vel[1] = 0; }
+  /* fell out of the world anyway: back to the spawn point. Not to a
+     fixed height over the same spot — over a hole that is an endless
+     loop of falling, which is exactly the loop it exists to break. */
+  var floorY = (G.world && isFinite(G.world.min.y)) ? G.world.min.y - 20 : -80;
+  if (G.pos[1] < floorY) {
+    var sp = (G.world && G.world.spawn) || { x: 0, y: 40, z: 0 };
+    G.pos[0] = sp.x + 0.5; G.pos[1] = sp.y; G.pos[2] = sp.z + 0.5;
+    G.vel = [0, 0, 0];
+  }
 }
 
 /* ---------- meshing ---------- */
@@ -289,11 +333,32 @@ function frame(now) {
   var eye = [G.pos[0], G.pos[1] + EYE, G.pos[2]];
   /* the same forward vector the legs use — see the note above step() */
   var at = [eye[0] + Math.sin(G.yaw) * cp, eye[1] + sp2, eye[2] + Math.cos(G.yaw) * cp];
-  var r = G.gfx.draw({ eye: eye, at: at }, { sky: [0.55, 0.68, 0.86], far: 240 });
+  var r = G.gfx.draw({ eye: eye, at: at }, { sky: [0.55, 0.68, 0.86], far: PERF.far });
   G.tris = r.tris;
 
   frames++;
-  if (now - fpsAt > 500) { G.fps = Math.round(frames * 1000 / (now - fpsAt)); frames = 0; fpsAt = now; syncHUD(); }
+  if (now - fpsAt > 500) {
+    G.fps = Math.round(frames * 1000 / (now - fpsAt));
+    frames = 0; fpsAt = now;
+    govern(now);
+    syncHUD();
+  }
+}
+
+/* the governor: if the world is heavier than the device tier guessed,
+   give up resolution rather than smoothness — and give it back when
+   the frames return. Adjusted at most every two seconds so it settles
+   instead of oscillating. */
+function govern(now) {
+  if (!G.running || now - tunedAt < 2000) return;
+  tunedAt = now;
+  if (G.fps && G.fps < 46 && renderScale > 0.6) {
+    renderScale = Math.max(0.6, renderScale - 0.15);
+    resize();
+  } else if (G.fps >= 57 && renderScale < 1) {
+    renderScale = Math.min(1, renderScale + 0.1);
+    resize();
+  }
 }
 requestAnimationFrame(frame);
 
@@ -331,6 +396,58 @@ function startTribute() {
   play(w, "The Reading Room", " · built in tribute");
 }
 
+/* somewhere sensible to stand: the highest block near the middle that
+   the legs will actually rest on — water and glass are see-through and
+   the player sinks through them, so they do not count. With the floor
+   ensureFloor lays, the scan always finds something. */
+function placeSpawn(world) {
+  var mx = Math.round((world.min.x + world.max.x) / 2), mz = Math.round((world.min.z + world.max.z) / 2);
+  var y = world.max.y;
+  while (y > world.min.y - 1) {
+    var m = world.get(mx, y, mz);
+    if (m && !Blocks.isSeeThrough(m)) break;
+    y--;
+  }
+  world.spawn = { x: mx, y: y + 2, z: mz, yaw: 0, pitch: -0.15 };
+}
+
+/* ---------- the base world, preloaded ----------
+   The room ships a region file of its own, fetched alongside the page,
+   so a real world is already loading while the boot screen is still
+   up — nobody has to go and find a save folder first. If the fetch
+   fails (offline before the first visit finished, or the file is
+   gone), the tribute build quietly stands in as the base instead. */
+var BASE = { url: "world/r.5.4.mca", world: null, note: "", job: null };
+function preloadBase() {
+  if (BASE.job) return BASE.job;
+  BASE.job = fetch(BASE.url).then(function (res) {
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.arrayBuffer();
+  }).then(function (buf) {
+    var w = new WorldLib.World({ name: "Your world" });
+    return WorldLib.importRegion(w, new Uint8Array(buf), { maxChunks: PERF.chunks }).then(function (r) {
+      if (w.isEmpty()) throw new Error("region held no blocks");
+      WorldLib.ensureFloor(w);
+      placeSpawn(w);
+      BASE.world = w;
+      BASE.note = " · " + r.chunks + " chunks, " + r.blocks.toLocaleString() + " blocks";
+      return w;
+    });
+  }).catch(function () {
+    BASE.world = null;
+    return null;
+  });
+  return BASE.job;
+}
+
+function startBase() {
+  $("ring").classList.add("boot");
+  preloadBase().then(function (w) {
+    if (w) play(w, "Your world", BASE.note);
+    else startTribute();
+  });
+}
+
 /* drop / pick region files */
 function loadFiles(files) {
   var picks = [];
@@ -357,7 +474,7 @@ function loadFiles(files) {
   used.forEach(function (f) {
     chain = chain.then(function () {
       return f.arrayBuffer().then(function (buf) {
-        return WorldLib.importRegion(world, new Uint8Array(buf), { maxChunks: 220 });
+        return WorldLib.importRegion(world, new Uint8Array(buf), { maxChunks: PERF.chunks });
       }).then(function (r) {
         done++; chunks += r.chunks; blocks += r.blocks;
         bar.style.width = Math.round(done / used.length * 100) + "%";
@@ -373,11 +490,8 @@ function loadFiles(files) {
       out.innerHTML = "<p class='note' style='color:var(--amber)'>Those region files held no blocks this room could read.</p>";
       return;
     }
-    /* stand somewhere sensible: the highest solid block near the middle */
-    var mx = Math.round((world.min.x + world.max.x) / 2), mz = Math.round((world.min.z + world.max.z) / 2);
-    var y = world.max.y;
-    while (y > world.min.y && !world.get(mx, y, mz)) y--;
-    world.spawn = { x: mx, y: y + 2, z: mz, yaw: 0, pitch: -0.15 };
+    WorldLib.ensureFloor(world);
+    placeSpawn(world);
     shut("ovWorld");
     play(world, "Your world", " · " + chunks + " chunks, " + blocks.toLocaleString() + " blocks");
   });
@@ -434,12 +548,13 @@ press($("btnMenu"), showMenu);
 press($("btnLook"), function () { grab(); });
 press($("btnWorld"), showWorld);
 press($("btnAbout"), function () { open("ovAbout"); });
+press($("mBase"), function () { shut("ovMenu"); startBase(); });
 press($("mWalk"), function () { shut("ovMenu"); startTribute(); });
 press($("mWorld"), function () { shut("ovMenu"); showWorld(); });
 press($("mAbout"), function () { shut("ovMenu"); open("ovAbout"); });
 press($("mControls"), function () { shut("ovMenu"); showControls(); });
 
-press($("goWalk"), function () { boot(); startTribute(); });
+press($("goWalk"), function () { boot(); startBase(); });
 press($("goLoad"), function () { boot(); showWorld(); });
 press($("goAbout"), function () { open("ovAbout"); });
 
@@ -454,7 +569,7 @@ function resize() {
   var b = $("bezel");
   var w = b.clientWidth, h = b.clientHeight;
   if (!w || !h || !G.gfx) return;
-  G.gfx.resize(w, h, window.devicePixelRatio || 1);
+  G.gfx.resize(w, h, Math.min(window.devicePixelRatio || 1, PERF.dprCap) * renderScale);
 }
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", function () { setTimeout(resize, 200); });
@@ -473,6 +588,9 @@ window.addEventListener("gamepaddisconnected", function () { G.pad = false; });
   }
   G.gfx = g;
   resize();
+  /* start fetching the base world now, behind the boot screen, so
+     stepping inside is instant by the time anyone presses the button */
+  preloadBase();
   /* the ring on the case comes to rest once there is something to draw */
   $("ring").classList.remove("boot");
 })();
