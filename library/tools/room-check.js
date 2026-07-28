@@ -131,17 +131,28 @@ var VARIED = "(() => { const c = document.getElementById('view');" +
   ok("WebGL came up", await page.evaluate("!!(window.__rr && window.__rr().G.gfx && window.__rr().G.gfx.ok)"));
 
   /* ---------- the preloaded base world ----------
-     The page fetched its own region file behind the boot screen; the
-     front door should open onto it with no file-picking at all. */
-  await page.click("#goWalk");
+     The page fetches its world behind the boot screen and walks in on
+     its own — no click, no file-picking, nothing. So: wait, only. */
   await page.waitForFunction("window.__rr().G.running === true", null, { timeout: 30000 });
   await page.waitForTimeout(700);
 
   var bw = await page.evaluate("(()=>{const g=window.__rr().G;return {title:g.title,blocks:g.world.count,minY:g.world.min.y,pos:g.pos.slice()};})()");
-  ok("the base world preloads itself", bw.title === "Your world", "title was " + JSON.stringify(bw.title));
+  ok("the base world loads and enters itself", bw.title === "Your world", "title was " + JSON.stringify(bw.title));
+  ok("the boot screen got out of the way on its own",
+     await page.evaluate("document.getElementById('boot').classList.contains('gone') || document.getElementById('boot').style.display === 'none'"));
   ok("and holds the shipped region", bw.blocks > 50000, bw.blocks + " blocks");
   ok("with the player standing on it, not falling through",
      bw.pos[1] >= bw.minY, "y=" + bw.pos[1].toFixed(1) + " against floor " + bw.minY);
+
+  /* shove the player far past the edge: the clamp must hold them over
+     the floor, because every fall into the void starts with a walk off
+     the world's rim */
+  await page.evaluate("(()=>{const g=window.__rr().G; g.pos[0]=g.world.max.x+500; g.vel=[0,0,0];})()");
+  await page.waitForTimeout(400);
+  var edge = await page.evaluate("(()=>{const g=window.__rr().G;return {x:g.pos[0],maxX:g.world.max.x,y:g.pos[1],minY:g.world.min.y};})()");
+  ok("the world's edge holds the player in", edge.x <= edge.maxX + 8 && edge.y >= edge.minY - 2,
+     "x=" + edge.x.toFixed(1) + " against edge " + edge.maxX + ", y=" + edge.y.toFixed(1));
+  await page.evaluate("(()=>{const g=window.__rr().G; const s=g.world.spawn; g.pos=[s.x+0.5,s.y,s.z+0.5]; g.vel=[0,0,0];})()");
 
   /* drop the player from height: terminal velocity and sub-block
      collision must land this on the floor, not sample past it */

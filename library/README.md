@@ -57,10 +57,12 @@ world.js      a sparse store of 16³ sections, the tribute build, and
 gfx.js        raw WebGL 1: one shader pair, one procedurally painted
               atlas, one buffer per section
 sw.js         offline shell (bump VERSION on release)
-world/        the preloaded base world: a raw region file fetched at
-              boot so there is somewhere real to stand before anyone
-              has found a save folder — replace the .mca (and the
-              filename in app.js and sw.js) to change the base
+world/        the preloaded base world: every region file in this
+              folder is fetched at boot and walked into automatically.
+              index.json lists them and is rewritten on every deploy
+              (tools/make-world-index.js, via the netlify.toml build
+              command) — so adding to the world is just dropping
+              another r.<x>.<z>.mca in here
 manifest.webmanifest, icons/
 tools/        dev-only, never shipped — see below
 ```
@@ -145,11 +147,14 @@ installs is ever shipped — the room itself has no dependencies at all.
 
 ## Loading a real world
 
-One region file ships in `world/` and loads on its own at boot, so the
-room opens onto real save data with no steps at all. A stone floor is
-laid one block beneath the lowest thing in every loaded chunk column
-(`ensureFloor` in `world.js`), because an imported region often has
-columns of pure void in it and a fall should end on something.
+The room opens onto real save data with no steps at all: every region
+file in `world/` is fetched behind the boot screen, imported into one
+world, and entered automatically the moment it is ready. A stone floor
+is laid one block beneath the lowest thing in it (`ensureFloor` in
+`world.js`), because an imported region often has columns of pure void
+in it and a fall should end on something — and the player is held a
+few blocks inside the floor's edge, so a walk off the world's rim
+stops at an invisible wall instead of starting a fall.
 
 Any Minecraft Java save has a `region/` folder full of `r.<x>.<z>.mca`
 files. Open **Load a world** and drop them in — or the whole folder.

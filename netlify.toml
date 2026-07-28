@@ -1,6 +1,9 @@
-# kmay89.com — static site, no build step
+# kmay89.com — static pages, no bundling. The one build command writes
+# library/world/index.json from the files in that folder, so dropping a
+# region file into the repo is all it takes to put it in the world.
 [build]
   publish = "."
+  command = "node library/tools/make-world-index.js"
 
 # The one piece of server-side code on the site: the room mailbox, an
 # ephemeral WebRTC-handshake pigeonhole that gives every game here the same

@@ -9,12 +9,12 @@
    to keep a copy of it. The one exception is the room's own preloaded
    world, which ships with the page like any other asset and is cached
    with the shell so the room still has ground to stand on offline. */
-var VERSION = "reading-room-v2";
+var VERSION = "reading-room-v3";
 var SHELL = [
   "./", "./index.html",
   "./nbt.js", "./anvil.js", "./blocks.js", "./mesher.js",
   "./world.js", "./gfx.js", "./app.js",
-  "./world/r.5.4.mca",
+  "./world/index.json", "./world/r.5.4.mca",
   "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",
   "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"
