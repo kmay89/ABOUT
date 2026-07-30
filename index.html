@@ -43,6 +43,7 @@
     --c-sun:#ffd166;
     --c-imp:#c77dff;
     --c-pri:#ff5fd0;
+    --c-chili:#ff7454;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -843,6 +844,7 @@
     <a href="/sudoku/">The sudoku room</a>
     <a href="/domino/">The domino table</a>
     <a href="/library/">The reading room</a>
+    <a href="/chili/">The chili</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1254,6 +1256,64 @@
     '<circle cx="' + (pb[0]+14) + '" cy="' + (pb[1]-24) + '" r="1.2"/>' +
     '<circle cx="' + (pb[0]+22) + '" cy="' + (pb[1]-6) + '" r="1.3"/></g>';
   S.push(wrapObj("offhours","Sourdough — off the clock","#e0a458",boule));
+
+  /* ---------- chili: a bowl of it, still steaming ----------
+     Front-left, in the gap between Lupita's box, the dominoes and the
+     chess board — the one patch of desk still clear enough to put a
+     bowl down on, which is exactly how a real desk works.
+
+     Where it sits is not a matter of taste. The scene has no depth
+     buffer, so a thing is only behind another thing if it was pushed
+     first AND its screen footprint says so: the doll box beside it
+     stands 44 units tall, which lifts its top face a long way up the
+     screen, and a bowl set anywhere inside that lifted footprint would
+     be painted over it and read as floating in mid-air. The gap here
+     clears it by a hair, and clears the lamp base (which is a dark disc
+     at 52,148 and would look exactly like a saucer) by rather more.
+
+     A bowl is the one thing on this desk that is neither a box nor a
+     cylinder: it flares. So it's drawn as two ellipses — a wide rim and
+     a small foot — joined by a curve down each side, because in a 2:1
+     projection that is all a flare is. The chili itself is a third
+     ellipse set just below the rim, which is what makes the bowl read
+     as full rather than as a disc lying on the desk. */
+  var BWX = 127, BWY = 281, BWR = 16, BWH = 13;
+  var bwT = P(BWX,BWY,BWH), bwB = P(BWX,BWY,1.5);
+  var BRT = BWR * 1.414, BRB = 9.5 * 1.414;
+  function n1(v){ return v.toFixed(1); }
+  var chili = isoEllipse(BWX,BWY,0,BWR - 1,"rgba(12,6,2,.20)",'filter="url(#soft)" stroke="none"');
+  chili += '<path d="M' + n1(bwT[0]-BRT) + " " + n1(bwT[1]) +
+    " C" + n1(bwT[0]-BRT) + " " + n1(bwT[1]+7) + " " + n1(bwB[0]-BRB) + " " + n1(bwB[1]-4) + " " + n1(bwB[0]-BRB) + " " + n1(bwB[1]) +
+    " A" + n1(BRB) + " " + n1(BRB/2) + " 0 0 0 " + n1(bwB[0]+BRB) + " " + n1(bwB[1]) +
+    " C" + n1(bwB[0]+BRB) + " " + n1(bwB[1]-4) + " " + n1(bwT[0]+BRT) + " " + n1(bwT[1]+7) + " " + n1(bwT[0]+BRT) + " " + n1(bwT[1]) +
+    " A" + n1(BRT) + " " + n1(BRT/2) + " 0 0 1 " + n1(bwT[0]-BRT) + " " + n1(bwT[1]) +
+    '" fill="#e9dec7" ' + OUT + "/>";
+  chili += isoEllipse(BWX,BWY,BWH,BWR,"#f4ecdb");                    // the rim, catching the lamp
+  chili += isoEllipse(BWX,BWY,BWH-1.6,BWR-2.8,"#8d2f1c",'stroke="rgba(60,16,6,.5)" stroke-width="1"');
+  /* beans, tomato and a little onion, sitting proud of the surface */
+  var CD = (BWR - 4) * 2;
+  chili += gTop(BWX-(BWR-4),BWY-(BWR-4),BWH-1.2,
+    [[.30,.40,3.1,"#7c2a17"],[.56,.28,2.7,"#33201a"],[.72,.55,3.3,"#96482a"],
+     [.44,.68,2.9,"#33201a"],[.22,.62,2.3,"#cdb283"],[.64,.78,2.1,"#cdb283"]]
+      .map(function(b){
+        return '<ellipse cx="' + n1(b[0]*CD) + '" cy="' + n1(b[1]*CD) + '" rx="' + b[2] +
+               '" ry="' + n1(b[2]*.72) + '" fill="' + b[3] + '"/>';
+      }).join("") +
+    '<g stroke="#f5c35a" stroke-width="1.6" stroke-linecap="round" opacity=".95">' +   // cheese, melting in
+      '<path d="M' + n1(.34*CD) + " " + n1(.52*CD) + " l6 -2\"/>" +
+      '<path d="M' + n1(.48*CD) + " " + n1(.44*CD) + " l5 2\"/>" +
+      '<path d="M' + n1(.40*CD) + " " + n1(.60*CD) + " l7 1\"/></g>");
+  /* The spoon, left in it — handle out over the near-left rim, which is
+     the one direction from this bowl with nothing but desk in it. */
+  var sp0 = P(BWX+3,BWY-3,BWH-1), sp1 = P(BWX-11,BWY+11,BWH+5);
+  chili += '<path d="M' + n1(sp0[0]) + " " + n1(sp0[1]) + " L" + n1(sp1[0]) + " " + n1(sp1[1]) +
+    '" fill="none" stroke="#cdd4db" stroke-width="2.6" stroke-linecap="round"/>' +
+    '<ellipse cx="' + n1(sp1[0]) + '" cy="' + n1(sp1[1]) + '" rx="2.6" ry="1.8" fill="#dde3e9" ' + OUT + "/>";
+  var bs = P(BWX,BWY,BWH + 4);
+  chili += '<g fill="none" stroke="#f4e9d8" stroke-width="2.5" stroke-linecap="round">' +
+    '<path class="steam" d="M' + n1(bs[0]-7) + " " + n1(bs[1]) + " q 4 -8 -1 -14 q -4 -6 1 -12\"/>" +
+    '<path class="steam s2" d="M' + n1(bs[0]+6) + " " + n1(bs[1]-2) + " q 4 -7 -1 -13 q -4 -6 1 -11\"/></g>";
+  S.push(wrapObj("chili","A bowl of chili — the recipe, and a calculator for it","#ff7454",chili));
 
   /* ---------- cam: ball webcam perched on the CRT ---------- */
   var camTopZ = 126, cc = P(225,105,camTopZ + 15);
@@ -1828,6 +1888,16 @@
         {label:"github.com/kmay89/puzzles", href:"https://github.com/kmay89/puzzles"}
       ]
     },
+    chili: {
+      kicker: "The Kitchen Table · New",
+      title: "Kitchen Table Chili — A Recipe That Does Its Own Arithmetic",
+      story: "The pot I actually make, on a page that can resize it. Recipes are usually written at one size and then quietly demand that you do fractions in a hot kitchen — so this one is written per pound of beef, in a single data file, and the page multiplies. Set how much beef you have and everything follows: the cans, the spoons, the broth, how many bowls it makes, and how big a pot you need. American or metric, either way round, with the other system in small print underneath. The four beans are shared out to whole cans by largest remainder, so a one-pound test batch asks for one dark kidney and one light rather than two-thirds of each. And there is a cook-with-me mode that shows one step at a time in type you can read from across the kitchen, with two big buttons pinned to the bottom of the screen, every step readable out loud, and nothing anywhere that has to be dragged, held, double-tapped or finished before a timer runs out — because it was built for a cook who tires, and for a high-schooler who has never made chili, and those two turn out to want exactly the same page. Each step is tagged hot, heavy, or can-be-done-sitting, so a pot can be shared between two people with different amounts of strength between them. The last step is the real recipe: taste, then control — salt if it says nothing, sugar if it's all savoury, more chili powder if you taste meat and beans instead of chili.",
+      chips: ["Scales from ½ lb to 12","American & metric","Whole-can bean math","One step at a time","Reads itself aloud","Prints for the fridge","No accounts, no tracking"],
+      links: [
+        {label:"🍲 Cook — the chili", href:"/chili/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -1978,6 +2048,12 @@
       tone(196, {type:"triangle", dur:0.13, g:0.07});
       tone(98,  {type:"sine", dur:0.20, g:0.05});
       noise({filter:"bandpass", freq:2600, q:2.2, at:0.14, dur:0.035, g:0.06});
+    },
+    chili: function(){ // a pot at a lazy bubble, and a spoon set on the rim
+      noise({filter:"lowpass", freq:260, dur:0.55, g:0.10});
+      noise({filter:"bandpass", freq:520, q:1.6, at:0.12, dur:0.20, g:0.05});
+      tone(1760, {type:"sine", at:0.20, dur:0.34, g:0.045});
+      tone(2637, {type:"sine", at:0.20, dur:0.22, g:0.02});
     },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});

@@ -20,7 +20,10 @@ cantina style, with a pile of bones on the desk: four squared up with
 the six-six on top the way it always ends up, and a few loose ones face
 up beside them; and [the reading room](https://kmay89.com/library/) — a
 block world you can walk through, opened by the console standing next to
-the Game Boy.
+the Game Boy; and [the kitchen table](https://kmay89.com/chili/) — the
+chili I make for the kids, written as data so the page can resize the
+pot for you, with a cook-along mode built for hands that tire (the bowl
+is on the desk, spoon still in it).
 
 **Live:** <https://kmay89.com>
 
@@ -83,6 +86,21 @@ the Game Boy.
   [kmay89/logic](https://github.com/kmay89/logic); update it by copying
   that repo's `index.html` over this one and re-adding the `<head>`
   block and the back-to-the-desk links.
+- `chili/` — the kitchen table: my chili, written as data instead of
+  prose. Every amount lives once in `chili/recipe.js`, per one pound of
+  ground beef, and the page multiplies — set how much beef you have and
+  the cans, the spoons, the broth, the number of bowls and the size of
+  pot you need all follow, in American or metric with the other system
+  in small print underneath. The four beans are shared out to whole cans
+  by largest remainder, so a one-pound test batch asks for one dark
+  kidney and one light rather than two-thirds of each. Cook mode shows
+  one step at a time in type you can read from across the kitchen, with
+  two big buttons pinned to the bottom of the screen, every step
+  readable out loud, and nothing that has to be dragged, held,
+  double-tapped or finished before a timer runs out — built for a cook
+  who tires as much as for a teenager who has never made chili. Reached
+  from the desk by the bowl beside Lupita's box. Format documented in
+  `chili/README.md`.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only

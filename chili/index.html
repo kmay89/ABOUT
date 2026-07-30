@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A chili recipe that does its own arithmetic: set how much beef you have and every amount scales, in American or metric measures, with the steps in order and one step at a time for anyone who cooks sitting down.">
+<meta name="theme-color" content="#fbf5ea">
+<link rel="canonical" href="https://kmay89.com/chili/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Karl Meves">
+<meta property="og:title" content="Kitchen Table Chili — a recipe that scales itself">
+<meta property="og:description" content="Set how much beef you have; the whole pot rescales. American or metric, whole cans or exact, and a cook-with-me mode built for hands that tire.">
+<meta property="og:url" content="https://kmay89.com/chili/">
+<meta name="twitter:card" content="summary">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Kitchen Table Chili — the recipe, and a calculator for it</title>
+<style>
+  :root{
+    --paper:#fbf5ea;
+    --card:#fffdf8;
+    --ink:#241d16;
+    --soft:#6a5b49;
+    --faint:#9a8b77;
+    --line:#e3d7c3;
+    --edge:#241d16;
+    --chili:#b8391f;
+    --ember:#e2762a;
+    --lamp:#f0a83c;
+    --green:#3f7d4e;
+    --cool:#2f6ea8;
+    --tick:#2c7a4b;
+    --shadow:0 3px 0 rgba(36,29,22,.10);
+    --pad:clamp(1rem,3.5vw,2rem);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#15110d;
+      --card:#1f1a14;
+      --ink:#f4e9d8;
+      --soft:#c0ae95;
+      --faint:#8b7a64;
+      --line:#39301f;
+      --edge:#5a4a32;
+      --chili:#ff7454;
+      --ember:#ffa04a;
+      --lamp:#ffc97a;
+      --green:#6fc07f;
+      --cool:#7fb3e8;
+      --tick:#4bbf7a;
+      --shadow:0 3px 0 rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:var(--serif);font-size:19px;line-height:1.6;
+    padding-bottom:8rem;
+  }
+  body.big{font-size:25px}
+  @media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+  ::selection{background:var(--lamp);color:#241d16}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .skip{position:absolute;left:0;top:0;z-index:99;background:var(--ink);color:var(--paper);padding:.7rem 1.1rem;border-radius:0 0 10px 0;transform:translateY(-150%)}
+  .skip:focus{transform:none}
+  :focus-visible{outline:3px solid var(--cool);outline-offset:3px;border-radius:6px}
+
+  .wrap{max-width:56rem;margin:0 auto;padding:0 var(--pad)}
+
+  /* ---------- header ---------- */
+  header{padding:clamp(1.2rem,4vw,2.5rem) 0 .5rem}
+  .back{
+    display:inline-block;font-family:var(--mono);font-size:.78rem;color:var(--soft);
+    text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:.45rem 1rem;
+    min-height:2.6rem;line-height:1.7;
+  }
+  .back:hover,.back:focus{color:var(--chili);border-color:var(--chili)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--chili);margin-top:1.6rem}
+  h1{font-size:clamp(2.1rem,7vw,3.4rem);line-height:1.05;font-weight:600;margin:.4rem 0 .5rem}
+  .tagline{color:var(--soft);font-size:1.05em}
+  .intro{color:var(--soft);max-width:44rem;margin-top:.8rem}
+
+  /* ---------- the dial ---------- */
+  .dial{
+    background:var(--card);border:2px solid var(--line);border-radius:18px;
+    box-shadow:var(--shadow);padding:var(--pad);margin:1.6rem 0;
+  }
+  .dial h2{font-size:1rem;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .stepper{display:flex;align-items:center;gap:.8rem;margin:.9rem 0;flex-wrap:wrap}
+  .round{
+    width:4.2rem;height:4.2rem;border-radius:50%;border:2px solid var(--edge);
+    background:var(--paper);color:var(--ink);font-size:2rem;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .round:hover{background:var(--lamp);color:#241d16}
+  .beef{font-size:clamp(2rem,6vw,2.8rem);font-weight:600;min-width:6.5ch;text-align:center}
+  .beef-of{font-family:var(--mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .presets{display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 1rem}
+  .preset{
+    min-height:3rem;padding:.5rem 1rem;border:2px solid var(--line);border-radius:12px;
+    background:var(--paper);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer;
+  }
+  .preset small{display:block;font-size:.7rem;color:var(--faint);font-family:var(--mono)}
+  .preset.on{border-color:var(--chili);background:color-mix(in srgb,var(--chili) 12%,var(--card));font-weight:600}
+  .yield{color:var(--soft);font-size:.98em;border-top:1px dashed var(--line);padding-top:.9rem}
+  .switches{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+  .sw{
+    min-height:3.2rem;padding:.6rem 1.1rem;border:2px solid var(--line);border-radius:12px;
+    background:var(--paper);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer;
+    display:inline-flex;align-items:center;gap:.5rem;
+  }
+  .sw.on{border-color:var(--tick);background:color-mix(in srgb,var(--tick) 14%,var(--card));font-weight:600}
+  .sw.on::before{content:"✓";color:var(--tick);font-weight:700}
+  .units{display:inline-flex;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+  .units .sw{border:0;border-radius:0;min-height:3.2rem}
+  .units .sw.on{background:var(--ink);color:var(--paper)}
+  .units .sw.on::before{content:none}
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;gap:.5rem;margin:1.6rem 0 1rem}
+  .tab{
+    flex:1;min-height:3.6rem;border:2px solid var(--edge);border-radius:14px;background:var(--card);
+    color:var(--ink);font:inherit;font-size:1.05rem;font-weight:600;cursor:pointer;padding:.6rem 1rem;
+  }
+  .tab[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+
+  /* ---------- cards ---------- */
+  .card{
+    background:var(--card);border:2px solid var(--line);border-radius:18px;
+    box-shadow:var(--shadow);padding:var(--pad);margin:1.2rem 0;
+  }
+  .card > h2{font-size:clamp(1.3rem,3.5vw,1.7rem);margin-bottom:.2rem}
+  .card > .lede{color:var(--soft);margin-bottom:1rem}
+  .group{margin-top:1.4rem}
+  .group h3{font-family:var(--mono);font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--chili)}
+  .group .hint{color:var(--faint);font-size:.9em;margin:.15rem 0 .4rem}
+  .ings{list-style:none}
+  .ing{
+    display:flex;gap:.8rem;align-items:flex-start;
+    padding:.7rem 0;border-bottom:1px solid var(--line);
+  }
+  .ing:last-child{border-bottom:0}
+  .ing.got .ing-name{text-decoration:line-through;color:var(--faint)}
+  .ing-body{flex:1;min-width:9rem}
+  .ing-name{display:block;font-weight:600}
+  .ing-name .opt{font-style:normal;font-family:var(--mono);font-size:.68em;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .ing-note{display:block;color:var(--soft);font-size:.88em;line-height:1.45}
+  .amt{text-align:right;min-width:8.5rem}
+  .amt b{display:block;font-size:1.15em}
+  .amt small{display:block;color:var(--faint);font-size:.76em;font-family:var(--mono)}
+  .tick{
+    flex:none;width:3rem;height:3rem;border-radius:10px;border:2px solid var(--line);
+    background:var(--paper);color:transparent;font-size:1.3rem;cursor:pointer;line-height:1;
+  }
+  .tick[aria-pressed="true"]{background:var(--tick);border-color:var(--tick);color:#fff}
+  .tick.wide{width:auto;min-width:9rem;color:var(--ink);display:inline-flex;align-items:center;gap:.5rem;justify-content:center;padding:0 1rem;font:inherit;font-size:.95rem}
+  .tick.wide[aria-pressed="true"]{color:#fff}
+  .note{
+    margin-top:1rem;padding:.8rem 1rem;border-left:4px solid var(--lamp);
+    background:color-mix(in srgb,var(--lamp) 12%,transparent);color:var(--soft);font-size:.92em;border-radius:0 8px 8px 0;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}
+  .ghost{
+    min-height:3rem;padding:.55rem 1.1rem;border:2px solid var(--line);border-radius:12px;
+    background:transparent;color:var(--ink);font:inherit;font-size:.92rem;cursor:pointer;
+  }
+  .ghost:hover{border-color:var(--chili);color:var(--chili)}
+
+  /* ---------- steps ---------- */
+  .steps{list-style:none;counter-reset:none}
+  .step{border-top:2px solid var(--line);padding:1.4rem 0}
+  .step:first-child{border-top:0;padding-top:.4rem}
+  .step.done .step-head h3{color:var(--faint)}
+  .step-head{display:flex;align-items:baseline;gap:.8rem}
+  .step-head .n{
+    flex:none;width:2.4rem;height:2.4rem;border-radius:50%;background:var(--chili);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1rem;font-weight:700;
+    align-self:flex-start;
+  }
+  .step.done .step-head .n{background:var(--tick)}
+  .step-head h3{font-size:clamp(1.25rem,3.4vw,1.6rem);line-height:1.2;font-weight:600}
+  .tags{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 0 3.2rem}
+  .tag{
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:.25rem .6rem;border-radius:999px;border:1px solid currentColor;
+  }
+  .e-hot{color:var(--chili)}
+  .e-lift{color:var(--cool)}
+  .e-sit{color:var(--green)}
+  .e-wait{color:var(--faint)}
+  .uses{list-style:none;margin:.8rem 0 0 3.2rem;display:flex;flex-wrap:wrap;gap:.45rem}
+  .uses li{
+    background:color-mix(in srgb,var(--lamp) 16%,transparent);border:1px solid color-mix(in srgb,var(--lamp) 45%,transparent);
+    border-radius:10px;padding:.3rem .7rem;font-size:.9em;
+  }
+  .uses b{font-weight:700}
+  .go{margin:.9rem 0 0 3.2rem;padding-left:1.1rem}
+  .go li{margin:.35rem 0}
+  .why{
+    margin:.9rem 0 0 3.2rem;color:var(--soft);font-size:.94em;font-style:italic;
+    border-left:3px solid var(--line);padding-left:.9rem;
+  }
+  .why.big-pot{font-style:normal;border-color:var(--ember);color:var(--ember)}
+  .step-foot{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0 0 3.2rem}
+  @media (max-width:34rem){
+    .tags,.uses,.go,.why,.step-foot{margin-left:0}
+    .go{padding-left:1.2rem}
+  }
+
+  /* ---------- timer ---------- */
+  .timer{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin:1rem 0 0 3.2rem}
+  .clock{font-family:var(--mono);font-size:1.9rem;font-weight:700;min-width:4.5ch}
+  .clock.ticking{color:var(--ember)}
+  .clock.rang{color:var(--chili);animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:.3}}
+  .timer-note{color:var(--faint);font-size:.8em;font-family:var(--mono)}
+  @media (max-width:34rem){.timer{margin-left:0}}
+
+  /* ---------- taste & control ---------- */
+  .fixes{list-style:none}
+  .fix{margin:.6rem 0}
+  .fix-head{
+    width:100%;text-align:left;min-height:4rem;padding:.9rem 1.1rem;cursor:pointer;
+    border:2px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink);font:inherit;
+    display:flex;flex-wrap:wrap;gap:.2rem 1rem;align-items:baseline;justify-content:space-between;
+  }
+  .fix.karl .fix-head{border-color:color-mix(in srgb,var(--chili) 45%,var(--line))}
+  .fix-head[aria-expanded="true"]{background:color-mix(in srgb,var(--lamp) 14%,var(--card))}
+  .fix-head .when{font-weight:600}
+  .fix-head .then{color:var(--chili);font-family:var(--mono);font-size:.88rem}
+  .fix-how{padding:.4rem 1.2rem 1rem;color:var(--soft)}
+
+  /* ---------- notes ---------- */
+  #notesBody section{margin:1.1rem 0}
+  #notesBody h3{font-size:1.05rem;margin-bottom:.15rem}
+  #notesBody p{color:var(--soft)}
+
+  /* ---------- cook mode ----------
+     While cooking, the page gets out of the way: the blurb and the dial
+     fold up so the step itself starts at the top of the screen. Nobody
+     should have to scroll past an introduction with a hot pan going. */
+  body.cooking .eyebrow,body.cooking .tagline,body.cooking .intro,body.cooking .dial{display:none}
+  body.cooking h1{font-size:clamp(1.4rem,4vw,1.9rem);margin:.5rem 0}
+  body.cooking header{padding-bottom:0}
+  .cookscale{
+    display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;
+    color:var(--soft);font-size:.95rem;margin-top:.4rem;
+  }
+  .solo .step{border:0;padding:0}
+  .solo .step-head h3{font-size:clamp(1.8rem,6vw,2.8rem)}
+  .solo .go{font-size:1.15em}
+  .solo .uses li{font-size:1em}
+  .cookbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:20;
+    background:var(--card);border-top:2px solid var(--edge);
+    padding:.7rem var(--pad) calc(.7rem + env(safe-area-inset-bottom));
+  }
+  .cookbar .inner{max-width:56rem;margin:0 auto;display:flex;align-items:center;gap:.7rem}
+  .bigbtn{
+    flex:1;min-height:4.4rem;border:2px solid var(--edge);border-radius:16px;
+    background:var(--ink);color:var(--paper);font:inherit;font-size:1.2rem;font-weight:600;cursor:pointer;
+  }
+  .bigbtn.second{background:var(--card);color:var(--ink)}
+  .bigbtn[disabled]{opacity:.35;cursor:default}
+  .cookmeta{text-align:center;min-width:8rem}
+  .cookmeta b{display:block;font-family:var(--mono);font-size:.85rem;letter-spacing:.06em}
+  .dots{display:flex;flex-wrap:wrap;gap:.25rem;justify-content:center;margin-top:.3rem}
+  .dot{
+    width:1.1rem;height:1.1rem;border-radius:50%;border:2px solid var(--line);
+    background:var(--paper);cursor:pointer;padding:0;
+  }
+  .dot.done{background:var(--tick);border-color:var(--tick)}
+  .dot.now{background:var(--chili);border-color:var(--chili);transform:scale(1.25)}
+  body.cooking{padding-bottom:11rem}
+  @media (max-width:34rem){
+    .cookmeta{min-width:0}
+    .cookmeta .dots{display:none}
+  }
+
+  /* ---------- footer ---------- */
+  footer{
+    max-width:56rem;margin:3rem auto 0;padding:1.5rem var(--pad) 2rem;
+    border-top:1px solid var(--line);font-family:var(--mono);font-size:.76rem;color:var(--faint);
+  }
+  footer a{color:var(--soft);text-decoration:none;margin-right:1rem}
+  footer a:hover{color:var(--chili)}
+
+  /* ---------- print: the fridge-door version ---------- */
+  @media print{
+    :root{--paper:#fff;--card:#fff;--ink:#000;--soft:#333;--faint:#555;--line:#bbb}
+    body{font-size:11pt;padding:0}
+    .dial,.tabs,.cookbar,.row,.tick,.step-foot,.timer,.back,.skip{display:none !important}
+    .card{border:0;box-shadow:none;padding:0;margin:.6rem 0;break-inside:avoid}
+    .step{break-inside:avoid}
+    .fix-how{display:block !important}
+    /* print the whole recipe whatever view you were in when you hit
+       print — cook mode is a way of reading it, not a different recipe */
+    #panelAll{display:block !important}
+    #panelCook,.cookscale{display:none !important}
+    body.cooking .tagline,body.cooking .intro{display:block !important}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#steps">Skip to the steps</a>
+
+<div class="wrap">
+<header>
+  <a class="back" href="/">&larr; Back to the desk</a>
+  <p class="eyebrow">The kitchen table</p>
+  <h1>Kitchen Table Chili</h1>
+  <p class="tagline">The pot I actually make, divided by three so you can test it against yours.</p>
+  <p class="intro">Medium-spicy, thick, kid-approved. It is not a competition chili and doesn&rsquo;t want to be
+  &mdash; it wants to be a bowl on a Tuesday with cheese melting into it. Every amount below is written per
+  pound of beef. Turn the dial and the whole pot follows: cans, spoons, broth, bowls, and the size of pot
+  you&rsquo;ll need.</p>
+</header>
+
+<section class="dial" aria-labelledby="dialTitle">
+  <h2 id="dialTitle">How much beef have you got?</h2>
+  <div class="stepper">
+    <button class="round" id="less" aria-label="Less beef">&minus;</button>
+    <div class="beef" id="beefAmount" aria-live="polite">1 lb</div>
+    <button class="round" id="more" aria-label="More beef">+</button>
+    <span class="beef-of">of 80/20 ground beef</span>
+  </div>
+  <div class="presets" id="presets" role="group" aria-label="Common batch sizes"></div>
+  <p class="yield" id="yieldLine" aria-live="polite"></p>
+
+  <div class="switches">
+    <div class="units" role="group" aria-label="Measurement system">
+      <button class="sw on" id="unitUS" aria-pressed="true">American</button>
+      <button class="sw" id="unitMetric" aria-pressed="false">Metric</button>
+    </div>
+    <button class="sw on" id="canToggle" aria-pressed="true">Whole cans</button>
+    <button class="sw" id="bigToggle" aria-pressed="false">Big text</button>
+    <button class="sw" id="voiceToggle" aria-pressed="false">Read steps aloud</button>
+  </div>
+</section>
+
+<div class="tabs" role="tablist" aria-label="How to read the recipe">
+  <button class="tab" id="tabAll" role="tab" aria-selected="true" aria-controls="panelAll">Everything at once</button>
+  <button class="tab" id="tabCook" role="tab" aria-selected="false" aria-controls="panelCook">Cook with me &mdash; one step at a time</button>
+</div>
+
+<main id="panelAll" role="tabpanel" aria-labelledby="tabAll">
+
+  <section class="card" aria-labelledby="shopTitle">
+    <h2 id="shopTitle">What goes in</h2>
+    <p class="lede">Tap a box as you buy it or set it out. It remembers.</p>
+    <div id="shoppingBody"></div>
+    <p class="note" id="roundNote" hidden></p>
+    <div class="row">
+      <button class="ghost" id="copyList">Copy the list</button>
+      <button class="ghost" id="printBtn">Print it</button>
+    </div>
+  </section>
+
+  <section class="card" id="steps" aria-labelledby="stepsTitle">
+    <h2 id="stepsTitle">The order of things</h2>
+    <p class="lede">Eleven steps, about an hour, most of it standing still. The tags say which ones are hot,
+    which are heavy enough to be worth sharing, and which can be done sitting down.</p>
+    <ol class="steps" id="stepList"></ol>
+  </section>
+
+  <section class="card" aria-labelledby="tasteTitle">
+    <h2 id="tasteTitle">Taste, then control</h2>
+    <p class="lede">This is the actual recipe. Find what it tastes like on the left, do the thing on the right,
+    then stir, wait a minute and taste again. One change at a time. The three with a red edge are the ones I
+    reach for every single time.</p>
+    <ul class="fixes" id="tasteList"></ul>
+  </section>
+
+  <section class="card" aria-labelledby="notesTitle">
+    <h2 id="notesTitle">Worth knowing</h2>
+    <div id="notesBody"></div>
+  </section>
+
+</main>
+
+<section id="panelCook" role="tabpanel" aria-labelledby="tabCook" hidden>
+  <div class="cookscale">
+    <span id="cookScale"></span>
+    <button class="ghost" id="cookChange">Change the size</button>
+  </div>
+  <div class="card">
+    <div id="cookBody"></div>
+  </div>
+</section>
+
+</div>
+
+<div class="cookbar" id="cookBar" hidden>
+  <div class="inner">
+    <button class="bigbtn second" id="cookBack">&larr; Back</button>
+    <div class="cookmeta">
+      <b id="cookCount"></b>
+      <div class="dots" id="cookDots"></div>
+    </div>
+    <button class="bigbtn" id="cookNext">Next &rarr;</button>
+  </div>
+</div>
+
+<footer>
+  <a href="/">The desk</a>
+  <a href="/accessibility/">Accessibility</a>
+  <a href="https://github.com/kmay89/ABOUT" rel="noopener">Source</a>
+  <p style="margin-top:.8rem">The numbers live in <code>recipe.js</code> &mdash; one file, per pound of beef.
+  &copy; 2026 Karl Meves &middot; ERRER Labs</p>
+</footer>
+
+<script src="recipe.js"></script>
+<script src="app.js"></script>
+<script>
+  /* the bottom bar only exists while cooking */
+  (function () {
+    var bar = document.getElementById("cookBar");
+    function sync() { bar.hidden = !document.body.classList.contains("cooking"); }
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    sync();
+  })();
+</script>
+</body>
+</html>
