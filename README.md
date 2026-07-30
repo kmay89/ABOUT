@@ -23,7 +23,8 @@ block world you can walk through, opened by the console standing next to
 the Game Boy; and [the kitchen table](https://kmay89.com/chili/) — the
 chili I make for the kids, written as data so the page can resize the
 pot for you, with a cook-along mode built for hands that tire (the bowl
-is on the desk, spoon still in it).
+is on the desk under a heap of cheddar, spoon still in it, a few oyster
+crackers spilled beside it).
 
 **Live:** <https://kmay89.com>
 
