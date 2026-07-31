@@ -31,7 +31,7 @@ cards.js      a deck and a four-seat table — byte-identical with the hearts
 rules.js      the rules, complete and pure: the bowers, the two rounds of
               bidding, stick-the-dealer, going alone, and the scoring
 ai.js         an appraisal for the bidding, a partner-aware policy for the
-              play, and card counting for the strongest tier
+              play, and determinized rollouts for the strongest tier
 coach.js      the engine's own reasons, in English — and it names the left
               bower's real suit every single time it comes up
 gfx.js        the seats, the trick, the trump badge, and the upcard
@@ -59,14 +59,50 @@ table. If they are winning the trick, the trick is already yours — throw your
 worst card away instead of spending a good one on it. The only reason to take
 it off them is if somebody behind you can still take it off *them*.
 
-**Counting is what makes the top tier the top tier.** Twenty-four cards and
-five tricks means the pack runs out fast, and a player tracking what has gone
-knows by the third trick that their queen of trump is now the highest card left
-in the game. Knowing your own card is boss changes what you lead; knowing your
-*partner's* is boss changes whether you protect the trick or throw your worst
-card at it. Those two positions want opposite cards, which is why a player who
-cannot tell them apart plays them badly however carefully it plays everything
-else.
+**Playing the hand out is what makes the top tier the top tier.** Sharp counts
+— twenty-four cards and five tricks means the pack runs out fast, and it knows
+by the third trick that its queen of trump is now the highest card left — and
+then it stops scoring cards and deals the three hands it cannot see. Not at
+random: consistent with every suit somebody has already failed to follow,
+because everybody watched that happen and a deal that ignores it is a deal that
+could not exist. Each candidate card is then played to the end of the hand,
+twenty-four deals deep, and judged by what the hand actually paid: two for a
+euchre, four for a lone march.
+
+That rung was rebuilt, and the reason belongs here. Counting *on its own* —
+which is all Sharp used to be — measures **50%** against Steady over six
+hundred matches. Not weaker; identical. The two tiers bid the same, and
+counting changes only two branches of the play that rarely fire differently,
+so they were one player wearing two names. Playing it out is a difference in
+kind rather than a knob, and it measures **61% of matches to ten over fifteen
+hundred, at an average margin of +1.3 points**.
+
+Getting a number worth quoting took two corrections to the *measurement*.
+`search` reached for `Math.random`, so the seeded harness was measuring an
+unseeded player — 57% one run, 53% the next, off identical seeds. Threading the
+harness's generator through fixed that and the figure jumped to **65%**, which
+looked too good.
+
+The obvious suspicion was a leak: determinizing out of the same shuffle that
+dealt the cards might make the imagined hands resemble the real ones. **That
+suspicion was wrong, and it was checked rather than believed.** `AI.determinize`
+puts a card in the seat that really holds it 26.8% of the time off the dealer's
+stream and 26.5% off an independent one, against a baseline of 27.8% — no leak
+either way. `tools/ai-check.js` now runs that comparison on every release.
+
+The real fault was duller and entirely the harness's: a player that draws from
+the deal's stream *moves* it, so the same seed stops producing the same deals
+when the strong side changes chairs, and the paired comparison the ladder
+depends on quietly stops being paired. The engine now gets its own stream, and
+61% is the paired number.
+
+The reason all this went unnoticed for a while is worth writing down too: the
+test harness's own seeded generator was `x = (x * 1103515245 + 12345) & 0x7fffffff`,
+which is broken in JavaScript specifically — the product runs past 2⁵³, the low
+bits are rounded away before the mask sees them, and what comes out has a cycle
+of about sixteen thousand and visibly correlated streams from adjacent seeds.
+Four hundred matches at seed, seed+1, seed+2 were nothing like four hundred
+independent matches. It is now Mulberry32, integer arithmetic throughout.
 
 The edge is real and it is not enormous: **56% of matches to ten over six
 hundred, at an average margin of 0.8 points**. Euchre is a high-variance game

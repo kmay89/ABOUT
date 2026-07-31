@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>La Viuda — the widow hand, and only the worst hand pays</title>
+<meta name="description" content="Viuda, also called Whiskey Poker: five cards each, a spare hand face down in the middle that anybody may take, and three lives apiece. Only the worst hand loses one. Two to six players, up to six phones joined by four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="La Viuda">
+<meta property="og:description" content="The widow hand. Take it, trade with it, or knock — and only the worst hand pays. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#c0392b; --accent-dim:#8d2317; --accent-ink:#fdf3ef; }
+  /* the plates drawn on the felt already name everybody, mark whose turn it
+     is, show their lives as pips and say who has knocked — so the strip of
+     chips and the score rail would be a second, worse copy of the same list,
+     sitting on top of the players it is describing */
+  #seats, #rail{ display:none }
+  #say{ top:6px }
+  #nextWrap{
+    position:absolute; left:0; right:0; bottom:14px; z-index:8;
+    display:flex; justify-content:center; pointer-events:none;
+  }
+  /* look.css gives .btn flex:1 for the tray, where it shares a row. Here it
+     is alone in a flex row and stretches to the full width, which reads as a
+     wall rather than a button. */
+  #nextWrap .btn{ pointer-events:auto; flex:none; min-width:190px }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="table" class="surface"></canvas>
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Won <b>0</b></div>
+      <div class="score" id="scoreThem">Lost <b>0</b></div>
+    </div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="nextWrap" class="hide"><button class="btn primary" id="btnNext">Next deal</button></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn wide" id="btnTake"><span class="k">🂠</span><span class="t">Take the widow</span></button>
+    <button class="btn" id="btnKnock"><span class="k">✊</span><span class="t">Knock</span></button>
+    <button class="btn narrow" id="btnHint" title="Hint"><span class="k">💡</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">La Viuda</div>
+  <div class="sub">The widow: a spare hand face down in the middle that anybody may take — and the five cards you throw away to get it land face up for everybody behind you. Only the worst hand pays.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a game</button>
+    <button class="btn" id="goPass">All of us, one phone</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="goTogether">Up to six phones</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The table</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mSetup">Players &amp; level</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mPass">All of us, one phone</button>
+    <button class="btn" id="mTogether">Up to six phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovSetup"><div class="sheet">
+  <button class="close" data-close="ovSetup">✕</button>
+  <h2>Players &amp; level</h2>
+  <p class="lead">The number at the table changes the game more than anything else does — it is what decides how good a hand has to be.</p>
+  <div id="setupBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Six phones, one table</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Also called Whiskey Poker, and in the card books Commerce. Three sentences of rules, and then the two ideas the whole game is made of.</p>
+
+  <h3>The rules</h3>
+  <p class="note">Everybody gets five cards, and one spare hand — <b>la viuda</b>, the widow — is dealt face down in the middle. On your turn you do exactly one of three things: <b>take the widow</b> (your hand goes into the middle in its place, face up), <b>trade one card</b> with the widow once it is face up, or <b>knock</b>. Once somebody knocks, everybody else gets one more turn and then the hands come down. Best poker hand is irrelevant — the <b>worst</b> hand loses a life, and the last player still holding one wins.</p>
+
+  <h3>1 · You are not trying to win</h3>
+  <p class="note">Nothing is paid to the best hand. Only the worst hand pays, so the question is never "is my hand good" — it is <b>"is my hand likely to be the worst one at this table"</b>, and those come apart constantly. A pair of sevens is a disaster heads-up and perfectly comfortable with six of you, because with six of you somebody is holding king-high and it isn't going to be you. Every extra player at the table lowers the bar. The strongest opponent here plays exactly that number and nothing else.</p>
+
+  <h3>2 · Taking the widow is a present to the table</h3>
+  <p class="note">It is not a free draw. The five cards you throw away land <b>face up</b> in front of the next player, who may take the lot — and everybody after that gets to fish through them one card at a time. So the question is not "is the widow better than my hand". It is "is the widow better than my hand by more than my hand is worth to the people behind me". Somebody who has not noticed will hand out a pair of kings all evening.</p>
+
+  <h3>3 · Knocking is a clock</h3>
+  <p class="note">A knock is not a pass — it starts the ending. Everybody else gets exactly one more turn and then the cards come down, so knocking early with a middling hand is a real weapon against a table that is all still fishing. It is also what stops a deal going round for ever.</p>
+
+  <h3>Tapping</h3>
+  <p class="note">Tap one of your cards and then one of the widow's, and they trade — that is all a trade is, so there is no button for it. <b>Take the widow</b> and <b>Knock</b> are in the tray, because those are the two things that are not trades. Until somebody takes the widow it stays face down, so the only way to see it is to be the one who takes it.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Play again</button></div>
+</div></div>
+
+<script src="cards.js"></script>
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

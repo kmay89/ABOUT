@@ -11,7 +11,8 @@
      room.js   the mailbox client, the heartbeat and the healing loop
      table.js  the door's whole interface — the name box, the code in big
                letters, the lobby, the QR fallback and the seating
-     cards.js  a deck and a four-seat table, shared by hearts and euchre
+     cards.js  a deck and a four-seat table, shared by hearts, euchre and viuda
+     words.js  the party-game word lists, shared by the two party rooms
 
    Each is checked the same way: byte-identical everywhere it appears, loaded
    in the right order, and the game must say who it is. And the mailbox has to
@@ -34,12 +35,20 @@ const ROOMS = [
   { game: "othello",  seats: 2, kit: ["room", "table"] },
   { game: "halma",    seats: 6, kit: ["room", "table"] },
   { game: "stratego", seats: 2, kit: ["room", "table"] },
+  { game: "yahtzee",  seats: 6, kit: ["room", "table"] },
+  { game: "viuda",    seats: 6, kit: ["room", "table", "cards"] },
   { game: "hearts",   seats: 4, kit: ["room", "table", "cards"] },
   { game: "euchre",   seats: 4, kit: ["room", "table", "cards"] }
 ];
 /* the rooms nobody else joins — no net, no door, but still a service worker
    and an icon set to keep honest */
-const SOLO = ["sudoku", "library", "solitaire", "minesweeper", "breaker"];
+const SOLO = ["sudoku", "library", "solitaire", "minesweeper", "breaker",
+              "catchphrase", "guesstures"];
+/* The party games have no door — they are one phone passed round a room — but
+   they do share a file, and a word list that has drifted between the two is
+   exactly the sort of thing nobody notices until somebody reads the same card
+   in both games. */
+const SHARED_SOLO = [{ file: "words", games: ["catchphrase", "guesstures"] }];
 
 const CACHES = new Map();
 let fails = 0;
@@ -50,8 +59,10 @@ function ok(what, cond, detail) {
 
 /* ---------- the shared files, byte for byte ---------- */
 console.log("\n──  one door, copied honestly");
-for (const file of ["room", "table", "cards"]) {
-  const owners = ROOMS.filter((r) => r.kit.includes(file));
+const KIT = ["room", "table", "cards"].map((file) => ({ file, games: ROOMS.filter((r) => r.kit.includes(file)).map((r) => r.game) }))
+  .concat(SHARED_SOLO);
+for (const { file, games } of KIT) {
+  const owners = games.map((game) => ({ game }));
   if (!owners.length) continue;
   const canonPath = path.join(ROOT, owners[0].game, file + ".js");
   if (!fs.existsSync(canonPath)) { ok(file + ".js exists somewhere", false); continue; }

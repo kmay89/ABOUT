@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Sheet — Yahtzee, with every box showing what it would score</title>
+<meta name="description" content="Yahtzee in your browser for one to six players: the joker rule done properly, every open box showing what the dice in front of you would score in it, an opponent that computes the exact value of all 252 hands, and six phones joined by typing four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Sheet">
+<meta property="og:description" content="Yahtzee where every open box tells you what it would score before you commit. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#f0a83c; --accent-dim:#c07a1c; --accent-ink:#1d1408; }
+  /* the sheet's own header names the players, marks whose turn it is, and
+     carries their totals — so the strip of chips and the score rail every
+     other room floats over the top of its board would be a second copy of
+     the same list, sitting exactly where this board has no room to spare */
+  #seats, #rail{ display:none }
+  #say{ top:5px }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="board" class="surface"></canvas>
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Best <b>0</b></div>
+      <div class="score" id="scoreThem">Won <b>0</b></div>
+    </div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow" id="btnUndo" title="Take the turn back"><span class="k">↶</span></button>
+    <button class="btn primary wide" id="btnRoll"><span class="k">🎲</span><span class="t">Roll</span></button>
+    <button class="btn narrow" id="btnHint" title="Hint"><span class="k">💡</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Sheet</div>
+  <div class="sub">Yahtzee. Five dice, three rolls, thirteen boxes — and every open box tells you what it would score before you spend it.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a game</button>
+    <button class="btn" id="goPass">All of us, one phone</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="goTogether">Up to six phones</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The table</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mSetup">Players &amp; level</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mPass">All of us, one phone</button>
+    <button class="btn" id="mTogether">Up to six phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovSetup"><div class="sheet">
+  <button class="close" data-close="ovSetup">✕</button>
+  <h2>Players &amp; level</h2>
+  <p class="lead">Everybody fills the same thirteen boxes. Highest sheet wins.</p>
+  <div id="setupBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Six phones, one table</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovAsk"><div class="sheet">
+  <button class="close" data-close="ovAsk">✕</button>
+  <h2 id="askTitle"></h2>
+  <p class="lead" id="askLead"></p>
+  <div class="row">
+    <button class="btn wide" id="askNo">Not yet</button>
+    <button class="btn primary wide" id="askYes">Write it</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Two sentences of rules, and then three things that are the difference between a hundred and eighty and a two hundred and forty.</p>
+
+  <h3>The rules</h3>
+  <p class="note">On your turn you roll five dice, keep any of them, roll the rest, keep any of them, and roll a third time. Then you write the result into <b>one</b> of the thirteen boxes on your sheet — and that box is now used up, whatever you put in it. Thirteen turns each, highest total wins.</p>
+
+  <h3>1 · Three of a kind scores everything</h3>
+  <p class="note">Three of a kind and four of a kind score the <b>sum of all five dice</b>, not the sum of the matching ones. 6-6-6-5-5 in Three of a kind is twenty-eight. A great many versions of this game get that wrong, and it changes which dice are worth keeping — a triple of sixes with a pair of fives is a much better roll than a triple of sixes with two ones.</p>
+
+  <h3>2 · The sixty-three is the whole upper half</h3>
+  <p class="note">Thirty-five points sit behind an upper total of 63, which is exactly three of every number. So <b>three is par</b>: three fours is neither gain nor loss, four fours is four to the good, two fours is four behind. Chase the fourths and fifths of the big numbers early, and the thirty-five arrives on its own. It is the cheapest thirty-five on the sheet and most people never collect it.</p>
+
+  <h3>3 · A nought on purpose is a real move</h3>
+  <p class="note">You will have turns where nothing fits. The instinct is to dump the dice into whatever scores a few points; the better move is often to write a <b>nought</b> into the cheapest box you still own — usually Ones, sometimes Yahtzee — and keep the twenty-five and thirty back for the rolls that will fill them. Spending Full house on a garbage roll costs you far more than the nought does.</p>
+
+  <h3>4 · The second Yahtzee is worth a hundred, and it is a joker</h3>
+  <p class="note">If you have already scored fifty in the Yahtzee box, every further Yahtzee is <b>a hundred points on top</b> of wherever you write it — and it may be written almost anywhere: its own number upstairs if that is still open, otherwise any open box at all, at full value. Five threes into Large straight is forty points plus the hundred. If you scored a nought in the Yahtzee box, there is no bonus and no joker. That is the real rule, and this table plays it.</p>
+
+  <h3>What the sheet is doing for you</h3>
+  <p class="note">Once you have rolled, every box you have not used yet shows the number it would score with the dice on the table. Nothing is hidden and nothing is decided for you — it is just the arithmetic, done. Tap a box to write it there. If the box would score nothing, it asks first, because that is the one move you cannot take back.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Play again</button></div>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

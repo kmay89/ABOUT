@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Hot Potato — a describing game with a timer nobody can see</title>
+<meta name="description" content="A pass-the-phone describing game for two teams: a word comes up, you describe it without saying it, and the moment somebody gets it the phone changes hands. The buzzer goes off at a time nobody knows. One phone, no accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Hot Potato">
+<meta property="og:description" content="Describe it, pass it on, and don't be holding it when the buzzer goes. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#e0503f; --accent-dim:#a9331f; --accent-ink:#fff3ef; }
+  #stage{ display:flex; flex-direction:column }
+
+  #scoreline{
+    flex:none; display:flex; gap:8px; padding:8px 10px 0; z-index:5;
+  }
+  .team{
+    flex:1; background:rgba(16,13,10,.6); border:1px solid var(--line);
+    border-radius:14px; padding:7px 10px; text-align:center;
+    transition:border-color .2s, background .2s, transform .2s;
+  }
+  .team .nm{ font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--soft) }
+  .team .sc{ font-size:1.7rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1 }
+  .team.holding{ border-color:var(--accent); background:rgba(224,80,63,.16); transform:translateY(1px) }
+  .team.holding .nm{ color:var(--accent) }
+
+  .panel{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center;
+          justify-content:center; text-align:center; padding:18px; gap:10px }
+  .panel.hide{ display:none }
+
+  #word{
+    font-size:clamp(2rem, 12vw, 4.4rem); font-weight:800; line-height:1.05;
+    letter-spacing:-.02em; overflow-wrap:anywhere; max-width:15ch;
+  }
+  #level{ font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--soft) }
+  #holder{ font-size:.95rem; color:var(--accent); font-weight:700 }
+  #tally{ font-size:.8rem; color:var(--soft) }
+  /* look.css gives .btn `flex:1` because in the tray it is a row of buttons
+     sharing the width. Inside these panels the flex direction is a *column*,
+     so that same rule stretches a button down the whole screen — which is
+     what it did, and it looked like a design decision until you tried to tap
+     the word behind it. */
+  .panel .btn{ flex:none }
+  #stagePlay{ cursor:pointer; -webkit-user-select:none; user-select:none }
+  #tapNote{ font-size:.78rem; color:var(--soft); margin-top:6px }
+
+  #readyLead{ font-size:1.3rem; font-weight:700; max-width:18ch }
+  #readyRound{ color:var(--soft); font-size:.9rem }
+  #buzzTitle{ font-size:2rem; font-weight:800 }
+  #buzzLead{ color:var(--soft); max-width:26ch }
+
+  /* the last few seconds. Nothing here is a countdown — it is a temperature,
+     which is exactly as much as the room is allowed to know. */
+  body.hot #stagePlay{ animation:heat .5s ease-in-out infinite alternate }
+  @keyframes heat{ from{ background:transparent } to{ background:rgba(224,80,63,.13) } }
+  #setupBody input{
+    background:var(--card2); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:8px 10px; font:inherit; width:46%;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <div id="scoreline">
+      <div class="team" id="teamA"><div class="nm" id="nameA">Red</div><div class="sc" id="scoreA">0</div></div>
+      <div class="team" id="teamB"><div class="nm" id="nameB">Blue</div><div class="sc" id="scoreB">0</div></div>
+    </div>
+
+    <div class="panel" id="stageReady">
+      <div id="readyLead"></div>
+      <div id="readyRound"></div>
+      <button class="btn primary wide" id="btnGo" style="max-width:260px">Start the round</button>
+      <p class="note" style="max-width:30ch">Describe the word without saying it, or any part of it. The second they get it, tap the word and hand the phone over.</p>
+    </div>
+
+    <div class="panel hide" id="stagePlay">
+      <div id="level"></div>
+      <div id="word"></div>
+      <div id="holder"></div>
+      <div id="tally"></div>
+      <div id="tapNote">Tap anywhere when they get it</div>
+      <button class="btn" id="btnSkip" style="max-width:170px">Skip this one</button>
+    </div>
+
+    <div class="panel hide" id="stageBuzz">
+      <div id="buzzTitle"></div>
+      <div id="buzzLead"></div>
+      <button class="btn primary wide" id="buzzNext" style="max-width:260px">Next round</button>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn primary wide" id="btnGot"><span class="k">✓</span>Got it — pass it on</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Hot Potato</div>
+  <div class="sub">A word comes up. Describe it without saying it. The moment they get it, hand the phone on — and don't be holding it when the buzzer goes, because nobody knows when that is.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goPlay">Play</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The game</h2>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mSetup">Teams &amp; words</button>
+  </div>
+  <div class="row">
+    <button class="btn wide" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovSetup"><div class="sheet">
+  <button class="close" data-close="ovSetup">✕</button>
+  <h2>Teams &amp; words</h2>
+  <div id="setupBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Two teams, one phone, and a timer nobody can see.</p>
+
+  <h3>The rules</h3>
+  <p class="note">A word appears. Describe it to <b>your own team</b> — you may say anything at all except the word itself, any part of it, and anything that rhymes with it. No spelling, no first letters, no hand signals. The moment somebody on your team says it, tap the word and <b>hand the phone to the other team</b>, who get the next word. When the buzzer goes, whoever is holding the phone has lost the point, and the other team scores it. First team to seven wins.</p>
+
+  <h3>Why the clock is hidden</h3>
+  <p class="note">Because a visible countdown turns this into a race you can pace, and a hidden one turns it into a hot potato. The round is somewhere between forty-five and seventy-five seconds and the phone will never tell you where — all it does is <b>tick</b>, faster and faster, so everybody in the room knows it is close and nobody knows how close. That last ten seconds is the entire reason to play.</p>
+
+  <h3>Skipping costs you</h3>
+  <p class="note">If a word is impossible, you can skip it — but the phone <b>stays in your hands</b>. A skip that passed the phone on would be the best move in the game and nobody would ever describe anything.</p>
+
+  <h3>The one house rule worth having</h3>
+  <p class="note">If the describer says any part of the word, the phone changes hands immediately and the word is dead. It is the only rule that needs enforcing and it enforces itself — everybody in the room heard it.</p>
+</div></div>
+
+<script src="words.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

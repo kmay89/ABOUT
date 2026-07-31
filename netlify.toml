@@ -99,6 +99,26 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/yahtzee/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/viuda/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/catchphrase/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/guesstures/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/solitaire/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"

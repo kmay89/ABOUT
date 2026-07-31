@@ -42,6 +42,7 @@ const SDP_MAX = 8000;
 const GAMES = [
   'chess', 'domino', 'table', 'test',
   'checkers', 'othello', 'halma', 'hearts', 'euchre', 'stratego',
+  'yahtzee', 'viuda',
 ];
 
 const CORS = {

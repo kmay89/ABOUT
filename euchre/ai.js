@@ -57,27 +57,56 @@ var AI = {};
    Steady adds the two judgements that make somebody a euchre player — it
    appraises the hand before calling, and it does not overtake its partner.
 
-   Sharp adds the one that makes somebody good: it **counts**. Twenty-four
-   cards and five tricks means the pack runs out fast, and a player tracking
-   what has gone knows by the third trick that their queen of trump is now
-   the highest card left in the game. Knowing a card is boss changes what you
-   lead, and — the bigger one — knowing your *partner's* card is boss changes
-   whether you get out of the way or spend a card protecting the trick. Those
-   two positions want opposite cards, so a player who cannot tell them apart
-   plays them badly however carefully it plays everything else.
+   Sharp counts as well — it knows by the third trick that its queen of trump
+   is now the highest card left — and then it stops scoring cards altogether
+   and **plays the hand out**. Twenty-four unseen cards are dealt to the other
+   three chairs, consistent with every suit somebody has already failed to
+   follow, and each candidate card is played to the end of the hand with the
+   Steady heuristic in all four seats. Twenty-four deals, then whichever card
+   paid best.
 
-   The edge is real and it is not enormous: 56% of matches to ten over six
-   hundred, at an average margin of 0.8 points. Euchre is a high-variance
-   game and anybody claiming a bigger number for one skill is measuring
-   something else. tools/ai-check.js runs that ladder and requires each rung
-   to beat the one below. */
+   That last rung was rebuilt, and the reason is worth writing down. Counting
+   on its own — which is all Sharp used to be — measured **50%** against
+   Steady over six hundred matches. Not weaker: identical. The bidding was the
+   same, and counting only changes two branches of the play that rarely fire
+   differently, so the two were one player wearing two names. That is exactly
+   what tools/ai-check.js exists to catch, and for a while it did not, because
+   the harness's own seeded generator had a cycle of sixteen thousand and was
+   quietly turning four hundred games into far fewer.
+
+   Playing it out is a difference in kind rather than a knob, and it measures
+   **61% of matches to ten over fifteen hundred, average margin +1.3 points.**
+
+   Getting a number worth quoting took two corrections to the *measurement*,
+   and the second one is the interesting one.
+
+   · **The generator is an argument.** `search` used to reach for
+     `Math.random`, so a seeded harness was measuring an unseeded player — 57%
+     one run and 53% the next off identical seeds. Nothing about the play was
+     wrong; the number simply meant nothing.
+   · **And it is not the dealer's.** Threading the harness's one stream
+     through made it reproducible and the figure jumped to 65%, which looked
+     too good. The obvious suspicion was a leak: determinizing out of the same
+     shuffle that dealt the cards might make the imagined hands resemble the
+     real ones. **That suspicion was wrong, and it was checked rather than
+     believed** — `AI.determinize` places a card in the seat that really holds
+     it 26.8% of the time off the dealer's stream and 26.5% off an independent
+     one, against a baseline of 27.8%. No leak either way, and
+     tools/ai-check.js now runs that comparison every time.
+
+     The real fault was duller and entirely the harness's: a player that
+     draws from the deal's stream *moves* it, so the same seed no longer
+     produces the same deals when the strong side changes chairs, and the
+     paired comparison the ladder depends on quietly stops being paired. An
+     independent stream restores it. 61% is the paired number. */
 AI.TIERS = [
   { key: "novice", name: "Learning", bar: 1.7, naive: true,  counts: false, aloneBar: 99,
     blurb: "Calls whenever it holds a jack. Overtakes its own partner." },
   { key: "steady", name: "Steady",   bar: 2.6, naive: false, counts: false, aloneBar: 4.3,
     blurb: "Counts its tricks before calling, and knows when its partner is already winning." },
-  { key: "sharp",  name: "Sharp",    bar: 2.6, naive: false, counts: true,  aloneBar: 4.3,
-    blurb: "Tracks every card that has gone, so it knows when its queen has become the highest card left." }
+  { key: "sharp",  name: "Sharp",    bar: 2.6, naive: false, counts: true,  aloneBar: 4.3, bossLead: 30,
+    rollouts: 24,
+    blurb: "Deals the three hands it cannot see — consistent with every suit somebody has failed to follow — and plays the whole thing out before choosing." }
 ];
 AI.tier = function (k) {
   for (var i = 0; i < AI.TIERS.length; i++) if (AI.TIERS[i].key === k) return AI.TIERS[i];
@@ -252,6 +281,9 @@ function boss(st, seat, card, gone) {
 }
 AI.boss = boss;
 AI.goneSet = goneSet;
+/* exported so the harness can ask the question that matters about a
+   determinizing engine: are its imagined hands any better than chance? */
+AI.determinize = function (st, seat, rnd) { return deal(st, seat, rnd); };
 
 /* ---------- playing ---------- */
 function winnerOf(trick, trump) {
@@ -264,7 +296,7 @@ function winnerOf(trick, trump) {
 }
 AI.winnerOf = winnerOf;
 
-AI.choose = function (st, seat, tierKey) {
+AI.choose = function (st, seat, tierKey, rnd) {
   var tier = AI.tier(tierKey);
   var legal = Rules.legal(st, seat);
   if (!legal.length) return null;
@@ -275,8 +307,143 @@ AI.choose = function (st, seat, tierKey) {
   var scored = [];
   for (i = 0; i < legal.length; i++) scored.push({ c: legal[i], v: value(st, seat, legal[i], tier, gone) });
   scored.sort(function (a, b) { return b.v - a.v; });
-  return { card: scored[0].c, why: reasons(st, seat, scored[0].c, scored, gone) };
+  if (!tier.rollouts) return { card: scored[0].c, why: reasons(st, seat, scored[0].c, scored, gone) };
+
+  var pick = search(st, seat, legal, tier, rnd);
+  var why = reasons(st, seat, pick.card, scored, gone);
+  if (pick.card !== scored[0].c) why.unshift("played-it-out");
+  if (pick.margin < 0.12) why.push("close-call");
+  return { card: pick.card, why: why, points: pick.points };
 };
+
+/* ---------- playing it out ----------
+
+   Counting tells you what is left. It does not tell you what to do about it,
+   and in a five-trick game the difference between a good card and a bad one
+   is usually two tricks away rather than in front of you. So the top tier
+   stops scoring cards and starts **playing the hand out** — the technique the
+   hearts table already uses, and euchre is a far better fit for it: five
+   tricks, twenty cards, and a whole hand plays to the end in microseconds.
+
+   The three unseen hands are dealt at random from what is left, but never
+   at random *wrongly*: a seat that failed to follow a suit is void in it
+   forever, everybody watched that happen, and a deal that hands them one
+   anyway is a deal that could not exist. Those constraints are the whole
+   difference between this and guessing — it is the same discipline as the
+   stratego belief, which is that you may use anything the table showed you
+   and nothing else.
+
+   Then every candidate card is played to the end of the hand with the Steady
+   heuristic in all four chairs, and scored by what the *hand* pays: two for a
+   euchre, four for a lone march. Averaging over deals is what makes it a
+   judgement rather than a hope.                                            */
+
+/* which suits each seat has shown it cannot hold */
+function voidsOf(st) {
+  var v = [{}, {}, {}, {}], seen = [], i, j;
+  for (i = 0; i < st.log.length; i++) seen.push(st.log[i]);
+  for (i = 0; i < st.trick.length; i++) seen.push(st.trick[i]);
+  var led = -1, n = 0, per = Rules.playersIn(st);
+  for (i = 0; i < seen.length; i++) {
+    if (n === 0) led = Rules.suitOf(seen[i].card, st.trump);
+    else if (Rules.suitOf(seen[i].card, st.trump) !== led) v[seen[i].seat][led] = 1;
+    n++;
+    if (n === per) n = 0;
+  }
+  for (j = 0; j < 4; j++) if (j === st.sitting) v[j] = null;
+  return v;
+}
+
+/* one consistent deal of the unseen cards. Returns null if the constraints
+   cannot be met, which happens and is simply retried — rejection sampling is
+   the honest way to sample from "consistent with the voids", and at this size
+   it costs nothing. */
+function deal(st, seat, rnd) {
+  var mine = {}, i, c;
+  for (i = 0; i < st.hands[seat].length; i++) mine[st.hands[seat][i]] = 1;
+  var gone = goneSet(st, seat);
+  var pool = [];
+  for (c = 0; c < 52; c++) {
+    if (Cards.rank(c) < Rules.LOW) continue;
+    if (gone[c] || mine[c]) continue;
+    pool.push(c);
+  }
+  /* the kitty is unseen too, and its three buried cards are as likely to be
+     anywhere as any other unseen card — so they stay in the pool and the
+     surplus is simply never dealt */
+  for (i = pool.length - 1; i > 0; i--) {
+    var j = (rnd() * (i + 1)) | 0, t = pool[i];
+    pool[i] = pool[j]; pool[j] = t;
+  }
+  var v = voidsOf(st), hands = [[], [], [], []], need = [];
+  for (i = 0; i < 4; i++) {
+    hands[i] = i === seat ? st.hands[seat].slice() : [];
+    if (i !== seat) need.push({ seat: i, n: st.hands[i].length });
+  }
+  /* hardest seat first — the one with the most voids has the fewest cards
+     that can legally go to it, so filling it last is how a deal fails */
+  need.sort(function (a, b) {
+    var av = v[a.seat] ? Object.keys(v[a.seat]).length : 9;
+    var bv = v[b.seat] ? Object.keys(v[b.seat]).length : 9;
+    return bv - av;
+  });
+  for (i = 0; i < need.length; i++) {
+    var who = need[i].seat, want = need[i].n, bad = v[who];
+    for (var k = 0; k < pool.length && hands[who].length < want; k++) {
+      if (pool[k] < 0) continue;
+      if (bad && bad[Rules.suitOf(pool[k], st.trump)]) continue;
+      hands[who].push(pool[k]);
+      pool[k] = -1;
+    }
+    if (hands[who].length < want) return null;
+  }
+  return hands;
+}
+
+function playOut(st) {
+  var n = st, guard = 0;
+  while (n.phase !== "done" && guard++ < 40) {
+    var pick = AI.choose(n, n.turn, "steady");
+    if (!pick) break;
+    var next = Rules.play(n, n.turn, pick.card);
+    if (!next) break;
+    n = next;
+  }
+  return n;
+}
+
+function search(st, seat, legal, tier, rnd) {
+  var mine = Rules.TEAM[seat];
+  var sums = [], i, d;
+  for (i = 0; i < legal.length; i++) sums.push(0);
+  var runs = 0, tries = 0;
+  /* The generator is an argument, not a global. A tier whose strength is
+     measured by a seeded harness but whose own sampling reaches for
+     Math.random is not being measured at all — it produced 57% one run and
+     53% the next off identical seeds, which is exactly the kind of number
+     somebody would have quoted. */
+  rnd = rnd || Math.random;
+  while (runs < tier.rollouts && tries++ < tier.rollouts * 4) {
+    var hands = deal(st, seat, rnd);
+    if (!hands) continue;
+    runs++;
+    for (i = 0; i < legal.length; i++) {
+      var base = Rules.clone(st);
+      base.hands = [hands[0].slice(), hands[1].slice(), hands[2].slice(), hands[3].slice()];
+      var after = Rules.play(base, seat, legal[i]);
+      if (!after) continue;
+      var end = playOut(after);
+      if (end.phase !== "done") continue;
+      var t = Rules.tally(end);
+      sums[i] += (t.team === mine ? t.points : -t.points);
+    }
+  }
+  if (!runs) return { card: legal[0], margin: 0, points: 0 };
+  var best = 0, second = -1e9;
+  for (i = 1; i < legal.length; i++) if (sums[i] > sums[best]) best = i;
+  for (i = 0; i < legal.length; i++) if (i !== best && sums[i] > second) second = sums[i];
+  return { card: legal[best], margin: (sums[best] - second) / runs, points: sums[best] / runs };
+}
 
 /* higher is better here — a card is judged by what it is likely to win */
 function value(st, seat, card, tier, gone) {
@@ -301,7 +468,7 @@ function value(st, seat, card, tier, gone) {
     /* the counted knowledge: a card that is the highest one left in its suit
        is a trick in hand. Leading it cashes that trick while it is still
        true — a queen that is boss on trick three may be dead on trick four. */
-    if (gone && boss(st, seat, card, gone)) v += 30;
+    if (gone && boss(st, seat, card, gone)) v += (tier.bossLead === undefined ? 30 : tier.bossLead);
     /* getting rid of your last card in a suit is a void you can trump into */
     var n = 0;
     for (var i = 0; i < st.hands[seat].length; i++) if (Rules.suitOf(st.hands[seat][i], trump) === s) n++;
