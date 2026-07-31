@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Checkers Board — draughts, with jumping compulsory</title>
+<meta name="description" content="English draughts in your browser: forced jumps, crowned kings, an engine that counts the whole exchange before taking it, and two phones joined by four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Checkers Board">
+<meta property="og:description" content="Draughts the way it is played: jumping is compulsory, and that is the whole game. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  /* this room's own colour: the amber of a cantina bulb, warmed towards the
+     board's own wood so the tray and the frame agree with each other */
+  :root{ --accent:#e2913f; --accent-dim:#bd6d21; --accent-ink:#1e1206; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="board" class="surface"></canvas>
+
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Won <b>0</b></div>
+      <div class="score" id="scoreThem">Lost <b>0</b></div>
+    </div>
+
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow" id="btnUndo" title="Take it back"><span class="k">↶</span></button>
+    <button class="btn wide" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow" id="btnFlip" title="Turn the board"><span class="k">⇅</span></button>
+  </div>
+</div>
+
+<!-- ---------- the splash ---------- -->
+<div id="splash">
+  <canvas id="splashCv" width="600" height="240"></canvas>
+  <div class="title">The Checkers Board</div>
+  <div class="sub">Draughts the way it is actually played: if there is a jump on the board, you are taking it. Everything else follows from that.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a game</button>
+    <button class="btn" id="goPass">Two of us, one phone</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="goTogether">Two phones</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<!-- ---------- sheets ---------- -->
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The board</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mLevel">Who you're playing</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mPass">Two of us, one phone</button>
+    <button class="btn" id="mTogether">Two phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Who you're playing</h2>
+  <p class="lead">All three see the same board. They differ in how far past the next capture they bother to look.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <p class="lead">Applies at once, mid-game.</p>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Two phones, one board</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Not a rulebook — the four things that separate somebody who knows the rules from somebody who can play.</p>
+
+  <h3>1 · Jumping is compulsory</h3>
+  <p class="note">If a capture exists anywhere on the board, every legal move is a capture. This is not a detail, it is the engine of the game: you do not win checkers by taking pieces, you win it by <b>offering</b> one so that the reply is forced and the reply after that is a two-for-one. A move that gives a man away is often the strongest move on the board.</p>
+
+  <h3>2 · Once you start a jump, you finish it</h3>
+  <p class="note">A chain runs until the jumping piece has nothing left to jump. Look down the whole chain before you take the first man — it is the commonest way a beginner loses three pieces to a gift of one.</p>
+
+  <h3>3 · Crowning ends the move</h3>
+  <p class="note">A man that lands on the far row is crowned and stops there, even with another jump waiting. That one rule decides more endgames than any other: a jump that would otherwise be a triple stops dead at the crown, and knowing that is how you set the trap or avoid it.</p>
+
+  <h3>4 · You lose by having nothing to move</h3>
+  <p class="note">Not only by running out of pieces. A side with a full board and no legal move has lost, which is why a cramped position is a losing one and why the engine here would rather take your moves than your men.</p>
+
+  <h3>The back row</h3>
+  <p class="note">Two men left at home stop anything crowning there, and that is worth about a man in the middlegame. It is worth nothing once they have no men left to crown, and worse than nothing in an endgame where you need every piece moving. Knowing <i>when</i> to open it is most of the difference between a good player and a careful one.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Play again</button></div>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
