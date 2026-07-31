@@ -47,13 +47,26 @@
   canvas.board{position:absolute; inset:0; width:100%; height:100%; display:block}
   #wrap{display:flex; flex-direction:row; flex:1; min-height:0}
   #panel{
-    width:270px; flex:none; display:flex; flex-direction:column; gap:8px;
-    padding:10px; border-left:1px solid var(--line); background:var(--card);
+    width:clamp(268px, 24vw, 384px); flex:none; display:flex; flex-direction:column; gap:10px;
+    padding:12px; border-left:1px solid var(--line);
+    background:linear-gradient(180deg, var(--card), #201a15);
     overflow:hidden;
+  }
+  /* On a wide desk the board drifts to the middle distance and leaves its
+     notes stranded at the far edge, so the eye has to travel the whole
+     screen to read a name or a move. Capping the stage's aspect and letting
+     it lean right parks the panel beside the board instead. The cap stays
+     wider than 1.25:1 — the point at which the 3D camera starts stepping
+     back to keep all eight files in frame — so the board never shrinks. */
+  @media (min-width:1024px){
+    #stage{flex:0 1 auto; width:100%; min-width:0; max-width:calc(100dvh * 1.45); margin-left:auto}
   }
   @media (max-width:760px){
     #wrap{flex-direction:column}
-    #panel{width:auto; height:132px; border-left:none; border-top:1px solid var(--line); flex-direction:row; align-items:stretch}
+    #panel{
+      width:auto; height:clamp(146px, 23dvh, 208px); border-left:none;
+      border-top:1px solid var(--line); flex-direction:row; align-items:stretch; gap:8px; padding:8px 10px;
+    }
   }
 
   /* ---------- player bars ---------- */
@@ -107,25 +120,107 @@
     background:var(--amber); color:#241a08; font-weight:700; font-size:.9em}
   #toast .tact.ghost{background:transparent; border:1px solid var(--line); color:var(--soft)}
 
-  /* ---------- side panel ---------- */
+  /* ---------- side panel: the notes beside the board ----------
+     Three things live here, in the order the eye wants them: what opening
+     you're in, who's up material, then the moves. The top two share a
+     block so that when neither has anything to say the moves take the
+     whole panel rather than sitting next to an empty box. */
+  #pInfo{display:flex; flex-direction:column; gap:10px; flex:0 1 auto; min-height:0; max-height:56%}
   #openingCard{
-    background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:8px 12px;
-    font-size:.85em; color:var(--soft); flex:none; max-height:88px; overflow:auto;
+    background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:9px 12px 10px;
+    display:flex; flex-direction:column; min-height:0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
   }
-  #openingCard b{color:var(--glow); display:block; font-size:1.05em}
-  #moveListWrap{flex:1; min-height:0; overflow-y:auto; background:var(--card2);
-    border:1px solid var(--line); border-radius:12px; padding:6px 8px}
-  #moveList{display:grid; grid-template-columns:2.2em 1fr 1fr; gap:1px 6px; font-size:.92em;
-    font-variant-numeric:tabular-nums}
-  #moveList .n{color:var(--soft)}
-  #moveList .m{border-radius:6px; padding:0 6px; cursor:pointer}
-  #moveList .m:hover{background:rgba(255,209,102,.12)}
-  #moveList .m.cur{background:rgba(240,160,32,.25); font-weight:700}
-  #viewBanner{flex:none; background:rgba(143,176,255,.12); border:1px solid rgba(143,176,255,.4);
-    border-radius:10px; padding:5px 10px; font-size:.82em; color:var(--blue); text-align:center; cursor:pointer}
+  .ocTop{display:flex; align-items:center; gap:8px}
+  .ocEyebrow{font-size:.64em; letter-spacing:.16em; text-transform:uppercase; color:var(--soft); font-weight:700}
+  #ocEco{
+    margin-left:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:.66em; letter-spacing:.08em; color:var(--amber);
+    border:1px solid rgba(240,160,32,.35); border-radius:999px; padding:1px 7px;
+  }
+  #ocEco:empty{display:none}
+  #ocName{color:var(--glow); font-weight:700; font-size:1.02em; line-height:1.3; margin-top:2px}
+  /* the idea is the part that used to get cut off — it now gets the room
+     it needs, and only scrolls when a line is genuinely long-winded */
+  #ocIdea{margin:4px 0 0; font-size:.9em; line-height:1.45; color:var(--ink); overflow-y:auto; min-height:0}
+  /* the ECO table names a line more precisely than the teaching book does,
+     so say plainly which line the idea underneath belongs to */
+  #ocFrom{margin-top:5px; font-size:.74em; line-height:1.35; color:var(--soft)}
+  #ocFrom:empty{display:none}
+
+  /* who's ahead, spelled out where there's room for it */
+  #matStrip{
+    flex:none; background:var(--card2); border:1px solid var(--line); border-radius:14px;
+    padding:7px 10px; display:flex; flex-direction:column; gap:3px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .matRow{display:flex; align-items:center; gap:7px; min-height:22px}
+  .matRow .dot{width:11px; height:11px; border-radius:50%; flex:none; border:1px solid var(--line)}
+  .matRow .dot.w{background:#efe6d6} .matRow .dot.b{background:#241d17; border-color:#6b5947}
+  .matRow .who{
+    width:4.6em; flex:none; font-size:.72em; letter-spacing:.05em; color:var(--soft);
+    text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .matRow .taken{
+    flex:1; min-width:0; font-size:1.18em; line-height:1.15; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .matRow .taken:empty::before{content:"—"; color:var(--line)}
+  .matRow .lead{flex:none; font-weight:700; font-size:.9em; color:var(--good); font-variant-numeric:tabular-nums}
+
+  #viewBanner{
+    flex:none; background:rgba(143,176,255,.12); border:1px solid rgba(143,176,255,.4);
+    border-radius:12px; padding:6px 10px; font-size:.82em; color:var(--blue);
+    text-align:center; cursor:pointer;
+  }
+  #viewBanner:hover{background:rgba(143,176,255,.2)}
+
+  /* the log: one line per move pair, each line its own soft slab so the
+     eye can run down the column without losing its place */
+  #moveListWrap{
+    flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:6px;
+    scrollbar-width:thin; scrollbar-color:#4f4235 transparent;
+  }
+  #moveListWrap::-webkit-scrollbar{width:9px}
+  #moveListWrap::-webkit-scrollbar-thumb{
+    background:#4f4235; border-radius:999px; border:2px solid transparent; background-clip:content-box;
+  }
+  #moveList{display:grid; grid-template-columns:1fr; gap:3px; font-variant-numeric:tabular-nums}
+  .mrow{
+    display:grid; grid-template-columns:2.1em minmax(0,1fr) minmax(0,1fr); align-items:center;
+    gap:2px; border-radius:9px; background:rgba(240,232,218,.035);
+  }
+  #moveList .n{color:var(--soft); font-size:.8em; text-align:right; padding-right:5px}
+  #moveList .m{
+    border-radius:8px; padding:3px 7px; cursor:pointer; font-size:.98em; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; transition:background .12s, box-shadow .12s;
+  }
+  #moveList .m:hover{background:rgba(255,209,102,.14)}
+  #moveList .m.cur{
+    background:rgba(240,160,32,.26); box-shadow:inset 0 0 0 1px rgba(240,160,32,.55);
+    font-weight:700; color:var(--ink);
+  }
+  /* figurine notation: a knight reads as a knight faster than "N" does */
+  #moveList .fig{font-style:normal; color:var(--glow); margin-right:1px}
+  .mlEmpty{grid-column:1/-1; color:var(--soft); font-size:.82em; line-height:1.4; padding:8px 6px; text-align:center}
   @media (max-width:760px){
-    #openingCard{max-width:44vw}
-    #moveListWrap{flex:1}
+    /* a phone's panel is a shelf, not a column: the block keeps its own
+       scroll so a five-word opening name can't push the score off it */
+    #pInfo{width:min(46%, 250px); flex:none; max-height:none; gap:8px; overflow-y:auto; overscroll-behavior:contain}
+    #openingCard{flex:none; padding:7px 9px 8px; cursor:pointer}
+    #ocName{font-size:.95em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+    #ocIdea{font-size:.82em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+    #ocFrom{display:none}
+    /* whatever the opening is called, the score stays in sight */
+    #matStrip{position:sticky; bottom:0; z-index:1}
+    #matStrip{padding:5px 8px}
+    .matRow{min-height:19px}
+    .matRow .who{display:none}
+    #moveListWrap{min-width:0}
+    /* a phone's panel is wide and short: fill the width with move pairs
+       rather than running one long column past the bottom edge */
+    #moveList{grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); gap:3px 8px}
   }
 
   /* ---------- action bar ---------- */
@@ -513,8 +608,25 @@
       <div class="lessonBar hide" id="lessonBar"></div>
     </div>
     <div id="panel">
-      <div id="openingCard" class="hide"></div>
-      <div id="viewBanner" class="hide">Viewing an earlier move — tap to return to the game</div>
+      <div id="pInfo">
+        <div id="viewBanner" class="hide">Looking back — tap to return to the game</div>
+        <div id="openingCard" class="hide">
+          <div class="ocTop"><span class="ocEyebrow">Opening</span><span id="ocEco"></span></div>
+          <div id="ocName"></div>
+          <p id="ocIdea"></p>
+          <div id="ocFrom"></div>
+        </div>
+        <div id="matStrip" class="hide">
+          <div class="matRow">
+            <i class="dot w" id="matDot1"></i><span class="who" id="matWho1"></span>
+            <span class="taken" id="matTaken1"></span><span class="lead" id="matLead1"></span>
+          </div>
+          <div class="matRow">
+            <i class="dot b" id="matDot2"></i><span class="who" id="matWho2"></span>
+            <span class="taken" id="matTaken2"></span><span class="lead" id="matLead2"></span>
+          </div>
+        </div>
+      </div>
       <div id="moveListWrap"><div id="moveList"></div></div>
     </div>
   </div>

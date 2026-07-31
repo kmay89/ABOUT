@@ -279,9 +279,12 @@ function syncBars() {
   }
   $("nameTop").textContent = tag(topSide);
   $("nameBot").textContent = tag(botSide);
-  /* captured pieces: what each side has taken, plus the material lead */
+  /* captured pieces: what each side has taken, plus the material lead.
+     While you're looking back the tally looks back with you — a score
+     from a position that isn't on the board would only mislead. */
   var takenByW = [], takenByB = [], diff = 0;
-  if (G) G.played.forEach(function (rec) {
+  var upto = G ? (viewPly >= 0 ? viewPly + 1 : G.played.length) : 0;
+  if (G) G.played.slice(0, upto).forEach(function (rec) {
     var c = rec.m.capt;
     if (!c) return;
     var k = Math.abs(c);
@@ -293,8 +296,35 @@ function syncBars() {
   var bStr = takenByB.sort().map(function (k) { return GLYPH[k]; }).join("");
   var wLead = diff > 0 ? " +" + Math.round(diff / 100) : "";
   var bLead = diff < 0 ? " +" + Math.round(-diff / 100) : "";
-  $("capTop").textContent = (topSide === 1 ? wStr + wLead : bStr + bLead);
-  $("capBot").textContent = (botSide === 1 ? wStr + wLead : bStr + bLead);
+  function taken(side) { return side === 1 ? wStr : bStr; }
+  function lead(side) { return side === 1 ? wLead : bLead; }
+  $("capTop").textContent = taken(topSide) + lead(topSide);
+  $("capBot").textContent = taken(botSide) + lead(botSide);
+  /* the same tally again in the panel, in board order and at a size you
+     can read without leaning in — the bars over the board are a glance,
+     this is the one you actually count from */
+  matRow(1, topSide, taken(topSide), lead(topSide));
+  matRow(2, botSide, taken(botSide), lead(botSide));
+  $("matStrip").classList.toggle("hide", !wStr && !bStr);
+  syncPanelInfo();
+}
+function matRow(row, side, taken, lead) {
+  $("matDot" + row).className = "dot " + (side === 1 ? "w" : "b");
+  $("matWho" + row).textContent = sideName(side);
+  $("matTaken" + row).textContent = taken;
+  $("matLead" + row).textContent = lead.trim();
+}
+/* the panel's top block earns its space or gets out of the way, so an
+   opening-less game gives the whole panel over to the moves */
+function syncPanelInfo() {
+  var live = ["openingCard", "matStrip", "viewBanner"].some(function (id) {
+    return !$(id).classList.contains("hide");
+  });
+  $("pInfo").classList.toggle("hide", !live);
+}
+function showViewBanner(on) {
+  $("viewBanner").classList.toggle("hide", !on);
+  syncPanelInfo();
 }
 function syncTurnStrip() {
   var el = $("turnStrip");
@@ -622,21 +652,35 @@ function narrateOpening(san, source) {
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
   var entry = Book.match(sans);
   var eco = (typeof Eco !== "undefined") ? Eco.match(sans) : null;
-  var card = $("openingCard");
-  var title = null, idea = entry ? entry.idea : "";
+  var title = null, code = "", idea = entry ? entry.idea : "";
   if (eco && (!entry || eco.seq.split(" ").length >= entry.seq.split(" ").length)) {
-    title = eco.name + " <small style='opacity:.6'>" + eco.eco + "</small>";
+    title = eco.name; code = eco.eco;
   } else if (entry) {
     title = entry.name;
   }
-  if (title) {
-    card.classList.remove("hide");
-    card.innerHTML = "<b>" + title + "</b>" + idea;
-  }
+  if (title) showOpeningCard(title, code, idea, (entry && entry.name !== title) ? entry.name : "");
   if (entry && entry.name !== lastNarratedOpening && sans.length >= 2) {
     lastNarratedOpening = entry.name;
-    if (source !== "net") toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
+    /* a move played elsewhere, or a game picked back up, fills the card
+       without also announcing an opening you were already in */
+    if (source !== "net" && source !== "resume") toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
   }
+}
+
+/* the opening card, written in one place so a live game and a guided
+   tour always put the same shape on the panel */
+function showOpeningCard(name, eco, idea, ideaFrom) {
+  $("ocName").textContent = name;
+  $("ocName").title = name;              /* the long ECO names get clipped on a phone */
+  $("ocEco").textContent = eco || "";
+  $("ocIdea").textContent = idea || "";
+  $("ocFrom").textContent = ideaFrom ? "— the idea behind the " + ideaFrom.replace(/^the /i, "") : "";
+  $("openingCard").classList.remove("hide");
+  syncPanelInfo();
+}
+function hideOpeningCard() {
+  $("openingCard").classList.add("hide");
+  syncPanelInfo();
 }
 
 /* ===== move list & history browsing ===== */
@@ -644,36 +688,76 @@ function syncMoveList() {
   var ml = $("moveList");
   ml.innerHTML = "";
   if (!G) return;
-  for (var i = 0; i < G.played.length; i += 2) {
-    var n = document.createElement("span"); n.className = "n"; n.textContent = (i / 2 + 1) + ".";
-    ml.appendChild(n);
-    ml.appendChild(moveCell(i));
-    if (i + 1 < G.played.length) ml.appendChild(moveCell(i + 1));
-    else { var f = document.createElement("span"); ml.appendChild(f); }
+  if (!G.played.length) {
+    var empty = document.createElement("div");
+    empty.className = "mlEmpty";
+    empty.textContent = "The moves land here as you play — tap any one to look back at it.";
+    ml.appendChild(empty);
+    return;
   }
-  var wrap = $("moveListWrap");
-  wrap.scrollTop = wrap.scrollHeight;
+  /* one slab per move pair: the number, white's move, black's reply */
+  for (var i = 0; i < G.played.length; i += 2) {
+    var row = document.createElement("div"); row.className = "mrow";
+    var n = document.createElement("span"); n.className = "n"; n.textContent = (i / 2 + 1) + ".";
+    row.appendChild(n);
+    row.appendChild(moveCell(i));
+    if (i + 1 < G.played.length) row.appendChild(moveCell(i + 1));
+    else row.appendChild(document.createElement("span"));
+    ml.appendChild(row);
+  }
+  /* live play follows the game to the bottom; browsing follows your eye.
+     Both wait a frame: a panel that has just changed shape (a game picked
+     back up, a phone rotating) reports its old height until layout runs. */
+  var cur = ml.querySelector(".m.cur");
+  var browsing = viewPly >= 0;
+  requestAnimationFrame(function () {
+    var wrap = $("moveListWrap");
+    if (browsing && cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });
+    else wrap.scrollTop = wrap.scrollHeight;
+  });
+}
+/* figurine notation: a knight reads as a knight faster than "N" does.
+   White's men keep the open glyphs, black's the filled ones — the same
+   pairing the captured piles over the board already use. */
+var FIG_W = { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘" };
+var FIG_B = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞" };
+function figurine(san, side) {
+  var fig = side === 1 ? FIG_W : FIG_B;
+  var out = document.createDocumentFragment(), rest = san;
+  function glyph(ch) { var i = document.createElement("i"); i.className = "fig"; i.textContent = fig[ch]; return i; }
+  if (fig[san.charAt(0)]) { out.appendChild(glyph(san.charAt(0))); rest = san.slice(1); }
+  var eq = rest.indexOf("=");
+  if (eq >= 0 && fig[rest.charAt(eq + 1)]) {
+    out.appendChild(document.createTextNode(rest.slice(0, eq + 1)));
+    out.appendChild(glyph(rest.charAt(eq + 1)));
+    out.appendChild(document.createTextNode(rest.slice(eq + 2)));
+  } else {
+    out.appendChild(document.createTextNode(rest));
+  }
+  return out;
 }
 function moveCell(ply) {
   var s = document.createElement("span");
   s.className = "m" + ((viewPly === ply || (viewPly < 0 && ply === G.played.length - 1)) ? " cur" : "");
-  s.textContent = G.played[ply].san;
+  var san = G.played[ply].san;
+  s.appendChild(figurine(san, ply % 2 === 0 ? 1 : -1));
+  s.title = san;                        /* the plain letters, for anyone who wants them */
   s.addEventListener("click", function () { viewAt(ply); });
   return s;
 }
 function viewAt(ply) {
   if (!G || ply < 0 || ply >= G.played.length) return;
   viewPly = (ply === G.played.length - 1) ? -1 : ply;
-  $("viewBanner").classList.toggle("hide", viewPly < 0);
+  showViewBanner(viewPly >= 0);
   clearSel(); hintArrow = null;
   R.setPosition(currentViewBoard());
-  syncBoard(); syncMoveList(); syncTurnStrip();
+  syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
 }
 function exitView() {
   viewPly = -1;
-  $("viewBanner").classList.add("hide");
+  showViewBanner(false);
   R.setPosition(G.board);
-  syncBoard(); syncMoveList(); syncTurnStrip();
+  syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
 }
 
 /* ===== replay the last move (again, with feeling) ===== */
@@ -703,7 +787,7 @@ function undoPly(n) {
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
   over = null;
   clearSel(); hintArrow = null; viewPly = -1;
-  $("viewBanner").classList.add("hide");
+  showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
   syncAll();
@@ -741,8 +825,8 @@ function startGame(newMode, opts) {
   G = Chess.create();
   over = null;
   clearSel(); hintArrow = null; viewPly = -1; lastNarratedOpening = ""; thinking = false;
-  $("viewBanner").classList.add("hide");
-  $("openingCard").classList.add("hide");
+  showViewBanner(false);
+  hideOpeningCard();
   humanSide = opts.humanSide || 1;
   skill = opts.skill || skill;
   clockConfig(opts.clockStr || "none");
@@ -911,6 +995,7 @@ function resumeSave(s) {
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
   R.setPosition(G.board);
   syncAll();
+  narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
   saveGame();      /* startGame wrote an empty save; restore the real one */
   var st = Chess.status(G);
   if (st.over) { endGame(st.result, st.reason); return; }
@@ -1036,6 +1121,7 @@ function beginLan(mySide, clockStr, sans, wMs, bMs) {
     R.setPosition(G.board);
     if (clock.on && wMs != null) { clock.w = wMs; clock.b = bMs; }
     if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
+    narrateOpening("", "resume");
     toast("📡 Resumed exactly where you left off.");
   }
   orientation = lanSide;
@@ -1690,8 +1776,7 @@ function startTour(line) {
   hideAllOverlays();
   syncAll();
   tourLine = line; tourStep = 0;
-  $("openingCard").classList.remove("hide");
-  $("openingCard").innerHTML = "<b>" + line.name + "</b>" + line.idea;
+  showOpeningCard(line.name, "", line.idea);
   toast("📖 <b>" + line.name + "</b> — watch; each move explains itself.", null, 3000);
   tourTimer = setTimeout(tourNext, REDUCED ? 600 : 1700);
 }
@@ -2001,8 +2086,8 @@ function startLesson(L, queue) {
   orientation = L.side;
   R.setOrientation(orientation);
   R.setPosition(G.board, { flourish: true });
-  $("openingCard").classList.add("hide");
-  $("viewBanner").classList.add("hide");
+  hideOpeningCard();
+  showViewBanner(false);
   syncAll();
   needFrame();
   /* a brand-new idea is demonstrated once, then handed straight back */
@@ -2663,6 +2748,17 @@ function wireUI() {
 
   /* view banner */
   $("viewBanner").addEventListener("click", exitView);
+
+  /* a phone clips the longer opening names and ideas to keep the score in
+     view; tapping a clipped card says the whole thing through the usual
+     funnel. A card with room to breathe stays quiet under the finger. */
+  $("openingCard").addEventListener("click", function () {
+    var name = $("ocName"), idea = $("ocIdea");
+    var clipped = name.scrollHeight > name.clientHeight + 1 || idea.scrollHeight > idea.clientHeight + 1;
+    if (!name.textContent || !clipped) return;
+    toast("📖 <b>" + escHtml(name.textContent) + "</b>" +
+      (idea.textContent ? " — " + escHtml(idea.textContent) : ""), null, 7000);
+  });
 
   /* link overlay */
   $("linkHostBtn").addEventListener("click", function () { hostFlow(false); });
