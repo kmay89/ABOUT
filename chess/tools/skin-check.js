@@ -88,10 +88,11 @@ ok("materials all describe themselves",
      carried && carried.pieces.set);
 
   /* junk ids are not carried */
-  ok("a junk set id falls back",
-     Skins.clean({ pieces: { set: "<script>" } }).pieces.set === "staunton");
+  const HOUSE = "classic";
+  ok("a junk set id falls back to the house set",
+     Skins.clean({ pieces: { set: "<script>" } }).pieces.set === HOUSE);
   ok("a set id that is not a string falls back",
-     Skins.clean({ pieces: { set: 7 } }).pieces.set === "staunton");
+     Skins.clean({ pieces: { set: 7 } }).pieces.set === HOUSE);
 
   /* codes minted before there was more than one set still read */
   const old13 = (() => {
@@ -107,7 +108,7 @@ ok("materials all describe themselves",
   })();
   const older = Skins.decode(old13);
   ok("a thirteen-field code from before piece sets still decodes", !!older);
-  ok("…and lands on the house set", older && older.pieces.set === "staunton", older && older.pieces.set);
+  ok("…and lands on the house set", older && older.pieces.set === HOUSE, older && older.pieces.set);
 }
 {
   ok("a code buried in a sentence is still found",

@@ -35,11 +35,13 @@ var MATERIALS = {
    installed yet, and the board falls back to the house set on its own
    rather than quietly rewriting what they sent. */
 var PIECE_SETS = {
+  classic:  { label: "Classic",  note: "turned openwork spirals" },
   staunton: { label: "Staunton", note: "the tournament pattern, carved" },
   modern:   { label: "Modern",   note: "flat-shaded geometry" },
   nordic:   { label: "Nordic",   note: "round, soft, hand-sized" }
 };
 var SET_ID = /^[a-z0-9][a-z0-9-]{0,23}$/;
+var DEFAULT_SET = "classic";
 
 var PATTERNS = {
   plain:  { label: "Plain",  note: "clean colour, nothing else" },
@@ -58,7 +60,7 @@ var PRESETS = [
     note: "The default: a lamp, a wooden board, ivory pieces. Warm enough to play all evening.",
     board: { light: "#ecdcc0", dark: "#a97d55", rim: "#54382a", edge: "#caa87c", coord: "#5d4433",
              pattern: "wood", grain: 0.55, gloss: 0.22 },
-    pieces: { white: "#f4ead6", black: "#2b241d", material: "ivory", set: "staunton", shine: 0.55, rim: 0.30 },
+    pieces: { white: "#f4ead6", black: "#2b241d", material: "ivory", set: "classic", shine: 0.55, rim: 0.30 },
     room: { bg: "#191512" },
     marks: { select: "#f6c450", legal: "#4c8f5e", capture: "#c0503f", last: "#f4d678", check: "#dc3c32", hint: "#2b8a5c" } },
 
@@ -66,7 +68,7 @@ var PRESETS = [
     note: "Dark room, translucent pieces. Turn the shine up and the kings glow at the edges.",
     board: { light: "#3b4a5c", dark: "#1e2733", rim: "#0d1219", edge: "#2a3542", coord: "#7f93a8",
              pattern: "marble", grain: 0.35, gloss: 0.75 },
-    pieces: { white: "#dceaf6", black: "#3d5570", material: "glass", set: "staunton", shine: 0.95, rim: 0.75 },
+    pieces: { white: "#dceaf6", black: "#3d5570", material: "glass", set: "classic", shine: 0.95, rim: 0.75 },
     room: { bg: "#080b10" },
     marks: { select: "#63c8ff", legal: "#3aa0d8", capture: "#ff6f6f", last: "#5ec6ff", check: "#ff5252", hint: "#48d6b0" } },
 
@@ -160,7 +162,7 @@ function clean(s, fallbackName) {
     pieces: {
       white: hex(p.white, d.pieces.white), black: hex(p.black, d.pieces.black),
       material: pick(p.material, MATERIALS, "ivory"),
-      set: setId(p.set, d.pieces.set || "staunton"),
+      set: setId(p.set, d.pieces.set || DEFAULT_SET),
       shine: num(p.shine, 0, 1, d.pieces.shine),
       rim: num(p.rim, 0, 1, d.pieces.rim)
     },
@@ -249,7 +251,7 @@ function parsePayload(payload) {
     board: { light: hash(b[0]), dark: hash(b[1]), rim: hash(b[2]), edge: hash(b[3]), coord: hash(b[4]),
              pattern: PATTERN_ORDER[parseInt(f[4], 10)], grain: unpct(f[5]), gloss: unpct(f[6]) },
     pieces: { white: hash(p[0]), black: hash(p[1]), material: MATERIAL_ORDER[parseInt(f[8], 10)],
-              set: setId(f[13], "staunton"), shine: unpct(f[9]), rim: unpct(f[10]) },
+              set: setId(f[13], DEFAULT_SET), shine: unpct(f[9]), rim: unpct(f[10]) },
     room: { bg: hash(f[11]) },
     marks: { select: hash(k[0]), legal: hash(k[1]), capture: hash(k[2]),
              last: hash(k[3]), check: hash(k[4]), hint: hash(k[5]) }

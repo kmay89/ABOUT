@@ -1346,6 +1346,79 @@ function registerOBJ(def, objText) {
                   license: meta.license, faces: meta.faces, custom: true, meshes: meshes });
 }
 
+/* ---------- packed sets ----------
+   The third door, and the one the shipped models come through. A set
+   that started life as six STL prints is far too heavy to parse in a
+   browser — a hundred and forty thousand triangles and seven megabytes —
+   so tools/make-stl-set.js does the reading, welding, decimating and
+   sizing once, and leaves behind positions quantised to 16 bits per axis
+   with an index list. All that's left here is to unpack it, which is a
+   base64 decode and a multiply.
+
+   Deliberately as suspicious of its input as the other two doors: the
+   file is generated, but a set in this format can equally arrive from
+   somebody else. */
+function b64bytes(s) {
+  if (typeof s !== "string") return null;
+  try {
+    var bin = (typeof atob === "function") ? atob(s)
+            : Buffer.from(s, "base64").toString("binary");
+    var out = new Uint8Array(bin.length), i;
+    for (i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i) & 255;
+    return out;
+  } catch (e) { return null; }
+}
+function unpackMesh(spec, shading) {
+  if (!spec || typeof spec !== "object") return null;
+  var box = spec.box;
+  if (!box || box.length !== 6) return null;
+  var i;
+  for (i = 0; i < 6; i++) if (!isFinite(box[i])) return null;
+  var vb = b64bytes(spec.v), ib = b64bytes(spec.i);
+  if (!vb || !ib || vb.length % 6 || ib.length % 6) return null;
+  var n = vb.length / 6, tris = ib.length / 6;
+  if (!n || !tris || n > VERT_BUDGET) return null;
+  /* read the bytes by hand rather than viewing them as a Uint16Array:
+     the endianness of the machine that wrote the file is not up for
+     negotiation, and a typed-array view would take the reader's */
+  var pos = new Float32Array(n * 3), a;
+  for (i = 0; i < n; i++) for (a = 0; a < 3; a++) {
+    var q = vb[i * 6 + a * 2] | (vb[i * 6 + a * 2 + 1] << 8);
+    pos[i * 3 + a] = box[a] + (q / 65535) * box[a + 3];
+  }
+  var idx = new Uint16Array(tris * 3);
+  for (i = 0; i < idx.length; i++) {
+    var v = ib[i * 2] | (ib[i * 2 + 1] << 8);
+    if (v >= n) return null;
+    idx[i] = v;
+  }
+  var nrm = computeNormals(pos, idx);
+  var shade = new Float32Array(n);
+  for (i = 0; i < n; i++) shade[i] = 1;
+  bakeShade(pos, nrm, idx, shade, shading);
+  var top = 0, rad = 0;
+  for (i = 0; i < pos.length; i += 3) {
+    if (pos[i + 1] > top) top = pos[i + 1];
+    var r = Math.hypot(pos[i], pos[i + 2]);
+    if (pos[i + 1] < 0.06 && r > rad) rad = r;
+  }
+  return { pos: pos, nrm: nrm, shade: shade, idx: idx, big: false,
+           verts: n, tris: tris, height: top, radius: rad || 0.3 };
+}
+function registerPacked(def) {
+  var meta = safeMeta(def, "packed-set");
+  if (!def || !def.pieces) return null;
+  var letters = ["p", "n", "b", "r", "q", "k"], meshes = {}, i;
+  var shading = def.shading && typeof def.shading === "object" ? def.shading : null;
+  for (i = 0; i < letters.length; i++) {
+    var m = unpackMesh(def.pieces[letters[i]], shading);
+    if (!m) return null;
+    meshes[letters[i]] = m;
+  }
+  return shelve({ id: meta.id, name: meta.name, maker: meta.maker, note: meta.note,
+                  license: meta.license, faces: meta.faces, meshes: meshes });
+}
+
 /* the same, fetched. Same-origin or CORS-clean URLs only — whatever the
    page's own fetch is allowed to do. */
 function loadOBJSet(def, urls) {
@@ -1379,6 +1452,7 @@ var Pieces3D = {
   build: build,
   autoQuality: autoQuality,
   register: register, registerOBJ: registerOBJ, loadOBJSet: loadOBJSet, fromOBJ: fromOBJ,
+  registerPacked: registerPacked, setDefault: function (id) { if (SETS[id]) DEFAULT_ID = Pieces3D.DEFAULT_ID = id; },
   /* the shop itself, so a set defined elsewhere can carve rather than
      assemble — this is the escape hatch the JSON form deliberately isn't */
   kit: {

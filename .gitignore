@@ -2,3 +2,9 @@
 # per-game browser checks; it is never part of any shipped page.
 node_modules/
 package-lock.json
+
+# Source models for the carved 3D piece sets. tools/make-stl-set.js turns
+# these into chess/pieces-*.js, which is the artefact that ships; the STLs
+# themselves are tens of megabytes and publish = "." would put them on the
+# site. Drop them back into chess/tools/stl/ to regenerate a set.
+chess/tools/stl/
