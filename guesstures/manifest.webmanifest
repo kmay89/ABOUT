@@ -1,0 +1,17 @@
+{
+  "name": "The Charades Clock",
+  "short_name": "Charades",
+  "description": "A pass-the-phone acting game for two teams: four cards, thirty seconds, and whatever you don't finish is gone. One phone, no accounts, works offline.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

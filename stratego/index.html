@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Field — Stratego, and nobody can see your ranks</title>
+<meta name="description" content="Stratego in your browser: forty pieces a side, two lakes, and an opponent that never once reads a rank it has not been shown. Two phones joined by four letters, with each phone sent only its own army. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Field">
+<meta property="og:description" content="Stratego where the machine plays from the same view you do — it cannot see your ranks either. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#c8452f; --accent-dim:#8a2718; --accent-ink:#fff0e8; }
+  .seat .n{ font-variant-numeric:tabular-nums }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="board" class="surface"></canvas>
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Won <b>0</b></div>
+      <div class="score" id="scoreThem">Lost <b>0</b></div>
+    </div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow hide" id="btnShuffle" title="Deploy again"><span class="k">🎲</span></button>
+    <button class="btn wide primary hide" id="btnAct">Army set — begin</button>
+    <button class="btn wide hide" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow hide" id="btnGiveUp" title="Resign"><span class="k">🏳</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Field</div>
+  <div class="sub">Forty pieces each and not one of them showing. Find the flag before they find yours — and remember that anything which moved is not a bomb.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Set out an army</button>
+    <button class="btn" id="goTogether">Two phones</button>
+  </div>
+  <div class="row"><button class="btn wide" id="goLearn">How it's played</button></div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The field</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mArmy">What's left</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLevel">Who you're playing</button>
+    <button class="btn" id="mTogether">Two phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Who you're playing</h2>
+  <p class="lead">Neither of them can see your ranks. They are handed exactly the same view you are.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovArmy"><div class="sheet">
+  <button class="close" data-close="ovArmy">✕</button>
+  <h2>What's left</h2>
+  <p class="lead">Everything on this screen is arithmetic on the pieces lying face up beside the board.</p>
+  <div id="armyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Two phones, one field</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">The rules take two minutes. The one idea underneath them is what people play for thirty years.</p>
+
+  <h3>The army</h3>
+  <p class="note">Forty pieces: one <b>Marshal</b> (10), one General (9), two Colonels (8), three Majors (7), four Captains (6), four Lieutenants (5), four Sergeants (4), five <b>Miners</b> (3), eight <b>Scouts</b> (2), one <b>Spy</b> (1), six <b>Bombs</b> and one <b>Flag</b>.</p>
+
+  <h3>Moving and fighting</h3>
+  <p class="note">One square up, down, left or right — except a <b>Scout</b>, which runs any distance in a straight line. Bombs and the Flag never move. Nothing enters the lakes.</p>
+  <p class="note">Move onto an enemy piece and both turn face up. The higher rank wins; equal ranks kill each other. Three exceptions, and they are the game:</p>
+  <p class="note">· A <b>Miner</b> attacking a <b>Bomb</b> defuses it. Anything else attacking a Bomb dies.<br>
+  · A <b>Spy</b> that <i>attacks</i> the Marshal wins. The Marshal attacking the Spy wins — the Spy's advantage is the ambush, not the man.<br>
+  · Take the <b>Flag</b> and the game is over.</p>
+
+  <h3>1 · A piece that has moved is not a Bomb</h3>
+  <p class="note">And it is not the Flag either. This is free, it is public, and it is most of what separates somebody who has played ten games from somebody who has played one. This board draws a small dot on every enemy piece that has ever moved, because you would have seen it happen and there is no reason to make you hold forty of those in your head.</p>
+  <p class="note">The reverse matters just as much: a cluster of pieces that have <b>never</b> moved, deep in their own rows, is where the Flag is.</p>
+
+  <h3>2 · Scouts are eyes, not soldiers</h3>
+  <p class="note">A Scout is worth almost nothing and can run the length of the board. Spending one to find out that a square is a Colonel is a <i>trade</i>, and a good one. Players who hoard their Scouts and attack with Captains are throwing away the only cheap information in the game.</p>
+
+  <h3>3 · Every attack tells them something</h3>
+  <p class="note">When your Marshal takes a Sergeant, you have gained six points and announced where the most valuable piece on the board is — to somebody who has a Spy. Attack with the cheapest thing that will do the job.</p>
+
+  <h3>4 · The Flag needs bombs, and bombs give it away</h3>
+  <p class="note">Ring your Flag with Bombs on every side and you have drawn an arrow pointing at it: no piece needs to be that well defended. Three is usual. And keep your Miners — they are the only thing that can clear a Bomb, and a player with no Miners left cannot win against a Flag that has any.</p>
+
+  <h3>5 · Set out with intent</h3>
+  <p class="note">The deployment you are given here is already a decent one — Flag off centre on the back row, three Bombs around it, the Spy near the Marshal, Scouts forward. Tap <b>🎲</b> for a fresh one, or tap any two of your squares to swap those pieces round. The four or five you actually care about are worth moving by hand.</p>
+
+  <h3>Two phones</h3>
+  <p class="note">One phone is the board and reads out four letters; the other types them. Each phone is sent <b>only its own army</b> — not the whole game with the enemy ranks hidden in the interface, but a message that does not contain them. A check in the repository proves it by shuffling the unseen ranks and requiring the message to come back identical.</p>
+  <p class="note">The machine opponents get the same treatment, and it is not a courtesy: they are handed a view, not the game, so they <i>cannot</i> read a rank they have not been shown. It is a stronger promise than promising not to look.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Another game</button></div>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

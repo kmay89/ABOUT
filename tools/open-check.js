@@ -49,6 +49,16 @@ const TYPES = {
 /* the rooms, and what to do once each one is open. Every step is a thing a
    finger could do; nothing reaches into the game's internals. */
 const ROOMS = [
+  { game: "stratego", start: "#goSolo", canvas: "#board",
+    taps: [[0.3, 0.85], [0.5, 0.85]],
+    menu: ["#mArmy", "#mLevel", "#mLook", "#mLearn", "#mTogether"], wait: 900 },
+  { game: "yahtzee", start: "#goSolo", canvas: "#board",
+    press: ["#btnRoll"], taps: [[0.5, 0.93], [0.5, 0.71]],
+    /* writing a nought asks first, and which row 0.71 lands on depends on the
+       phone — so the confirmation is dismissed if it turns up, which exercises
+       that path rather than tiptoeing round it */
+    dismiss: ["#askYes"],
+    menu: ["#mSetup", "#mLook", "#mLearn", "#mTogether"], wait: 900 },
   { game: "checkers", start: "#goSolo", canvas: "#board",
     taps: [[0.5, 0.72], [0.42, 0.62]],
     menu: ["#mLevel", "#mLook", "#mLearn", "#mTogether"] },
@@ -72,7 +82,21 @@ const ROOMS = [
     menu: ["#mLevel", "#mLook", "#mLearn"] },
   { game: "breaker", start: "#goPlay", canvas: "#field",
     taps: [[0.5, 0.8], [0.5, 0.8]],
-    menu: [] }
+    menu: [] },
+  /* The two party rooms have no canvas at all — the whole interface is one
+     word as large as the phone will draw it, which a real element does far
+     better. So they are checked on the element that has to have text in it,
+     and the drawing check is skipped rather than faked. */
+  { game: "viuda", start: "#goSolo", canvas: "#table",
+    taps: [[0.5, 0.44], [0.5, 0.9]],
+    press: ["#btnTake"],
+    menu: ["#mSetup", "#mLook", "#mLearn", "#mTogether"], wait: 900 },
+  { game: "catchphrase", start: "#goPlay", text: "#word",
+    press: ["#btnGo"], taps: [],
+    menu: ["#mSetup", "#mLearn"], wait: 700 },
+  { game: "guesstures", start: "#goPlay", text: "#card",
+    press: ["#btnGo"], taps: [],
+    menu: ["#mSetup", "#mLearn"], wait: 700 }
 ];
 
 let fails = 0;
@@ -126,15 +150,38 @@ const server = http.createServer((req, res) => {
 
       /* the canvas has to be the right size before anything is tapped at a
          fraction of it — a zero-height canvas swallows every tap silently */
-      const box = await page.locator(room.canvas).boundingBox();
-      ok("the board has a size", box && box.width > 100 && box.height > 100,
-         box ? Math.round(box.width) + "×" + Math.round(box.height) : "no box");
+      let box = null;
+      if (room.canvas) {
+        box = await page.locator(room.canvas).boundingBox();
+        ok("the board has a size", box && box.width > 100 && box.height > 100,
+           box ? Math.round(box.width) + "×" + Math.round(box.height) : "no box");
+      }
+
+      for (const sel of room.press || []) {
+        await page.click(sel);
+        await page.waitForTimeout(700);
+      }
 
       for (const [fx, fy] of room.taps) {
         await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
         await page.waitForTimeout(500);
       }
-      ok("it takes taps on the board", true);
+      if (room.taps.length) ok("it takes taps on the board", true);
+
+      /* a room whose interface is text rather than pixels: the check is that
+         the text is actually there, which is the same question the drawing
+         check asks of a canvas */
+      if (room.text) {
+        const words = await page.locator(room.text).textContent();
+        ok("the word is on the screen", !!(words && words.trim().length > 1),
+           words ? JSON.stringify(words.trim()) : "empty");
+      }
+
+      /* anything the taps may have raised, answered the way a finger would */
+      for (const sel of room.dismiss || []) {
+        const el = page.locator(sel);
+        if (await el.count() && await el.isVisible()) { await el.click(); await page.waitForTimeout(400); }
+      }
 
       /* Every sheet the menu can reach, opened and shut the way a finger
          does it. The menu has to be re-opened before each one, because
@@ -167,6 +214,7 @@ const server = http.createServer((req, res) => {
       ok("every sheet the menu reaches opens and shuts", sheetsOk, why);
 
       /* and the thing a smoke test most often misses: is anything drawn? */
+      if (room.canvas) {
       /* Four thin bands across the full width rather than one square in the
          middle. Reading back a whole retina surface is tens of megabytes and
          the browser refuses outright — but one middle square is worse than
@@ -191,6 +239,7 @@ const server = http.createServer((req, res) => {
       }, room.canvas);
       ok("the board is actually drawn, not blank", painted.ok,
          painted.why || (painted.n + " distinct colours sampled"));
+      }
 
       ok("no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
     } catch (e) {

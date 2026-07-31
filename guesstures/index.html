@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Charades Clock — four cards, thirty seconds, and no talking</title>
+<meta name="description" content="A pass-the-phone acting game for two teams: four cards worth one, two and three points, thirty seconds to mime them all, and anything you don't finish is gone. One phone, no accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Charades Clock">
+<meta property="og:description" content="Four cards, thirty seconds, no talking — and whatever you don't finish is gone. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#63c76a; --accent-dim:#3d9247; --accent-ink:#0d1a0f; }
+  #stage{ display:flex; flex-direction:column }
+
+  #scoreline{ flex:none; display:flex; gap:8px; padding:8px 10px 0; z-index:5 }
+  .team{
+    flex:1; background:rgba(16,13,10,.6); border:1px solid var(--line);
+    border-radius:14px; padding:7px 10px; text-align:center;
+    transition:border-color .2s, background .2s;
+  }
+  .team .nm{ font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--soft) }
+  .team .sc{ font-size:1.7rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1 }
+  .team.holding{ border-color:var(--accent); background:rgba(99,199,106,.15) }
+  .team.holding .nm{ color:var(--accent) }
+
+  /* pinned under the scores rather than floating in the middle of the
+     panel — a clock that moves about the screen is a clock you have to look
+     for, and the whole point of this one is that you cannot help seeing it */
+  #clockWrap{ flex:none; padding:8px 10px 0 }
+  #clockWrap.hide{ display:none }
+  #clockBar{
+    height:6px; border-radius:3px; background:var(--accent);
+    transform-origin:left center; transform:scaleX(1); transition:transform .12s linear;
+  }
+  #clock{
+    text-align:center; font-size:2.6rem; font-weight:800; line-height:1.1;
+    font-variant-numeric:tabular-nums; margin-top:2px;
+  }
+  body.hot #clock{ color:var(--bad, #e0503f); animation:pulse2 .5s ease-in-out infinite alternate }
+  body.hot #clockBar{ background:#e0503f }
+  @keyframes pulse2{ from{ transform:scale(1) } to{ transform:scale(1.08) } }
+
+  .panel{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center;
+          justify-content:center; text-align:center; padding:16px; gap:10px }
+  .panel.hide{ display:none }
+
+  /* look.css gives .btn `flex:1` because in the tray it is a row of buttons
+     sharing the width. Inside these panels the flex direction is a *column*,
+     so that same rule stretches a button down the whole screen — which is
+     what it did, and it looked like a design decision until you tried to tap
+     the word behind it. */
+  .panel .btn{ flex:none }
+  #cardWrap{ cursor:pointer; -webkit-user-select:none; user-select:none; padding:8px 4px }
+  #card{
+    font-size:clamp(1.6rem, 8.5vw, 3rem); font-weight:800; line-height:1.12;
+    letter-spacing:-.015em; overflow-wrap:anywhere; max-width:16ch; margin:0 auto;
+  }
+  .worth{ font-size:.72rem; letter-spacing:.16em; text-transform:uppercase; color:var(--soft); margin-bottom:6px }
+  .worth.w2{ color:#e8a33d } .worth.w3{ color:#e0503f }
+  #queue{ display:flex; gap:6px; align-items:center; justify-content:center; margin-top:8px }
+  .qlab{ font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--soft); margin-right:2px }
+  .pill{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:7px; font-size:.78rem; font-weight:800;
+    background:rgba(99,199,106,.18); border:1px solid rgba(99,199,106,.4); color:#63c76a;
+  }
+  .pill.w2{ background:rgba(232,163,61,.16); border-color:rgba(232,163,61,.42); color:#e8a33d }
+  .pill.w3{ background:rgba(224,80,63,.16); border-color:rgba(224,80,63,.42); color:#e0503f }
+
+  #readyLead{ font-size:1.6rem; font-weight:800 }
+  #readySub{ color:var(--soft); max-width:26ch }
+  #readyScore{ color:var(--soft); font-size:.9rem }
+  #tallyTitle{ font-size:1.7rem; font-weight:800 }
+  #tallySub{ color:var(--soft) }
+  #tallyList{ list-style:none; padding:0; margin:6px 0; text-align:left; max-width:30ch; width:100% }
+  #tallyList li{
+    display:flex; justify-content:space-between; gap:10px;
+    padding:5px 10px; border-radius:9px; margin-bottom:4px; font-size:.94rem;
+  }
+  #tallyList li.got{ background:rgba(99,199,106,.13); color:var(--ink) }
+  #tallyList li.lost{ background:rgba(224,80,63,.12); color:var(--soft); text-decoration:line-through }
+  #tallyList li b{ font-variant-numeric:tabular-nums; text-decoration:none }
+  #setupBody input{
+    background:var(--card2); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:8px 10px; font:inherit; width:46%;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <div id="scoreline">
+      <div class="team" id="teamA"><div class="nm" id="nameA">Red</div><div class="sc" id="scoreA">0</div></div>
+      <div class="team" id="teamB"><div class="nm" id="nameB">Blue</div><div class="sc" id="scoreB">0</div></div>
+    </div>
+
+    <div id="clockWrap" class="hide">
+      <div id="clockBar"></div>
+      <div id="clock">30</div>
+    </div>
+
+    <div class="panel" id="stageReady">
+      <div id="readyLead"></div>
+      <div id="readySub"></div>
+      <div id="readyScore"></div>
+      <button class="btn primary wide" id="btnGo" style="max-width:260px">Start the turn</button>
+      <p class="note" style="max-width:30ch">Hold the phone so your team cannot see it. No talking, no pointing at things in the room, no drawing the word in the air.</p>
+    </div>
+
+    <div class="panel hide" id="stageAct">
+      <div id="cardWrap">
+        <div class="worth" id="worth"></div>
+        <div id="card"></div>
+      </div>
+      <div id="queue"></div>
+      <button class="btn" id="btnDrop" style="max-width:190px">Give up on this one</button>
+    </div>
+
+    <div class="panel hide" id="stageTally">
+      <div id="tallyTitle"></div>
+      <ul id="tallyList"></ul>
+      <div id="tallySub"></div>
+      <button class="btn primary wide" id="tallyNext" style="max-width:260px">Next</button>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn primary wide" id="btnGot"><span class="k">✓</span>They got it</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Charades Clock</div>
+  <div class="sub">Four cards worth one, two and three points. Thirty seconds to mime the lot. No talking — and whatever you don't finish is gone for good.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goPlay">Play</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The game</h2>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mSetup">Teams &amp; cards</button>
+  </div>
+  <div class="row">
+    <button class="btn wide" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovSetup"><div class="sheet">
+  <button class="close" data-close="ovSetup">✕</button>
+  <h2>Teams &amp; cards</h2>
+  <div id="setupBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Two teams, one phone, thirty seconds a turn, and no talking at all.</p>
+
+  <h3>The rules</h3>
+  <p class="note">Your team gets <b>four cards</b>, worth one, two and three points depending on how hard they are. Hold the phone so only you can see it and <b>mime</b> the top one — no words, no sounds, no pointing at objects in the room, no writing in the air. When your team shouts the right thing, tap the card and the next one comes up. When the clock runs out, <b>every card you have not finished is gone</b> — not scored, not returned, gone. Then the other team goes. First to twenty wins.</p>
+
+  <h3>What makes it a game</h3>
+  <p class="note">The three-pointer. It is behind the others and you can see it coming, so every turn is the same decision: rush the easy ones and hope there is time, or go for the big one while everybody is fresh and risk losing three. Both are wrong sometimes. <b>Give up on this one</b> is there for exactly that reason — it throws the card away, which is a real cost, and sometimes it is still the right move.</p>
+
+  <h3>Why the clock is enormous here</h3>
+  <p class="note">In the describing room on this site the timer is <b>hidden</b>, because there the tension is not knowing when the buzzer comes. Here it is the biggest thing on the screen, because the tension is <b>watching it go</b> while somebody keeps shouting "kettle?" at something that is plainly not a kettle. Same component, opposite decision — whichever one makes the room louder.</p>
+
+  <h3>The one house rule</h3>
+  <p class="note">If the actor makes any sound at all — a word, a noise, a hum of the right tune — the card is dead and goes straight into the lost pile. Everybody in the room heard it, so it enforces itself.</p>
+</div></div>
+
+<script src="words.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

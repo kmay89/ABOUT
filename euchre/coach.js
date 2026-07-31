@@ -31,11 +31,12 @@ var SAY = {
   "throw-off":     "You can't win this one. Throw the card you'll miss least, and never a trump.",
   "wasted-trump":  "Careful — that's a trump you can't win with. It's worth more later.",
   "boss":          "Nothing left in the pack beats it. It is a trick in your hand; cash it while that's still true.",
+  "played-it-out": "This is not the card that looks best — it is the card that paid best when the rest of the hand was dealt out twenty-four ways and played to the end.",
   "close-it-out":  "Two tricks in already. One more and the hand is made.",
   "euchre-them":   "Two tricks off them. One more and they're euchred — which is two points, not one.",
   "close-call":    "Barely the best of several — the hand doesn't care much."
 };
-var ORDER = ["forced", "partner-has-it", "euchre-them", "close-it-out", "boss",
+var ORDER = ["forced", "played-it-out", "partner-has-it", "euchre-them", "close-it-out", "boss",
              "trump-in", "takes", "draw-trump", "lead-ace", "bower", "lead-trump",
              "lead-small", "throw-off", "wasted-trump", "close-call"];
 

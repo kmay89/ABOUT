@@ -245,6 +245,118 @@ const ICONS = {
     s.paint("#e0503f", rect(0.62, 0.36, 0.2, 0.045));
     s.paint("#e0503f", rect(0.775, 0.13, 0.045, 0.275));
   },
+  stratego: (s) => {
+    /* two tiles facing each other across a lake: one showing its rank, one
+       showing its back — which is the whole game in one picture */
+    s.fillAll("#6b7248");
+    s.paint("#2d5f7a", rect(0, 0.42, 1, 0.16));
+    s.paint("#ffffff", rect(0.1, 0.47, 0.3, 0.012), 0.3);
+    s.paint("#ffffff", rect(0.58, 0.52, 0.3, 0.012), 0.3);
+    /* theirs, face down, with the dot that says it has moved */
+    s.paint("#000000", rect(0.2, 0.1, 0.44, 0.3), 0.3);
+    s.paint("#2f6fa8", rect(0.16, 0.06, 0.42, 0.3));
+    s.paint("#1d4670", rect(0.16, 0.28, 0.42, 0.08));
+    s.paint("#ffffff", rect(0.24, 0.185, 0.26, 0.028), 0.25);
+    s.paint("#ffd77a", disc(0.505, 0.13, 0.038));
+    /* yours, face up, a 10 */
+    s.paint("#000000", rect(0.46, 0.64, 0.44, 0.3), 0.3);
+    s.paint("#c8452f", rect(0.42, 0.6, 0.42, 0.3));
+    s.paint("#8a2718", rect(0.42, 0.82, 0.42, 0.08));
+    s.paint("#f4efe2", rect(0.5, 0.66, 0.048, 0.18));
+    s.paint("#f4efe2", ring(0.68, 0.75, 0.085, 0.05));
+  },
+  catchphrase: (s) => {
+    /* a speech bubble with a fuse on it — the game is a thing you say under a
+       clock you cannot see, and a bubble alone would read as any chat app */
+    s.fillAll("#3a2320");
+    s.paint("#000000", (x, y) => (bubble(0.52, 0.46)(x, y)), 0.3);
+    s.paint("#f2ece1", bubble(0.48, 0.42));
+    /* three dots: the describing, mid-sentence */
+    for (const cx of [0.32, 0.46, 0.6]) s.paint("#3a2320", disc(cx, 0.42, 0.045));
+    /* the fuse, lit */
+    s.paint("#8d7f6c", (x, y) => {
+      const dx = x - 0.74, dy = y - 0.2;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      return (d > 0.13 && d < 0.165 && x > 0.7 && y < 0.24) ? 1 : 0;
+    });
+    s.paint("#e0503f", disc(0.875, 0.115, 0.075));
+    s.paint("#ffd77a", disc(0.86, 0.1, 0.036));
+  },
+  guesstures: (s) => {
+    /* a figure mid-mime, arms out, and a clock behind it */
+    s.fillAll("#16301c");
+    s.paint("#2c5a35", ring(0.5, 0.5, 0.42, 0.055));
+    /* the hands of the clock, at about ten seconds left */
+    s.paint("#2c5a35", (x, y) => {
+      const dx = x - 0.5, dy = y - 0.5;
+      return (Math.abs(dx) < 0.022 && dy < 0 && dy > -0.3) ? 1 : 0;
+    });
+    /* the mime */
+    s.paint("#f2ece1", disc(0.5, 0.26, 0.095));
+    s.paint("#f2ece1", rect(0.455, 0.35, 0.09, 0.28));
+    s.paint("#f2ece1", (x, y) => {
+      /* both arms flung out and up, which is the shape of somebody miming */
+      const arm = (ax, ay, bx, by) => {
+        const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2);
+        if (t < 0 || t > 1) return 0;
+        const px = ax + t * (bx - ax), py = ay + t * (by - ay);
+        return ((x - px) ** 2 + (y - py) ** 2) < 0.0016 ? 1 : 0;
+      };
+      return arm(0.47, 0.38, 0.24, 0.22) || arm(0.53, 0.38, 0.76, 0.22) ? 1 : 0;
+    });
+    s.paint("#f2ece1", (x, y) => {
+      const leg = (ax, ay, bx, by) => {
+        const t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2);
+        if (t < 0 || t > 1) return 0;
+        const px = ax + t * (bx - ax), py = ay + t * (by - ay);
+        return ((x - px) ** 2 + (y - py) ** 2) < 0.0016 ? 1 : 0;
+      };
+      return leg(0.49, 0.61, 0.34, 0.86) || leg(0.51, 0.61, 0.66, 0.86) ? 1 : 0;
+    });
+  },
+  viuda: (s) => {
+    /* the widow: one card face down in the middle of the table, with two of
+       your own face up under it. The whole game is the relationship between
+       those two things, and a face-down card among face-up ones is the one
+       arrangement everybody reads instantly. */
+    s.fillAll("#1d5d43");
+    /* yours, two of them, fanned */
+    s.paint("#000000", rect(0.1, 0.52, 0.36, 0.44), 0.3);
+    s.paint("#f7f4ec", rect(0.06, 0.48, 0.34, 0.44));
+    s.paint("#1e1e1e", rect(0.1, 0.52, 0.05, 0.13));
+    s.paint("#1e1e1e", spade(0.27, 0.76, 0.13));
+    s.paint("#000000", rect(0.5, 0.56, 0.36, 0.44), 0.3);
+    s.paint("#f7f4ec", rect(0.46, 0.52, 0.34, 0.44));
+    s.paint("#c0392b", rect(0.5, 0.56, 0.05, 0.13));
+    s.paint("#c0392b", heart(0.67, 0.8, 0.13));
+    /* the widow, face down and above them both */
+    s.paint("#000000", rect(0.32, 0.1, 0.38, 0.42), 0.34);
+    s.paint("#2c4f8e", rect(0.28, 0.06, 0.36, 0.42));
+    s.paint("#182d55", (x, y) => {
+      if (x < 0.31 || x > 0.61 || y < 0.09 || y > 0.45) return 0;
+      /* the lattice on the back, which is what says "face down" */
+      const u = (x * 26) % 2, v = (y * 26) % 2;
+      return Math.abs(u - v) < 0.5 || Math.abs(u + v - 2) < 0.5 ? 1 : 0;
+    });
+  },
+  yahtzee: (s) => {
+    /* two dice on the felt, showing a five and a three — five because it is
+       the only face whose arrangement everybody can picture, and three
+       because a second die at an angle is what says "dice" rather than
+       "cube". The pips are the real layout; a five with a missing centre is
+       the sort of mistake nobody can name and everybody sees. */
+    s.fillAll("#2f5d43");
+    s.paint("#000000", rect(0.12, 0.5, 0.42, 0.42), 0.28);
+    s.paint("#f6f1e6", rect(0.08, 0.46, 0.42, 0.42));
+    s.paint("#cdc4b2", rect(0.08, 0.84, 0.42, 0.04));
+    const five = [[0.17, 0.55], [0.41, 0.55], [0.29, 0.67], [0.17, 0.79], [0.41, 0.79]];
+    for (const p of five) s.paint("#241f19", disc(p[0], p[1], 0.045));
+    s.paint("#000000", rect(0.54, 0.16, 0.38, 0.38), 0.28);
+    s.paint("#f6f1e6", rect(0.5, 0.12, 0.38, 0.38));
+    s.paint("#cdc4b2", rect(0.5, 0.46, 0.38, 0.04));
+    const three = [[0.58, 0.2], [0.69, 0.31], [0.8, 0.42]];
+    for (const p of three) s.paint("#241f19", disc(p[0], p[1], 0.042));
+  },
   breaker: (s) => {
     /* three courses of bricks, a ball, a paddle */
     s.fillAll("#111623");
@@ -264,6 +376,16 @@ const ICONS = {
   }
 };
 
+/* a speech bubble: a rounded body with a tail off the bottom left */
+function bubble(cx, cy) {
+  return (x, y) => {
+    const inBody = Math.abs(x - cx) < 0.32 && Math.abs(y - cy) < 0.22 &&
+      ((Math.abs(x - cx) - 0.24 < 0 || Math.abs(y - cy) - 0.14 < 0) ||
+       ((Math.abs(x - cx) - 0.24) ** 2 + (Math.abs(y - cy) - 0.14) ** 2 < 0.0064));
+    const tail = poly([[cx - 0.2, cy + 0.18], [cx - 0.04, cy + 0.18], [cx - 0.22, cy + 0.4]])(x, y);
+    return (inBody || tail) ? 1 : 0;
+  };
+}
 function heart(cx, cy, r) {
   return (x, y) => {
     const u = (x - cx) / r, v = (y - cy) / r;
