@@ -90,10 +90,11 @@ pieces3d.js         the carving shop: profiles smoothed into real turned
                     silhouettes, a lathe that can be warped as it spins
                     (the bishop's slit is a genuine cut), a loft that
                     sweeps a changing section along a curved spine (the
-                    knight is a carved head, not a bent vase), battlements
-                    cut right through the rook, and occlusion baked into
-                    every vertex. Three sets ship; more can be injected
-                    from outside as JSON or .obj
+                    knight is a carved head with a jaw, a brow, pricked
+                    ears and a mane that is part of the neck's own
+                    surface), battlements cut right through the rook, and
+                    occlusion baked into every vertex. Three sets ship;
+                    more can be injected from outside as JSON or .obj
 gfx3d.js            raw WebGL 1 renderer: the carved sets above, orbit
                     camera on springs, sliding/hopping/sinking animations
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
@@ -126,10 +127,13 @@ tools/              dev-only, never shipped:
   skin-check.js     presets are complete, share codes round-trip, and
                     hostile input (markup, bad colours, junk numbers)
                     comes back safe
-  pieces-check.js   every set builds at both qualities, closed and facing
-                    outwards, indexable in 16 bits, standing on the board
-                    and inside its square — plus the injection doors fed
-                    junk JSON and junk .obj
+  pieces-check.js   every set builds at both qualities, closed, facing
+                    outwards, and wound consistently face by face (a
+                    single backwards cap survives a volume test and looks
+                    like a hole through the nose of the horse), indexable
+                    in 16 bits, standing on the board and inside its
+                    square — plus the injection doors fed junk JSON and
+                    junk .obj
   pieces-preview.html
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
@@ -169,7 +173,9 @@ Pieces3D.register({
 
 `type` is one of `lathe`, `sphere`, `cone`, `cylinder`, `box`, `torus`,
 `arc`; every part takes `at`, `scale`, `rx`/`ry`/`rz`, `mirrorZ`, `flat`
-and `shade`. A profile point ending in `"c"` is a hard edge. Anything
+and `shade`. A profile point ending in `"c"` is a hard edge. `mirrorZ`
+reflects the part *and its placement* across z, so the same entry with
+and without it gives you a matched pair — a left eye and a right one. Anything
 missing, absurd or hostile is clamped or dropped — a set of nonsense
 still builds something that stands on the board.
 

@@ -229,18 +229,23 @@ function loft(frames, o) {
     var a0 = j * K + i, b0 = j * K + i2, c0 = (j + 1) * K + i, d0 = (j + 1) * K + i2;
     idx.push(a0, c0, b0, b0, c0, d0);
   }
+  /* The caps must close the tube, which means each one hands back the
+     directed edge the first and last bands leave open — start and end
+     therefore wind opposite ways round. Get it backwards and the mesh
+     still passes a volume test (the caps are small) while you look
+     straight through the nose of the horse into the inside of its head. */
   if (o.capStart !== false) {
     var s0 = pos.length / 3, p = o.startAt || frames[0].o;
     pos.push(p[0], p[1], p[2]);
-    var g0 = [];
-    for (i = 0; i < K; i++) { idx.push(s0, (i + 1) % K, i); }
-    g0.push(s0); weld.push(g0);
+    for (i = 0; i < K; i++) idx.push(s0, i, (i + 1) % K);
+    weld.push([s0]);
   }
   if (o.capEnd !== false) {
     var last = (frames.length - 1) * K, s1 = pos.length / 3;
     var q = o.endAt || frames[frames.length - 1].o;
     pos.push(q[0], q[1], q[2]);
-    for (i = 0; i < K; i++) { idx.push(s1, last + i, last + (i + 1) % K); }
+    for (i = 0; i < K; i++) idx.push(s1, last + (i + 1) % K, last + i);
+    weld.push([s1]);
   }
   return { pos: pos, idx: idx, weld: weld };
 }
@@ -404,7 +409,10 @@ Builder.prototype.add = function (geo, o) {
     var x1 = x * cz - y * szr, y1 = x * szr + y * cz, z1 = z;          /* Rz */
     var y2 = y1 * cx - z1 * sxr, z2 = y1 * sxr + z1 * cx, x2 = x1;     /* Rx */
     var x3 = x2 * cy + z2 * syr, z3 = -x2 * syr + z2 * cy, y3 = y2;    /* Ry */
-    tp[i] = x3 + tr[0]; tp[i + 1] = y3 + tr[1]; tp[i + 2] = z3 + tr[2];
+    /* mirrorZ reflects the part *and where it was put* — an eye placed on
+       the near cheek should come back on the far one, not land on top of
+       the first and leave the horse one-eyed */
+    tp[i] = x3 + tr[0]; tp[i + 1] = y3 + tr[1]; tp[i + 2] = z3 + tr[2] * mz;
   }
   if (geo._vol == null) geo._vol = signedVolume(geo.pos, geo.idx);
   var flip = (o.wind !== false && geo._vol < -1e-9) !== (mz < 0);
@@ -495,6 +503,19 @@ function bakeShade(pos, nrm, idx, shade, o) {
     shade[i] = clamp(shade[i] * k, 0.04, 1);
   }
 }
+
+/* Most pieces are turned to a known height by their profile. A piece
+   assembled out of parts — a knight, with a head and ears and a mane
+   that all push the top up a little — is easier to design in whatever
+   units it wants and then sized once, here. */
+Builder.prototype.scaleTo = function (height) {
+  var top = 0, i;
+  for (i = 1; i < this.pos.length; i += 3) if (this.pos[i] > top) top = this.pos[i];
+  if (!(top > 1e-6)) return this;
+  var k = height / top;
+  for (i = 0; i < this.pos.length; i++) this.pos[i] *= k;
+  return this;
+};
 
 Builder.prototype.finish = function (o) {
   o = o || {};
@@ -679,97 +700,166 @@ function stKing(q) {
    nose; the section is wide and crested at the neck, narrow and square
    at the muzzle. Ears, eyes and nostrils are placed on the same spine,
    so they land on the head wherever the head happens to be. */
-function headSection(dF, dB, w, sharp, K) {
+/* One slice through the head, in the frame's own two axes: `a` runs
+   along the spine's forward normal, `b` sideways. Four numbers shape it —
+   how deep it is at the front, how deep at the back, how wide, and two
+   exponents. `square` fills the front out toward a slab (a horse's
+   muzzle is blocky, not round); `crest` pinches the back to a ridge (a
+   horse's neck carries a mane). Both are blended smoothly around the
+   section rather than switched at the sides, because a switch leaves a
+   seam running the length of the neck. */
+function headSection(dF, dB, w, crest, square, K) {
+  if (square == null) square = 0.88;
   var out = [], i;
   for (i = 0; i < K; i++) {
-    var a = (i / K) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
-    var d = c >= 0 ? dF : dB;
-    var p = c >= 0 ? 0.88 : sharp;
-    out.push([sgn(c) * d * Math.pow(Math.abs(c), p), sgn(s) * w * Math.pow(Math.abs(s), p)]);
+    var ang = (i / K) * Math.PI * 2, c = Math.cos(ang), s = Math.sin(ang);
+    var t = (1 - c) * 0.5, k = t * t * (3 - 2 * t);      /* 0 at the front, 1 at the back */
+    var d = dF + (dB - dF) * k;
+    var e = square + (crest - square) * k;
+    out.push([sgn(c) * d * Math.pow(Math.abs(c), e), sgn(s) * w * Math.pow(Math.abs(s), e)]);
   }
   return out;
 }
-/* spine control points: x forward, y up, then the section's front depth,
-   back depth, half-width, and how sharp the mane crest is */
+/* Spine control points, read as a horse from the chest up: x forward,
+   y up, then the section's front depth, back depth, half-width, crest
+   and squareness. Where the spine stands up these are throat and mane;
+   where it lies over they become jaw and skull, and the crest carries
+   on into the forelock without anything having to be told to. */
 var KNIGHT_SPINE = [
-  [-0.048, 0.235, 0.136, 0.172, 0.126, 1.05],
-  [-0.034, 0.350, 0.128, 0.163, 0.120, 1.15],
-  [-0.012, 0.470, 0.120, 0.150, 0.112, 1.30],
-  [ 0.016, 0.575, 0.124, 0.142, 0.104, 1.45],
-  [ 0.056, 0.660, 0.143, 0.130, 0.099, 1.55],
-  [ 0.126, 0.722, 0.147, 0.116, 0.094, 1.40],
-  [ 0.212, 0.756, 0.122, 0.096, 0.081, 1.20],
-  [ 0.290, 0.763, 0.095, 0.079, 0.067, 1.05],
-  [ 0.346, 0.752, 0.074, 0.066, 0.055, 1.00]
+  /*  x       y      front   back    half-w  crest square */
+  [-0.030, 0.170, 0.076, 0.104, 0.116, 1.05, 0.95],   /* chest, down inside the pedestal */
+  [-0.030, 0.262, 0.077, 0.110, 0.115, 1.10, 0.95],   /* breast, sitting on the collar */
+  [-0.026, 0.356, 0.074, 0.120, 0.110, 1.20, 0.95],   /* lower neck */
+  [-0.014, 0.446, 0.070, 0.120, 0.103, 1.30, 0.95],   /* the neck's hollow */
+  [ 0.004, 0.532, 0.070, 0.117, 0.098, 1.40, 0.94],   /* upper neck */
+  [ 0.030, 0.612, 0.076, 0.112, 0.095, 1.46, 0.92],   /* the crest of the neck */
+  [ 0.068, 0.676, 0.092, 0.106, 0.096, 1.42, 0.88],   /* throat latch — the neck's thinnest */
+  [ 0.128, 0.732, 0.148, 0.098, 0.117, 1.30, 0.82],   /* jaw — deepest and widest */
+  [ 0.208, 0.772, 0.140, 0.086, 0.100, 1.16, 0.74],   /* cheek and brow */
+  [ 0.282, 0.786, 0.108, 0.072, 0.078, 1.06, 0.66],   /* the nasal bone */
+  [ 0.348, 0.780, 0.088, 0.062, 0.066, 1.00, 0.60],   /* muzzle */
+  [ 0.404, 0.758, 0.072, 0.052, 0.056, 1.00, 0.60],   /* nose */
+  [ 0.440, 0.740, 0.058, 0.042, 0.046, 1.00, 0.68],   /* and rounded off, because */
+  [ 0.464, 0.724, 0.036, 0.028, 0.030, 1.00, 0.78]    /* a horse has no beak */
 ];
+/* The mane is not a separate fin glued to the neck — that reads as warts
+   wherever the two surfaces cross. It is the neck's own back depth,
+   swelled and gently scalloped over the length that carries hair, so the
+   crest is one continuous carved surface that fades into the shoulder at
+   the bottom and into the forelock at the top. Kept shallow on purpose:
+   at the size a piece is actually seen, a clean crest reads as a mane and
+   a deep one reads as damage.
+
+   It starts above the collar, not at the chest: a crest that swells
+   below the pedestal's rim tears a ragged edge through it, and no amount
+   of shading hides that. */
+function maneAt(t) {
+  var mt = (t - 0.15) / 0.55;
+  if (mt <= 0 || mt >= 1) return 0;
+  var fade = Math.min(1, Math.min(mt, 1 - mt) * 4.5);
+  return fade * (0.030 + 0.028 * (0.5 + 0.5 * Math.cos(mt * Math.PI * 9)));
+}
 function stKnight(q) {
   var B = new Builder(), i;
-  var H = STAUNTON_H.n, R = STAUNTON_R.n, u = 0.116;
-  /* the pedestal the head grows out of */
+  var H = STAUNTON_H.n, R = STAUNTON_R.n, u = 0.118;
+
+  /* The pedestal, finished with a flat collar rather than a dome: the
+     chest is wider than the lid, so the horse sits on the collar the way
+     it does on a real set instead of poking through a bowl. */
   var prof = cat(
     foot(R, u),
-    [[0.148, 0.160], [0.138, 0.220], [0.133, 0.268]],
-    bead(0.133, 0.268, 0.015),
-    [[0.140, 0.322], [0.150, 0.352, "c"], [0.152, 0.368, "c"]],
-    [[0.132, 0.386], [0.096, 0.398], [0.048, 0.404], [0, 0.406]]
+    [[0.150, 0.160], [0.140, 0.206]],
+    bead(0.140, 0.206, 0.016),
+    [[0.144, 0.252], [0.152, 0.276, "c"], [0.154, 0.292, "c"]],
+    [[0.108, 0.297], [0.054, 0.299], [0, 0.300]]
   );
-  var scale = H / 0.94;
-  B.add(lathe(smoothProfile(fit(prof, 0.406 * scale), q), q.segs));
+  B.add(lathe(smoothProfile(fit(prof, 0.300), q), q.segs));
 
-  /* the head: a swept section along a splined spine */
-  var K = Math.max(12, Math.min(28, Math.round(q.segs * 0.55) * 2));
-  var path = crPath(KNIGHT_SPINE, q.sub + 1, 6);
-  var frames = [];
-  for (i = 0; i < path.length; i++) {
-    var a = path[Math.max(0, i - 1)], b = path[Math.min(path.length - 1, i + 1)];
-    var tx = b[0] - a[0], ty = b[1] - a[1];
-    var tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
-    var nx = ty, ny = -tx;                       /* in-plane normal, pointing forward */
-    var p = path[i];
-    frames.push({
-      o: [p[0] * scale, p[1] * scale, 0],
-      u: [nx * scale, ny * scale, 0],
-      v: [0, 0, scale],
-      s: headSection(p[2], p[3], p[4], p[5], K)
-    });
+  /* ---- the head ----
+     Every feature below is placed off the spine rather than off a
+     hand-guessed coordinate, so moving one control point moves the eye,
+     the jaw and the mane with it and nothing floats loose. */
+  var path = crPath(KNIGHT_SPINE, q.sub + 1, 7), N = path.length;
+  var axis = [];
+  for (i = 0; i < N; i++) {
+    var a = path[Math.max(0, i - 1)], b = path[Math.min(N - 1, i + 1)];
+    var tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+    axis.push([ty / tl, -tx / tl]);              /* in-plane normal, pointing forward */
   }
-  var tip = path[path.length - 1];
+  /* a point `along` the forward normal from spine frame i, `side` out */
+  function at(i, along, side) {
+    var p = path[i], n = axis[i];
+    return [p[0] + n[0] * along, p[1] + n[1] * along, side];
+  }
+  function frameAt(i, off, sec) {
+    var p = path[i], n = axis[i];
+    return { o: [p[0] + n[0] * off, p[1] + n[1] * off, 0], u: [n[0], n[1], 0], v: [0, 0, 1], s: sec };
+  }
+
+  var K = Math.max(12, Math.min(24, Math.round(q.segs * 0.5)));
+  var frames = [];
+  for (i = 0; i < N; i++) {
+    var p = path[i], m = maneAt(i / (N - 1));
+    /* the crest sharpens where the mane swells, so it carries a ridge
+       rather than a bolster */
+    frames.push(frameAt(i, 0, headSection(p[2], p[3] + m, p[4], p[5] + m * 4, p[6], K)));
+  }
+  /* Close the muzzle along the spine's own direction. Capping straight
+     forward when the head is angling down leaves a slanted flat facet,
+     which is exactly what a chopped-off nose looks like. */
+  var tip = path[N - 1], tn = axis[N - 1];
   B.add(loft(frames, {
-    startAt: [frames[0].o[0], frames[0].o[1] - 0.05 * scale, 0],
-    /* the muzzle is blunted rather than pointed: a horse has a nose, not
-       a beak, and a sharp tip is the one thing that reads as a mistake */
-    endAt: [(tip[0] + 0.016) * scale, (tip[1] - 0.004) * scale, 0]
+    startAt: [frames[0].o[0], frames[0].o[1] - 0.06, 0],
+    endAt: [tip[0] - tn[1] * 0.024, tip[1] + tn[0] * 0.024, 0]
   }));
 
-  /* ears — a pair of thin blades at the back of the poll */
-  var ear = path[Math.round(path.length * 0.64)];
+  /* The cheekbone isn't stuck on: the jaw control point is simply the
+     widest in the set, so the head swells there as one surface. A sphere
+     laid on a curved head only ever reads as a coin glued to it.
+
+     Everything that IS stuck on is anchored to a control point rather
+     than a fraction of the resampled path, so adding a point to the
+     spine doesn't slide the eyes down the nose. */
+  var SUB = q.sub + 1;
+  function ctrl(c) { return Math.max(0, Math.min(N - 1, Math.round(c * SUB))); }
+
+  /* ---- ears ----
+     Leaf blades with a rounded point, not spikes, and a darker scoop set
+     well down inside — an inner cone that peeps over the top turns a
+     pair of ears into a pair of antennae. */
+  var earSeg = Math.max(6, Math.round(q.segs / 4));
+  var earGeo = lathe(smoothProfile([[0, 0], [0.060, 0.016, "c"], [0.070, 0.058],
+                                    [0.058, 0.112], [0.032, 0.152], [0, 0.168]], q), earSeg);
+  var innerGeo = lathe(smoothProfile([[0, 0], [0.040, 0.012, "c"], [0.046, 0.044],
+                                      [0.032, 0.080], [0, 0.098]], q), earSeg);
+  var earBase = at(ctrl(7.15), -path[ctrl(7.15)][3] * 0.34, 0);
   for (i = 0; i < 2; i++) {
-    B.add(cone(0.040, 0.128, Math.max(5, Math.round(q.segs / 5))), {
-      s: [0.62, 1, 0.40], rz: 0.42, rx: (i ? -1 : 1) * 0.34,
-      t: [(ear[0] - 0.042) * scale, (ear[1] + 0.076) * scale, (i ? -1 : 1) * 0.050 * scale]
-    });
+    var side = i ? -1 : 1;
+    B.add(earGeo, { s: [0.62, 1, 0.48], rz: 0.52, rx: side * 0.26,
+                    t: [earBase[0] - 0.006, earBase[1] - 0.010, side * 0.048] });
+    B.add(innerGeo, { s: [0.60, 1, 0.44], rz: 0.44, rx: side * 0.26, shade: 0.46,
+                      t: [earBase[0] + 0.020, earBase[1] - 0.002, side * 0.048] });
   }
-  /* eyes and nostrils: dark, so the head reads at a glance */
-  var eye = path[Math.round(path.length * 0.74)];
-  var nose = path[path.length - 2];
+
+  /* ---- eyes and nostrils ----
+     Lenses rather than boxes: a box on a curved muzzle always finds a
+     corner to poke through, and a lens never does. Both sit a whisker
+     proud of the surface — set flush they simply vanish. */
+  var eye = ctrl(8.2), nostril = ctrl(11.2);
   for (i = 0; i < 2; i++) {
-    B.add(sphere(0.025, Math.max(6, Math.round(q.segs / 3))), {
-      shade: 0.30, mirrorZ: !!i,
-      t: [(eye[0] + 0.024) * scale, (eye[1] + 0.028) * scale, 0.068 * scale]
+    B.add(sphere(0.028, Math.max(6, Math.round(q.segs / 3))), {
+      s: [1.05, 0.80, 0.60], rz: 0.20, shade: 0.24, mirrorZ: !!i,
+      t: at(eye, -0.016, 0.084)
     });
-    B.add(sphere(0.014, Math.max(5, Math.round(q.segs / 4))), {
-      shade: 0.34, mirrorZ: !!i,
-      t: [(nose[0] + 0.036) * scale, (nose[1] - 0.016) * scale, 0.032 * scale]
-    });
-  }
-  /* the mane: three cut notches down the crest of the neck */
-  for (i = 0; i < 3; i++) {
-    var m = path[Math.round(path.length * (0.30 + i * 0.13))];
-    B.add(box(0.058, 0.026, 0.066), {
-      shade: 0.70, rz: -0.55,
-      t: [(m[0] - m[3] * 0.88) * scale, (m[1] + 0.010) * scale, 0]
+    /* well down the far end of the muzzle: level with the eye it simply
+       reads as a second one */
+    B.add(sphere(0.016, Math.max(5, Math.round(q.segs / 4))), {
+      s: [1.30, 0.80, 0.55], rz: -0.30, shade: 0.30, mirrorZ: !!i,
+      t: at(nostril, 0.026, 0.046)
     });
   }
+
+  B.scaleTo(H);
   return B.finish({ shading: q.shading });
 }
 
@@ -914,7 +1004,7 @@ function nordKnight(q) {
     tx /= tl; ty /= tl;
     var p = path[i];
     frames.push({ o: [p[0], p[1], 0], u: [ty, -tx, 0], v: [0, 0, 1],
-                  s: headSection(p[2], p[3], p[4], p[5], K) });
+                  s: headSection(p[2], p[3], p[4], p[5], 0.92, K) });
   }
   var tip = path[path.length - 1];
   B.add(loft(frames, { startAt: [frames[0].o[0], frames[0].o[1] - 0.12, 0],
