@@ -15,7 +15,19 @@
    Run: node chess/tools/pieces-check.js */
 "use strict";
 
+/* the packed set is base64 in a browser's terms; give node just enough */
+global.atob = (s) => Buffer.from(s, "base64").toString("binary");
+
 const P = require("../pieces3d.js");
+
+/* Shipped packed sets go on the shelf so they face the same questions as
+   the procedural ones — more so, in fact: a decimated print model is
+   exactly the kind of mesh that arrives with a hole in it. */
+for (const file of ["../pieces-classic.js"]) {
+  let set;
+  try { set = require(file); } catch (e) { console.log("FAIL  " + file + " is missing"); process.exit(1); }
+  if (!P.registerPacked(set)) { console.log("FAIL  " + file + " did not unpack"); process.exit(1); }
+}
 
 let failed = 0;
 const ok = (label, cond, extra) => {

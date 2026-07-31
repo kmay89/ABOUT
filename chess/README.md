@@ -1,7 +1,7 @@
 # ♞ The Chess Room
 
 **Chess, taught kindly.** A free chess app that runs entirely in your
-browser — a full 3D board with three carved piece sets (and a lovely 2D
+browser — a full 3D board with four piece sets (and a lovely 2D
 option), a patient coach who hints and explains, opening stories told
 plainly, a real tournament clock, and same-room two-player that links
 two devices with a pasted or scanned code. No accounts, no server, no ads, nothing tracked. Installable
@@ -49,14 +49,23 @@ rules: MIT-compatible, no build step, no runtime dependency, offline.
   runtime dependency for something we could prove correct ourselves
   (and now cross-check against).
 - **Cburnett and other classic piece art** — CC-BY-SA/GPL share-alike
-  terms sit awkwardly in an MIT repo, so every piece set here (the three
-  carved 3D sets and the hand-drawn 2D set) is original geometry. What
-  we did instead of adopting art was **build the door**: `pieces3d.js`
-  will take a set as plain JSON or as Wavefront `.obj` text, so anyone
-  can drop a CC0 or MIT model set in without us shipping one. See
-  *Bringing your own pieces* below.
+  terms sit awkwardly in an MIT repo, so every piece set carved *here*
+  (the three procedural 3D sets and the hand-drawn 2D set) is original
+  geometry. What we did instead of adopting art was **build the door**:
+  `pieces3d.js` takes a set as plain JSON, as Wavefront `.obj`, or as a
+  packed mesh baked from STL, so anyone can drop a model set in without
+  us shipping one. See *Bringing your own pieces* below.
+
 - **Syzygy tablebases, polyglot books, NNUE nets** — wonderful, heavy,
   and aimed at engines rather than learners.
+
+> **Provenance note.** The default *Openwork Spiral* set was supplied as
+> STL rather than modelled here, and its origin and licence are recorded
+> as `unattributed` / `unstated` in `tools/stl-set.json` because that is
+> what we actually know. Every other set in the repo is original. If you
+> know where these models came from, correct those two fields and
+> regenerate — the licence travels with the set into the Studio, which is
+> the whole point of the field existing.
 
 ## What's here
 
@@ -86,6 +95,9 @@ book.js             the teaching book — famous lines in SAN with
                     plain-language ideas and per-move reasons
 eco.js              generated: all 3,807 named openings (ECO codes)
                     from lichess-org/chess-openings, CC0
+pieces-classic.js   generated: the default set, six print models decimated
+                    from 142,000 triangles to 29,000 and quantised to 16
+                    bits an axis. Rebuild with tools/make-stl-set.js
 pieces3d.js         the carving shop: profiles smoothed into real turned
                     silhouettes, a lathe that can be warped as it spins
                     (the bishop's slit is a genuine cut), a loft that
@@ -93,8 +105,9 @@ pieces3d.js         the carving shop: profiles smoothed into real turned
                     knight is a carved head with a jaw, a brow, pricked
                     ears and a mane that is part of the neck's own
                     surface), battlements cut right through the rook, and
-                    occlusion baked into every vertex. Three sets ship;
-                    more can be injected from outside as JSON or .obj
+                    occlusion baked into every vertex. Three sets are
+                    carved here; more can be injected from outside as
+                    JSON, .obj, or a mesh packed from STL
 gfx3d.js            raw WebGL 1 renderer: the carved sets above, orbit
                     camera on springs, sliding/hopping/sinking animations
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
@@ -138,20 +151,28 @@ tools/              dev-only, never shipped:
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
                     static server while designing a set
+  make-stl-set.js   six STL files → a packed set the browser can draw:
+                    orient, weld, decimate by quadric error, size against
+                    the family, quantise. Driven by stl-set.json; the
+                    source models live in tools/stl/ and are gitignored,
+                    because publish = "." would put them on the site
   make-icons.js     draws the app icons from scratch (analytic raster + 
                     hand-rolled PNG writer)
 ```
 
 ## Bringing your own pieces
 
-The 3D board ships three carved sets — **Staunton Classic** (the
-tournament pattern), **Modern Studio** (flat-shaded geometry in the
-Bauhaus spirit) and **Soft Nordic** (round, thick, hand-sized). You pick
-one in the Studio, under *Pieces*, and it changes mid-game like every
-other part of a skin. The set rides along in the share code too, so a
-look you send a friend arrives with its men as well as its colours.
+The 3D board ships four sets. **Openwork Spiral** is the default — six
+turned models with helical ribs around a hollow core, so you can see
+straight through every piece. The other three are carved procedurally in
+`pieces3d.js`: **Staunton Classic** (the tournament pattern), **Modern
+Studio** (flat-shaded geometry in the Bauhaus spirit) and **Soft Nordic**
+(round, thick, hand-sized). You pick one in the Studio, under *Pieces*,
+and it changes mid-game like every other part of a skin. The set rides
+along in the share code too, so a look you send a friend arrives with its
+men as well as its colours.
 
-There are three ways to add a fourth.
+There are four ways to add a fifth.
 
 **1. As plain JSON — the way a set travels between strangers.**
 A set is a whitelist of primitives with clamped numbers. Nothing is
@@ -201,7 +222,35 @@ straight in, CC-BY needs the credit line kept (that's what the `license`
 field is for), and share-alike terms will not fit an MIT repo — which is
 exactly why nothing of the sort ships here.
 
-**3. In code, with the carving tools.** `Pieces3D.kit` exposes the
+**3. From STL, baked ahead of time — how the default set got here.**
+STL is what a printable set arrives as, and it is the worst possible
+shape for a browser: no shared vertices, no units, no idea which way is
+up, and tens of thousands of triangles per piece because it was meant for
+a nozzle. The six models behind *Openwork Spiral* came to **142,000
+triangles and 6.8MB** — a slideshow on a phone and a download nobody
+asked for. So `tools/make-stl-set.js` does the work once, offline:
+
+```
+read → orient (STL is Z-up, the board is Y-up) → weld coincident
+vertices → decimate by quadric error → stand it on the board and size it
+against the rest of the family → quantise to 16 bits → write a packed set
+```
+
+29,000 triangles and 216KB gzipped come out the other end, and the
+browser only has to base64-decode and multiply. It uses quadric error
+decimation (Garland & Heckbert) rather than vertex clustering, because
+clustering rounds off exactly the things that make a piece recognisable —
+the crenellations of a rook, the ears of a knight — and refuses any
+collapse that would flip a triangle, so a thinning mesh stays closed
+instead of sprouting spikes. `pieces-check.js` confirms the result is
+still watertight and consistently wound, which a decimator has every
+opportunity to ruin.
+
+Drop six STLs into `chess/tools/stl/`, point `stl-set.json` at them, and
+run it. Only the king's height is chosen; the other five keep whatever
+proportions their designer gave them.
+
+**4. In code, with the carving tools.** `Pieces3D.kit` exposes the
 workshop itself — `lathe`, `loft`, `box`, `bevelBox`, `sphere`, `cone`,
 `torus`, `arcBlock`, `smoothProfile`, the `Builder`. That's how the three
 house sets are built, and it's the escape hatch the JSON form

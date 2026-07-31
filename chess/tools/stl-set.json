@@ -1,0 +1,21 @@
+{
+  "id": "classic",
+  "name": "Openwork Spiral",
+  "maker": "unattributed",
+  "license": "unstated",
+  "note": "Helical ribs turned around a hollow core, so you can see straight through every piece.",
+  "faces": "n",
+  "default": true,
+  "out": "chess/pieces-classic.js",
+  "kingHeight": 1.52,
+  "tris": { "p": 3500, "n": 5500, "b": 4000, "r": 6000, "q": 5000, "k": 5000 },
+  "yaw": { "n": 3.141592653589793 },
+  "files": {
+    "p": "chess/tools/stl/Pawn.stl",
+    "n": "chess/tools/stl/Knight.stl",
+    "b": "chess/tools/stl/Bishop.stl",
+    "r": "chess/tools/stl/Rook.stl",
+    "q": "chess/tools/stl/Queen.stl",
+    "k": "chess/tools/stl/King.stl"
+  }
+}
