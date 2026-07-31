@@ -42,7 +42,21 @@ a{color:var(--glow)}
 /* ---------- layout ---------- */
 #app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
 #stage{position:relative; flex:1; min-height:0; overflow:hidden}
-canvas.surface{position:absolute; inset:0; display:block; touch-action:none}
+/* Width and height are spelled out, and they have to be.
+
+   A canvas is a *replaced* element, so `position:absolute; inset:0` does not
+   stretch it the way it stretches a div: with `width:auto` a replaced element
+   takes its intrinsic width and the `right` offset is simply ignored. The
+   intrinsic width of a canvas is its `width` attribute — which every renderer
+   here sets from `clientWidth` on the way past.
+
+   That is a feedback loop, and it runs away fast: 412 becomes 824 becomes
+   1648, doubling every frame until the canvas hits 2²⁵ pixels a side and the
+   whole board is one flat colour somewhere off the bottom of it. Nothing
+   throws. The console stays clean. tools/open-check.js is what caught it, by
+   asking whether the board was actually drawn rather than whether the page
+   loaded. */
+canvas.surface{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none}
 
 /* ---------- the seat strip along the top ---------- */
 #seats{

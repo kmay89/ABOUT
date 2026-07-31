@@ -189,7 +189,9 @@ function plate(g, cx, y, name, sub, ours, turn, thinking, away, mark, tiny) {
   g.font = "700 " + Math.round(fs) + "px system-ui,-apple-system,Segoe UI,sans-serif";
   var wid = g.measureText(txt).width + 14;
   var hgt = fs * 1.6;
-  var x = cx - wid / 2;
+  /* clamped inside the canvas — see the hearts room's note */
+  var x = Math.max(2, Math.min(Cards.L.w - wid - 2, cx - wid / 2));
+  cx = x + wid / 2;
   if (tiny) y -= hgt;
 
   g.fillStyle = away ? "rgba(0,0,0,.55)" : (ours ? "rgba(20,60,42,.68)" : "rgba(62,22,20,.68)");

@@ -130,7 +130,10 @@ function plate(g, cx, y, name, sub, points, turn, thinking, away, waiting, tiny)
   g.font = "700 " + Math.round(fs) + "px system-ui,-apple-system,Segoe UI,sans-serif";
   var wid = g.measureText(txt).width + pad * 2 + (points ? fs * 2.2 : 0);
   var hgt = fs * 1.6;
-  var x = cx - wid / 2;
+  /* clamped inside the canvas: a plate centred on a seat near the edge runs
+     off it, and a name you can only read half of is worse than no name */
+  var x = Math.max(2, Math.min(Cards.L.w - wid - 2, cx - wid / 2));
+  cx = x + wid / 2;
   if (tiny) y -= hgt;
 
   g.fillStyle = away ? "rgba(0,0,0,.55)" : "rgba(0,0,0,.42)";

@@ -94,24 +94,33 @@ Levels.build = function (n) {
   return { n: n, cols: COLS, rows: rows, grid: grid, speed: 1 + Math.min(0.75, (n - 1) * 0.055) };
 };
 
-/* Can the ball get at everything? Flood from below the wall through empty
-   cells; any breakable brick that touches the flood is reachable. A brick
-   sealed on all four sides by solids is not, and a level with one of those in
-   it can never be finished. */
+/* Can the ball get at everything?
+
+   Flood up from below the wall, through everything that is **not solid** —
+   empty cells and breakable bricks alike. That last part is the whole
+   subtlety and it is easy to get wrong: the obvious version floods only
+   through empty cells and stops at the first brick, which then reports every
+   brick with another brick in front of it as unreachable. That is not what
+   unreachable means. A brick behind a brick is reachable, because the brick
+   in front of it is going to be broken; a brick behind a *solid* is not,
+   because that solid is never going anywhere.
+
+   With the wrong version the generator declares almost every level
+   impossible, thins solids until its guard expires, and quietly ships walls
+   it believes are broken. tools/rules-check.js runs this same walk over the
+   first forty levels and requires it to come back clean. */
 function reachable(grid) {
   var rows = grid.length, seen = [], q = [], i, c, r;
   for (r = 0; r < rows; r++) { seen.push([]); for (c = 0; c < COLS; c++) seen[r].push(false); }
-  /* start from every cell on the bottom edge that is not solid */
   for (c = 0; c < COLS; c++) if (grid[rows - 1][c] !== 9) { q.push([rows - 1, c]); seen[rows - 1][c] = true; }
+  var d = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   while (q.length) {
     var p = q.pop();
     r = p[0]; c = p[1];
-    if (grid[r][c] !== 0) continue;                  /* a brick stops the flood */
-    var d = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (i = 0; i < 4; i++) {
       var rr = r + d[i][0], cc = c + d[i][1];
       if (rr < 0 || rr >= rows || cc < 0 || cc >= COLS || seen[rr][cc]) continue;
-      if (grid[rr][cc] === 9) continue;
+      if (grid[rr][cc] === 9) continue;              /* only a solid stops it */
       seen[rr][cc] = true;
       q.push([rr, cc]);
     }

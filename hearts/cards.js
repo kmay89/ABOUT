@@ -80,6 +80,7 @@ Cards.tidy = function (hand) {
    ================================================================ */
 var L = {
   w: 0, h: 0, cw: 0, ch: 0,
+  step: 0,           /* how much of each fanned card is actually showing  */
   hand: [],          /* one box per card in your hand                     */
   seats: [],         /* where each *screen* position sits: 0 you, 1 left… */
   trick: []          /* where a card played from each screen position goes */
@@ -98,26 +99,30 @@ Cards.layout = function (cv, handCount) {
   L.w = w; L.h = h;
   /* the card size is set by the hand, because the hand is the thing you have
      to be able to read and hit; everything else follows from it */
-  L.cw = Math.max(34, Math.min(w * 0.19, h * 0.13));
+  L.cw = Math.max(30, Math.min(w * 0.17, h * 0.115));
   L.ch = Math.round(L.cw * 1.42);
 
   var n = Math.max(1, handCount || 13);
-  var room = w - 16;
+  var room = w - 14;
   /* overlap only as much as necessary, and never past the corner index */
-  var step = Math.min(L.cw * 0.92, Math.max(L.cw * 0.28, (room - L.cw) / Math.max(1, n - 1)));
-  var span = L.cw + step * (n - 1);
+  L.step = Math.min(L.cw * 0.92, Math.max(L.cw * 0.3, (room - L.cw) / Math.max(1, n - 1)));
+  var span = L.cw + L.step * (n - 1);
   var x0 = (w - span) / 2;
-  var y0 = h - L.ch - 8;
+  var y0 = h - L.ch - 6;
   L.hand = [];
-  for (var i = 0; i < n; i++) L.hand.push({ x: x0 + i * step, y: y0, w: L.cw, h: L.ch });
+  for (var i = 0; i < n; i++) L.hand.push({ x: x0 + i * L.step, y: y0, w: L.cw, h: L.ch });
 
-  /* the other three, around the middle */
-  var midY = (y0) / 2 + L.ch * 0.1;
+  /* The other three, around the middle. The side seats are pulled well in
+     from the edge rather than parked against it: their name plates are drawn
+     centred on that point and a plate centred 25px from the edge runs off the
+     screen, which is how you end up reading "…a · 13 cards". */
+  var top = Math.max(76, h * 0.11);
+  var midY = (top + L.ch * 0.6 + y0) / 2;
   L.seats = [
     { x: w / 2, y: h - L.ch - 26, tag: "bottom" },
-    { x: 22 + L.cw * 0.3, y: midY, tag: "left" },
-    { x: w / 2, y: 34, tag: "top" },
-    { x: w - 22 - L.cw * 0.3, y: midY, tag: "right" }
+    { x: w * 0.17, y: midY, tag: "left" },
+    { x: w / 2, y: top, tag: "top" },
+    { x: w * 0.83, y: midY, tag: "right" }
   ];
   /* where a played card lands: pulled in towards the middle from each seat */
   var cx = w / 2, cy = midY + L.ch * 0.15;
@@ -211,7 +216,11 @@ Cards.card = function (g, x, y, w, h, c, o) {
   var rk = c % 13, st = (c / 13) | 0;
   g.fillStyle = (st === 1 || st === 2) ? s.red : s.black;
   g.textAlign = "left"; g.textBaseline = "top";
-  var idx = Math.max(10, w * 0.36);
+  /* The corner index is sized off how much of the card is *showing*, not off
+     the card. In a fan you read the sliver, and a "10" set to the full card's
+     width is a "1" with the nought under the next card — which is the one
+     misreading in a card game that actually costs you a trick. */
+  var idx = Math.max(9, Math.min(w * 0.34, (L.step || w) * 0.66));
   g.font = "800 " + Math.round(idx) + "px system-ui,-apple-system,Segoe UI,sans-serif";
   g.fillText(RANK[rk], x + w * 0.1, y + h * 0.05);
   g.font = "600 " + Math.round(idx * 0.9) + "px system-ui,sans-serif";

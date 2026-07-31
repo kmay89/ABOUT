@@ -175,6 +175,11 @@ Rules.bid = function (st, seat, b) {
     n.phase = "discard";
     n.turn = n.dealer;
     n.hands[n.dealer].push(n.up);
+    /* Sorted the moment the card is picked up, not when play starts. The
+       dealer is about to choose what to throw away, and choosing that is
+       exactly the moment you need to see which of your cards are trump —
+       including the left bower, which has just changed suit under them. */
+    n.hands[n.dealer] = Rules.sort(n.hands[n.dealer], n.trump);
     return n;
   }
 

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Games Room — every board and table on kmay89.com</title>
+<meta name="description" content="Eleven games in the browser: dominoes, chess, checkers, othello, Chinese checkers, hearts, euchre, sudoku, patience, minesweeper and a brick breaker. No accounts, no ads, nothing tracked, all of them work offline, and the ones for more than one person are joined by typing four letters.">
+<meta name="theme-color" content="#12100e">
+<link rel="icon" href="/apple-touch-icon.png" type="image/png">
+<meta property="og:title" content="The Games Room">
+<meta property="og:description" content="Eleven games, no accounts, no ads, nothing tracked. The ones for more than one person are joined by typing four letters.">
+<style>
+  :root{
+    --room:#12100e; --card:#1d1a16; --card2:#272320; --ink:#f2ece1;
+    --soft:#a89a86; --line:#3d372f; --glow:#ffd77a; --good:#3ecf8e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{
+    margin:0; background:var(--room); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; font-size:16px;
+    padding:max(20px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
+  }
+  main{max-width:920px; margin:0 auto}
+  a{color:var(--glow)}
+  h1{font-size:clamp(1.9rem,7vw,2.8rem); letter-spacing:-.02em; margin:0 0 .2em}
+  .lede{color:var(--soft); max-width:60ch; margin:0 0 6px; font-size:1.02rem}
+  .rule{color:var(--soft); font-size:.9rem; max-width:64ch; margin:14px 0 26px}
+  .rule b{color:var(--ink)}
+  h2{font-size:.82rem; letter-spacing:.1em; text-transform:uppercase; color:var(--soft);
+     margin:32px 0 12px; font-weight:700}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:12px}
+  .game{
+    display:flex; gap:12px; align-items:flex-start;
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:13px; text-decoration:none; color:inherit;
+    transition:border-color .15s, transform .09s, background .15s;
+  }
+  .game:hover{border-color:var(--glow); background:var(--card2)}
+  .game:active{transform:scale(.99)}
+  .game img{width:52px; height:52px; border-radius:12px; flex:none; display:block}
+  .game .tx{min-width:0}
+  .game b{display:block; font-size:1rem; line-height:1.3}
+  .game small{display:block; color:var(--soft); font-size:.83rem; line-height:1.4; margin-top:3px}
+  .game .tag{
+    display:inline-block; margin-top:7px; font-size:.7rem; letter-spacing:.05em;
+    color:var(--good); border:1px solid rgba(62,207,142,.35); border-radius:999px;
+    padding:1px 8px; text-transform:uppercase; font-weight:700;
+  }
+  .game .tag.solo{color:var(--soft); border-color:var(--line)}
+
+  footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); color:var(--soft); font-size:.85rem}
+  footer .cols{display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>The Games Room</h1>
+  <p class="lede">Eleven of them. No accounts, no ads, nothing tracked, and every one works with the aeroplane mode on.</p>
+  <p class="rule">The ones marked <b>four letters</b> are played by more than one person on more than one phone. One of you opens the room and reads out four letters; everybody else types them. That is the whole ritual — no app, no invite link, no sign-in. And every one of them keeps working when whatever mints those four letters is unreachable: there is a camera-and-paste handshake underneath that needs no server at all.</p>
+
+  <h2>Boards</h2>
+  <div class="grid">
+    <a class="game" href="/chess/">
+      <img src="/chess/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Chess Room</b>
+      <small>An engine, an opening book, and somebody to explain what just happened to you.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+    <a class="game" href="/checkers/">
+      <img src="/checkers/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Checkers Board</b>
+      <small>English draughts, where jumping is compulsory and that single rule is the whole game.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+    <a class="game" href="/othello/">
+      <img src="/othello/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Othello Board</b>
+      <small>The discs turn one line at a time, so you can watch what caused it instead of working it out backwards.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+    <a class="game" href="/halma/">
+      <img src="/halma/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Star</b>
+      <small>Chinese checkers for two to six. The marbles you leave behind are the ladder the rest climb.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+  </div>
+
+  <h2>Tables</h2>
+  <div class="grid">
+    <a class="game" href="/domino/">
+      <img src="/domino/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Domino Table</b>
+      <small>Partnership dominó with nothing in the boneyard, a real 3D table, and Don Chuy explaining the pass you missed.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+    <a class="game" href="/hearts/">
+      <img src="/hearts/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Hearts Table</b>
+      <small>Twenty-six points nobody wants. Take none of them — or take every single one.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+    <a class="game" href="/euchre/">
+      <img src="/euchre/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Euchre Table</b>
+      <small>Two jacks worth more than the aces, a partner across the table, and the dealer gets stuck.</small>
+      <span class="tag">Four letters</span></span>
+    </a>
+  </div>
+
+  <h2>On your own</h2>
+  <div class="grid">
+    <a class="game" href="/sudoku/">
+      <img src="/sudoku/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Sudoku Room</b>
+      <small>Puzzles graded by the technique they need, and a teacher for each one.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+    <a class="game" href="/solitaire/">
+      <img src="/solitaire/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Card Table</b>
+      <small>Klondike where the deal has already been proved winnable before you saw it.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+    <a class="game" href="/minesweeper/">
+      <img src="/minesweeper/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Minefield</b>
+      <small>Minesweeper with the coin toss taken out — every field can be finished by reasoning alone.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+    <a class="game" href="/breaker/">
+      <img src="/breaker/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Wall</b>
+      <small>A brick breaker with a paddle you aim with rather than a mirror you bounce off.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+  </div>
+
+  <h2>And elsewhere</h2>
+  <div class="grid">
+    <a class="game" href="/cube/">
+      <img src="/apple-touch-icon.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Solving Room</b>
+      <small>A Rubik's cube, scanned with your camera and solved in front of you.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+    <a class="game" href="/library/">
+      <img src="/library/icons/icon-192.png" alt="" width="52" height="52">
+      <span class="tx"><b>The Reading Room</b>
+      <small>A world you can walk around in, loaded straight out of the region files.</small>
+      <span class="tag solo">Alone</span></span>
+    </a>
+  </div>
+
+  <footer>
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/accessibility/">Accessibility</a>
+      <a href="https://github.com/kmay89">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+</main>
+</body>
+</html>

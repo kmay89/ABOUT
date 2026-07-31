@@ -1,0 +1,17 @@
+{
+  "name": "The Star",
+  "short_name": "The Star",
+  "description": "Chinese checkers on the full 121-hole star: two to six players, jump chains drawn as chains, an opponent that plays its slowest marble rather than its fastest, and six phones joined by four letters.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

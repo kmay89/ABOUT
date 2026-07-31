@@ -44,21 +44,66 @@
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
-# The chess room's service worker must never be cached long, or installed
-# players would stop hearing about new versions
+# A service worker must never be cached long, or installed players stop
+# hearing about new versions — the one file on the site where a stale copy is
+# permanent rather than merely old. One rule per room, because Netlify's
+# header matching does not do the brace expansion this would otherwise want.
 [[headers]]
   for = "/chess/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
-# Same for the sudoku room's
 [[headers]]
   for = "/sudoku/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
-# And the reading room's
 [[headers]]
   for = "/library/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/domino/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/checkers/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/othello/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/halma/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/hearts/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/euchre/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/solitaire/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/minesweeper/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/breaker/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
