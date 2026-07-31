@@ -39,6 +39,38 @@ function volume(pos, idx) {
   }
   return v / 6;
 }
+/* Signed volume only says the mesh is *mostly* the right way round: a
+   single inverted cap is a rounding error against a whole piece, and it
+   looks like a hole you can see the inside of the head through. This is
+   the strict version — weld by position (creased rings and flat-shaded
+   parts split vertices that are really the same point), then insist that
+   every directed edge is used exactly once, which is true of any set of
+   closed, consistently-wound solids and false the moment one face is
+   backwards. Returns the number of edges that break the rule. */
+function orientationFaults(pos, idx) {
+  const key = new Map(), id = new Int32Array(pos.length / 3);
+  for (let v = 0; v < pos.length / 3; v++) {
+    const k = Math.round(pos[v * 3] * 1e5) + "," + Math.round(pos[v * 3 + 1] * 1e5) +
+              "," + Math.round(pos[v * 3 + 2] * 1e5);
+    if (!key.has(k)) key.set(k, key.size);
+    id[v] = key.get(k);
+  }
+  const dir = new Map();
+  for (let i = 0; i < idx.length; i += 3) {
+    const t = [id[idx[i]], id[idx[i + 1]], id[idx[i + 2]]];
+    if (t[0] === t[1] || t[1] === t[2] || t[2] === t[0]) continue;   /* degenerate */
+    for (let e = 0; e < 3; e++) {
+      const k = t[e] + ">" + t[(e + 1) % 3];
+      dir.set(k, (dir.get(k) || 0) + 1);
+    }
+  }
+  let faults = 0;
+  for (const [k, n] of dir) {
+    const [a, b] = k.split(">");
+    if (n !== 1 || (dir.get(b + ">" + a) || 0) !== 1) faults++;
+  }
+  return faults;
+}
 function bounds(pos) {
   const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity, z0: Infinity, z1: -Infinity };
   for (let i = 0; i < pos.length; i += 3) {
@@ -98,6 +130,8 @@ for (const set of shelf) {
          positive signed volume */
       const vol = volume(m.pos, m.idx);
       if (!(vol > 1e-5)) bad.push(nm + " is inside out or open (volume " + vol.toFixed(5) + ")");
+      const faults = orientationFaults(m.pos, m.idx);
+      if (faults) bad.push(nm + " has " + faults + " edge(s) with a face wound the wrong way");
 
       /* it stands on the board, not through it, and fits its square */
       const b = bounds(m.pos);
