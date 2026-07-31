@@ -70,92 +70,20 @@ function mModel(x, y, z, s, ry) {
   return [s*c,0,-s*n,0, 0,s,0,0, s*n,0,s*c,0, x,y,z,1];
 }
 
-/* ---------- geometry ---------- */
-/* revolve a [radius, height] profile; returns {pos, idx} (normals later) */
-function lathe(profile, segs) {
-  var pos = [], idx = [], i, j;
-  for (j = 0; j < profile.length; j++) {
-    for (i = 0; i <= segs; i++) {
-      var a = (i / segs) * Math.PI * 2;
-      pos.push(Math.cos(a) * profile[j][0], profile[j][1], Math.sin(a) * profile[j][0]);
-    }
+/* ---------- geometry ----------
+   The men themselves are carved in pieces3d.js — a whole workshop of
+   lathes, lofts and battlements, with several sets on the shelf and a
+   door for sets that arrive from outside. What's left here is the flat
+   furniture of the board: discs, rings, the quad the wood is painted on,
+   and the rim under it. */
+/* Looked up when a board is created rather than when this file is
+   evaluated, so the two script tags can be in either order. */
+function workshop() {
+  if (root.Pieces3D) return root.Pieces3D;
+  if (typeof module !== "undefined" && module.exports && typeof require === "function") {
+    try { return require("./pieces3d.js"); } catch (e) { return null; }
   }
-  var w = segs + 1;
-  for (j = 0; j < profile.length - 1; j++) for (i = 0; i < segs; i++) {
-    var a0 = j * w + i, b0 = a0 + 1, c0 = a0 + w, d0 = c0 + 1;
-    idx.push(a0, c0, b0, b0, c0, d0);
-  }
-  return { pos: pos, idx: idx };
-}
-function computeNormals(pos, idx) {
-  var n = new Float32Array(pos.length), i;
-  for (i = 0; i < idx.length; i += 3) {
-    var a = idx[i]*3, b = idx[i+1]*3, c = idx[i+2]*3;
-    var ux = pos[b]-pos[a], uy = pos[b+1]-pos[a+1], uz = pos[b+2]-pos[a+2];
-    var vx = pos[c]-pos[a], vy = pos[c+1]-pos[a+1], vz = pos[c+2]-pos[a+2];
-    var nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
-    n[a]+=nx; n[a+1]+=ny; n[a+2]+=nz;
-    n[b]+=nx; n[b+1]+=ny; n[b+2]+=nz;
-    n[c]+=nx; n[c+1]+=ny; n[c+2]+=nz;
-  }
-  for (i = 0; i < n.length; i += 3) {
-    var l = Math.hypot(n[i], n[i+1], n[i+2]) || 1;
-    n[i]/=l; n[i+1]/=l; n[i+2]/=l;
-  }
-  return n;
-}
-
-/* piece profiles — [radius, height], all ~1.0 tall before per-kind scale */
-function collar(r, y) { return [[r, y], [r + 0.045, y + 0.02], [r + 0.045, y + 0.045], [r * 0.82, y + 0.075]]; }
-function baseProfile() {
-  return [[0.0, 0], [0.30, 0], [0.315, 0.02], [0.30, 0.055], [0.24, 0.09], [0.205, 0.14]];
-}
-function pawnProfile() {
-  return baseProfile().concat([[0.13, 0.22], [0.115, 0.34]], collar(0.115, 0.34),
-    [[0.10, 0.44], [0.145, 0.50], [0.15, 0.56], [0.10, 0.63], [0.0, 0.66]]);
-}
-function rookProfile() {
-  return baseProfile().concat([[0.17, 0.28], [0.155, 0.52]],
-    [[0.21, 0.56], [0.21, 0.72], [0.15, 0.72], [0.15, 0.66], [0.0, 0.66]]);
-}
-function knightProfile() {
-  return baseProfile().concat([[0.155, 0.24], [0.125, 0.36], [0.115, 0.46],
-    [0.15, 0.56], [0.175, 0.66], [0.175, 0.76], [0.13, 0.83], [0.06, 0.87], [0.0, 0.88]]);
-}
-function bishopProfile() {
-  return baseProfile().concat([[0.14, 0.26], [0.115, 0.42]], collar(0.115, 0.42),
-    [[0.13, 0.55], [0.145, 0.62], [0.10, 0.72], [0.035, 0.78], [0.05, 0.82], [0.0, 0.87]]);
-}
-function queenProfile() {
-  return baseProfile().concat([[0.16, 0.26], [0.115, 0.50]], collar(0.115, 0.50),
-    [[0.115, 0.62], [0.16, 0.72], [0.185, 0.80], [0.13, 0.78], [0.10, 0.84], [0.05, 0.80], [0.0, 0.90]]);
-}
-function kingProfile() {
-  return baseProfile().concat([[0.165, 0.26], [0.12, 0.52]], collar(0.12, 0.52),
-    [[0.12, 0.64], [0.17, 0.76], [0.10, 0.82], [0.04, 0.84],
-     /* the cross, revolved thin */
-     [0.035, 0.86], [0.035, 0.90], [0.075, 0.90], [0.075, 0.945], [0.035, 0.945], [0.035, 1.0], [0.0, 1.0]]);
-}
-/* the knight: bend the top of the lathe forward, flatten the back of
-   the head into a mane, slim it side-on, push out a muzzle — a horse
-   suggested rather than carved, cohesive with the rest of the set */
-function knightDeform(pos) {
-  for (var i = 0; i < pos.length; i += 3) {
-    var y = pos[i+1];
-    if (y > 0.42) {
-      var t = (y - 0.42) / 0.46;
-      pos[i+2] *= 1 - 0.42 * t;                    /* head slims side-on */
-      if (pos[i] < 0) pos[i] *= 1 - 0.5 * t;       /* flat mane at the back */
-      pos[i]   += t * t * 0.42;                    /* neck leans forward */
-    }
-    if (y > 0.60 && y < 0.80 && pos[i] > 0.12) {
-      pos[i] += 0.14 * Math.sin(((y - 0.60) / 0.20) * Math.PI);  /* muzzle */
-    }
-    /* a nod of the head: the very top tips down toward the muzzle */
-    if (y > 0.80) {
-      pos[i+1] -= (y - 0.80) * 0.35 * Math.max(0, pos[i]) / 0.2;
-    }
-  }
+  return null;
 }
 
 /* flat disc (shadows, move dots) and ring (capture marks) at y=0 */
@@ -182,21 +110,26 @@ function quadXZ() { /* unit square centred on origin */
 }
 
 /* ---------- shaders ---------- */
+/* aShade is the occlusion baked into the mesh at carving time: crevices,
+   undercuts and the last millimetres above the board. It costs one float
+   a vertex and does more for the look of a piece than another lamp
+   would — and unlike a lamp it stays put when the camera orbits. */
 var VSH = [
-  "attribute vec3 aPos; attribute vec3 aNrm;",
+  "attribute vec3 aPos; attribute vec3 aNrm; attribute float aShade;",
   "uniform mat4 uProj, uView, uModel;",
-  "varying vec3 vNrm; varying vec3 vWorld;",
+  "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
   "void main(){",
   "  vec4 w = uModel * vec4(aPos, 1.0);",
   "  vWorld = w.xyz;",
   "  vNrm = mat3(uModel) * aNrm;",
+  "  vShade = aShade;",
   "  gl_Position = uProj * uView * w;",
   "}"].join("\n");
 var FSH = [
   "precision mediump float;",
   "uniform vec3 uColor; uniform float uAlpha; uniform vec3 uEye; uniform float uFlat;",
   "uniform float uSpec; uniform float uPower; uniform float uRim;",
-  "varying vec3 vNrm; varying vec3 vWorld;",
+  "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
   "void main(){",
   "  if (uFlat > 0.5) { gl_FragColor = vec4(uColor, uAlpha); return; }",
   "  vec3 N = normalize(vNrm);",
@@ -207,7 +140,9 @@ var FSH = [
   "  vec3 H = normalize(L1 + V);",
   "  float sp = pow(max(dot(N, H), 0.0), uPower) * uSpec;",
   "  float rim = pow(1.0 - max(dot(N, V), 0.0), 2.5) * uRim;",
-  "  vec3 c = uColor * (0.34 + d) + vec3(sp) + vec3(rim);",
+  /* occlusion dims the light and the highlight, but never the rim —
+     a silhouette should still catch the edge of the room */
+  "  vec3 c = uColor * (0.34 + d) * vShade + vec3(sp * vShade) + vec3(rim);",
   "  gl_FragColor = vec4(c, uAlpha);",
   "}"].join("\n");
 var VSH_TEX = [
@@ -315,6 +250,11 @@ function create(canvas, opts) {
   var gl = canvas.getContext("webgl", { antialias: true, alpha: false }) ||
            canvas.getContext("experimental-webgl", { antialias: true, alpha: false });
   if (!gl) return null;
+  /* no workshop, no pieces — the caller falls back to 2D, which is the
+     same road a lost context takes */
+  var Kit = workshop();
+  if (!Kit) throw new Error("gfx3d: pieces3d.js has not loaded");
+  var computeNormals = Kit.kit.computeNormals;
 
   var R = {
     kind: "3d", skin: null, pal: null, orientation: 1,
@@ -352,7 +292,8 @@ function create(canvas, opts) {
     alpha: gl.getUniformLocation(prog, "uAlpha"), eye: gl.getUniformLocation(prog, "uEye"),
     flat: gl.getUniformLocation(prog, "uFlat"), spec: gl.getUniformLocation(prog, "uSpec"),
     power: gl.getUniformLocation(prog, "uPower"), rimLight: gl.getUniformLocation(prog, "uRim"),
-    aPos: gl.getAttribLocation(prog, "aPos"), aNrm: gl.getAttribLocation(prog, "aNrm")
+    aPos: gl.getAttribLocation(prog, "aPos"), aNrm: gl.getAttribLocation(prog, "aNrm"),
+    aShade: gl.getAttribLocation(prog, "aShade")
   };
   var UT = {
     proj: gl.getUniformLocation(progTex, "uProj"), view: gl.getUniformLocation(progTex, "uView"),
@@ -360,34 +301,67 @@ function create(canvas, opts) {
     aPos: gl.getAttribLocation(progTex, "aPos"), aUV: gl.getAttribLocation(progTex, "aUV")
   };
 
-  /* mesh upload: interleave pos+normal */
-  function upload(geo, deform) {
-    var pos = geo.pos.slice();
-    if (deform) deform(pos);
-    var nrm = computeNormals(pos, geo.idx);
-    var inter = new Float32Array(pos.length * 2);
-    for (var i = 0, v = 0; i < pos.length; i += 3, v += 6) {
+  /* mesh upload: interleave pos + normal + baked shade (7 floats, 28
+     bytes). Board furniture has no baked shade, so it uploads as 1. */
+  function uploadRaw(pos, nrm, shade, idx) {
+    var n = pos.length / 3, inter = new Float32Array(n * 7), i, v;
+    for (i = 0, v = 0; i < pos.length; i += 3, v += 7) {
       inter[v] = pos[i]; inter[v+1] = pos[i+1]; inter[v+2] = pos[i+2];
       inter[v+3] = nrm[i]; inter[v+4] = nrm[i+1]; inter[v+5] = nrm[i+2];
+      inter[v+6] = shade ? shade[i / 3] : 1;
     }
     var vb = gl.createBuffer(), ib = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vb);
     gl.bufferData(gl.ARRAY_BUFFER, inter, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(geo.idx), gl.STATIC_DRAW);
-    return { vb: vb, ib: ib, n: geo.idx.length };
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
+      idx.BYTES_PER_ELEMENT ? idx : new Uint16Array(idx), gl.STATIC_DRAW);
+    return { vb: vb, ib: ib, n: idx.length };
+  }
+  function upload(geo) {
+    return uploadRaw(geo.pos, computeNormals(geo.pos, geo.idx), null, geo.idx);
   }
 
-  var SEGS = 28;
-  var MESH = [null,
-    upload(lathe(pawnProfile(), SEGS)),
-    upload(lathe(knightProfile(), SEGS), knightDeform),
-    upload(lathe(bishopProfile(), SEGS)),
-    upload(lathe(rookProfile(), SEGS)),
-    upload(lathe(queenProfile(), SEGS)),
-    upload(lathe(kingProfile(), SEGS))
-  ];
-  var SCALE = [0, 0.86, 0.94, 0.98, 0.92, 1.06, 1.14];  /* per-kind height feel */
+  /* ---------- the men ----------
+     A set is carved once, uploaded once, and drawn with exactly the same
+     number of calls as the old one-lathe-per-piece set: everything a
+     piece is made of is welded into a single mesh before it gets here.
+     Swapping sets frees the old buffers so a curious player can try all
+     of them without the card filling up. */
+  var quality = Kit.autoQuality();
+  var PIECES = null;      /* { 1..6: {mesh, radius, height} } */
+  var setId = null, setFaces = "", setName = "";
+  function freePieces() {
+    if (!PIECES) return;
+    for (var k = 1; k <= 6; k++) {
+      if (!PIECES[k]) continue;
+      gl.deleteBuffer(PIECES[k].mesh.vb);
+      gl.deleteBuffer(PIECES[k].mesh.ib);
+    }
+    PIECES = null;
+  }
+  function loadPieces(id) {
+    if (setId === id && PIECES) return;
+    var built;
+    try { built = Kit.build(id, quality); }
+    catch (e) {
+      if (id === Kit.DEFAULT_ID) throw e;
+      built = Kit.build(Kit.DEFAULT_ID, quality);   /* a bad set is never fatal */
+    }
+    freePieces();
+    PIECES = {};
+    for (var k = 1; k <= 6; k++) {
+      var m = built.pieces[k];
+      PIECES[k] = { mesh: uploadRaw(m.pos, m.nrm, m.shade, m.idx),
+                    radius: m.radius, height: m.height };
+    }
+    setId = built.id;
+    setFaces = built.faces || "";
+    setName = built.name;
+  }
+  loadPieces(Kit.DEFAULT_ID);
+  var FACE_LETTER = { 1: "p", 2: "n", 3: "b", 4: "r", 5: "q", 6: "k" };
+
   var MESH_DISC = upload(disc(36));
   var MESH_RING = upload(ring(40, 0.82));
   var MESH_QUAD = upload(quadXZ());
@@ -490,9 +464,15 @@ function create(canvas, opts) {
   R.setSkin = function (skin) {
     R.skin = skin;
     R.pal = derive(skin);
+    /* the carved set travels with the skin, so a look someone sent you
+       arrives with its men as well as its colours */
+    loadPieces((skin.pieces && skin.pieces.set) || Kit.DEFAULT_ID);
     loadBoardTex();
     R.dirty = true;
   };
+  /* which set is actually on the board — not always the one the skin
+     asked for, if that skin named a set this browser doesn't have */
+  R.pieceSet = function () { return { id: setId, name: setName }; };
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
@@ -542,12 +522,15 @@ function create(canvas, opts) {
     return r * 16 + f;
   };
 
+  var STRIDE = 28;                       /* pos(3) + normal(3) + shade(1) */
   function bindMesh(mesh) {
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vb);
     gl.enableVertexAttribArray(U.aPos);
-    gl.vertexAttribPointer(U.aPos, 3, gl.FLOAT, false, 24, 0);
+    gl.vertexAttribPointer(U.aPos, 3, gl.FLOAT, false, STRIDE, 0);
     gl.enableVertexAttribArray(U.aNrm);
-    gl.vertexAttribPointer(U.aNrm, 3, gl.FLOAT, false, 24, 12);
+    gl.vertexAttribPointer(U.aNrm, 3, gl.FLOAT, false, STRIDE, 12);
+    gl.enableVertexAttribArray(U.aShade);
+    gl.vertexAttribPointer(U.aShade, 1, gl.FLOAT, false, STRIDE, 24);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
   }
   function drawMesh(mesh, model, color, alpha, flat, spec) {
@@ -565,21 +548,23 @@ function create(canvas, opts) {
 
   function drawPiece(piece, x, z, yLift, alpha, scaleMul, th) {
     var kind = Math.abs(piece), white = piece > 0;
-    var mesh = MESH[kind];
-    if (!mesh) return;
-    var s = SCALE[kind] * (scaleMul || 1);
-    /* knights face the opponent */
-    var ry = kind === 2 ? (white ? Math.PI / 2 : -Math.PI / 2) : 0;
+    var P = PIECES && PIECES[kind];
+    if (!P) return;
+    var s = scaleMul || 1;
+    /* whichever men the set says have a front — knights always, and
+       bishops when the set has cut a slit worth pointing at someone */
+    var faces = setFaces.indexOf(FACE_LETTER[kind]) >= 0;
+    var ry = faces ? (white ? Math.PI / 2 : -Math.PI / 2) : 0;
     var al = (alpha == null ? 1 : alpha) * th.alpha;
     /* shadow stays on the ground, thins as the piece lifts */
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     bindMesh(MESH_DISC);
-    drawMesh(MESH_DISC, mModel(x, 0.012, z, 0.36 * s, 0), [0, 0, 0],
+    drawMesh(MESH_DISC, mModel(x, 0.012, z, P.radius * 1.12 * s, 0), [0, 0, 0],
       0.24 * al / (1 + Math.max(0, yLift) * 1.6), true);
     if (al >= 1) { gl.depthMask(true); gl.disable(gl.BLEND); }
-    bindMesh(mesh);
-    drawMesh(mesh, mModel(x, yLift || 0, z, s, ry),
+    bindMesh(P.mesh);
+    drawMesh(P.mesh, mModel(x, yLift || 0, z, s, ry),
       white ? th.white : th.black, al, false, th.spec);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -609,9 +594,19 @@ function create(canvas, opts) {
     drawMesh(mesh || MESH_QUAD, mModel(sqX(sq), y || 0.015, sqZ(sq), scale || 0.98, 0), color, alpha, true);
   }
 
-  /* dynamic meshes: hint arrows, and the racing lines */
+  /* dynamic meshes: hint arrows, and the racing lines. They're drawn
+     flat, so their normals and shade are along for the ride only — but
+     the attribute layout has to match the static meshes all the same. */
   var arrowBuf = gl.createBuffer(), arrowIdx = gl.createBuffer();
   var lineBuf = gl.createBuffer(), lineIdx = gl.createBuffer();
+  function bindDynamic() {
+    gl.enableVertexAttribArray(U.aPos);
+    gl.vertexAttribPointer(U.aPos, 3, gl.FLOAT, false, STRIDE, 0);
+    gl.enableVertexAttribArray(U.aNrm);
+    gl.vertexAttribPointer(U.aNrm, 3, gl.FLOAT, false, STRIDE, 12);
+    gl.enableVertexAttribArray(U.aShade);
+    gl.vertexAttribPointer(U.aShade, 1, gl.FLOAT, false, STRIDE, 24);
+  }
 
   /* One racing line, flat on the board. The ribbon comes back as a
      polygon whose first half is the left edge and second half the right
@@ -626,24 +621,21 @@ function create(canvas, opts) {
     var half = L.poly.length / 2, verts = [], idx = [], i;
     for (i = 0; i < half; i++) {
       var l = L.poly[i], r = L.poly[L.poly.length - 1 - i];
-      verts.push(l.x, 0.03, l.y, 0, 1, 0);
-      verts.push(r.x, 0.03, r.y, 0, 1, 0);
+      verts.push(l.x, 0.03, l.y, 0, 1, 0, 1);
+      verts.push(r.x, 0.03, r.y, 0, 1, 0, 1);
     }
     for (i = 0; i < half - 1; i++) {
       var v = i * 2;
       idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
     }
     if (L.head) {
-      var base = verts.length / 6;
-      for (i = 0; i < 3; i++) verts.push(L.head[i].x, 0.03, L.head[i].y, 0, 1, 0);
+      var base = verts.length / 7;
+      for (i = 0; i < 3; i++) verts.push(L.head[i].x, 0.03, L.head[i].y, 0, 1, 0, 1);
       idx.push(base, base + 1, base + 2);
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(U.aPos);
-    gl.vertexAttribPointer(U.aPos, 3, gl.FLOAT, false, 24, 0);
-    gl.enableVertexAttribArray(U.aNrm);
-    gl.vertexAttribPointer(U.aNrm, 3, gl.FLOAT, false, 24, 12);
+    bindDynamic();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineIdx);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.DYNAMIC_DRAW);
     gl.uniformMatrix4fv(U.model, false, mIdent());
@@ -668,17 +660,14 @@ function create(canvas, opts) {
     var bx = hx - ux * head, bz = hz - uz * head;
     var sx = x0 + ux * 0.30, sz = z0 + uz * 0.30;
     var v = new Float32Array([
-      sx + px*w, y, sz + pz*w, 0,0,0,  sx - px*w, y, sz - pz*w, 0,0,0,
-      bx - px*w, y, bz - pz*w, 0,0,0,  bx + px*w, y, bz + pz*w, 0,0,0,
-      bx + px*head*0.62, y, bz + pz*head*0.62, 0,0,0,
-      bx - px*head*0.62, y, bz - pz*head*0.62, 0,0,0,
-      hx, y, hz, 0,0,0]);
+      sx + px*w, y, sz + pz*w, 0,0,0,1,  sx - px*w, y, sz - pz*w, 0,0,0,1,
+      bx - px*w, y, bz - pz*w, 0,0,0,1,  bx + px*w, y, bz + pz*w, 0,0,0,1,
+      bx + px*head*0.62, y, bz + pz*head*0.62, 0,0,0,1,
+      bx - px*head*0.62, y, bz - pz*head*0.62, 0,0,0,1,
+      hx, y, hz, 0,0,0,1]);
     gl.bindBuffer(gl.ARRAY_BUFFER, arrowBuf);
     gl.bufferData(gl.ARRAY_BUFFER, v, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(U.aPos);
-    gl.vertexAttribPointer(U.aPos, 3, gl.FLOAT, false, 24, 0);
-    gl.enableVertexAttribArray(U.aNrm);
-    gl.vertexAttribPointer(U.aNrm, 3, gl.FLOAT, false, 24, 12);
+    bindDynamic();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, arrowIdx);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3, 4,5,6]), gl.DYNAMIC_DRAW);
     gl.uniformMatrix4fv(U.model, false, mIdent());
@@ -849,7 +838,7 @@ function create(canvas, opts) {
     return R.dirty;
   };
 
-  R.destroy = function () { R.anim = null; };
+  R.destroy = function () { R.anim = null; freePieces(); };
   R.resize();
   return R;
 }

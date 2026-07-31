@@ -1,10 +1,10 @@
 # ♞ The Chess Room
 
 **Chess, taught kindly.** A free chess app that runs entirely in your
-browser — a full 3D board (with a lovely 2D option), a patient coach who
-hints and explains, opening stories told plainly, a real tournament
-clock, and same-room two-player that links two devices with a pasted or
-scanned code. No accounts, no server, no ads, nothing tracked. Installable
+browser — a full 3D board with three carved piece sets (and a lovely 2D
+option), a patient coach who hints and explains, opening stories told
+plainly, a real tournament clock, and same-room two-player that links
+two devices with a pasted or scanned code. No accounts, no server, no ads, nothing tracked. Installable
 as a PWA; works offline; quietly announces new versions.
 
 Part of [The Solving Room](../). No libraries, no build step, MIT.
@@ -49,8 +49,12 @@ rules: MIT-compatible, no build step, no runtime dependency, offline.
   runtime dependency for something we could prove correct ourselves
   (and now cross-check against).
 - **Cburnett and other classic piece art** — CC-BY-SA/GPL share-alike
-  terms sit awkwardly in an MIT repo, so both piece sets here
-  (the lathe-turned 3D set and the hand-drawn 2D set) are original.
+  terms sit awkwardly in an MIT repo, so every piece set here (the three
+  carved 3D sets and the hand-drawn 2D set) is original geometry. What
+  we did instead of adopting art was **build the door**: `pieces3d.js`
+  will take a set as plain JSON or as Wavefront `.obj` text, so anyone
+  can drop a CC0 or MIT model set in without us shipping one. See
+  *Bringing your own pieces* below.
 - **Syzygy tablebases, polyglot books, NNUE nets** — wonderful, heavy,
   and aimed at engines rather than learners.
 
@@ -82,9 +86,16 @@ book.js             the teaching book — famous lines in SAN with
                     plain-language ideas and per-move reasons
 eco.js              generated: all 3,807 named openings (ECO codes)
                     from lichess-org/chess-openings, CC0
-gfx3d.js            raw WebGL 1 renderer: lathe-turned pieces (the knight
-                    is a lathe bent forward at the neck), orbit camera on
-                    springs, sliding/hopping/sinking animations
+pieces3d.js         the carving shop: profiles smoothed into real turned
+                    silhouettes, a lathe that can be warped as it spins
+                    (the bishop's slit is a genuine cut), a loft that
+                    sweeps a changing section along a curved spine (the
+                    knight is a carved head, not a bent vase), battlements
+                    cut right through the rook, and occlusion baked into
+                    every vertex. Three sets ship; more can be injected
+                    from outside as JSON or .obj
+gfx3d.js            raw WebGL 1 renderer: the carved sets above, orbit
+                    camera on springs, sliding/hopping/sinking animations
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
                     also the safety net if WebGL is missing or lost
 room.js             the shared front door: four-letter room codes over the
@@ -115,9 +126,83 @@ tools/              dev-only, never shipped:
   skin-check.js     presets are complete, share codes round-trip, and
                     hostile input (markup, bad colours, junk numbers)
                     comes back safe
+  pieces-check.js   every set builds at both qualities, closed and facing
+                    outwards, indexable in 16 bits, standing on the board
+                    and inside its square — plus the injection doors fed
+                    junk JSON and junk .obj
+  pieces-preview.html
+                    every set lined up under the board's own shader, with
+                    wireframe and baked-occlusion views. Open it from a
+                    static server while designing a set
   make-icons.js     draws the app icons from scratch (analytic raster + 
                     hand-rolled PNG writer)
 ```
+
+## Bringing your own pieces
+
+The 3D board ships three carved sets — **Staunton Classic** (the
+tournament pattern), **Modern Studio** (flat-shaded geometry in the
+Bauhaus spirit) and **Soft Nordic** (round, thick, hand-sized). You pick
+one in the Studio, under *Pieces*, and it changes mid-game like every
+other part of a skin. The set rides along in the share code too, so a
+look you send a friend arrives with its men as well as its colours.
+
+There are three ways to add a fourth.
+
+**1. As plain JSON — the way a set travels between strangers.**
+A set is a whitelist of primitives with clamped numbers. Nothing is
+evaluated, so a set is as safe to paste from a stranger as a skin code:
+
+```js
+Pieces3D.register({
+  id: "my-set", name: "My Set", maker: "You", license: "CC0",
+  faces: "n",                       // which men turn to face the opponent
+  pieces: {
+    p: { height: 0.68, parts: [
+      { type: "lathe", profile: [[0,0], [0.25,0,"c"], [0.10,0.35], [0.09,0.45]] },
+      { type: "sphere", r: 0.10, at: [0, 0.52, 0] }
+    ] },
+    n: { … }, b: { … }, r: { … }, q: { … }, k: { … }
+  }
+});
+```
+
+`type` is one of `lathe`, `sphere`, `cone`, `cylinder`, `box`, `torus`,
+`arc`; every part takes `at`, `scale`, `rx`/`ry`/`rz`, `mirrorZ`, `flat`
+and `shade`. A profile point ending in `"c"` is a hard edge. Anything
+missing, absurd or hostile is clamped or dropped — a set of nonsense
+still builds something that stands on the board.
+
+**2. From Wavefront `.obj` — the door to the open-source world.**
+Most free model sets arrive as `.obj`. Point six of them at
+`registerOBJ` (or `loadOBJSet`, which fetches first) and each mesh is
+re-centred, stood on the board, scaled to the height the set asks for,
+turned right side out if the exporter wound it inside out, and given the
+same baked occlusion as everything else:
+
+```js
+Pieces3D.loadOBJSet(
+  { id: "someones-ivories", name: "Someone's Ivories", maker: "…", license: "CC0" },
+  { p: "sets/pawn.obj", n: "sets/knight.obj", b: "sets/bishop.obj",
+    r: "sets/rook.obj",  q: "sets/queen.obj",  k: "sets/king.obj" }
+).then(function (set) { /* it's on the shelf; pick it in the Studio */ });
+```
+
+Keep each piece under 65,535 vertices — one 16-bit index buffer is the
+budget, and `pieces-check.js` will tell you if you've blown it. **Check
+the licence before you ship someone else's models**: CC0 and MIT drop
+straight in, CC-BY needs the credit line kept (that's what the `license`
+field is for), and share-alike terms will not fit an MIT repo — which is
+exactly why nothing of the sort ships here.
+
+**3. In code, with the carving tools.** `Pieces3D.kit` exposes the
+workshop itself — `lathe`, `loft`, `box`, `bevelBox`, `sphere`, `cone`,
+`torus`, `arcBlock`, `smoothProfile`, the `Builder`. That's how the three
+house sets are built, and it's the escape hatch the JSON form
+deliberately isn't. Design against
+`tools/pieces-preview.html`, which lines a set up under the board's own
+shader with wireframe and baked-occlusion views, and check it with
+`node chess/tools/pieces-check.js`.
 
 ## Two ideas worth explaining
 
@@ -208,7 +293,13 @@ node chess/tools/book-check.js     # every opening line legal & canonical
 node chess/tools/teach-check.js    # the teaching eyes see what they claim
 node chess/tools/lesson-check.js   # every lesson solvable; spacing maths
 node chess/tools/skin-check.js     # presets, share codes, hostile input
+node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
+
+Designing a piece set? Open
+`http://localhost:8000/chess/tools/pieces-preview.html` beside the
+checker — it lines every set up under the board's own shader, with
+wireframe and baked-occlusion views and a per-piece triangle count.
 
 …and bump `VERSION` in `sw.js` so installed players hear about it.

@@ -719,7 +719,7 @@
 <div class="ov hide" id="ovSettings">
   <div class="card">
     <h2>Settings</h2>
-    <div class="settingRow"><span class="lbl"><b>The look</b><small id="setSkinName">Colours, material, board pattern — change them while you play.</small></span>
+    <div class="settingRow"><span class="lbl"><b>The look</b><small id="setSkinName">Colours, material, board pattern, and which carved set the 3D board uses — change them while you play.</small></span>
       <button class="chip sel" id="setOpenStudio">🎨 Open the Studio</button></div>
     <div class="settingRow"><span class="lbl"><b>Gentle coach</b><small>A quiet word when a move might lose material — with an offer to take it back.</small></span>
       <button class="chip sel" id="setCoach">On</button></div>
@@ -761,7 +761,7 @@
   <div class="card">
     <h2>About this room</h2>
     <p><b>The Chess Room</b> is part of <a href="../" style="color:var(--amber)">The Solving Room</a> — free things that teach, built plainly.</p>
-    <p>Everything runs in your browser: the rules engine (checked against millions of known-good positions), the 3D board (raw WebGL, no libraries), the coach, and the clock. Nearby play links two devices directly with WebRTC — the invite code <i>is</i> the connection; there is no server, no account, no tracking of any kind.</p>
+    <p>Everything runs in your browser: the rules engine (checked against millions of known-good positions), the 3D board (raw WebGL, no libraries — the pieces are carved by the browser at start-up, not downloaded), the coach, and the clock. Nearby play links two devices directly with WebRTC — the invite code <i>is</i> the connection; there is no server, no account, no tracking of any kind.</p>
     <p>Install it (Add to Home Screen) and it works offline, and quietly tells you when a new version is ready.</p>
     <p>MIT licensed. Be kind to your opponent — especially when you're winning.</p>
     <button class="ghostbtn" id="aboutBack">Back</button>
@@ -822,6 +822,8 @@
     <div class="stSec">Pieces</div>
     <div class="stRow"><label for="cWhite">Light pieces</label><input type="color" id="cWhite"></div>
     <div class="stRow"><label for="cBlack">Dark pieces</label><input type="color" id="cBlack"></div>
+    <div class="stGrid" id="stSets"></div>
+    <div id="stSetNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
     <div class="stGrid" id="stMaterials"></div>
     <div id="stMatNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
     <div class="stRow"><label for="sShine">Shine</label><input type="range" id="sShine" min="0" max="100"></div>
@@ -852,6 +854,7 @@
 <script src="engine.js"></script>
 <script src="teach.js"></script>
 <script src="learn.js"></script>
+<script src="pieces3d.js"></script>
 <script src="skins.js"></script>
 <script src="lines.js"></script>
 <script src="book.js"></script>

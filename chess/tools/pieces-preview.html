@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The carving shop — piece set preview</title>
+<!--
+  pieces-preview.html — dev-only, never shipped.
+
+  Every set in pieces3d.js, lined up on a board-coloured floor with the
+  same shader the real 3D board uses, so a set can be judged before it
+  ever reaches a game. Drag to orbit, scroll to zoom, and the toggles
+  turn on wireframe, the baked occlusion on its own, and the dark men.
+
+  Open it straight from a static server at the repo root:
+      python3 -m http.server 8000
+      open http://localhost:8000/chess/tools/pieces-preview.html
+-->
+<style>
+  :root{--room:#191512;--ink:#f0e8da;--soft:#b3a48f;--line:#463a2f;--card:#241e19}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--room);color:var(--ink);
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #bar{position:absolute;left:0;right:0;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;
+       padding:10px;background:linear-gradient(rgba(20,16,12,.9),rgba(20,16,12,0))}
+  button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);
+         border-radius:999px;padding:5px 13px;cursor:pointer;font-size:.85em}
+  button.sel{background:#f0a020;border-color:#f0a020;color:#241a08;font-weight:700}
+  #stat{position:absolute;left:10px;bottom:10px;z-index:2;font-size:.8em;color:var(--soft);
+        background:rgba(20,16,12,.8);border:1px solid var(--line);border-radius:10px;padding:6px 11px;
+        white-space:pre;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"></div>
+<div id="stat"></div>
+
+<script src="../pieces3d.js"></script>
+<script>
+"use strict";
+var cv = document.getElementById("cv");
+var gl = cv.getContext("webgl", { antialias: true, alpha: false });
+if (!gl) { document.body.innerHTML = "<p style='padding:2em'>No WebGL here.</p>"; throw new Error("no gl"); }
+
+/* the board's own shader, verbatim, plus an occlusion-only debug mode */
+var VSH = [
+  "attribute vec3 aPos; attribute vec3 aNrm; attribute float aShade;",
+  "uniform mat4 uProj, uView, uModel;",
+  "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
+  "void main(){ vec4 w = uModel * vec4(aPos,1.0); vWorld = w.xyz;",
+  "  vNrm = mat3(uModel) * aNrm; vShade = aShade; gl_Position = uProj * uView * w; }"].join("\n");
+var FSH = [
+  "precision mediump float;",
+  "uniform vec3 uColor; uniform vec3 uEye; uniform float uSpec, uPower, uRim, uAO;",
+  "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
+  "void main(){",
+  "  if (uAO > 0.5) { gl_FragColor = vec4(vec3(vShade), 1.0); return; }",
+  "  vec3 N = normalize(vNrm);",
+  "  vec3 L1 = normalize(vec3(-0.45,0.85,0.35)), L2 = normalize(vec3(0.6,0.35,-0.5));",
+  "  float d = max(dot(N,L1),0.0)*0.75 + max(dot(N,L2),0.0)*0.30;",
+  "  vec3 V = normalize(uEye - vWorld); vec3 H = normalize(L1 + V);",
+  "  float sp = pow(max(dot(N,H),0.0), uPower) * uSpec;",
+  "  float rim = pow(1.0 - max(dot(N,V),0.0), 2.5) * uRim;",
+  "  gl_FragColor = vec4(uColor * (0.34 + d) * vShade + vec3(sp * vShade) + vec3(rim), 1.0);",
+  "}"].join("\n");
+
+function sh(t, s) { var o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o);
+  if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
+var prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VSH));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FSH));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+var U = {};
+["uProj","uView","uModel","uColor","uEye","uSpec","uPower","uRim","uAO"].forEach(function (n) {
+  U[n] = gl.getUniformLocation(prog, n);
+});
+var A = { pos: gl.getAttribLocation(prog, "aPos"), nrm: gl.getAttribLocation(prog, "aNrm"),
+          shade: gl.getAttribLocation(prog, "aShade") };
+
+function upload(m) {
+  var n = m.pos.length / 3, inter = new Float32Array(n * 7);
+  for (var i = 0, v = 0; i < m.pos.length; i += 3, v += 7) {
+    inter[v] = m.pos[i]; inter[v+1] = m.pos[i+1]; inter[v+2] = m.pos[i+2];
+    inter[v+3] = m.nrm[i]; inter[v+4] = m.nrm[i+1]; inter[v+5] = m.nrm[i+2];
+    inter[v+6] = m.shade[i / 3];
+  }
+  var vb = gl.createBuffer(), ib = gl.createBuffer(), wb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, inter, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
+  /* wireframe: every triangle as three lines */
+  var w = new Uint16Array(m.idx.length * 2);
+  for (i = 0, v = 0; i < m.idx.length; i += 3) {
+    w[v++] = m.idx[i];   w[v++] = m.idx[i+1];
+    w[v++] = m.idx[i+1]; w[v++] = m.idx[i+2];
+    w[v++] = m.idx[i+2]; w[v++] = m.idx[i];
+  }
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, wb); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, w, gl.STATIC_DRAW);
+  return { vb: vb, ib: ib, wb: wb, n: m.idx.length, wn: w.length, tris: m.tris, verts: m.verts,
+           height: m.height, radius: m.radius };
+}
+
+/* a plain floor so the feet have something to sit on */
+var floor = (function () {
+  var s = 4.2, pos = [-s,0,-1.6, s,0,-1.6, s,0,1.6, -s,0,1.6];
+  var inter = [];
+  for (var i = 0; i < 4; i++) inter.push(pos[i*3], pos[i*3+1], pos[i*3+2], 0, 1, 0, 1);
+  var vb = gl.createBuffer(), ib = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(inter), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,2,1,0,3,2]), gl.STATIC_DRAW);
+  return { vb: vb, ib: ib, n: 6, wn: 0 };
+})();
+
+/* ---- matrices ---- */
+function persp(f, a, n, fa) { var t = 1/Math.tan(f/2), d = 1/(n-fa);
+  return [t/a,0,0,0, 0,t,0,0, 0,0,(fa+n)*d,-1, 0,0,2*fa*n*d,0]; }
+function lookAt(e, at, up) {
+  var zx=e[0]-at[0], zy=e[1]-at[1], zz=e[2]-at[2], zl=Math.hypot(zx,zy,zz); zx/=zl;zy/=zl;zz/=zl;
+  var xx=up[1]*zz-up[2]*zy, xy=up[2]*zx-up[0]*zz, xz=up[0]*zy-up[1]*zx;
+  var xl=Math.hypot(xx,xy,xz); xx/=xl;xy/=xl;xz/=xl;
+  var yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
+          -(xx*e[0]+xy*e[1]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1];
+}
+function model(x, y, z, ry) { var c=Math.cos(ry||0), s=Math.sin(ry||0);
+  return [c,0,-s,0, 0,1,0,0, s,0,c,0, x,y,z,1]; }
+
+/* ---- state ---- */
+var setId = Pieces3D.DEFAULT_ID, meshes = null, built = null;
+var dark = false, wire = false, ao = false;
+var cam = { yaw: Math.PI / 2, pitch: 0.42, dist: 4.6 };
+
+function load(id) {
+  setId = id;
+  built = Pieces3D.build(id, { segs: 44, sub: 3 });
+  meshes = {};
+  for (var k = 1; k <= 6; k++) meshes[k] = upload(built.pieces[k]);
+  var t = 0, v = 0;
+  for (k = 1; k <= 6; k++) { t += meshes[k].tris; v += meshes[k].verts; }
+  document.getElementById("stat").textContent =
+    built.name + " · " + built.maker + " · " + built.license + "\n" +
+    "pawn knight bishop rook queen king\n" +
+    [1,2,3,4,5,6].map(function (k) { return meshes[k].tris; }).join("  ") + " triangles\n" +
+    "set total " + t + " tris, " + v + " verts\n" + built.note;
+  draw();
+}
+
+var bar = document.getElementById("bar");
+function chip(label, on, fn) {
+  var b = document.createElement("button");
+  b.textContent = label; if (on) b.className = "sel";
+  b.onclick = function () { fn(); rebuildBar(); };
+  bar.appendChild(b);
+}
+function rebuildBar() {
+  bar.innerHTML = "";
+  Pieces3D.list().forEach(function (s) { chip(s.name, s.id === setId, function () { load(s.id); }); });
+  chip(dark ? "dark men" : "light men", false, function () { dark = !dark; draw(); });
+  chip("wireframe", wire, function () { wire = !wire; draw(); });
+  chip("baked occlusion", ao, function () { ao = !ao; draw(); });
+  chip("reset view", false, function () { cam = { yaw: Math.PI/2, pitch: 0.42, dist: 4.6 }; draw(); });
+}
+
+function resize() {
+  var d = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(cv.clientWidth * d); cv.height = Math.round(cv.clientHeight * d);
+  gl.viewport(0, 0, cv.width, cv.height);
+}
+function bind(m) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, m.vb);
+  gl.enableVertexAttribArray(A.pos); gl.vertexAttribPointer(A.pos, 3, gl.FLOAT, false, 28, 0);
+  gl.enableVertexAttribArray(A.nrm); gl.vertexAttribPointer(A.nrm, 3, gl.FLOAT, false, 28, 12);
+  gl.enableVertexAttribArray(A.shade); gl.vertexAttribPointer(A.shade, 1, gl.FLOAT, false, 28, 24);
+}
+function draw() {
+  resize();
+  var e = [Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.dist,
+           Math.sin(cam.pitch)*cam.dist + 0.55,
+           Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.dist];
+  gl.useProgram(prog);
+  gl.uniformMatrix4fv(U.uProj, false, persp(0.72, cv.width / cv.height, 0.1, 40));
+  gl.uniformMatrix4fv(U.uView, false, lookAt(e, [0, 0.5, 0], [0, 1, 0]));
+  gl.uniform3fv(U.uEye, e);
+  gl.uniform1f(U.uSpec, 0.5); gl.uniform1f(U.uPower, 40); gl.uniform1f(U.uRim, 0.16);
+  gl.uniform1f(U.uAO, ao ? 1 : 0);
+  gl.clearColor(0.098, 0.082, 0.071, 1);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.uniformMatrix4fv(U.uModel, false, model(0, 0, 0, 0));
+  gl.uniform3fv(U.uColor, [0.30, 0.25, 0.20]);
+  bind(floor); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, floor.ib);
+  gl.drawElements(gl.TRIANGLES, floor.n, gl.UNSIGNED_SHORT, 0);
+
+  var colour = dark ? [0.15, 0.13, 0.11] : [0.94, 0.90, 0.82];
+  gl.uniform3fv(U.uColor, colour);
+  /* Left unrotated on purpose: a set's own +x is its front, and the
+     camera starts on +z, so this is the profile view a set is judged in.
+     Orbit round if you want to see what the board sees. */
+  var order = [1, 4, 2, 3, 5, 6];
+  for (var i = 0; i < order.length; i++) {
+    var m = meshes[order[i]];
+    gl.uniformMatrix4fv(U.uModel, false, model((i - 2.5) * 1.06, 0, 0, 0));
+    bind(m);
+    if (wire) {
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.wb);
+      gl.drawElements(gl.LINES, m.wn, gl.UNSIGNED_SHORT, 0);
+    } else {
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
+      gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
+    }
+  }
+}
+
+var drag = null;
+cv.addEventListener("pointerdown", function (ev) { drag = { x: ev.clientX, y: ev.clientY }; });
+addEventListener("pointerup", function () { drag = null; });
+addEventListener("pointermove", function (ev) {
+  if (!drag) return;
+  cam.yaw -= (ev.clientX - drag.x) * 0.008;
+  cam.pitch = Math.max(-0.1, Math.min(1.4, cam.pitch + (ev.clientY - drag.y) * 0.006));
+  drag = { x: ev.clientX, y: ev.clientY };
+  draw();
+});
+cv.addEventListener("wheel", function (ev) {
+  ev.preventDefault();
+  cam.dist = Math.max(1.2, Math.min(12, cam.dist * (ev.deltaY > 0 ? 1.1 : 0.91)));
+  draw();
+}, { passive: false });
+addEventListener("resize", draw);
+
+rebuildBar();
+load(setId);
+</script>
+</body>
+</html>
