@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Euchre Table — bowers, partners, and stick the dealer</title>
+<meta name="description" content="Euchre in your browser: the left bower moves into the trump suit where it belongs, a partner who knows not to overtake you, stick-the-dealer on by default, and four phones joined by four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Euchre Table">
+<meta property="og:description" content="Euchre where the left bower sits in the trump suit, because that is where it is. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#4bbd7f; --accent-dim:#2e8f5a; --accent-ink:#06180e; }
+  #rail{ top:6px; gap:6px }
+  #rail .score{ flex:1; text-align:center; font-size:.76rem }
+  #say{ top:44px }
+  /* the bidding bar sits above the tray so your hand is never covered while
+     you are being asked about it */
+  #bidBar{
+    flex:none; display:flex; gap:6px; padding:0 10px 6px;
+    background:linear-gradient(180deg, rgba(0,0,0,0), var(--card) 60%);
+  }
+  #bidBar .btn{ min-height:46px; font-size:.88rem }
+  #bidBar .btn.suit{ flex:0 0 54px; font-size:1.5rem; line-height:1 }
+  #bidBar .btn.suit.red{ color:#e8756a }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="table" class="surface"></canvas>
+    <div id="rail"></div>
+    <div id="say"></div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="bidBar" class="hide"></div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn wide" id="btnHint"><span class="k">💡</span>Hint</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Euchre Table</div>
+  <div class="sub">Twenty-four cards, five tricks, and two jacks that are worth more than the aces. Your partner sits across from you and their tricks are yours.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a match</button>
+    <button class="btn" id="goTogether">Four phones</button>
+  </div>
+  <div class="row"><button class="btn wide" id="goLearn">How it's played</button></div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The table</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New match</button>
+    <button class="btn" id="mLevel">Who you're playing</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mRules">House rules</button>
+    <button class="btn" id="mTogether">Four phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours &amp; pace</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Who you're playing</h2>
+  <p class="lead">They differ in what they can do, not in how carefully they do it.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovHouse"><div class="sheet">
+  <button class="close" data-close="ovHouse">✕</button>
+  <h2>House rules</h2>
+  <p class="lead">Euchre is the most argued-about card game there is, and every basement in the Midwest plays it slightly differently.</p>
+  <div id="houseBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours &amp; pace</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Four phones, one table</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Euchre takes ten minutes to learn and one rule to get wrong forever. That rule is first.</p>
+
+  <h3>1 · The bowers, and the one that moves</h3>
+  <p class="note">The jack of the trump suit is the <b>right bower</b> — the highest card in the pack, above the ace. The <b>other jack of the same colour</b> is the <b>left bower</b>, second highest.</p>
+  <p class="note">And the left bower <b>stops being its own suit</b>. With spades as trump, the jack of clubs <i>is a spade</i>. It is led as a spade, it must be followed as a spade, and somebody holding the jack of clubs and no other clubs is <b>void in clubs</b>. This table moves it physically into your trump group so you can see it, because getting this wrong is how everybody loses their first ten hands.</p>
+
+  <h3>2 · The bidding</h3>
+  <p class="note">Twenty-four cards: nine up to ace. Five each, four left over, and the top one turned face up. Going round from the dealer's left, each player may <b>order it up</b> — that suit becomes trump and the dealer picks the card up and discards something. If all four pass, the card is turned down and a second round goes by in which anybody may name any <i>other</i> suit.</p>
+  <p class="note">If everybody passes twice, this table <b>sticks the dealer</b>: they must name something. It is a better game — nobody gets to sit out a hand — and it can be turned off in the house rules.</p>
+
+  <h3>3 · What calling costs you</h3>
+  <p class="note">Whoever fixes trump is the <b>maker</b>, and their side must take <b>three of the five tricks</b>. Three or four is a point; all five is two. Fail, and you are <b>euchred</b> — the other side takes two, which is why calling on a thin hand is a real decision and not a free one.</p>
+
+  <h3>4 · Counting your hand</h3>
+  <p class="note">The right bower is worth about a trick and a half. The left about a trick. An off-suit ace about half. And here is the one people miss: <b>a void in a side suit is worth nearly as much as an ace</b>, because it means you can trump the second round of that suit. Three small trumps beat two big ones — length beats height, because the third trump is still a trump when everybody else has run out.</p>
+  <p class="note">Add it up. If it comes to three, call. And remember that ordering it up hands the card to <i>whoever is dealing</i>: giving an opponent the right bower to gain yourself a queen loses the hand before it is played.</p>
+
+  <h3>5 · Playing with a partner</h3>
+  <p class="note">The single most common mistake at any euchre table is <b>overtaking your own partner</b>. If they are winning the trick, the trick is already yours — throw your worst card away instead of spending a good one on it. The only reason to take it off them is if somebody behind you can still take it off <i>them</i>.</p>
+  <p class="note">If you called it, lead trump. Every trump you pull out of their hands is one that cannot beat your aces later.</p>
+
+  <h3>6 · Going alone</h3>
+  <p class="note">The maker may play without their partner, who lays their cards down and sits out. All five alone is <b>four points</b> — the only way to score four, and the reason a hand with both bowers is worth the risk.</p>
+
+  <h3>Four phones</h3>
+  <p class="note">One phone is the table and reads out four letters; the others type them. Every phone is sent <b>only its own hand</b> — including your partner's, which is not shared with you, because euchre partners are not allowed to see each other's cards and a leak to your partner is a leak to the person best placed to use it.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Deal the next</button></div>
+</div></div>
+
+<script src="cards.js"></script>
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
