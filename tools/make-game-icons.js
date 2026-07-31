@@ -245,6 +245,26 @@ const ICONS = {
     s.paint("#e0503f", rect(0.62, 0.36, 0.2, 0.045));
     s.paint("#e0503f", rect(0.775, 0.13, 0.045, 0.275));
   },
+  stratego: (s) => {
+    /* two tiles facing each other across a lake: one showing its rank, one
+       showing its back — which is the whole game in one picture */
+    s.fillAll("#6b7248");
+    s.paint("#2d5f7a", rect(0, 0.42, 1, 0.16));
+    s.paint("#ffffff", rect(0.1, 0.47, 0.3, 0.012), 0.3);
+    s.paint("#ffffff", rect(0.58, 0.52, 0.3, 0.012), 0.3);
+    /* theirs, face down, with the dot that says it has moved */
+    s.paint("#000000", rect(0.2, 0.1, 0.44, 0.3), 0.3);
+    s.paint("#2f6fa8", rect(0.16, 0.06, 0.42, 0.3));
+    s.paint("#1d4670", rect(0.16, 0.28, 0.42, 0.08));
+    s.paint("#ffffff", rect(0.24, 0.185, 0.26, 0.028), 0.25);
+    s.paint("#ffd77a", disc(0.505, 0.13, 0.038));
+    /* yours, face up, a 10 */
+    s.paint("#000000", rect(0.46, 0.64, 0.44, 0.3), 0.3);
+    s.paint("#c8452f", rect(0.42, 0.6, 0.42, 0.3));
+    s.paint("#8a2718", rect(0.42, 0.82, 0.42, 0.08));
+    s.paint("#f4efe2", rect(0.5, 0.66, 0.048, 0.18));
+    s.paint("#f4efe2", ring(0.68, 0.75, 0.085, 0.05));
+  },
   breaker: (s) => {
     /* three courses of bricks, a ball, a paddle */
     s.fillAll("#111623");

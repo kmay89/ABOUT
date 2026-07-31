@@ -41,7 +41,7 @@ const SDP_MAX = 8000;
 // every game folder in the repo appears here.
 const GAMES = [
   'chess', 'domino', 'table', 'test',
-  'checkers', 'othello', 'halma', 'hearts', 'euchre',
+  'checkers', 'othello', 'halma', 'hearts', 'euchre', 'stratego',
 ];
 
 const CORS = {

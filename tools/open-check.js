@@ -49,6 +49,9 @@ const TYPES = {
 /* the rooms, and what to do once each one is open. Every step is a thing a
    finger could do; nothing reaches into the game's internals. */
 const ROOMS = [
+  { game: "stratego", start: "#goSolo", canvas: "#board",
+    taps: [[0.3, 0.85], [0.5, 0.85]],
+    menu: ["#mArmy", "#mLevel", "#mLook", "#mLearn", "#mTogether"], wait: 900 },
   { game: "checkers", start: "#goSolo", canvas: "#board",
     taps: [[0.5, 0.72], [0.42, 0.62]],
     menu: ["#mLevel", "#mLook", "#mLearn", "#mTogether"] },

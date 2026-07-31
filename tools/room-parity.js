@@ -33,6 +33,7 @@ const ROOMS = [
   { game: "checkers", seats: 2, kit: ["room", "table"] },
   { game: "othello",  seats: 2, kit: ["room", "table"] },
   { game: "halma",    seats: 6, kit: ["room", "table"] },
+  { game: "stratego", seats: 2, kit: ["room", "table"] },
   { game: "hearts",   seats: 4, kit: ["room", "table", "cards"] },
   { game: "euchre",   seats: 4, kit: ["room", "table", "cards"] }
 ];

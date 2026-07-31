@@ -214,6 +214,102 @@ console.log("\n──  the star");
 })();
 
 /* ================================================================
+   stratego
+   ================================================================ */
+console.log("\n──  the field");
+(function () {
+  const R = load("stratego", "rules.js");
+  const roster = R.roster();
+  ok("forty pieces a side", roster.length === 40, String(roster.length));
+  const by = {};
+  for (const r of roster) by[r] = (by[r] || 0) + 1;
+  ok("one flag, one spy, one marshal, six bombs, eight scouts",
+     by[0] === 1 && by[1] === 1 && by[10] === 1 && by[11] === 6 && by[2] === 8);
+  ok("two lakes of four squares", R.WATER.length === 8);
+
+  /* the combat table, which is the whole game in four lines */
+  ok("a spy that attacks the marshal wins", R.fight(1, 10) === "def");
+  ok("a marshal that attacks the spy wins", R.fight(10, 1) === "def");
+  ok("a miner defuses a bomb", R.fight(3, 11) === "def");
+  ok("anything else on a bomb dies", R.fight(10, 11) === "att" && R.fight(2, 11) === "att");
+  ok("equal ranks kill each other", R.fight(5, 5) === "both");
+  ok("taking the flag ends it", R.fight(2, 0) === "flag");
+  ok("rank order holds", R.fight(9, 10) === "att" && R.fight(10, 9) === "def");
+
+  /* a deployment that is not the right army must be refused */
+  const short = roster.slice(0, 39);
+  ok("a deployment that is not forty pieces is refused", R.deploy(R.empty(), 0, short) === null);
+  const wrong = roster.slice();
+  wrong[0] = 10;
+  ok("a deployment with two marshals is refused", R.deploy(R.empty(), 0, wrong) === null);
+
+  let ends = {}, games = 0;
+  for (let g = 0; g < 60; g++) {
+    const rnd = seeded(g + 1);
+    const shuffle = (a) => {
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = (rnd() * (i + 1)) | 0;
+        const t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    };
+    let st = R.empty();
+    st = R.deploy(st, 0, shuffle(R.roster()));
+    st = R.deploy(st, 1, shuffle(R.roster()));
+    if (st.phase !== "play") { ok("two armies down starts the game", false); return; }
+    let n = 0;
+    while (n < 4000) {
+      const e = R.over(st);
+      if (e) { ends[e.why] = (ends[e.why] || 0) + 1; games++; break; }
+      const ms = R.moves(st);
+      if (!ms.length) { ok("a live position always has a move", false); return; }
+      const mv = ms[(rnd() * ms.length) | 0];
+      if (!R.find(st, { f: mv.f, t: mv.t })) { ok("find() recognises every generated move", false); return; }
+      st = R.apply(st, mv);
+      for (const w of R.WATER) if (st.b[w] >= 0) { ok("nothing ever stands in a lake", false); return; }
+      for (const q of st.p) {
+        if ((q.rank === R.FLAG || q.rank === R.BOMB) && q.moved) { ok("bombs and flags never move", false); return; }
+      }
+      n++;
+    }
+  }
+  ok("60 games: nothing in the lakes, no bomb or flag ever moved", true);
+  ok("60 games: every generated move is recognised by find()", true);
+  ok("games end, by the flag and by running out of moves",
+     games === 60 && ends.flag > 0 && (ends.stuck > 0 || ends.quiet > 0), JSON.stringify(ends));
+
+  /* the permutation test */
+  const rnd2 = seeded(77);
+  const sh = (a) => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (rnd2() * (i + 1)) | 0;
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  };
+  let st2 = R.empty();
+  st2 = R.deploy(st2, 0, sh(R.roster()));
+  st2 = R.deploy(st2, 1, sh(R.roster()));
+  const base = JSON.stringify(R.publicView(st2, 0));
+  let leaked = false;
+  for (let k = 0; k < 300; k++) {
+    const c = R.clone(st2);
+    const idx = [];
+    for (let i = 0; i < c.p.length; i++) if (c.p[i].seat === 1) idx.push(i);
+    const ranks = idx.map((x) => c.p[x].rank);
+    const r3 = seeded(k + 900);
+    for (let i = ranks.length - 1; i > 0; i--) {
+      const j = (r3() * (i + 1)) | 0;
+      const t = ranks[i]; ranks[i] = ranks[j]; ranks[j] = t;
+    }
+    idx.forEach((x, q) => { c.p[x].rank = ranks[q]; });
+    if (JSON.stringify(R.publicView(c, 0)) !== base) leaked = true;
+  }
+  ok("the permutation test: a player's message cannot encode the enemy ranks", !leaked,
+     "300 rearrangements");
+})();
+
+/* ================================================================
    hearts
    ================================================================ */
 console.log("\n──  the hearts table");

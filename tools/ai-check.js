@@ -134,6 +134,45 @@ room("the othello board");
 })();
 
 /* ================================================================
+   stratego — a belief, against somebody who has not got one
+   ================================================================ */
+room("the field");
+(function () {
+  const R = load("stratego", "rules.js");
+  global.Rules = R;
+  const A = load("stratego", "ai.js");
+  function play(t0, t1, seed) {
+    const rnd = seeded(seed);
+    let st = R.empty();
+    st = R.deploy(st, 0, A.deploy(0, rnd, A.tier(t0)));
+    st = R.deploy(st, 1, A.deploy(1, rnd, A.tier(t1)));
+    const tiers = [t0, t1];
+    for (let n = 0; n < 4000; n++) {
+      const e = R.over(st);
+      if (e) return e.winner;
+      /* the machine is handed a view, exactly like a person in that chair */
+      const p = A.choose(R.publicView(st, st.turn), tiers[st.turn], rnd);
+      if (!p) return 1 - st.turn;
+      st = R.apply(st, R.find(st, p.mv));
+    }
+    return -1;
+  }
+  function ladder(hi, lo, games) {
+    let w = 0, d = 0;
+    for (let i = 0; i < games; i++) {
+      const seat = i % 2;
+      const win = seat === 0 ? play(hi, lo, i + 11) : play(lo, hi, i + 11);
+      if (win < 0) d++; else if (win === seat) w++;
+    }
+    const score = (w + d / 2) / games;
+    ok(hi + " beats " + lo, score >= BAR,
+       w + "W " + d + "D " + (games - w - d) + "L over " + games + " · " + Math.round(score * 100) + "%");
+  }
+  ladder("officer", "recruit", 40);
+  took();
+})();
+
+/* ================================================================
    the star — three answers to "how far have I got to go"
    ================================================================ */
 room("the star");

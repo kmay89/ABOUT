@@ -1,0 +1,17 @@
+{
+  "name": "The Field",
+  "short_name": "Stratego",
+  "description": "Stratego: forty pieces a side, two lakes, and an opponent that never once reads a rank it has not been shown. Two phones joined by four letters, each sent only its own army.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "categories": ["games", "strategy"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
