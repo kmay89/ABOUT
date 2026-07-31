@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Skins, Gfx2D, Gfx3D, Net, Room */
+/* global Chess, Book, Eco, Teach, Learn, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room */
 (function () {
 "use strict";
 
@@ -2244,6 +2244,32 @@ function renderStudio() {
     b.addEventListener("click", function () { applySkin(s); renderStudio(); });
     box.appendChild(b);
   });
+
+  /* the carved set — 3D only, and honest about it. The list comes from
+     the workshop rather than from skins.js, so a set someone injected at
+     runtime appears here beside the house ones. */
+  var sets = $("stSets");
+  sets.innerHTML = "";
+  var shelf = (typeof Pieces3D !== "undefined" && Pieces3D.list)
+    ? Pieces3D.list()
+    : Object.keys(Skins.PIECE_SETS).map(function (id) {
+        return { id: id, name: Skins.PIECE_SETS[id].label, note: Skins.PIECE_SETS[id].note };
+      });
+  shelf.forEach(function (s) {
+    var b = document.createElement("button");
+    b.className = "stPick" + (skin.pieces.set === s.id ? " sel" : "");
+    b.textContent = s.name;
+    b.addEventListener("click", function () {
+      skin.pieces.set = s.id; applySkin(skin); renderStudio();
+      if (!prefs.use3d) toast("Carved sets show on the 3D board — tap <b>3D</b> below to see them.", null, 3800);
+    });
+    sets.appendChild(b);
+  });
+  var here = null;
+  shelf.forEach(function (s) { if (s.id === skin.pieces.set) here = s; });
+  $("stSetNote").textContent = here
+    ? here.note + " — 3D board"
+    : "“" + skin.pieces.set + "” isn't installed here, so the 3D board falls back to the house set.";
 
   /* materials + patterns */
   var mats = $("stMaterials");

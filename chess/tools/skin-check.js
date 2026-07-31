@@ -59,6 +59,55 @@ ok("materials all describe themselves",
      Math.abs(back.pieces.shine - original.pieces.shine) < 0.02);
   ok("round trip keeps the marks", back && back.marks.check === original.marks.check);
   ok("round trip keeps the name", back && back.name === original.name);
+  ok("round trip keeps the carved piece set",
+     back && back.pieces.set === original.pieces.set, back && back.pieces.set);
+}
+
+/* ---- the piece set: a fourteenth field that mustn't break the first
+        thirteen, and mustn't rewrite a set it hasn't heard of ---- */
+{
+  for (const p of Skins.PRESETS) {
+    if (!/^[a-z0-9][a-z0-9-]{0,23}$/.test(p.pieces.set)) {
+      ok(`preset ${p.id} names a legal piece set`, false, p.pieces.set);
+    }
+  }
+  ok("every preset names a legal piece set",
+     Skins.PRESETS.every((p) => /^[a-z0-9][a-z0-9-]{0,23}$/.test(p.pieces.set)));
+  ok("the gallery shows off more than one set",
+     new Set(Skins.PRESETS.map((p) => p.pieces.set)).size > 1);
+  ok("the shipped sets are all named in PIECE_SETS",
+     Skins.PRESETS.every((p) => !!Skins.PIECE_SETS[p.pieces.set]),
+     Skins.PRESETS.map((p) => p.pieces.set).filter((s) => !Skins.PIECE_SETS[s]).join(","));
+
+  /* a set nobody here has heard of survives the border rather than being
+     silently corrected — the board falls back on its own */
+  const exotic = Skins.clean({ pieces: { set: "someone-elses-ivories" } });
+  ok("an unknown set id is carried, not corrected", exotic.pieces.set === "someone-elses-ivories");
+  const carried = Skins.decode(Skins.encode(exotic));
+  ok("…and it survives a share code", carried && carried.pieces.set === "someone-elses-ivories",
+     carried && carried.pieces.set);
+
+  /* junk ids are not carried */
+  ok("a junk set id falls back",
+     Skins.clean({ pieces: { set: "<script>" } }).pieces.set === "staunton");
+  ok("a set id that is not a string falls back",
+     Skins.clean({ pieces: { set: 7 } }).pieces.set === "staunton");
+
+  /* codes minted before there was more than one set still read */
+  const old13 = (() => {
+    const s = Skins.PRESETS[0];
+    const bare = (h) => h.slice(1);
+    const fields = [
+      s.name, s.maker, "", [s.board.light, s.board.dark, s.board.rim, s.board.edge, s.board.coord].map(bare).join(","),
+      1, "55", "22", [s.pieces.white, s.pieces.black].map(bare).join(","), 0, "55", "30", bare(s.room.bg),
+      [s.marks.select, s.marks.legal, s.marks.capture, s.marks.last, s.marks.check, s.marks.hint].map(bare).join(",")
+    ];
+    return "SKIN1." + Buffer.from(fields.join("|"), "binary").toString("base64")
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  })();
+  const older = Skins.decode(old13);
+  ok("a thirteen-field code from before piece sets still decodes", !!older);
+  ok("…and lands on the house set", older && older.pieces.set === "staunton", older && older.pieces.set);
 }
 {
   ok("a code buried in a sentence is still found",
