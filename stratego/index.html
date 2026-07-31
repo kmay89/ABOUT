@@ -17,6 +17,15 @@
 <style>
   :root{ --accent:#c8452f; --accent-dim:#8a2718; --accent-ink:#fff0e8; }
   .seat .n{ font-variant-numeric:tabular-nums }
+  /* the insignia key. The marks are painted into these by gfx.js — the same
+     function that draws them on the board — so the key cannot drift from the
+     pieces it is explaining. */
+  .key{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:6px; margin:10px 0 }
+  .key .k{ display:flex; align-items:center; gap:7px; background:var(--card2);
+           border:1px solid var(--line); border-radius:10px; padding:5px 7px }
+  .key .k canvas{ width:26px !important; height:26px !important; flex:none }
+  .key .k b{ font-size:.78rem; line-height:1.15; display:block }
+  .key .k i{ font-style:normal; color:var(--soft); font-size:.72rem; display:block }
 </style>
 </head>
 <body>
@@ -110,6 +119,11 @@
 
   <h3>The army</h3>
   <p class="note">Forty pieces: one <b>Marshal</b> (10), one General (9), two Colonels (8), three Majors (7), four Captains (6), four Lieutenants (5), four Sergeants (4), five <b>Miners</b> (3), eight <b>Scouts</b> (2), one <b>Spy</b> (1), six <b>Bombs</b> and one <b>Flag</b>.</p>
+
+  <h3>The marks</h3>
+  <p class="note">Every piece carries its mark, and the marks are a system rather than twelve pictures to memorise. <b>Chevrons and stars can be counted</b> — one, two, three chevrons for Sergeant, Lieutenant and Captain; one, two, three stars for Major, Colonel and General; a laurel round the Marshal's. More marks is stronger, and stars beat chevrons. The five with special <i>rules</i> get pictures instead, because they are not ordinary soldiers: the flag, the spy's mask, the scout's arrow, the miner's pick and the bomb.</p>
+  <div id="keyBody" class="key"></div>
+  <p class="note">The number is still in the corner of every piece. You do not have to learn any of this to play — but after one game you will be reading the board instead of reading it.</p>
 
   <h3>Moving and fighting</h3>
   <p class="note">One square up, down, left or right — except a <b>Scout</b>, which runs any distance in a straight line. Bombs and the Flag never move. Nothing enters the lakes.</p>

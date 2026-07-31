@@ -129,9 +129,186 @@ function paintBoard(dpr) {
   return back;
 }
 
+/* ---------- the insignia ----------
+
+   A number and a five-letter abbreviation on a tile is what a spreadsheet
+   looks like. A real Stratego piece is known by its *shape*: you see a
+   pickaxe and you know it is a Miner without reading anything, which is
+   faster than reading and is most of the pleasure of the thing.
+
+   So every rank gets a mark, and the marks are a **system** rather than
+   twelve unrelated doodles:
+
+     · **The fighting ranks climb, and you can count them.** One, two, three
+       chevrons for Sergeant, Lieutenant and Captain; one, two, three stars
+       for Major, Colonel and General; and a wreath round the Marshal's star.
+       More marks is stronger. Across a whole board you can read the strength
+       of a line without reading a single word — which is the entire point,
+       because in this game you are looking at forty tiles at once.
+     · **The five that are not ordinary soldiers are pictures**, because they
+       are not ordinary soldiers and behave nothing like them: a flag, a mask,
+       an arrow, a pickaxe, a bomb. Those five are the ones whose *rules* are
+       special, so they are the ones that should not look like rank.
+
+   The number stays — small, in the corner, where it is on a real piece. It is
+   there for the people who think in numbers and for anybody who has not yet
+   learned that stars beat chevrons, and it is out of the way of the mark.  */
+
+function star(g, cx, cy, r) {
+  g.beginPath();
+  for (var i = 0; i < 10; i++) {
+    var a = -Math.PI / 2 + i * Math.PI / 5;
+    var rr = (i % 2) ? r * 0.42 : r;
+    var px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+    if (i) g.lineTo(px, py); else g.moveTo(px, py);
+  }
+  g.closePath();
+  g.fill();
+}
+/* n stars in a row, shrinking as they multiply so three take the same width
+   as one — otherwise a General's mark is visibly bigger than a Major's and
+   the ladder reads by size instead of by count */
+function stars(g, cx, cy, u, n) {
+  var r = n === 1 ? u * 0.46 : n === 2 ? u * 0.33 : u * 0.27;
+  var gap = r * 2.2;
+  for (var i = 0; i < n; i++) star(g, cx + (i - (n - 1) / 2) * gap, cy, r);
+}
+function chevrons(g, cx, cy, u, n) {
+  var w = u * 0.86, rise = u * 0.26, t = u * 0.17;
+  var pitch = u * 0.3;
+  var top = cy - (n - 1) * pitch / 2 - rise / 2;
+  for (var i = 0; i < n; i++) {
+    var y = top + i * pitch;
+    g.beginPath();
+    g.moveTo(cx - w / 2, y + rise);
+    g.lineTo(cx, y);
+    g.lineTo(cx + w / 2, y + rise);
+    g.lineTo(cx + w / 2, y + rise + t);
+    g.lineTo(cx, y + t);
+    g.lineTo(cx - w / 2, y + rise + t);
+    g.closePath();
+    g.fill();
+  }
+}
+/* A laurel is a near-complete ring with the gap at the *top*, which is where
+   a real wreath opens. Drawn as a shallow arc across the bottom it is not a
+   wreath, it is a smile, and the Marshal ends up looking pleased with
+   himself. */
+function wreath(g, cx, cy, u) {
+  g.lineWidth = Math.max(1.3, u * 0.1);
+  g.lineCap = "round";
+  g.beginPath();
+  g.arc(cx, cy + u * 0.02, u * 0.54, Math.PI * -0.28, Math.PI * 1.28);
+  g.stroke();
+  /* two ticks where the branches part, which is what stops it reading as a
+     plain circle */
+  var a = Math.PI * -0.28, b = Math.PI * 1.28, r = u * 0.54;
+  for (var k = 0; k < 2; k++) {
+    var t = k ? b : a;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(t) * r, cy + u * 0.02 + Math.sin(t) * r);
+    g.lineTo(cx + Math.cos(t) * r * 1.02 + (k ? -1 : 1) * u * 0.02,
+             cy + u * 0.02 + Math.sin(t) * r - u * 0.2);
+    g.stroke();
+  }
+}
+function flag(g, cx, cy, u) {
+  var sx = cx - u * 0.34, t = Math.max(1.6, u * 0.1);
+  g.fillRect(sx, cy - u * 0.56, t, u * 1.12);
+  g.beginPath();
+  g.moveTo(sx + t, cy - u * 0.5);
+  g.lineTo(cx + u * 0.52, cy - u * 0.24);
+  g.lineTo(sx + t, cy + u * 0.02);
+  g.closePath();
+  g.fill();
+}
+function mask(g, cx, cy, u, hole) {
+  g.beginPath();
+  g.moveTo(cx - u * 0.54, cy - u * 0.2);
+  g.quadraticCurveTo(cx, cy - u * 0.46, cx + u * 0.54, cy - u * 0.2);
+  g.quadraticCurveTo(cx + u * 0.5, cy + u * 0.3, cx + u * 0.14, cy + u * 0.22);
+  g.quadraticCurveTo(cx, cy + u * 0.06, cx - u * 0.14, cy + u * 0.22);
+  g.quadraticCurveTo(cx - u * 0.5, cy + u * 0.3, cx - u * 0.54, cy - u * 0.2);
+  g.closePath();
+  g.fill();
+  /* the eye holes are painted in the tile's own colour rather than punched
+     with a composite operation, which would cut through the tile as well */
+  g.fillStyle = hole;
+  for (var k = -1; k <= 1; k += 2) {
+    g.beginPath();
+    g.ellipse(cx + k * u * 0.27, cy - u * 0.11, u * 0.16, u * 0.11, k * 0.2, 0, 6.284);
+    g.fill();
+  }
+}
+function arrow(g, cx, cy, u) {
+  var t = u * 0.15;
+  g.beginPath();
+  g.moveTo(cx, cy - u * 0.58);
+  g.lineTo(cx + u * 0.38, cy - u * 0.12);
+  g.lineTo(cx + t, cy - u * 0.12);
+  g.lineTo(cx + t, cy + u * 0.56);
+  g.lineTo(cx - t, cy + u * 0.56);
+  g.lineTo(cx - t, cy - u * 0.12);
+  g.lineTo(cx - u * 0.38, cy - u * 0.12);
+  g.closePath();
+  g.fill();
+}
+/* A pickaxe, and it has to be unmistakably a pickaxe: a *straight vertical*
+   handle with a wide double-curved head across the top. Tilting the handle
+   and shallowing the head — which is what this was — produces a shepherd's
+   crook, and a Miner that looks like a letter of the alphabet is worse than
+   the number it replaced. */
+function pick(g, cx, cy, u) {
+  /* The head is a crescent — thick where the handle meets it, tapering to a
+     point at each tip. Stroked as an even-width arc it is a dome, and a dome
+     on a stick is a mushroom; the two points are the whole difference between
+     a pickaxe and a lollipop. */
+  g.beginPath();
+  g.moveTo(cx - u * 0.56, cy - u * 0.1);
+  g.quadraticCurveTo(cx, cy - u * 0.64, cx + u * 0.56, cy - u * 0.1);
+  g.quadraticCurveTo(cx, cy - u * 0.36, cx - u * 0.56, cy - u * 0.1);
+  g.closePath();
+  g.fill();
+  g.fillRect(cx - u * 0.08, cy - u * 0.46, u * 0.16, u * 1.02);
+}
+function bomb(g, cx, cy, u) {
+  g.beginPath();
+  g.arc(cx, cy + u * 0.14, u * 0.44, 0, 6.284);
+  g.fill();
+  g.lineWidth = Math.max(1.4, u * 0.1);
+  g.lineCap = "round";
+  g.beginPath();
+  g.moveTo(cx + u * 0.19, cy - u * 0.19);
+  g.quadraticCurveTo(cx + u * 0.44, cy - u * 0.4, cx + u * 0.3, cy - u * 0.52);
+  g.stroke();
+  star(g, cx + u * 0.29, cy - u * 0.56, u * 0.15);
+}
+
+/* the mark for a rank, drawn centred in a box `u` across */
+Gfx.insignia = function (g, rank, cx, cy, u, ink, hole) {
+  g.save();
+  g.fillStyle = ink;
+  g.strokeStyle = ink;
+  switch (rank) {
+    case Rules.FLAG: flag(g, cx, cy, u); break;
+    case 1: mask(g, cx, cy, u, hole); break;
+    case 2: arrow(g, cx, cy, u); break;
+    case 3: pick(g, cx, cy, u); break;
+    case 4: chevrons(g, cx, cy, u, 1); break;
+    case 5: chevrons(g, cx, cy, u, 2); break;
+    case 6: chevrons(g, cx, cy, u, 3); break;
+    case 7: stars(g, cx, cy, u, 1); break;
+    case 8: stars(g, cx, cy, u, 2); break;
+    case 9: stars(g, cx, cy, u, 3); break;
+    case 10: stars(g, cx, cy + u * 0.02, u * 0.62, 1); wreath(g, cx, cy, u); break;
+    case Rules.BOMB: bomb(g, cx, cy, u); break;
+  }
+  g.restore();
+};
+
 /* ---------- one piece ----------
-   Yours is a card with a number and a name on it. Theirs is the back of the
-   same card, with a dot if it has ever moved. */
+   Yours is a tile with its insignia on it and its number in the corner.
+   Theirs is the back of the same tile, with a dot if it has ever moved. */
 function piece(g, x, y, cell, seat, mine, rank, moved, dim) {
   var s = Gfx.skin;
   var pad = cell * 0.07, w = cell - pad * 2, r = cell * 0.13;
@@ -159,20 +336,18 @@ function piece(g, x, y, cell, seat, mine, rank, moved, dim) {
   g.stroke();
 
   if (rank >= 0) {
+    /* the mark, big and central — and the number tucked into the corner, out
+       of its way. The five-letter abbreviation that used to sit under the
+       number is gone: "LIEUTENA" is not a word, and the mark says it better
+       than the truncation ever did. */
+    Gfx.insignia(g, rank, x + cell / 2, y + cell * 0.47, cell * 0.5, s.ink, low);
     var label = Rules.SHORT[rank];
     g.fillStyle = s.ink;
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    var big = rank === Rules.BOMB || rank === Rules.FLAG;
-    g.font = "800 " + Math.round(cell * (label.length > 1 ? 0.34 : 0.44)) + "px system-ui,-apple-system,sans-serif";
-    g.fillText(label, x + cell / 2, y + cell * 0.44);
-    /* the name underneath, when there is room for it — a "3" that says MINER
-       is the difference between knowing the rules and having to learn them */
-    if (cell > 34 && !big) {
-      g.font = "700 " + Math.round(cell * 0.155) + "px system-ui,sans-serif";
-      g.globalAlpha *= 0.75;
-      g.fillText(Rules.TINY[rank], x + cell / 2, y + cell * 0.76);
-    }
+    g.globalAlpha *= 0.62;
+    g.textAlign = "left";
+    g.textBaseline = "top";
+    g.font = "800 " + Math.round(cell * 0.2) + "px system-ui,-apple-system,sans-serif";
+    g.fillText(label, x + pad + cell * 0.08, y + pad + cell * 0.05);
   } else {
     /* the back: a plain field, and the one thing you are entitled to know */
     g.strokeStyle = "rgba(255,255,255,.16)";
