@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://kmay89.com/</loc></url>
+  <url><loc>https://kmay89.com/games/</loc></url>
   <url><loc>https://kmay89.com/cube/</loc></url>
   <url><loc>https://kmay89.com/chess/</loc></url>
   <url><loc>https://kmay89.com/sudoku/</loc></url>
+  <url><loc>https://kmay89.com/domino/</loc></url>
+  <url><loc>https://kmay89.com/checkers/</loc></url>
+  <url><loc>https://kmay89.com/othello/</loc></url>
+  <url><loc>https://kmay89.com/halma/</loc></url>
+  <url><loc>https://kmay89.com/hearts/</loc></url>
+  <url><loc>https://kmay89.com/euchre/</loc></url>
+  <url><loc>https://kmay89.com/solitaire/</loc></url>
+  <url><loc>https://kmay89.com/minesweeper/</loc></url>
+  <url><loc>https://kmay89.com/breaker/</loc></url>
+  <url><loc>https://kmay89.com/library/</loc></url>
   <url><loc>https://kmay89.com/logic/</loc></url>
   <url><loc>https://kmay89.com/chili/</loc></url>
   <url><loc>https://kmay89.com/privacy/</loc></url>

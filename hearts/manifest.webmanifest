@@ -1,0 +1,17 @@
+{
+  "name": "The Hearts Table",
+  "short_name": "Hearts",
+  "description": "Hearts: three opponents who remember every suit you couldn't follow, a table with a rhythm you can follow, and four phones joined by four letters — with every hand secret by construction.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

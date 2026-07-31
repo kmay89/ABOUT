@@ -65,6 +65,23 @@ crackers spilled beside it).
   mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
   `domino/` (see its README there); update it by copying that directory
   over this one.
+- `games/` — the games room: one page listing everything here that is a
+  game, split by how many people it needs. It exists because the desk is
+  a scene rather than an index, and eleven games do not fit on a desk.
+- `checkers/ othello/ halma/ hearts/ euchre/` — five rooms built off the
+  domino table, sharing its four-letter front door. Checkers is English
+  draughts, where jumping is compulsory and that one rule is the whole
+  game. Othello turns its discs one line at a time so you can see what
+  caused it. `halma/` is Chinese checkers on the real 121-hole star, for
+  two to six. Hearts and euchre are card games, which means their hands
+  are secret — see **Hands on the wire**, below. Each has its own
+  README.
+- `solitaire/ minesweeper/ breaker/` — three rooms for one person.
+  Klondike where the deal has already been proved winnable by a bounded
+  solver before you see it; minesweeper where every field is dealt
+  against a solver until one turns up that can be finished by reasoning
+  alone; and a brick breaker with a curved paddle you aim with rather
+  than a mirror you bounce off. Each has its own README.
 - `library/` — the reading room: a voxel engine written from scratch
   that renders block worlds in a browser. An NBT reader and an Anvil
   region reader built from the documented formats, our own palette of
@@ -106,11 +123,19 @@ crackers spilled beside it).
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
   server-side code on the site (see **One front door**, below).
-- `tools/` — dev-only checks for the shared join flow, never shipped:
-  `room-check.js` runs the real mailbox and the real client against an
-  in-memory store; `join-check.js` opens two browsers, links them with
-  four letters, then cuts the wire and watches them put it back;
-  `room-parity.js` proves every game's copy of the door is identical.
+- `tools/` — dev-only, never shipped. `room-check.js` runs the real
+  mailbox and the real client against an in-memory store; `join-check.js`
+  opens two browsers, links them with four letters, then cuts the wire
+  and watches them put it back; `room-parity.js` proves every game's copy
+  of the shared door is byte-identical and that every room's offline
+  shell lists what the page actually loads; `rules-check.js` replays tens
+  of thousands of games of the newer rooms in node and checks the
+  invariants on every ply; `ai-check.js` plays each room's opponents
+  against each other and requires every rung to actually beat the one
+  below; `open-check.js` opens every new room in a real browser, plays
+  it, and fails on any console error or on a board that turns out to be
+  blank; `make-game-icons.js` draws every new room's icons analytically,
+  so the repo carries no binary source asset nobody can regenerate.
 - `netlify.toml` — hosting config: canonical-host redirect, security
   headers, and the one functions directory. Netlify serves the repo
   as-is; every pull request gets a deploy preview automatically.
@@ -147,6 +172,37 @@ Three things follow from that, and they are the point:
 
 `node tools/room-check.js` proves the mailbox and the client without a
 browser; `node tools/join-check.js` proves the whole thing with two.
+
+The door itself is now three files rather than one — `room.js` (the
+mailbox client, the heartbeat, the healing loop), `table.js` (the whole
+interface: the name box, the code in big letters, the lobby, the QR
+fallback, the seating) and `cards.js` (a deck and a four-seat table,
+shared by hearts and euchre). Each is copied into every folder that uses
+it rather than loaded from one place, because every game here is a
+self-contained folder that can be moved, mirrored or opened from a
+`file://` path on its own. `room-parity.js` is what keeps that trade
+honest: the copies must be byte-identical.
+
+## Hands on the wire
+
+The domino table set a rule that the two new card rooms inherit, and it
+is the one architectural decision in this repository worth reading
+twice: **a game with secret hands must not broadcast its state.**
+
+A single shared snapshot would put four hands on four phones. Not
+visible in the interface — but sitting in the message log of every
+device, readable by anybody who opened a console. So the host never
+broadcasts. It sends each seat *its own view*, built by the same
+`publicView` the machine players reason from, and the other hands never
+leave the host.
+
+That claim is proved rather than asserted, by a permutation test: the
+hidden hands are rearranged among themselves three hundred times and the
+message is required to come back byte-identical. If it ever changes, it
+encodes the split; if it cannot change, it cannot leak. Euchre's version
+covers your *partner's* hand specifically — partners are not allowed to
+see each other's cards, and a leak to your partner is a leak to the one
+person best placed to use it.
 
 ## The light switch
 
@@ -210,6 +266,36 @@ and the engine/solver files run headless in node for testing —
 geometry, both solvers, the scanner's colour classifier and the map
 endpoints all have harnesses that verify hundreds of scramble→solve
 round trips before anything ships.
+
+If you touch any of the game rooms, run the checks first:
+
+```
+npm run check        # parity, then the rules, then the mailbox
+npm run check:open   # opens every room in a real browser and plays it
+npm run check:ai     # the strength ladders — the slow one, a few minutes
+npm run icons        # redraws every new room's icons from scratch
+```
+
+`check:rules` is not a smoke test: it replays tens of thousands of games
+in node and checks the properties that, if they broke, would make the
+game a different game — conservation, compulsion, termination, and for
+the card rooms, secrecy. And it bites. It found a real bug in the brick
+game's level generator, which was declaring almost every wall impossible
+because its reachability walk stopped at the first brick instead of
+flooding through breakable ones.
+
+`check:open` earns its keep for a different reason: node can prove the
+rules and it cannot prove the page loads. It caught a bug nothing else
+could — a canvas is a *replaced* element, so `position:absolute; inset:0`
+does not stretch it, and every renderer here sets `canvas.width` from
+`clientWidth` on the way past. That is a feedback loop. The canvases were
+doubling every frame up to 2²⁵ pixels a side, and the board was one flat
+colour somewhere off the bottom of it. Nothing threw. The console stayed
+clean. What caught it was asking whether the board was actually *drawn*,
+which is the question a smoke test is most likely to skip.
+
+And whichever room you touch, bump `VERSION` in its `sw.js`, or everybody
+who installed it keeps the old one forever.
 
 ## License
 

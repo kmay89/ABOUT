@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Othello Board — the discs turn, and you watch why</title>
+<meta name="description" content="Othello in your browser: discs that turn over one line at a time so you can see what caused it, an engine that plays for mobility and solves the endgame exactly, and two phones joined by four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Othello Board">
+<meta property="og:description" content="A minute to learn. The discs turn one line at a time, so you can see what caused it. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  /* this room's colour: the green of the cloth, lifted just far enough out
+     of the board to read as a highlight rather than as more board */
+  :root{ --accent:#4bbd7f; --accent-dim:#2e8f5a; --accent-ink:#06180e; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="board" class="surface"></canvas>
+
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Won <b>0</b></div>
+      <div class="score" id="scoreThem">Lost <b>0</b></div>
+    </div>
+
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow" id="btnUndo" title="Take it back"><span class="k">↶</span></button>
+    <button class="btn wide" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow" id="btnCounts" title="Show how much each move turns"><span class="k">#</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <canvas id="splashCv" width="600" height="240"></canvas>
+  <div class="title">The Othello Board</div>
+  <div class="sub">A minute to learn. The discs turn over one line at a time, so you can watch what caused it instead of working it out backwards.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a game</button>
+    <button class="btn" id="goPass">Two of us, one phone</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="goTogether">Two phones</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The board</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mLevel">Who you're playing</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mPass">Two of us, one phone</button>
+    <button class="btn" id="mTogether">Two phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Who you're playing</h2>
+  <p class="lead">The first one plays the way everybody plays at first, on purpose.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <p class="lead">Applies at once, mid-game.</p>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Two phones, one board</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">The rules take thirty seconds. The one idea underneath them takes a game or two, and it is the opposite of what everybody assumes.</p>
+
+  <h3>The rules</h3>
+  <p class="note">Place a disc so that it traps an unbroken line of your opponent's discs between the one you played and another of yours — in any direction, including diagonally. Everything trapped turns over. If you cannot trap anything, you have no move and your turn passes automatically. When neither side can move, whoever has more discs wins.</p>
+
+  <h3>1 · Having more discs is usually bad</h3>
+  <p class="note">Every disc you own is a disc that can be turned back. A player who takes the biggest flip every turn builds a large fragile blob, runs out of safe moves, and hands over a corner. Through most of the game you want <b>fewer</b> discs than your opponent, in a tidy clump, with plenty of moves available.</p>
+
+  <h3>2 · The corners never turn</h3>
+  <p class="note">There is no line through a corner with another square beyond it, so a disc in a corner can never be flipped — and neither can the discs it anchors along the edges. Corners are the only permanent thing on the board.</p>
+
+  <h3>3 · Which means: don't touch the squares next to them</h3>
+  <p class="note">The diagonal neighbour of an empty corner (the "X-square") is the single most expensive square on the board — playing it usually hands over the corner within a move or two. The board here rings it in red when you have it as an option. Sometimes you have no choice. Know when that is.</p>
+
+  <h3>4 · The real aim is to take away their moves</h3>
+  <p class="note">You win Othello by leaving your opponent with nothing safe to play, so that they have to open a corner for you. That is why the engine here would rather have five good moves and twelve discs than thirty discs and one legal square.</p>
+
+  <h3>5 · The last dozen squares are a different game</h3>
+  <p class="note">Near the end the count stops being a proxy and starts being the result, and the position is small enough to work out exactly. The Sharp opponent stops guessing at that point and solves it — so if you are going to be ahead, be ahead before then.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Play again</button></div>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

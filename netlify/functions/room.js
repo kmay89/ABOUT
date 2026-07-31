@@ -35,7 +35,14 @@ const MAX_ROOMS = 60;              // ceiling on a listing sweep, not on the wor
 const MAX_SLOTS = 12;              // seats + churn
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // no I/O — they read as 1/0 out loud
 const SDP_MAX = 8000;
-const GAMES = ['chess', 'domino', 'table', 'test'];   // the namespaces that exist
+// The namespaces that exist. A game not on this list is answered "unknown
+// game" rather than given a pigeonhole, so a typo cannot quietly mint codes
+// in a namespace nobody is listening to. tools/room-parity.js checks that
+// every game folder in the repo appears here.
+const GAMES = [
+  'chess', 'domino', 'table', 'test',
+  'checkers', 'othello', 'halma', 'hearts', 'euchre',
+];
 
 const CORS = {
   'access-control-allow-origin': '*',

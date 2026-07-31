@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Hearts Table — four seats, three secrets, one queen</title>
+<meta name="description" content="Hearts in your browser: three opponents who remember every suit you couldn't follow, a table with a rhythm you can actually follow, and four phones joined by four letters — with every hand kept secret by construction. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Hearts Table">
+<meta property="og:description" content="Hearts with opponents who remember what you couldn't follow, and four phones joined by four letters. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#d4574a; --accent-dim:#a63a2f; --accent-ink:#1d0806; }
+  /* four scores across the top rather than two — the rail is the scoreboard */
+  #rail{ top:6px; justify-content:space-between; gap:4px }
+  #rail .score{ flex:1; text-align:center; padding:3px 4px; font-size:.72rem; overflow:hidden }
+  #rail .score b{ display:block; font-size:1.25em }
+  #say{ top:44px }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="table" class="surface"></canvas>
+    <div id="rail"></div>
+    <div id="say"></div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn wide hide" id="btnAct">Pass these three</button>
+    <button class="btn" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow" id="btnTaken" title="What the table has said"><span class="k">👁</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Hearts Table</div>
+  <div class="sub">Four seats, thirteen cards each, and twenty-six points nobody wants. Take none of them — or take every single one.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a match</button>
+    <button class="btn" id="goTogether">Four phones</button>
+  </div>
+  <div class="row"><button class="btn wide" id="goLearn">How it's played</button></div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The table</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New match</button>
+    <button class="btn" id="mLevel">Who you're playing</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mRules">House rules</button>
+    <button class="btn" id="mTogether">Four phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours &amp; pace</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Who you're playing</h2>
+  <p class="lead">The first one isn't a weaker version of the others — it plays the way people play before somebody explains what a void is for.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovHouse"><div class="sheet">
+  <button class="close" data-close="ovHouse">✕</button>
+  <h2>House rules</h2>
+  <p class="lead">Every table plays a slightly different game and each of them will tell you theirs is the real one.</p>
+  <div id="houseBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours &amp; pace</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTaken"><div class="sheet">
+  <button class="close" data-close="ovTaken">✕</button>
+  <h2>What the table has said</h2>
+  <p class="lead">Everything on this screen happened in front of you. Nothing on it was worked out.</p>
+  <div id="takenBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Four phones, one table</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">The rules take a minute. The five things underneath them take a few hands, and they are what the game is.</p>
+
+  <h3>The rules</h3>
+  <p class="note">Thirteen cards each. Before each hand you pass three — left, then right, then across, then a hand where you pass nothing, and round again. Whoever holds the <b>two of clubs</b> leads it. Follow suit if you can; highest card of the led suit takes the trick and leads the next.</p>
+  <p class="note">Every heart is worth a point and the <b>queen of spades</b> is worth thirteen. Lowest score when somebody passes the target wins. No points may be played on the first trick, and hearts cannot be <i>led</i> until somebody has discarded one.</p>
+
+  <h3>1 · You are trying to lose</h3>
+  <p class="note">Every trick you take is a risk and nothing else. A hand full of aces is a bad hand. This inverts every instinct from every other card game, and it takes about three hands to stop fighting it.</p>
+
+  <h3>2 · Ducking is the whole skill</h3>
+  <p class="note">When you must follow suit, play the highest card that still <b>loses</b>. Not the lowest — the highest that loses. Throwing your two away early leaves you holding it when it is the only card you have, and being forced to win a trick you did not want is how hearts is actually lost.</p>
+
+  <h3>3 · A void is a weapon</h3>
+  <p class="note">A suit you cannot follow is a suit you can throw anything into — the queen, your high hearts, whatever hurts most. That is what the pass is for: you are not getting rid of dangerous cards, you are buying an empty suit. Passing your two highest diamonds when you only have three is worth far more than passing two aces.</p>
+
+  <h3>4 · The queen has a clock on her</h3>
+  <p class="note">If you hold her you want spades led by somebody else, and you want to be void when it happens. If you don't, every spade you play above the jack is a bet that she is already gone. Small spades are protection — keep them.</p>
+
+  <h3>5 · The moon</h3>
+  <p class="note">Take <b>all twenty-six</b> and everybody else takes twenty-six instead of you. It is why you cannot simply duck everything: if one player has taken every point so far, somebody has to break it up, and it will cost whoever does. Watching for it is what makes the last four tricks worth playing rather than just finishing.</p>
+
+  <h3>What the table knows, and what it doesn't</h3>
+  <p class="note">The eye in the tray shows what each seat has taken, because everybody watched those tricks. It does <b>not</b> show which hearts are still out, because working that out is the game. The opponents play by the same rule: they remember every suit you failed to follow — which happened in front of everybody — and nothing they could not have seen.</p>
+
+  <h3>Four phones</h3>
+  <p class="note">One phone is the table and reads out four letters; the others type them. Every phone is sent <b>only its own hand</b> — not the whole game with the other hands hidden in the interface, but a message that does not contain them at all. A check in the repository proves it by shuffling the three unseen hands and requiring the message to come back identical.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Next hand</button></div>
+</div></div>
+
+<script src="cards.js"></script>
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

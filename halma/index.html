@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Star — Chinese checkers, and the ladders you build in it</title>
+<meta name="description" content="Chinese checkers in your browser: two to six players on the full 121-hole star, jump chains drawn as chains, an opponent that plays its slowest marble rather than its fastest, and six phones joined by four letters. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Star">
+<meta property="og:description" content="Chinese checkers for two to six, where a six-hop ladder is drawn as six hops. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#c79ae0; --accent-dim:#9457b8; --accent-ink:#160a1d; }
+  #seats{ gap:4px }
+  .seat{ font-size:.74rem; padding:3px 8px; max-width:30vw }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="board" class="surface"></canvas>
+    <div id="seats"></div>
+    <div id="say"></div>
+    <div id="rail">
+      <div class="score" id="scoreUs">Won <b>0</b></div>
+      <div class="score" id="scoreThem">Lost <b>0</b></div>
+    </div>
+    <div id="netChip" class="hide"><span class="pulse"></span><span class="tx">linked</span></div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+    <div id="coach" class="off">
+      <div class="head"><span>THE COACH</span><button class="x" id="coachClose">✕</button></div>
+      <p id="coachSay"></p>
+      <p class="why" id="coachWhy"></p>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow" id="btnUndo" title="Take it back"><span class="k">↶</span></button>
+    <button class="btn wide" id="btnHint"><span class="k">💡</span>Hint</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Star</div>
+  <div class="sub">Chinese checkers on the real 121-hole board. Ten marbles across to the far point — and the ones you leave behind are the ladder the rest climb.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goSolo">Play a game</button>
+    <button class="btn" id="goPass">All of us, one phone</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="goTogether">Up to six phones</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The board</h2>
+  <p class="lead" id="menuState"></p>
+  <div class="row">
+    <button class="btn" id="mNew">New game</button>
+    <button class="btn" id="mSetup">Players &amp; level</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mPass">All of us, one phone</button>
+    <button class="btn" id="mTogether">Up to six phones</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it's played</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovSetup"><div class="sheet">
+  <button class="close" data-close="ovSetup">✕</button>
+  <h2>Players &amp; level</h2>
+  <p class="lead">Points are always paired with the one opposite, so every game is a race across the star rather than a scramble.</p>
+  <div id="setupBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovTogether"><div class="sheet">
+  <button class="close" data-close="ovTogether">✕</button>
+  <h2>Six phones, one board</h2>
+  <div id="partyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Three sentences of rules, and then one idea that takes a game or two and is the whole thing.</p>
+
+  <h3>The rules</h3>
+  <p class="note">Get all ten of your marbles across to the point directly opposite. On your turn move one marble: either a single <b>step</b> to any touching empty hole, or a <b>jump</b> over a single touching marble — anybody's — landing on the empty hole directly beyond it, in a straight line. Jumps <b>chain</b>, and a chain may turn at every hop. Nothing is ever taken. First one home wins.</p>
+
+  <h3>1 · The board is a machine for building ladders</h3>
+  <p class="note">A jump needs something to jump over, so a marble on its own goes nowhere. The good move is almost never the longest jump available — it is the step that puts a marble where the one behind it can use it. A well-built line lets marble after marble run the whole board in a single turn. That is the game, and everything else is detail.</p>
+
+  <h3>2 · You finish when your last one arrives</h3>
+  <p class="note">The commonest way to lose is to keep moving your leaders because their moves look impressive, and to arrive with seven marbles home and three eight steps back. Those three take the rest of the game. <b>Move your furthest-back marble</b> unless there is a reason not to. The opponent here is built on exactly this rule — the weakest one is the version that adds up distances and ignores it, and it loses every game.</p>
+
+  <h3>3 · Their ladder is your ladder</h3>
+  <p class="note">You may jump over anybody's marble. A well-built enemy line running up the middle is a free ride in the other direction, and a good player will refuse to build one where you can use it. Watch which way a chain of marbles points before you add to it.</p>
+
+  <h3>4 · Tapping a hole two ways</h3>
+  <p class="note">More than one chain often ends on the same hole, and they are not the same move — one may leave a rung behind and another may not. Tap the destination once to see the shortest route and play it; tap the same hole again to cycle through the others, drawn as a dotted path. Nobody needs to know that to play, and it is one tap away if you want it.</p>
+
+  <h3>The two fair-play rules</h3>
+  <p class="note">A marble may not <b>stop</b> in a point that is neither where it started nor where it is going — passing through and jumping over are fine. And after your twentieth move, if you still have marbles at home and any move would take one out, those are the only moves you have.</p>
+  <p class="note">Both exist to kill the one strategy that ruins this game: parking in somebody's destination, or leaving a single marble at home forever so the player coming the other way can never finish. Neither costs anybody playing in good faith a single move, and both can be turned off.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Play again</button></div>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="ai.js"></script>
+<script src="coach.js"></script>
+<script src="gfx.js"></script>
+<script src="room.js"></script>
+<script src="net.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

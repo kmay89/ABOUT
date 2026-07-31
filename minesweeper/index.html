@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Minefield — minesweeper you never have to guess at</title>
+<meta name="description" content="Minesweeper in your browser, with the coin toss taken out: every field is dealt against a solver until one turns up that can be finished by reasoning alone. Chording, a flag mode built for thumbs, and a board that pans instead of shrinking. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#171512">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Minefield">
+<meta property="og:description" content="Minesweeper with the coin toss taken out: every field can be finished by reasoning alone. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --room:#171512; --accent:#e8b13d; --accent-dim:#c08a1c; --accent-ink:#1e1505; }
+  /* the counters along the top: mines left, the clock, and the best time,
+     laid out so the numbers stay put as they change */
+  #hud{
+    position:absolute; top:8px; left:8px; right:8px; z-index:4;
+    display:flex; gap:8px; justify-content:center; pointer-events:none;
+  }
+  #hud > div{
+    background:rgba(12,10,8,.8); backdrop-filter:blur(7px);
+    border:1px solid var(--line); border-radius:12px;
+    padding:4px 12px; font-size:.86rem; color:var(--soft);
+    font-variant-numeric:tabular-nums; min-width:74px; text-align:center;
+  }
+  #hud b{color:var(--ink); font-size:1.1em}
+  #hudMines b{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="field" class="surface"></canvas>
+    <div id="hud">
+      <div id="hudMines">⚑ <b>0</b></div>
+      <div id="hudTime">⏱ <b>0s</b></div>
+      <div id="hudBest">&nbsp;</div>
+    </div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn wide" id="btnFlag"><span class="k">⚑</span>Flag</button>
+    <button class="btn" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow" id="btnNew" title="New field"><span class="k">↻</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Minefield</div>
+  <div class="sub">Minesweeper with the coin toss taken out. Every field is dealt over and over until one turns up that can be finished by reasoning alone — so if you lose, you were wrong.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goPlay">Start digging</button>
+    <button class="btn" id="goLearn">How it works</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The field</h2>
+  <p class="lead">Tap to open, hold to flag — or turn on flag mode and swap the two, which is faster when you have a dozen in a row to mark.</p>
+  <div class="row">
+    <button class="btn" id="mNew">New field</button>
+    <button class="btn" id="mLevel">Size &amp; difficulty</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLook">Colours</button>
+    <button class="btn" id="mLearn">How it works</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovLevel"><div class="sheet">
+  <button class="close" data-close="ovLevel">✕</button>
+  <h2>Size &amp; difficulty</h2>
+  <p class="lead">Changing either deals a fresh field.</p>
+  <div id="levelBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <p class="lead">The numbers keep their classic colours in every scheme — that palette has never been beaten for telling a 2 from a 1 at a glance.</p>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it works</h2>
+  <p class="lead">The rules you know, plus the two things that make it a game rather than a chore.</p>
+
+  <h3>Never having to guess</h3>
+  <p class="note">Minesweeper's one real flaw is that a perfectly played board can still kill you: you deduce forty squares correctly, arrive at a 50/50 in a corner, and lose ten minutes to a coin. That is not difficulty.</p>
+  <p class="note">So the field here is not dealt and handed over. It is dealt, then <b>played out by a solver</b> that only makes deductions a person could make — the two obvious counting rules, the subset rule that every 1-2-1 pattern is really made of, and the endgame rule about the mines left over. If the solver gets stuck anywhere, that field is thrown away and another is dealt. What you get is a board that can be finished by reasoning alone.</p>
+  <p class="note">The solver is deliberately not perfect. A board only solvable by enumerating every possible mine arrangement is not one a person can solve either, so being weaker than perfect is the point.</p>
+
+  <h3>Chording</h3>
+  <p class="note">Tap a number that already has all its flags placed, and everything else it touches opens at once. This is how the game is played at speed — most of a fast board is chords, not individual taps. Hold your finger on a number and the squares it would open are shown pressed, so you can see what it is about to do.</p>
+
+  <h3>The first tap is always safe</h3>
+  <p class="note">Not just "not a mine" — the whole field is laid out <i>after</i> your first tap, around it, so the opening is always a clearing rather than a single number. That is also what lets the solver check the board from the exact square you actually started on, which the usual trick of moving one mine out of the way cannot do.</p>
+
+  <h3>The question mark</h3>
+  <p class="note">Tap a flagged square again and it becomes a <b>?</b>. It is not decoration: on a big board it is where you park a deduction you haven't finished. A chord will refuse to open a <b>?</b>, so marking your doubts actually protects you.</p>
+
+  <h3>Getting around</h3>
+  <p class="note">The big field is 30×16 and your phone is not. Drag to pan, pinch or scroll to zoom. A press that moves is a drag and never opens anything — which is the difference between panning a board and detonating it.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Another field</button></div>
+</div></div>
+
+<script src="core.js"></script>
+<script src="gfx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
