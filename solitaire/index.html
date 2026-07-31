@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Card Table — Klondike, and it can tell you the deal is winnable</title>
+<meta name="description" content="Klondike patience in your browser: deals checked by a solver before you see them, a hint that names a move worth making, unlimited take-backs, and a finish that plays itself. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#12100e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Card Table">
+<meta property="og:description" content="Klondike where the deal has already been proved winnable. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --accent:#e0c060; --accent-dim:#b6963c; --accent-ink:#1c1605; }
+  #hud{
+    position:absolute; top:auto; bottom:6px; left:8px; right:8px; z-index:4;
+    display:flex; gap:8px; justify-content:center; pointer-events:none;
+  }
+  #hud > div{
+    background:rgba(0,0,0,.42); backdrop-filter:blur(6px);
+    border:1px solid rgba(255,255,255,.12); border-radius:11px;
+    padding:2px 10px; font-size:.78rem; color:rgba(255,255,255,.72);
+    font-variant-numeric:tabular-nums;
+  }
+  #hud b{color:#fff}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="table" class="surface"></canvas>
+    <div id="hud">
+      <div id="hudTime">⏱ <b>0:00</b></div>
+      <div id="hudMoves">moves <b>0</b></div>
+      <div id="hudScore">home <b>0</b>/52</div>
+    </div>
+    <div id="banner"><div class="big"></div><div class="sub"></div></div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn narrow" id="btnUndo" title="Take it back"><span class="k">↶</span></button>
+    <button class="btn wide" id="btnHint"><span class="k">💡</span>Hint</button>
+    <button class="btn narrow" id="btnDeal" title="Deal again"><span class="k">🂠</span></button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Card Table</div>
+  <div class="sub">Klondike, with the one thing patience has always been missing: this deal has already been proved winnable before you saw it.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goPlay">Deal</button>
+    <button class="btn" id="goLearn">How it's played</button>
+  </div>
+</div>
+
+<div class="ov hide" id="ovMenu"><div class="sheet">
+  <button class="close" data-close="ovMenu">✕</button>
+  <h2>The table</h2>
+  <p class="lead">Tap a card to send it somewhere sensible. Drag it to send it somewhere exact.</p>
+  <div class="row">
+    <button class="btn" id="mNew">Deal again</button>
+    <button class="btn" id="mLook">Colours</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mLearn">How it's played</button>
+    <button class="btn" id="mGiveUp">Give this one up</button>
+  </div>
+</div></div>
+
+<div class="ov hide" id="ovNew"><div class="sheet">
+  <button class="close" data-close="ovNew">✕</button>
+  <h2>Deal again</h2>
+  <p class="lead">Turning one card at a time is the kind game; turning three is the real one.</p>
+  <div class="row">
+    <button class="btn wide" id="nwOne">Turn one</button>
+    <button class="btn wide" id="nwThree">Turn three</button>
+  </div>
+  <div class="row"><button class="btn wide" id="nwKind">Only deals I can win</button></div>
+  <p class="note">With that on, deals are played out by a solver before you see them and thrown away until one turns up that can be finished. It is bounded — it will not spend more than a few seconds looking — so if it runs out of time it says so and deals you an ordinary one rather than pretending.</p>
+  <div class="row"><button class="btn" id="nwAny">Just deal, don't check</button></div>
+</div></div>
+
+<div class="ov hide" id="ovLook"><div class="sheet">
+  <button class="close" data-close="ovLook">✕</button>
+  <h2>Colours</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it's played</h2>
+  <p class="lead">Everybody knows the rules. The interesting part is the two things this table does that a pack of cards can't.</p>
+
+  <h3>The deal has been proved</h3>
+  <p class="note">Roughly one Klondike deal in five cannot be won however well it is played, and there is no way to tell by looking. Losing to one of those is not the same as losing, and being unable to tell them apart is what makes people give up the game rather than get better at it.</p>
+  <p class="note">So a deal here is played out by a solver first — a depth-first search with the safe-automatic-plays rule folded in — and thrown away until one turns up that can be finished. The search is bounded, so "winnable" is a promise and "couldn't find one" is not a claim about anything. It tells you which you got.</p>
+
+  <h3>The hint is ranked, not random</h3>
+  <p class="note">Any move is a move; almost none of them help. The hint here prefers, in order: a move that turns a face-down card over, a card that can safely go home, a king that empties a column, and only then anything else. If it says "turn the stock", that really is the best thing available.</p>
+
+  <h3>The rules, briefly</h3>
+  <p class="note">Build the four foundations up from ace to king in suit. Build the seven columns <b>down</b> in alternating colours — and a run built that way moves as one. Only a king goes into an empty column. Turn the stock one card (or three) at a time; the waste can be turned back over and gone through again.</p>
+
+  <h3>Sending a card back down</h3>
+  <p class="note">A card already on a foundation can be pulled back down onto a column if it fits. It is legal, it is occasionally the only way through, and most versions quietly forbid it.</p>
+
+  <h3>The finish plays itself</h3>
+  <p class="note">Once every card on the table is face up, the game is decided and the rest is clicking. So it finishes itself, one card at a time up the foundations. The cascade is the only reward this game has and it should be spent.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Deal again</button></div>
+</div></div>
+
+<script src="core.js"></script>
+<script src="gfx.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

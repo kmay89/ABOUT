@@ -1,0 +1,17 @@
+{
+  "name": "The Wall",
+  "short_name": "The Wall",
+  "description": "A brick breaker with a curved paddle you aim with rather than a mirror you bounce off, a ball that cannot tunnel however fast it goes, and a combo score that rewards getting behind the wall.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

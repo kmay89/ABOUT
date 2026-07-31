@@ -1,0 +1,260 @@
+/* look.css — one room, eight games.
+
+   The domino table set the house style: a dark warm room, two system
+   typefaces, a tray of fat buttons along the bottom, and a sheet that slides
+   over the top for everything that is not the game itself. Repeating that by
+   hand in eight index.html files would have guaranteed eight slightly
+   different rooms, so it lives here and each game recolours it in six lines.
+
+   Everything that varies between games is a custom property, set on :root by
+   the page. Nothing here knows what a checker or a card is.               */
+
+:root{
+  --room:#12100e;          /* the wall behind everything                   */
+  --card:#1d1a16;          /* sheets and the tray                          */
+  --card2:#272320;         /* buttons, tiles                               */
+  --ink:#f2ece1;
+  --soft:#a89a86;
+  --line:#3d372f;
+  --accent:#f0a83c;        /* the game's own colour                        */
+  --accent-ink:#241503;    /* text that sits on the accent                 */
+  --glow:#ffd77a;
+  --good:#3ecf8e;
+  --bad:#e06a52;
+  --blue:#8fb0ff;
+  --shadow:0 6px 24px rgba(0,0,0,.5);
+  --safe-top:env(safe-area-inset-top, 0px);
+  --safe-bot:env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0; background:var(--room); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px; line-height:1.5; overflow:hidden;
+  touch-action:manipulation; user-select:none; -webkit-user-select:none;
+}
+button{font:inherit; color:inherit; background:none; border:none; cursor:pointer}
+.hide{display:none !important}
+h1,h2,h3{margin:0 0 .4em; line-height:1.2}
+a{color:var(--glow)}
+
+/* ---------- layout ---------- */
+#app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
+#stage{position:relative; flex:1; min-height:0; overflow:hidden}
+canvas.surface{position:absolute; inset:0; display:block; touch-action:none}
+
+/* ---------- the seat strip along the top ---------- */
+#seats{
+  position:absolute; top:6px; left:6px; right:6px; z-index:4;
+  display:flex; gap:6px; justify-content:center; flex-wrap:wrap; pointer-events:none;
+}
+.seat{
+  background:rgba(16,13,10,.76); backdrop-filter:blur(7px);
+  border:1px solid var(--line); border-radius:12px;
+  padding:4px 10px; font-size:.82rem; font-weight:650;
+  display:flex; align-items:center; gap:6px; max-width:31vw;
+  overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  transition:box-shadow .2s, border-color .2s, transform .2s;
+}
+.seat .n{font-weight:400; color:var(--soft); font-variant-numeric:tabular-nums}
+.seat.turn{box-shadow:0 0 0 2px var(--good); transform:translateY(1px)}
+.seat.you .nm{color:var(--glow)}
+.seat.gone{opacity:.5}
+.seat .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.seat.thinking{border-color:var(--accent); box-shadow:0 0 0 2px rgba(240,168,60,.35)}
+.seat.thinking .dot{animation:blink 1s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.seat.gone .dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--soft)}
+
+/* the running commentary — who is deciding, and what they just did */
+#say{
+  position:absolute; top:40px; left:0; right:0; z-index:4; text-align:center;
+  font-size:.82rem; pointer-events:none; min-height:1.2em;
+  text-shadow:0 1px 6px rgba(0,0,0,.85);
+}
+#say.us{color:var(--good)}
+#say.them{color:var(--bad)}
+#say.thinking{color:var(--accent); font-style:italic}
+
+/* ---------- the score rail ---------- */
+#rail{
+  position:absolute; top:62px; left:8px; right:8px; z-index:4;
+  display:flex; justify-content:space-between; pointer-events:none; font-size:.78rem; gap:6px;
+}
+.score{
+  background:rgba(16,13,10,.72); border:1px solid var(--line); border-radius:10px;
+  padding:3px 9px; font-variant-numeric:tabular-nums;
+}
+.score b{font-size:1.15em; color:var(--glow)}
+.score.lead b{color:var(--good)}
+
+/* ---------- the control tray ---------- */
+#tray{
+  flex:none; display:flex; gap:8px; padding:8px 10px calc(8px + var(--safe-bot));
+  background:linear-gradient(180deg, rgba(0,0,0,0), var(--card) 34%);
+  align-items:stretch;
+}
+.btn{
+  flex:1; min-height:52px; border-radius:14px; background:var(--card2);
+  border:1px solid var(--line); font-weight:650; font-size:.95rem;
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  transition:transform .09s cubic-bezier(.2,.9,.3,1.4), background .15s, box-shadow .15s, opacity .15s;
+  box-shadow:0 2px 0 rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07);
+  padding:6px 8px; text-align:center; line-height:1.15;
+}
+.btn .k{font-size:1.25em; line-height:1}
+.btn:active,.btn.down{transform:translateY(2px) scale(.975); box-shadow:0 0 0 rgba(0,0,0,.4)}
+.btn.primary{background:linear-gradient(180deg, var(--accent), var(--accent-dim, #d2841f)); color:var(--accent-ink); border-color:rgba(0,0,0,.35)}
+.btn.primary.pulse{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 2px 0 rgba(0,0,0,.45)}50%{box-shadow:0 2px 0 rgba(0,0,0,.45),0 0 0 6px rgba(240,168,60,.22)}}
+.btn[disabled]{opacity:.4; pointer-events:none}
+.btn.narrow{flex:0 0 62px}
+.btn.wide{flex:2}
+.btn.on{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+@media (prefers-reduced-motion:reduce){
+  .btn,.btn.primary.pulse{transition:none; animation:none}
+}
+
+/* ---------- the banner that names the moment ---------- */
+#banner{
+  position:absolute; left:0; right:0; top:36%; z-index:6; text-align:center;
+  pointer-events:none; opacity:0; transition:opacity .3s;
+}
+#banner.on{opacity:1}
+#banner .big{
+  font-size:clamp(2rem,11vw,4.2rem); font-weight:800; letter-spacing:-.02em;
+  text-shadow:0 4px 30px rgba(0,0,0,.8), 0 0 60px rgba(240,168,60,.35);
+  color:var(--glow);
+}
+#banner .sub{font-size:1rem; color:var(--ink); opacity:.9; margin-top:.2em; text-shadow:0 2px 12px #000}
+#banner.slam .big{animation:slam .5s cubic-bezier(.2,1.6,.3,1)}
+@keyframes slam{0%{transform:scale(2.4) rotate(-7deg); opacity:0}60%{transform:scale(.94)}100%{transform:none}}
+
+/* ---------- the coach ---------- */
+#coach{
+  position:absolute; left:8px; right:8px; bottom:8px; z-index:5;
+  background:rgba(22,18,14,.94); backdrop-filter:blur(9px);
+  border:1px solid var(--line); border-left:3px solid var(--accent);
+  border-radius:13px; padding:9px 12px; font-size:.88rem;
+  box-shadow:var(--shadow); transition:transform .25s, opacity .25s;
+}
+#coach.off{opacity:0; transform:translateY(14px); pointer-events:none}
+#coach .head{display:flex; align-items:center; gap:7px; font-weight:700; color:var(--accent); font-size:.78rem; letter-spacing:.05em}
+#coach .head .x{margin-left:auto; color:var(--soft); font-weight:400; padding:2px 6px}
+#coach p{margin:.35em 0 0}
+#coach .why{color:var(--soft); font-size:.84rem}
+
+/* ---------- sheets ---------- */
+.ov{
+  position:fixed; inset:0; z-index:20; background:rgba(6,5,4,.84);
+  backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:14px;
+}
+.sheet{
+  background:var(--card); border:1px solid var(--line); border-radius:18px;
+  width:min(560px,100%); max-height:min(88vh,760px); overflow-y:auto;
+  padding:18px; box-shadow:var(--shadow); -webkit-overflow-scrolling:touch;
+}
+.sheet h2{font-size:1.3rem}
+.sheet .lead{color:var(--soft); font-size:.92rem; margin:0 0 14px}
+.row{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+.row .btn{min-height:46px}
+.close{position:sticky; top:0; float:right; font-size:1.4rem; color:var(--soft); padding:0 6px; z-index:2}
+
+.opts{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px}
+.opt{
+  border:1px solid var(--line); border-radius:13px; padding:11px; background:var(--card2);
+  text-align:left; transition:border-color .15s, transform .09s, background .15s;
+}
+.opt:active{transform:scale(.98)}
+.opt.on{border-color:var(--accent); background:rgba(240,168,60,.11); box-shadow:inset 0 0 0 1px var(--accent)}
+.opt b{display:block; font-size:.98rem}
+.opt small{color:var(--soft); font-size:.79rem; line-height:1.35; display:block; margin-top:2px}
+
+.fld{margin:12px 0}
+.fld > label{display:flex; align-items:center; gap:8px; font-size:.86rem; color:var(--soft); margin-bottom:5px}
+.fld > label b{color:var(--ink); font-weight:650}
+.fld .val{margin-left:auto; font-variant-numeric:tabular-nums}
+input[type=range]{width:100%; accent-color:var(--accent); height:26px}
+input[type=text]{
+  width:100%; background:#100e0c; color:var(--ink); border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px; font:inherit; font-size:.9rem;
+}
+.note{color:var(--soft); font-size:.83rem; margin-top:10px; line-height:1.45}
+.warn{color:var(--bad)}
+.ok{color:var(--good)}
+.tally{width:100%; border-collapse:collapse; margin-top:10px; font-size:.88rem}
+.tally th,.tally td{padding:5px 7px; border-bottom:1px solid var(--line); text-align:right}
+.tally th:first-child,.tally td:first-child{text-align:left}
+.tally tr.win td{color:var(--good)}
+
+/* ---------- the splash ---------- */
+#splash{
+  position:fixed; inset:0; z-index:40; background:var(--room);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:22px; text-align:center; transition:opacity .5s;
+}
+#splash.gone{opacity:0; pointer-events:none}
+#splash .title{font-size:clamp(2.1rem,10vw,3.4rem); font-weight:800; letter-spacing:-.02em; color:var(--glow)}
+#splash .sub{color:var(--soft); max-width:34ch; margin:.5em 0 1.4em; font-size:.96rem}
+#splash canvas{width:min(300px,78vw); height:120px; margin-bottom:8px}
+#splash .row{width:min(380px,100%)}
+
+#toast{
+  position:absolute; left:50%; transform:translateX(-50%); bottom:96px; z-index:8;
+  background:rgba(22,18,14,.96); border:1px solid var(--line); border-radius:12px;
+  padding:8px 14px; font-size:.88rem; box-shadow:var(--shadow);
+  opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; max-width:88vw; text-align:center;
+}
+#toast.on{opacity:1; transform:translateX(-50%) translateY(-6px)}
+
+/* ---------- four letters: the front door ----------
+   The code is the biggest thing on the sheet because reading it out is the
+   only thing anybody has to do. */
+.codeBig{
+  font:700 clamp(2.3em,13vw,3.4em)/1 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.18em; text-indent:.18em; text-align:center; color:var(--glow);
+  background:rgba(0,0,0,.28); border:1px solid var(--line); border-radius:16px;
+  padding:.3em .1em .26em; margin:10px 0 4px;
+  user-select:text; -webkit-user-select:text;
+}
+.codeBig.pending{opacity:.5}
+.codeWait{display:flex; align-items:center; justify-content:center; gap:8px;
+  font-size:.84rem; color:var(--soft); margin:4px 0 10px; min-height:20px; text-align:center}
+input.codeIn{
+  width:100%; text-align:center; text-transform:uppercase;
+  font:700 clamp(1.8em,11vw,2.6em)/1.25 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.3em; text-indent:.3em;
+  background:rgba(0,0,0,.3); color:var(--ink); border:1px solid var(--line);
+  border-radius:14px; padding:.16em 0; margin:6px 0 2px;
+  user-select:text; -webkit-user-select:text;
+}
+input.codeIn:focus{border-color:var(--accent); outline:none}
+.roomList{display:flex; flex-direction:column; gap:6px; margin:10px 0 4px}
+.roomRow{
+  display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:12px; padding:8px 12px;
+  color:var(--ink);
+}
+.rrCode{font:700 1.05rem ui-monospace,Menlo,Consolas,monospace; letter-spacing:.12em; color:var(--glow); flex:none}
+.rrTx{flex:1; min-width:0; font-size:.85rem}
+.rrTx b{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rrTx i{color:var(--soft); font-style:normal; font-size:.9em}
+.rrGo{color:var(--glow); font-size:.82rem; flex:none}
+.roomEmpty{font-size:.85rem; color:var(--soft); text-align:center; padding:10px 4px}
+#tQRc{display:block; margin:10px auto; width:min(260px,72vw); height:auto; border-radius:12px; background:#fff; padding:8px}
+
+/* the link's own pulse, at the table */
+#netChip{
+  position:absolute; top:8px; left:50%; transform:translateX(-50%);
+  background:rgba(10,8,6,.85); border:1px solid var(--line); border-radius:999px;
+  padding:3px 12px; font-size:.72rem; color:var(--soft); z-index:6; white-space:nowrap;
+  display:flex; align-items:center; gap:7px;
+}
+#netChip .pulse{width:8px; height:8px; border-radius:50%; background:var(--good); flex:none}
+#netChip.slow .pulse{background:var(--glow)}
+#netChip.stale .pulse,#netChip.healing .pulse{background:var(--accent); animation:blip 1s ease-in-out infinite}
+#netChip.lost .pulse{background:var(--bad); animation:blip 1s ease-in-out infinite}
+#netChip.waiting .pulse{background:var(--soft)}
+#netChip.healing,#netChip.lost{color:var(--ink); border-color:var(--accent)}
+@keyframes blip{0%,100%{opacity:.25} 50%{opacity:1}}

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>The Wall — a brick breaker that aims with your thumb</title>
+<meta name="description" content="A brick breaker in your browser: a curved paddle you aim with rather than a mirror you bounce off, a ball that cannot tunnel however fast it goes, levels generated from formulas so level 7 is always level 7, and a combo score that rewards getting behind the wall. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#07090e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Wall">
+<meta property="og:description" content="Brick breaker with a paddle you aim with. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  :root{ --room:#07090e; --card:#141824; --card2:#1c2130; --line:#2e3547;
+         --accent:#e06a52; --accent-dim:#b44634; --accent-ink:#1a0703; --glow:#ffd77a; }
+  #hud{
+    position:absolute; top:6px; left:8px; right:8px; z-index:4;
+    display:flex; gap:10px; align-items:center; pointer-events:none;
+    font-variant-numeric:tabular-nums; font-size:.84rem; color:var(--soft);
+    text-shadow:0 1px 6px rgba(0,0,0,.9);
+  }
+  #hud b{color:var(--ink); font-size:1.15em}
+  #hudScore{min-width:70px}
+  #hudLives{color:var(--accent); letter-spacing:.12em; flex:1; text-align:center}
+  #hudCombo{color:var(--glow); min-width:44px; text-align:right}
+  #hudLevel{min-width:64px; text-align:right}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="field" class="surface"></canvas>
+    <div id="hud">
+      <div id="hudScore"><b>0</b></div>
+      <div id="hudLives">●●●</div>
+      <div id="hudCombo">&nbsp;</div>
+      <div id="hudLevel">level <b>1</b></div>
+    </div>
+  </div>
+
+  <div id="tray">
+    <button class="btn narrow" id="btnMenu" title="Menu"><span class="k">☰</span></button>
+    <button class="btn wide" id="btnPause"><span class="k">⏸</span>Pause</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="title">The Wall</div>
+  <div class="sub">Drag anywhere — the paddle moves with your thumb, not under it. Catch the ball off-centre and it goes where you aimed it.</div>
+  <div class="row">
+    <button class="btn primary wide" id="goPlay">Serve</button>
+    <button class="btn" id="goLearn">How it works</button>
+  </div>
+  <p class="note" id="splashBest"></p>
+</div>
+
+<div class="ov hide" id="ovPause"><div class="sheet">
+  <button class="close" data-close="ovPause">✕</button>
+  <h2>Paused</h2>
+  <p class="lead">Nothing moves while this is up — including if your phone rang.</p>
+  <div class="row">
+    <button class="btn primary wide" id="pResume">Back to it</button>
+    <button class="btn" id="pRestart">Start again</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="pAim">Aim: by touch type</button>
+    <button class="btn" id="pSound">Sound</button>
+  </div>
+  <div class="row"><button class="btn wide" id="pHow">How it works</button></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn"><div class="sheet">
+  <button class="close" data-close="ovLearn">✕</button>
+  <h2>How it works</h2>
+  <p class="lead">Everybody has played one of these. Four things here are not the way they usually are.</p>
+
+  <h3>The paddle is curved, not a mirror</h3>
+  <p class="note">Where the ball lands across the paddle sets the <b>angle</b> it leaves at, not the reflection. Middle sends it up; the very edge sends it away almost sideways. That one rule is the entire skill of the game — you are not catching the ball, you are aiming it, and every shot is a decision about where you want it to come back from.</p>
+
+  <h3>You drag, you don't point</h3>
+  <p class="note">On a touch screen the paddle moves <i>with</i> your thumb rather than <i>to</i> it. Put your finger anywhere on the screen and slide; the paddle follows the movement. That means your hand is never sitting on top of the bottom of the screen, which is exactly where the interesting things happen. With a mouse it works the ordinary way, because a cursor the paddle ignores feels broken.</p>
+
+  <h3>The score is about combos, not bricks</h3>
+  <p class="note">A brick is worth ten — times how many you have broken since the ball last touched the paddle. Six bricks in one trip is worth far more than six separate ones, which is why getting the ball <b>behind</b> the wall is the thing everybody is really playing for. Grey bricks never break; they are there to make the pocket you are aiming at.</p>
+
+  <h3>Level 7 is always level 7</h3>
+  <p class="note">The walls are generated, but from a formula chosen by level number rather than at random — so everybody's level 7 is the same level 7, and you can get better at it. Every wall is also checked before you see it: if any breakable brick is sealed behind unbreakable ones, the solids are thinned until the ball can get at everything.</p>
+
+  <h3>The drops</h3>
+  <p class="note">Green ones help, red ones don't, and both fall from broken bricks. <b>Wide</b> and <b>Narrow</b> resize the paddle. <b>Split</b> gives you three balls. <b>Slow</b> and <b>Quick</b> do what they say. <b>Catch</b> makes the paddle hold the ball until you tap — it is the one that turns a scramble back into a plan. <b>Laser</b> gives you a dozen shots; tap to fire. <b>Spare</b> is another ball in hand.</p>
+</div></div>
+
+<div class="ov hide" id="ovEnd"><div class="sheet">
+  <button class="close" data-close="ovEnd">✕</button>
+  <h2 id="endTitle"></h2>
+  <p class="lead" id="endLead"></p>
+  <div id="endBody"></div>
+  <div class="row"><button class="btn primary wide" id="endNext">Serve again</button></div>
+</div></div>
+
+<script src="levels.js"></script>
+<script src="game.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
