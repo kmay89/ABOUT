@@ -99,6 +99,18 @@ const ROOMS = [
     menu: ["#mSetup", "#mLearn"], wait: 700 }
 ];
 
+/* shut every open sheet, however it got opened */
+async function clearSheets(page) {
+  for (let i = 0; i < 4; i++) {
+    const open = page.locator(".ov:not(.hide)").first();
+    if (!(await open.count())) return;
+    const close = open.locator("[data-close]").first();
+    if (!(await close.count())) return;
+    await close.click({ timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(160);
+  }
+}
+
 let fails = 0;
 function ok(what, cond, detail) {
   if (cond) console.log("  ✓ " + what);
@@ -183,6 +195,22 @@ const server = http.createServer((req, res) => {
         if (await el.count() && await el.isVisible()) { await el.click(); await page.waitForTimeout(400); }
       }
 
+      /* And then clear whatever is still covering the board before going near
+         the menu — because playing a game can *end* it.
+
+         This was a real intermittent failure and it took eight runs to catch:
+         minesweeper failed about a quarter of the time with a thirty-second
+         click timeout on the menu button. The second tap lands where it lands,
+         and about one time in four it lands on a mine — the game ends, the
+         end-of-game sheet comes up, and a sheet over the tray is a tray you
+         cannot tap. Playwright waits for the button to become actionable and
+         it never does.
+
+         Nothing was wrong with the room. The check was assuming its own taps
+         were harmless, which is exactly the assumption a check that plays a
+         game is not allowed to make. */
+      await clearSheets(page);
+
       /* Every sheet the menu can reach, opened and shut the way a finger
          does it. The menu has to be re-opened before each one, because
          choosing an item closes it — which is the behaviour, and a check that
@@ -202,15 +230,7 @@ const server = http.createServer((req, res) => {
         await page.waitForTimeout(180);
       }
       /* and leave nothing covering the board */
-      const stillOpen = await page.locator(".ov:not(.hide)").count();
-      if (stillOpen) {
-        for (let i = 0; i < 4 && await page.locator(".ov:not(.hide)").count(); i++) {
-          const o = page.locator(".ov:not(.hide)").first();
-          const c = o.locator("[data-close]").first();
-          if (await c.count()) await c.click(); else break;
-          await page.waitForTimeout(150);
-        }
-      }
+      await clearSheets(page);
       ok("every sheet the menu reaches opens and shuts", sheetsOk, why);
 
       /* and the thing a smoke test most often misses: is anything drawn? */

@@ -452,7 +452,31 @@ press($("mNew"), function () { shut("ovMenu"); newGame(); });
 press($("mLevel"), function () { shut("ovMenu"); levels(); open("ovLevel"); });
 press($("mTogether"), function () { shut("ovMenu"); Table.open(); open("ovTogether"); });
 press($("mLook"), function () { shut("ovMenu"); looks(); open("ovLook"); });
-press($("mLearn"), function () { shut("ovMenu"); open("ovLearn"); });
+press($("mLearn"), function () { shut("ovMenu"); insigniaKey(); open("ovLearn"); });
+
+/* The key to the marks, painted by gfx.js into a grid of small canvases —
+   the same function that draws them on the board, so the key cannot drift
+   from the pieces it is explaining. Strongest first, because the order is
+   half of what is being taught. */
+var keyDrawn = false;
+function insigniaKey() {
+  if (keyDrawn) return;
+  var el = $("keyBody");
+  if (!el) return;
+  var order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, Rules.BOMB, Rules.FLAG];
+  var html = "", i;
+  for (i = 0; i < order.length; i++) {
+    html += "<div class='k'><canvas width='78' height='78' data-rank='" + order[i] + "'></canvas>" +
+      "<span><b>" + esc(Rules.NAME[order[i]]) + "</b><i>" + esc(Rules.SHORT[order[i]]) + "</i></span></div>";
+  }
+  el.innerHTML = html;
+  Array.prototype.forEach.call(el.querySelectorAll("canvas"), function (c) {
+    var g = c.getContext("2d");
+    g.scale(3, 3);
+    Gfx.insignia(g, parseInt(c.dataset.rank, 10), 13, 13, 13, "#f2ece1", "#272320");
+  });
+  keyDrawn = true;
+}
 press($("mArmy"), function () { shut("ovMenu"); armySheet(); open("ovArmy"); });
 
 function levels() {
@@ -579,7 +603,7 @@ Table.on.drop = function () { chrome(); if (G.mode === "host") step(); };
    ================================================================ */
 press($("goSolo"), function () { start("solo"); });
 press($("goTogether"), function () { start("solo"); Table.open(); open("ovTogether"); });
-press($("goLearn"), function () { open("ovLearn"); });
+press($("goLearn"), function () { insigniaKey(); open("ovLearn"); });
 function start(mode) {
   G.mode = mode; G.mySeat = 0;
   $("splash").classList.add("gone");

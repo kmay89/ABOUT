@@ -120,6 +120,15 @@ const poly = (pts) => (x, y) => {
   }
   return inside ? 1 : 0;
 };
+const star5 = (cx, cy, r) => {
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = (i % 2) ? r * 0.42 : r;
+    pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+  }
+  return poly(pts);
+};
 const star6 = (cx, cy, r) => {
   const a = [], b = [];
   for (let k = 0; k < 3; k++) {
@@ -258,12 +267,18 @@ const ICONS = {
     s.paint("#1d4670", rect(0.16, 0.28, 0.42, 0.08));
     s.paint("#ffffff", rect(0.24, 0.185, 0.26, 0.028), 0.25);
     s.paint("#ffd77a", disc(0.505, 0.13, 0.038));
-    /* yours, face up, a 10 */
+    /* yours, face up, and wearing its insignia rather than a number — the
+       Marshal's star in its laurel, which is the mark the board now draws */
     s.paint("#000000", rect(0.46, 0.64, 0.44, 0.3), 0.3);
     s.paint("#c8452f", rect(0.42, 0.6, 0.42, 0.3));
     s.paint("#8a2718", rect(0.42, 0.82, 0.42, 0.08));
-    s.paint("#f4efe2", rect(0.5, 0.66, 0.048, 0.18));
-    s.paint("#f4efe2", ring(0.68, 0.75, 0.085, 0.05));
+    s.paint("#f4efe2", star5(0.63, 0.735, 0.075));
+    s.paint("#f4efe2", (x, y) => {
+      const d = Math.hypot(x - 0.63, y - 0.742);
+      if (d > 0.125 || d < 0.104) return 0;
+      /* open at the top, which is where a laurel opens */
+      return (y - 0.742 > -0.055) ? 1 : 0;
+    });
   },
   catchphrase: (s) => {
     /* a speech bubble with a fuse on it — the game is a thing you say under a

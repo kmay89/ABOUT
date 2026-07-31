@@ -21,6 +21,41 @@ The same function is what goes over the wire to a second phone.
 `tools/rules-check.js` shuffles the unseen ranks three hundred times and
 requires the message to come back byte-identical.
 
+## The pieces wear insignia, not numbers
+
+A tile with a number and a truncated five-letter name on it is what a
+spreadsheet looks like. A real Stratego piece is known by its **shape** — you
+see a pickaxe and you know it is a Miner without reading anything, which is
+faster than reading and is most of the pleasure.
+
+So every rank carries a mark, and the marks are a *system* rather than twelve
+unrelated doodles:
+
+- **The fighting ranks climb, and you can count them.** One, two, three
+  chevrons for Sergeant, Lieutenant and Captain. One, two, three stars for
+  Major, Colonel and General. A laurel round the Marshal's star. More marks is
+  stronger; stars beat chevrons. Across a whole board you can read the strength
+  of a line without reading a word — which is the point, because you are
+  looking at forty tiles at once.
+- **The five with special *rules* get pictures**, because they are not ordinary
+  soldiers and behave nothing like them: a flag, the spy's mask, the scout's
+  arrow, the miner's pick, a bomb.
+
+The number stays, small, in the corner — where it is on a real piece — for
+people who think in numbers and for anybody who has not yet learned that stars
+beat chevrons.
+
+The key inside "How it's played" is painted by the *same function* that draws
+the board (`Gfx.insignia`), into a grid of small canvases, so the legend cannot
+drift from the pieces it is explaining.
+
+Two of the marks took a second pass, and both failures were the same kind — a
+shape that was almost right and read as something else entirely. The Miner's
+pick, stroked as an even-width arc on a stick, is a mushroom; it needed a
+crescent head tapering to a point at each tip. And the Marshal's laurel, drawn
+as a shallow arc across the bottom, is a smile; a wreath is a near-complete
+ring that opens at the *top*.
+
 ## What the board shows you, and why
 
 On an enemy piece, two things and no more:
