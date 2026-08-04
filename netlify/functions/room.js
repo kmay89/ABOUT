@@ -32,7 +32,9 @@ import { getStore } from '@netlify/blobs';
 
 const ROOM_TTL = 15 * 60 * 1000;   // a room nobody touches fades in a quarter hour
 const MAX_ROOMS = 60;              // ceiling on a listing sweep, not on the world
-const MAX_SLOTS = 12;              // seats + churn
+const MAX_SLOTS = 24;              // seats + churn — sized for the widest room below
+const SEAT_MAX = 16;               // a stage wall of sixteen is the widest anyone sits
+const PULSE_MAX = 600;             // the crowd pulse: a few colours and a scene, never more
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ';   // no I/O — they read as 1/0 out loud
 const SDP_MAX = 8000;
 // The namespaces that exist. A game not on this list is answered "unknown
@@ -127,7 +129,7 @@ export default async (req) => {
     if (!isSdp(b.offer)) return json({ error: 'bad offer' }, 400);
     const host = clean(b.host, 16) || 'A player';
     const name = clean(b.name, 28) || 'A room';
-    const seats = Math.max(2, Math.min(8, parseInt(b.seats, 10) || 2));
+    const seats = Math.max(2, Math.min(SEAT_MAX, parseInt(b.seats, 10) || 2));
     const open = b.open === undefined ? true : !!b.open;
 
     let code = null, key = null, room = null;
@@ -216,7 +218,7 @@ export default async (req) => {
     const fresh = room.slots.filter(s => s.answer && !s.taken);
     if (fresh.length) {
       for (const s of fresh) s.taken = true;
-      room.players = Math.min(room.seats || 8, (room.players || 1) + fresh.length);
+      room.players = Math.min(room.seats || SEAT_MAX, (room.players || 1) + fresh.length);
     }
     // touch the room when it is drifting towards the TTL, not on every poll
     if (fresh.length || now - room.t > ROOM_TTL / 3) await writeRoom(code, room);
@@ -251,6 +253,81 @@ export default async (req) => {
       await store.delete(code).catch(() => {});
     }
     return json({ ok: true });
+  }
+
+  // ---- beacon: a code with no handshake — a pulse-only room ----
+  // aethrakairos's crowd mode: the booth holds up four letters and a QR, and
+  // the phones that scan it never sit down — they take no seat, leave no
+  // answer, they only read the pulse below. So a beacon room has no slots at
+  // all, advertises itself to nobody (started, closed), and reclaims exactly
+  // the way host does, for exactly the same reason: the code is already on a
+  // projector, and a booth that rebooted must come back under it.
+  if (a === 'beacon') {
+    const b = await body();
+    const name = clean(b.name, 28) || 'A show';
+    let code = null, key = null, room = null;
+    if (isCode(b.code) && isKey(b.key)) {
+      const had = await readRoom(b.code);
+      if (had && had.key === b.key) { code = b.code; key = b.key; room = had; }
+    }
+    if (!code) {
+      key = mintKey();
+      for (let i = 0; i < 8 && !code; i++) {
+        let c = ''; for (let k = 0; k < 4; k++) c += ALPHA[Math.floor(Math.random() * ALPHA.length)];
+        const taken = await store.get(c, { type: 'json' }).catch(() => null);
+        if (!taken || now - taken.t > ROOM_TTL) code = c;
+      }
+      if (!code) return json({ error: 'the rooms are crowded — try again' }, 503);
+    }
+    await writeRoom(code, {
+      born: room ? room.born : now, host: 'The booth', name, seats: 0,
+      open: false, key, seq: room ? room.seq || 0 : 0,
+      players: 0, started: true, slots: [],
+      pulse: room ? room.pulse : null, pulsedAt: room ? room.pulsedAt : 0,
+    });
+    return json({ code, key, reclaimed: !!room });
+  }
+
+  // ---- pulse: the slow truths, one small object under the code ----
+  // POST (the host, with its key) replaces it; GET (anyone) reads it. The
+  // read is CDN-cacheable ON PURPOSE: a crowd is a thousand phones asking
+  // the identical question every couple of seconds, and the edge should
+  // answer them — one origin hit per couple of seconds per PoP, whatever
+  // the crowd is. The matching client sends no cache-buster for the same
+  // reason. Two seconds of staleness is invisible at these rates: the
+  // pulse carries a palette and a scene, not a beat.
+  if (a === 'pulse') {
+    if (req.method === 'POST') {
+      const b = await body();
+      const code = String(b.code || '').toUpperCase();
+      const room = await readRoom(code);
+      if (!room) return json({ error: 'that room has gone' }, 404);
+      if (room.key !== b.key) return json({ error: 'not your room' }, 403);
+      // stored via its own JSON round-trip, never through clean(): the pulse
+      // is data for JSON.parse, and stripping quotes would corrupt it. Size
+      // is the only rule — and it is a hard one, because every byte here is
+      // multiplied by a crowd.
+      let s = '';
+      try { s = JSON.stringify(b.pulse); } catch (e) {}
+      if (!s || s[0] !== '{' || s.length > PULSE_MAX) return json({ error: 'bad pulse' }, 400);
+      room.pulse = JSON.parse(s);
+      room.pulsedAt = now;
+      await writeRoom(code, room);
+      return json({ ok: true });
+    }
+    const code = String(url.searchParams.get('code') || '').toUpperCase();
+    const room = await readRoom(code);
+    return new Response(JSON.stringify(room && room.pulse
+      ? { pulse: room.pulse, age: Math.max(0, Math.round((now - (room.pulsedAt || room.t)) / 1000)) }
+      : { pulse: null }), {
+      status: room ? 200 : 404,
+      headers: {
+        'content-type': 'application/json',
+        'cache-control': 'public, max-age=1',
+        'netlify-cdn-cache-control': 'public, max-age=2, durable',
+        ...CORS,
+      },
+    });
   }
 
   return json({ error: 'unknown request' }, 400);
