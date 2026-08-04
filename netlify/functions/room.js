@@ -43,6 +43,11 @@ const GAMES = [
   'chess', 'domino', 'table', 'test',
   'checkers', 'othello', 'halma', 'hearts', 'euchre', 'stratego',
   'yahtzee', 'viuda',
+  // not a game: aethrakairos's stage wire — a music visualizer's booth
+  // inviting iPads and laptops to be extra screens. Same door, same four
+  // letters, nothing but a handshake through the pigeonhole. Lives at
+  // aethrakairos.com (GitHub Pages, no serverless), so it knocks here.
+  'stage',
 ];
 
 const CORS = {
