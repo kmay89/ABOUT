@@ -34,6 +34,10 @@
                  half-pound pot doesn't ask for a third of a can of
                  black beans.
        optional  true if the pot is still the pot without it
+       hold      optional: teaspoons per pound kept OUT of the pot until
+                 the taste test. The list shows the whole amount (it's
+                 what you buy); the steps show "this much now, this much
+                 kept back", and the taste card spends the rest.
        note      the one line worth knowing about it
 
    steps[]   the order of operations. `uses` names item ids, and the
@@ -48,6 +52,11 @@
    taste[]   the taste-and-control card: a symptom, its fix, and how
              much of the fix per pound of beef.
 
+   swaps     alternative versions of the pot. Each one renames items,
+             adds items, rewrites or drops steps — by id — and the page
+             applies it on top of the recipe above, so the amounts are
+             still written exactly once.
+
    Karl's original, for the record, is a three-pound pot. Every number
    below is that pot divided by three.                                */
 (function () {
@@ -56,15 +65,13 @@
 window.CHILI = {
   id: "kitchen-table-chili",
   title: "Kitchen Table Chili",
-  tagline: "The pot I actually make, divided by three so you can test it.",
-  intro: "Medium-spicy, thick, kid-approved. It is not a competition chili and does not want to be — " +
-         "it wants to be a bowl on a Tuesday with cheese melting into it. Everything below is per pound " +
-         "of beef; turn the dial and the whole recipe follows.",
+  tagline: "The pot I actually make, scaled to whatever you've got.",
+  intro: "Thick, well spiced, kid-approved. Set the amount of beef and the whole recipe follows.",
 
   /* one pound of 80/20, and the finished volume it turns into */
   base: { id: "beef", grams: 453.592 },
   yield: { mlPerLb: 1800, bowlMl: 350, kidBowlMl: 240 },
-  pot: { headroom: 1.6 },          /* the pot wants this much room over the food */
+  pot: { headroom: 1.35 },         /* the pot wants this much room over the food: an 8-quart pot for the 3 lb original */
 
   /* the cans as they sit on the shelf */
   cans: {
@@ -73,209 +80,278 @@ window.CHILI = {
   },
 
   groups: [
-    { id: "meat",   name: "Meat & veg",     hint: "The knife work — all of it can be done sitting down." },
-    { id: "cans",   name: "Cans",           hint: "Beans get drained and rinsed. Tomatoes do not." },
-    { id: "pantry", name: "Wet & sweet",    hint: "" },
-    { id: "spice",  name: "The spice bowl", hint: "Measure these into one bowl and they go in as one move." }
+    { id: "meat",   name: "Meat & veg",     hint: "All the knife work can be done sitting down." },
+    { id: "cans",   name: "Cans",           hint: "Drain and rinse the beans. Not the tomatoes." },
+    { id: "pantry", name: "Wet, sweet & smoky", hint: "" },
+    { id: "spice",  name: "The spice bowl", hint: "Measure into one bowl; they go in together." }
   ],
 
   items: [
     { id: "beef", group: "meat", name: "Ground beef, 80/20", short: "ground beef", measure: "mass", per: 453.592,
-      note: "The 20 is the point. Leaner beef makes a thinner, quieter chili." },
+      note: "The fat is flavour. Leaner beef makes a thinner chili." },
 
     { id: "salt", group: "meat", name: "Kosher salt, for the beef", short: "kosher salt", measure: "spice", per: 1,
-      note: "Half as much if it's fine table salt. This is the salt you'll be balancing later with sugar." },
+      note: "Use half as much if it's table salt." },
 
     { id: "onion", group: "meat", name: "Yellow onion, diced", measure: "mass", per: 150,
       each: { g: 150, one: "medium yellow onion", many: "medium yellow onions" },
-      note: "Two large yellow — or one white and one yellow — is how the full pot goes." },
+      note: "Or two large for the full pot — one white and one yellow is good too." },
 
     { id: "pepper", group: "meat", name: "Green bell pepper, diced", measure: "mass", per: 55, optional: true,
       each: { g: 165, one: "large green pepper", many: "large green peppers" },
-      note: "Optional, and it does show up. Leave it out for a rounder, sweeter pot." },
+      note: "You'll taste it. Leave it out for a rounder, sweeter pot." },
+
+    { id: "jalapeno", group: "meat", name: "Jalapeño, finely diced", measure: "mass", per: 20,
+      each: { g: 30, one: "jalapeño", many: "jalapeños" },
+      note: "Seeds and ribs out for kids; in for heat." },
 
     { id: "tomatoes", group: "cans", name: "Fire-roasted diced tomatoes", short: "fire-roasted diced tomatoes",
       measure: "can", can: "tomato", per: 1,
-      note: "Juice and all — these are not drained. Fire-roasted is doing real work here; plain diced is a different chili." },
+      note: "Juice and all. Fire-roasted matters — plain diced tastes flatter." },
 
     { id: "kidneyDark", group: "cans", name: "Dark red kidney beans", short: "dark red kidney beans",
       measure: "can", can: "bean", per: 2 / 3,
-      apportion: "beans", drain: true, note: "The backbone bean." },
+      apportion: "beans", drain: true, note: "The main bean." },
 
     { id: "kidneyLight", group: "cans", name: "Light red kidney beans", short: "light red kidney beans",
       measure: "can", can: "bean", per: 2 / 3,
-      apportion: "beans", drain: true, note: "Softer than the dark, and a lighter red in the bowl." },
+      apportion: "beans", drain: true, note: "Softer, and a lighter red." },
 
     { id: "black", group: "cans", name: "Black beans", short: "black beans", measure: "can", can: "bean", per: 1 / 3,
-      apportion: "beans", drain: true, note: "For depth and for the dark flecks." },
+      apportion: "beans", drain: true, note: "Depth, and dark flecks in the bowl." },
 
     { id: "white", group: "cans", name: "Great northern or white beans", short: "white beans",
       measure: "can", can: "bean", per: 1 / 3,
       apportion: "beans", drain: true, optional: true,
-      note: "Optional, and purely for colour — pale beans through a dark pot make it look like somebody cared." },
+      note: "Just for looks — pale beans in a dark pot." },
 
     { id: "paste", group: "pantry", name: "Tomato paste", short: "tomato paste", measure: "volume", per: 30,
-      note: "Stir it until you can't see it. Undissolved paste tastes like a mistake." },
+      note: "Stir until it disappears; lumps taste raw." },
 
     { id: "sauce", group: "pantry", name: "Tomato sauce", short: "tomato sauce", measure: "volume", per: 60,
-      note: "A bit, not a lot. It rounds the edges; too much and you've made pasta sauce." },
+      note: "Just a little — more and it turns into pasta sauce." },
+
+    { id: "chipotle", group: "pantry", name: "Chipotle in adobo, minced", measure: "mass", per: 8, optional: true,
+      each: { g: 12, one: "chipotle pepper", many: "chipotle peppers" },
+      note: "Smoke and slow heat. Freeze the rest of the can, one pepper per ice-cube slot." },
 
     { id: "broth", group: "pantry", name: "Beef broth", short: "beef broth", measure: "volume", per: 315,
-      note: "A quart to three pounds of beef, which is where this number comes from." },
+      note: "A quart for every three pounds of beef." },
 
     { id: "sugar", group: "pantry", name: "Sugar", short: "sugar", measure: "spice", per: 1,
-      note: "One spoonful, to answer the salt. You will not taste it as sweet — you'll taste it as balanced." },
+      note: "Balances the salt. You won't taste it as sweet." },
 
-    { id: "chili", group: "spice", name: "Chili powder", short: "chili powder", measure: "spice", per: 6,
-      note: "Tons of it, which is what makes this taste like chili and not like beef stew. Stir in about " +
-            "three-quarters now and keep the rest back for the taste test." },
+    { id: "chili", group: "spice", name: "Chili powder", short: "chili powder", measure: "spice", per: 7.5, hold: 1.5,
+      note: "The main flavour. Some is kept back for tasting — and have extra, since the taste test often wants more." },
 
+    { id: "paprika",      group: "spice", name: "Smoked paprika", short: "smoked paprika", measure: "spice", per: 1,
+      note: "Smoke without heat, and a deeper red." },
+    { id: "cumin",        group: "spice", name: "Ground cumin",  short: "ground cumin", measure: "spice", per: 1,
+      note: "Earthy and warm. Don't add more — it takes over." },
     { id: "garlicPowder", group: "spice", name: "Garlic powder", short: "garlic powder", measure: "spice", per: 1 },
     { id: "onionPowder",  group: "spice", name: "Onion powder",  short: "onion powder", measure: "spice", per: 1 },
-    { id: "cumin",        group: "spice", name: "Ground cumin",  short: "ground cumin", measure: "spice", per: 0.5,
-      note: "A touch. Cumin is loud and this is not a cumin chili." },
-    { id: "flakes",       group: "spice", name: "Red pepper flakes", short: "red pepper flakes", measure: "spice", per: 0.25,
-      note: "A few flakes. This is the heat that arrives late; chili powder is the heat that arrives on time." }
+    { id: "oregano",      group: "spice", name: "Dried oregano, Mexican if you can", short: "dried oregano", measure: "spice", per: 0.5,
+      note: "Crush it between your palms as it goes in. Italian works too." },
+    { id: "flakes",       group: "spice", name: "Red pepper flakes", short: "red pepper flakes", measure: "spice", per: 0.5,
+      note: "Heat that builds slowly." },
+    { id: "cayenne",      group: "spice", name: "Cayenne", short: "cayenne", measure: "spice", per: 0.125, optional: true,
+      note: "Skip it for kids. Keep it handy — the taste test may call for it." }
   ],
 
   steps: [
     { id: "prep", title: "Line it all up",
       effort: ["sit"], minutes: 10,
-      uses: ["onion", "pepper", "kidneyDark", "kidneyLight", "black", "white", "chili", "garlicPowder", "onionPowder", "cumin", "flakes"],
+      uses: ["onion", "pepper", "jalapeno", "chipotle", "kidneyDark", "kidneyLight", "black", "white",
+             "chili", "paprika", "cumin", "garlicPowder", "onionPowder", "oregano", "flakes", "cayenne"],
       go: [
-        "Dice the onion. Dice the pepper if you're using one.",
-        "Open the beans, tip them into a strainer, rinse them and leave them to drain.",
-        "Measure every spice into one small bowl."
+        "Dice the onion and bell pepper. Dice the jalapeño fine, then wash your hands.",
+        "Mince the chipotle, if using.",
+        "Drain and rinse the beans.",
+        "Measure the spices into one bowl. Put the kept-back chili powder in a separate cup."
       ],
-      why: "Everything after this happens hot and fast. Do the slow work first, sitting down, and the rest of the recipe is just pouring things in." },
+      why: "Everything after this moves fast. Do the slow work now, sitting down." },
 
     { id: "brown", title: "Brown the beef",
       effort: ["hot"], minutes: 8,
       uses: ["beef", "salt"],
       go: [
-        "Big pot on medium-high. No oil — the beef brings its own.",
-        "Beef in, salt over the top, then break it apart and leave it alone for a minute at a time.",
-        "Done when there's no pink left and some of it has gone properly brown."
+        "Big pot, medium-high heat, no oil.",
+        "Add the beef and salt. Break it up, then let it sit a minute at a time to brown.",
+        "Done when no pink is left and some of it is deep brown."
       ],
-      why: "The brown bits stuck to the bottom of the pot are the deepest flavour in the whole recipe. You'll lift them off with the broth later." },
+      why: "The brown bits on the bottom are the best flavour in the pot. The broth lifts them later." },
 
     { id: "fat", title: "Pour off most of the fat",
       effort: ["hot", "lift"], minutes: 2,
       go: [
-        "Tip the pot and spoon or pour the fat off — a ladle works and never needs the pot lifted.",
-        "Leave about a tablespoon in. The spices need fat to bloom in."
+        "Ladle the fat off — no need to lift the pot.",
+        "Leave about a tablespoon for the spices."
       ],
-      why: "80/20 gives up a lot of fat. All of it left in makes a greasy pot; all of it out makes a flat one." },
+      why: "All the fat makes it greasy; none makes it flat." },
 
-    { id: "veg", title: "Onion and pepper in",
+    { id: "veg", title: "Onion, peppers and jalapeño in",
       effort: ["hot"], minutes: 5,
-      uses: ["onion", "pepper"],
+      uses: ["onion", "pepper", "jalapeno"],
       go: [
-        "Straight in on top of the beef.",
-        "Stir now and then for four or five minutes, until the onion has gone soft and see-through."
+        "Add them to the beef.",
+        "Stir now and then until the onion is soft and clear, 4–5 minutes."
       ] },
 
     { id: "bloom", title: "Wake the spices up",
       effort: ["hot"], minutes: 1,
-      uses: ["chili", "garlicPowder", "onionPowder", "cumin", "flakes"],
+      uses: ["chili", "paprika", "cumin", "garlicPowder", "onionPowder", "oregano", "flakes", "cayenne"],
       go: [
-        "The whole spice bowl into the pot — keep about a quarter of the chili powder back for the taste test.",
-        "Stir constantly for one minute, no longer."
+        "Add the spice bowl. Leave the kept-back chili powder in its cup.",
+        "Stir constantly for one minute."
       ],
-      why: "Chili powder is mostly oil-soluble. One minute in hot fat is the difference between chili that smells like chili and chili that tastes dusty." },
+      why: "A minute in hot fat wakes the spices up. Skip it and the chili tastes dusty." },
 
-    { id: "tomato", title: "Tomatoes, paste, sauce",
+    { id: "tomato", title: "Tomatoes, paste, sauce, chipotle",
       effort: ["hot"], minutes: 3,
-      uses: ["tomatoes", "paste", "sauce"],
+      uses: ["tomatoes", "paste", "sauce", "chipotle"],
       go: [
-        "Tomatoes in with their juice. Paste and sauce after them.",
-        "Stir until there is not one orange lump of paste left."
+        "Add the tomatoes with their juice, then the paste, sauce and chipotle.",
+        "Stir until no lumps of paste are left."
       ] },
 
     { id: "beans", title: "Beans in",
       effort: ["hot"], minutes: 2,
       uses: ["kidneyDark", "kidneyLight", "black", "white"],
       go: [
-        "Drained and rinsed, all of them at once.",
-        "Fold rather than stir — beans break if you're rough with them."
+        "Add them all at once.",
+        "Fold gently so they don't break."
       ] },
 
     { id: "broth", title: "Broth and sugar",
       effort: ["hot"], minutes: 3,
       uses: ["broth", "sugar"],
       go: [
-        "Pour the broth in and scrape the bottom of the pot while you do it.",
-        "Sugar in. Bring it up until it bubbles slowly."
+        "Pour in the broth, scraping the bottom as you go.",
+        "Add the sugar. Bring to a slow bubble."
       ],
-      why: "The sugar is here to answer the salt you put on the beef, not to make it sweet." },
+      why: "The sugar balances the salt; it won't taste sweet." },
 
     { id: "simmer", title: "Simmer",
       effort: ["wait"], minutes: 15, timer: 15,
       go: [
-        "Lid off, heat low, a lazy bubble.",
-        "Stir every few minutes so nothing catches on the bottom.",
-        "Fifteen minutes is enough. Longer is better, and an hour is better still."
+        "Lid off, low heat, a lazy bubble.",
+        "Stir every few minutes so nothing sticks.",
+        "15 minutes is enough; an hour is better."
       ],
-      why: "Lid off matters — that's how it thickens.",
-      bigPotNote: "Bigger pot, more time: give it 25–30 minutes at this size." },
+      why: "Keep the lid off — that's how it thickens.",
+      bigPotNote: "At this size, give it 25–30 minutes." },
 
     { id: "taste", title: "Taste, then control",
       effort: ["sit"], minutes: 5,
       go: [
-        "Take a spoonful off the middle of the pot and let it cool a second.",
-        "Then use the card below — one change at a time, stir, wait a minute, taste again."
+        "Taste a cooled spoonful from the middle of the pot.",
+        "Use the card below. One change at a time: stir, wait a minute, taste again."
       ],
-      why: "This step is the actual recipe. Everything above it is just getting to a pot worth adjusting." },
+      why: "This is where it becomes your chili." },
 
     { id: "serve", title: "Bowls",
       effort: ["sit"], minutes: 5,
       go: [
-        "Shredded cheddar first, so it melts into it. Then sour cream, onion, whatever else is in the door of the fridge.",
-        "Cornbread, oyster crackers, or Fritos, which the kids will pick anyway."
+        "Cheddar first so it melts, then sour cream, onion, whatever's in the fridge.",
+        "Serve with cornbread, oyster crackers or Fritos."
       ] }
   ],
 
   /* the taste-and-control card. `per` is per pound of beef. */
   taste: [
     { id: "flat", karl: true,
-      when: "It tastes like… not much.",
+      when: "It tastes like not much.",
       fix: "Salt", item: "salt", per: 0.25,
-      how: "Stir it in, wait a full minute, taste again. Salt doesn't add a flavour — it turns up every flavour already in the pot, and it needs a moment to spread." },
+      how: "Stir in, wait a full minute, taste. Salt turns up every flavour already there." },
 
     { id: "savoury", karl: true,
-      when: "It's heavy and savoury, with nothing to balance it.",
+      when: "Heavy and savoury, nothing to balance it.",
       fix: "Sugar", item: "sugar", per: 0.25,
-      how: "This is the answer to having salted the meat. You are not making it sweet; you're giving the salt something to push against." },
+      how: "Balances the salt. It won't taste sweet." },
 
     { id: "meaty", karl: true,
-      when: "You taste meat and beans — not chili.",
-      fix: "Chili powder", item: "chili", per: 1,
-      how: "In, stirred, then two minutes of simmering before you judge it. Powder tastes raw for the first minute. This is the one to keep reaching for until it's right." },
+      when: "Tastes like meat and beans, not chili.",
+      fix: "The chili powder you kept back", item: "chili", per: 1.5,
+      how: "Stir it all in and simmer two minutes before tasting — it tastes raw at first. Still not there? Add more from the jar, a little at a time." },
+
+    { id: "mild",
+      when: "Not hot enough for the grown-ups.",
+      fix: "Cayenne", item: "cayenne", per: 0.125,
+      how: "A pinch at a time; wait two minutes between. Heat builds as it sits. Feeding kids? Add it to the grown-up bowls instead." },
 
     { id: "hot",
       when: "Too spicy for the kids.",
-      fix: "Broth, and a little sugar", item: "broth", per: 60,
-      how: "Broth to dilute, a pinch of sugar to soften the edge, and a bowl with sour cream stirred in fixes almost anything. Don't chase it with more tomato — that flattens it." },
+      fix: "Broth, and a pinch of sugar", item: "broth", per: 60,
+      how: "Broth dilutes, sugar softens, and sour cream in the bowl does the rest. Next time: seed the jalapeño and skip the cayenne and chipotle." },
 
     { id: "thin",
-      when: "Too thin, more soup than chili.",
+      when: "Too thin — more soup than chili.",
       fix: "Time, lid off",
-      how: "Ten more minutes at a lazy bubble with nothing over it. Thickening chili is almost always evaporation, not flour." },
+      how: "Ten more minutes at a lazy bubble, uncovered." },
 
     { id: "thick",
-      when: "Too thick, or it's catching on the bottom.",
+      when: "Too thick, or sticking to the bottom.",
       fix: "Broth", item: "broth", per: 60,
-      how: "A splash at a time, heat down, and scrape the bottom properly with a flat spoon." }
+      how: "A splash at a time. Turn the heat down and scrape the bottom." }
   ],
 
   notes: [
     { title: "It's better tomorrow",
-      body: "Every part of this improves overnight in the fridge. Make it the day before if you can; reheat it low and slow with a splash of broth." },
+      body: "It improves overnight. Reheat low with a splash of broth." },
     { title: "Keeping it",
-      body: "Four days in the fridge, three months in the freezer. Freeze it flat in bags and it thaws in minutes." },
+      body: "Four days in the fridge, three months frozen. Freeze it flat in bags to thaw fast." },
     { title: "Where the numbers came from",
-      body: "The pot I make is three pounds of beef, two large onions, three cans of fire-roasted tomatoes, six cans of beans and a quart of broth. Everything on this page is that pot divided by three, so at the 3 lb setting you are looking at the original, unrounded." }
-  ]
+      body: "My pot is three pounds of beef, two large onions, three cans of tomatoes, six cans of beans and a quart of broth. The 3 lb setting is that pot exactly; everything else is scaled from it." }
+  ],
+
+  /* ---- the vegetarian pot -----------------------------------------
+     Same dial, same spice, same beans. Plant-based ground stands in for
+     the beef pound for pound; what the beef brought besides itself has
+     to be put back on purpose: fat to brown in and bloom the spices
+     (oil), and the deep savoury note (a little soy sauce). Nothing
+     renders out, so the fat step goes.                                */
+  swaps: {
+    veg: {
+      label: "Vegetarian",
+      protein: "plant-based ground",
+      dialTitle: "How much plant-based ground have you got?",
+      dialOf: "of plant-based ground",
+      items: {
+        beef:  { name: "Plant-based ground (Impossible, Beyond or similar)", short: "plant-based ground",
+                 note: "Swap it pound for pound. Or use 1 cup dry brown lentils per pound, cooked until just tender." },
+        salt:  { name: "Kosher salt, for the crumbles" },
+        broth: { name: "Vegetable broth", short: "vegetable broth",
+                 note: "A rich one — mushroom broth is best." }
+      },
+      add: [
+        { after: "salt", item: { id: "oil", group: "meat", name: "Olive or vegetable oil", short: "oil", measure: "volume", per: 15,
+          note: "Replaces the beef fat, so the spices have something to bloom in." } },
+        { after: "sugar", item: { id: "soy", group: "pantry", name: "Soy sauce", short: "soy sauce", measure: "spice", per: 1,
+          note: "Adds the savoury depth beef would. You won't taste the soy." } }
+      ],
+      drop: ["fat"],
+      steps: {
+        brown: { title: "Brown the crumbles",
+          uses: ["oil", "beef", "salt"],
+          go: [
+            "Big pot, medium-high heat. Add the oil and let it shimmer.",
+            "Add the crumbles and salt. Break them up, then let them sit a minute at a time to brown.",
+            "Done when the edges are crisp and brown. Don't stir it to mush."
+          ],
+          why: "It browns faster than beef and gives off no fat — the oil does that job." },
+        veg: { go: [
+            "Add them to the crumbles.",
+            "Stir now and then until the onion is soft and clear, 4–5 minutes."
+          ] },
+        broth: { title: "Broth, soy and sugar",
+          uses: ["broth", "soy", "sugar"],
+          go: [
+            "Pour in the broth, scraping the bottom as you go.",
+            "Add the soy sauce and sugar. Bring to a slow bubble."
+          ] }
+      }
+    }
+  }
 };
 
 })();

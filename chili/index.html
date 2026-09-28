@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A chili recipe that does its own arithmetic: set how much beef you have and every amount scales, in American or metric measures, with the steps in order and one step at a time for anyone who cooks sitting down.">
+<meta name="description" content="A chili recipe that scales itself: set how much beef you have and every amount follows, in American or metric, with a vegetarian swap and a one-step-at-a-time cook mode.">
 <meta name="theme-color" content="#fbf5ea">
 <link rel="canonical" href="https://kmay89.com/chili/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Karl Meves">
 <meta property="og:title" content="Kitchen Table Chili — a recipe that scales itself">
-<meta property="og:description" content="Set how much beef you have; the whole pot rescales. American or metric, whole cans or exact, and a cook-with-me mode built for hands that tire.">
+<meta property="og:description" content="Set how much beef you have and the whole pot rescales. American or metric, beef or vegetarian, and a cook mode built for tired hands.">
 <meta property="og:url" content="https://kmay89.com/chili/">
 <meta name="twitter:card" content="summary">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -98,6 +98,17 @@
   .beef{font-size:clamp(2rem,6vw,2.8rem);font-weight:600;min-width:6.5ch;text-align:center}
   .beef-of{font-family:var(--mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
   .presets{display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 1rem}
+  /* the swap: first thing in the dial, two big halves, impossible to miss */
+  .pot-pick{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;margin-bottom:1.1rem}
+  .pot{
+    flex:1;min-height:3.6rem;border:0;background:var(--paper);color:var(--ink);
+    font:inherit;font-size:1.1rem;font-weight:600;cursor:pointer;padding:.6rem 1rem;
+  }
+  .pot + .pot{border-left:2px solid var(--edge)}
+  .pot:hover{background:color-mix(in srgb,var(--lamp) 30%,var(--paper))}
+  #potBeef.on{background:var(--chili);color:var(--paper)}
+  #potVeg.on{background:var(--green);color:var(--paper)}
+  .uses li.held{border-style:dashed;opacity:.85}
   .preset{
     min-height:3rem;padding:.5rem 1rem;border:2px solid var(--line);border-radius:12px;
     background:var(--paper);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer;
@@ -311,20 +322,22 @@
   <a class="back" href="/">&larr; Back to the desk</a>
   <p class="eyebrow">The kitchen table</p>
   <h1>Kitchen Table Chili</h1>
-  <p class="tagline">The pot I actually make, divided by three so you can test it against yours.</p>
-  <p class="intro">Medium-spicy, thick, kid-approved. It is not a competition chili and doesn&rsquo;t want to be
-  &mdash; it wants to be a bowl on a Tuesday with cheese melting into it. Every amount below is written per
-  pound of beef. Turn the dial and the whole pot follows: cans, spoons, broth, bowls, and the size of pot
-  you&rsquo;ll need.</p>
+  <p class="tagline">The pot I actually make, scaled to whatever you&rsquo;ve got.</p>
+  <p class="intro">Thick, well spiced and kid-approved &mdash; the heat is in parts you can leave out. Set how
+  much you&rsquo;re cooking and every amount follows, down to the size of pot.</p>
 </header>
 
 <section class="dial" aria-labelledby="dialTitle">
+  <div class="pot-pick" role="group" aria-label="Which pot">
+    <button class="pot on" id="potBeef" aria-pressed="true"><span aria-hidden="true">🥩</span> Beef</button>
+    <button class="pot" id="potVeg" aria-pressed="false"><span aria-hidden="true">🌱</span> Vegetarian</button>
+  </div>
   <h2 id="dialTitle">How much beef have you got?</h2>
   <div class="stepper">
     <button class="round" id="less" aria-label="Less beef">&minus;</button>
     <div class="beef" id="beefAmount" aria-live="polite">1 lb</div>
     <button class="round" id="more" aria-label="More beef">+</button>
-    <span class="beef-of">of 80/20 ground beef</span>
+    <span class="beef-of" id="beefOf">of 80/20 ground beef</span>
   </div>
   <div class="presets" id="presets" role="group" aria-label="Common batch sizes"></div>
   <p class="yield" id="yieldLine" aria-live="polite"></p>
@@ -349,7 +362,7 @@
 
   <section class="card" aria-labelledby="shopTitle">
     <h2 id="shopTitle">What goes in</h2>
-    <p class="lede">Tap a box as you buy it or set it out. It remembers.</p>
+    <p class="lede">Tick things off as you go. It remembers.</p>
     <div id="shoppingBody"></div>
     <p class="note" id="roundNote" hidden></p>
     <div class="row">
@@ -360,16 +373,15 @@
 
   <section class="card" id="steps" aria-labelledby="stepsTitle">
     <h2 id="stepsTitle">The order of things</h2>
-    <p class="lede">Eleven steps, about an hour, most of it standing still. The tags say which ones are hot,
-    which are heavy enough to be worth sharing, and which can be done sitting down.</p>
+    <p class="lede">About an hour, mostly simmering. Tags show which steps are hot, which are heavy, and
+    which can be done sitting down.</p>
     <ol class="steps" id="stepList"></ol>
   </section>
 
   <section class="card" aria-labelledby="tasteTitle">
     <h2 id="tasteTitle">Taste, then control</h2>
-    <p class="lede">This is the actual recipe. Find what it tastes like on the left, do the thing on the right,
-    then stir, wait a minute and taste again. One change at a time. The three with a red edge are the ones I
-    reach for every single time.</p>
+    <p class="lede">Find what it tastes like, make that one change, stir, wait a minute, taste again. The three
+    with a red edge are the ones I use every time.</p>
     <ul class="fixes" id="tasteList"></ul>
   </section>
 
@@ -407,7 +419,7 @@
   <a href="/">The desk</a>
   <a href="/accessibility/">Accessibility</a>
   <a href="https://github.com/kmay89/ABOUT" rel="noopener">Source</a>
-  <p style="margin-top:.8rem">The numbers live in <code>recipe.js</code> &mdash; one file, per pound of beef.
+  <p style="margin-top:.8rem">Every amount lives in <code>recipe.js</code>, per pound of beef.
   &copy; 2026 Karl Meves &middot; ERRER Labs</p>
 </footer>
 
