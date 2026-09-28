@@ -269,7 +269,7 @@ function amountOf(it, plan, part) {
     if (it.hold && !part) out.alt += " · " + spice(it.hold * m) + " of it kept back to taste";
   } else if (it.measure === "can") {
     var can = R.cans[it.can], cans = plan[it.id];
-    if (cans <= 0) { out.main = "none at this size"; out.alt = "it rounds away — turn off whole cans to use part of one"; return out; }
+    if (cans <= 0) { out.main = "none at this size"; out.alt = "turn off whole cans to use part of one"; return out; }
     out.main = frac(cans, [2, 4, 3]) + " " + plural("can", cans);
     out.alt = can.oz + " oz / " + can.g + " g " + plural("can", 2) +
       (it.drain ? " · ≈ " + mass(cans * can.usableG, sys) + " drained" : "");
@@ -337,9 +337,9 @@ function esc(s) {
 }
 
 var EFFORT = {
-  sit:  { label: "Can be done sitting", cls: "e-sit" },
+  sit:  { label: "Can sit", cls: "e-sit" },
   hot:  { label: "Hot pan", cls: "e-hot" },
-  lift: { label: "Heavy — share this one", cls: "e-lift" },
+  lift: { label: "Heavy — get help", cls: "e-lift" },
   wait: { label: "Mostly waiting", cls: "e-wait" }
 };
 
@@ -355,7 +355,7 @@ function renderDial() {
   var s = servings();
   $("yieldLine").textContent =
     "≈ " + volume(s.ml, state.sys) + " — about " + s.bowls + " big " + plural("bowl", s.bowls) +
-    " or " + s.kids + " kid " + plural("bowl", s.kids) + ". You want " + potLine() + ".";
+    " or " + s.kids + " kid " + plural("bowl", s.kids) + ". Use " + potLine() + ".";
 
   var pre = PRESETS[state.sys].map(function (p) {
     var on = Math.abs(p.g - state.grams) < 1;
@@ -404,9 +404,9 @@ function renderShopping() {
   $("shoppingBody").innerHTML = html;
   $("roundNote").hidden = !rounded.length;
   if (rounded.length) {
-    $("roundNote").textContent = "At this size " + rounded.join(" and ") +
-      " round away to nothing. Turn off “whole cans” to use part of a can instead — " +
-      "or leave it: the beans still add up.";
+    $("roundNote").textContent = "At this size, no " + rounded.map(function (n) { return n.toLowerCase(); }).join(" or ") +
+      ". Turn off “whole cans” to use part of a can — " +
+      "or skip them; the total is still right.";
   }
 }
 
@@ -548,7 +548,7 @@ function timerHtml(step) {
     '<span class="clock' + (mine && timer.running ? " ticking" : "") + '">' + clock(left) + "</span>" +
     '<button class="ghost" data-tstart="' + step.id + '">' + (mine && timer.running ? "Pause" : "Start the timer") + "</button>" +
     (mine ? '<button class="ghost" data-treset="' + step.id + '">Reset</button>' : "") +
-    '<span class="timer-note">Optional. Nothing here is on a clock.</span></div>';
+    '<span class="timer-note">Optional.</span></div>';
 }
 function clock(sec) {
   sec = Math.max(0, Math.round(sec));
@@ -723,7 +723,7 @@ function init() {
     state.voice = !state.voice;
     if (!state.voice && "speechSynthesis" in window) speechSynthesis.cancel();
     save(); render();
-    if (state.voice) speak("Reading steps out loud is on.");
+    if (state.voice) speak("Reading steps aloud.");
   });
 
   $("tabAll").addEventListener("click", function () { setView("all"); });
