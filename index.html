@@ -284,6 +284,13 @@
   @keyframes led{0%,100%{opacity:1}50%{opacity:.15}}
   /* the lamp's filament breathes, the tube hums, and with the lamp off
      the moon comes up to fill the room it now has to itself */
+  .glint{animation:glint 5.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;opacity:0}
+  @keyframes glint{
+    0%,62%,100%{opacity:0;transform:scale(.2) rotate(0deg)}
+    72%{opacity:1;transform:scale(1) rotate(25deg)}
+    80%{opacity:.55;transform:scale(.7) rotate(40deg)}
+    88%{opacity:.9;transform:scale(.9) rotate(50deg)}
+  }
   .lampfx{animation:lampfx 6.5s steps(1) infinite}
   @keyframes lampfx{0%,100%{opacity:1}31%{opacity:.9}33%{opacity:1}71%{opacity:.94}72%{opacity:.86}74%{opacity:1}}
   .crtfx{animation:crtfx 3.2s ease-in-out infinite}
@@ -754,6 +761,7 @@
     #swLever,#swGlow,#darkness,#eggWall,.scene,.intro{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     .lampfx,.crtfx{animation:none}
+    .glint{animation:none;opacity:.7;transform:none}
     #moon{transition:none}
     html{scroll-behavior:auto}
   }
@@ -1000,6 +1008,18 @@
     s += isoEllipse(cx,cy,z+h,r,"url(#litTopR)",NO);
     return s;
   }
+  /* A glint: a hot white core and a four-point star, the way a lens draws
+     a point of light. Outer group places it, inner group twinkles (CSS
+     transforms would otherwise overwrite the placing transform). */
+  function glint(x,y,s,delay){
+    var t = (s * .13).toFixed(2), S = s.toFixed(1);
+    return '<g transform="translate(' + x.toFixed(1) + " " + y.toFixed(1) + ')" style="pointer-events:none">' +
+      '<g class="glint" style="animation-delay:-' + delay + 's">' +
+      '<circle r="' + (s * .95).toFixed(1) + '" fill="url(#glintCore)"/>' +
+      '<path d="M0 -' + S + " L" + t + " -" + t + " L" + S + " 0 L" + t + " " + t + " L0 " + S + " L-" + t + " " + t +
+        " L-" + S + " 0 L-" + t + " -" + t + 'Z" fill="#fff"/>' +
+      '</g></g>';
+  }
   function txt(x,y,str,size,fill,extra){
     return '<text x="' + x + '" y="' + y + '" font-size="' + size + '" fill="' + fill + '" ' + (extra || "") + ">" + str + "</text>";
   }
@@ -1062,13 +1082,33 @@
     '<filter id="plaster" filterUnits="objectBoundingBox" x="0" y="0" width="1" height="1">' +
       '<feTurbulence type="fractalNoise" baseFrequency=".32" numOctaves="2" seed="3"/>' +
       '<feColorMatrix values="1.9 0 0 0 -.45  1.9 0 0 0 -.46  1.9 0 0 0 -.48  0 0 0 0 1"/></filter>' +
+    // the disc, the glass, and the light they throw
+    '<radialGradient id="cdSilver" cx=".42" cy=".38" r=".7">' +
+      '<stop offset="0" stop-color="#f4f8fa"/><stop offset=".45" stop-color="#c9d3d9"/>' +
+      '<stop offset=".8" stop-color="#96a3ab"/><stop offset="1" stop-color="#dfe8ec"/></radialGradient>' +
+    '<filter id="cdSmooth" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".7"/></filter>' +
+    '<filter id="caustic" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="1.6"/></filter>' +
+    '<radialGradient id="fanFadeG" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="70">' +
+      '<stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#fff" stop-opacity=".85"/>' +
+      '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+    '<mask id="fanFade" maskUnits="userSpaceOnUse" x="-80" y="-80" width="160" height="160">' +
+      '<circle r="72" fill="url(#fanFadeG)"/></mask>' +
+    '<linearGradient id="beamIn" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff8e8" stop-opacity=".55"/></linearGradient>' +
+    '<linearGradient id="glassFace" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#eaf6ff" stop-opacity=".42"/><stop offset=".5" stop-color="#bfe0f2" stop-opacity=".12"/>' +
+      '<stop offset="1" stop-color="#9cc8e2" stop-opacity=".30"/></linearGradient>' +
+    '<linearGradient id="spectrumIn" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#ff4d4d"/><stop offset=".2" stop-color="#ffa13d"/><stop offset=".4" stop-color="#ffe86a"/>' +
+      '<stop offset=".6" stop-color="#5de8a0"/><stop offset=".8" stop-color="#5cc8ff"/><stop offset="1" stop-color="#9a7dff"/></linearGradient>' +
+    '<radialGradient id="glintCore" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".3" stop-color="#fff6e4" stop-opacity=".45"/>' +
+      '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
     '<radialGradient id="floorShadow" cx=".5" cy=".5" r=".5">' +
       '<stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".7" stop-color="#000" stop-opacity=".22"/>' +
       '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
     '<linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">' +
       '<stop offset="0" stop-color="#a06a3e"/><stop offset=".55" stop-color="#8a5734"/><stop offset="1" stop-color="#754828"/></linearGradient>' +
-    '<radialGradient id="disc" cx=".4" cy=".4" r=".75">' +
-      '<stop offset="0" stop-color="#e9fbff"/><stop offset=".45" stop-color="#9fdcec"/><stop offset=".75" stop-color="#5fb4cc"/><stop offset="1" stop-color="#b8eaf6"/></radialGradient>' +
     '<radialGradient id="camGrad" cx=".35" cy=".3" r=".9">' +
       '<stop offset="0" stop-color="#c6d8f2"/><stop offset=".55" stop-color="#7f97ba"/><stop offset="1" stop-color="#46536d"/></radialGradient>' +
     '<radialGradient id="screenGlow" cx=".5" cy=".5" r=".7">' +
@@ -1881,26 +1921,44 @@
   })();
   S.push(wrapObj("mandel","The impossible object — a living fractal","#c77dff",imp));
 
-  /* ---------- prism: a wedge of glass, quietly taking light apart ---------- */
+  /* ---------- prism: a wedge of glass, quietly taking light apart ----------
+     A thin white beam comes in from the lamp side, bends, and leaves as a
+     spectrum: forty narrow wedges walking the hue wheel from red to violet,
+     blurred just enough that the bands melt into each other the way a real
+     caustic does, and faded out with distance by a radial mask. The fan
+     sways a few degrees as you move, because a caustic moves when you do. */
   var pri = "";
   (function(){
-    // rainbow caustic fanning across the desk from the prism's far side
-    var RB = ["#ff5d5d","#ff9a3d","#ffe37a","#63e6a9","#7cd7e8","#8a7dff"];
-    var fan = "";
-    for (var i = 0; i < RB.length; i++){
-      var a0 = -0.42 + i * 0.115, a1 = a0 + 0.125;
-      fan += '<path d="M0 0 L' + (46 * Math.cos(a0)).toFixed(1) + " " + (46 * Math.sin(a0)).toFixed(1) +
-        " L" + (46 * Math.cos(a1)).toFixed(1) + " " + (46 * Math.sin(a1)).toFixed(1) + ' Z" fill="' + RB[i] + '" opacity=".28"/>';
+    var N = 40, spread = 0.78, fan = "";
+    for (var i = 0; i < N; i++){
+      var a0 = -spread/2 + spread * i / N, a1 = a0 + spread / N + 0.004;
+      var hue = Math.round(i / (N - 1) * 275);
+      fan += '<path d="M2 0 L' + (70 * Math.cos(a0)).toFixed(1) + " " + (70 * Math.sin(a0)).toFixed(1) +
+        " L" + (70 * Math.cos(a1)).toFixed(1) + " " + (70 * Math.sin(a1)).toFixed(1) +
+        ' Z" fill="hsl(' + hue + ',100%,62%)"/>';
     }
-    pri += gTop(122,124,0, '<g transform="rotate(24)">' + fan + "</g>");
+    pri += gTop(122,124,0,
+      '<g id="prismFan" transform="rotate(24)">' +
+        // the white beam arriving
+        '<polygon points="-58,-2.6 -58,2.6 0,1 0,-1" fill="url(#beamIn)" filter="url(#caustic)"/>' +
+        // the spectrum leaving
+        '<g mask="url(#fanFade)" style="mix-blend-mode:screen" opacity=".9" filter="url(#caustic)">' + fan + '</g>' +
+        '<ellipse cx="4" cy="0" rx="7" ry="3" fill="#fff" opacity=".35" filter="url(#caustic)"/>' +
+      '</g>');
     var b = P(117,119,0); // glass wedge, standing
+    function pt(dx,dy){ return (b[0]+dx) + "," + (b[1]+dy); }
     pri += '<g>' +
-      '<polygon points="' + (b[0]-15) + "," + b[1] + " " + (b[0]+15) + "," + b[1] + " " + b[0] + "," + (b[1]-27) +
-        '" fill="rgba(190,225,245,.20)" stroke="rgba(210,235,250,.75)" stroke-width="1.6" stroke-linejoin="round"/>' +
-      '<polygon points="' + (b[0]-15) + "," + b[1] + " " + (b[0]-9) + "," + (b[1]+5) + " " + (b[0]+21) + "," + (b[1]+5) + " " + (b[0]+15) + "," + b[1] +
-        '" fill="rgba(160,200,225,.30)" stroke="rgba(210,235,250,.5)" stroke-width="1.2"/>' +
-      '<path d="M' + (b[0]-6) + " " + (b[1]-6) + " L" + (b[0]-1) + " " + (b[1]-16) + '" stroke="rgba(255,255,255,.8)" stroke-width="1.6" stroke-linecap="round"/>' +
-      '<circle cx="' + (b[0]+8) + '" cy="' + (b[1]-9) + '" r="1.1" fill="#fff" class="led"/></g>';
+      // front face and the base, glass with depth rather than a tint
+      '<polygon points="' + pt(-15,0) + " " + pt(15,0) + " " + pt(0,-27) + '" fill="url(#glassFace)" stroke="rgba(225,242,252,.85)" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<polygon points="' + pt(-15,0) + " " + pt(-9,5) + " " + pt(21,5) + " " + pt(15,0) + '" fill="rgba(160,200,225,.32)" stroke="rgba(210,235,250,.55)" stroke-width="1.1"/>' +
+      '<polygon points="' + pt(15,0) + " " + pt(21,5) + " " + pt(6,-22) + " " + pt(0,-27) + '" fill="rgba(200,230,250,.14)" stroke="rgba(210,235,250,.45)" stroke-width="1"/>' +
+      // the split, seen inside the glass: a rainbow sliver along the far face
+      '<polygon points="' + pt(3,-19) + " " + pt(12,-2) + " " + pt(9.5,-2) + " " + pt(1.5,-16) + '" fill="url(#spectrumIn)" opacity=".9"/>' +
+      // edge highlights
+      '<path d="M' + pt(-6,-6) + " L" + pt(-1,-16) + '" stroke="rgba(255,255,255,.9)" stroke-width="1.5" stroke-linecap="round"/>' +
+      '<path d="M' + pt(-13,-1) + " L" + pt(-1.5,-24) + '" stroke="rgba(255,255,255,.45)" stroke-width=".8" stroke-linecap="round"/>' +
+      glint(b[0], b[1]-27, 7, 0) + glint(b[0]+15, b[1], 4.5, 1.9) +
+      '</g>';
   })();
   S.push(wrapObj("prism","A glass prism — light, taken apart","#ff5fd0",pri));
 
@@ -1915,11 +1973,36 @@
     txt(44,49,"Echoes of Us",9,"#e8f4f7",SERIF + ' font-style="italic"') +
     txt(44,58,"I · II · III",7,"#9db8c2",MONO));
   jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}); // tray
-  jc += isoEllipse(428,332,5,34,"url(#disc)");
-  jc += isoEllipse(428,332,5,10,"#d8e6ea");
-  jc += isoEllipse(428,332,5,4,"#39434e",'stroke="none"');
-  var arc = P(428,332,5);
-  jc += '<path d="M' + (arc[0]-38) + " " + (arc[1]-8) + " A 46 23 0 0 1 " + (arc[0]+20) + " " + (arc[1]-20) + '" fill="none" stroke="#ffffff" stroke-width="3" opacity=".55"/>';
+  /* The disc. A CD is a diffraction grating wound into a spiral, so what
+     you see is not a colour but a bow-tie: two opposite lobes of rainbow
+     that swing round the hub as your eye moves. Drawn as a hundred and
+     twenty thin sectors in the plane of the disc, each with its own hue and
+     brightness, then turned by the pointer (see "the disc turns" below). */
+  jc += isoEllipse(428,332,5,34,"url(#cdSilver)");
+  (function(){
+    var N = 120, bow = "", R0 = 11.5, R1 = 33.6;
+    for (var k = 0; k < N; k++){
+      var t0 = k / N * Math.PI * 2, t1 = (k + 1.08) / N * Math.PI * 2, tm = (t0 + t1) / 2;
+      var lobe = Math.pow(Math.max(0, Math.cos(2 * tm)), 2.2);
+      if (lobe < 0.02) continue;
+      var hue = Math.round(((tm % Math.PI) / Math.PI + 0.75) % 1 * 300);
+      function pp(r,t){ return (r * Math.cos(t)).toFixed(2) + " " + (r * Math.sin(t)).toFixed(2); }
+      bow += '<path d="M' + pp(R0,t0) + " L" + pp(R1,t0) + " A" + R1 + " " + R1 + " 0 0 1 " + pp(R1,t1) +
+        " L" + pp(R0,t1) + " A" + R0 + " " + R0 + ' 0 0 0 ' + pp(R0,t0) + 'Z" fill="hsl(' + hue + ',95%,62%)" opacity="' + (0.9 * lobe).toFixed(2) + '"/>';
+    }
+    var rings = "";
+    [15,19,23.5,28,31.5].forEach(function(r){
+      rings += '<circle r="' + r + '" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".5"/>';
+    });
+    jc += gTop(428,332,5,
+      '<g id="cdBow" transform="rotate(-30)" filter="url(#cdSmooth)">' + bow + '</g>' + rings +
+      '<circle r="33.6" fill="none" stroke="rgba(255,255,255,.55)" stroke-width=".8"/>' +
+      '<circle r="11.5" fill="rgba(215,232,240,.55)" stroke="rgba(255,255,255,.6)" stroke-width=".6"/>' +
+      '<circle r="8" fill="rgba(170,190,200,.35)" stroke="rgba(255,255,255,.35)" stroke-width=".5"/>' +
+      '<circle r="4" fill="#39434e"/>');
+    var g1 = P(414,320,5), g2 = P(447,345,5);
+    jc += glint(g1[0], g1[1], 8, 0.6) + glint(g2[0], g2[1], 5, 2.7);
+  })();
   S.push(wrapObj("vinyl","ERRER Labs · Aethra Kairos","#7cd7e8",jc));
 
   /* ---------- charm: floppy + sticky note (front-right) ---------- */
@@ -3909,6 +3992,24 @@
         raf = null;
         iso.style.setProperty("--px", (mx * -10).toFixed(1) + "px");
         iso.style.setProperty("--py", (my * -6).toFixed(1) + "px");
+      });
+    });
+  }
+
+  /* ---------------- the disc turns, the caustic sways ----------------
+     Real diffraction moves with the viewer's eye, so the CD's rainbow
+     swings round its hub and the prism's fan leans a few degrees as the
+     pointer crosses the room. Eased toward the target so it glides. */
+  var cdBow = document.getElementById("cdBow"), pFan = document.getElementById("prismFan");
+  if (cdBow && pFan && !REDUCED && matchMedia("(pointer: fine)").matches){
+    var tgtA = 0, curA = 0, lightRaf = null;
+    document.getElementById("scene").addEventListener("pointermove", function(e){
+      tgtA = e.clientX / innerWidth - 0.5 + (e.clientY / innerHeight - 0.5) * 0.4;
+      if (!lightRaf) lightRaf = requestAnimationFrame(function ease(){
+        curA += (tgtA - curA) * 0.12;
+        cdBow.setAttribute("transform", "rotate(" + (-30 + curA * 150).toFixed(1) + ")");
+        pFan.setAttribute("transform", "rotate(" + (24 + curA * 14).toFixed(1) + ")");
+        lightRaf = Math.abs(tgtA - curA) > 0.002 ? requestAnimationFrame(ease) : null;
       });
     });
   }
