@@ -282,6 +282,14 @@
   }
   .led{animation:led 2.2s ease-in-out infinite}
   @keyframes led{0%,100%{opacity:1}50%{opacity:.15}}
+  /* the lamp's filament breathes, the tube hums, and with the lamp off
+     the moon comes up to fill the room it now has to itself */
+  .lampfx{animation:lampfx 6.5s steps(1) infinite}
+  @keyframes lampfx{0%,100%{opacity:1}31%{opacity:.9}33%{opacity:1}71%{opacity:.94}72%{opacity:.86}74%{opacity:1}}
+  .crtfx{animation:crtfx 3.2s ease-in-out infinite}
+  @keyframes crtfx{0%,100%{opacity:1}50%{opacity:.8}}
+  #moon{opacity:.8;transition:opacity 1.4s ease .3s}
+  body.lights-out #moon{opacity:1;filter:brightness(1.3) saturate(1.4)}
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
   .flutter{animation:flutter 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
@@ -745,6 +753,8 @@
     .pool-warm,.pool-cool{transition:none}
     #swLever,#swGlow,#darkness,#eggWall,.scene,.intro{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
+    .lampfx,.crtfx{animation:none}
+    #moon{transition:none}
     html{scroll-behavior:auto}
   }
 </style>
@@ -1028,6 +1038,30 @@
     '<radialGradient id="bulb" cx=".5" cy=".5" r=".5">' +
       '<stop offset="0" stop-color="#fff3d6" stop-opacity=".75"/><stop offset=".25" stop-color="#ffd08a" stop-opacity=".32"/>' +
       '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
+    '<linearGradient id="streak" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#ffc97a" stop-opacity="0"/><stop offset=".5" stop-color="#ffe8c0" stop-opacity=".5"/>' +
+      '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></linearGradient>' +
+    '<radialGradient id="crtBloom" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#63e6a9" stop-opacity=".16"/><stop offset=".5" stop-color="#63e6a9" stop-opacity=".06"/>' +
+      '<stop offset="1" stop-color="#63e6a9" stop-opacity="0"/></radialGradient>' +
+    '<linearGradient id="moonShaft" gradientUnits="userSpaceOnUse" x1="180" y1="-110" x2="110" y2="190">' +
+      '<stop offset="0" stop-color="#9fbfff" stop-opacity=".20"/><stop offset=".6" stop-color="#8fb7ff" stop-opacity=".07"/>' +
+      '<stop offset="1" stop-color="#8fb7ff" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="aoL" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>' +
+    '<linearGradient id="aoR" x1="1" y1="0" x2="0" y2="0">' +
+      '<stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>' +
+    '<radialGradient id="grade" cx=".5" cy=".5" r=".5" fx=".36" fy=".42">' +
+      '<stop offset="0" stop-color="#ffb468" stop-opacity=".42"/><stop offset=".35" stop-color="#ff9a52" stop-opacity=".12"/>' +
+      '<stop offset=".64" stop-color="#15384a" stop-opacity=".22"/><stop offset="1" stop-color="#15384a" stop-opacity="0"/></radialGradient>' +
+    // textures, grown rather than shipped: turbulence stretched along one
+    // axis is wood; left round and slow it is old plaster
+    '<filter id="woodTex" filterUnits="userSpaceOnUse" x="0" y="0" width="560" height="380">' +
+      '<feTurbulence type="fractalNoise" baseFrequency=".0035 .085" numOctaves="4" seed="11"/>' +
+      '<feColorMatrix values="-.9 0 0 0 1.38  -1.05 0 0 0 1.38  -1.2 0 0 0 1.38  0 0 0 0 1"/></filter>' +
+    '<filter id="plaster" filterUnits="objectBoundingBox" x="0" y="0" width="1" height="1">' +
+      '<feTurbulence type="fractalNoise" baseFrequency=".32" numOctaves="2" seed="3"/>' +
+      '<feColorMatrix values="1.9 0 0 0 -.45  1.9 0 0 0 -.46  1.9 0 0 0 -.48  0 0 0 0 1"/></filter>' +
     '<radialGradient id="floorShadow" cx=".5" cy=".5" r=".5">' +
       '<stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".7" stop-color="#000" stop-opacity=".22"/>' +
       '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
@@ -1052,6 +1086,10 @@
   /* ---------- the room: two fading walls behind the desk ---------- */
   S.push(polyW([[-30,-30,200],[-30,420,200],[-30,420,-60],[-30,-30,-60]], "url(#wallB)", 'stroke="none"'));
   S.push(polyW([[-30,-30,200],[620,-30,200],[620,-30,-60],[-30,-30,-60]], "url(#wallA)", 'stroke="none"'));
+  S.push('<g aria-hidden="true" style="mix-blend-mode:soft-light" opacity=".14">' +
+    gLeft(-30,-30,200,'<rect width="650" height="260" fill="#000" filter="url(#plaster)"/>') +
+    gRight(-30,420,200,'<rect width="450" height="260" fill="#000" filter="url(#plaster)"/>') +
+    '</g>');
   /* the lamp doesn't only light the desk: a warm bloom climbs both walls
      behind it, brightest in the corner nearest the shade, and a dark pool
      gathers on the floor under the desk where no light reaches at all */
@@ -1168,6 +1206,7 @@
   S.push(box(510,50,-180,20,280,152,"#6b4527"));
   S.push(box(50,60,-160,460,14,90,"#5d3a20"));
   S.push(box(0,0,-28,560,380,28,"#8a5734",{top:"url(#wood)"}));
+  S.push(gTop(0,0,0,'<rect width="560" height="380" fill="#fff" filter="url(#woodTex)" style="mix-blend-mode:multiply" opacity=".6"/>'));
   // wood grain + a couple of knots
   S.push(gTop(0,0,0,
     '<g stroke="#4a2c15" stroke-width="2" fill="none" opacity=".14">' +
@@ -1921,13 +1960,12 @@
     " rotate(-7)") + "</g>");
 
   /* ================================================================
-     THE LIGHT SWITCH — wall A, at the height a light switch actually
-     lives (the desk is 180 units tall, so z 120 is about waist-high on
-     the wall behind it). Everything else here is a world you pick up;
-     this is the one thing you throw. It turns the room off for real,
-     which is the only condition under which the wall has anything to
-     say. Drawn dead last, after the darkness, so it stays findable
-     when nothing else is.
+     LIGHTING PASS — everything below is light, not objects. Two sources
+     share the room the way they do in any good night scene: a warm key
+     (the lamp) and a cool fill (the moon through the window). Each is
+     drawn as the light itself — beam, pool, bloom — screen-blended so it
+     can only ever add, then one soft-light grade pulls the whole frame
+     together: warmth where the lamp reaches, teal in the shadows.
      ================================================================ */
   /* The beam. Laid over everything on the desk, screen-blended and heavily
      blurred, so it reads as light hanging in dusty air rather than as a
@@ -1944,11 +1982,77 @@
       '<polygon points="' + (m[0]-10) + "," + (m[1]-6) + " " + (m[0]+9) + "," + (m[1]+4) + " " +
         a[0].toFixed(1) + "," + a[1].toFixed(1) + " " + b[0].toFixed(1) + "," + b[1].toFixed(1) + " " +
         c[0].toFixed(1) + "," + c[1].toFixed(1) + '" fill="url(#beam)" filter="url(#haze)"/>' +
-      '<circle cx="' + m[0] + '" cy="' + m[1] + '" r="46" fill="url(#bulb)"/>' +
+      '<g class="lampfx">' +
+        '<circle cx="' + m[0] + '" cy="' + m[1] + '" r="46" fill="url(#bulb)"/>' +
+        // an anamorphic streak and two lens ghosts: the camera noticing the bulb
+        '<ellipse cx="' + m[0] + '" cy="' + m[1] + '" rx="150" ry="1.6" fill="url(#streak)"/>' +
+        '<ellipse cx="' + m[0] + '" cy="' + m[1] + '" rx="60" ry=".8" fill="#fff4dc" opacity=".55"/>' +
+        '<circle cx="' + (m[0]+118) + '" cy="' + (m[1]+64) + '" r="9" fill="none" stroke="#ffc97a" stroke-width="1.2" opacity=".16"/>' +
+        '<circle cx="' + (m[0]+190) + '" cy="' + (m[1]+103) + '" r="16" fill="#8fb7ff" opacity=".05"/>' +
+      '</g>' +
       '</g>');
   })();
 
-  S.push('<g id="darkness"aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
+
+  /* The screen is a light too: phosphor green blooming off the glass and
+     spilling onto the keys in front of it. 1999 only; the 2026 rig is LCD. */
+  (function(){
+    var sc = P(225,124,72), kb = P(245,231,10);
+    S.push('<g class="era-old" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none">' +
+      '<ellipse class="crtfx" cx="' + sc[0] + '" cy="' + sc[1] + '" rx="92" ry="66" fill="url(#crtBloom)"/>' +
+      '<ellipse cx="' + kb[0] + '" cy="' + kb[1] + '" rx="120" ry="44" fill="url(#crtBloom)" opacity=".55"/>' +
+      '</g>');
+  })();
+
+  /* Corner occlusion: where two walls meet, light has to bounce twice to
+     get in, so the seam goes darker than either wall. */
+  S.push('<g aria-hidden="true" style="pointer-events:none">' +
+    gLeft(-30,-30,200,'<rect width="70" height="260" fill="url(#aoL)"/>') +
+    gRight(-30,420,200,'<rect x="380" width="70" height="260" fill="url(#aoR)"/>') +
+    '</g>');
+
+  /* The grade. Soft-light over the whole frame: amber lifts the lamp's
+     half of the room, a deep teal sinks the far corners. */
+  // an ellipse inside the frame, faded to nothing before any edge of it
+  S.push('<ellipse cx="102" cy="162" rx="560" ry="400" fill="url(#grade)" aria-hidden="true" ' +
+    'style="mix-blend-mode:soft-light;pointer-events:none"/>');
+
+  /* ================================================================
+     THE LIGHT SWITCH — wall A, at the height a light switch actually
+     lives (the desk is 180 units tall, so z 120 is about waist-high on
+     the wall behind it). Everything else here is a world you pick up;
+     this is the one thing you throw. It turns the room off for real,
+     which is the only condition under which the wall has anything to
+     say. Drawn dead last, after the darkness, so it stays findable
+     when nothing else is.
+     ================================================================ */
+  S.push('<g id="darkness" aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
+
+
+  /* Moonlight, cast in the plane it actually lands in: every corner of the
+     window is carried along one light direction (a little right, into the
+     room, and down) until it hits the desk, so the patch on the desk is
+     the window's own shape — mullion shadow and all. Drawn after the
+     darkness, because the moon doesn't care about the light switch: with
+     the lamp off it is the only light left in the room, and it shows. */
+  (function(){
+    function hit(x,z){ return [x + z*.3, -30 + z]; }        // window point -> desk (z 0)
+    function q(pts){ return pts.map(function(p){ return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" "); }
+    var TL = P(40,-30,170), TR = P(260,-30,170), BR = P(260,-30,60);
+    var fl = hit(40,170), fr = hit(260,170), nr = hit(260,60), nl = hit(40,60);
+    var Pfr = P(fr[0],fr[1],0), Pfl = P(fl[0],fl[1],0), Pnr = P(nr[0],nr[1],0);
+    var m1 = hit(148,170), m2 = hit(148,60), m3 = hit(153,170), m4 = hit(153,60);
+    S.push('<g id="moon" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none">' +
+      // the shaft through the air
+      '<polygon points="' + q([TL,TR,BR,Pnr,Pfr,Pfl]) + '" fill="url(#moonShaft)" filter="url(#haze)"/>' +
+      // the window panes, glowing
+      gLeft(40,-30,170,'<rect x="-6" y="-6" width="232" height="122" fill="#5f86e8" opacity=".09" filter="url(#soft)"/>') +
+      // the pool on the desk, split by the mullion's shadow
+      gTop(0,0,0,'<g fill="#8fb2ff" filter="url(#soft)">' +
+        '<polygon points="' + q([nl,m2,m1,fl]) + '" opacity=".16"/>' +
+        '<polygon points="' + q([m4,nr,fr,m3]) + '" opacity=".16"/></g>') +
+      '</g>');
+  })();
 
   /* what the dark writes on the wall, in the plane of the wall itself */
   S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
@@ -3826,7 +3930,7 @@
        (out of focus, so they're barely there), and a haze of tiny ones far
        back. Near things move faster, which is all parallax is. Each mote is
        a pre-rendered sprite, so a disc of any softness costs one drawImage. */
-    function sprite(soft){
+    function sprite(soft, cool){
       var c = document.createElement("canvas"), s = 64, g;
       c.width = c.height = s;
       var x = c.getContext("2d");
@@ -3842,9 +3946,34 @@
         g.addColorStop(1, "rgba(255,214,150,0)");
       }
       x.fillStyle = g; x.fillRect(0, 0, s, s);
+      if (cool){                                      // moonlit: same mote, blue light
+        x.globalCompositeOperation = "source-atop";
+        x.fillStyle = "rgba(170,200,255,.85)"; x.fillRect(0, 0, s, s);
+      }
       return c;
     }
-    var SHARP = sprite(false), BOKEH = sprite(true);
+    var SHARP = sprite(false), BOKEH = sprite(true),
+        SHARP_C = sprite(false, true), BOKEH_C = sprite(true, true);
+    /* Where the two lights actually are on screen, found by mapping their
+       scene coordinates through the SVG's own box (so it stays right when
+       the desk is panned, letterboxed or scrolled on a phone): the mouth of
+       the lamp shade, and the middle of the moonbeam. */
+    var isoEl = document.getElementById("iso"), sceneEl = document.getElementById("scene");
+    var LAMP = {x:.42, y:.45, r:.35}, MOON = {x:.5, y:.4, r:.2}, lightsAge = 99;
+    function placeLights(){
+      var sr = sceneEl.getBoundingClientRect(), ir = isoEl.getBoundingClientRect();
+      var k = Math.min(ir.width / 1135, ir.height / 815);
+      var ox = ir.left + (ir.width - 1135 * k) / 2, oy = ir.top + (ir.height - 815 * k) / 2;
+      function at(x, y){ return { x: (ox + (x + 465) * k - sr.left) / W, y: (oy + (y + 245) * k - sr.top) / H }; }
+      var l = at(20, 130), mn = at(160, 40);
+      LAMP.x = l.x; LAMP.y = l.y; LAMP.r = 330 * k / W;
+      MOON.x = mn.x; MOON.y = mn.y; MOON.r = 190 * k / W;
+    }
+    function falloff(m, L){
+      var dx = m.x - L.x, dy = (m.y - L.y) * (H / W) * 1.1;
+      var g = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / L.r);
+      return g * g * (3 - 2 * g);
+    }
     function mote(layer){
       var near = layer === 2, far = layer === 0;
       return {
@@ -3860,11 +3989,13 @@
     for (var i = 0; i < 28; i++) motes.push(mote(0));
     for (var i2 = 0; i2 < 34; i2++) motes.push(mote(1));
     for (var i3 = 0; i3 < 9; i3++) motes.push(mote(2));
+    for (var i4 = 0; i4 < 30; i4++) motes.push(mote(i4 % 3 ? 1 : 0));   // enough to fill two beams
     var last = performance.now();
     (function frame(now){
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
-      var dark = document.body.classList.contains("lights-out");   // no lamp, no motes
+      var dark = document.body.classList.contains("lights-out");   // no lamp: only the moon lights them
+      if (++lightsAge > 20){ lightsAge = 0; placeLights(); }
       cx2.globalCompositeOperation = "lighter";
       motes.forEach(function(m){
         m.x += m.vx * dt; m.y += m.vy * dt; m.p += m.tw * dt / 16;
@@ -3872,15 +4003,15 @@
         if (m.y < -0.05){ m.y = 1.05; m.x = Math.random(); }
         if (m.x < -0.05) m.x = 1.05;
         if (m.x > 1.05) m.x = -0.05;
-        // lit only inside the lamp's reach: a soft cone falling from upper left
-        var dx = m.x - 0.42, dy = (m.y - 0.45) * 1.2;
-        var glow = dark ? 0 : Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 1.3);
-        glow = glow * glow * (3 - 2 * glow);
+        // lit only where a light reaches it: warm in the lamp, blue in the moonbeam
+        var warm = dark ? 0 : falloff(m, LAMP), cool = falloff(m, MOON) * (dark ? 1.3 : .75);
+        var isCool = cool > warm, glow = isCool ? cool : warm;
         var alpha = m.a * glow * (0.62 + 0.38 * Math.sin(m.p));
         if (alpha > 0.008){
           var d = m.r * (m.layer === 2 ? 2 : 4);
           cx2.globalAlpha = Math.min(1, alpha);
-          cx2.drawImage(m.layer === 2 ? BOKEH : SHARP, m.x * W - d/2, m.y * H - d/2, d, d);
+          cx2.drawImage(m.layer === 2 ? (isCool ? BOKEH_C : BOKEH) : (isCool ? SHARP_C : SHARP),
+            m.x * W - d/2, m.y * H - d/2, d, d);
         }
       });
       cx2.globalAlpha = 1;
