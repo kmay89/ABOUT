@@ -73,6 +73,19 @@
       linear-gradient(var(--room-deep), var(--room) 30%);
   }
   #dust{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+  /* A lens, not a screen: the corners fall off into the dark the way a room
+     at night does past the reach of one lamp, and a whisper of film grain
+     keeps the big flat gradients from banding into stripes. */
+  .scene::before,.scene::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:3;
+  }
+  .scene::before{
+    background:radial-gradient(130% 100% at 48% 42%, transparent 52%, rgba(4,3,2,.38) 80%, rgba(3,2,1,.72) 100%);
+  }
+  .scene::after{
+    opacity:.07;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
 
   .intro{
     position:relative;z-index:4;
@@ -94,7 +107,19 @@
     letter-spacing:-.01em;
     text-wrap:balance;
   }
-  .intro h1 em{font-style:italic;color:var(--lamp)}
+  .intro h1{text-shadow:0 2px 24px rgba(0,0,0,.55)}
+  .intro h1 em{
+    font-style:italic;color:var(--lamp);
+    background:linear-gradient(100deg,#ffe2b0 0%,#ffc97a 45%,#f39a4c 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    text-shadow:none;padding-right:.08em; /* keeps the italic's overhang inside the clip */
+    filter:drop-shadow(0 0 18px rgba(255,180,90,.28));
+  }
+  .eyebrow{display:flex;align-items:center;gap:.7em}
+  .eyebrow::before{
+    content:"";width:2.2em;height:1px;flex:none;
+    background:linear-gradient(90deg,transparent,var(--lamp));
+  }
   .intro .lede{
     margin-top:1rem;
     max-width:34rem;
@@ -189,16 +214,22 @@
   .tip{
     position:absolute;z-index:6;
     transform:translate(-50%,-100%);
-    background:rgba(22,15,9,.94);
-    border:1px solid var(--a,#ffc97a);
-    border-radius:5px;
-    padding:.4em .8em;
+    background:rgba(22,15,9,.78);
+    -webkit-backdrop-filter:blur(10px) saturate(1.3);backdrop-filter:blur(10px) saturate(1.3);
+    border:1px solid color-mix(in srgb, var(--a,#ffc97a) 70%, transparent);
+    border-radius:999px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45), 0 0 18px color-mix(in srgb, var(--a,#ffc97a) 25%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
+    padding:.5em 1em .5em 1.7em;
     font-family:var(--mono);
     font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;
     color:var(--ink);
     pointer-events:none;white-space:nowrap;
     opacity:0;visibility:hidden;
     transition:opacity .15s ease;
+  }
+  .tip::before{
+    content:"";position:absolute;left:.75em;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;
+    background:var(--a,#ffc97a);box-shadow:0 0 8px var(--a,#ffc97a);
   }
   .tip.show{opacity:1;visibility:visible}
   .legend{
@@ -215,8 +246,10 @@
     border-radius:999px;
     padding:.42em .95em;
     cursor:pointer;
-    transition:color .25s ease, background .25s ease;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    transition:color .25s ease, background .25s ease, box-shadow .25s ease, transform .25s cubic-bezier(.2,.9,.3,1.3);
   }
+  .legend button:hover{transform:translateY(-1px)}
   .legend button.found{color:var(--ink)}
   .legend button.found::before{content:"✓ ";color:var(--a)}
   .legend button.active{
@@ -335,15 +368,23 @@
     width:min(44rem,calc(100vw - 1.5rem));
     max-height:min(78vh,40rem);
     overflow-y:auto;
-    background:linear-gradient(160deg,#1d1610,#141009 55%);
+    background:
+      radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--a,#ffc97a) 11%, transparent), transparent 70%),
+      linear-gradient(160deg,rgba(33,25,18,.94),rgba(20,16,9,.96) 55%);
+    -webkit-backdrop-filter:blur(18px) saturate(1.2);backdrop-filter:blur(18px) saturate(1.2);
     border:1px solid color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
     border-bottom:0;
-    border-radius:14px 14px 0 0;
-    box-shadow:0 -30px 80px rgba(0,0,0,.7), 0 0 60px color-mix(in srgb, var(--a,#ffc97a) 12%, transparent);
+    border-radius:18px 18px 0 0;
+    box-shadow:0 -30px 80px rgba(0,0,0,.7), 0 0 60px color-mix(in srgb, var(--a,#ffc97a) 12%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--a,#ffc97a) 30%, rgba(255,255,255,.1));
     padding:clamp(1.25rem,3.5vw,2.25rem) clamp(1.25rem,4vw,2.5rem) clamp(1.75rem,4vw,2.5rem);
     transition:transform .45s cubic-bezier(.2,.9,.25,1);
   }
   .dossier.show{transform:translate(-50%,0)}
+  .dossier::before{
+    content:"";position:absolute;left:50%;top:.55rem;width:2.6rem;height:4px;margin-left:-1.3rem;
+    border-radius:999px;background:color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
+  }
   .d-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
   .d-kicker{
     font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;
@@ -370,10 +411,14 @@
   .d-links a{
     font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;
     color:var(--room);background:var(--a);
-    text-decoration:none;border-radius:4px;padding:.55em .9em;
-    transition:filter .2s ease;
+    text-decoration:none;border-radius:8px;padding:.6em 1em;
+    box-shadow:0 6px 18px color-mix(in srgb, var(--a) 18%, transparent), inset 0 1px 0 rgba(255,255,255,.3);
+    transition:filter .2s ease, transform .2s ease, box-shadow .2s ease;
   }
-  .d-links a:hover,.d-links a:focus-visible{filter:brightness(1.15)}
+  .d-links a:hover,.d-links a:focus-visible{
+    filter:brightness(1.12);transform:translateY(-1px);
+    box-shadow:0 10px 26px color-mix(in srgb, var(--a) 30%, transparent), inset 0 1px 0 rgba(255,255,255,.35);
+  }
   .d-links a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
   .d-links a::after{content:" ↗"}
   /* a world's front door: one big unmissable button (links with cta:true) */
@@ -695,6 +740,7 @@
     .cs-arrow{animation:none}
     .pan-cue .cl,.pan-cue .cr{animation:none}
     #eraBtn{animation:none}
+    .legend button:hover,.d-links a:hover,.d-links a:focus-visible{transform:none}
     #iso.deg .era-old > *{animation:none}
     .pool-warm,.pool-cool{transition:none}
     #swLever,#swGlow,#darkness,#eggWall,.scene,.intro{transition:none}
@@ -891,12 +937,27 @@
     return '<polygon points="' + cs.map(function(c){ return pj(c[0],c[1],c[2]); }).join(" ") + '" fill="' + fill + '" ' + (extra || OUT) + "/>";
   }
   // A box drawn with its three visible faces: left (y+d), right (x+w), top.
+  /* Each face is painted twice: once flat, the way it always was, and once
+     more with a shared light ramp laid over it — the lamp is up and to the
+     left, so tops brighten toward the back, sides darken toward the desk
+     they stand on (the contact shadow a flat fill can never have), and the
+     two edges facing the room catch a hairline of lamp. Shared gradients
+     in bounding-box units, so a hundred boxes cost three defs. */
+  var NO = 'stroke="none"';
   function box(x,y,z,w,d,h,c,o){
     o = o || {};
     var t = z + h, s = "";
-    s += polyW([[x,y+d,t],[x+w,y+d,t],[x+w,y+d,z],[x,y+d,z]], o.left  || shade(c,-.24));
-    s += polyW([[x+w,y,t],[x+w,y+d,t],[x+w,y+d,z],[x+w,y,z]], o.right || shade(c,-.08));
-    s += polyW([[x,y,t],[x+w,y,t],[x+w,y+d,t],[x,y+d,t]],     o.top   || shade(c,.20));
+    var L = [[x,y+d,t],[x+w,y+d,t],[x+w,y+d,z],[x,y+d,z]],
+        R = [[x+w,y,t],[x+w,y+d,t],[x+w,y+d,z],[x+w,y,z]],
+        T = [[x,y,t],[x+w,y,t],[x+w,y+d,t],[x,y+d,t]];
+    s += polyW(L, o.left  || shade(c,-.24));
+    if (h > 2) s += polyW(L, "url(#litL)", NO);
+    s += polyW(R, o.right || shade(c,-.08));
+    if (h > 2) s += polyW(R, "url(#litR)", NO);
+    s += polyW(T, o.top   || shade(c,.20));
+    s += polyW(T, "url(#litT)", NO);
+    s += '<path d="M' + pj(x,y+d,t) + " L" + pj(x+w,y+d,t) + " L" + pj(x+w,y,t) +
+      '" fill="none" stroke="rgba(255,238,210,.26)" stroke-width=".9" stroke-linejoin="round"/>';
     return s;
   }
   // 2D detail groups projected onto a face. Local (u,v) coords.
@@ -921,8 +982,12 @@
     var s = '<path d="M' + (pT[0]-R).toFixed(1) + " " + pT[1].toFixed(1) +
       " L" + (pB[0]-R).toFixed(1) + " " + pB[1].toFixed(1) +
       " A" + R.toFixed(1) + " " + (R/2).toFixed(1) + " 0 0 0 " + (pB[0]+R).toFixed(1) + " " + pB[1].toFixed(1) +
-      " L" + (pT[0]+R).toFixed(1) + " " + pT[1].toFixed(1) + ' Z" fill="' + shade(c,-.14) + '" ' + OUT + "/>";
+      " L" + (pT[0]+R).toFixed(1) + " " + pT[1].toFixed(1) + ' Z';
+    var body = s;
+    s = body + '" fill="' + shade(c,-.14) + '" ' + OUT + "/>";
+    s += body + '" fill="url(#litCyl)" stroke="none"/>';     // round, not flat
     s += isoEllipse(cx,cy,z+h,r,shade(c,.16));
+    s += isoEllipse(cx,cy,z+h,r,"url(#litTopR)",NO);
     return s;
   }
   function txt(x,y,str,size,fill,extra){
@@ -939,6 +1004,33 @@
   var S = [];
   S.push('<defs>' +
     '<filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>' +
+    '<filter id="haze" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>' +
+    // the light ramps every box and cylinder wears (see box())
+    '<linearGradient id="litT" x1=".15" y1="0" x2=".85" y2="1">' +
+      '<stop offset="0" stop-color="#fff1d6" stop-opacity=".16"/><stop offset=".55" stop-color="#fff1d6" stop-opacity="0"/>' +
+      '<stop offset="1" stop-color="#140a04" stop-opacity=".12"/></linearGradient>' +
+    '<linearGradient id="litL" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#ffe6c0" stop-opacity=".07"/><stop offset=".6" stop-color="#140a04" stop-opacity=".08"/>' +
+      '<stop offset="1" stop-color="#0c0602" stop-opacity=".34"/></linearGradient>' +
+    '<linearGradient id="litR" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#ffe6c0" stop-opacity=".10"/><stop offset=".55" stop-color="#140a04" stop-opacity=".04"/>' +
+      '<stop offset="1" stop-color="#0c0602" stop-opacity=".26"/></linearGradient>' +
+    '<linearGradient id="litCyl" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#0c0602" stop-opacity=".34"/><stop offset=".2" stop-color="#0c0602" stop-opacity=".06"/>' +
+      '<stop offset=".34" stop-color="#fff4e0" stop-opacity=".26"/><stop offset=".46" stop-color="#fff4e0" stop-opacity="0"/>' +
+      '<stop offset=".8" stop-color="#0c0602" stop-opacity=".14"/><stop offset="1" stop-color="#0c0602" stop-opacity=".42"/></linearGradient>' +
+    '<radialGradient id="litTopR" cx=".36" cy=".32" r=".75">' +
+      '<stop offset="0" stop-color="#fff4e0" stop-opacity=".24"/><stop offset="1" stop-color="#fff4e0" stop-opacity="0"/></radialGradient>' +
+    // lamplight: the spill it throws on the walls, and the beam through the dust
+    '<radialGradient id="spill" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#ffc97a" stop-opacity=".16"/><stop offset=".5" stop-color="#ffc97a" stop-opacity=".06"/>' +
+      '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="bulb" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#fff3d6" stop-opacity=".75"/><stop offset=".25" stop-color="#ffd08a" stop-opacity=".32"/>' +
+      '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="floorShadow" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".7" stop-color="#000" stop-opacity=".22"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
     '<linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">' +
       '<stop offset="0" stop-color="#a06a3e"/><stop offset=".55" stop-color="#8a5734"/><stop offset="1" stop-color="#754828"/></linearGradient>' +
     '<radialGradient id="disc" cx=".4" cy=".4" r=".75">' +
@@ -960,6 +1052,15 @@
   /* ---------- the room: two fading walls behind the desk ---------- */
   S.push(polyW([[-30,-30,200],[-30,420,200],[-30,420,-60],[-30,-30,-60]], "url(#wallB)", 'stroke="none"'));
   S.push(polyW([[-30,-30,200],[620,-30,200],[620,-30,-60],[-30,-30,-60]], "url(#wallA)", 'stroke="none"'));
+  /* the lamp doesn't only light the desk: a warm bloom climbs both walls
+     behind it, brightest in the corner nearest the shade, and a dark pool
+     gathers on the floor under the desk where no light reaches at all */
+  S.push('<g class="pool-warm" aria-hidden="true">' +
+    gLeft(-30,-30,200,'<ellipse cx="200" cy="130" rx="200" ry="130" fill="url(#spill)"/>') +
+    gRight(-30,420,200,'<ellipse cx="270" cy="130" rx="180" ry="130" fill="url(#spill)"/>') +
+    '</g>');
+  S.push('<g aria-hidden="true">' +
+    gTop(-60,-40,-180,'<ellipse cx="340" cy="250" rx="360" ry="260" fill="url(#floorShadow)"/>') + '</g>');
 
   /* ---------- wall B: the hung bike (rides) + VHS shelf (movie nights) ---------- */
   var bike = '<g fill="none" stroke-linecap="round" transform="translate(0,-30)">' +
@@ -1077,12 +1178,20 @@
     '<ellipse cx="470" cy="250" rx="7" ry="3.5" fill="none" stroke="#4a2c15" opacity=".2" stroke-width="2"/>'));
   // pools of light on the desk: lamp-warm for 1999, LCD-cool for 2026
   S.push(gTop(0,0,0,
+    // radial falloff rather than flat discs: real light has no edge
+    '<defs>' +
+      '<radialGradient id="poolW" cx=".5" cy=".5" r=".5">' +
+        '<stop offset="0" stop-color="#ffc97a" stop-opacity=".24"/><stop offset=".45" stop-color="#ffc97a" stop-opacity=".11"/>' +
+        '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="poolC" cx=".5" cy=".5" r=".5">' +
+        '<stop offset="0" stop-color="#bed8ff" stop-opacity=".22"/><stop offset=".45" stop-color="#8fb7ff" stop-opacity=".10"/>' +
+        '<stop offset="1" stop-color="#8fb7ff" stop-opacity="0"/></radialGradient></defs>' +
     '<g class="pool-warm">' +
-      '<ellipse cx="260" cy="160" rx="300" ry="230" fill="rgba(255,201,122,.10)"/>' +
-      '<ellipse cx="200" cy="130" rx="190" ry="150" fill="rgba(255,201,122,.07)"/></g>' +
+      '<ellipse cx="250" cy="160" rx="360" ry="280" fill="url(#poolW)"/>' +
+      '<ellipse cx="190" cy="130" rx="200" ry="160" fill="url(#poolW)"/></g>' +
     '<g class="pool-cool">' +
-      '<ellipse cx="250" cy="150" rx="300" ry="230" fill="rgba(143,183,255,.10)"/>' +
-      '<ellipse cx="235" cy="140" rx="180" ry="140" fill="rgba(190,216,255,.08)"/></g>', ''));
+      '<ellipse cx="250" cy="150" rx="360" ry="280" fill="url(#poolC)"/>' +
+      '<ellipse cx="235" cy="140" rx="200" ry="150" fill="url(#poolC)"/></g>', ''));
 
   /* ---------- the lamp the light has been coming from all along ---------- */
   (function(){
@@ -1820,7 +1929,26 @@
      say. Drawn dead last, after the darkness, so it stays findable
      when nothing else is.
      ================================================================ */
-  S.push('<g id="darkness" aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
+  /* The beam. Laid over everything on the desk, screen-blended and heavily
+     blurred, so it reads as light hanging in dusty air rather than as a
+     shape: it starts hot at the mouth of the shade and has thinned to
+     nothing by the time it reaches the far edge of its pool. */
+  (function(){
+    var hd = P(112,152,90), m = [hd[0] + 7, hd[1] + 11];
+    var a = P(320,110,0), b = P(250,290,0), c = P(140,290,0);
+    S.push('<g class="pool-warm" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none">' +
+      '<defs><linearGradient id="beam" gradientUnits="userSpaceOnUse" x1="' + m[0] + '" y1="' + m[1] +
+        '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '">' +
+        '<stop offset="0" stop-color="#ffd9a0" stop-opacity=".30"/><stop offset=".45" stop-color="#ffc97a" stop-opacity=".10"/>' +
+        '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></linearGradient></defs>' +
+      '<polygon points="' + (m[0]-10) + "," + (m[1]-6) + " " + (m[0]+9) + "," + (m[1]+4) + " " +
+        a[0].toFixed(1) + "," + a[1].toFixed(1) + " " + b[0].toFixed(1) + "," + b[1].toFixed(1) + " " +
+        c[0].toFixed(1) + "," + c[1].toFixed(1) + '" fill="url(#beam)" filter="url(#haze)"/>' +
+      '<circle cx="' + m[0] + '" cy="' + m[1] + '" r="46" fill="url(#bulb)"/>' +
+      '</g>');
+  })();
+
+  S.push('<g id="darkness"aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
 
   /* what the dark writes on the wall, in the plane of the wall itself */
   S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
@@ -3693,33 +3821,70 @@
       cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     resize(); addEventListener("resize", resize);
-    for (var i = 0; i < 42; i++){
-      motes.push({
-        x: Math.random(), y: Math.random(),
-        r: 0.6 + Math.random() * 1.6,
-        vx: (Math.random() - 0.5) * 0.00012,
-        vy: -0.00006 - Math.random() * 0.00012,
-        a: 0.15 + Math.random() * 0.4,
-        p: Math.random() * Math.PI * 2
-      });
+    /* Three depths of dust, like a lens focused on the desk: sharp specks
+       in the focal plane, a few big soft discs drifting close to the glass
+       (out of focus, so they're barely there), and a haze of tiny ones far
+       back. Near things move faster, which is all parallax is. Each mote is
+       a pre-rendered sprite, so a disc of any softness costs one drawImage. */
+    function sprite(soft){
+      var c = document.createElement("canvas"), s = 64, g;
+      c.width = c.height = s;
+      var x = c.getContext("2d");
+      g = x.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+      if (soft){
+        g.addColorStop(0, "rgba(255,222,170,.55)");
+        g.addColorStop(.72, "rgba(255,214,150,.42)");
+        g.addColorStop(.9, "rgba(255,214,150,.18)");
+        g.addColorStop(1, "rgba(255,214,150,0)");
+      } else {
+        g.addColorStop(0, "rgba(255,246,225,1)");
+        g.addColorStop(.25, "rgba(255,222,170,.8)");
+        g.addColorStop(1, "rgba(255,214,150,0)");
+      }
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+      return c;
     }
-    (function frame(){
+    var SHARP = sprite(false), BOKEH = sprite(true);
+    function mote(layer){
+      var near = layer === 2, far = layer === 0;
+      return {
+        x: Math.random(), y: Math.random(), layer: layer,
+        r: near ? 9 + Math.random() * 16 : far ? 1 + Math.random() * 1.4 : 2 + Math.random() * 3.2,
+        vx: (Math.random() - 0.5) * 0.00012 * (near ? 2.2 : far ? 0.5 : 1),
+        vy: (-0.00006 - Math.random() * 0.00012) * (near ? 1.8 : far ? 0.5 : 1),
+        a: near ? 0.05 + Math.random() * 0.08 : 0.2 + Math.random() * 0.45,
+        p: Math.random() * Math.PI * 2,
+        tw: 0.006 + Math.random() * 0.02
+      };
+    }
+    for (var i = 0; i < 28; i++) motes.push(mote(0));
+    for (var i2 = 0; i2 < 34; i2++) motes.push(mote(1));
+    for (var i3 = 0; i3 < 9; i3++) motes.push(mote(2));
+    var last = performance.now();
+    (function frame(now){
+      var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
+      var dark = document.body.classList.contains("lights-out");   // no lamp, no motes
+      cx2.globalCompositeOperation = "lighter";
       motes.forEach(function(m){
-        m.x += m.vx * 16; m.y += m.vy * 16; m.p += 0.01;
-        if (m.y < -0.02){ m.y = 1.02; m.x = Math.random(); }
-        if (m.x < -0.02) m.x = 1.02;
-        if (m.x > 1.02) m.x = -0.02;
-        var dx = m.x - 0.6, dy = m.y - 0.15;
-        var glow = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 1.6);
-        var alpha = m.a * glow * (0.7 + 0.3 * Math.sin(m.p));
-        if (alpha > 0.01){
-          cx2.beginPath();
-          cx2.arc(m.x * W, m.y * H, m.r, 0, Math.PI * 2);
-          cx2.fillStyle = "rgba(255,214,150," + alpha.toFixed(3) + ")";
-          cx2.fill();
+        m.x += m.vx * dt; m.y += m.vy * dt; m.p += m.tw * dt / 16;
+        m.x += Math.sin(m.p * 0.37) * 0.00004 * dt;   // a slow curl in the air
+        if (m.y < -0.05){ m.y = 1.05; m.x = Math.random(); }
+        if (m.x < -0.05) m.x = 1.05;
+        if (m.x > 1.05) m.x = -0.05;
+        // lit only inside the lamp's reach: a soft cone falling from upper left
+        var dx = m.x - 0.42, dy = (m.y - 0.45) * 1.2;
+        var glow = dark ? 0 : Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) * 1.3);
+        glow = glow * glow * (3 - 2 * glow);
+        var alpha = m.a * glow * (0.62 + 0.38 * Math.sin(m.p));
+        if (alpha > 0.008){
+          var d = m.r * (m.layer === 2 ? 2 : 4);
+          cx2.globalAlpha = Math.min(1, alpha);
+          cx2.drawImage(m.layer === 2 ? BOKEH : SHARP, m.x * W - d/2, m.y * H - d/2, d, d);
         }
       });
+      cx2.globalAlpha = 1;
+      cx2.globalCompositeOperation = "source-over";
       requestAnimationFrame(frame);
     })();
   }
