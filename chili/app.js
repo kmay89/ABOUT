@@ -18,7 +18,28 @@
 (function () {
 "use strict";
 
-var R = window.CHILI;
+var BASE = window.CHILI, R = BASE;
+
+/* The recipe as it stands right now: the base pot, or the base pot with a
+   swap laid over it (see `swaps` in recipe.js). Items and steps are
+   copied, never edited, so switching back is just pointing at BASE. */
+function buildRecipe() {
+  var sw = state.veg && BASE.swaps && BASE.swaps.veg;
+  if (!sw) { R = BASE; return; }
+  var items = BASE.items.map(function (it) {
+    return sw.items && sw.items[it.id] ? Object.assign({}, it, sw.items[it.id]) : it;
+  });
+  (sw.add || []).forEach(function (a) {
+    var at = -1;
+    items.forEach(function (it, i) { if (it.id === a.after) at = i; });
+    items.splice(at < 0 ? items.length : at + 1, 0, a.item);
+  });
+  var steps = BASE.steps.filter(function (st) { return (sw.drop || []).indexOf(st.id) < 0; })
+    .map(function (st) { return sw.steps && sw.steps[st.id] ? Object.assign({}, st, sw.steps[st.id]) : st; });
+  R = Object.assign({}, BASE, { items: items, steps: steps });
+}
+function swapNow() { return state.veg && BASE.swaps ? BASE.swaps.veg : null; }
+function proteinWord() { var sw = swapNow(); return sw ? sw.protein : "beef"; }
 var $ = function (id) { return document.getElementById(id); };
 
 /* ---------------------------------------------------------------- *
@@ -90,6 +111,8 @@ function mass(g, sys) {
   }
   var lb = g / G_LB, q = Math.round(lb * 4) / 4;
   if (g >= 900 || (q >= 0.25 && Math.abs(lb - q) <= lb * 0.04)) return frac(lb, [4, 2]) + " lb";
+  /* over a pound and not near a quarter: pounds and ounces, as a scale reads */
+  if (lb > 1) { var oz = Math.round((lb - Math.floor(lb)) * 16); return Math.floor(lb) + " lb " + oz + " oz"; }
   return frac(g / G_OZ, [2, 4]) + " oz";
 }
 
@@ -102,14 +125,14 @@ function volume(ml, sys) {
   }
   if (ml >= ML_QT * 1.75) { var q = snap(ml / ML_QT, [4, 2]); return frac(q, [4, 2]) + " " + plural("quart", q); }
   var c = ml / ML_CUP;
-  /* past half a cup it's always cups — eighths are on the measuring cup.
+  /* past half a cup it's always cups, to the nearest quarter or third.
      Below that, cups only when the number is one you'd say out loud. */
   if (ml >= 118 || (ml >= 55 && sayableCups(c))) {
-    var cs = snap(c, [4, 3, 2, 8]);
-    return frac(cs, [4, 3, 2, 8]) + " " + plural("cup", cs);
+    var cs = snap(c, [4, 3, 2]);
+    return frac(cs, [4, 3, 2]) + " " + plural("cup", cs);
   }
-  if (ml >= ML_TBSP * 0.75) return frac(ml / ML_TBSP, [3, 2, 4]) + " Tbsp";
-  return frac(ml / ML_TSP, [8, 4, 3, 2]) + " tsp";
+  if (ml >= ML_TBSP * 0.75) return tbsp(ml / ML_TSP);
+  return frac(ml / ML_TSP, [2, 4, 8]) + " tsp";
 }
 
 /* Spoons stay spoons in both systems — nobody weighs cumin. A spice
@@ -117,20 +140,41 @@ function volume(ml, sys) {
    number to say that way; otherwise it stays in tablespoons, however
    many of them there are.                                            */
 function spice(tsp) {
-  var c = tsp / 48, tb = tsp / 3;
+  tsp = Math.round(tsp * 1e4) / 1e4;
+  var c = tsp / 48;
+  /* cups only when the amount really is a cup amount — "⅓ cup" of chili
+     powder that is actually 5 Tbsp would be a lie with a number in it */
   if (tsp >= 12 && sayableCups(c)) {
     var cs = snap(c, [4, 3, 2]);
-    return frac(cs, [4, 3, 2]) + " " + plural("cup", cs) + " (" + frac(cs * 16, [2]) + " Tbsp)";
+    if (Math.abs(cs * 48 - tsp) <= Math.max(0.3, tsp * 0.04))
+      return frac(cs, [4, 3, 2]) + " " + plural("cup", cs) + " (" + tbsp(tsp) + ")";
   }
-  /* tablespoons only when they come out whole or half — 3½ teaspoons of
-     salt is a thing you can measure; 1⅙ tablespoons is not */
-  if (tsp >= 9 || (tsp >= 3 && Math.abs(tb - Math.round(tb * 2) / 2) < 0.02))
-    return frac(tb, [2, 4, 3]) + " Tbsp";
-  return frac(tsp, tsp <= 0.5 ? [8, 4, 3, 2] : [4, 3, 2]) + " tsp";
+  /* three-quarters of a cup and up: measure in cups, then top up in spoons */
+  if (tsp >= 36 - 1e-6) {
+    var q = Math.floor(c * 4 + 1e-6) / 4, left = tsp - q * 48;
+    if (left < Math.max(0.4, tsp * 0.05)) return frac(q, [4]) + " " + plural("cup", q);
+    return frac(q, [4]) + " " + plural("cup", q) + " + " + tbsp(left);
+  }
+  if (tsp >= 3 - 1e-6) return tbsp(tsp);
+  /* less than the smallest spoon in the drawer is a pinch, not "0 tsp" */
+  if (tsp < 0.09) return "a pinch";
+  /* only spoons that exist: 1, ½, ¼ and ⅛ tsp */
+  return frac(tsp, tsp < 0.3 ? [8, 4] : [2, 4]) + " tsp";
+}
+/* Tablespoons as a spoon set measures them: whole or half, and whatever
+   is left over said in teaspoons — "1 Tbsp + ¾ tsp", never "1¼ Tbsp". */
+function tbsp(tsp) {
+  /* crumbs under 5% of the amount are rounding, not a measure — nobody
+     adds a quarter-teaspoon to a tablespoon of salt for a whole pot */
+  var whole = Math.floor(tsp / 3 + 1e-6), rem = tsp - whole * 3, slop = Math.max(0.4, tsp * 0.05);
+  if (rem < slop) return whole + " Tbsp";
+  if (rem > 3 - slop) return (whole + 1) + " Tbsp";
+  if (Math.abs(rem - 1.5) < 0.2) return whole + "½ Tbsp";
+  return whole + " Tbsp + " + frac(rem, [2, 4]) + " tsp";
 }
 function spiceMl(tsp) {
   var ml = tsp * ML_TSP;
-  return (ml < 10 ? trim(roundTo(ml, 0.5)) : String(roundTo(ml, 5))) + " ml";
+  return (ml < 25 ? trim(roundTo(ml, 0.5)) : ml < 100 ? String(Math.round(ml)) : String(roundTo(ml, 5))) + " ml";
 }
 
 /* ---------------------------------------------------------------- *
@@ -141,6 +185,7 @@ var state = {
   grams: G_LB,        /* how much beef — the one dial everything hangs off */
   sys: "us",
   wholeCans: true,
+  veg: false,
   big: false,
   voice: false,
   view: "all",
@@ -148,7 +193,9 @@ var state = {
   ticked: {}
 };
 
-function mult() { return state.grams / R.base.grams; }
+/* rounded, so 3 × 453.592 ÷ 453.592 is 3 and not 2.9999999 — the
+   difference between "1 Tbsp" and "3 tsp" on the page */
+function mult() { return Math.round(state.grams / R.base.grams * 1e6) / 1e6; }
 
 /* Whole cans, shared out honestly.
 
@@ -191,15 +238,18 @@ function canPlan() {
 
 /* What one ingredient reads as right now: a headline in the chosen
    system, and the same amount again in the other one underneath. */
-function amountOf(it, plan) {
+function amountOf(it, plan, part) {
   var m = mult(), sys = state.sys, other = sys === "us" ? "metric" : "us";
   var out = { main: "", alt: "", extra: "" };
 
   if (it.measure === "mass") {
     var g = it.per * m;
     if (it.each) {
-      var n = snap(g / it.each.g, [2, 4, 3]);
-      out.main = frac(n, [2, 4, 3]) + " " + (n > 1.0001 ? it.each.many : it.each.one);
+      /* under one, a fraction of it; past one, to the nearest half — a
+         cook can halve a jalapeño but nobody cuts two-thirds of one */
+      var raw = g / it.each.g, dn = raw < 1 ? [2, 4, 3] : [2];
+      var n = snap(raw, dn);
+      out.main = frac(n, dn) + " " + (n > 1.0001 ? it.each.many : it.each.one);
       out.alt = mass(g, sys) + " · " + mass(g, other);
     } else {
       out.main = mass(g, sys);
@@ -210,11 +260,13 @@ function amountOf(it, plan) {
     out.main = volume(ml, sys);
     out.alt = volume(ml, other);
   } else if (it.measure === "spice") {
-    var tsp = it.per * m;
+    var tsp = (part === "now" ? it.per - (it.hold || 0) : part === "held" ? it.hold : it.per) * m;
     out.main = spice(tsp);
     /* the second line is only worth printing if it says something the
        first one didn't: millilitres, or the spoon count behind a cup */
-    out.alt = (sys === "us" && !/tsp$/.test(out.main)) ? frac(tsp, [2, 4]) + " tsp" : spiceMl(tsp);
+    out.alt = out.main === "a pinch" ? "under ⅛ tsp"
+      : (sys === "us" && !/tsp$/.test(out.main)) ? frac(tsp, [2, 4]) + " tsp" : spiceMl(tsp);
+    if (it.hold && !part) out.alt += " · " + spice(it.hold * m) + " of it kept back to taste";
   } else if (it.measure === "can") {
     var can = R.cans[it.can], cans = plan[it.id];
     if (cans <= 0) { out.main = "none at this size"; out.alt = "it rounds away — turn off whole cans to use part of one"; return out; }
@@ -234,6 +286,8 @@ function shortName(it) { return it.short || it.name.toLowerCase(); }
 /* An amount as you'd say it mid-sentence: "1 medium yellow onion" already
    names the thing, so don't name it twice. */
 function phrase(it, plan) {
+  if (it.hold) return amountOf(it, plan, "now").main + " " + shortName(it) + " now, and " +
+    amountOf(it, plan, "held").main + " kept back";
   var a = amountOf(it, plan);
   return it.each ? a.main : a.main + " " + shortName(it);
 }
@@ -290,6 +344,13 @@ var EFFORT = {
 };
 
 function renderDial() {
+  var sw = swapNow();
+  $("dialTitle").textContent = sw ? sw.dialTitle : "How much beef have you got?";
+  $("beefOf").textContent = sw ? sw.dialOf : "of 80/20 ground beef";
+  $("less").setAttribute("aria-label", "Less " + proteinWord());
+  $("more").setAttribute("aria-label", "More " + proteinWord());
+  setToggle("potBeef", !state.veg);
+  setToggle("potVeg", state.veg);
   $("beefAmount").textContent = beefLabel();
   var s = servings();
   $("yieldLine").textContent =
@@ -356,6 +417,10 @@ function usesHtml(step, plan) {
     var it = item(id);
     if (!it) return "";
     if (it.measure === "can" && state.wholeCans && plan[id] <= 0) return "";
+    if (it.hold) {
+      return "<li><b>" + esc(amountOf(it, plan, "now").main) + "</b> " + esc(shortName(it)) + "</li>" +
+        '<li class="held"><b>' + esc(amountOf(it, plan, "held").main) + "</b> kept back for tasting</li>";
+    }
     var a = amountOf(it, plan);
     return "<li><b>" + esc(a.main) + "</b>" + (it.each ? "" : " " + esc(shortName(it))) + "</li>";
   }).join("");
@@ -432,7 +497,7 @@ function renderCook() {
   $("cookBack").disabled = i === 0;
   $("cookNext").disabled = i === R.steps.length - 1;
   var sv = servings();
-  $("cookScale").textContent = "Making " + beefLabel() + " of beef — about " + sv.bowls + " " + plural("bowl", sv.bowls);
+  $("cookScale").textContent = "Making " + beefLabel() + " of " + proteinWord() + " — about " + sv.bowls + " " + plural("bowl", sv.bowls);
   if (state.voice) speakStep(s);
 }
 
@@ -545,7 +610,7 @@ function chime() {
  * ---------------------------------------------------------------- */
 
 function listText() {
-  var plan = canPlan(), lines = [R.title + " — " + beefLabel() + " of beef", ""];
+  var plan = canPlan(), lines = [R.title + (state.veg ? " (vegetarian)" : "") + " — " + beefLabel() + " of " + proteinWord(), ""];
   R.groups.forEach(function (g) {
     lines.push(g.name.toUpperCase());
     R.items.filter(function (it) { return it.group === g.id; }).forEach(function (it) {
@@ -566,7 +631,7 @@ function listText() {
 var KEY = "chili.v1";
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
-  var q = "#beef=" + Math.round(state.grams) + "&u=" + state.sys + (state.wholeCans ? "" : "&cans=part");
+  var q = "#beef=" + Math.round(state.grams) + "&u=" + state.sys + (state.wholeCans ? "" : "&cans=part") + (state.veg ? "&veg=1" : "");
   try { history.replaceState(null, "", location.pathname + q); } catch (e) {}
 }
 function load() {
@@ -585,6 +650,7 @@ function load() {
       if (k === "lb" && +v) state.grams = +v * G_LB;
       if (k === "u" && (v === "us" || v === "metric")) state.sys = v;
       if (k === "cans") state.wholeCans = v !== "part";
+      if (k === "veg") state.veg = v === "1";
     });
   }
   state.grams = clampBeef(state.grams);
@@ -595,7 +661,10 @@ function load() {
  * ---------------------------------------------------------------- */
 
 function render() {
+  buildRecipe();
+  state.step = Math.min(state.step, R.steps.length - 1);
   document.body.classList.toggle("big", state.big);
+  document.body.classList.toggle("veg", state.veg);
   renderDial();
   renderShopping();
   renderSteps();
@@ -617,6 +686,7 @@ function setView(v) {
 
 function init() {
   load();
+  buildRecipe();
   renderNotes();
   render();
   setView(state.view);
@@ -642,6 +712,10 @@ function init() {
     state.grams = clampBeef(state.grams);
     save(); render();
   }
+
+  /* the swap: same pot size, same dial, a different pot */
+  $("potBeef").addEventListener("click", function () { if (state.veg) { state.veg = false; save(); render(); } });
+  $("potVeg").addEventListener("click", function () { if (!state.veg) { state.veg = true; save(); render(); } });
 
   $("canToggle").addEventListener("click", function () { state.wholeCans = !state.wholeCans; save(); render(); });
   $("bigToggle").addEventListener("click", function () { state.big = !state.big; save(); render(); });

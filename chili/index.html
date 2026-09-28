@@ -98,6 +98,17 @@
   .beef{font-size:clamp(2rem,6vw,2.8rem);font-weight:600;min-width:6.5ch;text-align:center}
   .beef-of{font-family:var(--mono);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
   .presets{display:flex;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 1rem}
+  /* the swap: first thing in the dial, two big halves, impossible to miss */
+  .pot-pick{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;margin-bottom:1.1rem}
+  .pot{
+    flex:1;min-height:3.6rem;border:0;background:var(--paper);color:var(--ink);
+    font:inherit;font-size:1.1rem;font-weight:600;cursor:pointer;padding:.6rem 1rem;
+  }
+  .pot + .pot{border-left:2px solid var(--edge)}
+  .pot:hover{background:color-mix(in srgb,var(--lamp) 30%,var(--paper))}
+  #potBeef.on{background:var(--chili);color:var(--paper)}
+  #potVeg.on{background:var(--green);color:var(--paper)}
+  .uses li.held{border-style:dashed;opacity:.85}
   .preset{
     min-height:3rem;padding:.5rem 1rem;border:2px solid var(--line);border-radius:12px;
     background:var(--paper);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer;
@@ -312,19 +323,24 @@
   <p class="eyebrow">The kitchen table</p>
   <h1>Kitchen Table Chili</h1>
   <p class="tagline">The pot I actually make, divided by three so you can test it against yours.</p>
-  <p class="intro">Medium-spicy, thick, kid-approved. It is not a competition chili and doesn&rsquo;t want to be
-  &mdash; it wants to be a bowl on a Tuesday with cheese melting into it. Every amount below is written per
-  pound of beef. Turn the dial and the whole pot follows: cans, spoons, broth, bowls, and the size of pot
+  <p class="intro">Properly spiced, thick, kid-approved &mdash; the fire lives in parts you can leave out. It is
+  not a competition chili and doesn&rsquo;t want to be &mdash; it wants to be a bowl on a Tuesday with cheese
+  melting into it. Every amount below is written per pound of beef, or of plant-based ground for the
+  vegetarian pot. Turn the dial and the whole pot follows: cans, spoons, broth, bowls, and the size of pot
   you&rsquo;ll need.</p>
 </header>
 
 <section class="dial" aria-labelledby="dialTitle">
+  <div class="pot-pick" role="group" aria-label="Which pot">
+    <button class="pot on" id="potBeef" aria-pressed="true"><span aria-hidden="true">🥩</span> Beef</button>
+    <button class="pot" id="potVeg" aria-pressed="false"><span aria-hidden="true">🌱</span> Vegetarian</button>
+  </div>
   <h2 id="dialTitle">How much beef have you got?</h2>
   <div class="stepper">
     <button class="round" id="less" aria-label="Less beef">&minus;</button>
     <div class="beef" id="beefAmount" aria-live="polite">1 lb</div>
     <button class="round" id="more" aria-label="More beef">+</button>
-    <span class="beef-of">of 80/20 ground beef</span>
+    <span class="beef-of" id="beefOf">of 80/20 ground beef</span>
   </div>
   <div class="presets" id="presets" role="group" aria-label="Common batch sizes"></div>
   <p class="yield" id="yieldLine" aria-live="polite"></p>

@@ -34,8 +34,8 @@ doses, the yield, and the pot size all follow from it.
 
 ```js
 { id: "cumin", group: "spice", name: "Ground cumin", short: "ground cumin",
-  measure: "spice", per: 0.5,
-  note: "A touch. Cumin is loud and this is not a cumin chili." }
+  measure: "spice", per: 1,
+  note: "Earthy and warm. Enough to know it's there; any more and it's a cumin chili." }
 ```
 
 | field | meaning |
@@ -49,13 +49,14 @@ doses, the yield, and the pot size all follow from it.
 | `each` | optional `{ g, one, many }` so 150 g of onion reads "1 medium yellow onion" and 450 g reads "3 medium yellow onions" |
 | `apportion` | optional family name — see *whole cans* |
 | `optional` | true if the pot is still the pot without it |
+| `hold` | optional teaspoons per pound kept **out** of the pot until the taste test — the list shows the whole amount (what you buy), the steps show "this much now" and "this much kept back", and the taste card spends the rest |
 | `note` | the one line worth knowing |
 
 `measure` is one of:
 
 - `"mass"` — `per` is **grams**. Shown as g/kg, or lb/oz.
 - `"volume"` — `per` is **millilitres**. Shown as ml/L, or tsp → Tbsp → cups → quarts.
-- `"spice"` — `per` is **teaspoons**. Spoons stay spoons in both systems; no home cook weighs cumin, in any country. Metric gets millilitres alongside.
+- `"spice"` — `per` is **teaspoons**. Spoons stay spoons in both systems; no home cook weighs cumin, in any country. Metric gets millilitres alongside. Only spoons that exist are ever printed: ⅛, ¼, ½ and 1 tsp, whole or half tablespoons, and anything else as "1 Tbsp + ¾ tsp". Less than ⅛ tsp is "a pinch"; ¾ cup and up is said in cups, topped up in spoons.
 - `"can"` — `per` is **cans**, of the size named in `can` (`"tomato"` or `"bean"`, defined at the top of the file).
 
 ### A step
@@ -93,6 +94,20 @@ the page is ever *on* a clock; the timer is a convenience and says so.
 
 `per` is again per pound of beef, so the dose scales with the pot.
 `karl: true` marks the three I reach for every time; they get a red edge.
+
+## The vegetarian pot
+
+The big switch at the top of the dial swaps the pot, not the recipe. It
+lives in `swaps.veg` in `recipe.js`, and it only says what changes, by
+id: plant-based ground where the beef was (pound for pound — the dial
+stays the same dial), vegetable broth for beef broth, and the two things
+the beef quietly brought with it put back on purpose — **oil** to brown
+in and bloom the spices, and a little **soy sauce** for the savoury
+depth. Nothing renders out, so the "pour off the fat" step is dropped
+and the browning step is rewritten. Every other amount, the whole-can
+arithmetic and the taste card are untouched, so both pots scale the
+same way and a fix to the spice bowl fixes both. The choice rides in the
+address bar (`&veg=1`), so a link carries it.
 
 ## Whole cans, shared out honestly
 
@@ -141,7 +156,12 @@ is worth checking by hand after any change to `recipe.js`:
 1. At 3 lb the shopping list matches the original pot: 3 cans of
    tomatoes, 2/2/1/1 on the beans, 4 cups (1 quart) of broth, and 450 g
    of onion — which is two large ones, or the three medium the page
-   counts in.
+   counts in. The spice bowl reads in whole spoons: 7½ Tbsp of chili
+   powder (6 Tbsp now, 1½ Tbsp kept back), 1 Tbsp each of salt, sugar,
+   paprika, cumin, garlic and onion powder, and an 8-quart pot.
 2. The bean table above still holds at ½, 1, 1½, 2 and 3 lb.
 3. Switching American ⇄ metric changes only the words, never the size of
    the pot.
+4. Walk the dial from ½ lb to 12 lb in both systems and read every line:
+   no "0 tsp", no ⅝ cup, no "3 tsp" where "1 Tbsp" belongs, no spoon
+   that isn't in a drawer. Then flip to vegetarian and do it once more.
