@@ -173,12 +173,30 @@ var hintArrow = null;
 var lastNarratedOpening = "";
 var tourTimer = 0, tourLine = null, tourStep = 0;
 var coachTimer = 0, thinking = false;
+/* Two different kinds of stale.
+
+   brainTicket bumps on every move: an answer about *this position* —
+   the coach's reply, a hint — is worthless once the position has moved
+   on, so anything carrying an old one is dropped.
+
+   gameTicket bumps only when the game itself changes underneath, on a
+   new game or a take-back. A review is a remark about a move that has
+   already been played, and stays worth saying after the opponent has
+   replied — which in coach mode it always has. Guarding the review with
+   brainTicket silently throws it away in the one mode it matters most. */
+var brainTicket = 0, gameTicket = 0;
 var principleN = 0;
 
+/* The ladder. Depth is capped as well as time so a level plays the same
+   way on a fast laptop and a slow phone — a coach whose strength depends
+   on your hardware cannot be practised against. The slack (noise) is
+   what actually sets the level now that the ranked list it draws from is
+   a real search: at sprout it will walk into things, at mentor it will
+   not. */
 var SKILLS = {
-  sprout: { ms: 130, maxDepth: 2, noise: 130, label: "Coach 🌱" },
-  club:   { ms: 320, maxDepth: 3, noise: 45,  label: "Coach 🌿" },
-  mentor: { ms: 900, maxDepth: 64, noise: 0,  label: "Coach 🌳" }
+  sprout: { ms: 200, maxDepth: 2,  noise: 170, label: "Coach 🌱" },
+  club:   { ms: 450, maxDepth: 5,  noise: 55,  label: "Coach 🌿" },
+  mentor: { ms: 1000, maxDepth: 64, noise: 0,  label: "Coach 🌳" }
 };
 
 /* ===== clock ===== */
@@ -450,8 +468,12 @@ function animDescriptor(m) {
 
 function commitMove(m, source, animOpts) {
   if (!G || over) return;
+  brainTicket++;   /* any search still running is now answering the wrong question */
   var mover = G.turn;
-  var evBefore = Chess.evaluate(G);       /* mover's view, for the gentle coach */
+  /* the position as it stood before the move: the review happens on a
+     scratch board built from this, so looking at what you could have
+     played can never disturb the game you are playing */
+  var fenBefore = Chess.fen(G);
   /* look at the move while the position is still the "before" one */
   var lessons = (prefs.coach && mode !== "tour") ? Teach.afterMove(G, m) : [];
   var desc = animDescriptor(m);
@@ -509,7 +531,7 @@ function commitMove(m, source, animOpts) {
 
   /* the gentle coach looks over the human's shoulder */
   if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || mode === "pass")) {
-    setTimeout(function () { gentleCheck(mover, evBefore, san); }, 1400);
+    setTimeout(function () { gentleCheck(fenBefore, m, san); }, 1400);
   }
   /* the coach takes its turn */
   if (mode === "coach" && !over && G.turn !== humanSide) {
@@ -525,27 +547,93 @@ function scheduleCoach() {
   coachTimer = setTimeout(function () {
     if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
     var sk = SKILLS[skill];
-    var res = Chess.search(G, { ms: sk.ms, maxDepth: sk.maxDepth, noise: sk.noise });
-    thinking = false;
-    if (res.move) commitMove(res.move, "coach");
-    syncTurnStrip();
+    var ticket = ++brainTicket;
+    Brain.search(G, { ms: sk.ms, maxDepth: sk.maxDepth, noise: sk.noise }).then(function (res) {
+      /* the board may have moved on while it was thinking — a take-back,
+         a new game, a resign. The ticket says whether this answer is
+         still the answer to the question that was asked. */
+      if (ticket !== brainTicket || !G || over || mode !== "coach" || G.turn === humanSide) {
+        thinking = false; syncTurnStrip(); return;
+      }
+      thinking = false;
+      var m = res && Brain.resolve(G, res.move);
+      if (m) commitMove(m, "coach");
+      syncTurnStrip();
+    });
   }, REDUCED ? 60 : 420);
 }
 
-/* ===== the gentle coach (blunder whisper) ===== */
-function gentleCheck(mover, evBefore, san) {
-  if (!G || over || G.played.length === 0) return;
-  var res = Chess.search(G, { ms: 230, maxDepth: 3 });
-  if (!res.move) return;
-  /* res.score is from the opponent's view: big and positive means the
-     move just played gave something away it didn't have to */
-  if (res.score >= 140 && res.score + evBefore >= 120) {
-    var reply = Chess.toSAN(G, res.move);
-    var what = res.move.capt ? "it looks like " + reply + " wins material" : "there may be a strong reply in " + reply;
-    toast("🤔 A quiet word about <b>" + san + "</b> — " + what + ". Want it back? (No shame; this is how everyone learns.)",
-      [{ label: "↩ Take it back", fn: gentleUndo },
-       { label: "Play on", fn: function () {}, ghost: true }], 10000);
+/* ===== the gentle coach (the quiet word) =====
+   The old version asked "is the opponent's best reply good for them?",
+   which flags every move made in a bad position and stays silent when
+   you throw away a winning one. The question that actually teaches is
+   "how much worse was that than the best you had?" — so the review runs
+   on the position *before* the move, scores the move you played and the
+   move the engine wanted with the same yardstick, and subtracts.
+
+   That difference has a name chess players already use, and using their
+   words means the feedback transfers to every book and every board you
+   ever sit at afterwards. */
+/* Roughly where club players draw these lines: half a pawn is a slip,
+   a pawn is a mistake, two and a half is the kind of thing you want to
+   be told about. */
+var LOSS_STEPS = [
+  { at: 250, word: "a blunder", tone: "🫤" },
+  { at: 110, word: "a mistake", tone: "🤔" },
+  { at: 50,  word: "an inaccuracy", tone: "💭" }
+];
+function pawnsWorth(cp) {
+  if (cp >= 900) return "about a queen's worth";
+  var p = cp / 100;
+  if (p < 1.2) return "about a pawn";
+  return "about " + (p < 3 ? p.toFixed(1) : Math.round(p)) + " pawns";
+}
+function gentleCheck(fenBefore, played, san) {
+  if (!G || over) return;
+  var pre;
+  try { pre = Chess.create(fenBefore); } catch (e) { return; }
+  var mine = null, list = Chess.moves(pre), i;
+  for (i = 0; i < list.length; i++) {
+    if (list[i].from === played.from && list[i].to === played.to &&
+        (list[i].promo || 0) === (played.promo || 0)) { mine = list[i]; break; }
   }
+  if (!mine) return;
+  var ticket = gameTicket;
+  /* one call, both sides of the comparison measured the same way */
+  Brain.review(pre, mine, { ms: 420 }).then(function (res) {
+    if (ticket !== gameTicket || !G) return;
+    if (!res) return;
+    showReview(pre, san, res);
+  });
+}
+function showReview(pre, san, res) {
+  var i;
+  var bestScore = res.bestScore, mineScore = res.playedScore, loss = res.loss;
+
+  /* Say nothing when the game was already decided either way: a person
+     three pieces down does not need to hear about a fourth, and a person
+     three pieces up does not need to hear about a rounding error. */
+  if (bestScore < -650 || mineScore > 650) return;
+
+  var step = null;
+  for (i = 0; i < LOSS_STEPS.length; i++) if (loss >= LOSS_STEPS[i].at) { step = LOSS_STEPS[i]; break; }
+  if (!step) return;
+  /* an inaccuracy is not worth interrupting for unless it actually
+     changed who stands better */
+  if (step.at < 110 && !(mineScore < 40 && bestScore > 90)) return;
+
+  var better = res.bestSAN;
+  /* what they'll be hit with comes first, because that is the thing
+     worth spotting next time; the better move comes second */
+  var punish = res.refute ? " <b>" + res.refute.san + "</b> is the problem." : "";
+  var instead = " <b>" + better + "</b> was the move" +
+    (res.pv && res.pv.length > 1 ? ", and after it " + res.pv.slice(1, 3).join(" ") + "." : ".");
+  var cost = " <i>(" + pawnsWorth(loss) + ")</i>";
+
+  toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost +
+        " No shame — this is how everyone learns.",
+    [{ label: "↩ Take it back", fn: gentleUndo },
+     { label: "Play on", fn: function () {}, ghost: true }], 11000);
 }
 /* rewind to the human's turn, whether or not the coach already replied */
 function gentleUndo() {
@@ -563,8 +651,24 @@ function giveHint() {
   if (!oddsPay(G.turn)) return;
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
   var book = Book.suggest(sans);
-  var res = Chess.search(G, { ms: 700 });
+  /* rank: the book-agreement test below compares real scores, so the
+     ranked list has to be real too. It used to be a one-ply glance,
+     which meant "the engine doesn't mind this book move" was a coin
+     toss — and a hint you can't trust is worse than no hint. */
+  var ticket = brainTicket;
+  Brain.search(G, { ms: 800, rank: true, rankDepth: 6 }).then(function (raw) {
+    if (ticket !== brainTicket || !G || over || !canActNow()) return;
+    if (!raw || !raw.move) return;
+    showHint(raw, odds, book, sans);
+  });
+}
+function showHint(raw, odds, book, sans) {
+  var res = { move: Brain.resolve(G, raw.move), score: raw.score, pv: raw.pv,
+              ranked: raw.ranked.map(function (x) {
+                return { move: Brain.resolve(G, x.move), score: x.score, shallow: x.shallow };
+              }).filter(function (x) { return !!x.move; }) };
   if (!res.move) return;
+  var topScore = res.ranked.length ? res.ranked[0].score : res.score;
   var chosen = res.move, why = null, bookPick = null;
   for (var i = 0; i < book.length; i++) {
     var bm = Chess.fromSAN(G, book[i].san);
@@ -572,7 +676,7 @@ function giveHint() {
     /* prefer the book move when the engine doesn't strongly disagree */
     for (var j = 0; j < res.ranked.length; j++) {
       var r = res.ranked[j];
-      if (r.move.from === bm.from && r.move.to === bm.to && res.ranked[0].score - r.score < 90) {
+      if (r.move.from === bm.from && r.move.to === bm.to && topScore - r.score < 70) {
         bookPick = { m: bm, entry: book[i] };
       }
     }
@@ -587,7 +691,7 @@ function giveHint() {
       if (!em) continue;
       for (var e2 = 0; e2 < res.ranked.length; e2++) {
         var er = res.ranked[e2];
-        if (er.move.from === em.from && er.move.to === em.to && res.ranked[0].score - er.score < 90) {
+        if (er.move.from === em.from && er.move.to === em.to && topScore - er.score < 70) {
           chosen = em;
           why = "a known road — this is the " + ecoNext[e1].name + ".";
           bookPick = { m: em };
@@ -605,7 +709,14 @@ function giveHint() {
   snd("hint");
   var paid = odds.free ? "" :
     " <i>(" + (clock.on ? odds.cost + " seconds" : odds.cost + " mark" + (odds.cost > 1 ? "s" : "")) + " — you're ahead)</i>";
-  toast("💡 <b>" + san + "</b> — " + (why || explainMove(chosen, res)) + paid, null, 8000);
+  /* the line the engine is actually counting on, when the hint is the
+     engine's own move: seeing the next two plies is most of what turns a
+     hint into a lesson */
+  var ahead = "";
+  if (!bookPick && res.pv && res.pv.length > 2 && res.pv[0] === san) {
+    ahead = " Then likely " + res.pv.slice(1, 3).join(" ") + ".";
+  }
+  toast("💡 <b>" + san + "</b> — " + (why || explainMove(chosen, res)) + ahead + paid, null, 9000);
 }
 
 function explainMove(m, res) {
@@ -781,6 +892,7 @@ function replayLast() {
 
 /* ===== undo / takeback ===== */
 function undoPly(n) {
+  brainTicket++; gameTicket++;   /* every search still running is now stale */
   if (!G || !G.played.length) return;
   if (mode === "lan") return; /* LAN goes through the polite request */
   clearTimeout(coachTimer); thinking = false;
@@ -815,6 +927,7 @@ function undoSmart() {
 
 /* ===== game start / end ===== */
 function startGame(newMode, opts) {
+  brainTicket++; gameTicket++;   /* every search still running is now stale */
   opts = opts || {};
   stopTour();
   lesson = null; lessonDone = false; lessonQueue = [];
