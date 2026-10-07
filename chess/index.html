@@ -129,6 +129,10 @@
   #openingCard{
     background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:9px 12px 10px;
     display:flex; flex-direction:column; min-height:0;
+    /* the card is allowed to run out of room — the panel now carries the
+       moves and the notebook as well — but what it cannot do is spill
+       over whatever is underneath it. The idea keeps its own scroll. */
+    overflow:hidden;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
   }
   .ocTop{display:flex; align-items:center; gap:8px}
@@ -204,6 +208,71 @@
   /* figurine notation: a knight reads as a knight faster than "N" does */
   #moveList .fig{font-style:normal; color:var(--glow); margin-right:1px}
   .mlEmpty{grid-column:1/-1; color:var(--soft); font-size:.82em; line-height:1.4; padding:8px 6px; text-align:center}
+
+  /* the mark on a move: the one piece of chess notation that means the
+     same thing to somebody on their fifth game and somebody on their
+     five thousandth, which is exactly why it is the thing both of them
+     get. The plain words behind it are a tap away. */
+  #moveList .mk{
+    font-style:normal; font-weight:800; font-size:.82em; margin-left:3px; letter-spacing:-.04em;
+    vertical-align:.04em;
+  }
+  .mk-brilliant{color:#4fd6b0} .mk-good{color:#7fc98e}
+  .mk-dubious{color:#e8c05a} .mk-mistake{color:#f0924e} .mk-blunder{color:#f0624e}
+
+  /* ---------- the notebook ----------
+     Everything the room notices used to live for seven seconds in a
+     toast and then be gone, which is no use to a beginner (who wanted to
+     read it twice) and no use to a strong player (who wanted the whole
+     game at once). It is kept here instead, beside the moves, on its own
+     tab so neither list has to shrink for the other. */
+  /* the moves and the notebook are one column with two faces, so a
+     phone's panel stays the two-up shelf it already was */
+  #panelMain{flex:1 1 auto; min-width:0; min-height:0; display:flex; flex-direction:column}
+  #panelTabs{flex:none; display:flex; gap:4px}
+  .ptab{
+    flex:1; padding:4px 10px; border-radius:10px 10px 0 0; font-size:.78em; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--soft);
+    border:1px solid transparent; border-bottom:none; position:relative;
+  }
+  .ptab.sel{color:var(--glow); background:var(--card2); border-color:var(--line)}
+  .ptab:hover{color:var(--ink)}
+  .ptabDot{
+    position:absolute; top:3px; right:6px; width:6px; height:6px; border-radius:50%;
+    background:var(--amber); box-shadow:0 0 0 2px var(--card);
+  }
+  #noteListWrap{
+    flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    background:var(--card2); border:1px solid var(--line); border-radius:0 14px 14px 14px; padding:6px;
+    scrollbar-width:thin; scrollbar-color:#4f4235 transparent;
+  }
+  #noteListWrap::-webkit-scrollbar{width:9px}
+  #noteListWrap::-webkit-scrollbar-thumb{
+    background:#4f4235; border-radius:999px; border:2px solid transparent; background-clip:content-box;
+  }
+  #noteList{display:flex; flex-direction:column; gap:5px}
+  .note{
+    display:grid; grid-template-columns:auto 1fr; gap:7px; align-items:start;
+    padding:6px 8px; border-radius:11px; background:rgba(240,232,218,.04);
+    border-left:3px solid var(--line); cursor:pointer; text-align:left;
+    transition:background .12s, border-color .12s;
+  }
+  .note:hover{background:rgba(255,209,102,.1)}
+  .note .ni{font-size:1.02em; line-height:1.25; filter:saturate(.9)}
+  .note .nb{min-width:0}
+  .note .nh{
+    font-size:.72em; letter-spacing:.07em; text-transform:uppercase; color:var(--soft);
+    display:flex; gap:6px; align-items:baseline;
+  }
+  .note .nmove{color:var(--glow); font-weight:700; letter-spacing:0; text-transform:none; font-size:1.06em}
+  .note .ncp{margin-left:auto; font-variant-numeric:tabular-nums; letter-spacing:0}
+  .note .nt{font-size:.87em; line-height:1.42; color:var(--ink); margin-top:2px}
+  .note .nt b{color:var(--glow)}
+  .note.t-good{border-left-color:#4e9e6a}
+  .note.t-warn{border-left-color:#c8912f}
+  .note.t-bad{border-left-color:#b4503f}
+  .note.t-note{border-left-color:#5b7fb0}
+  .nlEmpty{color:var(--soft); font-size:.82em; line-height:1.45; padding:10px 8px; text-align:center}
   @media (max-width:760px){
     /* a phone's panel is a shelf, not a column: the block keeps its own
        scroll so a five-word opening name can't push the score off it */
@@ -217,7 +286,10 @@
     #matStrip{padding:5px 8px}
     .matRow{min-height:19px}
     .matRow .who{display:none}
-    #moveListWrap{min-width:0}
+    #panelMain, #moveListWrap, #noteListWrap{min-width:0}
+    .ptab{padding:3px 6px; font-size:.7em}
+    .note{padding:5px 7px; gap:6px}
+    .note .nt{font-size:.8em}
     /* a phone's panel is wide and short: fill the width with move pairs
        rather than running one long column past the bottom edge */
     #moveList{grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); gap:3px 8px}
@@ -627,7 +699,14 @@
           </div>
         </div>
       </div>
-      <div id="moveListWrap"><div id="moveList"></div></div>
+      <div id="panelMain">
+        <div id="panelTabs" role="tablist">
+          <button class="ptab sel" id="tabMoves" role="tab">Moves</button>
+          <button class="ptab" id="tabNotes" role="tab">Notes<i class="ptabDot hide" id="notesDot"></i></button>
+        </div>
+        <div id="moveListWrap"><div id="moveList"></div></div>
+        <div id="noteListWrap" class="hide"><div id="noteList"></div></div>
+      </div>
     </div>
   </div>
   <div id="actions">
@@ -833,8 +912,12 @@
     <h2>Settings</h2>
     <div class="settingRow"><span class="lbl"><b>The look</b><small id="setSkinName">Colours, material, board pattern, and which carved set the 3D board uses — change them while you play.</small></span>
       <button class="chip sel" id="setOpenStudio">🎨 Open the Studio</button></div>
-    <div class="settingRow"><span class="lbl"><b>Gentle coach</b><small>A quiet word when a move might lose material — with an offer to take it back.</small></span>
-      <button class="chip sel" id="setCoach">On</button></div>
+    <div class="settingRow"><span class="lbl"><b>The coach's voice</b><small id="setVoiceNote">How much the room says, and in whose language. Everything it notices is kept in the Notes tab either way.</small></span>
+      <div class="rowbtns" style="margin:0">
+        <button class="chip sel" id="vcPlain">Plain words</button>
+        <button class="chip" id="vcBrief">Notation</button>
+        <button class="chip" id="vcOff">Off</button>
+      </div></div>
     <div class="settingRow"><span class="lbl"><b>Sound</b><small>Soft clicks and chimes, made in the browser.</small></span>
       <button class="chip sel" id="setSound">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Clock skin</b><small>Simple digits, or the classic tournament look.</small></span>
@@ -975,6 +1058,7 @@
 <script src="pieces-classic.js"></script>
 <script src="skins.js"></script>
 <script src="lines.js"></script>
+<script src="motion.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>
 <script src="gfx2d.js"></script>

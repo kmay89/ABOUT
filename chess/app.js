@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto" };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain" };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -43,6 +43,7 @@ var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, 
   /* a hand-edited store should not be able to name an effects tier the
      renderer has never heard of */
   if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
+  if (["plain", "brief"].indexOf(prefs.coachVoice) < 0) prefs.coachVoice = "plain";
 })();
 function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
 
@@ -510,16 +511,20 @@ function commitMove(m, source, animOpts) {
                wMs: Math.round(clock.w), bMs: Math.round(clock.b) });
   }
 
-  /* sounds */
-  if (m.flags & Chess.F_CASTLE) snd("castle");
-  else if (m.promo) snd("promo");
-  else if (m.capt || (m.flags & Chess.F_EP)) snd("capture");
-  else snd("move");
+  /* Sound lands with the piece, not with the tap. A click the instant
+     you let go of a piece that is still visibly in the air is the thing
+     that makes a board feel like a web page; the same click a third of
+     a second later, as it touches down, makes it feel like wood. */
+  var land = (m.flags & Chess.F_CASTLE) ? "castle"
+           : m.promo ? "promo"
+           : (m.capt || (m.flags & Chess.F_EP)) ? "capture" : "move";
 
   var st = Chess.status(G);
   hintArrow = null;
 
-  R.animateMove(desc, G.board, animOpts || {}, function () {
+  var aOpts = animOpts || {};
+  aOpts.onLand = function () { snd(land); };
+  R.animateMove(desc, G.board, aOpts, function () {
     syncBoard();
     if (!over && st.reason === "check") snd("check");
   });
@@ -599,9 +604,9 @@ function scheduleCoach() {
    a pawn is a mistake, two and a half is the kind of thing you want to
    be told about. */
 var LOSS_STEPS = [
-  { at: 250, word: "a blunder", tone: "🫤" },
-  { at: 110, word: "a mistake", tone: "🤔" },
-  { at: 50,  word: "an inaccuracy", tone: "💭" }
+  { at: 250, word: "a blunder", tone: "🫤", mark: "??" },
+  { at: 110, word: "a mistake", tone: "🤔", mark: "?" },
+  { at: 50,  word: "an inaccuracy", tone: "💭", mark: "?!" }
 ];
 function pawnsWorth(cp) {
   if (cp >= 900) return "about a queen's worth";
@@ -621,13 +626,32 @@ function gentleCheck(fenBefore, played, san) {
   if (!mine) return;
   var ticket = gameTicket;
   /* one call, both sides of the comparison measured the same way */
-  Brain.review(pre, mine, { ms: 420 }).then(function (res) {
+  Brain.review(pre, mine, { ms: 420, mark: true }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
-    showReview(pre, san, res);
+    showReview(pre, san, res, mine);
   });
 }
-function showReview(pre, san, res) {
+/* Praise has to mean something or it means nothing, and a coach that
+   calls a forced recapture brilliant teaches a beginner to mistake
+   obligation for insight — and loses a strong player's attention on the
+   first move it says it about.
+
+   So: not while you were in check (getting out of it is not a choice),
+   not taking back on the square they just took on, not when there was
+   barely anything else legal, and not in the opening, where the good
+   move is usually something somebody told you rather than something you
+   found. What is left is a move that was genuinely there to be missed. */
+function worthPraising(pre, played, ply) {
+  if (!pre || !played) return false;
+  if (ply < 12) return false;                       /* the first six moves each */
+  if (Chess.inCheck(pre)) return false;
+  if (Chess.moves(pre).length <= 3) return false;
+  if (ply >= 1 && G.played[ply - 1] && G.played[ply - 1].m &&
+      G.played[ply - 1].m.to === played.to) return false;   /* a recapture */
+  return true;
+}
+function showReview(pre, san, res, played) {
   var i;
   var bestScore = res.bestScore, mineScore = res.playedScore, loss = res.loss;
 
@@ -636,14 +660,37 @@ function showReview(pre, san, res) {
      three pieces up does not need to hear about a rounding error. */
   if (bestScore < -650 || mineScore > 650) return;
 
+  var ply = G.played.length - 1, side = ply % 2 === 0 ? 1 : -1;
+  var better = res.bestSAN;
+
   var step = null;
   for (i = 0; i < LOSS_STEPS.length; i++) if (loss >= LOSS_STEPS[i].at) { step = LOSS_STEPS[i]; break; }
-  if (!step) return;
+
+  if (!step) {
+    /* Nothing went wrong — which is most moves, and most moves deserve
+       no remark at all. But a move that was not merely fine and instead
+       was the one move that held the position together is worth saying
+       so, and saying so to the person who found it rather than only
+       ever to the person who did not. `only` is how far clear of the
+       next-best move it stood, measured the same way the loss is. */
+    if (loss <= 0 && res.only != null && res.only >= 150 && worthPraising(pre, played, ply)) {
+      var brilliant = res.only >= 320;
+      noteMove({
+        ply: ply, side: side, mark: brilliant ? "!!" : "!", icon: brilliant ? "\u2728" : "\u2714",
+        tone: "good", cp: mineScore,
+        text: "<b>" + san + "</b> was the move \u2014 and the only one that really worked. " +
+              "Everything else here was worth " + pawnsWorth(res.only) + " less. " +
+              (brilliant ? "That is the kind of move people remember." : "Well spotted."),
+        brief: "only move \u00b7 " + pawnsWorth(res.only) + " clear of " + (res.altSAN || "the rest")
+      });
+    }
+    return;
+  }
+
   /* an inaccuracy is not worth interrupting for unless it actually
      changed who stands better */
   if (step.at < 110 && !(mineScore < 40 && bestScore > 90)) return;
 
-  var better = res.bestSAN;
   /* what they'll be hit with comes first, because that is the thing
      worth spotting next time; the better move comes second */
   var punish = res.refute ? " <b>" + res.refute.san + "</b> is the problem." : "";
@@ -651,11 +698,28 @@ function showReview(pre, san, res) {
     (res.pv && res.pv.length > 1 ? ", and after it " + res.pv.slice(1, 3).join(" ") + "." : ".");
   var cost = " <i>(" + pawnsWorth(loss) + ")</i>";
 
-  toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost +
-        " No shame — this is how everyone learns.",
-    [{ label: "↩ Take it back", fn: gentleUndo },
-     { label: "Play on", fn: function () {}, ghost: true }], 11000);
+  noteMove({
+    ply: ply, side: side, mark: step.mark, icon: step.tone,
+    tone: loss >= 250 ? "bad" : "warn", cp: mineScore,
+    text: "<b>" + san + "</b> was " + step.word + "." + punish + instead + cost +
+          " No shame \u2014 this is how everyone learns.",
+    brief: step.mark + " " + (res.refute ? res.refute.san + "! \u00b7 " : "") + better +
+           " was better by " + (loss / 100).toFixed(1)
+  });
+
+  /* The interruption is reserved for the one case where stopping is
+     worth more than reading later: a blunder you can still take back,
+     said while the position is still on the board. Everything quieter
+     than that is in the notebook, where it can be read twice. */
+  if (loss >= 250 && voice() === "plain") {
+    toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost,
+      [{ label: "\u21a9 Take it back", fn: gentleUndo },
+       { label: "Play on", fn: function () {}, ghost: true }], 11000);
+  }
 }
+/* every remark about a move goes through here, so the mark on the move
+   list and the entry in the notebook can never disagree */
+function noteMove(e) { note(e); }
 /* rewind to the human's turn, whether or not the coach already replied */
 function gentleUndo() {
   if (!G || !G.played.length) return;
@@ -795,7 +859,12 @@ function narrateOpening(san, source) {
     lastNarratedOpening = entry.name;
     /* a move played elsewhere, or a game picked back up, fills the card
        without also announcing an opening you were already in */
-    if (source !== "net" && source !== "resume") toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
+    if (source !== "net" && source !== "resume") {
+      toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
+      note({ ply: G.played.length - 1, icon: "\ud83d\udcd6", tone: "note", key: "opening:" + entry.name,
+             text: "<b>" + entry.name + "</b> — " + entry.idea,
+             brief: (code ? code + " \u00b7 " : "") + entry.name });
+    }
   }
 }
 
@@ -848,6 +917,140 @@ function syncMoveList() {
     else wrap.scrollTop = wrap.scrollHeight;
   });
 }
+/* ===== the coach's notebook =====
+   Everything the room notices — a fork that appeared, a move that cost
+   a pawn, the opening you have wandered into, the reason the game ended
+   — used to live for seven seconds in a toast and then be gone. That is
+   no use to a beginner, who wanted to read it twice and could not, and
+   no use to a strong player, who wanted the whole game at once and got
+   a sentence at a time.
+
+   So it is kept. One list per game, beside the moves, on its own tab;
+   every entry remembers which move it belongs to, so tapping it takes
+   the board back to that position and draws the squares it is about.
+   The same observation, in two languages: full sentences for somebody
+   learning the idea, and the notation a club player already reads for
+   somebody who only wants to know what it cost.
+
+   A mark (?!, ?, ??, !) rides along to the move list, because that one
+   piece of notation means the same thing on your fifth game and your
+   five thousandth. */
+var notes = [], marks = {}, panelTab = "moves", notesUnread = 0;
+var MARK_CLASS = { "!!": "brilliant", "!": "good", "?!": "dubious", "?": "mistake", "??": "blunder" };
+
+function voice() { return prefs.coach ? (prefs.coachVoice === "brief" ? "brief" : "plain") : "off"; }
+
+function clearNotes() {
+  notes = []; marks = {}; notesUnread = 0;
+  renderNotes(); syncNoteBadge();
+}
+function forgetNotesAfter(lastPly) {
+  notes = notes.filter(function (e) { return e.ply == null || e.ply <= lastPly; });
+  for (var k in marks) if (+k > lastPly) delete marks[k];
+  renderNotes();
+}
+/* `e`: { ply, icon, tone, move, text, brief, cp, squares, mark } */
+function note(e) {
+  if (voice() === "off") return;
+  if (!e || !e.text) return;
+  e.at = Date.now();
+  /* one remark per move per concept: a coach that says the same thing
+     twice about the same move is a coach you stop reading */
+  var key = e.ply + ":" + (e.key || e.text);
+  for (var i = 0; i < notes.length; i++) if (notes[i].k === key) return;
+  e.k = key;
+  notes.push(e);
+  if (notes.length > 60) notes.shift();
+  if (e.mark && e.ply != null) { marks[e.ply] = e.mark; syncMoveList(); }
+  if (panelTab !== "notes") { notesUnread++; syncNoteBadge(); }
+  renderNotes();
+}
+function syncNoteBadge() {
+  $("notesDot").classList.toggle("hide", notesUnread === 0 || panelTab === "notes");
+}
+function showPanelTab(which) {
+  panelTab = which === "notes" ? "notes" : "moves";
+  $("tabMoves").classList.toggle("sel", panelTab === "moves");
+  $("tabNotes").classList.toggle("sel", panelTab === "notes");
+  $("moveListWrap").classList.toggle("hide", panelTab !== "moves");
+  $("noteListWrap").classList.toggle("hide", panelTab !== "notes");
+  if (panelTab === "notes") { notesUnread = 0; renderNotes(); }
+  syncNoteBadge();
+}
+/* a score from the mover's side of the board, in the units players use */
+function cpText(cp, side) {
+  if (cp == null) return "";
+  var v = (side === -1 ? -cp : cp) / 100;
+  if (Math.abs(v) < 0.05) return "0.0";
+  return (v > 0 ? "+" : "\u2212") + Math.abs(v).toFixed(1);
+}
+function moveLabel(ply) {
+  if (!G || !G.played[ply]) return "";
+  return (Math.floor(ply / 2) + 1) + (ply % 2 ? "\u2026" : ".") + " " + G.played[ply].san;
+}
+function renderNotes() {
+  var box = $("noteList");
+  if (!box) return;
+  box.innerHTML = "";
+  /* with the coach off the room says nothing and shows nothing — what
+     it noticed earlier is kept, and comes straight back when the voice
+     is turned on again mid-game */
+  if (!notes.length || voice() === "off") {
+    var empty = document.createElement("div");
+    empty.className = "nlEmpty";
+    empty.textContent = voice() === "off"
+      ? "The coach is off. Turn its voice back on in Settings and everything it notices lands here."
+      : "Whatever the room notices lands here \u2014 openings, tactics, and what a move cost. Tap one to go back and look.";
+    box.appendChild(empty);
+    return;
+  }
+  var brief = voice() === "brief";
+  for (var i = notes.length - 1; i >= 0; i--) {
+    var e = notes[i];
+    var row = document.createElement("button");
+    row.className = "note t-" + (e.tone || "note");
+    var ic = document.createElement("span");
+    ic.className = "ni"; ic.textContent = e.icon || "\u2022";
+    var body = document.createElement("span"); body.className = "nb";
+    var head = document.createElement("span"); head.className = "nh";
+    if (e.ply != null && G && G.played[e.ply]) {
+      var mv = document.createElement("span"); mv.className = "nmove";
+      mv.textContent = moveLabel(e.ply) + (e.mark || "");
+      head.appendChild(mv);
+    } else if (e.head) {
+      head.appendChild(document.createTextNode(e.head));
+    }
+    if (e.cp != null) {
+      var cp = document.createElement("span"); cp.className = "ncp";
+      cp.textContent = cpText(e.cp, e.side || 1);
+      head.appendChild(cp);
+    }
+    if (head.childNodes.length) body.appendChild(head);
+    var txt = document.createElement("span"); txt.className = "nt";
+    txt.innerHTML = brief && e.brief ? e.brief : e.text;
+    body.appendChild(txt);
+    row.appendChild(ic); row.appendChild(body);
+    (function (entry) {
+      row.addEventListener("click", function () { openNote(entry); });
+    })(e);
+    box.appendChild(row);
+  }
+}
+/* a note is a way back into the game: the board goes to the position the
+   remark is about and draws the squares it is about */
+function openNote(e) {
+  if (e.ply != null && G && G.played[e.ply]) viewAt(e.ply);
+  if (e.squares && e.squares.length >= 2) {
+    hintArrow = [e.squares[0], e.squares[1]];
+    syncBoard();
+    setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
+  } else if (e.squares && e.squares.length === 1) {
+    R.setHighlights({ selected: e.squares[0], legal: [], legalCapt: [],
+                      last: R.hi.last, check: R.hi.check, hint: null });
+    setTimeout(syncBoard, 3200);
+  }
+}
+
 /* figurine notation: a knight reads as a knight faster than "N" does.
    White's men keep the open glyphs, black's the filled ones — the same
    pairing the captured piles over the board already use. */
@@ -874,9 +1077,21 @@ function moveCell(ply) {
   var san = G.played[ply].san;
   s.appendChild(figurine(san, ply % 2 === 0 ? 1 : -1));
   s.title = san;                        /* the plain letters, for anyone who wants them */
+  var mk = voice() === "off" ? null : marks[ply];
+  if (mk) {
+    var i = document.createElement("i");
+    i.className = "mk mk-" + MARK_CLASS[mk];
+    i.textContent = mk;
+    s.appendChild(i);
+    /* the words behind the mark, for whoever has not met it before */
+    for (var n = 0; n < notes.length; n++) {
+      if (notes[n].ply === ply && notes[n].mark) { s.title = san + " " + mk + " \u2014 " + stripTags(notes[n].text); break; }
+    }
+  }
   s.addEventListener("click", function () { viewAt(ply); });
   return s;
 }
+function stripTags(html) { return String(html).replace(/<[^>]*>/g, ""); }
 function viewAt(ply) {
   if (!G || ply < 0 || ply >= G.played.length) return;
   viewPly = (ply === G.played.length - 1) ? -1 : ply;
@@ -905,7 +1120,7 @@ function replayLast() {
   clearSel();
   R.setHighlights({ last: null });
   toast("🔁 <b>" + rec.san + "</b> — once more, slowly.");
-  R.animateMove(animDescriptor(rec.m), G.board, { dur: REDUCED ? 1 : 850, glow: true }, function () {
+  R.animateMove(animDescriptor(rec.m), G.board, { scale: 2.1, glow: true }, function () {
     syncBoard();
   });
   needFrame();
@@ -919,6 +1134,9 @@ function undoPly(n) {
   clearTimeout(coachTimer); thinking = false;
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
   over = null;
+  /* a move that has been taken back never happened, so neither did
+     anything the room said about it */
+  forgetNotesAfter(G.played.length - 1);
   clearSel(); hintArrow = null; viewPly = -1;
   showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
@@ -953,6 +1171,7 @@ function startGame(newMode, opts) {
   stopTour();
   lesson = null; lessonDone = false; lessonQueue = [];
   teachSeen = {}; teachCool = 0;
+  clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
@@ -981,6 +1200,13 @@ function endGame(result, reason, taught) {
   over = { result: result, reason: reason };
   clock.run = 0;
   clearSel();
+  note({ ply: G && G.played.length ? G.played.length - 1 : null,
+         icon: result === "draw" ? "\ud83e\udd1d" : "\ud83c\udfc1", tone: "note", key: "end",
+         head: "the game",
+         text: "<b>" + (result === "draw" ? "A draw" : (result === "white" ? "White wins" : "Black wins")) +
+               "</b> \u2014 " + reason + "." +
+               (taught && taught.text ? " " + taught.text : ""),
+         brief: (result === "draw" ? "\u00bd\u2013\u00bd" : (result === "white" ? "1\u20130" : "0\u20131")) + " \u00b7 " + reason });
   syncAll();
   var mySide = mode === "coach" ? humanSide : (mode === "lan" ? lanSide : 0);
   var iWon = (result === "white" && mySide === 1) || (result === "black" && mySide === -1);
@@ -1936,7 +2162,7 @@ function tourNext() {
   var desc = animDescriptor(m);
   var san = Chess.play(G, m);
   snd(m.capt ? "capture" : "move");
-  R.animateMove(desc, G.board, { dur: REDUCED ? 1 : 620 }, null);
+  R.animateMove(desc, G.board, { scale: 1.7 }, null);
   syncMoveList(); syncBars(); syncTurnStrip();
   if (why) toast("<b>" + san + "</b> — " + why, null, 2600);
   tourStep++;
@@ -2139,9 +2365,32 @@ function teachMoment(list, mover, source) {
       syncBoard();
       setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
     }
-    toast("👁 " + item.text, null, 7000);
+    /* Named, kept, and re-readable. Naming is what turns a thing that
+       happened into a pattern you can recognise again, and keeping it is
+       what lets you look at the name twice. */
+    note({ ply: G.played.length - 1, icon: "\ud83d\udc41", tone: "note", key: item.concept,
+           squares: item.squares || null, text: item.text,
+           brief: conceptLabel(item.concept) + (item.squares && item.squares.length
+                  ? " \u00b7 " + item.squares.map(Chess.sqName).join("\u2013") : "") });
+    /* the board only gets interrupted for something that changes what
+       you should do right now */
+    if (major && voice() === "plain") toast("\ud83d\udc41 " + item.text, null, 7000);
     return;
   }
+}
+
+/* the same idea, named the way a book would name it — which is what a
+   strong player wants on the line and a beginner meets in the plain
+   words above it */
+var CONCEPT_LABEL = {
+  fork: "fork", pin: "pin", skewer: "skewer", hanging: "hanging piece",
+  backRank: "back rank", checkmate: "mate", stalemate: "stalemate",
+  discovered: "discovered attack", trade: "trade", development: "development",
+  centre: "the centre", castling: "king safety", promotion: "promotion",
+  tempo: "tempo", overload: "overloaded defender"
+};
+function conceptLabel(c) {
+  return CONCEPT_LABEL[c] || String(c || "note").replace(/([A-Z])/g, " $1").toLowerCase();
 }
 
 /* ===================== the Academy =====================
@@ -2271,7 +2520,7 @@ function showWorkedExample() {
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
     snd(m.capt ? "capture" : "move");
-    R.animateMove(desc, g2.board, { dur: REDUCED ? 1 : 700, glow: true }, function () {
+    R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
       lessonUI('<div class="lkick">Watch first</div>' +
         '<div class="lask">' + esc(lesson.best) + '</div>' +
         '<div class="lsay">' + lesson.why + '</div>');
@@ -2348,7 +2597,7 @@ function lessonAttempt(m) {
   if (verdict.ok) {
     lessonDone = true;
     snd(m.capt ? "capture" : "move");
-    R.animateMove(desc, g2.board, { dur: REDUCED ? 1 : 380 }, function () {
+    R.animateMove(desc, g2.board, { scale: 1.0 }, function () {
       G = g2;
       syncBoard();
       celebrateLesson(verdict);
@@ -2361,7 +2610,7 @@ function lessonAttempt(m) {
   lessonTries++;
   snd("move");
   var say = Learn.critique(lesson, G, m);
-  R.animateMove(desc, g2.board, { dur: REDUCED ? 1 : 300 }, function () {
+  R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
@@ -2807,8 +3056,14 @@ function syncOddsUI() {
 function syncSettingsUI() {
   $("setSkinName").textContent = "Currently: " + skin.name + " · " +
     Skins.MATERIALS[skin.pieces.material].label.toLowerCase() + " pieces.";
-  $("setCoach").classList.toggle("sel", prefs.coach);
-  $("setCoach").textContent = prefs.coach ? "On" : "Off";
+  var v = voice();
+  $("vcPlain").classList.toggle("sel", v === "plain");
+  $("vcBrief").classList.toggle("sel", v === "brief");
+  $("vcOff").classList.toggle("sel", v === "off");
+  $("setVoiceNote").textContent =
+    v === "plain" ? "Full sentences, with the idea named — everything it notices is kept in the Notes tab, so you can read it twice."
+    : v === "brief" ? "One line per remark, in notation, with what the move cost. Marks still ride along on the move list."
+    : "The room says nothing and marks nothing. You can turn it back on mid-game.";
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
   $("setHelpers").classList.toggle("sel", prefs.helpers);
@@ -2884,7 +3139,16 @@ function wireUI() {
 
   /* settings */
   $("setOpenStudio").addEventListener("click", function () { hideAllOverlays(); openStudio(); });
-  $("setCoach").addEventListener("click", function () { prefs.coach = !prefs.coach; savePrefs(); syncSettingsUI(); });
+  function setVoice(v) {
+    prefs.coach = v !== "off";
+    if (v !== "off") prefs.coachVoice = v;
+    savePrefs(); syncSettingsUI(); renderNotes(); syncMoveList();
+  }
+  $("vcPlain").addEventListener("click", function () { setVoice("plain"); });
+  $("vcBrief").addEventListener("click", function () { setVoice("brief"); });
+  $("vcOff").addEventListener("click", function () { setVoice("off"); });
+  $("tabMoves").addEventListener("click", function () { showPanelTab("moves"); });
+  $("tabNotes").addEventListener("click", function () { showPanelTab("notes"); });
   $("setSound").addEventListener("click", function () { prefs.sound = !prefs.sound; savePrefs(); syncSettingsUI(); if (prefs.sound) snd("link"); });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
@@ -3057,6 +3321,7 @@ function boot() {
   syncSettingsUI();
   wireSW();
   wireHashLinks();
+  clearNotes(); showPanelTab("moves");
   G = Chess.create();          /* an idle board behind the menu */
   R.setPosition(G.board, { flourish: true });
   mode = null;
@@ -3094,6 +3359,17 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   get oddsSpent() { return oddsSpent; }, syncAll: syncAll,
   clockMs: function (side) { return side === 1 ? clock.w : clock.b; },
   oddsResetForTest: function () { oddsLastNudge = -99; teachSeen = {}; teachCool = 0; },
+  /* the notebook, for chess/tools/coach-check.js — the voice switch and
+     the take-back are the two places its bookkeeping can go wrong, and
+     neither is reachable from a click the checker can make reliably */
+  setVoiceForTest: function (v) {
+    prefs.coach = v !== "off";
+    if (v !== "off") prefs.coachVoice = v;
+    savePrefs(); syncSettingsUI(); renderNotes(); syncMoveList();
+  },
+  undoPlyForTest: undoPly,
+  marksForTest: function () { return marks; },
+  notesForTest: function () { return notes; },
   get mode() { return mode; }, startGame: startGame, get renderer() { return R; },
   feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,

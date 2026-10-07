@@ -38,7 +38,9 @@ self.onmessage = function (e) {
       var rv = m ? Chess.review(g, m, d.opts || {}) : null;
       out = rv ? { best: lite(rv.best), bestSAN: Chess.toSAN(g, rv.best),
                    bestScore: rv.bestScore, playedScore: rv.playedScore, loss: rv.loss,
-                   pv: rv.pv || [], refute: rv.refute || null, depth: rv.depth } : null;
+                   pv: rv.pv || [], refute: rv.refute || null, depth: rv.depth,
+                   only: rv.only == null ? null : rv.only, alone: !!rv.alone,
+                   altSAN: rv.alt ? Chess.toSAN(g, rv.alt) : null } : null;
     }
   } catch (err) {
     out = null;

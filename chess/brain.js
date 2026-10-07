@@ -40,7 +40,9 @@ function sameThread(d) {
     var rv = m ? root.Chess.review(g, m, d.opts || {}) : null;
     return rv ? { best: lite(rv.best), bestSAN: root.Chess.toSAN(g, rv.best),
                   bestScore: rv.bestScore, playedScore: rv.playedScore, loss: rv.loss,
-                  pv: rv.pv || [], refute: rv.refute || null, depth: rv.depth } : null;
+                  pv: rv.pv || [], refute: rv.refute || null, depth: rv.depth,
+                   only: rv.only == null ? null : rv.only, alone: !!rv.alone,
+                   altSAN: rv.alt ? root.Chess.toSAN(g, rv.alt) : null } : null;
   }
   return null;
 }

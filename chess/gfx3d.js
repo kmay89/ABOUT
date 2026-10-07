@@ -152,6 +152,33 @@ function mModel(x, y, z, s, ry, sy) {
   var c = Math.cos(ry || 0), n = Math.sin(ry || 0);
   return [s*c,0,-s*n,0, 0,(sy == null ? s : sy),0,0, s*n,0,s*c,0, x,y,z,1];
 }
+/* The same thing, plus a lean. A piece that is banking into a long
+   diagonal, or being pushed over by whatever just took it, rotates
+   about a horizontal axis through its own base — which is the origin of
+   every carved mesh, so the axis passes through the point the piece
+   actually stands on and it tips on its edge rather than sinking
+   through the board.
+
+   Rodrigues, written out for an axis with no y component, then the yaw
+   and the scale folded into the same three columns. The lean is applied
+   outside the yaw so that "fall this way" means a direction on the
+   board rather than one relative to whichever way the piece is facing. */
+function mLean(x, y, z, sxz, sy, ry, ax, az, ang) {
+  if (!ang) return mModel(x, y, z, sxz, ry, sy);
+  var c = Math.cos(ang), s = Math.sin(ang), k = 1 - c;
+  var r00 = c + k*ax*ax, r01 = -s*az,      r02 = k*ax*az,
+      r10 = s*az,        r11 = c,          r12 = -s*ax,
+      r20 = k*ax*az,     r21 = s*ax,       r22 = c + k*az*az;
+  var cy = Math.cos(ry || 0), ny = Math.sin(ry || 0);
+  /* R · Ry, column by column, with the scale riding on the columns */
+  var m00 = r00*cy + r02*ny, m02 = -r00*ny + r02*cy,
+      m10 = r10*cy + r12*ny, m12 = -r10*ny + r12*cy,
+      m20 = r20*cy + r22*ny, m22 = -r20*ny + r22*cy;
+  return [m00*sxz, m10*sxz, m20*sxz, 0,
+          r01*sy,  r11*sy,  r21*sy,  0,
+          m02*sxz, m12*sxz, m22*sxz, 0,
+          x, y, z, 1];
+}
 
 /* ---------- geometry ----------
    The men themselves are carved in pieces3d.js — a whole workshop of
@@ -165,6 +192,15 @@ function workshop() {
   if (root.Pieces3D) return root.Pieces3D;
   if (typeof module !== "undefined" && module.exports && typeof require === "function") {
     try { return require("./pieces3d.js"); } catch (e) { return null; }
+  }
+  return null;
+}
+/* how a piece moves is shared with the 2D board, so it lives in its own
+   file and is looked up the same way the workshop is */
+function motionKit() {
+  if (root.Motion) return root.Motion;
+  if (typeof module !== "undefined" && module.exports && typeof require === "function") {
+    try { return require("./motion.js"); } catch (e) { return null; }
   }
   return null;
 }
@@ -691,12 +727,15 @@ function create(canvas, opts) {
      same road a lost context takes */
   var Kit = workshop();
   if (!Kit) throw new Error("gfx3d: pieces3d.js has not loaded");
+  var Move = motionKit();
+  if (!Move) throw new Error("gfx3d: motion.js has not loaded");
   var computeNormals = Kit.kit.computeNormals;
 
   var R = {
     kind: "3d", skin: null, pal: null, orientation: 1,
     board: new Int8Array(128),
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    checkAt: -1,
     lines: [], net: [],
     anim: null, drops: null, lost: false, dirty: true
   };
@@ -1147,6 +1186,12 @@ function create(canvas, opts) {
     R.dirty = true;
   };
   R.setHighlights = function (hi) {
+    /* a king that has just been put in check gets a few seconds of slow
+       breathing on its square; one that has been in check all along does
+       not, or a board nobody is touching would never stop redrawing */
+    var nextCheck = hi.check != null ? hi.check : -1;
+    if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = performance.now();
+    else if (nextCheck < 0) R.checkAt = -1;
     R.hi.selected = hi.selected != null ? hi.selected : -1;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
@@ -1157,8 +1202,15 @@ function create(canvas, opts) {
   };
   R.animateMove = function (m, after, o, done) {
     o = o || {};
-    R.anim = { m: m, after: new Int8Array(after), t0: performance.now(),
-               dur: REDUCED ? 1 : (o.dur || 380), glow: !!o.glow, done: done || null };
+    /* the character of the move is worked out once, here, rather than
+       sampled out of a table every frame */
+    var pl = Move.plan(m, { reduced: REDUCED, scale: o.scale });
+    if (o.dur) pl.dur = REDUCED ? 1 : o.dur;   /* a caller that insists */
+    R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
+               dur: pl.dur, glow: !!o.glow, done: done || null,
+               /* the sound of a piece being set down belongs at the moment
+                  it is set down, not at the moment you let go of it */
+               onLand: o.onLand || null, landed: false };
     R.dirty = true;
   };
   R.isAnimating = function () { return !!R.anim; };
@@ -1246,15 +1298,38 @@ function create(canvas, opts) {
      sort a set of glass pieces back to front, which they need or the
      ones behind simply vanish. */
   var instances = [];
-  function pushPiece(piece, x, z, yLift, alpha, scaleMul) {
+  /* A piece on the board is a pose, not a position: where it stands, how
+     far off the board it has been lifted, how much it is squashed by the
+     weight of landing, and which way it is leaning. Standing still, all
+     of those are their resting values and the extra fields cost nothing;
+     mid-move they are what makes the gesture. */
+  function pushPiece(piece, x, z, yLift, alpha, scaleMul, pose) {
     var kind = Math.abs(piece);
     var P = PIECES && PIECES[kind];
     if (!P) return;
+    var s = scaleMul || 1;
     var dx = x - cam.eye[0], dy = (yLift || 0) - cam.eye[1], dz = z - cam.eye[2];
-    instances.push({ P: P, white: piece > 0, x: x, z: z, y: yLift || 0,
-                     a: alpha == null ? 1 : alpha, s: scaleMul || 1,
-                     ry: faceAngle(kind, piece > 0),
-                     d: dx * dx + dy * dy + dz * dz });
+    var q = { P: P, white: piece > 0, x: x, z: z, y: yLift || 0,
+              a: alpha == null ? 1 : alpha, s: s, sy: s,
+              ry: faceAngle(kind, piece > 0),
+              ax: 0, az: 0, lean: 0,
+              d: dx * dx + dy * dy + dz * dz };
+    if (pose) {
+      /* squash keeps the piece's volume roughly honest: what it loses in
+         height it gains, less than half as much, around the middle */
+      if (pose.squash != null && pose.squash !== 1) {
+        q.sy = s * pose.squash;
+        q.s = s * (1 + (1 - pose.squash) * 0.42);
+      }
+      if (pose.lean) { q.lean = pose.lean; q.ax = pose.ax || 0; q.az = pose.az || 0; }
+      if (pose.ry != null) q.ry += pose.ry;
+    }
+    instances.push(q);
+    return q;
+  }
+  function poseModel(q, mirror) {
+    return mLean(q.x, mirror ? -q.y - 0.004 : q.y, q.z,
+                 q.s, mirror ? -q.sy : q.sy, q.ry, q.ax, q.az, mirror ? -q.lean : q.lean);
   }
 
   function drawPiece(q, th) {
@@ -1268,11 +1343,13 @@ function create(canvas, opts) {
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     bindMesh(MESH_DISC);
+    /* the contact darkening tightens and fades as the piece lifts, which
+       is the cheapest cue there is that something is off the board */
     drawMesh(MESH_DISC, mModel(q.x, 0.012, q.z, q.P.radius * (shadowSize ? 0.86 : 1.12) * q.s, 0),
       [0, 0, 0], contact * al / (1 + Math.max(0, q.y) * 1.6), true, 0, 0, 1);
     if (al >= 1) { gl.depthMask(true); gl.disable(gl.BLEND); }
     bindMesh(q.P.mesh);
-    drawMesh(q.P.mesh, mModel(q.x, q.y, q.z, q.s, q.ry),
+    drawMesh(q.P.mesh, poseModel(q, false),
       q.white ? th.white : th.black, al, false, th.rough, th.metal);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -1294,7 +1371,7 @@ function create(canvas, opts) {
     for (var i = 0; i < instances.length; i++) {
       var q = instances[i];
       bindMesh(q.P.mesh);
-      drawMesh(q.P.mesh, mModel(q.x, -q.y - 0.004, q.z, q.s, q.ry, -q.s),
+      drawMesh(q.P.mesh, poseModel(q, true),
         q.white ? th.white : th.black, q.a * th.alpha, false, Math.max(th.rough, 0.22), th.metal);
     }
     gl.uniform1f(U.mirror, 0);
@@ -1329,7 +1406,7 @@ function create(canvas, opts) {
       onlyAttrib(US.aPos);
       gl.vertexAttribPointer(US.aPos, 3, gl.FLOAT, false, STRIDE, 0);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, q.P.mesh.ib);
-      gl.uniformMatrix4fv(US.model, false, mModel(q.x, q.y, q.z, q.s, q.ry));
+      gl.uniformMatrix4fv(US.model, false, poseModel(q, false));
       gl.drawElements(gl.TRIANGLES, q.P.mesh.n, gl.UNSIGNED_SHORT, 0);
     }
     gl.disable(gl.CULL_FACE);
@@ -1503,24 +1580,74 @@ function create(canvas, opts) {
       }
       pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1);
     }
+    var promoFlash = 0, promoAt = null;
     if (a) {
-      var e = ease(aprog);
+      var pl = a.pl, st = Move.at(pl, aprog);
+      if (!st.moving && !a.landed) {
+        a.landed = true;
+        if (a.onLand) { var lcb = a.onLand; a.onLand = null; setTimeout(lcb, 0); }
+      }
+      var fx = sqX(a.m.from), fz = sqZ(a.m.from), tx = sqX(a.m.to), tz = sqZ(a.m.to);
+      /* the unit vector the move travels along: the bank leans across
+         it, and a captured piece is pushed over along it */
+      var vx = tx - fx, vz = tz - fz, vl = Math.hypot(vx, vz) || 1;
+      vx /= vl; vz /= vl;
+
+      /* whatever was taken is pushed over rather than deleted. It tips
+         away from the piece that took it, skids a little, and is off the
+         square before the mover has finished arriving — so you see what
+         happened without the board ever being ambiguous. An en-passant
+         capture topples on its own square, which is the clearest
+         possible explanation of a rule that confuses everybody. */
       var captPiece = a.m.epSq != null ? R.board[a.m.epSq] : R.board[a.m.to];
       if (captPiece) {
-        var cx = a.m.epSq != null ? sqX(a.m.epSq) : sqX(a.m.to);
-        var cz = a.m.epSq != null ? sqZ(a.m.epSq) : sqZ(a.m.to);
-        pushPiece(captPiece, cx, cz, -0.9 * e, 1 - e, 1 - 0.2 * e); /* sinks through the board */
+        var cx = a.m.epSq != null ? sqX(a.m.epSq) : tx;
+        var cz = a.m.epSq != null ? sqZ(a.m.epSq) : tz;
+        var tp = Move.toppleAt(pl, aprog);
+        if (tp.alpha > 0.004) {
+          /* the axis it turns about is across the push, in the board plane */
+          pushPiece(captPiece, cx + vx * tp.slide, cz + vz * tp.slide, tp.y,
+            tp.alpha, 1, { lean: tp.tilt, ax: -vz, az: vx });
+        }
       }
+
+      /* a castle is one gesture by two pieces: the rook sets off a
+         moment after the king and arrives a moment before it */
       if (a.m.rookFrom != null) {
+        var rk = Move.rookAt(pl, aprog);
         pushPiece(a.after[a.m.rookTo],
-          sqX(a.m.rookFrom) + (sqX(a.m.rookTo) - sqX(a.m.rookFrom)) * e,
-          sqZ(a.m.rookFrom) + (sqZ(a.m.rookTo) - sqZ(a.m.rookFrom)) * e, 0, 1, 1);
+          sqX(a.m.rookFrom) + (sqX(a.m.rookTo) - sqX(a.m.rookFrom)) * rk.p,
+          sqZ(a.m.rookFrom) + (sqZ(a.m.rookTo) - sqZ(a.m.rookFrom)) * rk.p,
+          rk.y, 1, 1);
       }
-      var mover = e > 0.75 && a.m.promo ? a.m.promo : a.m.piece;
-      var hop = Math.abs(a.m.piece) === 2 ? Math.sin(aprog * Math.PI) * 0.55 : Math.sin(aprog * Math.PI) * 0.06;
-      pushPiece(mover,
-        sqX(a.m.from) + (sqX(a.m.to) - sqX(a.m.from)) * e,
-        sqZ(a.m.from) + (sqZ(a.m.to) - sqZ(a.m.from)) * e, hop, 1, 1);
+
+      var mx = fx + (tx - fx) * st.p, mz = fz + (tz - fz) * st.p;
+      /* the lean is about the axis across the travel — a long diagonal
+         gets a little roll into it, a one-square step gets none */
+      var pose = { squash: st.squash, lean: st.bank, ax: -vz, az: vx };
+      if (pl.spin) {
+        /* the knight turns toward where it is going and back again, so
+           the one piece with a face uses it */
+        pose.ry = Math.sin(Math.PI * Math.min(1, aprog / pl.travel)) * 0.30 *
+                  (a.m.piece > 0 ? 1 : -1);
+      }
+      if (a.m.promo) {
+        /* the only move in chess where a piece becomes a different
+           piece, so it gets the only moment of ceremony: the pawn turns
+           and goes, there is a flash, and the new piece grows in */
+        var pr = Move.promoteAt(pl, aprog);
+        if (pr.pawnAlpha > 0.004) {
+          pushPiece(a.m.piece, mx, mz, st.y + (1 - pr.pawnAlpha) * 0.22,
+            pr.pawnAlpha, pr.pawnScale, { squash: st.squash, ry: pr.pawnSpin });
+        }
+        if (pr.newScale > 0.01) {
+          pushPiece(a.m.promo, tx, tz, 0, pr.newAlpha, pr.newScale, null);
+        }
+        promoFlash = pr.flash;
+        promoAt = [tx, tz];
+      } else {
+        pushPiece(a.m.piece, mx, mz, st.y, 1, 1, pose);
+      }
     }
 
     /* ---- pass one: what the light can see ---- */
@@ -1603,7 +1730,20 @@ function create(canvas, opts) {
       drawFlatSq(R.hi.last[1], th.last, 0.45);
     }
     if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
-    if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.45);
+    /* a king in check breathes for a few seconds rather than blinking:
+       a blink is an alarm, and an alarm is the one thing a beginner
+       being shown a new idea does not need more of */
+    var pulse = { amount: 1, live: false };
+    if (R.hi.check >= 0) {
+      if (R.checkAt >= 0) pulse = Move.checkPulse(performance.now() - R.checkAt);
+      drawFlatSq(R.hi.check, th.check, 0.30 + 0.34 * pulse.amount);
+      if (pulse.amount > 0.5) {
+        bindMesh(MESH_RING);
+        drawMesh(MESH_RING, mModel(sqX(R.hi.check), 0.024, sqZ(R.hi.check),
+          0.40 + 0.22 * pulse.amount, 0), th.check, 0.5 * pulse.amount, true, 0, 0, 2.2);
+        bindMesh(MESH_QUAD);
+      }
+    }
     bindMesh(MESH_DISC);
     for (var li = 0; li < R.hi.legal.length; li++) {
       drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13, 0), th.legal, 0.55, true, 0, 0, 1.9);
@@ -1619,6 +1759,16 @@ function create(canvas, opts) {
       for (var nn = 0; nn < R.net.length; nn++) {
         drawMesh(MESH_RING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.34, 0), th.capt, 0.5, true, 0, 0, 1.6);
       }
+    }
+    /* the promotion flash: a ring of light opening out of the square the
+       new piece is arriving on, bright enough for the bloom to catch */
+    if (promoFlash > 0.01 && promoAt) {
+      bindMesh(MESH_RING);
+      drawMesh(MESH_RING, mModel(promoAt[0], 0.03, promoAt[1], 0.34 + promoFlash * 0.66, 0),
+        th.selected, 0.75 * promoFlash, true, 0, 0, 3.4 + promoFlash * 4.0);
+      bindMesh(MESH_DISC);
+      drawMesh(MESH_DISC, mModel(promoAt[0], 0.026, promoAt[1], 0.30 + promoFlash * 0.46, 0),
+        th.selected, 0.34 * promoFlash, true, 0, 0, 2.2);
     }
     if (R.lines.length && root.Lines) {
       var lnow = performance.now();
@@ -1640,7 +1790,7 @@ function create(canvas, opts) {
     /* ---- pass three: the lens ---- */
     if (postOk) post(th);
 
-    R.dirty = animating || moving || dropping || R.lines.length > 0;
+    R.dirty = animating || moving || dropping || R.lines.length > 0 || pulse.live;
     return R.dirty;
   };
 

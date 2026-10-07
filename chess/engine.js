@@ -1108,18 +1108,37 @@ function scoreMoves(g, list, opts) {
 function review(g, played, opts) {
   opts = opts || {};
   var budget = opts.ms || 500;
-  var r = search(g, { ms: Math.round(budget * 0.55), maxDepth: opts.maxDepth || 64 });
+  /* `mark` asks the extra question a good move deserves: not "how much
+     worse than the best was this?" but "how much better than everything
+     else was it?". Praise that cannot tell a forced move from a found
+     one is worth nothing, so the runner-up is scored by the same
+     yardstick as the other two — one more entry in a list that is
+     already being scored, which is close to free. */
+  var wantMark = !!opts.mark;
+  var r = search(g, { ms: Math.round(budget * 0.55), maxDepth: opts.maxDepth || 64, rank: wantMark });
   if (!r.move) return null;
-  var same = r.move.from === played.from && r.move.to === played.to &&
-             (r.move.promo || 0) === (played.promo || 0);
+  var samePlayed = function (m) {
+    return m.from === played.from && m.to === played.to && (m.promo || 0) === (played.promo || 0);
+  };
+  var same = samePlayed(r.move);
   var list = same ? [played] : [r.move, played];
+  var alt = null, i;
+  if (wantMark && r.ranked) {
+    for (i = 0; i < r.ranked.length; i++) {
+      var rm = r.ranked[i].move;
+      if (samePlayed(rm) || rm === r.move) continue;
+      alt = rm; break;
+    }
+    if (alt) list.push(alt);
+  }
   var depth = Math.max(3, Math.min(r.depth || 4, opts.depth || 6));
   var sc = scoreMoves(g, list, { depth: depth, ms: Math.round(budget * 0.45) });
-  var bestScore = null, playedScore = null, i, m;
+  var bestScore = null, playedScore = null, altScore = null, m;
   for (i = 0; i < sc.length; i++) {
     m = sc[i].move;
-    if (m.from === played.from && m.to === played.to && (m.promo || 0) === (played.promo || 0)) playedScore = sc[i].score;
+    if (samePlayed(m)) playedScore = sc[i].score;
     if (m === r.move) bestScore = sc[i].score;
+    if (alt && m === alt) altScore = sc[i].score;
   }
   if (same) bestScore = playedScore;
   if (playedScore === null || bestScore === null) return null;
@@ -1137,8 +1156,14 @@ function review(g, played, opts) {
     if (after.move) refute = { san: toSAN(g, after.move), pv: after.pv };
     unmake(g);
   }
-  return { best: r.move, bestScore: bestScore, playedScore: playedScore,
-           loss: bestScore - playedScore, pv: r.pv, refute: refute, depth: depth };
+  return { best: r.move, alt: alt, bestScore: bestScore, playedScore: playedScore,
+           loss: bestScore - playedScore, pv: r.pv, refute: refute, depth: depth,
+           /* how far clear of the next-best move the played one stands.
+              Null when nobody asked, or when there was no second move to
+              compare it with — which is itself worth knowing, because a
+              position with one legal move cannot be played well. */
+           only: (altScore !== null && playedScore !== null) ? playedScore - altScore : null,
+           alone: wantMark && sc.length < 2 };
 }
 
 var rootBest = null;
