@@ -437,10 +437,10 @@ function create(canvas) {
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-      dur: pl.dur, glow: !!opts.glow, done: done || null,
-      onLand: opts.onLand || null, landed: false
+      dur: pl.dur, glow: !!opts.glow, done: done || null
     };
     R.dirty = true;
+    return pl;
   };
   R.isAnimating = function () { return !!R.anim; };
 
@@ -513,10 +513,6 @@ function create(canvas) {
     /* the move in flight */
     if (a) {
       var pl = a.pl, stt = Move.at(pl, prog);
-      if (!stt.moving && !a.landed) {
-        a.landed = true;
-        if (a.onLand) { var lcb = a.onLand; a.onLand = null; setTimeout(lcb, 0); }
-      }
       var f0 = sqXY(a.m.from), f1 = sqXY(a.m.to);
       /* which way the move is going, so what it captures falls away from
          it rather than toward it */
