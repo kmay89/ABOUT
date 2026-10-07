@@ -43,8 +43,12 @@ rules: MIT-compatible, no build step, no runtime dependency, offline.
 - **Stockfish / stockfish.wasm / lc0** — the strongest engines alive,
   but GPL-licensed (a poor fit inside an MIT repo), megabytes of WASM
   and network weights, and vastly more strength than a teaching room
-  needs. Our small perft-proven alpha-beta is honest about what it is:
-  a coach, not an oracle.
+  needs. Our own search is perft-proven, cross-checked against chess.js,
+  and strong enough that its advice holds up — but it is honest about
+  what it is: a coach, not an oracle. The difference matters more than
+  the Elo. An oracle tells you the move; a coach has to be able to say
+  how much the move you chose actually cost you, which is a comparison
+  rather than a verdict, and no amount of borrowed strength provides it.
 - **chess.js / chessops as the shipped rules engine** — would add a
   runtime dependency for something we could prove correct ourselves
   (and now cross-check against).
@@ -88,9 +92,21 @@ lines.js            the racing line: pure geometry that turns a chess
                     by both renderers
 engine.js           the rules of chess, complete: legal move generation
                     (castling, en passant, underpromotion), mate/stalemate,
-                    every draw rule, FEN, SAN, and an alpha-beta search
-                    used for hints, blunder whispers, and the practice
-                    opponent
+                    every draw rule, FEN, SAN — and the search the coaching
+                    rests on: Zobrist-keyed transposition table, killer and
+                    history ordering, null-move pruning, late-move
+                    reductions, check extensions, aspiration windows, and a
+                    tapered evaluation that knows about pawn structure,
+                    mobility, open files and the shelter round the king.
+                    Also review(), which answers the only question a coach
+                    actually asks: how much worse was that than the best
+                    you had?
+brain.js            the engine on a thread of its own, as promises — the
+                    board keeps drawing and the clock keeps ticking while
+                    the coach thinks. Falls back to the main thread where
+                    workers can't be built (file://), same API, same
+                    answers, just the pause back
+brain-worker.js     the other side of that conversation
 book.js             the teaching book — famous lines in SAN with
                     plain-language ideas and per-move reasons
 eco.js              generated: all 3,807 named openings (ECO codes)
@@ -147,6 +163,18 @@ tools/              dev-only, never shipped:
                     in 16 bits, standing on the board and inside its
                     square — plus the injection doors fed junk JSON and
                     junk .obj
+  engine-check.js   the coach has to be right before it can be kind: hash
+                    integrity, a colour-symmetric evaluation, forced mates
+                    proved by brute force rather than taken on the
+                    engine's word, free material taken, a won position not
+                    thrown away by repetition, a legal move inside the
+                    time budget every time, and (--slow) that the three
+                    practice levels really are a ladder
+  offline-check.js  pulls the plug for real: compares the service worker's
+                    shell with everything the page and its worker load, in
+                    both directions, then cuts the network in a live
+                    browser and checks the room still boots, still carves
+                    its pieces, and still answers with a move
   pieces-preview.html
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
@@ -259,6 +287,54 @@ deliberately isn't. Design against
 shader with wireframe and baked-occlusion views, and check it with
 `node chess/tools/pieces-check.js`.
 
+## The coach
+
+A teaching engine has a different job from a strong one. It still has to
+be right — advice you can't trust is worse than no advice — but the
+number it produces has to mean something a person can act on.
+
+**Strength, because advice rests on it.** The search was a plain
+alpha-beta that reached depth five or six in a second, which is enough to
+take a hanging queen and not enough to see why it was hanging. It now
+carries a transposition table on a Zobrist key, killer and history move
+ordering, null-move pruning, late-move reductions, check extensions and
+aspiration windows, over a tapered evaluation that knows about passed and
+isolated pawns, mobility, open files, the bishop pair and the shelter
+round the king. Same second, depth eight to eleven, on a third of the
+nodes. Played against the engine it replaced, 24 games at 150ms a move:
+**+12 =12 −0, about +338 Elo.**
+
+**The quiet word, rebuilt.** The old blunder check asked "is the
+opponent's best reply good for them?" — which flags every move made in a
+bad position and says nothing when you throw away a winning one. The
+question that teaches is *how much worse was that than the best you had*,
+so `Chess.review()` runs on the position before the move and scores the
+move you played and the move the engine wanted **with the same call at
+the same depth**. Mixing a deep score with a shallow one is the subtle
+way this feature goes wrong, and it is why the answer used to be a shrug.
+
+The difference has a name players already use — inaccuracy, mistake,
+blunder — and using their words means the feedback transfers to every
+book and every board afterwards. Then it names the punishment before the
+cure, because *"Qxe5+ is the problem"* is what you want to spot next
+time; *"Qe7 was the move"* is only what to memorise.
+
+**Off the drawing thread.** A mentor move used to hold the main thread
+for most of a second: the clock stopped, the board froze, taps went
+nowhere. The work was never the problem — doing it where the page draws
+was. `brain.js` moves it to a worker and the worst frame gap during a
+full-second search is now zero. That is also what makes it safe to let
+the coach think for longer.
+
+**A ladder you can practise against.** Depth is capped as well as time,
+so a level plays the same on a slow phone as on a fast laptop — a coach
+whose strength depends on your hardware can't be trained against. Below
+mentor, the opponent plays under its strength on purpose, weighted toward
+the better moves rather than picking evenly from everything it can get
+away with: mostly sensible, occasionally loose, which is what a real
+player of that level looks like. `engine-check.js --slow` plays the
+levels off against each other to confirm the ladder is a ladder.
+
 ## Two ideas worth explaining
 
 **The racing line.** A racing driver's line is one curve that contains a
@@ -348,6 +424,8 @@ node chess/tools/book-check.js     # every opening line legal & canonical
 node chess/tools/teach-check.js    # the teaching eyes see what they claim
 node chess/tools/lesson-check.js   # every lesson solvable; spacing maths
 node chess/tools/skin-check.js     # presets, share codes, hostile input
+node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
+node chess/tools/offline-check.js  # the room survives the train tunnel
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```

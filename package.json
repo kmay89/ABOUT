@@ -1,16 +1,17 @@
 {
   "name": "kmay89-devtools",
   "private": true,
-  "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) — never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
+  "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) \u2014 never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
   "scripts": {
-    "check": "npm run check:parity && npm run check:rules && npm run check:room",
+    "check": "npm run check:parity && npm run check:room && npm run check:chess",
     "check:parity": "node tools/room-parity.js",
     "check:rules": "node tools/rules-check.js",
     "check:ai": "node tools/ai-check.js",
     "check:open": "node tools/open-check.js",
     "check:room": "node tools/room-check.js",
     "check:join": "node tools/join-check.js",
-    "icons": "node tools/make-game-icons.js"
+    "icons": "node tools/make-game-icons.js",
+    "check:chess": "node chess/tools/perft.js && node chess/tools/book-check.js && node chess/tools/teach-check.js && node chess/tools/lesson-check.js && node chess/tools/skin-check.js && node chess/tools/pieces-check.js && node chess/tools/engine-check.js && node chess/tools/offline-check.js"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0"
