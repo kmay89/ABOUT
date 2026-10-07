@@ -1,16 +1,34 @@
 /* gfx3d.js — the board in the round.
-   Raw WebGL 1, no libraries, in the manner of the solving room:
-   every piece is a lathe (a profile revolved around its axis — the
-   knight is a lathe gently bent forward at the neck), the board is a
+   Raw WebGL 1, no libraries, no build step, in the manner of the
+   solving room: the men are carved in pieces3d.js, the board is a
    single textured quad painted on an offscreen canvas, and the camera
    is an orbit on springs so it glides rather than snaps.
 
+   Three passes make the picture. The light draws the scene first, from
+   where it hangs, and keeps the distances: that is the shadow map. Then
+   the camera draws the room into a texture rather than onto the screen,
+   lit in linear space with a Cook-Torrance surface — roughness and
+   metalness, a key light that casts, a cool fill that does not, and a
+   procedural sky standing in for a cube map we would otherwise have to
+   ship. Last, that texture is graded: the bright parts are smeared into
+   a bloom, a lens fringe and a vignette go on, an ACES curve rolls the
+   highlights off instead of clipping them, and a little grain lands on
+   top. The board has a relief map cut from the same canvas as its
+   colour, so the grain, the grooves between squares and the engraved
+   coordinates catch the light rather than being drawn on; a polished
+   board reflects the men standing on it.
+
+   None of it is load-bearing. Floating-point targets, framebuffers and
+   even the shadow map are checked rather than assumed, and each one
+   that is missing simply drops out — the tone map moves into the
+   surface shaders, the effects tier steps down, and the board still
+   looks like itself. Three tiers (full, balanced, simple) are picked
+   automatically and can be overridden in the Studio.
+
    Moves slide, knights hop a little arc, captured pieces sink through
-   the board and fade, promotions crossfade at the far rank, and every
-   piece keeps a soft shadow disc that stays on the ground while its
-   owner is airborne. If WebGL is missing or the context is lost, the
-   app is told at once and the same game continues in 2D — nothing is
-   allowed to strand the player. */
+   the board and fade, promotions crossfade at the far rank. If WebGL is
+   missing or the context is lost, the app is told at once and the same
+   game continues in 2D — nothing is allowed to strand the player. */
 (function (root) {
 "use strict";
 
@@ -24,22 +42,81 @@ function vec3(hex) {
   var n = parseInt(hex.slice(1), 16);
   return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
+function mix3(a, b, t) {
+  return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, a[2] + (b[2]-a[2])*t];
+}
+function scale3(a, k) { return [a[0]*k, a[1]*k, a[2]*k]; }
+/* the same sRGB-to-linear the shader does, for the colours that are
+   already light by the time they reach it — the lamps and the ambient */
+function lin3(c) {
+  return [Math.pow(c[0], 2.2), Math.pow(c[1], 2.2), Math.pow(c[2], 2.2)];
+}
+function norm3(v) {
+  var l = Math.hypot(v[0], v[1], v[2]);
+  return [v[0]/l, v[1]/l, v[2]/l];
+}
+
+/* ---------- the room's light rig ----------
+   A practical lamp high on one side, a cool bounce from the other, and
+   the directions both come from. Fixed in world space rather than stuck
+   to the camera, so orbiting the board walks you around the light the
+   way walking around a real table does: the near side is lit, the far
+   side falls away, and the shadows swing. A camera-locked light is the
+   single most reliable way to make a 3D scene look like a diagram. */
+var KEY_DIR  = norm3([-0.40, 1.22, 0.44]);
+var FILL_DIR = norm3([0.58, 0.30, -0.64]);
+var KEY_COL  = [1.00, 0.945, 0.872];     /* tungsten, just off white */
+var FILL_COL = [0.68, 0.71, 0.80];       /* daylight through a window */
+
 function derive(skin) {
   var b = skin.board, p = skin.pieces, m = skin.marks;
   var surf = (root.Skins && root.Skins.surface) ? root.Skins.surface(skin)
            : { spec: 0.5, power: 34, rim: 0.1, alpha: 1, translucent: false };
+  var bgHex = b.light === b.dark ? "#101010" : skin.room.bg;
+  var room = vec3(bgHex);
   return {
     /* hex, for painting the board texture on a 2D canvas */
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
     pattern: b.pattern, grain: b.grain, gloss: b.gloss,
     /* vec3, for the shader */
-    bg: vec3(b.light === b.dark ? "#101010" : skin.room.bg),
+    bg: room,
     white: vec3(p.white), black: vec3(p.black), rimVec: vec3(b.rim),
     selected: vec3(m.select), legal: vec3(m.legal), capt: vec3(m.capture),
     last: vec3(m.last), check: vec3(m.check), hint: vec3(m.hint),
-    /* material */
+    /* material: spec and power for the 2D board, rough and metal for
+       the 3D one, both describing the same surface */
     spec: surf.spec, power: surf.power, rimLight: surf.rim,
-    alpha: surf.alpha, translucent: surf.translucent
+    rough: surf.rough == null ? 0.4 : surf.rough,
+    metal: surf.metal == null ? 0 : surf.metal,
+    alpha: surf.alpha, translucent: surf.translucent,
+    /* the light rig, in linear. The sky is the room's own colour lifted
+       toward a neutral so a very dark skin still has somewhere for the
+       ambient to come from; the ground is the board bouncing back up,
+       which is what stops the underside of a piece going black. */
+    keyCol: scale3(lin3(KEY_COL), 1.52),
+    fillCol: scale3(lin3(FILL_COL), 0.34),
+    sky: scale3(lin3(mix3(room, [0.56, 0.62, 0.74], 0.58)), 0.44),
+    ground: scale3(lin3(vec3(b.light)), 0.075),
+    /* the far wall, the floor it stands on, and how much of the lamp
+       spills onto them */
+    skyTop: scale3(lin3(room), 0.72),
+    lampGlow: mix3(scale3(lin3(KEY_COL), 0.12), scale3(lin3(room), 1.2), 0.45),
+    skyFloor: scale3(lin3(mix3(room, vec3(b.edge), 0.30)), 1.65),
+    exposure: 1.0,
+    /* the lens. Gloss drives the bloom because a polished board throws
+       more light back at it, and the aberration and grain stay small
+       enough that you would only notice them switched off. */
+    bloom: 0.40 + b.gloss * 0.34,
+    bloomCut: 0.72,
+    vignette: 0.30,
+    grain: REDUCED ? 0 : 0.013,
+    /* measured at the corner: a couple of pixels of fringe on a wide
+       screen. Anything you can actually see as colour separation is a
+       broken lens, not a good one. */
+    aberration: 0.006,
+    /* how deep to cut the relief, and how much of the board to mirror */
+    bump: 0.30 + b.grain * 0.55,
+    mirror: Math.max(0, b.gloss - 0.08) * 0.46
   };
 }
 
@@ -65,9 +142,15 @@ function mLookAt(eye, at, up) {
   return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
           -(xx*eye[0]+xy*eye[1]+xz*eye[2]), -(yx*eye[0]+yy*eye[1]+yz*eye[2]), -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1];
 }
-function mModel(x, y, z, s, ry) {
+/* the shadow camera: a light this far away has no perspective to
+   speak of, so it sees the board through a box rather than a cone */
+function mOrtho(half, near, far) {
+  var nf = 1 / (near - far);
+  return [1/half,0,0,0, 0,1/half,0,0, 0,0,2*nf,0, 0,0,(far+near)*nf,1];
+}
+function mModel(x, y, z, s, ry, sy) {
   var c = Math.cos(ry || 0), n = Math.sin(ry || 0);
-  return [s*c,0,-s*n,0, 0,s,0,0, s*n,0,s*c,0, x,y,z,1];
+  return [s*c,0,-s*n,0, 0,(sy == null ? s : sy),0,0, s*n,0,s*c,0, x,y,z,1];
 }
 
 /* ---------- geometry ----------
@@ -109,11 +192,157 @@ function quadXZ() { /* unit square centred on origin */
   return { pos: [-0.5,0,-0.5, 0.5,0,-0.5, 0.5,0,0.5, -0.5,0,0.5], idx: [0,2,1,0,3,2] };
 }
 
-/* ---------- shaders ---------- */
-/* aShade is the occlusion baked into the mesh at carving time: crevices,
-   undercuts and the last millimetres above the board. It costs one float
-   a vertex and does more for the look of a piece than another lamp
-   would — and unlike a lamp it stays put when the camera orbits. */
+/* ---------- shaders ----------
+
+   The old renderer was one lamp, one highlight and a flat board:
+   honest, cheap, and about as convincing as a photocopy. What replaced
+   it is the pipeline a small game would use, written out longhand
+   because there is no engine here to hide it.
+
+   Light is done in linear space and converted back at the very end.
+   That one change does more than any effect: a sRGB colour multiplied
+   by a light in sRGB space is simply the wrong sum, which is why the
+   old board went chalky in the pale squares and muddy in the dark ones.
+
+   The surface model is Cook-Torrance — GGX for the highlight's shape,
+   Smith for the shadowing between microfacets, Schlick for the way
+   every material turns into a mirror at a grazing angle. Fresnel is why
+   a matte wooden piece still catches the light along its silhouette,
+   and it is free.
+
+   Ambient is a two-colour sky: the room's own light from above, the
+   board's colour bouncing back from below. Lit by one direction and a
+   constant, a round piece reads as a cylinder; lit by a gradient it
+   reads as round.
+
+   aShade is the occlusion baked into the mesh at carving time —
+   crevices, undercuts, the last millimetres above the board. It costs
+   one float a vertex, does more for a piece than another lamp would,
+   and unlike a lamp it stays put when the camera orbits. */
+
+var GLSL_COMMON = [
+  /* sRGB is a storage format, not a light. Everything between these two
+     conversions lives in linear. */
+  "vec3 toLinear(vec3 c){ return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); }",
+  /* ACES, the filmic curve: it rolls the brightest parts off instead of
+     clipping them, which is the whole reason a white king under a lamp
+     stops looking like a hole cut in the screen. */
+  "vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }",
+  "float D_GGX(float NoH, float a){ float a2 = a*a; float d = NoH*NoH*(a2-1.0)+1.0; return a2/(3.14159265*d*d+1e-7); }",
+  "float V_Smith(float NoV, float NoL, float a){",
+  "  float k = a*0.5;",
+  "  float gv = NoV*(1.0-k)+k, gl2 = NoL*(1.0-k)+k;",
+  "  return 0.25/(gv*gl2+1e-5);",
+  "}",
+  "vec3 F_Schlick(vec3 f0, float u){ return f0 + (1.0-f0)*pow(1.0-u, 5.0); }",
+  /* the room, as a function rather than a cube map: a sky colour, a
+     bounce colour, one soft overhead source that a polished piece can
+     find and a matte one cannot, and a band at the horizon standing in
+     for the lit wall behind the table. No asset to download, and it
+     tints itself from whatever skin is loaded. */
+  "vec3 envSample(vec3 d, float rough, vec3 sky, vec3 ground, vec3 keyCol){",
+  "  float up = d.y*0.5+0.5;",
+  "  vec3 base = mix(ground, sky, smoothstep(0.0, 1.0, up));",
+  "  float sharp = mix(26.0, 2.0, rough);",
+  "  float spot = pow(max(d.y, 0.0), sharp) * (1.0 - rough*0.6);",
+  "  float band = pow(max(1.0 - abs(d.y - 0.10)*2.6, 0.0), mix(8.0, 2.0, rough)) * (1.0 - rough*0.8);",
+  "  return base + keyCol * (spot*0.95 + band*0.30);",
+  "}",
+  /* WebGL 1 with no depth texture to lean on: the shadow pass writes
+     distance across four 8-bit channels and reads it back. Portable
+     everywhere, and precise enough for a board eight squares wide. */
+  "vec4 packDepth(float v){",
+  "  vec4 e = vec4(1.0, 255.0, 65025.0, 16581375.0) * v;",
+  "  e = fract(e);",
+  "  e -= e.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);",
+  "  return e;",
+  "}",
+  "float unpackDepth(vec4 c){ return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)); }"
+].join("\n");
+
+/* the lighting every lit surface shares, so the board and the men are
+   lit by the same room rather than by two different guesses.
+
+   uDirect is the escape hatch: normally the scene is drawn into a
+   floating-point target and tone-mapped once at the end, but on a card
+   that cannot give us one, each shader finishes the job itself. Same
+   curve either way — a weak browser gets fewer effects, never a
+   different-looking board. */
+var GLSL_LIGHT = [
+  "uniform vec3 uEye, uKeyDir, uKeyCol, uFillDir, uFillCol, uSky, uGround;",
+  "uniform float uExposure, uDirect;",
+  "uniform sampler2D uShadow; uniform mat4 uLightVP; uniform float uShadowOn, uShadowTexel;",
+  "float shadowAt(vec3 world, float NoL){",
+  "  if (uShadowOn < 0.5) return 1.0;",
+  "  vec4 lp = uLightVP * vec4(world, 1.0);",
+  "  vec3 c = lp.xyz / lp.w * 0.5 + 0.5;",
+  "  if (c.x < 0.002 || c.x > 0.998 || c.y < 0.002 || c.y > 0.998 || c.z > 1.0) return 1.0;",
+  "  float bias = max(0.0030 * (1.0 - NoL), 0.0010);",
+  "  float sum = 0.0;",
+  /* the nine taps are spun by a different angle on every pixel. A fixed
+     grid at this resolution gives a shadow edge you can count the steps
+     of; a spun one trades those steps for a faint noise, and noise at
+     this amplitude is indistinguishable from softness. */
+  "  float ra = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;",
+  "  float rc = cos(ra), rs = sin(ra);",
+  /* a fixed 3x3 tap: WebGL 1 wants its loops counted at compile time,
+     and nine samples is the difference between an edge you can see the
+     pixels of and one you cannot */
+  "  for (int y = -1; y <= 1; y++){",
+  "    for (int x = -1; x <= 1; x++){",
+  "      vec2 g = vec2(float(x), float(y)) * uShadowTexel * 2.4;",
+  "      vec2 o = vec2(g.x*rc - g.y*rs, g.x*rs + g.y*rc);",
+  "      float d = unpackDepth(texture2D(uShadow, c.xy + o));",
+  "      sum += step(c.z - bias, d);",
+  "    }",
+  "  }",
+  "  return sum * (1.0/9.0);",
+  "}",
+  "vec3 shade(vec3 albedo, vec3 N, vec3 world, float rough, float metal, float ao, float rim){",
+  "  vec3 V = normalize(uEye - world);",
+  "  float NoV = max(dot(N, V), 1e-4);",
+  "  vec3 f0 = mix(vec3(0.04), albedo, metal);",
+  "  vec3 diffCol = albedo * (1.0 - metal);",
+  "  float a = max(rough*rough, 0.002);",
+  "  vec3 col = vec3(0.0);",
+  /* the key light, the only one that casts */
+  "  vec3 L = uKeyDir;",
+  "  float NoL = max(dot(N, L), 0.0);",
+  "  if (NoL > 0.0){",
+  "    vec3 H = normalize(L + V);",
+  "    float NoH = max(dot(N, H), 0.0), VoH = max(dot(V, H), 0.0);",
+  "    vec3 spec = F_Schlick(f0, VoH) * D_GGX(NoH, a) * V_Smith(NoV, NoL, a);",
+  "    /* a shadow is never quite black: some of the key light arrives",
+  "       anyway, off the table and the walls, and a hard zero is the",
+  "       thing that makes a rendered shadow look like a sticker */",
+  "    float sh = mix(0.18, 1.0, shadowAt(world, NoL));",
+  "    col += (diffCol * (1.0/3.14159265) + spec) * uKeyCol * NoL * sh;",
+  "  }",
+  /* fill: no shadow, no highlight to speak of, just the other side of
+     the room so nothing falls to pure black */
+  "  float NoF = max(dot(N, uFillDir), 0.0);",
+  "  col += diffCol * (1.0/3.14159265) * uFillCol * NoF;",
+  /* ambient: a sky above, the board bouncing below, and a reflection of
+     both weighted by how polished the surface is */
+  "  vec3 irr = mix(uGround, uSky, N.y*0.5+0.5);",
+  "  col += diffCol * irr * ao;",
+  "  vec3 Rv = reflect(-V, N);",
+  "  vec3 envc = envSample(Rv, rough, uSky, uGround, uKeyCol);",
+  "  vec3 Fr = F_Schlick(f0, NoV);",
+  "  col += envc * Fr * mix(ao, 1.0, 0.5);",
+  /* the edge of the room caught on a silhouette */
+  "  col += uSky * rim * pow(1.0 - NoV, 3.0) * ao;",
+  "  return col * uExposure;",
+  "}",
+  /* one exit for every lit shader: straight out in linear when the post
+     chain is going to finish the job, graded here when it isn't */
+  "vec4 emit(vec3 c, float alpha){",
+  "  if (uDirect > 0.5) return vec4(pow(aces(c), vec3(1.0/2.2)), alpha);",
+  "  return vec4(c, alpha);",
+  "}"
+].join("\n");
+
+/* ---- the men ---- */
 var VSH = [
   "attribute vec3 aPos; attribute vec3 aNrm; attribute float aShade;",
   "uniform mat4 uProj, uView, uModel;",
@@ -126,35 +355,140 @@ var VSH = [
   "  gl_Position = uProj * uView * w;",
   "}"].join("\n");
 var FSH = [
-  "precision mediump float;",
-  "uniform vec3 uColor; uniform float uAlpha; uniform vec3 uEye; uniform float uFlat;",
-  "uniform float uSpec; uniform float uPower; uniform float uRim;",
+  "precision highp float;",
+  GLSL_COMMON,
+  GLSL_LIGHT,
+  "uniform vec3 uColor; uniform float uAlpha, uFlat, uRough, uMetal, uRimAmt, uGlow, uMirror;",
   "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
   "void main(){",
-  "  if (uFlat > 0.5) { gl_FragColor = vec4(uColor, uAlpha); return; }",
+  /* markers, move dots and racing lines are not surfaces — they are
+     light. They skip the whole model and go straight into the frame,
+     which is also what lets the bloom pick them up. */
+  "  if (uFlat > 0.5){ gl_FragColor = emit(toLinear(uColor) * uGlow, uAlpha); return; }",
+  "  float alpha = uAlpha;",
+  /* the reflection pass draws the same men upside down through the
+     board, clipped to the wood and fading as they fall away from it */
+  "  if (uMirror > 0.0){",
+  "    if (abs(vWorld.x) > 4.26 || abs(vWorld.z) > 4.26) discard;",
+  "    alpha *= uMirror * exp(vWorld.y * 2.3);",
+  "    if (alpha < 0.004) discard;",
+  "  }",
   "  vec3 N = normalize(vNrm);",
-  "  vec3 L1 = normalize(vec3(-0.45, 0.85, 0.35));",
-  "  vec3 L2 = normalize(vec3(0.6, 0.35, -0.5));",
-  "  float d = max(dot(N, L1), 0.0) * 0.75 + max(dot(N, L2), 0.0) * 0.30;",
-  "  vec3 V = normalize(uEye - vWorld);",
-  "  vec3 H = normalize(L1 + V);",
-  "  float sp = pow(max(dot(N, H), 0.0), uPower) * uSpec;",
-  "  float rim = pow(1.0 - max(dot(N, V), 0.0), 2.5) * uRim;",
-  /* occlusion dims the light and the highlight, but never the rim —
-     a silhouette should still catch the edge of the room */
-  "  vec3 c = uColor * (0.34 + d) * vShade + vec3(sp * vShade) + vec3(rim);",
-  "  gl_FragColor = vec4(c, uAlpha);",
+  "  vec3 albedo = toLinear(uColor);",
+  "  vec3 c = shade(albedo, N, vWorld, uRough, uMetal, vShade, uRimAmt);",
+  "  gl_FragColor = emit(c, alpha);",
   "}"].join("\n");
+
+/* ---- the board ---- */
 var VSH_TEX = [
   "attribute vec3 aPos; attribute vec2 aUV;",
   "uniform mat4 uProj, uView, uModel;",
-  "varying vec2 vUV;",
-  "void main(){ vUV = aUV; gl_Position = uProj * uView * uModel * vec4(aPos, 1.0); }"].join("\n");
+  "varying vec2 vUV; varying vec3 vWorld;",
+  "void main(){",
+  "  vUV = aUV;",
+  "  vec4 w = uModel * vec4(aPos, 1.0);",
+  "  vWorld = w.xyz;",
+  "  gl_Position = uProj * uView * w;",
+  "}"].join("\n");
 var FSH_TEX = [
-  "precision mediump float;",
-  "uniform sampler2D uTex;",
+  "precision highp float;",
+  GLSL_COMMON,
+  GLSL_LIGHT,
+  "uniform sampler2D uTex, uNrmTex;",
+  "uniform float uGloss, uBumpAmt;",
+  "varying vec2 vUV; varying vec3 vWorld;",
+  "void main(){",
+  "  vec3 albedo = toLinear(texture2D(uTex, vUV).rgb);",
+  /* the grain is a real surface, not a picture of one: the normal map
+     is derived from the same canvas the colour came from, so wood lies
+     along the board, marble veins catch the light across it, the
+     grooves between squares have a lip, and the coordinates are cut
+     into the margin rather than printed on it. The board is flat and
+     axis-aligned, so its tangent frame is simply world x and z and
+     there is no basis to carry through. */
+  "  vec3 nm = texture2D(uNrmTex, vUV).rgb * 2.0 - 1.0;",
+  "  vec3 N = normalize(vec3(nm.x * uBumpAmt, 1.0, nm.y * uBumpAmt));",
+  "  float rough = mix(0.74, 0.14, uGloss);",
+  "  vec3 c = shade(albedo, N, vWorld, rough, 0.0, 1.0, 0.03);",
+  "  gl_FragColor = emit(c, 1.0);",
+  "}"].join("\n");
+
+/* ---- shadow pass: distance from the light, and nothing else ---- */
+var VSH_SHADOW = [
+  "attribute vec3 aPos;",
+  "uniform mat4 uLightVP, uModel;",
+  "varying float vDepth;",
+  "void main(){",
+  "  vec4 p = uLightVP * uModel * vec4(aPos, 1.0);",
+  "  vDepth = p.z / p.w * 0.5 + 0.5;",
+  "  gl_Position = p;",
+  "}"].join("\n");
+var FSH_SHADOW = [
+  "precision highp float;",
+  GLSL_COMMON,
+  "varying float vDepth;",
+  "void main(){ gl_FragColor = packDepth(clamp(vDepth, 0.0, 1.0)); }"].join("\n");
+
+/* ---- post ----
+   One big triangle rather than a quad: it covers the screen in three
+   vertices and needs no index buffer. */
+var VSH_POST = [
+  "attribute vec2 aPos;",
   "varying vec2 vUV;",
-  "void main(){ gl_FragColor = texture2D(uTex, vUV); }"].join("\n");
+  "void main(){ vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }"].join("\n");
+
+/* everything above a threshold, which is what a lens would smear */
+var FSH_BRIGHT = [
+  "precision mediump float;",
+  "uniform sampler2D uTex; uniform float uThreshold;",
+  "varying vec2 vUV;",
+  "void main(){",
+  "  vec3 c = texture2D(uTex, vUV).rgb;",
+  "  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));",
+  "  float k = max(l - uThreshold, 0.0) / max(l, 1e-4);",
+  "  gl_FragColor = vec4(c * k, 1.0);",
+  "}"].join("\n");
+var FSH_BLUR = [
+  "precision mediump float;",
+  "uniform sampler2D uTex; uniform vec2 uDir;",
+  "varying vec2 vUV;",
+  "void main(){",
+  /* a nine-tap gaussian folded into five bilinear samples, run once
+     across and once down — the separable trick that makes a wide blur
+     affordable */
+  "  vec3 c = texture2D(uTex, vUV).rgb * 0.2270270270;",
+  "  c += texture2D(uTex, vUV + uDir * 1.3846153846).rgb * 0.3162162162;",
+  "  c += texture2D(uTex, vUV - uDir * 1.3846153846).rgb * 0.3162162162;",
+  "  c += texture2D(uTex, vUV + uDir * 3.2307692308).rgb * 0.0702702703;",
+  "  c += texture2D(uTex, vUV - uDir * 3.2307692308).rgb * 0.0702702703;",
+  "  gl_FragColor = vec4(c, 1.0);",
+  "}"].join("\n");
+var FSH_COMPOSITE = [
+  "precision highp float;",
+  GLSL_COMMON,
+  "uniform sampler2D uScene, uBloom;",
+  "uniform float uBloomAmt, uVignette, uGrain, uTime, uAberration;",
+  "varying vec2 vUV;",
+  "float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
+  "void main(){",
+  "  vec2 d = vUV - 0.5;",
+  "  float r2 = dot(d, d);",
+  /* the faintest colour fringe toward the corners — a real lens does
+     it, and leaving it out is one of the things that reads as
+     "computer" */
+  "  vec2 off = d * r2 * uAberration;",
+  "  vec3 c;",
+  "  c.r = texture2D(uScene, vUV + off).r;",
+  "  c.g = texture2D(uScene, vUV).g;",
+  "  c.b = texture2D(uScene, vUV - off).b;",
+  "  c += texture2D(uBloom, vUV).rgb * uBloomAmt;",
+  "  c *= 1.0 - uVignette * smoothstep(0.06, 0.78, r2);",
+  "  c = aces(c);",
+  /* back out to sRGB for the screen */
+  "  c = pow(c, vec3(1.0/2.2));",
+  "  c += (hash(vUV * 1024.0 + uTime) - 0.5) * uGrain;",
+  "  gl_FragColor = vec4(c, 1.0);",
+  "}"].join("\n");
 
 /* ---------- board texture (painted on an offscreen canvas) ----------
    The same five patterns the 2D board knows, so a skin looks like
@@ -226,11 +560,15 @@ function boardTexture(th) {
     g.fillRect(x, y, cell + 1, cell + 1);
     paintPattern(g, x, y, cell, isDark, th, f, r);
   }
+  /* The sheen used to be painted in here, because there was no light to
+     make one. There is now, so what is left is a whisper of unevenness
+     in the finish rather than a highlight — a real one would fight the
+     computed one and win, in the wrong direction. */
   if (th.gloss > 0.02) {
     var gl2 = g.createLinearGradient(margin, margin, S - margin, S - margin);
-    gl2.addColorStop(0, "rgba(255,255,255," + (0.20 * th.gloss).toFixed(3) + ")");
+    gl2.addColorStop(0, "rgba(255,255,255," + (0.055 * th.gloss).toFixed(3) + ")");
     gl2.addColorStop(0.45, "rgba(255,255,255,0)");
-    gl2.addColorStop(1, "rgba(0,0,0," + (0.16 * th.gloss).toFixed(3) + ")");
+    gl2.addColorStop(1, "rgba(0,0,0," + (0.05 * th.gloss).toFixed(3) + ")");
     g.fillStyle = gl2;
     g.fillRect(margin, margin, S - margin * 2, S - margin * 2);
   }
@@ -242,6 +580,105 @@ function boardTexture(th) {
     g.fillText(String(8 - k), margin * 0.48, margin + (k + 0.5) * cell);
   }
   return cv;
+}
+
+/* ---- the room behind the board ----
+   A flat clear colour is the one thing in a 3D scene that can never be
+   mistaken for a photograph: real rooms have a floor, a far wall and a
+   lamp in them. This is all three, in about as few instructions as a
+   clear would have cost — a vertical gradient with a pool of light
+   where the key light would be hanging. */
+var FSH_SKY = [
+  "precision mediump float;",
+  GLSL_COMMON,
+  "uniform vec3 uTop, uBottom, uGlowCol;",
+  "uniform float uGlowAmt, uDirect;",
+  "varying vec2 vUV;",
+  "void main(){",
+  "  vec3 c = mix(uBottom, uTop, smoothstep(0.0, 1.0, vUV.y));",
+  "  vec2 d = (vUV - vec2(0.42, 0.74)) * vec2(1.0, 1.35);",
+  "  c += uGlowCol * uGlowAmt * exp(-dot(d, d) * 5.5);",
+  "  if (uDirect > 0.5) c = pow(aces(c), vec3(1.0/2.2));",
+  "  gl_FragColor = vec4(c, 1.0);",
+  "}"].join("\n");
+
+/* ---------- the board's relief ----------
+   The same board painted again, in grey, as a height field: 128 is the
+   surface, lighter is proud of it and darker is cut into it. The
+   squares get a shallow groove between them and sit a hair apart in
+   height the way an inlaid board does, the pattern strokes become real
+   grain rather than a drawing of grain, the margin is routed with a
+   step, and the coordinates are engraved instead of printed.
+
+   paintPattern does double duty here: its strokes are already black and
+   white at low opacity, which on a grey base is exactly a height delta.
+   One function, two jobs, and the grain can never drift out of
+   agreement with the colour it belongs to. */
+function heightCanvas(th, S) {
+  var cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  var g = cv.getContext("2d");
+  var margin = S * 0.055, cell = (S - margin * 2) / 8;
+  g.fillStyle = "#808080"; g.fillRect(0, 0, S, S);
+  /* margin: long grain, then a routed step just inside the frame */
+  g.globalAlpha = 0.05 + th.grain * 0.08;
+  for (var gy = 0; gy < S; gy += 7) {
+    g.fillStyle = (gy % 3) ? "#000" : "#fff";
+    g.fillRect(0, gy, S, 1.5);
+  }
+  g.globalAlpha = 1;
+  g.strokeStyle = "#5a5a5a"; g.lineWidth = Math.max(3, S * 0.004);
+  g.strokeRect(margin * 0.55, margin * 0.55, S - margin * 1.1, S - margin * 1.1);
+  g.strokeStyle = "#9a9a9a"; g.lineWidth = Math.max(2, S * 0.0025);
+  g.strokeRect(margin * 0.66, margin * 0.66, S - margin * 1.32, S - margin * 1.32);
+  for (var r = 0; r < 8; r++) for (var f = 0; f < 8; f++) {
+    var x = margin + f * cell, y = margin + r * cell;
+    var isDark = ((f + (7 - r)) % 2 === 0);
+    /* dark squares a touch lower: two woods, two thicknesses */
+    g.fillStyle = isDark ? "#7b7b7b" : "#848484";
+    g.fillRect(x, y, cell + 1, cell + 1);
+    paintPattern(g, x, y, cell, isDark, th, f, r);
+    /* the groove where two squares meet */
+    g.strokeStyle = "#6c6c6c";
+    g.lineWidth = Math.max(1.5, cell * 0.012);
+    g.strokeRect(x + 0.5, y + 0.5, cell, cell);
+  }
+  /* engraved coordinates — cut in, so the light catches one edge */
+  g.fillStyle = "#636363";
+  g.font = "600 " + Math.round(margin * 0.62) + "px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  for (var k = 0; k < 8; k++) {
+    g.fillText("abcdefgh"[k], margin + (k + 0.5) * cell, S - margin * 0.48);
+    g.fillText(String(8 - k), margin * 0.48, margin + (k + 0.5) * cell);
+  }
+  return cv;
+}
+
+/* height field to normal map, by Sobel. The board is flat and
+   axis-aligned, so there is no tangent basis to work out: x in the
+   texture is x in the world and y is z, and the shader can tilt the
+   normal straight off the two slopes. Stored with the slopes biased
+   into 0..1 the way every normal map is, so it can live in an ordinary
+   8-bit texture. */
+function normalMapFrom(cv, strength) {
+  var S = cv.width, g = cv.getContext("2d");
+  var src = g.getImageData(0, 0, S, S).data;
+  var out = new Uint8Array(S * S * 4);
+  function h(x, y) {
+    if (x < 0) x = 0; else if (x >= S) x = S - 1;
+    if (y < 0) y = 0; else if (y >= S) y = S - 1;
+    return src[(y * S + x) * 4] * (1 / 255);
+  }
+  for (var y = 0; y < S; y++) for (var x = 0; x < S; x++) {
+    var dx = (h(x+1,y-1) + 2*h(x+1,y) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x-1,y) + h(x-1,y+1));
+    var dy = (h(x-1,y+1) + 2*h(x,y+1) + h(x+1,y+1)) - (h(x-1,y-1) + 2*h(x,y-1) + h(x+1,y-1));
+    var o = (y * S + x) * 4;
+    out[o]   = Math.max(0, Math.min(255, Math.round(128 - dx * strength * 127)));
+    out[o+1] = Math.max(0, Math.min(255, Math.round(128 - dy * strength * 127)));
+    out[o+2] = 255;
+    out[o+3] = 255;
+  }
+  return { data: out, size: S };
 }
 
 /* ---------- renderer ---------- */
@@ -284,22 +721,225 @@ function create(canvas, opts) {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("link: " + gl.getProgramInfoLog(p));
     return p;
   }
+  /* the lighting uniforms every lit program shares, looked up once and
+     sent the same way to both, so the board and the men can never end
+     up standing in two different rooms */
+  function lightLocs(pr) {
+    return {
+      eye: gl.getUniformLocation(pr, "uEye"),
+      keyDir: gl.getUniformLocation(pr, "uKeyDir"), keyCol: gl.getUniformLocation(pr, "uKeyCol"),
+      fillDir: gl.getUniformLocation(pr, "uFillDir"), fillCol: gl.getUniformLocation(pr, "uFillCol"),
+      sky: gl.getUniformLocation(pr, "uSky"), ground: gl.getUniformLocation(pr, "uGround"),
+      exposure: gl.getUniformLocation(pr, "uExposure"), direct: gl.getUniformLocation(pr, "uDirect"),
+      shadow: gl.getUniformLocation(pr, "uShadow"), lightVP: gl.getUniformLocation(pr, "uLightVP"),
+      shadowOn: gl.getUniformLocation(pr, "uShadowOn"),
+      shadowTexel: gl.getUniformLocation(pr, "uShadowTexel")
+    };
+  }
+
   var prog = program(VSH, FSH);
   var progTex = program(VSH_TEX, FSH_TEX);
+  var progShadow = program(VSH_SHADOW, FSH_SHADOW);
   var U = {
     proj: gl.getUniformLocation(prog, "uProj"), view: gl.getUniformLocation(prog, "uView"),
     model: gl.getUniformLocation(prog, "uModel"), color: gl.getUniformLocation(prog, "uColor"),
-    alpha: gl.getUniformLocation(prog, "uAlpha"), eye: gl.getUniformLocation(prog, "uEye"),
-    flat: gl.getUniformLocation(prog, "uFlat"), spec: gl.getUniformLocation(prog, "uSpec"),
-    power: gl.getUniformLocation(prog, "uPower"), rimLight: gl.getUniformLocation(prog, "uRim"),
+    alpha: gl.getUniformLocation(prog, "uAlpha"),
+    flat: gl.getUniformLocation(prog, "uFlat"), rough: gl.getUniformLocation(prog, "uRough"),
+    metal: gl.getUniformLocation(prog, "uMetal"), rimAmt: gl.getUniformLocation(prog, "uRimAmt"),
+    glow: gl.getUniformLocation(prog, "uGlow"), mirror: gl.getUniformLocation(prog, "uMirror"),
+    L: lightLocs(prog),
     aPos: gl.getAttribLocation(prog, "aPos"), aNrm: gl.getAttribLocation(prog, "aNrm"),
     aShade: gl.getAttribLocation(prog, "aShade")
   };
   var UT = {
     proj: gl.getUniformLocation(progTex, "uProj"), view: gl.getUniformLocation(progTex, "uView"),
     model: gl.getUniformLocation(progTex, "uModel"), tex: gl.getUniformLocation(progTex, "uTex"),
+    nrmTex: gl.getUniformLocation(progTex, "uNrmTex"),
+    gloss: gl.getUniformLocation(progTex, "uGloss"), bump: gl.getUniformLocation(progTex, "uBumpAmt"),
+    L: lightLocs(progTex),
     aPos: gl.getAttribLocation(progTex, "aPos"), aUV: gl.getAttribLocation(progTex, "aUV")
   };
+  var US = {
+    lightVP: gl.getUniformLocation(progShadow, "uLightVP"),
+    model: gl.getUniformLocation(progShadow, "uModel"),
+    aPos: gl.getAttribLocation(progShadow, "aPos")
+  };
+
+  /* ---------- the post chain ----------
+     The scene is drawn into a texture rather than onto the screen, and
+     the last thing that happens to it is a tone map. That ordering is
+     what buys everything else: a highlight is allowed to go brighter
+     than white on the way through, the bloom has something to find when
+     it does, and the roll-off at the top end means a pale king under a
+     lamp keeps its shape instead of flaring into a white blob.
+
+     Floating-point targets are an extension in WebGL 1 and some cards
+     still say no. When that happens the scene target is a plain 8-bit
+     one — the bloom has less to work with, and the grade happens in the
+     surface shaders instead (uDirect) — and when even that fails the
+     whole chain steps aside and the board draws straight to the screen.
+     Fewer effects, never a broken picture. */
+  var progBright = program(VSH_POST, FSH_BRIGHT);
+  var progBlur = program(VSH_POST, FSH_BLUR);
+  var progComp = program(VSH_POST, FSH_COMPOSITE);
+  var UB = { tex: gl.getUniformLocation(progBright, "uTex"),
+             threshold: gl.getUniformLocation(progBright, "uThreshold"),
+             aPos: gl.getAttribLocation(progBright, "aPos") };
+  var UL = { tex: gl.getUniformLocation(progBlur, "uTex"),
+             dir: gl.getUniformLocation(progBlur, "uDir"),
+             aPos: gl.getAttribLocation(progBlur, "aPos") };
+  var UC = { scene: gl.getUniformLocation(progComp, "uScene"),
+             bloom: gl.getUniformLocation(progComp, "uBloom"),
+             bloomAmt: gl.getUniformLocation(progComp, "uBloomAmt"),
+             vignette: gl.getUniformLocation(progComp, "uVignette"),
+             grain: gl.getUniformLocation(progComp, "uGrain"),
+             time: gl.getUniformLocation(progComp, "uTime"),
+             aberration: gl.getUniformLocation(progComp, "uAberration"),
+             aPos: gl.getAttribLocation(progComp, "aPos") };
+
+  var progSky = program(VSH_POST, FSH_SKY);
+  var UK = { top: gl.getUniformLocation(progSky, "uTop"),
+             bottom: gl.getUniformLocation(progSky, "uBottom"),
+             glowCol: gl.getUniformLocation(progSky, "uGlowCol"),
+             glowAmt: gl.getUniformLocation(progSky, "uGlowAmt"),
+             direct: gl.getUniformLocation(progSky, "uDirect"),
+             aPos: gl.getAttribLocation(progSky, "aPos") };
+
+  var extHalf = gl.getExtension("OES_texture_half_float");
+  var halfLinear = !!gl.getExtension("OES_texture_half_float_linear");
+  var HDR_TYPE = (extHalf && halfLinear) ? extHalf.HALF_FLOAT_OES : gl.UNSIGNED_BYTE;
+
+  function makeTex(w, h, type, filter) {
+    var t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, type, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  function freeTarget(t) {
+    if (!t) return;
+    if (t.fb) gl.deleteFramebuffer(t.fb);
+    if (t.tex) gl.deleteTexture(t.tex);
+    if (t.depth) gl.deleteRenderbuffer(t.depth);
+  }
+  function makeTarget(w, h, type, filter, wantDepth) {
+    var t = { w: w, h: h, type: type };
+    t.tex = makeTex(w, h, type, filter);
+    t.fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.tex, 0);
+    if (wantDepth) {
+      t.depth = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, t.depth);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, t.depth);
+    }
+    var ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (ok) return t;
+    freeTarget(t);
+    return null;
+  }
+
+  /* one big triangle, three vertices, no index buffer: it covers the
+     screen with the corners falling outside it */
+  var postTri = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, postTri);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  /* attribute slots are global state, not per-program: a leftover
+     pointer into a 28-byte mesh would read off the end of a two-float
+     buffer, so every pass says exactly which slots it wants */
+  function onlyAttrib(loc) {
+    for (var i = 0; i < 4; i++) if (i !== loc) gl.disableVertexAttribArray(i);
+    gl.enableVertexAttribArray(loc);
+  }
+  function fullscreen(loc) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, postTri);
+    onlyAttrib(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /* ---------- how much of all this to actually run ----------
+     The same three tiers the carving shop uses, named the same way, so
+     a phone that gets a simpler set of men also gets a simpler room.
+     Nothing here changes what the board means — only how much light it
+     is drawn with. */
+  var TIERS = {
+    high:   { shadow: 1024, bloom: true,  grain: true,  aberration: true,  mirror: true,  bump: 1024 },
+    medium: { shadow: 512,  bloom: true,  grain: true,  aberration: false, mirror: false, bump: 512 },
+    low:    { shadow: 0,    bloom: false, grain: false, aberration: false, mirror: false, bump: 256 }
+  };
+  var quality = Kit.autoQuality();
+  function autoFx() { return quality.segs < 30 ? "medium" : "high"; }
+  var fxName = TIERS[opts.fx] ? opts.fx : autoFx();
+  var FX = TIERS[fxName];
+
+  var scene = null, bloomA = null, bloomB = null, postOk = false, bloomOk = false;
+  /* A card that cannot give us an off-screen target will not change its
+     mind, and retrying every frame would cost more than the chain ever
+     saved. One failure is remembered and the renderer carries on
+     drawing straight to the screen. */
+  var postDead = false;
+  function sizeTargets() {
+    var w = canvas.width, h = canvas.height;
+    if (!w || !h || postDead) return;
+    if (scene && scene.w === w && scene.h === h) return;
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB);
+    scene = bloomA = bloomB = null;
+    scene = makeTarget(w, h, HDR_TYPE, gl.LINEAR, true);
+    if (!scene && HDR_TYPE !== gl.UNSIGNED_BYTE) scene = makeTarget(w, h, gl.UNSIGNED_BYTE, gl.LINEAR, true);
+    postOk = !!scene;
+    if (!postOk) postDead = true;
+    bloomOk = false;
+    if (postOk && FX.bloom) {
+      var bw = Math.max(4, w >> 2), bh = Math.max(4, h >> 2);
+      bloomA = makeTarget(bw, bh, scene.type, gl.LINEAR, false);
+      bloomB = bloomA ? makeTarget(bw, bh, scene.type, gl.LINEAR, false) : null;
+      bloomOk = !!bloomB;
+    }
+  }
+
+  /* the shadow map. Packed depth has to be read with NEAREST — the
+     four bytes of a packed float mean nothing halfway between two
+     texels — so the softening is the nine-tap filter in the shader
+     rather than anything the sampler does. */
+  var shadowT = null, shadowSize = 0;
+  function sizeShadow() {
+    var want = FX.shadow;
+    if (shadowSize === want) return;
+    freeTarget(shadowT); shadowT = null; shadowSize = 0;
+    if (!want) return;
+    shadowT = makeTarget(want, want, gl.UNSIGNED_BYTE, gl.NEAREST, true);
+    shadowSize = shadowT ? want : 0;
+  }
+  sizeShadow();
+  /* something valid to leave in the shadow slot when there is no map:
+     a sampler with nothing bound is undefined behaviour even when the
+     shader never reaches it */
+  var blankTex = (function () {
+    var t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                  new Uint8Array([255, 255, 255, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  })();
+
+  /* the light's own camera: far enough away that a box sees the board
+     as well as a cone would, and sized to hold the whole frame plus the
+     tallest king's worth of shadow leaning off the edge */
+  var lightVP = (function () {
+    var at = [0, 0.15, 0];
+    var eye = [KEY_DIR[0]*18, KEY_DIR[1]*18, KEY_DIR[2]*18];
+    return mMul(mOrtho(7.2, 1, 40), mLookAt(eye, at, [0, 1, 0]));
+  })();
 
   /* mesh upload: interleave pos + normal + baked shade (7 floats, 28
      bytes). Board furniture has no baked shade, so it uploads as 1. */
@@ -328,7 +968,6 @@ function create(canvas, opts) {
      piece is made of is welded into a single mesh before it gets here.
      Swapping sets frees the old buffers so a curious player can try all
      of them without the card filling up. */
-  var quality = Kit.autoQuality();
   var PIECES = null;      /* { 1..6: {mesh, radius, height} } */
   var setId = null, setFaces = "", setName = "";
   function freePieces() {
@@ -397,10 +1036,22 @@ function create(canvas, opts) {
   })();
 
   var boardTex = gl.createTexture();
+  var boardNrm = gl.createTexture();
   function loadBoardTex() {
     if (!R.pal) return;          /* nothing to paint until a skin arrives */
     gl.bindTexture(gl.TEXTURE_2D, boardTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, boardTexture(R.pal));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    /* the relief, from the same recipe. Sobel over a megapixel is a few
+       tens of milliseconds, which is fine once per skin change and
+       would not be fine once per frame — hence a texture. */
+    var nm = normalMapFrom(heightCanvas(R.pal, FX.bump), 1.5);
+    gl.bindTexture(gl.TEXTURE_2D, boardNrm);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, nm.size, nm.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, nm.data);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -455,6 +1106,20 @@ function create(canvas, opts) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
+    sizeTargets();
+    R.dirty = true;
+  };
+  /* the effects tier, for a settings switch or a weak-looking frame
+     rate. Changing it rebuilds the targets and recuts the relief, so it
+     is a thing you do between moves, not every frame. */
+  R.fx = function () { return fxName; };
+  R.autoFx = autoFx;
+  R.setFx = function (name) {
+    if (!TIERS[name] || name === fxName) return;
+    fxName = name; FX = TIERS[name];
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB);
+    scene = bloomA = bloomB = null;
+    sizeShadow(); sizeTargets(); loadBoardTex();
     R.dirty = true;
   };
 
@@ -533,65 +1198,154 @@ function create(canvas, opts) {
     gl.vertexAttribPointer(U.aShade, 1, gl.FLOAT, false, STRIDE, 24);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ib);
   }
-  function drawMesh(mesh, model, color, alpha, flat, spec) {
+  /* rough and metal replace the old single "spec" number: the first is
+     how wide the highlight is, the second whether the reflection takes
+     the material's colour or the room's. Markers pass flat, which skips
+     the surface model entirely and emits light — glow above 1 is what
+     the bloom pass later finds. */
+  function drawMesh(mesh, model, color, alpha, flat, rough, metal, glow) {
     gl.uniformMatrix4fv(U.model, false, model);
     gl.uniform3fv(U.color, color);
     gl.uniform1f(U.alpha, alpha);
     gl.uniform1f(U.flat, flat ? 1 : 0);
-    gl.uniform1f(U.spec, spec == null ? 0.35 : spec);
+    gl.uniform1f(U.rough, rough == null ? 0.45 : rough);
+    gl.uniform1f(U.metal, metal || 0);
+    gl.uniform1f(U.glow, glow == null ? 1 : glow);
     gl.drawElements(gl.TRIANGLES, mesh.n, gl.UNSIGNED_SHORT, 0);
+  }
+  function sendLights(L, th) {
+    gl.uniform3fv(L.eye, cam.eye);
+    gl.uniform3fv(L.keyDir, KEY_DIR);
+    gl.uniform3fv(L.keyCol, th.keyCol);
+    gl.uniform3fv(L.fillDir, FILL_DIR);
+    gl.uniform3fv(L.fillCol, th.fillCol);
+    gl.uniform3fv(L.sky, th.sky);
+    gl.uniform3fv(L.ground, th.ground);
+    gl.uniform1f(L.exposure, th.exposure);
+    gl.uniform1f(L.direct, postOk ? 0 : 1);
+    gl.uniformMatrix4fv(L.lightVP, false, lightVP);
+    gl.uniform1f(L.shadowOn, shadowSize ? 1 : 0);
+    gl.uniform1f(L.shadowTexel, shadowSize ? 1 / shadowSize : 0);
+    gl.uniform1i(L.shadow, 1);
   }
 
   function hexToVec(h) {
     return [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
   }
 
-  function drawPiece(piece, x, z, yLift, alpha, scaleMul, th) {
-    var kind = Math.abs(piece), white = piece > 0;
+  /* which men the set says have a front — knights always, and bishops
+     when the set has cut a slit worth pointing at someone */
+  function faceAngle(kind, white) {
+    return setFaces.indexOf(FACE_LETTER[kind]) >= 0 ? (white ? Math.PI / 2 : -Math.PI / 2) : 0;
+  }
+
+  /* Every piece on the board, worked out once a frame and then drawn
+     two or three times over: into the shadow map, reflected in the
+     wood, and finally itself. Collecting them first is what makes the
+     extra passes nearly free to write — and it is also the only way to
+     sort a set of glass pieces back to front, which they need or the
+     ones behind simply vanish. */
+  var instances = [];
+  function pushPiece(piece, x, z, yLift, alpha, scaleMul) {
+    var kind = Math.abs(piece);
     var P = PIECES && PIECES[kind];
     if (!P) return;
-    var s = scaleMul || 1;
-    /* whichever men the set says have a front — knights always, and
-       bishops when the set has cut a slit worth pointing at someone */
-    var faces = setFaces.indexOf(FACE_LETTER[kind]) >= 0;
-    var ry = faces ? (white ? Math.PI / 2 : -Math.PI / 2) : 0;
-    var al = (alpha == null ? 1 : alpha) * th.alpha;
-    /* shadow stays on the ground, thins as the piece lifts */
+    var dx = x - cam.eye[0], dy = (yLift || 0) - cam.eye[1], dz = z - cam.eye[2];
+    instances.push({ P: P, white: piece > 0, x: x, z: z, y: yLift || 0,
+                     a: alpha == null ? 1 : alpha, s: scaleMul || 1,
+                     ry: faceAngle(kind, piece > 0),
+                     d: dx * dx + dy * dy + dz * dz });
+  }
+
+  function drawPiece(q, th) {
+    var al = q.a * th.alpha;
+    /* A soft disc under each piece. With a real shadow map it is no
+       longer doing the work of a shadow — it is the contact darkening
+       right at the base, which a 1024-pixel map an eighth of a square
+       wide cannot resolve on its own. Without one it is still the only
+       shadow there is, so it stays correspondingly darker. */
+    var contact = shadowSize ? 0.075 : 0.24;
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     bindMesh(MESH_DISC);
-    drawMesh(MESH_DISC, mModel(x, 0.012, z, P.radius * 1.12 * s, 0), [0, 0, 0],
-      0.24 * al / (1 + Math.max(0, yLift) * 1.6), true);
+    drawMesh(MESH_DISC, mModel(q.x, 0.012, q.z, q.P.radius * (shadowSize ? 0.86 : 1.12) * q.s, 0),
+      [0, 0, 0], contact * al / (1 + Math.max(0, q.y) * 1.6), true, 0, 0, 1);
     if (al >= 1) { gl.depthMask(true); gl.disable(gl.BLEND); }
-    bindMesh(P.mesh);
-    drawMesh(P.mesh, mModel(x, yLift || 0, z, s, ry),
-      white ? th.white : th.black, al, false, th.spec);
+    bindMesh(q.P.mesh);
+    drawMesh(q.P.mesh, mModel(q.x, q.y, q.z, q.s, q.ry),
+      q.white ? th.white : th.black, al, false, th.rough, th.metal);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
 
-  /* See-through materials (glass) need painting far-to-near or the
-     pieces behind vanish. Opaque sets skip all this and draw as they
-     come, which is every skin but one. */
-  var pending = [];
-  function queuePiece(piece, x, z, yLift, alpha, scaleMul, th) {
-    if (!th.translucent) { drawPiece(piece, x, z, yLift, alpha, scaleMul, th); return; }
-    var dx = x - cam.eye[0], dy = (yLift || 0) - cam.eye[1], dz = z - cam.eye[2];
-    pending.push({ p: piece, x: x, z: z, y: yLift, a: alpha, s: scaleMul,
-                   d: dx * dx + dy * dy + dz * dz });
-  }
-  function flushPieces(th) {
-    if (!pending.length) return;
-    pending.sort(function (a, b) { return b.d - a.d; });
-    for (var i = 0; i < pending.length; i++) {
-      var q = pending[i];
-      drawPiece(q.p, q.x, q.z, q.y, q.a, q.s, th);
+  /* the men again, upside down, clipped to the wood and fading as they
+     fall away from it. Additive and after the board, because a
+     reflection is light arriving on a surface rather than a thing
+     sitting behind it — and because the alternative, a see-through
+     board, would blend the room in underneath the whole eight ranks. */
+  function drawReflections(th) {
+    if (!FX.mirror || th.mirror <= 0.01 || th.translucent) return;
+    gl.useProgram(prog);
+    gl.uniform1f(U.mirror, th.mirror);
+    gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    for (var i = 0; i < instances.length; i++) {
+      var q = instances[i];
+      bindMesh(q.P.mesh);
+      drawMesh(q.P.mesh, mModel(q.x, -q.y - 0.004, q.z, q.s, q.ry, -q.s),
+        q.white ? th.white : th.black, q.a * th.alpha, false, Math.max(th.rough, 0.22), th.metal);
     }
-    pending.length = 0;
+    gl.uniform1f(U.mirror, 0);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  /* The depth pass. Only the men go in: the board is flat and would
+     shadow itself into stripes, and the markers are light rather than
+     matter. Back faces are the ones recorded — the standard dodge for
+     self-shadowing acne, which works here because every carved piece is
+     a closed solid with its winding already checked. */
+  function shadowPass() {
+    if (!shadowSize || !instances.length) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowT.fb);
+    gl.viewport(0, 0, shadowSize, shadowSize);
+    gl.clearColor(1, 1, 1, 1);
+    gl.disable(gl.BLEND);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(progShadow);
+    gl.uniformMatrix4fv(US.lightVP, false, lightVP);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT);
+    for (var i = 0; i < instances.length; i++) {
+      var q = instances[i];
+      if (q.a < 0.35) continue;         /* a piece mid-fade casts nothing */
+      gl.bindBuffer(gl.ARRAY_BUFFER, q.P.mesh.vb);
+      onlyAttrib(US.aPos);
+      gl.vertexAttribPointer(US.aPos, 3, gl.FLOAT, false, STRIDE, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, q.P.mesh.ib);
+      gl.uniformMatrix4fv(US.model, false, mModel(q.x, q.y, q.z, q.s, q.ry));
+      gl.drawElements(gl.TRIANGLES, q.P.mesh.n, gl.UNSIGNED_SHORT, 0);
+    }
+    gl.disable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  function drawAllPieces(th) {
+    /* glass has to go far to near; everything else can draw as it comes */
+    if (th.translucent) instances.sort(function (a, b) { return b.d - a.d; });
+    for (var i = 0; i < instances.length; i++) drawPiece(instances[i], th);
   }
 
   function drawFlatSq(sq, color, alpha, mesh, scale, y) {
-    drawMesh(mesh || MESH_QUAD, mModel(sqX(sq), y || 0.015, sqZ(sq), scale || 0.98, 0), color, alpha, true);
+    drawMesh(mesh || MESH_QUAD, mModel(sqX(sq), y || 0.015, sqZ(sq), scale || 0.98, 0),
+      color, alpha, true, 0, 0, 1.45);
   }
 
   /* dynamic meshes: hint arrows, and the racing lines. They're drawn
@@ -642,13 +1396,16 @@ function create(canvas, opts) {
     gl.uniform3fv(U.color, colour);
     gl.uniform1f(U.alpha, L.alpha);
     gl.uniform1f(U.flat, 1);
+    gl.uniform1f(U.glow, 1.5);
     gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
 
-    /* the spark: a small bright disc riding the line */
+    /* the spark: a small bright disc riding the line. Well over white,
+       on purpose — this is the one thing in the scene that is meant to
+       bloom, and the tone map at the end keeps it from flaring out. */
     var sp = root.Lines.sparkAt(L.pts, root.Lines.phase(L, now));
     bindMesh(MESH_DISC);
-    drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.17, 0), [1, 1, 1], 0.95 * L.alpha, true);
-    drawMesh(MESH_DISC, mModel(sp.x, 0.04, sp.y, 0.30, 0), colour, 0.45 * L.alpha, true);
+    drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.17, 0), [1, 1, 1], 0.95 * L.alpha, true, 0, 0, 5.5);
+    drawMesh(MESH_DISC, mModel(sp.x, 0.04, sp.y, 0.30, 0), colour, 0.45 * L.alpha, true, 0, 0, 2.6);
   }
   function drawArrow(from, to, color) {
     var x0 = sqX(from), z0 = sqZ(from), x1 = sqX(to), z1 = sqZ(to);
@@ -674,6 +1431,7 @@ function create(canvas, opts) {
     gl.uniform3fv(U.color, color);
     gl.uniform1f(U.alpha, 0.85);
     gl.uniform1f(U.flat, 1);
+    gl.uniform1f(U.glow, 1.6);
     gl.drawElements(gl.TRIANGLES, 9, gl.UNSIGNED_SHORT, 0);
   }
 
@@ -702,6 +1460,9 @@ function create(canvas, opts) {
       dropT = (performance.now() - R.drops.t0) / R.drops.dur;
       if (dropT >= 1) R.drops = null; else dropping = true;
     }
+    /* film grain moves, so a still frame is never quite still — but
+       only while something else is already asking for frames. It is
+       never a reason on its own to keep the loop awake. */
     if (!R.dirty && !moving && !animating && !dropping) return false;
 
     /* A narrow canvas (phone, or the Studio drawer taking a slice) has a
@@ -718,72 +1479,8 @@ function create(canvas, opts) {
     proj = mPersp(0.72, canvas.width / canvas.height, 0.5, 80);
     view = mLookAt(cam.eye, camTarget(), [0, 1, 0]);
 
-    gl.clearColor(th.bg[0], th.bg[1], th.bg[2], 1);
-    gl.enable(gl.DEPTH_TEST);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-    /* rim */
-    gl.useProgram(prog);
-    gl.uniformMatrix4fv(U.proj, false, proj);
-    gl.uniformMatrix4fv(U.view, false, view);
-    gl.uniform3fv(U.eye, cam.eye);
-    gl.uniform1f(U.power, th.power);
-    gl.uniform1f(U.rimLight, th.rimLight);
-    bindMesh(MESH_RIM);
-    drawMesh(MESH_RIM, mModel(0, -0.002, 0, 1, 0), hexToVec(th.rim), 1, false, 0.12);
-
-    /* board top */
-    gl.useProgram(progTex);
-    gl.uniformMatrix4fv(UT.proj, false, proj);
-    gl.uniformMatrix4fv(UT.view, false, view);
-    gl.uniformMatrix4fv(UT.model, false, mIdent());
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, boardTex);
-    gl.uniform1i(UT.tex, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, texQuad.vb);
-    gl.enableVertexAttribArray(UT.aPos);
-    gl.vertexAttribPointer(UT.aPos, 3, gl.FLOAT, false, 20, 0);
-    gl.enableVertexAttribArray(UT.aUV);
-    gl.vertexAttribPointer(UT.aUV, 2, gl.FLOAT, false, 20, 12);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, texQuad.ib);
-    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
-
-    /* highlights (flat, just above the wood) */
-    gl.useProgram(prog);
-    gl.depthMask(false);
-    bindMesh(MESH_QUAD);
-    if (R.hi.last) {
-      drawFlatSq(R.hi.last[0], th.last, 0.30);
-      drawFlatSq(R.hi.last[1], th.last, 0.45);
-    }
-    if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
-    if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.45);
-    bindMesh(MESH_DISC);
-    for (var li = 0; li < R.hi.legal.length; li++) {
-      drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13, 0), th.legal, 0.55, true);
-    }
-    bindMesh(MESH_RING);
-    for (var ci = 0; ci < R.hi.legalCapt.length; ci++) {
-      drawMesh(MESH_RING, mModel(sqX(R.hi.legalCapt[ci]), 0.02, sqZ(R.hi.legalCapt[ci]), 0.46, 0), th.capt, 0.6, true);
-    }
-    if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);
-    /* the mate net: squares the king can't use */
-    if (R.net.length) {
-      bindMesh(MESH_RING);
-      for (var nn = 0; nn < R.net.length; nn++) {
-        drawMesh(MESH_RING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.34, 0), th.capt, 0.5, true);
-      }
-    }
-    if (R.lines.length && root.Lines) {
-      var lnow = performance.now();
-      for (var ll = 0; ll < R.lines.length; ll++) drawLine(R.lines[ll], lnow, th);
-    }
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
-
-    /* pieces */
+    /* ---- who is standing where, once, for all the passes ---- */
+    instances.length = 0;
     var skip = {};
     if (a) {
       skip[a.m.from] = true; skip[a.m.to] = true;
@@ -804,41 +1501,205 @@ function create(canvas, opts) {
         lift = (1 - ease(t)) * 2.2;
         alph = Math.min(1, t * 2);
       }
-      queuePiece(piece, sqX(sq), sqZ(sq), lift, alph, 1, th);
+      pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1);
     }
-
     if (a) {
       var e = ease(aprog);
       var captPiece = a.m.epSq != null ? R.board[a.m.epSq] : R.board[a.m.to];
       if (captPiece) {
         var cx = a.m.epSq != null ? sqX(a.m.epSq) : sqX(a.m.to);
         var cz = a.m.epSq != null ? sqZ(a.m.epSq) : sqZ(a.m.to);
-        queuePiece(captPiece, cx, cz, -0.9 * e, 1 - e, 1 - 0.2 * e, th); /* sinks through the board */
+        pushPiece(captPiece, cx, cz, -0.9 * e, 1 - e, 1 - 0.2 * e); /* sinks through the board */
       }
       if (a.m.rookFrom != null) {
-        queuePiece(a.after[a.m.rookTo],
+        pushPiece(a.after[a.m.rookTo],
           sqX(a.m.rookFrom) + (sqX(a.m.rookTo) - sqX(a.m.rookFrom)) * e,
-          sqZ(a.m.rookFrom) + (sqZ(a.m.rookTo) - sqZ(a.m.rookFrom)) * e, 0, 1, 1, th);
+          sqZ(a.m.rookFrom) + (sqZ(a.m.rookTo) - sqZ(a.m.rookFrom)) * e, 0, 1, 1);
       }
       var mover = e > 0.75 && a.m.promo ? a.m.promo : a.m.piece;
       var hop = Math.abs(a.m.piece) === 2 ? Math.sin(aprog * Math.PI) * 0.55 : Math.sin(aprog * Math.PI) * 0.06;
-      queuePiece(mover,
+      pushPiece(mover,
         sqX(a.m.from) + (sqX(a.m.to) - sqX(a.m.from)) * e,
-        sqZ(a.m.from) + (sqZ(a.m.to) - sqZ(a.m.from)) * e, hop, 1, 1, th);
-      if (!animating) {
-        R.board.set(a.after);
-        R.anim = null;
-        if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
-      }
+        sqZ(a.m.from) + (sqZ(a.m.to) - sqZ(a.m.from)) * e, hop, 1, 1);
     }
 
-    flushPieces(th);
+    /* ---- pass one: what the light can see ---- */
+    shadowPass();
+
+    /* ---- pass two: the room, into a texture if we have one ---- */
+    sizeTargets();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, postOk ? scene.fb : null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    /* the background is a colour on screen and a light in the target:
+       in linear space it has to be converted, or a dark room comes out
+       several times too bright once the tone map has had its say */
+    var bg = postOk ? lin3(th.bg) : th.bg;
+    gl.clearColor(bg[0], bg[1], bg[2], 1);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    /* the room, before anything in it */
+    gl.disable(gl.BLEND);
+    gl.depthMask(false);
+    gl.useProgram(progSky);
+    gl.uniform3fv(UK.top, th.skyTop);
+    gl.uniform3fv(UK.bottom, th.skyFloor);
+    gl.uniform3fv(UK.glowCol, th.lampGlow);
+    gl.uniform1f(UK.glowAmt, 0.55);
+    gl.uniform1f(UK.direct, postOk ? 0 : 1);
+    fullscreen(UK.aPos);
+    gl.depthMask(true);
+    gl.enable(gl.BLEND);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, shadowSize ? shadowT.tex : blankTex);
+
+    /* the rim under the board: a lacquered edge, so a wide highlight
+       and no metal in it */
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(U.proj, false, proj);
+    gl.uniformMatrix4fv(U.view, false, view);
+    gl.uniform1f(U.mirror, 0);
+    gl.uniform1f(U.rimAmt, th.rimLight);
+    sendLights(U.L, th);
+    bindMesh(MESH_RIM);
+    drawMesh(MESH_RIM, mModel(0, -0.002, 0, 1, 0), hexToVec(th.rim), 1, false, 0.52, 0);
+
+    /* board top */
+    gl.useProgram(progTex);
+    gl.uniformMatrix4fv(UT.proj, false, proj);
+    gl.uniformMatrix4fv(UT.view, false, view);
+    gl.uniformMatrix4fv(UT.model, false, mIdent());
+    gl.uniform1f(UT.gloss, th.gloss);
+    gl.uniform1f(UT.bump, th.bump);
+    sendLights(UT.L, th);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, boardTex);
+    gl.uniform1i(UT.tex, 0);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, boardNrm);
+    gl.uniform1i(UT.nrmTex, 2);
+    gl.bindBuffer(gl.ARRAY_BUFFER, texQuad.vb);
+    onlyAttrib(UT.aPos);
+    gl.vertexAttribPointer(UT.aPos, 3, gl.FLOAT, false, 20, 0);
+    gl.enableVertexAttribArray(UT.aUV);
+    gl.vertexAttribPointer(UT.aUV, 2, gl.FLOAT, false, 20, 12);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, texQuad.ib);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+    /* the men reflected in the polish, before anything is drawn on top */
+    drawReflections(th);
+
+    /* highlights (flat, just above the wood) */
+    gl.useProgram(prog);
+    gl.enable(gl.BLEND);
+    gl.depthMask(false);
+    bindMesh(MESH_QUAD);
+    if (R.hi.last) {
+      drawFlatSq(R.hi.last[0], th.last, 0.30);
+      drawFlatSq(R.hi.last[1], th.last, 0.45);
+    }
+    if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
+    if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.45);
+    bindMesh(MESH_DISC);
+    for (var li = 0; li < R.hi.legal.length; li++) {
+      drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13, 0), th.legal, 0.55, true, 0, 0, 1.9);
+    }
+    bindMesh(MESH_RING);
+    for (var ci = 0; ci < R.hi.legalCapt.length; ci++) {
+      drawMesh(MESH_RING, mModel(sqX(R.hi.legalCapt[ci]), 0.02, sqZ(R.hi.legalCapt[ci]), 0.46, 0), th.capt, 0.6, true, 0, 0, 1.9);
+    }
+    if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);
+    /* the mate net: squares the king can't use */
+    if (R.net.length) {
+      bindMesh(MESH_RING);
+      for (var nn = 0; nn < R.net.length; nn++) {
+        drawMesh(MESH_RING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.34, 0), th.capt, 0.5, true, 0, 0, 1.6);
+      }
+    }
+    if (R.lines.length && root.Lines) {
+      var lnow = performance.now();
+      for (var ll = 0; ll < R.lines.length; ll++) drawLine(R.lines[ll], lnow, th);
+    }
+    gl.uniform1f(U.glow, 1);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+
+    /* pieces */
+    drawAllPieces(th);
+
+    if (a && !animating) {
+      R.board.set(a.after);
+      R.anim = null;
+      if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
+    }
+
+    /* ---- pass three: the lens ---- */
+    if (postOk) post(th);
 
     R.dirty = animating || moving || dropping || R.lines.length > 0;
     return R.dirty;
   };
 
-  R.destroy = function () { R.anim = null; freePieces(); };
+  /* Bright pass, two blurs, then one composite that does the whole
+     grade: the colour fringe, the bloom, the vignette, the tone map and
+     the grain, in that order, because that is the order a camera does
+     them in. The blur runs at a quarter of the width, which is four
+     times less work and — since it is a blur — no visible difference. */
+  function post(th) {
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    var haveBloom = bloomOk && FX.bloom;
+    if (haveBloom) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb);
+      gl.viewport(0, 0, bloomA.w, bloomA.h);
+      gl.useProgram(progBright);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, scene.tex);
+      gl.uniform1i(UB.tex, 0);
+      gl.uniform1f(UB.threshold, th.bloomCut);
+      fullscreen(UB.aPos);
+
+      gl.useProgram(progBlur);
+      gl.uniform1i(UL.tex, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, bloomB.fb);
+      gl.bindTexture(gl.TEXTURE_2D, bloomA.tex);
+      gl.uniform2f(UL.dir, 1 / bloomA.w, 0);
+      fullscreen(UL.aPos);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, bloomA.fb);
+      gl.bindTexture(gl.TEXTURE_2D, bloomB.tex);
+      gl.uniform2f(UL.dir, 0, 1 / bloomA.h);
+      fullscreen(UL.aPos);
+    }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.useProgram(progComp);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, scene.tex);
+    gl.uniform1i(UC.scene, 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, haveBloom ? bloomA.tex : blankTex);
+    gl.uniform1i(UC.bloom, 1);
+    gl.uniform1f(UC.bloomAmt, haveBloom ? th.bloom : 0);
+    gl.uniform1f(UC.vignette, th.vignette);
+    gl.uniform1f(UC.grain, FX.grain ? th.grain : 0);
+    gl.uniform1f(UC.aberration, FX.aberration ? th.aberration : 0);
+    gl.uniform1f(UC.time, (performance.now() % 10000) * 0.001);
+    fullscreen(UC.aPos);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  R.destroy = function () {
+    R.anim = null;
+    freePieces();
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(shadowT);
+    scene = bloomA = bloomB = shadowT = null;
+    shadowSize = 0; postOk = bloomOk = false;
+  };
   R.resize();
   return R;
 }

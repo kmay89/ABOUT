@@ -124,8 +124,14 @@ pieces3d.js         the carving shop: profiles smoothed into real turned
                     occlusion baked into every vertex. Three sets are
                     carved here; more can be injected from outside as
                     JSON, .obj, or a mesh packed from STL
-gfx3d.js            raw WebGL 1 renderer: the carved sets above, orbit
-                    camera on springs, sliding/hopping/sinking animations
+gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
+                    Cook-Torrance surface lit by a procedural room, and a
+                    graded composite (bloom, vignette, lens fringe, ACES,
+                    grain). The board carries a relief map cut from its
+                    own colour canvas and reflects the men when polished.
+                    Orbit camera on springs, sliding/hopping/sinking
+                    animations, and three effects tiers that degrade on
+                    their own when a card says no
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
                     also the safety net if WebGL is missing or lost
 room.js             the shared front door: four-letter room codes over the
@@ -170,6 +176,12 @@ tools/              dev-only, never shipped:
                     thrown away by repetition, a legal move inside the
                     time budget every time, and (--slow) that the three
                     practice levels really are a ladder
+  gfx-check.js      opens a real browser and checks the picture rather
+                    than the code: every program links, the GL error
+                    queue stays empty, the frame has a range of colours
+                    in it, turning the shadow pass off changes what the
+                    board looks like, all three effects tiers draw, and
+                    the eight house skins all light up and all differ
   offline-check.js  pulls the plug for real: compares the service worker's
                     shell with everything the page and its worker load, in
                     both directions, then cuts the network in a live
@@ -286,6 +298,64 @@ deliberately isn't. Design against
 `tools/pieces-preview.html`, which lines a set up under the board's own
 shader with wireframe and baked-occlusion views, and check it with
 `node chess/tools/pieces-check.js`.
+
+## How the board is lit
+
+Everything on the 3D board is drawn three times over, and each pass
+exists because the one before it could not do the job.
+
+**The light draws first.** The key light renders the men from where it
+hangs and keeps only the distances — a shadow map. WebGL 1 has no depth
+textures to rely on, so the distance is packed across four 8-bit
+channels and unpacked on the way back. The board itself is left out (a
+flat surface shadowing itself turns into stripes) and only the back
+faces are recorded, which is the standard dodge for the speckle you get
+when a surface shadows itself. Nine taps, spun by a different angle on
+every pixel, turn the stair-stepped edge you would otherwise get at this
+resolution into a faint noise the eye reads as softness.
+
+**Then the camera draws the room into a texture.** Light is summed in
+linear space and only converted back to sRGB at the very end. That one
+change does more than any effect: multiplying an sRGB colour by a light
+in sRGB space is simply the wrong sum, which is what used to make the
+pale squares chalky and the dark ones muddy. The surface is
+Cook-Torrance — GGX for the shape of the highlight, Smith for the
+shadowing between microfacets, Schlick for the way everything turns into
+a mirror at a grazing angle. A skin's material now carries roughness and
+metalness beside the old Blinn-Phong pair, which the 2D board still
+uses. The ambient is a two-colour sky with a lamp in it, written as a
+function rather than shipped as a cube map — nothing to download, and it
+tints itself from whatever skin is loaded.
+
+The board's grain is a real surface rather than a picture of one. The
+same routine that paints the squares paints them again in grey as a
+height field — the pattern strokes, a groove where two squares meet, a
+routed step inside the frame, the coordinates engraved rather than
+printed — and a Sobel pass turns that into a normal map. Because the
+board is flat and axis-aligned there is no tangent basis to carry
+through: x in the texture is x in the world. A board with polish on it
+also reflects the men standing on it, clipped to the wood and fading as
+they fall away from it.
+
+**Last, the picture is graded.** The bright parts are cut out, blurred
+twice at a quarter width, and added back as bloom; a lens fringe and a
+vignette go on; an ACES curve rolls the highlights off instead of
+clipping them, which is why a white king under a lamp keeps its shape;
+and a little grain lands on top. Drawing into a texture first is what
+buys all of it — a highlight is allowed to go brighter than white on the
+way through, and the move dots and racing lines are emitted above white
+on purpose so the bloom has something to find.
+
+None of this is load-bearing. Floating-point targets, framebuffers and
+the shadow map are each checked rather than assumed; when one is missing
+it drops out, the tone map moves into the surface shaders, and the board
+still looks like itself. Three tiers — **Full**, **Balanced**, **Simple**
+— are picked from the device and can be overridden under *Lighting &
+effects* in the Studio. It is a property of the machine rather than of
+the look, so it is never part of a shared skin code.
+
+`gfx-check.js` keeps all of it honest in a real browser: it asks for
+pixels rather than for reassurance.
 
 ## The coach
 
@@ -427,6 +497,7 @@ node chess/tools/skin-check.js     # presets, share codes, hostile input
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/offline-check.js  # the room survives the train tunnel
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
+node chess/tools/gfx-check.js      # the room lights up, every tier and every skin
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 

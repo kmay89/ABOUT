@@ -33,13 +33,16 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "" };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto" };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
     for (var k in prefs) if (p[k] !== undefined) prefs[k] = p[k];
   } catch (e) {}
   if (location.hash === "#force2d") { prefs.use3d = false; }
+  /* a hand-edited store should not be able to name an effects tier the
+     renderer has never heard of */
+  if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
 })();
 function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
 
@@ -122,11 +125,29 @@ function hideToast() { $("toast").classList.remove("show"); }
 
 /* ===== renderers ===== */
 var R2 = null, R3 = null, R = null;
+/* How much of the 3D board's lighting to actually run. "Auto" lets the
+   renderer read the device and decide, which is right nearly always;
+   the other three are there for the player who knows their machine
+   better than we do — a laptop that runs hot, or a desktop that would
+   rather have everything. It is a property of the device rather than of
+   the look, so it rides in prefs and never in a shared skin code. */
+var FX_LEVELS = [
+  { id: "auto", label: "Auto", note: "picks what this device can carry" },
+  { id: "high", label: "Full", note: "shadows, reflections, bloom, grain — everything" },
+  { id: "medium", label: "Balanced", note: "softer shadows, no reflections" },
+  { id: "low", label: "Simple", note: "no shadows or bloom; kindest to a battery" }
+];
+function gfxOpts() {
+  return {
+    onContextLost: function () { switchDim(false, true); },
+    fx: prefs.fx && prefs.fx !== "auto" ? prefs.fx : undefined
+  };
+}
 function initRenderers() {
   R2 = Gfx2D.create($("cv2"));
   if (prefs.use3d) {
     try {
-      R3 = Gfx3D.create($("cv3"), { onContextLost: function () { switchDim(false, true); } });
+      R3 = Gfx3D.create($("cv3"), gfxOpts());
     } catch (e) { R3 = null; }
   }
   if (!R3 && prefs.use3d) prefs.use3d = false;
@@ -145,7 +166,7 @@ function useRenderer(r) {
 }
 function switchDim(to3d, becauseLost) {
   if (to3d && !R3) {
-    try { R3 = Gfx3D.create($("cv3"), { onContextLost: function () { switchDim(false, true); } }); } catch (e) { R3 = null; }
+    try { R3 = Gfx3D.create($("cv3"), gfxOpts()); } catch (e) { R3 = null; }
     if (!R3) { toast("3D isn't available on this device — the 2D board is just as sharp."); return; }
   }
   prefs.use3d = !!(to3d && R3); savePrefs();
@@ -2482,6 +2503,28 @@ function renderStudio() {
     mats.appendChild(b);
   });
   $("stMatNote").textContent = Skins.MATERIALS[skin.pieces.material].note;
+
+  var fxBox = $("stFx");
+  fxBox.innerHTML = "";
+  FX_LEVELS.forEach(function (lv) {
+    var b = document.createElement("button");
+    b.className = "stPick" + (prefs.fx === lv.id ? " sel" : "");
+    b.textContent = lv.label;
+    b.addEventListener("click", function () {
+      prefs.fx = lv.id; savePrefs();
+      if (R3) {
+        if (lv.id === "auto") R3.setFx(R3.autoFx());
+        else R3.setFx(lv.id);
+      }
+      renderStudio(); needFrame();
+      if (!prefs.use3d) toast("Lighting settings show on the 3D board — tap <b>3D</b> below to see them.", null, 3800);
+    });
+    fxBox.appendChild(b);
+  });
+  var lvHere = null;
+  FX_LEVELS.forEach(function (lv) { if (lv.id === prefs.fx) lvHere = lv; });
+  $("stFxNote").textContent = (lvHere ? lvHere.note : "") +
+    (R3 && prefs.fx === "auto" ? " — running " + R3.fx() : "");
 
   var pats = $("stPatterns");
   pats.innerHTML = "";

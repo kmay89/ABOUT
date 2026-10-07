@@ -20,13 +20,20 @@
 "use strict";
 
 /* ---------- materials: what light does when it lands ---------- */
+/* spec and power are the old Blinn-Phong pair, still used by the 2D
+   board where a highlight is painted rather than computed. rough and
+   metal are what the 3D renderer asks for: roughness is the width of
+   the highlight (0 is a mirror, 1 is chalk) and metalness decides
+   whether the reflection takes the material's own colour or the room's.
+   Both descriptions of the same surface, kept side by side so neither
+   renderer has to guess at the other's numbers. */
 var MATERIALS = {
-  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, note: "warm, softly polished" },
-  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, note: "bright and glassy-smooth" },
-  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, note: "you can see through it" },
-  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, note: "hard highlights, cold" },
-  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, note: "matte, turned on a lathe" },
-  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, note: "flat as a printed page" }
+  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, rough: 0.34, metal: 0.00, note: "warm, softly polished" },
+  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, rough: 0.16, metal: 0.00, note: "bright and glassy-smooth" },
+  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, rough: 0.06, metal: 0.00, note: "you can see through it" },
+  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, rough: 0.22, metal: 0.62, note: "hard highlights, cold" },
+  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, rough: 0.56, metal: 0.00, note: "matte, turned on a lathe" },
+  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, rough: 0.88, metal: 0.00, note: "flat as a printed page" }
 };
 /* The carved 3D sets live in pieces3d.js; a skin only carries the name
    of the one it wants, so skins.js stays pure data and can be checked
@@ -180,10 +187,17 @@ function clone(s) { return JSON.parse(JSON.stringify(s)); }
 /* material → the numbers the renderers actually use */
 function surface(skin) {
   var mat = MATERIALS[skin.pieces.material] || MATERIALS.ivory;
+  /* the shine slider polishes: it narrows the highlight rather than
+     brightening it, which is what actually happens when you buff a
+     piece. Clamped off both ends — a perfect mirror has nothing to
+     reflect in a room this small, and nothing is ever quite chalk. */
+  var rough = mat.rough * (1.32 - skin.pieces.shine * 0.72);
   return {
     spec: mat.spec * (0.25 + skin.pieces.shine * 1.15),
     power: mat.power,
     rim: mat.rim * (0.3 + skin.pieces.rim * 2.2),
+    rough: Math.max(0.045, Math.min(0.96, rough)),
+    metal: mat.metal,
     alpha: mat.alpha,
     translucent: mat.alpha < 1
   };
