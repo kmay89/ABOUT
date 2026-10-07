@@ -1207,11 +1207,11 @@ function create(canvas, opts) {
     var pl = Move.plan(m, { reduced: REDUCED, scale: o.scale });
     if (o.dur) pl.dur = REDUCED ? 1 : o.dur;   /* a caller that insists */
     R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-               dur: pl.dur, glow: !!o.glow, done: done || null,
-               /* the sound of a piece being set down belongs at the moment
-                  it is set down, not at the moment you let go of it */
-               onLand: o.onLand || null, landed: false };
+               dur: pl.dur, glow: !!o.glow, done: done || null };
     R.dirty = true;
+    /* handed back so the caller can put a sound on the same plan: both
+       are measured from this moment, on clocks that do not drift apart */
+    return pl;
   };
   R.isAnimating = function () { return !!R.anim; };
 
@@ -1583,10 +1583,6 @@ function create(canvas, opts) {
     var promoFlash = 0, promoAt = null;
     if (a) {
       var pl = a.pl, st = Move.at(pl, aprog);
-      if (!st.moving && !a.landed) {
-        a.landed = true;
-        if (a.onLand) { var lcb = a.onLand; a.onLand = null; setTimeout(lcb, 0); }
-      }
       var fx = sqX(a.m.from), fz = sqZ(a.m.from), tx = sqX(a.m.to), tz = sqZ(a.m.to);
       /* the unit vector the move travels along: the bank leans across
          it, and a captured piece is pushed over along it */

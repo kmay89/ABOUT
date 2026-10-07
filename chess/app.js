@@ -63,43 +63,38 @@ function applySkin(s, save) {
   root.style.setProperty("--glow", skin.marks.last);
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", skin.room.bg);
+  /* the pieces' material and the board's finish are both part of how
+     they sound, so the synth hears about a skin change too */
+  if (typeof Sound !== "undefined") Sound.setSkin(skin);
   if (save !== false) { prefs.skin = skin; savePrefs(); }
   needFrame();
 }
 
-/* ===== sound (synthesized, tiny, optional) ===== */
-var AC = null;
-function ac() {
-  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
-  if (AC && AC.state === "suspended") AC.resume().catch(function () {});
-  return AC;
-}
-function tone(freq, dur, type, vol, when, sweep) {
-  var c = ac(); if (!c) return;
-  var o = c.createOscillator(), g = c.createGain(), t = c.currentTime + (when || 0);
-  o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
-  if (sweep) o.frequency.exponentialRampToValueAtTime(sweep, t + dur);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(vol || 0.12, t + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(c.destination);
-  o.start(t); o.stop(t + dur + 0.02);
-}
+/* ===== sound =====
+   The pieces have their own voices now — a material, a weight and a
+   friction, modelled in sound.js off the very plan the board is
+   animating. What is left here is the thin layer between the game and
+   that: the signals (a clock tick, a link, the end of a game) go
+   straight through, and a move hands over its plan so the slide and the
+   set-down can be scheduled on the audio clock rather than hoped for on
+   a timer. */
 function snd(kind) {
-  if (!prefs.sound) return;
-  switch (kind) {
-    case "move": tone(190, 0.07, "triangle", 0.10, 0, 150); break;
-    case "capture": tone(120, 0.11, "triangle", 0.15, 0, 70); tone(320, 0.05, "sine", 0.05); break;
-    case "castle": tone(190, 0.06, "triangle", 0.09); tone(190, 0.06, "triangle", 0.09, 0.09); break;
-    case "check": tone(660, 0.16, "sine", 0.08); tone(880, 0.2, "sine", 0.06, 0.08); break;
-    case "promo": tone(523, 0.12, "sine", 0.08); tone(659, 0.12, "sine", 0.08, 0.1); tone(784, 0.2, "sine", 0.08, 0.2); break;
-    case "win": tone(523, 0.15, "sine", 0.09); tone(659, 0.15, "sine", 0.09, 0.14); tone(784, 0.3, "sine", 0.1, 0.28); break;
-    case "lose": tone(330, 0.2, "sine", 0.08); tone(262, 0.35, "sine", 0.08, 0.18); break;
-    case "draw": tone(392, 0.2, "sine", 0.07); tone(392, 0.25, "sine", 0.07, 0.22); break;
-    case "tick": tone(1100, 0.03, "square", 0.03); break;
-    case "link": tone(523, 0.09, "sine", 0.08); tone(784, 0.14, "sine", 0.08, 0.09); break;
-    case "hint": tone(587, 0.1, "sine", 0.06); break;
-  }
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  Sound.ui(kind);
+}
+/* a piece being lifted off the board: not a move yet, but the first
+   thing you hear when you touch one */
+function sndPickUp(piece) {
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  Sound.pickUp(piece);
+}
+/* The whole gesture: the drag for as long as it is on the board, the
+   knock of whatever it takes, the rook of a castle in its own weight,
+   and the moment it is set down. The plan is the renderer's own, so the
+   two cannot drift apart. */
+function sndMove(desc, plan, captured) {
+  if (!prefs.sound || typeof Sound === "undefined" || !plan) return;
+  Sound.move(desc, plan, { captured: captured || 0 });
 }
 
 /* ===== toast — the one funnel for every message ===== */
@@ -437,7 +432,7 @@ function tapSquare(sq) {
       commitMove(mv, "local");
       return;
     }
-    if (sq === sel) { clearSel(); syncBoard(); snd("hint"); return; }
+    if (sq === sel) { clearSel(); syncBoard(); sndPickUp(G.board[sq]); return; }
   }
   if (p && (p > 0 ? 1 : -1) === G.turn) {
     sel = sq;
@@ -447,7 +442,7 @@ function tapSquare(sq) {
         "That piece has nowhere legal to go just now — it may be blocked, or pinned to your king.";
       toast(why);
     }
-    snd("hint");
+    sndPickUp(p);
   } else {
     clearSel();
   }
@@ -511,23 +506,17 @@ function commitMove(m, source, animOpts) {
                wMs: Math.round(clock.w), bMs: Math.round(clock.b) });
   }
 
-  /* Sound lands with the piece, not with the tap. A click the instant
-     you let go of a piece that is still visibly in the air is the thing
-     that makes a board feel like a web page; the same click a third of
-     a second later, as it touches down, makes it feel like wood. */
-  var land = (m.flags & Chess.F_CASTLE) ? "castle"
-           : m.promo ? "promo"
-           : (m.capt || (m.flags & Chess.F_EP)) ? "capture" : "move";
-
   var st = Chess.status(G);
   hintArrow = null;
 
-  var aOpts = animOpts || {};
-  aOpts.onLand = function () { snd(land); };
-  R.animateMove(desc, G.board, aOpts, function () {
+  /* what was taken, so it can be heard being knocked over in its own
+     voice rather than as a generic thump */
+  var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+  var plan = R.animateMove(desc, G.board, animOpts || {}, function () {
     syncBoard();
     if (!over && st.reason === "check") snd("check");
   });
+  sndMove(desc, plan, took);
   needFrame();
   syncMoveList();
   syncBars();
@@ -2161,8 +2150,7 @@ function tourNext() {
   var why = tourLine.why && tourLine.why[tourStep];
   var desc = animDescriptor(m);
   var san = Chess.play(G, m);
-  snd(m.capt ? "capture" : "move");
-  R.animateMove(desc, G.board, { scale: 1.7 }, null);
+  sndMove(desc, R.animateMove(desc, G.board, { scale: 1.7 }, null), m.capt);
   syncMoveList(); syncBars(); syncTurnStrip();
   if (why) toast("<b>" + san + "</b> — " + why, null, 2600);
   tourStep++;
@@ -2519,8 +2507,7 @@ function showWorkedExample() {
     var desc = animDescriptor(m);
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
-    snd(m.capt ? "capture" : "move");
-    R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
+    var wPlan = R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
       lessonUI('<div class="lkick">Watch first</div>' +
         '<div class="lask">' + esc(lesson.best) + '</div>' +
         '<div class="lsay">' + lesson.why + '</div>');
@@ -2530,6 +2517,7 @@ function showWorkedExample() {
         clearSel(); syncAll(); askLesson();
       }, true)]);
     });
+    sndMove(desc, wPlan, m.capt);
     needFrame();
   }, REDUCED ? 200 : 1500);
 }
@@ -2596,21 +2584,20 @@ function lessonAttempt(m) {
 
   if (verdict.ok) {
     lessonDone = true;
-    snd(m.capt ? "capture" : "move");
-    R.animateMove(desc, g2.board, { scale: 1.0 }, function () {
+    var okPlan = R.animateMove(desc, g2.board, { scale: 1.0 }, function () {
       G = g2;
       syncBoard();
       celebrateLesson(verdict);
     });
+    sndMove(desc, okPlan, m.capt);
     needFrame();
     return;
   }
 
   /* wrong: play it anyway so they *see* the consequence, then rewind */
   lessonTries++;
-  snd("move");
   var say = Learn.critique(lesson, G, m);
-  R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
+  var tryPlan = R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
@@ -2622,6 +2609,7 @@ function lessonAttempt(m) {
       clearSel(); syncBoard(); revealLesson(); needFrame();
     })]);
   });
+  sndMove(desc, tryPlan, m.capt);
   needFrame();
 }
 
@@ -3064,6 +3052,7 @@ function syncSettingsUI() {
     v === "plain" ? "Full sentences, with the idea named — everything it notices is kept in the Notes tab, so you can read it twice."
     : v === "brief" ? "One line per remark, in notation, with what the move cost. Marks still ride along on the move list."
     : "The room says nothing and marks nothing. You can turn it back on mid-game.";
+  if (typeof Sound !== "undefined") Sound.enable(prefs.sound);
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
   $("setHelpers").classList.toggle("sel", prefs.helpers);
@@ -3149,7 +3138,13 @@ function wireUI() {
   $("vcOff").addEventListener("click", function () { setVoice("off"); });
   $("tabMoves").addEventListener("click", function () { showPanelTab("moves"); });
   $("tabNotes").addEventListener("click", function () { showPanelTab("notes"); });
-  $("setSound").addEventListener("click", function () { prefs.sound = !prefs.sound; savePrefs(); syncSettingsUI(); if (prefs.sound) snd("link"); });
+  $("setSound").addEventListener("click", function () {
+    prefs.sound = !prefs.sound; savePrefs(); syncSettingsUI();
+    if (typeof Sound !== "undefined") Sound.enable(prefs.sound);
+    /* the switch is a click, which is the gesture a browser wants
+       before it will start an audio clock at all */
+    if (prefs.sound) { Sound.wake(); Sound.tap(6, 0.8); }
+  });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
   $("ckClassic").addEventListener("click", function () { prefs.clockSkin = "classic"; savePrefs(); syncSettingsUI(); });

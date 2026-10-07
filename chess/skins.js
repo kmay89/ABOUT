@@ -28,12 +28,12 @@
    Both descriptions of the same surface, kept side by side so neither
    renderer has to guess at the other's numbers. */
 var MATERIALS = {
-  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, rough: 0.34, metal: 0.00, note: "warm, softly polished" },
-  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, rough: 0.16, metal: 0.00, note: "bright and glassy-smooth" },
-  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, rough: 0.06, metal: 0.00, note: "you can see through it" },
-  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, rough: 0.22, metal: 0.62, note: "hard highlights, cold" },
-  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, rough: 0.56, metal: 0.00, note: "matte, turned on a lathe" },
-  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, rough: 0.88, metal: 0.00, note: "flat as a printed page" }
+  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, rough: 0.34, metal: 0.00, note: "warm, softly polished \u2014 a short mellow click" },
+  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, rough: 0.16, metal: 0.00, note: "bright and glassy-smooth \u2014 a clear tink" },
+  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, rough: 0.06, metal: 0.00, note: "you can see through it, and it rings" },
+  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, rough: 0.22, metal: 0.62, note: "hard highlights, cold, chimes like a bell" },
+  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, rough: 0.56, metal: 0.00, note: "matte, turned on a lathe \u2014 a dry knock" },
+  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, rough: 0.88, metal: 0.00, note: "flat as a printed page, and about as loud" }
 };
 /* The carved 3D sets live in pieces3d.js; a skin only carries the name
    of the one it wants, so skins.js stays pure data and can be checked

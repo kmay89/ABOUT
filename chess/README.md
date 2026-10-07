@@ -134,6 +134,11 @@ gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
                     their own when a card says no
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
                     also the safety net if WebGL is missing or lost
+sound.js            what a piece sounds like: modal synthesis, one voice
+                    per material (the partials and how long they ring) and
+                    one per man (how low and how loud a weight lands),
+                    plus the friction of a slide, read off the very plan
+                    the board is animating. All synthesized — no samples
 motion.js           how a piece moves, as data: a character per man
                     (duration, lift, easing, lean, landing), plus the
                     curves for a capture being pushed over, a castle's
@@ -187,6 +192,12 @@ tools/              dev-only, never shipped:
                     lands like wood rather than rubber, and moves
                     differently from all five others — plus the castle,
                     the topple, the promotion and reduced motion
+  sound-check.js    checks the model in node, then renders the actual
+                    audio in a browser and measures the samples: each
+                    material rings longer than the last, metal is a bell
+                    where the others are bars, a heavier piece lands lower
+                    and louder, nothing clips, and a sliding rook is heard
+                    the whole way while a carried knight is not
   coach-check.js    plays a real game in a real browser and reads what the
                     room wrote down: the notebook fills, names the opening
                     and the tactic, marks the mistake on the move list,
@@ -416,6 +427,68 @@ The sound of a piece being set down plays at the moment it is set down,
 not at the moment you let go of it. And `prefers-reduced-motion` is not
 a slower version of any of this — it is none of it.
 
+## What the pieces sound like
+
+The room had one oscillator and a switch statement: every piece, in
+every material, made the same soft blip. That is the audio equivalent of
+drawing all six men as the same cylinder, and the fix is the one
+`motion.js` already made for movement.
+
+A piece set down on a board is a **struck resonator** — a short noisy
+contact, then a few modes that ring and die away. Which modes, how fast
+they die, and how much noise there is at the start, is exactly what your
+ear uses to tell glass from wood without being told. So `sound.js`
+models that, and three things decide every sound in the room:
+
+**The material** picks the partials and how long they ring. A struck
+block of something homogeneous rings at roughly 1 : 2.76 : 5.40 : 8.93 —
+the free-bar series — and ivory, porcelain and glass sit on it, which is
+why they have a pitch you could sing. Metal does not, which is why a
+bell does not. Rendered and measured, the ring comes out:
+
+| | ink | wood | ivory | porcelain | glass | metal |
+|---|---|---|---|---|---|---|
+| rings for | 0.12s | 0.13s | 0.17s | 0.31s | 0.66s | 0.82s |
+
+**The piece** picks how low and how loud. Mass is taken from a real
+weighted tournament set rather than from the carved geometry, because
+the geometry is whatever set happens to be loaded and the ear has an
+expectation older than any of them: a pawn is about a third of a king.
+Two similar shapes ring at the cube root of their mass ratio; this is a
+shade steeper than that, because half an octave between a pawn and a
+king is a difference you hear and a third of one is a difference you
+only measure. Shape is the other half — a tall thin piece rings on, a
+squat one is duller, and the rook is the squat one.
+
+**The board** is part of it too. A polished board is a harder, brighter
+contact than a matte one; a textured one drags noisier. Both come
+straight off the Studio's sliders.
+
+### Friction
+
+This is the part you only notice when it is missing. A piece that slides
+across the board makes a sound the whole way, and the sound follows how
+fast it is going — so a rook shoves and coasts, a king is slow at both
+ends, and a queen crossing the whole board is the loudest drag on it.
+
+The amplitude is the piece's own speed curve, gated by how far off the
+board it has been lifted, read from the very plan the renderer is
+animating. Which means **the knight makes none** — the knight is
+carried, not slid, and that falls out of `motion.js` rather than being a
+special case here. Measured in the rendered audio, a sliding rook is
+thirteen times louder during its travel than a knight is during its hop.
+
+The whole gesture is scheduled in one go off that plan, on the audio
+clock: the drag for as long as the piece is on the board, the knock of
+whatever it takes going over in its own voice, the rook of a castle in
+its own weight at its own moment, and the set-down at the end. The
+renderer's animation is measured from the same instant on a clock that
+cannot drift apart from it, so the sound of a piece landing is the sound
+of that piece landing rather than a timer that hopes.
+
+Everything is synthesized. There are no samples, nothing to download,
+and it works on the train.
+
 ## The coach's notebook
 
 Everything the room noticed used to live for seven seconds in a toast
@@ -607,6 +680,7 @@ node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier and every skin
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
+node chess/tools/sound-check.js    # every material and every weight has its own voice
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
