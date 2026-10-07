@@ -8,6 +8,20 @@
 (function (root) {
 "use strict";
 
+/* The pieces move with the same character they do on the carved board —
+   same file, same curves, same timings — so the safety net is a simpler
+   drawing of the same gesture rather than a different one. */
+var REDUCED = (typeof matchMedia === "function") && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function motionKit() {
+  if (root.Motion) return root.Motion;
+  if (typeof module !== "undefined" && module.exports && typeof require === "function") {
+    try { return require("./motion.js"); } catch (e) { return null; }
+  }
+  return null;
+}
+var Move = motionKit();
+
 /* ---------- a skin, turned into the strings canvas wants ----------
    Everything drawn here comes from the live skin object (see skins.js),
    so a slider moved in the Studio shows up on the very next frame. */
@@ -165,12 +179,18 @@ function drawKing(ctx) {
 }
 var PAINTERS = [null, drawPawn, drawKnight, drawBishop, drawRook, drawQueen, drawKing];
 
-function paintPiece(ctx, piece, x, y, size, pal, alpha, scale) {
+function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
+  /* the origin is the point the piece stands on, which is what lets a
+     captured piece tip over on its own edge rather than spin about its
+     middle, and a landing one compress into the board rather than
+     through it */
   ctx.translate(x, y + size * 0.38);
+  if (lean) ctx.rotate(lean);
   var s = size * 0.92 * (scale || 1);
-  ctx.scale(s, s);
+  var sq = squash == null ? 1 : squash;
+  ctx.scale(s * (1 + (1 - sq) * 0.42), s * sq);
   var baseAlpha = (alpha == null ? 1 : alpha);
   ctx.globalAlpha = baseAlpha;
   /* soft ground shadow */
@@ -413,9 +433,12 @@ function create(canvas) {
      `after` is the position once the move lands. done() fires at the end. */
   R.animateMove = function (m, after, opts, done) {
     opts = opts || {};
+    var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
+    if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
     R.anim = {
-      m: m, after: new Int8Array(after), t0: performance.now(),
-      dur: opts.dur || 320, glow: !!opts.glow, done: done || null
+      m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
+      dur: pl.dur, glow: !!opts.glow, done: done || null,
+      onLand: opts.onLand || null, landed: false
     };
     R.dirty = true;
   };
@@ -489,27 +512,60 @@ function create(canvas) {
 
     /* the move in flight */
     if (a) {
-      var e = ease(prog);
-      /* captured piece fades under the mover */
+      var pl = a.pl, stt = Move.at(pl, prog);
+      if (!stt.moving && !a.landed) {
+        a.landed = true;
+        if (a.onLand) { var lcb = a.onLand; a.onLand = null; setTimeout(lcb, 0); }
+      }
+      var f0 = sqXY(a.m.from), f1 = sqXY(a.m.to);
+      /* which way the move is going, so what it captures falls away from
+         it rather than toward it */
+      var vx = f1.x - f0.x, vy = f1.y - f0.y, vl = Math.hypot(vx, vy) || 1;
+      var toRight = vx / vl >= 0 ? 1 : -1;
+
+      /* whatever was taken is pushed over, not deleted */
       var captPiece = a.m.epSq != null ? R.board[a.m.epSq] : R.board[a.m.to];
       if (captPiece) {
         var cq = sqXY(a.m.epSq != null ? a.m.epSq : a.m.to);
-        paintPiece(ctx, captPiece, cq.x, cq.y, R.cell, th, 1 - e, 1 - 0.35 * e);
+        var tp = Move.toppleAt(pl, prog);
+        if (tp.alpha > 0.004) {
+          paintPiece(ctx, captPiece, cq.x + toRight * tp.slide * R.cell, cq.y,
+            R.cell, th, tp.alpha, 1, toRight * tp.tilt * 0.62);
+        }
       }
       if (a.m.rookFrom != null) {
+        var rk = Move.rookAt(pl, prog);
         var rf = sqXY(a.m.rookFrom), rt = sqXY(a.m.rookTo);
-        paintPiece(ctx, a.after[a.m.rookTo], rf.x + (rt.x - rf.x) * e, rf.y + (rt.y - rf.y) * e, R.cell, th);
+        paintPiece(ctx, a.after[a.m.rookTo],
+          rf.x + (rt.x - rf.x) * rk.p, rf.y + (rt.y - rf.y) * rk.p - rk.y * R.cell * 0.6, R.cell, th);
       }
-      var f0 = sqXY(a.m.from), f1 = sqXY(a.m.to);
-      var mover = e > 0.75 && a.m.promo ? a.m.promo : a.m.piece;
-      var lift = Math.abs(a.m.piece) === 2 ? Math.sin(prog * Math.PI) * R.cell * 0.35 : 0; /* knights hop */
-      if (a.glow) {
+      var mx = f0.x + (f1.x - f0.x) * stt.p;
+      var my = f0.y + (f1.y - f0.y) * stt.p - stt.y * R.cell * 0.6;
+      if (a.m.promo) {
+        var pr = Move.promoteAt(pl, prog);
+        if (pr.pawnAlpha > 0.004) {
+          paintPiece(ctx, a.m.piece, mx, my, R.cell, th, pr.pawnAlpha, pr.pawnScale, 0, stt.squash);
+        }
+        if (pr.newScale > 0.01) {
+          paintPiece(ctx, a.m.promo, f1.x, f1.y, R.cell, th, pr.newAlpha, pr.newScale);
+        }
+        /* the same flash the carved board shows, as a ring of light */
+        if (pr.flash > 0.01) {
+          ctx.save();
+          ctx.globalAlpha = pr.flash * 0.75;
+          ctx.strokeStyle = th.hint; ctx.lineWidth = R.cell * 0.07;
+          ctx.beginPath();
+          ctx.arc(f1.x, f1.y, R.cell * (0.18 + pr.flash * 0.42), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else if (a.glow) {
         ctx.save();
         ctx.shadowColor = th.hint; ctx.shadowBlur = R.cell * 0.5;
-        paintPiece(ctx, mover, f0.x + (f1.x - f0.x) * e, f0.y + (f1.y - f0.y) * e - lift, R.cell, th);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
         ctx.restore();
       } else {
-        paintPiece(ctx, mover, f0.x + (f1.x - f0.x) * e, f0.y + (f1.y - f0.y) * e - lift, R.cell, th);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
       }
       if (!animating) {
         R.board.set(a.after);

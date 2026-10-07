@@ -134,6 +134,12 @@ gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
                     their own when a card says no
 gfx2d.js            canvas renderer with an original hand-drawn piece set;
                     also the safety net if WebGL is missing or lost
+motion.js           how a piece moves, as data: a character per man
+                    (duration, lift, easing, lean, landing), plus the
+                    curves for a capture being pushed over, a castle's
+                    two-piece gesture, a promotion and the check pulse.
+                    Pure arithmetic, no DOM — both boards ask it the same
+                    question and get the same answer
 room.js             the shared front door: four-letter room codes over the
                     site's mailbox, the link heartbeat, the healing loop,
                     and the keepsake a reload comes back to. Byte-identical
@@ -176,6 +182,17 @@ tools/              dev-only, never shipped:
                     thrown away by repetition, a legal move inside the
                     time budget every time, and (--slow) that the three
                     practice levels really are a ladder
+  motion-check.js   every piece starts on its square and ends on the next
+                    one, never travels backwards or through the board,
+                    lands like wood rather than rubber, and moves
+                    differently from all five others — plus the castle,
+                    the topple, the promotion and reduced motion
+  coach-check.js    plays a real game in a real browser and reads what the
+                    room wrote down: the notebook fills, names the opening
+                    and the tactic, marks the mistake on the move list,
+                    refuses to call a forced recapture brilliant, says the
+                    same things in both voices, forgets what a take-back
+                    undid, and starts a new game with a clean page
   gfx-check.js      opens a real browser and checks the picture rather
                     than the code: every program links, the GL error
                     queue stays empty, the frame has a range of colours
@@ -357,6 +374,96 @@ the look, so it is never part of a shared skin code.
 `gfx-check.js` keeps all of it honest in a real browser: it asks for
 pixels rather than for reassurance.
 
+## How the pieces move
+
+A chess piece is not a sprite that slides from one square to another. A
+rook goes fast and stops dead. A knight is picked up, carried over
+whatever is in the way, and set down. A king is heavy. A pawn takes one
+deliberate step. Those differences are not decoration — they are the
+first thing that tells a beginner the pieces are not interchangeable,
+and they are what makes a replay worth watching rather than skipping.
+
+`motion.js` holds that as data: per man, how long a move takes (a base
+plus so many milliseconds a square), how far clear of the board it is
+carried, how long it spends rising, crossing and coming down, how hard
+it lands, and how far it leans into a long diagonal. The easings are
+named for the hands they imitate — `step`, `arc`, `glide`, `dash`,
+`heavy`. The file is pure arithmetic with no renderer in it, so the
+carved board and the drawn one ask the same question at the same moment
+and get the same answer; the 2D board is a simpler drawing of the same
+gesture rather than a different gesture.
+
+Four moments are worth calling out, because each one is a rule being
+explained without a sentence:
+
+- **A capture is a push, not a deletion.** The captured piece tips away
+  from whatever took it, skids a little, and is off the square before
+  the mover has finished arriving. En passant topples on its own square,
+  which is the clearest possible explanation of the rule that confuses
+  everybody.
+- **A castle is one gesture by two pieces.** The rook sets off a moment
+  after the king and arrives a moment before it.
+- **A promotion is the only move in chess where a piece becomes a
+  different piece**, so it gets the only ceremony: the pawn turns and
+  goes, a ring of light opens out of the square, and the new piece grows
+  in with the one overshoot in the whole file.
+- **A king in check breathes** for a few seconds rather than blinking. A
+  blink is an alarm, and an alarm is the one thing a beginner being
+  shown a new idea does not need more of. It settles so that a board
+  nobody is touching stops asking to be redrawn.
+
+The sound of a piece being set down plays at the moment it is set down,
+not at the moment you let go of it. And `prefers-reduced-motion` is not
+a slower version of any of this — it is none of it.
+
+## The coach's notebook
+
+Everything the room noticed used to live for seven seconds in a toast
+and then be gone. That is no use to a beginner, who wanted to read it
+twice and could not, and no use to a strong player, who wanted the whole
+game at once and got a sentence at a time.
+
+So it is kept, beside the moves, on its own tab. Openings, tactics
+spotted by `teach.js`, what a move cost, how the game ended — each entry
+remembers which move it belongs to, so tapping it takes the board back
+to that position and draws the squares the remark is about. A take-back
+forgets what was said about the moves it undid; a new game starts clean.
+
+The same observation comes in two languages, chosen in Settings:
+
+- **Plain words** — full sentences with the idea named, because naming
+  is what turns a thing that happened into a pattern you can recognise
+  again.
+- **Notation** — one line, the way a club player already reads it:
+  `? Kxf7! · Nc3 was better by 1.1`, `C55 · Two Knights Defence`,
+  `skewer · f3–f7–f8`.
+- **Off** — the room says nothing and marks nothing. What it noticed
+  earlier is kept and comes straight back when the voice does.
+
+A mark rides along to the move list — `?!`, `?`, `??`, `!`, `!!` —
+because that one piece of notation means the same thing on your fifth
+game and your five thousandth. The plain words behind it are a hover
+or a tap away.
+
+The marks come from the same like-for-like comparison the gentle coach
+already ran: the move you played and the move the engine wanted, scored
+by the same yardstick, subtracted. **Praise needed a second question.**
+"How much worse than the best was this?" cannot tell a found move from a
+forced one, so `review` now also measures how far clear of the
+*next-best* move the played one stood — one more entry in a list that
+was already being scored. And praise is withheld where it would teach
+the wrong lesson: not while you were in check (getting out of it is not
+a choice), not taking back on the square they just took on, not when
+there was barely anything else legal, and not in the opening, where the
+good move is usually something somebody told you rather than something
+you found. Across a few hundred engine-played moves that comes out at
+roughly one mark in eight — the coach noticing, rather than the coach
+chattering.
+
+The board is only interrupted for one thing now: a blunder you can still
+take back, said while the position is still in front of you. Everything
+quieter is in the notebook, where it can be read twice.
+
 ## The coach
 
 A teaching engine has a different job from a strong one. It still has to
@@ -498,6 +605,8 @@ node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder ma
 node chess/tools/offline-check.js  # the room survives the train tunnel
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier and every skin
+node chess/tools/motion-check.js   # every piece arrives, and no two the same way
+node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
