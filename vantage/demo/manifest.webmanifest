@@ -1,0 +1,26 @@
+{
+  "name": "Where the Wave Pool Was",
+  "short_name": "Lakeside Parks",
+  "description": "For eighteen summers the old waterpark on the south shore sat behind a chain-link fence, its wave pool going green at the deep end. Then the excavators came. Every six or seven weeks a drone returned to the same patch of sky to watch the shoreline come back: a public beach where the deep end was, a boardwalk where a dock had rotted, and a meadow where 135 cars used to park.",
+  "lang": "en",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1414",
+  "theme_color": "#0b1414",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
