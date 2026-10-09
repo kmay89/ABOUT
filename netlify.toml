@@ -132,3 +132,12 @@
   for = "/breaker/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Vantage's demo story is a generated build copied in whole (see
+# vantage/sync-demo.sh), with a service worker of its own that offers to save
+# the story for offline use. Its image and video names are not content-hashed
+# (they are named by flight date and width), so they get no long cache here.
+[[headers]]
+  for = "/vantage/demo/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
