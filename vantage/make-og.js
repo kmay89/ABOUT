@@ -177,7 +177,6 @@ for (let k = 0; k < 26; k++) {                    // mowing stripes, after
 }
 /* the beach, after: a wedge of sand down to the water */
 P(poly([[CUT, shore(CUT) - 2], [PX + PW, shore(PX + PW) - 2], [PX + PW, PY + 205], [CUT + 30, PY + 178]]), "#d9c7a3", 1, R);
-P(poly([[CUT - 220, shore(CUT - 220) - 2], [CUT, shore(CUT) - 2], [CUT, PY + 178], [CUT - 190, PY + 196]]), "#a69a72", .7, L);
 /* the boardwalk out over the water, after; a broken dock, before */
 P(rect(CUT + 160, PY + 72, 16, 66), "#b8864e", 1, R);
 P(rect(CUT + 110, PY + 72, 116, 12), "#b8864e", 1, R);
@@ -188,22 +187,22 @@ P(rect(CUT - 152, PY + 86, 34, 8), "#6d5a44", .8, L);
 const LOOP = [];
 for (let k = 0; k <= 8; k++) {
   const a = -Math.PI / 2 + k * Math.PI / 4 + Math.PI / 8;
-  LOOP.push([CUT + 10 + 170 * Math.cos(a), PY + 318 + 112 * Math.sin(a)]);
+  LOOP.push([CUT + 10 + 170 * Math.cos(a), PY + 290 + 100 * Math.sin(a)]);
 }
 polyline(LOOP, 15, "#8f8c80", 1, L);
 polyline(LOOP, 16, "#e3d6b6", 1, R);
-polyline([[CUT + 10, PY + 430], [CUT + 10, PY + PH]], 18, "#8f8c80", 1, L);
-polyline([[CUT + 10, PY + 430], [CUT + 10, PY + PH]], 18, "#e3d6b6", 1, R);
-polyline([[CUT + 10, PY + 430], [PX + 40, PY + 330]], 13, "#8f8c80", .9, L);
-polyline([[CUT + 10, PY + 430], [PX + PW - 30, PY + 300]], 13, "#e3d6b6", 1, R);
-P(disc(CUT + 10, PY + 430, 46), "#8f8c80", 1, L);
-P(disc(CUT + 10, PY + 430, 46), "#e3d6b6", 1, R);
-P(ring(CUT + 10, PY + 430, 34, 6), "#c99a62", 1, R);
-P(disc(CUT + 10, PY + 430, 12), "#4fb3a8", 1, R);
+polyline([[CUT + 10, PY + 392], [CUT + 10, PY + PH]], 18, "#8f8c80", 1, L);
+polyline([[CUT + 10, PY + 392], [CUT + 10, PY + PH]], 18, "#e3d6b6", 1, R);
+polyline([[CUT + 10, PY + 392], [PX + 40, PY + 330]], 13, "#8f8c80", .9, L);
+polyline([[CUT + 10, PY + 392], [PX + PW - 30, PY + 300]], 13, "#e3d6b6", 1, R);
+P(disc(CUT + 10, PY + 392, 46), "#8f8c80", 1, L);
+P(disc(CUT + 10, PY + 392, 46), "#e3d6b6", 1, R);
+P(ring(CUT + 10, PY + 392, 34, 6), "#c99a62", 1, R);
+P(disc(CUT + 10, PY + 392, 12), "#4fb3a8", 1, R);
 for (let k = 0; k < 14; k++) {                    // cracks in the old plaza
   const a = rnd() * Math.PI * 2, r0 = rnd() * 30;
-  polyline([[CUT + 10 + r0 * Math.cos(a), PY + 430 + r0 * Math.sin(a)],
-    [CUT + 10 + (r0 + 16) * Math.cos(a + .3), PY + 430 + (r0 + 16) * Math.sin(a + .3)]], 1.4, "#5f5d55", .8, L);
+  polyline([[CUT + 10 + r0 * Math.cos(a), PY + 392 + r0 * Math.sin(a)],
+    [CUT + 10 + (r0 + 16) * Math.cos(a + .3), PY + 392 + (r0 + 16) * Math.sin(a + .3)]], 1.4, "#5f5d55", .8, L);
 }
 /* a parking lot, before; a meadow, after */
 P(rect(PX, PY + PH - 54, CUT - PX, 54), "#6e6c66", 1, L);
@@ -223,19 +222,20 @@ function tree(x, y, r, side, dark, light) {
 seed = 3;
 for (let k = 0; k < 18; k++) tree(PX + 20 + rnd() * (CUT - PX - 30), PY + 150 + rnd() * 250, 5 + rnd() * 6, L, "#3d5a2a", "#6b8a44");
 for (let k = 0; k < 14; k++) {
+  if (k === 7) continue;                          // that one would stand in the plaza
   const a = -Math.PI / 2 + k * Math.PI * 2 / 14;
-  tree(CUT + 10 + 205 * Math.cos(a), PY + 318 + 140 * Math.sin(a), 9, R, "#2f6a2e", "#6fae4e");
+  tree(CUT + 10 + 205 * Math.cos(a), PY + 290 + 128 * Math.sin(a), 9, R, "#2f6a2e", "#6fae4e");
 }
 for (let k = 0; k < 9; k++) tree(CUT + 30 + k * 46, PY + 200 + (k % 2) * 8, 10, R, "#2f6a2e", "#6fae4e");
 
 /* the light falls the same way on both: one camera, one sun */
 glow("#fff1d6", CUT + 160, PY + 120, 420, .08, ALL);
 
-/* the calendar rail: twelve flights, the last one lit */
-P(rrect(PX + 90, PY + PH - 34, PW - 180, 20, 10), "#0e0a07", .55, ALL);
+/* the calendar rail under it: twelve flights, the last one lit */
+P(rect(PX + 40, PY + PH + 31, PW - 80, 2), "#f4e9d8", .22);
 for (let k = 0; k < 12; k++) {
-  const x = PX + 112 + k * ((PW - 224) / 11);
-  P(disc(x, PY + PH - 24, k === 11 ? 6.5 : 4), k === 11 ? "#4fd6c4" : "#f4e9d8", k === 11 ? 1 : .75, ALL);
+  const x = PX + 40 + k * ((PW - 80) / 11);
+  P(disc(x, PY + PH + 32, k === 11 ? 7 : 4), k === 11 ? "#4fd6c4" : "#b9a88f", k === 11 ? 1 : .8);
 }
 
 /* the curtain */
@@ -267,9 +267,11 @@ P(disc(DX, DY + 30, 9), "#0e0a07");               // the camera, looking down
 P(disc(DX, DY + 30, 4.5), "#2c4a6a");
 P(disc(DX - 2, DY + 28, 1.8), "#e9f1ff");
 /* and the way it flies: the same route, every time */
-for (let k = 0; k < 15; k++) {
-  const t = k / 14, x = DX + 110 + t * (PX - DX - 140), y = DY - 40 - Math.sin(t * Math.PI) * 120 + t * 10;
-  P(disc(x, y, 3.2), TEAL, .25 + .55 * (1 - Math.abs(t - .5) * 2) ** .5);
+for (let k = 0; k < 16; k++) {                   // a quadratic arc from the drone into the picture
+  const t = k / 15, a = [DX + 118, DY - 92], c = [DX + 175, DY - 205], b = [PX + 60, PY + 150];
+  const x = (1 - t) ** 2 * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0];
+  const y = (1 - t) ** 2 * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1];
+  P(disc(x, y, 3.4), TEAL, .3 + .6 * t);
 }
 
 /* ---------- out ---------- */
