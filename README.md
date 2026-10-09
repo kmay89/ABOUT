@@ -24,7 +24,11 @@ the Game Boy; and [the kitchen table](https://kmay89.com/chili/) — the
 chili I make for the kids, written as data so the page can resize the
 pot for you, with a cook-along mode built for hands that tire (the bowl
 is on the desk under a heap of cheddar, spoon still in it, a few oyster
-crackers spilled beside it).
+crackers spilled beside it); and [Vantage](https://kmay89.com/vantage/) —
+an engine that turns a year of drone flights over one changing site into
+a story you scroll on a phone (the little drone is parked on the shelf
+beside the tapes; in 1999 it's a stack of aerial prints with a loupe on
+top).
 
 **Live:** <https://kmay89.com>
 
@@ -119,6 +123,19 @@ crackers spilled beside it).
   who tires as much as for a teenager who has never made chili. Reached
   from the desk by the bowl beside Lupita's box. Format documented in
   `chili/README.md`.
+- `vantage/` — Vantage, an engine I built for people who watch one piece
+  of ground change for a year. Fly the same route over a site every few
+  weeks and it finds the same view in every flight, locks them all to one
+  camera, and builds a page you scroll on a phone — plus the time-lapse
+  films and an offline copy, from the same command. The room is a
+  hand-written front door and a copy of the engine's demo story, which is
+  simulated from end to end: a made-up park, flown by a drone that is a
+  couple of thousand lines of Python. Reached from the desk by the drone
+  on the shelf beside the tapes (in 1999, a stack of aerial prints with a
+  loupe on the top one). `vantage/demo/` is a generated build — refresh it
+  with `vantage/sync-demo.sh`, never by hand. The engine is
+  [kmay89/timelapse_drone](https://github.com/kmay89/timelapse_drone);
+  notes in `vantage/README.md`.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only

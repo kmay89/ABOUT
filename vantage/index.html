@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Vantage turns a year of drone flights over one changing site into a story you scroll on a phone: every visit locked to one camera, with the films and an offline copy made by the same command. Open source, with a simulated demo.">
+<meta name="theme-color" content="#f7f2e8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e0a07" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://kmay89.com/vantage/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Karl Meves">
+<meta property="og:title" content="Vantage — a year over one site, in one scroll">
+<meta property="og:description" content="An open-source engine that turns repeat drone flights over a changing site into a story you scroll on a phone, plus the films and an offline copy. The demo is simulated.">
+<meta property="og:url" content="https://kmay89.com/vantage/">
+<meta property="og:image" content="https://kmay89.com/vantage/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A drawn aerial view of a made-up lakeside park, split by a curtain: rough ground on the left, the finished park on the right, a little teal drone beside it and a row of twelve flight dates underneath.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vantage — a year over one site, in one scroll">
+<meta name="twitter:description" content="Repeat drone flights over a changing site, turned into a story you scroll on a phone. Open source; the demo is simulated.">
+<meta name="twitter:image" content="https://kmay89.com/vantage/og.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Vantage — a year over one site, in one scroll</title>
+<style>
+  /* The desk's own tokens, retuned for a page you read: warm paper by day,
+     the desk's lamp-lit room by night, and the sky-teal the drone wears on
+     the desk as the one accent. Two typefaces that ship with every
+     computer, same as everywhere else here. */
+  :root{
+    --paper:#f7f2e8;
+    --card:#fffdf8;
+    --ink:#1f1a14;
+    --soft:#5f5446;
+    --faint:#857862;
+    --line:#e2d8c6;
+    --teal:#0d7468;          /* the accent, dark enough to carry white text */
+    --on-teal:#ffffff;
+    --teal-wash:rgba(13,116,104,.09);
+    --code:#1f1a14;
+    --code-ink:#f4e9d8;
+    --shadow:0 3px 0 rgba(31,26,20,.08);
+    --pad:clamp(1.1rem,4vw,2.25rem);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
+    color-scheme:light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#0e0a07;
+      --card:#1a140e;
+      --ink:#f4e9d8;
+      --soft:#b9a88f;
+      --faint:#8b7a64;
+      --line:#2f2519;
+      --teal:#4fd6c4;
+      --on-teal:#0e0a07;
+      --teal-wash:rgba(79,214,196,.08);
+      --code:#080604;
+      --code-ink:#f4e9d8;
+      --shadow:0 3px 0 rgba(0,0,0,.45);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:var(--serif);font-size:19px;line-height:1.6;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--teal);color:var(--on-teal)}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+  .skip{position:absolute;left:0;top:0;z-index:9;background:var(--ink);color:var(--paper);padding:.7rem 1.1rem;border-radius:0 0 10px 0;transform:translateY(-150%)}
+  .skip:focus{transform:none}
+  :focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:6px}
+  a{color:var(--teal)}
+  .wrap{max-width:60rem;margin:0 auto;padding:0 var(--pad)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--teal)}
+
+  /* ---------- the way back to the desk ---------- */
+  .back{
+    display:inline-block;margin-top:clamp(1.1rem,4vw,2.2rem);
+    font-family:var(--mono);font-size:.78rem;color:var(--soft);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;padding:.45rem 1rem;min-height:2.6rem;line-height:1.7;
+  }
+  .back:hover,.back:focus-visible{color:var(--teal);border-color:var(--teal)}
+
+  /* ---------- the hero ---------- */
+  .hero{display:grid;gap:clamp(1.4rem,4vw,2.6rem);padding:clamp(1.4rem,4vw,2.6rem) 0 clamp(2rem,6vw,3.5rem);align-items:center}
+  @media (min-width:900px){ .hero{grid-template-columns:1fr 1.12fr} }
+  h1{font-size:clamp(2.2rem,7.4vw,3.5rem);line-height:1.04;font-weight:600;letter-spacing:-.01em;margin:.55rem 0 .9rem;text-wrap:balance}
+  .lede{color:var(--soft);font-size:1.05em;max-width:34rem}
+  .go{
+    display:flex;align-items:center;justify-content:center;gap:.7rem;
+    margin-top:1.5rem;min-height:3.6rem;padding:.9rem 1.4rem;
+    font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--on-teal);background:var(--teal);text-decoration:none;border-radius:14px;
+    box-shadow:0 10px 28px rgba(13,116,104,.22), inset 0 1px 0 rgba(255,255,255,.25);
+    transition:transform .2s ease, filter .2s ease;
+  }
+  .go:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  @media (min-width:900px){ .go{display:inline-flex} }
+  .note{margin-top:.75rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+
+  /* ---------- the curtain: first flight and last, one camera ---------- */
+  .curtain{margin:0}
+  .frame{
+    position:relative;aspect-ratio:8/5;overflow:hidden;border-radius:16px;
+    background:#24321f;box-shadow:0 18px 50px rgba(20,14,8,.28);
+    touch-action:pan-y;cursor:ew-resize;user-select:none;-webkit-user-select:none;
+  }
+  .frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+  .frame .before{clip-path:inset(0 calc(100% - var(--cut,50%)) 0 0)}
+  .handle{position:absolute;top:0;bottom:0;left:var(--cut,50%);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.18);pointer-events:none}
+  .handle::after{
+    content:"‹ ›";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;
+    font:700 1rem/1 var(--mono);letter-spacing:.05em;color:#1f1a14;background:#fff;
+    box-shadow:0 4px 14px rgba(0,0,0,.3);
+  }
+  .tag{
+    position:absolute;top:.7rem;font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+    color:#fff;background:rgba(14,10,7,.62);border-radius:999px;padding:.35em .8em;pointer-events:none;
+  }
+  .tag.l{left:.7rem}.tag.r{right:.7rem}
+  .curtain:has(input:focus-visible) .frame{outline:3px solid var(--teal);outline-offset:3px}
+  .curtain figcaption{margin-top:.7rem;color:var(--soft);font-size:.86em;line-height:1.5}
+
+  /* ---------- sections ---------- */
+  section.part{padding:clamp(2.2rem,6vw,3.6rem) 0;border-top:1px solid var(--line)}
+  h2{font-size:clamp(1.6rem,4.6vw,2.2rem);line-height:1.12;font-weight:600;margin:.45rem 0 1.3rem;text-wrap:balance}
+  .steps{list-style:none;display:grid;gap:1rem;counter-reset:step}
+  @media (min-width:700px){ .steps{grid-template-columns:1fr 1fr} }
+  .steps li{
+    counter-increment:step;position:relative;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:1.1rem 1.2rem 1.2rem 3.6rem;
+  }
+  .steps li::before{
+    content:counter(step);position:absolute;left:1.1rem;top:1.05rem;
+    width:1.75rem;height:1.75rem;border-radius:50%;display:grid;place-items:center;
+    font:700 .8rem/1 var(--mono);color:var(--on-teal);background:var(--teal);
+  }
+  .steps b,.gets b{display:block;font-size:1.06em;line-height:1.3;margin-bottom:.25rem}
+  .steps span,.gets span{color:var(--soft);font-size:.92em;line-height:1.5;display:block}
+  .gets{list-style:none;display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr))}
+  .gets li{border-top:3px solid var(--teal);background:var(--teal-wash);border-radius:4px 4px 14px 14px;padding:1rem 1.1rem 1.1rem}
+  .gets small{display:block;margin-top:.55rem;font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+
+  /* ---------- get it ---------- */
+  .get p:not(.eyebrow){color:var(--soft);max-width:40rem}
+  code{font-family:var(--mono);font-size:.84em}
+  pre{
+    margin:1.1rem 0;overflow-x:auto;
+    background:var(--code);color:var(--code-ink);border-radius:14px;padding:1rem 1.15rem;
+    font:.84rem/1.75 var(--mono);
+  }
+  pre .p{color:#7e6f5b;user-select:none;-webkit-user-select:none}
+  .repo{
+    display:inline-flex;align-items:center;gap:.5rem;min-height:2.9rem;margin-top:.4rem;
+    font-family:var(--mono);font-size:.8rem;color:var(--teal);text-decoration:none;
+    border:1px solid var(--teal);border-radius:999px;padding:.55rem 1.1rem;overflow-wrap:anywhere;
+  }
+  .repo:hover{background:var(--teal-wash)}
+  .sim{
+    margin-top:clamp(1.6rem,5vw,2.4rem);padding:1rem 1.15rem;border:1px dashed var(--faint);border-radius:14px;
+    color:var(--soft);font-size:.9em;line-height:1.55;
+  }
+  .sim b{color:var(--ink)}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line);margin-top:clamp(1.5rem,5vw,3rem);padding:1.6rem 0 2.6rem;color:var(--faint);font-size:.9rem}
+  footer nav{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem;font-family:var(--mono);font-size:.78rem}
+  footer a{color:var(--soft)}
+  footer p{margin-top:.8rem}
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto}
+    *{transition:none !important;animation:none !important}
+    .go:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#start">Skip to the page</a>
+
+<div class="wrap">
+  <a class="back" href="/">&larr; Back to the desk</a>
+
+  <main id="start">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Vantage &middot; open source</p>
+      <h1>A year over one site, in one scroll.</h1>
+      <p class="lede">Vantage is an engine I built for people who watch one piece of ground change
+      for a year. It takes a season of drone flights over the same site, locks every one of them to
+      a single camera, and turns them into a story you scroll on a phone &mdash; with the films and
+      an offline copy made by the same command.</p>
+      <a class="go" href="./demo/">Open the demo story <span aria-hidden="true">&rarr;</span></a>
+      <p class="note">Simulated imagery &middot; a made-up park, flown by a made-up drone</p>
+    </div>
+
+    <figure class="curtain" id="curtain">
+      <div class="frame" style="--cut:50%">
+        <img src="stills/after.jpg" width="960" height="600" alt="Last flight: the same view, finished — a beach, a round plaza, new paths and young trees, people on the sand.">
+        <img class="before" src="stills/before.jpg" width="960" height="600" alt="First flight: the site before work began — rough grass, cracked paths and old concrete beside a lake.">
+        <span class="handle" aria-hidden="true"></span>
+        <span class="tag l" aria-hidden="true">First flight</span>
+        <span class="tag r" aria-hidden="true">Last flight</span>
+      </div>
+      <label class="sr" for="cut">How much of the first flight to show</label>
+      <input class="sr" type="range" id="cut" min="0" max="100" value="50">
+      <figcaption>First flight and last, from the same spot in the sky. Drag across the picture
+      &mdash; the demo story does this for every flight in between.</figcaption>
+      <!-- THE FILM goes here, under the curtain, once vantage/film/ has one
+           (sync-demo.sh copies demo-lakeside-16x9.mp4 and its poster when the
+           build makes one under 12 MB). Paste this, and the script below plays
+           it only when nobody has asked for less motion:
+
+      <video class="film" id="film" src="film/demo-lakeside-16x9.mp4" poster="film/demo-lakeside-16x9.jpg"
+             muted playsinline loop preload="metadata"
+             aria-label="The demo's time-lapse film: twelve flights over the same site, one camera."
+             style="display:block;width:100%;margin-top:1rem;border-radius:16px;aspect-ratio:16/9;background:#24321f"></video>
+      -->
+    </figure>
+  </header>
+
+  <section class="part" aria-labelledby="howTitle">
+    <p class="eyebrow">How it works</p>
+    <h2 id="howTitle">Four steps, and only the first one needs a drone.</h2>
+    <ol class="steps">
+      <li><b>Fly the same route.</b>
+        <span>Every few weeks, the same flight over the same ground. Video, stills or both &mdash;
+        Vantage takes whatever the drone brings home.</span></li>
+      <li><b>Line every visit up to one camera.</b>
+        <span>It picks the best frame from each flight and registers it to the others &mdash;
+        position, angle and colour &mdash; so the only thing that moves is the site.</span></li>
+      <li><b>Write the story in a file.</b>
+        <span>Chapters, captions and notes pinned to the ground live in one plain text file, and
+        every figure the page prints has to say where it came from.</span></li>
+      <li><b>Run one command.</b>
+        <span>Out come the page, the time-lapse films and a copy that works with no signal,
+        dressed in the client&rsquo;s own colours and type.</span></li>
+    </ol>
+  </section>
+
+  <section class="part" aria-labelledby="getTitle">
+    <p class="eyebrow">What you get</p>
+    <h2 id="getTitle">One site, four ways to hand it over.</h2>
+    <ul class="gets">
+      <li><b>A page to send</b>
+        <span>Scroll it on a phone, add it to the home screen, save it before the site visit with
+        no signal.</span><small>hosted &middot; installable</small></li>
+      <li><b>One file</b>
+        <span>The whole story in a single HTML file &mdash; double-click and it opens. A lighter
+        edition rides along for email.</span><small>single-file HTML</small></li>
+      <li><b>An offline copy</b>
+        <span>Every image at full size in a zip that opens from a laptop, a USB stick, a meeting
+        room with no wifi.</span><small>offline zip</small></li>
+      <li><b>The films</b>
+        <span>A 16:9 time-lapse for the big screen and a 9:16 cut for phones, from the same
+        flights.</span><small>16:9 &middot; 9:16 MP4</small></li>
+    </ul>
+  </section>
+
+  <section class="part get" aria-labelledby="codeTitle">
+    <p class="eyebrow">Get Vantage</p>
+    <h2 id="codeTitle">It&rsquo;s open source. Build the demo yourself.</h2>
+    <p>You need Python 3.11 or newer, <a href="https://docs.astral.sh/uv/">uv</a> and ffmpeg. The
+    first line fetches the parts, the second invents a site and flies over it a dozen times, and
+    the third serves what it made at <code>localhost:8000</code>.</p>
+<pre aria-label="Quickstart, three commands"><code><span class="p">$ </span>uv sync
+<span class="p">$ </span>uv run vantage demo --fast
+<span class="p">$ </span>uv run vantage preview demo-lakeside</code></pre>
+    <a class="repo" href="https://github.com/kmay89/timelapse_drone">github.com/kmay89/timelapse_drone <span aria-hidden="true">&nearr;</span></a>
+
+    <p class="sim"><b>About the pictures.</b> Everything in the demo is simulated: the site, the
+    park, the organisations and the people quoted are made up, and the drone is a couple of
+    thousand lines of Python pretending to be a camera. That&rsquo;s on purpose &mdash; it means
+    the demo can be rebuilt from nothing, by anybody, every time the engine changes.</p>
+  </section>
+  </main>
+
+  <footer>
+    <nav aria-label="Elsewhere">
+      <a href="/">The desk</a>
+      <a href="./demo/">The demo story</a>
+      <a href="/accessibility/">Accessibility</a>
+      <a href="https://github.com/kmay89/timelapse_drone" rel="noopener">Source</a>
+    </nav>
+    <p>&copy; 2026 Karl Meves &middot; ERRER Labs &mdash; built by hand, no frameworks, no trackers.</p>
+  </footer>
+</div>
+
+<script>
+/* The curtain. The range input is the real control — keyboard, screen
+   reader, it all goes through it — and a drag anywhere on the picture just
+   sets its value. touch-action:pan-y keeps the page scrolling under a thumb
+   that was only ever passing through. */
+(function(){
+  "use strict";
+  var fig = document.getElementById("curtain");
+  if (!fig) return;
+  var frame = fig.querySelector(".frame"), input = document.getElementById("cut");
+  function set(v){
+    v = Math.max(0, Math.min(100, Math.round(v)));
+    input.value = v;
+    frame.style.setProperty("--cut", v + "%");
+    input.setAttribute("aria-valuetext", "first flight " + v + "%, last flight " + (100 - v) + "%");
+  }
+  function at(e){ var r = frame.getBoundingClientRect(); set((e.clientX - r.left) / r.width * 100); }
+  var down = false;
+  input.addEventListener("input", function(){ set(+input.value); });
+  frame.addEventListener("pointerdown", function(e){
+    down = true;
+    try { frame.setPointerCapture(e.pointerId); } catch (err) {}
+    at(e);
+  });
+  frame.addEventListener("pointermove", function(e){ if (down) at(e); });
+  ["pointerup","pointercancel","lostpointercapture"].forEach(function(t){
+    frame.addEventListener(t, function(){ down = false; });
+  });
+  set(50);
+
+  /* the film, when there is one: play it only for people who haven't asked for less motion */
+  var film = document.getElementById("film");
+  if (film && !matchMedia("(prefers-reduced-motion: reduce)").matches){
+    var p = film.play(); if (p && p.catch) p.catch(function(){});
+  }
+})();
+</script>
+</body>
+</html>

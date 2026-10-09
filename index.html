@@ -44,6 +44,7 @@
     --c-imp:#c77dff;
     --c-pri:#ff5fd0;
     --c-chili:#ff7454;
+    --c-vantage:#4fd6c4;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -783,7 +784,7 @@
 
   <div class="desk-wrap">
     <svg id="iso" viewBox="-465 -245 1135 815" role="group"
-         aria-label="An isometric 2000s room: a desk of seven interactive work objects, with hobbies filling the walls, window, and side table"></svg>
+         aria-label="An isometric 2000s room: a desk of interactive work objects, with hobbies filling the walls, shelf, window, and side table"></svg>
     <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>drag to pan<span class="cr">›</span></div>
   </div>
   <div class="tip" id="tip" aria-hidden="true"></div>
@@ -800,6 +801,7 @@
     <button data-id="mandel" style="--a:var(--c-imp)">The impossible object</button>
     <button data-id="prism" style="--a:var(--c-pri)">The light bench</button>
     <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
+    <button data-id="vantage" style="--a:var(--c-vantage)">Vantage</button>
     <span class="legend-sep" aria-hidden="true"></span>
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
     <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
@@ -923,6 +925,7 @@
     <a href="/breaker/">The wall</a>
     <a href="/library/">The reading room</a>
     <a href="/chili/">The chili</a>
+    <a href="/vantage/">Vantage</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1164,6 +1167,130 @@
   vhs += gLeft(-22,174,172,'<rect x="4" y="1.5" width="22" height="5" rx="1" fill="#e8e4d8"/>' +
     '<rect x="6" y="2.5" width="14" height="1.6" fill="#33517c"/>');
   S.push('<g aria-hidden="true">' + vhs + "</g>");
+
+  /* ---------- vantage: on the shelf, beside the tapes ----------
+     The one stretch of shelf with nothing on it is the end nearest the
+     room: the tapes stop at y 174 and the shelf runs on to 228, so there is
+     a square of it about fifty units a side, at z 156. In 2026 a little
+     drone is parked there between flights, with its controller stood on
+     its edge against the wall behind it. In 1999 the same spot holds what
+     watching a site from the air meant then: the envelope from the photo
+     lab, a fanned stack of aerial prints with the date burned orange into
+     the corner, a grease-pencil ring round the part that changed, and the
+     loupe you looked at it through.
+
+     Painter's order is simple up here. Everything is nearer the room than
+     the tapes (larger y), so it goes in straight after them, and on screen
+     it sits well clear of the shirt on its hanger further along the same
+     wall. Inside each group the drawing runs back to front: the thing
+     against the wall first, then the back rotor, the two side ones, the
+     body, and the front rotor last. The shadows go in on their own, so
+     they stay on the shelf when the object lifts. */
+  var VZ = 156, VX = 2, VY = 203;                 // the shelf top, and the middle of the spot
+  S.push('<g class="era-now" aria-hidden="true">' +
+    gTop(-27,189,VZ,'<rect width="6" height="28" fill="rgba(12,6,2,.30)" filter="url(#soft)"/>') +
+    isoEllipse(VX,VY,VZ,18,"rgba(12,6,2,.14)",'filter="url(#soft)" stroke="none"') +
+    isoEllipse(VX,VY,VZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
+  S.push('<g class="era-old" aria-hidden="true">' +
+    gTop(-27,187,VZ,'<rect width="5" height="32" fill="rgba(12,6,2,.28)" filter="url(#soft)"/>') +
+    gTop(VX-15,VY-11,VZ,'<rect width="30" height="22" fill="rgba(12,6,2,.26)" filter="url(#soft)"/>') + "</g>");
+
+  /* 2026: the drone, and its controller */
+  var VBODY = "#c9cfd6", VARM = "#3a3f47", VLIT = "#4fd6c4";
+  function vArm(mx, my, from){
+    var a = P(VX + mx * from, VY + my * from, VZ + 5), b = P(VX + mx, VY + my, VZ + 5.4);
+    return '<path d="M' + n1(a[0]) + " " + n1(a[1]) + " L" + n1(b[0]) + " " + n1(b[1]) +
+      '" stroke="' + VARM + '" stroke-width="3" stroke-linecap="round"/>';
+  }
+  function vRotor(mx, my, spin){
+    var cx = VX + mx, cy = VY + my;
+    return cyl(cx, cy, VZ, 2.1, 6, "#2f343b") +                 // the motor, which is also the leg
+      isoEllipse(cx, cy, VZ + 6.6, 6.6, "rgba(214,232,240,.14)", 'stroke="rgba(226,240,248,.55)" stroke-width=".6"') +
+      gTop(cx, cy, VZ + 6.7, '<rect x="-6.1" y="-.8" width="12.2" height="1.6" rx=".8" fill="#20242a" transform="rotate(' + spin + ')"/>') +
+      isoEllipse(cx, cy, VZ + 6.9, 1.1, "#9aa3ad", 'stroke="none"');
+  }
+  /* a shelf-top's worth of hit area under each era's things, the way the
+     wall switch has one: small objects up high are hard to aim at, worse
+     on a phone, and the gaps between them shouldn't be dead */
+  var V_HIT = gTop(-28, 177, VZ, '<rect width="52" height="51" fill="transparent"/>');
+  var drone = V_HIT + box(-27.5, 188, VZ, 4, 30, 19, "#2a2d33");     // the controller, against the wall
+  drone += gRight(-23.5, 218, VZ + 19,
+    '<rect x="1" y="1" width="28" height="17" rx="3" fill="#30343b"/>' +
+    // its screen: the site from the air, a lake along the top, a path round a lawn
+    '<rect x="7.4" y="3" width="15.2" height="10.2" rx="1" fill="#0d1420"/>' +
+    '<rect x="8.2" y="3.8" width="13.6" height="8.6" fill="#5f8a45"/>' +
+    '<rect x="8.2" y="3.8" width="13.6" height="2.7" fill="#2f6f86"/>' +
+    '<rect x="8.2" y="6.5" width="13.6" height=".9" fill="#d9c7a3"/>' +
+    '<ellipse cx="15" cy="9.5" rx="3.6" ry="1.7" fill="none" stroke="#e6dcc4" stroke-width=".55"/>' +
+    '<circle cx="10.6" cy="8.7" r=".75" fill="#2f5d3a"/><circle cx="19.6" cy="10" r=".75" fill="#2f5d3a"/>' +
+    '<rect x="8.2" y="11.6" width="7.4" height=".55" fill="' + VLIT + '"/>' +
+    // the two sticks
+    '<circle cx="4" cy="7.5" r="2.3" fill="#1b1e23"/><circle cx="4" cy="7.5" r="1.1" fill="#4a5058"/>' +
+    '<circle cx="26" cy="7.5" r="2.3" fill="#1b1e23"/><circle cx="26" cy="7.5" r="1.1" fill="#4a5058"/>' +
+    '<circle cx="4" cy="14" r=".8" fill="#4a5058"/><circle cx="26" cy="14" r=".8" fill="#4a5058"/>');
+  // back rotor, then the two at the sides, all under the body
+  drone += vArm(-14, -12, .3) + vRotor(-14, -12, 28);
+  drone += vArm(14, -12, .3) + vRotor(14, -12, -34);
+  drone += vArm(-14, 12, .3) + vRotor(-14, 12, 62);
+  // the body, a vent and a status light on its back, the gimbal camera on its nose (+x, facing the room)
+  drone += box(VX - 9, VY - 5.5, VZ + 2.5, 18, 11, 5.5, VBODY);
+  drone += gTop(VX - 9, VY - 5.5, VZ + 8,
+    '<rect x="4" y="1.6" width="11.5" height="7.8" rx="3" fill="#dde2e7"/>' +
+    '<g stroke="#a9b0b8" stroke-width=".5"><path d="M6.5 3.6 h6.5 M6.5 5.5 h6.5 M6.5 7.4 h6.5"/></g>' +
+    '<circle cx="2" cy="5.5" r=".95" fill="' + VLIT + '" class="led"/>');
+  drone += box(VX + 9, VY - 2.6, VZ + 2.2, 3.2, 5.2, 4.4, "#23272e");
+  drone += gRight(VX + 12.2, VY + 2.6, VZ + 6.6,
+    '<circle cx="2.6" cy="2.2" r="1.75" fill="#0b1220" stroke="' + VLIT + '" stroke-width=".5"/>' +
+    '<circle cx="2.05" cy="1.65" r=".5" fill="#e9f1ff"/>');
+  // and the front rotor, nearest the room, last
+  drone += vArm(14, 12, .48) + vRotor(14, 12, -8);
+  S.push(wrapObj("vantage","Vantage — a drone, parked between flights",VLIT,drone,"era-now"));
+
+  /* 1999: the envelope from the lab, the prints, the loupe */
+  function vPrint(dx, dy, z, rot, img){
+    return gTop(VX + dx, VY + dy, z, '<g transform="rotate(' + rot + ')">' +
+      '<rect x="-15" y="-11" width="30" height="22" rx=".6" fill="#f6f1e6" stroke="rgba(60,40,20,.35)" stroke-width=".5"/>' +
+      '<g transform="translate(-13.6,-9.6)">' + img + "</g></g>");
+  }
+  var V_LAKE = '<rect width="27.2" height="5" fill="#2f6377"/>' +
+    '<path d="M0 5 Q7 6.3 14 5.2 T27.2 5.6 L27.2 6.5 Q20 7.1 14 6.2 T0 6.2 Z" fill="#cdb98f"/>';
+  var prints = V_HIT + box(-27.5, 186, VZ, 3, 34, 22, "#e3ad34");     // the envelope, against the wall
+  prints += gRight(-24.5, 220, VZ + 22,
+    // the negatives, poking out of the top of it
+    '<rect x="6" y="-4.4" width="14" height="4.8" fill="#4a2c16"/>' +
+    '<g fill="#c9a06a" opacity=".7"><rect x="7" y="-3.9" width="1" height=".8"/><rect x="9.5" y="-3.9" width="1" height=".8"/>' +
+      '<rect x="12" y="-3.9" width="1" height=".8"/><rect x="14.5" y="-3.9" width="1" height=".8"/><rect x="17" y="-3.9" width="1" height=".8"/></g>' +
+    '<rect x="0" y="2.4" width="34" height="5" fill="#c8402c"/>' +
+    txt(17, 6.1, "1-HOUR PHOTO", 3.4, "#fff3dc", MONO + ' text-anchor="middle" letter-spacing=".3"') +
+    '<g fill="#6b4a12" opacity=".55"><rect x="4" y="11" width="15" height=".8"/><rect x="4" y="13.6" width="10" height=".8"/>' +
+      '<rect x="22" y="11" width="8" height="5" fill="none" stroke="#6b4a12" stroke-width=".6"/></g>');
+  prints += vPrint(-1, 2, VZ + .5, -9,
+    '<rect width="27.2" height="19.2" fill="#a88a5e"/>' + V_LAKE +
+    '<g fill="#7b6040"><circle cx="8" cy="12" r="1.8"/><circle cx="12" cy="14" r="1.3"/><circle cx="20" cy="11" r="1.6"/></g>');
+  prints += vPrint(1.5, -1, VZ + 1, 6,
+    '<rect width="27.2" height="19.2" fill="#a2845a"/>' + V_LAKE +
+    '<path d="M0 16 Q10 11 27.2 13.5" stroke="#d9cfb4" stroke-width="1.2" fill="none"/>' +
+    '<g fill="#e4dccb"><rect x="15" y="8.6" width="4" height="3"/></g>');
+  prints += vPrint(0, 0, VZ + 1.5, -2,
+    '<rect width="27.2" height="19.2" fill="#9a7a50"/>' + V_LAKE +
+    '<rect x="3" y="9" width="7.5" height="5" fill="#6f8f4e"/>' +
+    '<path d="M0 16 Q10 11 27.2 13.5" stroke="#d9cfb4" stroke-width="1.3" fill="none"/>' +
+    '<g fill="#e4dccb"><rect x="15" y="8.5" width="4" height="3"/><rect x="20.5" y="9.2" width="3.5" height="2.6"/></g>' +
+    '<circle cx="17.2" cy="10" r="3.7" fill="none" stroke="#d8433a" stroke-width=".6" stroke-dasharray="1.3 .8"/>' +
+    txt(26, 18.3, "&#8217;99 6 12", 2.3, "#ff9a3d", MONO + ' text-anchor="end"'));
+  // the loupe on the top print: a clear skirt, a black barrel, the lens
+  (function(){
+    var lx = VX + 7, ly = VY - 3, lz = VZ + 1.6;
+    var pB = P(lx, ly, lz), pT = P(lx, ly, lz + 2.6), RB = 5.2 * 1.414, RT = 4.1 * 1.414;
+    prints += '<path d="M' + n1(pT[0] - RT) + " " + n1(pT[1]) + " L" + n1(pB[0] - RB) + " " + n1(pB[1]) +
+      " A" + n1(RB) + " " + n1(RB / 2) + " 0 0 0 " + n1(pB[0] + RB) + " " + n1(pB[1]) +
+      " L" + n1(pT[0] + RT) + " " + n1(pT[1]) + ' Z" fill="rgba(220,236,242,.30)" stroke="rgba(240,248,252,.65)" stroke-width=".6"/>';
+    prints += cyl(lx, ly, lz + 2.6, 4.1, 4.2, "#1e1f24");
+    prints += isoEllipse(lx, ly, lz + 6.85, 3.1, "url(#glassFace)", 'stroke="rgba(235,246,252,.75)" stroke-width=".6"');
+    var g = P(lx - 1, ly - 1, lz + 6.9);
+    prints += glint(g[0], g[1], 3, 1.4);
+  })();
+  S.push(wrapObj("vantage","Vantage — aerial prints and a loupe",VLIT,prints,"era-old"));
 
   /* ---------- wall B: the tie-dye shirt on its hanger ---------- */
   var tee = '<circle cx="330" cy="16" r="4" fill="none" stroke="#8a7a5c" stroke-width="2.5"/>' +
@@ -2271,6 +2398,16 @@
         {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
       ]
     },
+    vantage: {
+      kicker: "Vantage · New",
+      title: "Vantage — A Year Over One Site, in One Scroll",
+      story: "Anyone who builds something big spends a year watching one piece of ground change, and ends up with a folder of a thousand drone photos nobody opens twice. In 1999 it was an envelope of aerial prints and a loupe. Vantage is the engine I wrote to do better. Fly the same route every few weeks and it finds the same view in every flight, locks them all to one camera, and builds a page you scroll on a phone: the months going by under your thumb, a curtain to drag between before and after, notes pinned to the ground, the real dates down the side. The same command cuts the films and an offline copy. It's open source, and the demo is a made-up park flown by a simulated drone.",
+      chips: ["Scroll-scrubbed time-lapse","Every flight, one camera","Before & after curtains","Notes pinned to the ground","Real dates","16:9 & 9:16 films","Works offline","Open source"],
+      links: [
+        {label:"🚁 Fly over — Vantage", href:"/vantage/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/timelapse_drone", href:"https://github.com/kmay89/timelapse_drone"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -2428,6 +2565,14 @@
       tone(1760, {type:"sine", at:0.20, dur:0.34, g:0.045});
       tone(2637, {type:"sine", at:0.20, dur:0.22, g:0.02});
     },
+    vantage: function(){ // four rotors spooling up, then the shutter
+      tone(92,  {type:"sawtooth", dur:0.55, g:0.022, end:250});
+      tone(95,  {type:"sawtooth", dur:0.55, g:0.018, end:257});
+      noise({filter:"bandpass", freq:260, freqEnd:1700, q:1.2, dur:0.55, g:0.07});
+      noise({filter:"highpass", freq:1900, at:0.62, dur:0.025, g:0.15});
+      noise({filter:"lowpass", freq:520, at:0.66, dur:0.05, g:0.11});
+      tone(2400, {type:"sine", at:0.70, dur:0.05, g:0.025});
+    },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
       tone(880,  {type:"square", at:0.05, dur:0.09, g:0.05});
@@ -2503,7 +2648,7 @@
     board:[10,40,10,40,20], toy:[12,30,12,30,12], hive:[70],
     series:[10,25,10], scqcs:[25,60,25], vinyl:[8,90,8,90,8], cam:[18],
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
-    utap:[20,40,20], web:[10,20,10], "switch":[22]
+    utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18]
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }
@@ -2592,7 +2737,9 @@
       pickedEls.push(el);
     });
     if (!pickedEls.length) return;
-    var el = pickedEls[0];
+    /* a world drawn once per era has a copy hidden by display:none, which
+       measures as an empty box at the corner — aim at the one on show */
+    var el = pickedEls.filter(function(e){ var b = e.getBoundingClientRect(); return b.width || b.height; })[0] || pickedEls[0];
     var r = el.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (wrap.scrollWidth > wrap.clientWidth){
@@ -2693,6 +2840,8 @@
      glyph:'<path d="M8 32 q14 -5 28 0 l0 -20 q-14 -5 -28 0 z" fill="none" stroke="#d9a0e8" stroke-width="2.5" stroke-linejoin="round"/><path d="M22 10.5 l0 21" stroke="#d9a0e8" stroke-width="2"/><g fill="none" stroke="#d9a0e8" stroke-width="2" stroke-linecap="round" opacity=".8"><path d="M28 18 q3 2 0 4"/><path d="M31.5 15.5 q5 3.5 0 9"/></g>'},
     {name:"pool-test-app.com", href:"https://pool-test-app.com", a:"#6ecbe8", tg:"linear-gradient(150deg,#0f3140,#081c26)",
      glyph:'<path d="M18 8 h8 M20 8 l0 12 q0 2 -1.5 3.5 l-4 4 a7.4 7.4 0 1 0 15 0 l-4 -4 q-1.5 -1.5 -1.5 -3.5 l0 -12" fill="none" stroke="#6ecbe8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 28 h13" stroke="#6ecbe8" stroke-width="2.2"/><circle cx="20" cy="32" r="1.3" fill="#6ecbe8"/><circle cx="25" cy="34.5" r="1.1" fill="#6ecbe8"/>'},
+    {name:"kmay89.com/vantage", href:"/vantage/", a:"#4fd6c4", tg:"linear-gradient(150deg,#0f3a35,#08201d)",
+     glyph:'<g fill="none" stroke="#4fd6c4" stroke-width="2.2"><circle cx="11" cy="11" r="6.5"/><circle cx="33" cy="11" r="6.5"/><circle cx="11" cy="33" r="6.5"/><circle cx="33" cy="33" r="6.5"/></g><path d="M15.5 15.5 L28.5 28.5 M28.5 15.5 L15.5 28.5" stroke="#4fd6c4" stroke-width="3" stroke-linecap="round"/><rect x="16" y="17" width="12" height="10" rx="3" fill="#4fd6c4"/><circle cx="22" cy="22" r="2" fill="#08201d"/>'},
     {name:"kmay89.com — you are here", href:"https://kmay89.com", a:"#ffc97a", tg:"linear-gradient(150deg,#3a2a14,#1c1408)",
      glyph:'<rect x="6" y="9" width="32" height="22" rx="3" fill="none" stroke="#ffc97a" stroke-width="2.5"/><rect x="12" y="14" width="20" height="12" rx="2" fill="none" stroke="#ffc97a" stroke-width="1.8"/><rect x="17" y="17.5" width="10" height="5" rx="1.2" fill="#ffc97a"/><path d="M17 35 h10" stroke="#ffc97a" stroke-width="2.5" stroke-linecap="round"/>'}
   ];
