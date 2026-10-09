@@ -1209,7 +1209,11 @@
       gTop(cx, cy, VZ + 6.7, '<rect x="-6.1" y="-.8" width="12.2" height="1.6" rx=".8" fill="#20242a" transform="rotate(' + spin + ')"/>') +
       isoEllipse(cx, cy, VZ + 6.9, 1.1, "#9aa3ad", 'stroke="none"');
   }
-  var drone = box(-27.5, 188, VZ, 4, 30, 19, "#2a2d33");     // the controller, against the wall
+  /* a shelf-top's worth of hit area under each era's things, the way the
+     wall switch has one: small objects up high are hard to aim at, worse
+     on a phone, and the gaps between them shouldn't be dead */
+  var V_HIT = gTop(-28, 177, VZ, '<rect width="52" height="51" fill="transparent"/>');
+  var drone = V_HIT + box(-27.5, 188, VZ, 4, 30, 19, "#2a2d33");     // the controller, against the wall
   drone += gRight(-23.5, 218, VZ + 19,
     '<rect x="1" y="1" width="28" height="17" rx="3" fill="#30343b"/>' +
     // its screen: the site from the air, a lake along the top, a path round a lawn
@@ -1250,7 +1254,7 @@
   }
   var V_LAKE = '<rect width="27.2" height="5" fill="#2f6377"/>' +
     '<path d="M0 5 Q7 6.3 14 5.2 T27.2 5.6 L27.2 6.5 Q20 7.1 14 6.2 T0 6.2 Z" fill="#cdb98f"/>';
-  var prints = box(-27.5, 186, VZ, 3, 34, 22, "#e3ad34");     // the envelope, against the wall
+  var prints = V_HIT + box(-27.5, 186, VZ, 3, 34, 22, "#e3ad34");     // the envelope, against the wall
   prints += gRight(-24.5, 220, VZ + 22,
     // the negatives, poking out of the top of it
     '<rect x="6" y="-4.4" width="14" height="4.8" fill="#4a2c16"/>' +
