@@ -1277,14 +1277,14 @@
   // the loupe on the top print: a clear skirt, a black barrel, the lens
   (function(){
     var lx = VX + 7, ly = VY - 3, lz = VZ + 1.6;
-    var pB = P(lx, ly, lz), pT = P(lx, ly, lz + 3), RB = 6 * 1.414, RT = 4.8 * 1.414;
+    var pB = P(lx, ly, lz), pT = P(lx, ly, lz + 2.6), RB = 5.2 * 1.414, RT = 4.1 * 1.414;
     prints += '<path d="M' + n1(pT[0] - RT) + " " + n1(pT[1]) + " L" + n1(pB[0] - RB) + " " + n1(pB[1]) +
       " A" + n1(RB) + " " + n1(RB / 2) + " 0 0 0 " + n1(pB[0] + RB) + " " + n1(pB[1]) +
       " L" + n1(pT[0] + RT) + " " + n1(pT[1]) + ' Z" fill="rgba(220,236,242,.30)" stroke="rgba(240,248,252,.65)" stroke-width=".6"/>';
-    prints += cyl(lx, ly, lz + 3, 4.8, 5, "#1e1f24");
-    prints += isoEllipse(lx, ly, lz + 8.05, 3.7, "url(#glassFace)", 'stroke="rgba(235,246,252,.75)" stroke-width=".6"');
-    var g = P(lx - 1.2, ly - 1.2, lz + 8.1);
-    prints += glint(g[0], g[1], 3.4, 1.4);
+    prints += cyl(lx, ly, lz + 2.6, 4.1, 4.2, "#1e1f24");
+    prints += isoEllipse(lx, ly, lz + 6.85, 3.1, "url(#glassFace)", 'stroke="rgba(235,246,252,.75)" stroke-width=".6"');
+    var g = P(lx - 1, ly - 1, lz + 6.9);
+    prints += glint(g[0], g[1], 3, 1.4);
   })();
   S.push(wrapObj("vantage","Vantage — aerial prints and a loupe",VLIT,prints,"era-old"));
 
@@ -2394,6 +2394,16 @@
         {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
       ]
     },
+    vantage: {
+      kicker: "Vantage · New",
+      title: "Vantage — A Year Over One Site, in One Scroll",
+      story: "People who build parks spend a year watching one piece of ground change, and they end up with a folder of a thousand drone photos nobody opens twice. In 1999 it was an envelope of aerial prints and a loupe. Vantage is the engine I wrote to do better. Fly the same route every few weeks and it finds the same view in every flight, locks them all to one camera, and builds a page you scroll on a phone: the months going by under your thumb, a curtain to drag between before and after, notes pinned to the ground, the real dates down the side. The same command cuts the films and an offline copy. It's open source, and the demo is a made-up park flown by a simulated drone.",
+      chips: ["Scroll-scrubbed time-lapse","Every flight, one camera","Before & after curtains","Notes pinned to the ground","Real dates","16:9 & 9:16 films","Works offline","Open source"],
+      links: [
+        {label:"🚁 Fly over — Vantage", href:"/vantage/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/timelapse_drone", href:"https://github.com/kmay89/timelapse_drone"}
+      ]
+    },
     scqcs: {
       kicker: "Founder · Security",
       title: "SCQCS — The Alarm Thread, All Grown Up",
@@ -2551,6 +2561,14 @@
       tone(1760, {type:"sine", at:0.20, dur:0.34, g:0.045});
       tone(2637, {type:"sine", at:0.20, dur:0.22, g:0.02});
     },
+    vantage: function(){ // four rotors spooling up, then the shutter
+      tone(92,  {type:"sawtooth", dur:0.55, g:0.022, end:250});
+      tone(95,  {type:"sawtooth", dur:0.55, g:0.018, end:257});
+      noise({filter:"bandpass", freq:260, freqEnd:1700, q:1.2, dur:0.55, g:0.07});
+      noise({filter:"highpass", freq:1900, at:0.62, dur:0.025, g:0.15});
+      noise({filter:"lowpass", freq:520, at:0.66, dur:0.05, g:0.11});
+      tone(2400, {type:"sine", at:0.70, dur:0.05, g:0.025});
+    },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
       tone(880,  {type:"square", at:0.05, dur:0.09, g:0.05});
@@ -2626,7 +2644,7 @@
     board:[10,40,10,40,20], toy:[12,30,12,30,12], hive:[70],
     series:[10,25,10], scqcs:[25,60,25], vinyl:[8,90,8,90,8], cam:[18],
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
-    utap:[20,40,20], web:[10,20,10], "switch":[22]
+    utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18]
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }
@@ -2715,7 +2733,9 @@
       pickedEls.push(el);
     });
     if (!pickedEls.length) return;
-    var el = pickedEls[0];
+    /* a world drawn once per era has a copy hidden by display:none, which
+       measures as an empty box at the corner — aim at the one on show */
+    var el = pickedEls.filter(function(e){ var b = e.getBoundingClientRect(); return b.width || b.height; })[0] || pickedEls[0];
     var r = el.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (wrap.scrollWidth > wrap.clientWidth){
@@ -2816,6 +2836,8 @@
      glyph:'<path d="M8 32 q14 -5 28 0 l0 -20 q-14 -5 -28 0 z" fill="none" stroke="#d9a0e8" stroke-width="2.5" stroke-linejoin="round"/><path d="M22 10.5 l0 21" stroke="#d9a0e8" stroke-width="2"/><g fill="none" stroke="#d9a0e8" stroke-width="2" stroke-linecap="round" opacity=".8"><path d="M28 18 q3 2 0 4"/><path d="M31.5 15.5 q5 3.5 0 9"/></g>'},
     {name:"pool-test-app.com", href:"https://pool-test-app.com", a:"#6ecbe8", tg:"linear-gradient(150deg,#0f3140,#081c26)",
      glyph:'<path d="M18 8 h8 M20 8 l0 12 q0 2 -1.5 3.5 l-4 4 a7.4 7.4 0 1 0 15 0 l-4 -4 q-1.5 -1.5 -1.5 -3.5 l0 -12" fill="none" stroke="#6ecbe8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 28 h13" stroke="#6ecbe8" stroke-width="2.2"/><circle cx="20" cy="32" r="1.3" fill="#6ecbe8"/><circle cx="25" cy="34.5" r="1.1" fill="#6ecbe8"/>'},
+    {name:"kmay89.com/vantage", href:"/vantage/", a:"#4fd6c4", tg:"linear-gradient(150deg,#0f3a35,#08201d)",
+     glyph:'<g fill="none" stroke="#4fd6c4" stroke-width="2.2"><circle cx="11" cy="11" r="6.5"/><circle cx="33" cy="11" r="6.5"/><circle cx="11" cy="33" r="6.5"/><circle cx="33" cy="33" r="6.5"/></g><path d="M15.5 15.5 L28.5 28.5 M28.5 15.5 L15.5 28.5" stroke="#4fd6c4" stroke-width="3" stroke-linecap="round"/><rect x="16" y="17" width="12" height="10" rx="3" fill="#4fd6c4"/><circle cx="22" cy="22" r="2" fill="#08201d"/>'},
     {name:"kmay89.com — you are here", href:"https://kmay89.com", a:"#ffc97a", tg:"linear-gradient(150deg,#3a2a14,#1c1408)",
      glyph:'<rect x="6" y="9" width="32" height="22" rx="3" fill="none" stroke="#ffc97a" stroke-width="2.5"/><rect x="12" y="14" width="20" height="12" rx="2" fill="none" stroke="#ffc97a" stroke-width="1.8"/><rect x="17" y="17.5" width="10" height="5" rx="1.2" fill="#ffc97a"/><path d="M17 35 h10" stroke="#ffc97a" stroke-width="2.5" stroke-linecap="round"/>'}
   ];
