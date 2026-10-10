@@ -123,4 +123,4 @@ if [ -f "$FILM" ]; then
   fi
 fi
 
-say "done. The demo's sw.js names its own cache after the build, so returning visitors get the new one."
+say "done. The demo's sw.js lists every file with a hash of its bytes, so returning visitors fetch only what changed."
