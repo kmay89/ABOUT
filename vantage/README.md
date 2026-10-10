@@ -64,9 +64,10 @@ and nowhere else. It refreshes `stills/` from the first and last overview
 stills, and `film/` if the build made a film small enough to keep.
 
 Unlike the other rooms, there is no `VERSION` to bump: the demo's `sw.js`
-names its cache after the build, so a new build is a new cache and returning
-visitors pick it up. `netlify.toml` keeps that `sw.js` from being cached,
-like every other room's.
+lists every file with a hash of its bytes, so after a new build a returning
+visitor's worker fetches only the files that changed (and a copy someone
+saved for offline keeps the rest). `netlify.toml` keeps that `sw.js` from
+being cached, like every other room's.
 
 ## Why it's here and not only on GitHub
 
