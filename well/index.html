@@ -225,7 +225,13 @@
     color:var(--ink-2); font:500 .9375rem/1.15 var(--sans); transition:background-color .2s var(--e-out), color .2s}
   .seg>button[aria-checked="true"],.seg>button[aria-pressed="true"],.seg>button.on{background:var(--fill-3); color:var(--ink);
     font-weight:600; box-shadow:inset 0 0 0 1px rgb(var(--wa) / .45)}
-  .seg>button small{display:block; font:400 .75rem/1.1 var(--sans); color:var(--ink-3); font-variant-numeric:tabular-nums}
+  /* a segment's small line reads in --ink-2, and in --ink once chosen:
+     --ink-3 on the chosen segment's --fill-3 fell under 4.5:1 */
+  .seg>button small{display:block; font:400 .75rem/1.1 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums}
+  .seg>button[aria-checked="true"] small,.seg>button[aria-pressed="true"] small,.seg>button.on small{color:var(--ink)}
+  /* large text: a segment takes the width its word needs, and the row
+     wraps rather than clipping "Standard" to "Standar" */
+  html.ts-big .seg>button{flex:1 1 auto}
   .seg-line{font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); margin:8px 4px 0; min-height:1.25rem}
   .fld{padding:12px 16px 14px; position:relative; margin:0}
   .fld-h{display:flex; align-items:baseline; gap:8px; font:500 1.0625rem/1.375rem var(--sans); margin:0 0 10px; color:var(--ink)}
@@ -250,7 +256,8 @@
   .sl-h label{flex:1 1 auto; min-width:0} .sl-h .tag{font:500 .75rem var(--sans); color:var(--ink-3); letter-spacing:.04em}
   .sl-v{font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap}
   .sl-row{display:flex; align-items:center; gap:10px}
-  .sl-r{-webkit-appearance:none; appearance:none; display:block; flex:1 1 auto; width:100%; height:44px; margin:0;
+  /* input.sl-r, not .sl-r: look.css's input[type=range] (26px) outranks a bare class */
+  input.sl-r{-webkit-appearance:none; appearance:none; display:block; flex:1 1 auto; width:100%; height:44px; margin:0;
     background:transparent; cursor:pointer; --p:50%}
   .sl-r::-webkit-slider-runnable-track{height:4px; border-radius:2px;
     background:linear-gradient(90deg, rgb(var(--wa)) var(--p), var(--hair-2) var(--p))}
@@ -265,7 +272,7 @@
   /* ---------- option cards with previews ---------- */
   .ocs{display:grid; grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr)); gap:10px}
   .ocs.scroll{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:10px; margin:0 -20px; padding:2px 20px 6px;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none}
+    scroll-padding:0 20px; -webkit-overflow-scrolling:touch; scrollbar-width:none}
   .ocs.scroll>.oc{flex:0 0 7.5rem; scroll-snap-align:start}
   .oc{position:relative; display:flex; flex-direction:column; gap:8px; padding:8px 8px 10px; border-radius:var(--r3);
     background:var(--fill-1); border:1px solid var(--hair); color:var(--ink); text-align:left; font:500 .9375rem/1.2 var(--sans)}

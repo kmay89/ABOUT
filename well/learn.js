@@ -1383,6 +1383,10 @@ var STYLE = "" +
 ".lrn .lrn-ul li::marker{color:var(--ink-3)}" +
 ".lrn a{color:rgb(var(--wk));text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}" +
 ".lrn a.btn{text-decoration:none;color:var(--ink)}" +
+/* a link inside a sentence reaches 44px tall through padding alone: on an
+   inline box vertical padding widens what a finger can hit without moving
+   a single line of the paragraph */
+".lrn a[data-learn]{padding:12px 0}" +
 ".lrn .lrn-aside{margin:1.2em 0;padding:2px 0 2px 16px;border-left:2px solid rgb(var(--wk) / .5);font:400 1rem/1.6 var(--sans);color:var(--ink);max-width:62ch}" +
 ".lrn .lrn-aside b{font:italic 400 1.125rem/1.5 var(--serif);color:var(--ink)}" +
 ".lrn .lrn-sum{white-space:nowrap;font-variant-numeric:tabular-nums;color:rgb(var(--wk))}" +

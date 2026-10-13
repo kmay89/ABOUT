@@ -2704,13 +2704,15 @@ function guideNote(name) {
   try { G.note(name); } catch (e) { fault("Guide.note", e); }
 }
 /* the context the guide decides an offer in (§D7) */
-var octx = { modeId: "", steady: false, timed: false, lesson: false, practice: false, playMs: 0, userOpened: false, hasBreath: false, depth: 0 };
+var octx = { modeId: "", steady: false, timed: false, lesson: false, silt: false, practice: false, playMs: 0, userOpened: false, hasBreath: false, depth: 0 };
 function offerCtx(userOpened) {
   var r = run || lastRun;
   octx.modeId = r ? r.modeId : "";
   octx.steady = !!(r && r.steady);
   octx.timed = !!(r && r.timed);
   octx.lesson = !!(r && r.lesson);
+  /* a silt well is a challenge, not a lesson: its run card may offer */
+  octx.silt = !!(r && r.lesson && r.lesson.kind === "silt");
   octx.practice = !!(r && r.practice);
   octx.playMs = r ? r.elapsedMs : 0;
   octx.userOpened = !!userOpened;
@@ -4900,6 +4902,10 @@ root.WELL = {
   /* first steps from the start, as if this browser had never played:
      the guide's first-steps marks are cleared and a Descent begins */
   firstSteps: function (hands) {
+    /* the run in hand is put away first: the guide writes its notebook as
+       a run ends, and would write the old marks back over the cleared ones */
+    closeAllSheets();
+    if (run) { leaveQuietly(); run = null; }
     var gp = pref("guide");
     if (gp && typeof gp === "object") {
       gp.first = { gestures: 0, buttons: 0, keys: 0, pad: 0 };

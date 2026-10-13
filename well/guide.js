@@ -900,7 +900,8 @@ var CSS = [
   ".gd-mv .gd-mv-n{display:flex;align-items:center;gap:6px;font:500 1.0625rem/1.375rem var(--sans);color:var(--ink)}",
   ".gd-mv .gd-mv-how{display:block;margin-top:2px;font:400 .9375rem/1.375rem var(--sans);color:var(--ink-2)}",
   ".gd-mv .gd-mv-how kbd.kc{margin:0 1px}",
-  ".gd-mv .gd-mv-why{display:block;margin-top:2px;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-3)}",
+  /* the why line in --ink-2: --ink-3 on a row's fill fell to 4.4:1 over the brightest frost */
+  ".gd-mv .gd-mv-why{display:block;margin-top:2px;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2)}",
   ".gd-mv .gd-mv-r{flex:none;display:flex;align-items:center;justify-content:flex-end;min-width:44px}",
   ".gd-mv .gd-mv-ok{display:inline-flex;align-items:center;gap:3px;margin-left:2px;font:500 .8125rem/1 var(--sans);color:rgb(var(--wk))}",
   ".gd-mv .gd-stone{flex:none;width:18px;height:18px;fill:rgb(var(--wk));display:block}",

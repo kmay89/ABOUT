@@ -259,7 +259,9 @@ Steady.CSS = [
   ".st-ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--hair-2)}",
   ".st-orb{position:absolute;inset:0;border-radius:50%;will-change:transform,opacity;transform:scale(.42) translateZ(0);",
   "  background:radial-gradient(circle, rgb(var(--wk) / .9), rgb(var(--wk) / 0) 70%)}",
-  ".st-word{margin-top:32px;font:400 clamp(1.5rem,5.6vw,2.125rem)/1.3 var(--serif);letter-spacing:.005em;color:var(--ink);min-height:1.4em;transition:opacity .45s}",
+  /* the breathing word is a statement, so it takes title-1 (§A3) rather than a size of its own */
+  ".st-word{margin-top:32px;font:400 1.75rem/2.125rem var(--serif);letter-spacing:.005em;color:var(--ink);min-height:1.4em;transition:opacity .45s}",
+  "@media (min-width:900px) and (pointer:fine){.st-word{font-size:2rem;line-height:2.375rem}}",
   ".st-dots{display:flex;gap:10px;margin-top:18px;min-height:10px;align-items:center}",
   ".st-dot{width:6px;height:6px;border-radius:50%;background:var(--fill-3);transition:background-color .6s,box-shadow .6s}",
   ".st-dot.lit{background:rgb(var(--wk))}",
