@@ -335,6 +335,10 @@ var Layout = {
              lowered until the pieces sit evenly along it, none touching */
           var ax = colL + ws[0] / 2, ay = lipTopW + hs[0] / 2;
           var rxMax = Math.max(0, colR - ws[n - 1] / 2 - ax), rxE = 0;
+          /* where the panel on the left is too short to hold the Glass Well
+             and the coach (a phone on its side), the arc keeps clear the
+             strip at the right edge the app puts them in instead */
+          if (!L.side || L.side.h < 420) rxMax = Math.min(rxMax, Math.max(0, colR - 190 - ax - ws[0] / 2));
           var gapK = 0.62, placed = null;
           for (var tries = 0; tries < 40 && !placed; tries++, gapK += 0.06) {
             var need = 0, steps = [0];

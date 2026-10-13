@@ -833,13 +833,6 @@ vec4 stoneLod(vec2 p, float lod){
   if (uWallP.x > 0.002) a = mix(a, textureLod(uStoneB, uv, lod), uWallP.x);
   return a;
 }
-/* the same stone, out of focus: what frosted glass sees of it */
-vec3 stoneSoft(vec2 p){
-  vec2 uv = p * 0.0625;
-  vec3 a = textureLod(uStoneA, uv, 3.5).rgb;
-  if (uWallP.x > 0.002) a = mix(a, textureLod(uStoneB, uv, 3.5).rgb, uWallP.x);
-  return a;
-}
 /* danger cools and greys the stone; it never reddens it */
 vec3 coolStone(vec3 c){ return mix(c, vec3(luma(c)) * vec3(0.84, 0.94, 1.12), uKeyCol.w * 0.45); }
 float shadeAt(vec2 xy){ return texture(uShade, vec2(xy.x * 0.1, xy.y * (1.0 / 24.0))).r; }
@@ -899,10 +892,11 @@ var GLSL_LIVE = `
    to the mouth and then letting go. Both are held well under the flash
    threshold by construction (ΔL 0.03 and about 0.06). */
 vec3 shaftLive(vec3 col, float y){
-  vec3 add = vec3(0.0);
-  if (uSkyC.w > 0.0) add += (col * 0.9 + uKeyCol.rgb * 0.004 + uSkyT.rgb * 0.05) * uSkyC.w * (0.25 + 0.75 * smoothstep(-2.0, 23.0, y));
-  if (uFx0.x > 0.0) add += (col * 1.5 + uKeyCol.rgb * 0.017) * uFx0.x * smoothstep(uSkyT.w + 2.5, uSkyT.w - 1.0, y) * (0.7 + 0.3 * exp2(-y * 0.1));
-  return col + add;
+  /* no branches: this runs on every pixel of the back wall, and a GPU
+     that cannot skip a branch would pay for both sides */
+  float b = uSkyC.w * (0.25 + 0.75 * clamp((y + 2.0) * 0.04, 0.0, 1.0));
+  float e = uFx0.x * clamp((uSkyT.w + 2.5 - y) * 0.2857, 0.0, 1.0) * (1.0 - 0.012 * y);
+  return col * (1.0 + 0.9 * b + 1.5 * e) + uKeyCol.rgb * (0.004 * b + 0.017 * e) + uSkyT.rgb * (0.05 * b);
 }
 `;
 
@@ -1007,13 +1001,15 @@ float edgeDist(vec2 l){
 
 /* the same outline, felt rather than measured: how much of the body's
    edge is near, summed over every outer side and bend, so where two
-   edges meet their light adds instead of meeting along a mitred crease */
-float edgeNear(vec2 l, float k){
-  vec4 ds = vec4(0.5 - l.y, 0.5 - l.x, l.y + 0.5, l.x + 0.5);
-  float e = dot(uVarS, exp2(-ds * k));
+   edges meet their light adds instead of meeting along a mitred crease.
+   Each edge's share falls off as (1 - 1.6 d)², which is within a few
+   percent of exp2(-6 d) where it matters and costs no transcendentals. */
+float edgeNear(vec2 l){
+  vec4 ds = max(1.0 - 1.6 * vec4(0.5 - l.y, 0.5 - l.x, l.y + 0.5, l.x + 0.5), 0.0);
+  float e = dot(uVarS, ds * ds);
   if (dot(uVarB, uVarB) > 0.0) {
-    vec4 db = vec4(length(l - vec2(0.5, 0.5)), length(l - vec2(0.5, -0.5)), length(l + vec2(0.5, 0.5)), length(l - vec2(-0.5, 0.5)));
-    e += dot(uVarB, exp2(-db * k));
+    vec4 db = max(1.0 - 1.6 * vec4(length(l - vec2(0.5, 0.5)), length(l - vec2(0.5, -0.5)), length(l + vec2(0.5, 0.5)), length(l - vec2(-0.5, 0.5))), 0.0);
+    e += dot(uVarB, db * db);
   }
   return e;
 }
@@ -1053,7 +1049,7 @@ void main(){
     float fb = texture(uDetail, vec2(vP.y * 0.55, vP.x * 0.07 + vLocal.z * 0.11)).b;
     float cloud = texture(uDetail, vP * 0.37 + vec2(vLocal.z * 0.17, 0.5)).r;
     float rd = abs(fract(vP.y * 3.0 + 0.5) - 0.5);
-    base *= (1.0 + uMat1.z * ((fb - 0.5) * 0.12 + (cloud - 0.5) * 0.2)) * (1.0 - 0.06 * uMat3.w * (1.0 - smoothstep(0.03, 0.11, rd)));
+    base *= (1.0 + uMat1.z * ((fb - 0.5) * 0.06 + (cloud - 0.5) * 0.28)) * (1.0 - 0.06 * uMat3.w * (1.0 - smoothstep(0.03, 0.11, rd)));
   }
 
   /* glyphs: an inner motif on every cell's face */
@@ -1118,7 +1114,7 @@ void main(){
     float coat = uMat2.w;
     if (coat > 0.4) spec += D_GGX(NoH, 0.0144) * V_SmithFast(NoV, nl, 0.12) * (0.04 + 0.96 * fresH) * keyC * nl * uMat3.z * (coat - 0.4);
     /* frosted glass: a broad, soft sheen of the softbox across the face */
-    if (uMat4.x > 0.0) spec += D_GGX(NoH, 0.3025) * V_SmithFast(NoV, nl, 0.3025) * (0.04 + 0.96 * fresH) * keyC * nl * uMat4.x;
+    if (uMat4.x > 0.0) spec += exp2((NoH - 1.0) * 9.0) * (0.04 + 0.96 * fresH) * keyC * nl * uMat4.x * 0.9;
     /* the studio, reflected */
     vec3 R = reflect(-V, N);
     vec2 fab = DFG(NoV, rough);
@@ -1136,7 +1132,7 @@ void main(){
        from its frame and least at its edges */
     /* one measure of the edge serves all three: the paper's glow, the
        light through the rim, and the thickness of the glass */
-    float e6 = edgeNear(l, 6.0), nearE = min(e6, 1.0);
+    float e6 = edgeNear(l), nearE = min(e6, 1.0);
     vec3 emi = base * uMat0.z * 0.4 * mix(1.0, 1.2 - 0.6 * nearE, uMat3.w);
     float inner = min(mix(e6 * e6, e6, uMat3.y), 1.3) * uFx1.x;
     vec3 thin = base * keyC * inner * uMat3.x + warm * inner * 0.025;
@@ -1153,14 +1149,16 @@ void main(){
     if (uMat0.w > 0.0) {
       vec2 off = N.xy * uMat0.w * 40.0 + (vW.xy - uEye.xy) * (uWallP.z / uEye.z);
       vec2 wp = vW.xy + off;
-      vec3 soft = stoneSoft(wp);
-      vec3 behind = coolStone(soft) * (uKeyCol.rgb * 0.2 * shadeAt(wp) + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
+      vec3 seen = stoneLod(wp, 2.4).rgb;
+      vec3 behind = coolStone(seen) * (uKeyCol.rgb * 0.2 * shadeAt(wp) + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
       float edge = 1.0 - front;
       col = col * (0.84 + 0.1 * edge) + base * behind * 5.5 + base * keyC * 0.03 * (0.5 + edge) + keyC * 0.012 * edge;
       /* frosted, so they come through blurred, and they slide behind the
-         glass as it falls, because the wall is three cells further back */
-      float sharp = luma(stoneLod(wp, 2.2).rgb);
-      col *= 1.0 + clamp(sharp / max(luma(soft), 1e-3) - 1.0, -0.3, 0.3) * uMat4.z;
+         glass as it falls, because the wall is three cells further back:
+         the stone against its own average brightness (the bake holds every
+         world's stone to the wall colour's luminance, up to 0.2) */
+      float ref = min(luma(uWall.rgb), 0.2) * 0.93;
+      col *= 1.0 + clamp(luma(seen) / max(ref, 1e-3) - 1.0, -0.3, 0.3) * uMat4.z;
     }
     /* a preview hangs further off in the world's air the further it is */
     if (fg > 0.5 && vD.w > 0.0) col = mix(col, uSkyC.rgb * 0.9 + uSkyT.rgb * 0.35, vD.w);
@@ -2239,7 +2237,10 @@ Gfx3D.create = function (canvas, opts) {
     locs(P.backc, ["uRes"].concat(stoneU));
     locs(P.ribbon, ["uR0", "uR1", "uR2", "uR3"]);
     locs(P.part, ["uNow"]);
-    var skyU = ["uRes", "uTime", "uA", "uB", "uMix", "uReact", "uMotion", "uDanger", "uTopA", "uHorA", "uTopB", "uHorB", "uWell", "uHole"];
+    /* uAnchor and uMouth are offered to sky.js for composing a tall
+       screen (see passSky); a sky that does not declare them gets null
+       locations, and setting a null location is a no-op */
+    var skyU = ["uRes", "uTime", "uA", "uB", "uMix", "uReact", "uMotion", "uDanger", "uTopA", "uHorA", "uTopB", "uHorB", "uWell", "uHole", "uAnchor", "uMouth"];
     locs(P.plain, skyU);
     if (P.sky !== P.plain) locs(P.sky, skyU);
     locs(P.bright, ["uSrc", "uTexel", "uInv", "uP"]);
@@ -4034,6 +4035,13 @@ Gfx3D.create = function (canvas, opts) {
     gl.uniform3f(u.uTopA, WA.top[0], WA.top[1], WA.top[2]); gl.uniform3f(u.uHorA, WA.hor[0], WA.hor[1], WA.hor[2]);
     gl.uniform3f(u.uTopB, WB.top[0], WB.top[1], WB.top[2]); gl.uniform3f(u.uHorB, WB.hor[0], WB.hor[1], WB.hor[2]);
     gl.uniform2f(u.uWell, wellUV[0], wellUV[1]);
+    /* On a tall phone the well hides the horizon and the world's motif;
+       the visible sky is the band above the mouth. uAnchor says how tall
+       the screen is (0 landscape, 1 a phone held upright) and uMouth where
+       the top of the coping lands, in the target's uv, so the sky can
+       compose its horizon into that band. */
+    gl.uniform1f(u.uAnchor, clamp((cssH / Math.max(1, cssW) - 1.3) / 0.8, 0, 1));
+    gl.uniform1f(u.uMouth, clamp(projY(0, LIP_Y + COPE_H), 0, 1));
     /* everything but the face of the well, which the shaft covers; the
        hole is pulled in a texel and a half so filtering at its edge never
        reads sky that was not drawn */
