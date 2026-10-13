@@ -28,7 +28,7 @@ crackers spilled beside it); and [Vantage](https://kmay89.com/vantage/) —
 an engine that turns a year of drone flights over one changing site into
 a story you scroll on a phone (the little drone is parked on the shelf
 beside the tapes; in 1999 it's a stack of aerial prints with a loupe on
-top); and [The Well](https://kmay89.com/well/) — falling blocks down a
+top); and [*well*](https://kmay89.com/well/) — falling blocks down a
 lit stone shaft, where every move plays a note and nothing ever asks
 for one more go (a small stone well sits on the desk with a faint glow
 coming up out of it).
@@ -89,7 +89,7 @@ coming up out of it).
   against a solver until one turns up that can be finished by reasoning
   alone; and a brick breaker with a curved paddle you aim with rather
   than a mirror you bounce off. Each has its own README.
-- `well/` — The Well, a falling-blocks game that tries to be as
+- `well/` — *well*, a falling-blocks game that tries to be as
   absorbing as the classic and kinder than any version of it. The rules
   are the modern ones experts play by — seven pieces dealt from a fair,
   seeded bag that never looks at your board, wall kicks, a forgiving

@@ -188,6 +188,64 @@ function ensure(d) {
   return d;
 }
 Records.ensure = function (data) { return ensure(data || Records.blank()); };
+function goodBest(b) { return !!b && typeof b === "object" && typeof b.value === "number" && isFinite(b.value); }
+
+/* ---------- two tabs, one save ----------
+   Every tab of the room keeps the records in memory and writes them back
+   whole, so without this the last tab to write wins: an idle tab closed
+   after another tab set a best would put the old records back over it.
+   So a write first folds in what is on disk. Found things are a union; a
+   best keeps the better value (a time is better low, a score high, read
+   off the key as resolve() decides it), a medal the higher one, the last
+   ten the longer list. The lifetime counters are the one place a tab's
+   own additions have to be told apart from the other tab's: base is this
+   tab's counters as it last read or wrote them, so what this tab added
+   since is laid on top of what the disk now holds. Without a base the
+   larger of the two is kept. into is changed in place, so its run-scoped
+   scratch survives. */
+function lowKey(key) { return /^(forty|silt)\./.test(key); }
+Records.merge = function (into, other, base) {
+  ensure(into);
+  if (!other || typeof other !== "object" || other === into) return into;
+  other = ensure(other);
+  var k, a, b;
+  var sets = ["stones", "worlds"];
+  for (var i = 0; i < sets.length; i++) {
+    for (k in other[sets[i]]) if (other[sets[i]][k] && !into[sets[i]][k]) into[sets[i]][k] = other[sets[i]][k];
+  }
+  for (k in other.lessons) {
+    b = other.lessons[k];
+    if (!b || typeof b !== "object") continue;
+    a = into.lessons[k];
+    if (!a || typeof a !== "object") into.lessons[k] = { pass: 1, hint: b.hint ? 1 : 0 };
+    else if (!b.hint) a.hint = 0;
+  }
+  for (k in other.best) {
+    b = other.best[k];
+    if (!goodBest(b)) continue;
+    a = into.best[k];
+    if (!goodBest(a)) { into.best[k] = { value: b.value, medal: typeof b.medal === "string" ? b.medal : null }; continue; }
+    if (lowKey(k) ? b.value < a.value : b.value > a.value) a.value = b.value;
+    if (typeof b.medal === "string" && medalRank(k.split(".")[0], b.medal) > medalRank(k.split(".")[0], a.medal)) a.medal = b.medal;
+  }
+  for (k in other.medals) {
+    b = other.medals[k];
+    if (typeof b !== "string") continue;
+    a = into.medals[k];
+    if (typeof a !== "string" || medalRank(k.split(".")[0], b) > medalRank(k.split(".")[0], a)) into.medals[k] = b;
+  }
+  for (k in other.hist) {
+    b = other.hist[k];
+    if (Array.isArray(b) && (!Array.isArray(into.hist[k]) || b.length > into.hist[k].length)) into.hist[k] = b.slice();
+  }
+  for (i = 0; i < LIFE_KEYS.length; i++) {
+    k = LIFE_KEYS[i];
+    var mine = into.life[k], theirs = other.life[k];
+    if (base && typeof base[k] === "number") into.life[k] = theirs + Math.max(0, mine - base[k]);
+    else into.life[k] = Math.max(mine, theirs);
+  }
+  return into;
+};
 
 /* ---------- the run-scoped scratch ---------- */
 function freshLive() {
@@ -584,11 +642,15 @@ Records.finishRun = function (data, run) {
   var value = metric(run, info), valid = !!info.key && validMetric(run, info, value);
   var pb = false, prev = null, medal = null, medalNew = false, first = false;
   if (valid) {
-    var h = data.hist[info.key] || (data.hist[info.key] = []);
+    /* an entry of the wrong shape (a hand-edited save) is replaced as if
+       this were the first run on the key, rather than failing every run */
+    var h = data.hist[info.key];
+    if (!Array.isArray(h)) h = data.hist[info.key] = [];
     h.push({ v: value, n: ok ? 0 : 1 });
     while (h.length > 10) h.shift();
 
     var best = data.best[info.key];
+    if (best && !goodBest(best)) best = data.best[info.key] = null;
     prev = best ? best.value : null;
     if (ok) {
       /* Forty's medals are for forty lines only, and Modes.medalFor is not
@@ -609,7 +671,7 @@ Records.finishRun = function (data, run) {
      shown as three small marks, so it asks only that you got there */
   if (info.kind === "descent" && goal && info.key) {
     medal = "Reached the Surface";
-    if (!data.medals[info.key]) { data.medals[info.key] = medal; medalNew = true; }
+    if (typeof data.medals[info.key] !== "string") { data.medals[info.key] = medal; medalNew = true; }
   }
 
   var out = L.got.slice();
@@ -649,7 +711,6 @@ Records.fmt = { commas: commas, stopwatch: stopwatch, clock: clock };
 
 var TIP = {
   score:   "Points from clears, Twists, Ripples and drops. Bigger clears are worth more, and deeper levels multiply them.",
-  forty:   "From the first piece to the last of the forty lines, to the hundredth of a second.",
   time:    "How long the run lasted.",
   silt:    "From the first piece to the last row of silt, to the hundredth of a second.",
   pieces:  "How many pieces you placed.",
@@ -666,10 +727,21 @@ var TIP = {
   clears:  "How many of each kind of clear you made this run."
 };
 
+/* Forty's time tip names the run's own goal: a 20-line run isn't "the
+   forty lines" */
+function fortyTip(n) {
+  var w = n === 20 ? "twenty" : n === 40 ? "forty" : n === 100 ? "hundred" : String(n);
+  return "From the first piece to the last of the " + w + " lines, to the hundredth of a second.";
+}
+
+/* one entry per kind of clear, each clear counted once (engine.js): a
+   Twist Double is not also a Double, and a Twist that cleared nothing is
+   not a clear. "Mini Twist" alone means the lineless kind in the brief, so
+   the ones here, which cleared a line or two, say so. */
 var STRIP = [
   ["singles", "Single", "Singles"], ["doubles", "Double", "Doubles"],
   ["triples", "Triple", "Triples"], ["quads", "Quad", "Quads"],
-  ["twMini", "Mini Twist", "Mini Twists"], ["twSingle", "Twist Single", "Twist Singles"],
+  ["twMini", "Mini Twist clear", "Mini Twist clears"], ["twSingle", "Twist Single", "Twist Singles"],
   ["twDouble", "Twist Double", "Twist Doubles"], ["twTriple", "Twist Triple", "Twist Triples"],
   ["empties", "Empty Well", "Empty Wells"]
 ];
@@ -705,7 +777,7 @@ function card(run, info, prev, value) {
     var parts = [], strip = [];
     for (var i = 0; i < STRIP.length; i++) {
       var k = num(st[STRIP[i][0]]);
-      if (k > 0) { parts.push(k + " " + (k === 1 ? STRIP[i][1] : STRIP[i][2])); strip.push({ label: STRIP[i][1], n: k }); }
+      if (k > 0) { parts.push(k + " " + (k === 1 ? STRIP[i][1] : STRIP[i][2])); strip.push({ label: STRIP[i][1], plural: STRIP[i][2], n: k }); }
     }
     if (parts.length) { add("Clears", parts.join(" \u00b7 "), TIP.clears, strip.length, "strip"); items[items.length - 1].strip = strip; }
   }
@@ -717,7 +789,7 @@ function card(run, info, prev, value) {
       piecesItem(); linesItem();
       break;
     case "forty":
-      add("Time", stopwatch(ms), TIP.forty, ms);
+      add("Time", stopwatch(ms), fortyTip(fortyLines(run)), ms);
       vsItem(); piecesItem(); ppsItem(); kppItem(); finesseItem(); stripItem();
       break;
     case "three":
@@ -774,16 +846,21 @@ Records.lifetime = function (data) {
 Records.has = function (data, id) { return !!(data && data.stones && data.stones[id]); };
 Records.best = function (data, key) {
   var b = data && data.best ? data.best[key] : null;
-  return b ? { value: b.value, medal: b.medal || null } : null;
+  return goodBest(b) ? { value: b.value, medal: typeof b.medal === "string" ? b.medal : null } : null;
 };
 /* the last ten finished runs on a key, oldest first, for the sparkline;
    `noted` marks a run with a rest, learner speed or a hint */
 Records.history = function (data, key) {
   var h = data && data.hist ? data.hist[key] : null, out = [];
-  if (h) for (var i = 0; i < h.length; i++) out.push({ value: h[i].v, noted: !!h[i].n });
+  if (Array.isArray(h)) {
+    for (var i = 0; i < h.length; i++) if (h[i] && num(h[i].v) === h[i].v) out.push({ value: h[i].v, noted: !!h[i].n });
+  }
   return out;
 };
-Records.medal = function (data, key) { return data && data.medals ? data.medals[key] || null : null; };
+Records.medal = function (data, key) {
+  var m = data && data.medals ? data.medals[key] : null;
+  return typeof m === "string" ? m : null;
+};
 /* for the two Stones that are found a piece at a time */
 Records.progress = function (data, id) {
   ensure(data);

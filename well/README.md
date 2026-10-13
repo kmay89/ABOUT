@@ -1,4 +1,4 @@
-# ⊔ The Well
+# ⊔ well
 
 **A falling-blocks game that is as absorbing as the classic and kinder than any
 version of it.** The rules are the modern ones experts know — seven pieces, a
@@ -32,12 +32,65 @@ gfx2d.js       the Canvas2D renderer, for everywhere WebGL isn't
 music.js       generative music and every sound, synthesized
 input.js       keys, touch gestures, the button tray, controllers, haptics
 learn.js       the explainer — and its tables, measured from the game as it opens
-coach.js       the lessons: Fewest Moves, Keep and Look Ahead, Clean Stacking, the Twist Slot, Silt
+coach.js       the lessons and the silt wells, with Hint and Show me for every one
 steady.js      Steady's quiet flow: the entry card, the timer, Breathe, the close
 sheets.js      the Look, Handling, Sound and Comfort sheets
 app.js         the loop, and everything that joins the rest together
 sw.js, manifest.webmanifest, icons/
 ```
+
+## Ways to play
+
+Every mode, world and skin is open from the first launch; nothing unlocks
+anything.
+
+- **Descent** — ten depths of twenty-five lines, one world each, from Dawn to
+  the Starfield, and then the Surface. Three paces, each with its own best:
+  *Gentle* (the first run) never falls faster than about two rows a second
+  and drains a full well instead of ending; *Standard* runs from a row a
+  second to about fifteen; *Swift* starts where Standard's sixth depth does.
+  After a top-out at Standard or Swift you can begin again from the depth you
+  reached, and the run card says "with 1 rest" as a plain fact.
+- **Steady** — a quiet twenty minutes (or ten, fifteen, twenty-five, or no
+  timer), slow and even, with no words on screen while you play. More on it
+  below.
+- **Drift** — endless play in chapters of 40, 100 or 150 lines, at a tide you
+  set and that never moves on its own, in any world. A chapter's end stills
+  the well and asks: Rest, or Continue on the same board.
+- **Forty** — forty lines (or twenty, or a hundred) against the clock at a
+  fixed, gentle speed, with medals from Pebble to Glass for the forty.
+- **Three Minutes** — as many points as feel good in three minutes, the speed
+  rising with the lines.
+- **Challenges** — six lessons in a suggested order (Fewest Moves, Keep and
+  Look Ahead, Clean Stacking, the Twist Slot with five wells of our own, Build
+  a Slot, Freestyle Twists) and two silt wells to dig out, each with Hint and
+  Show me from the first second.
+
+In Descent and Drift every line you clear lights a bead on the well's rim.
+With ten lit, **Breath** (the button that appears beside the score, or B)
+spends them, and gravity and the lock rest for ten seconds — one long breath
+— while everything else carries on as usual. It says what it is the first
+time it is ready, and the explainer has the details.
+
+Every run has a six-character **well code**. Type one into Modes and you get
+the same pieces its player had, in any mode, on any day. The run card has a
+quiet link that copies a one-line summary with the code in it; nothing ever
+asks you to share.
+
+Pausing never resumes by itself — not after a call, a switched tab or a
+closed sheet — and resuming holds gravity for 600 ms so the first thing after
+a pause is a decision (the races hide the board while paused and give a calm
+Ready instead). Leaving Descent, Drift or Steady saves the run quietly,
+and the splash offers Continue; while a Descent is saved, the splash's own
+door carries it on rather than starting a fresh one beside it (beginning
+again is a choice made in Modes). A sheet chosen from the pause menu goes
+back to the menu when it closes, with the focus where it was, so changing
+two settings never means finding the pause button twice, and Escape never
+resumes play from under a settings sheet. A run ends on "The well rests.",
+with Done holding the focus and no countdown to another go. After half an
+hour of play (the time is yours to change, or turn off) a small note at the
+next natural stopping point suggests resting your eyes, and then stays quiet
+for at least another half hour.
 
 ## The pieces are fused, and the look is ours
 
@@ -50,8 +103,9 @@ the two halves become two smaller bodies rather than a row of tiles.
 That one decision does most of the work of making the game look like itself.
 The rest is a list of things deliberately not done: no flat bright squares on
 black, no boxed "next" column, no grey rows at the end, no colour change when a
-piece locks. The previews drift above the mouth of the well, Keep is a niche
-cut into its wall, and the colours are six skins of our own, each checked so
+piece locks. The previews drift above the mouth of the well (down its right
+side on a wide screen), Keep is a niche cut into its rim, and the colours are
+six skins of our own, each checked so
 no piece sits near the colour the genre traditionally gives it, nothing is a
 saturated red, and every pair stays distinguishable under three kinds of colour
 blindness.
@@ -76,9 +130,11 @@ weren't yours.
 
 ## A lock you can see
 
-When a piece lands it has half a second before it locks, and every move or turn
-gives it that half second back — fifteen times, after which it locks the moment
-it rests. Dropping to a new lowest row refills all fifteen. That rule is the
+When a piece lands it has a moment before it locks — half a second in the
+races, at Standard and Swift and in the silt; three quarters at Gentle; a full
+second in Steady, Drift and the lessons — and every move or turn gives it that
+moment back, fifteen times, after which it locks the moment it rests. Dropping
+to a new lowest row refills all fifteen. That rule is the
 difference between a game that punishes hesitation and one that lets you
 finish a thought, so it is drawn rather than hidden: a thin light under the
 piece drains as the wait runs out.
@@ -121,15 +177,12 @@ capped, and a set of governors sits on top that nobody can switch off:
 
 Steady is twenty quiet minutes: slow, even gravity, nothing sudden, no score on
 screen and no words during play, a soft timer that never interrupts a piece,
-and at the end an offer of a minute's breathing and an easy way to stop. Some
-studies of intrusive memories used a game in this family as one part of a
-guided, supported procedure, playing for about twenty minutes with the landing
-guide hidden and the sound off; Steady offers those settings as ways to play,
-and nothing more.
+and at the end an offer of a minute's breathing and an easy way to stop. You
+can hide the landing light (Mind's eye) or play in silence.
 
 What it doesn't do matters more. It makes no health claim, anywhere. It never
 asks anyone to recall anything, keeps no diary, asks no questions about how you
-feel, and records nothing about why you play. The Well has never been tested in
+feel, and records nothing about why you play. *well* has never been tested in
 any study, and the explainer's page on the research says so, says what the
 studies actually did and didn't show, and lists who to talk to if things feel
 heavy. That page is the only place the game and the research meet.
@@ -165,23 +218,54 @@ Hint and Watch are there from the first second, costing nothing but a small
 
 ## Why it's honest
 
-`tools/rules-check.js` holds the engine to the published rules: the kick tables
-re-derived from their offset form, the spawn and both Twist golden boards, the
-scoring vectors, the dealer's determinism and its twelve-piece bound, the
-auto-repeat timing frame by frame, the fewest-presses table, the lock's reset
-cap, the drain keeping your top surface, and every lesson board's intended
-placement being reachable and scoring what it says.
+The well's section of `tools/rules-check.js` runs the real engine in node and
+holds it to the published rules:
+
+- the kick tables, re-derived from their offset form, and the square that
+  never moves when it turns; the spawn of all seven pieces; both Twist golden
+  boards, including the fifth-test upgrade a half turn never gets;
+- the scorer against four worked sums and the drop points, and an O into the
+  last gap paying a Double plus an Empty Well;
+- the dealer: the same seed dealing the same 100,000 pieces, one of each
+  shape in every set of seven, and the twelve-piece gap that the rule allows
+  actually happening;
+- the auto-repeat, frame by frame at 30, 60, 120 and 240 Hz, newest direction
+  winning, a slide to the wall at zero repeat, and the cut after a turn;
+- all 162 fewest-press entries re-derived by search and pressed on the real
+  engine; the lock's fifteen resets, the refill on a new lowest row, and the
+  wait counted to the millisecond;
+- the drain keeping the surface you built, Breath freezing gravity and the
+  lock, and silt arriving one hole per row from a stream of its own;
+- every Twist Slot well reachable from spawn only by a turn and scoring a
+  Twist Double;
+- nothing ever appearing or vanishing across 60 random games and 1,500 of the
+  bot's pieces; identical event streams from identical inputs, from a save
+  restored mid-run and from a clone; sixty wells of every control pressed in
+  random order without a throw or an overlap;
+- the speed curve and Three Minutes' level rule, every mode starting a game
+  that plays, the medals, the bot clearing forty lines on at least nine seeds
+  in ten, a thousand pieces of Drift without the well filling, and well codes
+  surviving the trip there and back, read aloud or typed by hand.
 
 `tools/well-check.js` checks the promises that break silently: no borrowed
-names or labels anywhere in what ships, the ® where the explainer has to name
-the original, no health claims, every skin through the palette lint, every
-world's sky too dark to flash, the help lines checked within the year, and an
-offline shell that lists everything the page loads.
+names or labels anywhere in what ships (the scripts are lexed, so only the
+explainer's strings may name the original, and only with the ®), the credits
+and footer wording, no health claims, every skin through the palette lint
+(its colour maths first reproducing the published figures), every world's sky
+too dark to flash, the help lines checked within the year, and an offline
+shell that loads all nineteen scripts in order and caches every one of them.
 
-`tools/open-check.js` opens the room in a real browser twice — WebGL2 and the
-2D fallback — plays it, opens every sheet, fails on any console error or a
-board that isn't actually drawn, and samples the screen's brightness while the
-demo clears Quads to make sure nothing on it flashes.
+`tools/open-check.js` opens the room in a real browser twice — the WebGL2
+well (through `?gl=soft`, a test hook that lets the 3D renderer accept the
+software GL a GPU-less machine has, which it refuses on purpose everywhere
+else) and the 2D one (`?gfx=2d`). Each time it enters the well, taps the
+board, opens every sheet the pause menu reaches (and checks that closing
+each one brings the menu back), and fails on a console error, on the other
+canvas showing, or on a board that isn't actually drawn.
+It also watches the splash's demo for ten seconds, sampling the brightness of
+the whole canvas, the well and every patch of about 150 px, and fails on more
+than two opposing swings in any second — or if the page drew too slowly to
+tell.
 
 ## Run it locally
 
@@ -197,6 +281,6 @@ node tools/room-parity.js
 node tools/open-check.js well     # opens it in a real browser and plays it
 ```
 
-*The Well is an independent falling-blocks game. Not affiliated with or
+*well is an independent falling-blocks game. Not affiliated with or
 endorsed by The Tetris Company. Tetris® is a registered trademark of Tetris
 Holding, LLC.*

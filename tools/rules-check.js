@@ -1609,6 +1609,178 @@ console.log("\n──  the well");
        g.lines + " lines, " + g.stats.drains + " drains");
   }
 
+  /* the review's fixes, kept fixed */
+  {
+    /* the run card's clear strip counts each clear once, under its own kind */
+    const twistBoard = (rows) => {
+      const g = make({ board: rows.map((r) => r.replace(/X/g, "G")), queue: "T", queueThen: "end", gravity: 0 });
+      g.active.x = 5; g.active.y = 3;
+      Well.act(g, "left"); Well.act(g, "cw"); Well.act(g, "hard");
+      return { g: g, ev: did(g) };
+    };
+    const b = twistBoard(["XXXX......", "XXX.......", "XXX.XXXXXX", "XXX..XXXXX", "XXX..XXXXX"]);
+    const st = b.g.stats;
+    ok("a Twist Double is counted once, as a Twist Double — not also as a Double",
+       st.twDouble === 1 && st.doubles === 0 && st.singles === 0 && st.twists === 1,
+       JSON.stringify({ twDouble: st.twDouble, doubles: st.doubles, twists: st.twists }));
+    const z = twistBoard(["XXXX......", "XXX.......", "XXX.XXXXX.", "XXX..XXXX.", "XXX..XXXX."]);
+    const zt = z.g.stats, zl = z.ev.find((e) => e.t === "lock");
+    ok("…and a Twist that clears nothing is a twist, not a clear", zl && zl.twist === "full" && z.g.lines === 0 &&
+       zt.twists === 1 && zt.twMini + zt.twSingle + zt.twDouble + zt.twTriple + zt.singles + zt.doubles === 0,
+       JSON.stringify(zt));
+
+    /* rising silt never carries a piece through the stack */
+    const sg = make({ board: ["XXXXXXXXX.", "X........X", "X........X", "X........X", "XXXXXXXXX."].map((r) => r.replace(/X/g, "G")),
+                      queue: "I", queueThen: "end", gravity: 0 });
+    sg.active.x = 2; sg.active.y = 5; sg.active.rot = 0;
+    const restsOn = !Well.fits(sg, sg.active.type, 0, 2, 4);
+    Well.addSilt(sg, 2, 9);
+    ok("silt rising under a piece resting on a shelf lifts it with the shelf, never into the hollow below",
+       restsOn && sg.active.y === 7 && Well.landingY(sg) === 7 && !sg.over, "y " + sg.active.y + ", lands at " + Well.landingY(sg));
+    const hg = make({ queue: "I", queueThen: "end", gravity: 0 });
+    const y0 = hg.active.y;
+    Well.addSilt(hg, 3);
+    ok("…and a piece high in the air keeps its height while the silt rises beneath it", hg.active.y === y0 && !hg.over,
+       "from " + y0 + " to " + hg.active.y);
+
+    /* ARR 0: a held slide keeps reaching for the wall */
+    const ag = make({ queue: "II", queueThen: "end", gravity: 0 });
+    const az = Well.Das.create({ das: 167, arr: 0, dcd: 0 });
+    const aact = (a, t, rep) => Well.act(ag, a, { repeat: rep });
+    az.press(1, 0, aact);
+    let at = 0;
+    for (; at < 400; at += 1000 / 240) az.tick(at, aact);
+    Well.act(ag, "cw");
+    const keys = ag.stats.keys, cols0 = Well.view(ag, {}).active.cells.map((c) => c[0]);
+    az.tick(at, aact);
+    const cols1 = Well.view(ag, {}).active.cells.map((c) => c[0]);
+    ok("ARR 0: a turn at the wall that opens room is filled on the next tick, with no key counted",
+       cols0.some((x) => x < 9) && cols1.every((x) => x === 9) && ag.stats.keys === keys,
+       "columns " + cols0.join(",") + " then " + cols1.join(",") + ", keys " + keys + " → " + ag.stats.keys);
+    const dg = make({ queue: "II", queueThen: "end", gravity: 0 });
+    const dz = Well.Das.create({ das: 167, arr: 0, dcd: 50 });
+    const dact = (a, t, rep) => Well.act(dg, a, { repeat: rep });
+    dz.press(1, 0, dact);
+    let dt = 0;
+    for (; dt < 400; dt += 1000 / 240) dz.tick(dt, dact);
+    Well.act(dg, "cw"); dz.cut(dt);
+    dz.tick(dt + 20, dact);
+    const inCut = Well.view(dg, {}).active.cells.every((c) => c[0] === 9);
+    dz.tick(dt + 60, dact);
+    const afterCut = Well.view(dg, {}).active.cells.every((c) => c[0] === 9);
+    ok("…and with DCD the slide waits out the pause after the turn, then goes on", !inCut && afterCut);
+
+    /* restKey sorts four cells without an array; it must name a place exactly as sorting did */
+    const rnd = seeded(4949);
+    let keyed = 0, wrong = 0;
+    for (let n = 0; n < 60; n++) {
+      const board = new Uint8Array(400);
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 10; x++) if (rnd() < 0.45 - y * 0.05) board[y * 10 + x] = 8;
+      for (let t = 1; t <= 7; t++) {
+        for (const pl of Well.reach(board, t, n % 2 === 0)) {
+          const ix = pl.cells.map((c) => c[1] * 10 + c[0]).sort((u, v) => u - v);
+          if (pl.key !== ((ix[0] * 400 + ix[1]) * 400 + ix[2]) * 400 + ix[3]) wrong++;
+          keyed++;
+        }
+      }
+    }
+    ok("a resting place's key is its four cells in order, for " + keyed + " places on 60 boards", keyed > 1000 && wrong === 0,
+       wrong + " wrong");
+
+    /* a save the engine couldn't run is refused at restore, where the app can put it away */
+    const rg = make({ seed: 5 });
+    for (let i = 0; i < 30; i++) { Well.act(rg, i % 2 ? "left" : "hard"); Well.step(rg, 50); }
+    const good = JSON.parse(JSON.stringify(Well.serialize(rg)));
+    const refused = (f) => { const sv = JSON.parse(JSON.stringify(good)); f(sv); try { Well.restore(sv); return false; } catch (e) { return true; } };
+    let fine = true;
+    try { Well.restore(JSON.parse(JSON.stringify(good))); } catch (e) { fine = false; }
+    ok("a save with no dealer, no queue, no stats, a short board or the wrong version is refused",
+       fine && refused((sv) => { delete sv.rng; }) && refused((sv) => { delete sv.queue; delete sv.qbag; }) &&
+       refused((sv) => { delete sv.stats; }) && refused((sv) => { sv.board = "1"; }) && refused((sv) => { sv.v = 0; }) &&
+       refused((sv) => { delete sv.fixed; }) && refused((sv) => { sv.score = "x"; }) && refused(() => {}) === false);
+    const older = JSON.parse(JSON.stringify(good));
+    delete older.stats.twMini;
+    ok("…and one written before a counter existed gets that counter at zero", Well.restore(older).stats.twMini === 0);
+  }
+
+  /* records: one bad entry, and two tabs */
+  {
+    const Records = load("well", "records.js");
+    const d = Records.ensure({ hist: { three: {} }, best: { three: "abc" }, medals: { three: { x: 1 } } });
+    const g = make({ seed: 3 });
+    g.score = 40000;
+    let threw = null, res = null;
+    try { res = Records.finishRun(d, { modeId: "three", opts: {}, g: g, elapsedMs: 180000, rests: 0, why: "time" }); } catch (e) { threw = e; }
+    const bst = Records.best(d, "three");
+    ok("a hand-edited record entry is replaced on the next run rather than failing every run",
+       !threw && res && Array.isArray(d.hist.three) && d.hist.three.length === 1 && bst && bst.value === 40000,
+       threw ? threw.message : JSON.stringify(d.hist.three));
+    ok("…and a medal or best of the wrong shape reads as none",
+       Records.medal({ medals: { three: { x: 1 } } }, "three") === null && Records.best({ best: { three: "abc" } }, "three") === null &&
+       Records.history({ hist: { three: [null, { v: 5 }, { v: "x" }] } }, "three").length === 1);
+
+    const life = (o) => Object.assign({}, o.life);
+    const base = Records.blank();
+    const A = JSON.parse(JSON.stringify(base));
+    A.life.pieces = 13; A.life.sessions = 1; A.best.three = { value: 284, medal: null }; A.stones.three = 1;
+    A.hist.three = [{ v: 284, n: 0 }];
+    const idle = Records.ensure(JSON.parse(JSON.stringify(base)));
+    Records.merge(idle, JSON.parse(JSON.stringify(A)), life(base));
+    ok("an idle tab writing its records back keeps another tab's best, Stones, history and totals",
+       idle.best.three && idle.best.three.value === 284 && idle.stones.three && idle.life.pieces === 13 &&
+       idle.life.sessions === 1 && idle.hist.three.length === 1);
+    const C = Records.ensure(JSON.parse(JSON.stringify(base)));
+    C.life.pieces = 5; C.life.sessions = 1; C.best["forty.40"] = { value: 60000, medal: "Jade" };
+    const disk = JSON.parse(JSON.stringify(A));
+    disk.best["forty.40"] = { value: 50000, medal: "Jade" }; disk.medals["forty.40"] = "Pearl";
+    Records.merge(C, disk, life(base));
+    ok("…two tabs' runs both count, a time keeps the lower and a score the higher, a medal the better",
+       C.life.pieces === 18 && C.life.sessions === 2 && C.best["forty.40"].value === 50000 && C.best.three.value === 284 &&
+       C.medals["forty.40"] === "Pearl", JSON.stringify({ life: C.life, best: C.best }));
+  }
+
+  /* the lesson counts presses as the engine does: a second drag is a second press */
+  {
+    const Coach = load("well", "coach.js");
+    const game = (seed) => {
+      const c = Coach.create({ onSay: () => {}, onTarget: () => {}, onPass: () => {}, nextDelay: 0, random: () => 0.37 });
+      const eo = Modes.options("challenges", { id: "finesse" }, { keep: true, previews: 5 });
+      eo.seed = seed;
+      const g = Well.create(eo);
+      c.start(Modes.lesson("finesse"), g);
+      for (const e of Well.drain(g)) c.event(e, g);
+      return { c: c, g: g, locks: [] };
+    };
+    const act = (Lg, a, meta) => {
+      const v = Lg.c.action(a, meta, Lg.g);
+      if (v === "rewind") Well.rewind(Lg.g); else Well.act(Lg.g, a, meta);
+      for (const e of Well.drain(Lg.g)) { if (e.t === "lock") Lg.locks.push(e); Lg.c.event(e, Lg.g); }
+      return v;
+    };
+    const drags = (Lg, list) => {
+      for (const n of list) for (let i = 0; i < n; i++) act(Lg, "left", { source: "touch", repeat: i > 0 });
+      return act(Lg, "hard", { source: "touch", repeat: false });
+    };
+    let tried = 0, agree = 0, oneOK = 0;
+    for (let seed = 1; seed < 3000 && tried < 12; seed++) {
+      const probe = game(seed), tgt = probe.c.target();
+      if (!tgt) continue;
+      const a = probe.g.active, want = JSON.stringify(tgt.map((c) => c.join(",")).sort());
+      const pl = Well.reach(probe.g.board, a.type, false).find((p) => JSON.stringify(p.cells.map((c) => c.join(",")).sort()) === want);
+      if (!pl || pl.path.join(" ") !== "DL" || a.x - pl.x < 2) continue;
+      tried++;
+      const cols = a.x - pl.x;
+      const one = game(seed);
+      drags(one, [cols]);
+      if (one.c.progress().done === 1) oneOK++;
+      const two = game(seed);
+      drags(two, [cols - 1, 1]);
+      if (two.c.progress().done === 0) agree++;
+    }
+    ok("Fewest Moves: one drag is one press, and two separate drags are two, as the engine counts them",
+       tried >= 10 && oneOK === tried && agree === tried, tried + " pieces: one drag perfect " + oneOK + ", two drags not " + agree);
+  }
+
   /* well codes */
   {
     const rnd = seeded(2026);
@@ -1621,7 +1793,7 @@ console.log("\n──  the well");
     ok("well codes: 2,000 seeds there and back", round && Modes.code.encode(0) === "000000" && Modes.code.encode(1073741823) === "ZZZZZZ");
     const k = Modes.code.decode("K7Q2MX");
     ok("…and a code survives being read out, pasted, or written by hand",
-       Modes.code.decode("k7q-2mx") === k && Modes.code.decode("The Well · Forty · 58.31 s · Jade · well code K7Q2MX") === k &&
+       Modes.code.decode("k7q-2mx") === k && Modes.code.decode("well · Forty · 58.31 s · Jade · well code K7Q2MX") === k &&
        Modes.code.decode("1L0O00") === Modes.code.decode("110000") && Modes.code.decode("K7Q2MU") === null && Modes.code.decode("K7Q2M") === null);
   }
 })();

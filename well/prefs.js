@@ -1,6 +1,6 @@
 /* prefs.js — the player's settings, and the only door to localStorage.
 
-   Everything The Well remembers lives under one localStorage key, "well",
+   Everything well remembers lives under one localStorage key, "well",
    as one small JSON object:
 
      { v: 1, prefs: {...}, records: {...}, save: {...} }
@@ -76,7 +76,15 @@
 var KEY = "well";
 var VERSION = 1;
 
-/* ---------- the defaults (SPEC §6: exactly these) ---------- */
+/* A Mac's own Control-arrow shortcuts (Spaces, Mission Control) are taken
+   by the system before the page ever sees them, so Control as a turn key
+   there turns a quick turn-then-move into a desktop switch and a paused
+   run. On a Mac the counter-clockwise default is Z alone; an iPad, which
+   also says "Mac", has touch points and keeps both. */
+var MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || "") &&
+          (navigator.maxTouchPoints || 0) < 2;
+
+/* ---------- the defaults (SPEC §6: exactly these, but Z alone on a Mac) ---------- */
 var DEFAULTS = {
   skin: "seaglass", palette: "skin", glyphs: "off", graphics: "auto", motion: "system",
   juice: "medium", nudge: 1, labels: true, grid: "faint", landing: true, lockLight: true,
@@ -86,7 +94,7 @@ var DEFAULTS = {
   haptics: true,
   keys: {
     left: ["ArrowLeft"], right: ["ArrowRight"], soft: ["ArrowDown"], hard: ["Space"],
-    cw: ["ArrowUp", "KeyX"], ccw: ["KeyZ", "ControlLeft", "ControlRight"], flip: ["KeyA"],
+    cw: ["ArrowUp", "KeyX"], ccw: MAC ? ["KeyZ"] : ["KeyZ", "ControlLeft", "ControlRight"], flip: ["KeyA"],
     hold: ["KeyC", "ShiftLeft", "ShiftRight"], breath: ["KeyB"], glass: ["KeyG"],
     pause: ["Escape", "KeyP"]
   },
@@ -97,7 +105,7 @@ var DEFAULTS = {
   steadyLength: 20, steadyPace: "slow", steadyLanding: true, steadySound: "soft",
   steadyWorld: "snowfall",
   seen: { intro: false, touchCards: false, steadyTip: false, silentChip: false,
-          landscape: false, homeScreen: false }
+          landscape: false, homeScreen: false, breath: false }
 };
 
 /* The defaults are frozen all the way down. A caller that pushes onto

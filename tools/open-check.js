@@ -42,6 +42,8 @@ const zlib = require("zlib");
 const ROOT = path.join(__dirname, "..");
 /* OPEN_CHECK_PORT moves it, for a machine where 8391 is somebody else's */
 const PORT = +process.env.OPEN_CHECK_PORT || 8391;
+/* which of the 3D well's tiers to watch for flashes (see the well's entry) */
+const WELL_TIER = /^(full|balanced|simple)$/.test(process.env.WELL_TIER || "") ? process.env.WELL_TIER : "simple";
 
 let pw = null;
 for (const name of ["playwright-core", "playwright",
@@ -133,13 +135,24 @@ const ROOMS = [
      The WebGL one is opened with ?gl=soft, the room's test hook: the 3D
      renderer refuses a software GL on purpose (a phone without a real GPU
      should get the 2D well, not a slideshow), and SwiftShader is exactly
-     that, so without the hook this entry would quietly test the 2D well. */
-  { game: "well", label: "well, in WebGL2 (?gl=soft)", query: "?gl=soft", start: "#goPlay", canvas: "#cv3", other: "#cv2",
+     that, so without the hook this entry would quietly test the 2D well.
+
+     And it is watched at the 3D renderer's Simple tier, set the way a
+     player sets it (the Graphics setting, stored before the page loads),
+     not through any test hook. A machine with no GPU draws the Full tier at
+     under five frames a second, and a flash check that can only see five
+     frames a second cannot see a three-a-second flash — it would be a
+     verdict from a check that could not look. Every tier's effects pass
+     through the same flash governor in gfx3d.js, so the Simple tier is the
+     one this machine can honestly watch. On a machine with a real GPU,
+     WELL_TIER=full node tools/open-check.js well watches the Full tier. */
+  { game: "well", label: "well, in WebGL2 (?gl=soft, " + WELL_TIER + " tier)", query: "?gl=soft", start: "#goPlay", canvas: "#cv3", other: "#cv2",
+    store: { well: JSON.stringify({ v: 1, prefs: { graphics: WELL_TIER } }) },
     gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
-    menu: WELL_MENU, wait: 1500 },
+    menu: WELL_MENU, menuReturns: "#ovMenu", wait: 1500 },
   { game: "well", label: "well, in 2D (?gfx=2d)", query: "?gfx=2d", start: "#goPlay", canvas: "#cv2", other: "#cv3",
     gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
-    menu: WELL_MENU, wait: 1500 }
+    menu: WELL_MENU, menuReturns: "#ovMenu", wait: 1500 }
 ];
 /* node tools/open-check.js well checks just the rooms named */
 const ONLY = process.argv.slice(2);
@@ -220,6 +233,10 @@ const server = http.createServer((req, res) => {
     /* So the flash check can read a WebGL canvas between frames rather than
        racing the compositor for it. Nothing a player sees changes. */
     if (room.flash) await ctx.addInitScript(keepDrawingBuffer);
+    /* settings a player could have chosen, in place before the page reads them */
+    if (room.store) await ctx.addInitScript((kv) => {
+      try { for (const k in kv) localStorage.setItem(k, kv[k]); } catch (e) {}
+    }, room.store);
     const page = await ctx.newPage();
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -260,11 +277,13 @@ const server = http.createServer((req, res) => {
         await page.waitForTimeout(700);
       }
 
-      for (const [fx, fy] of room.taps) {
+      /* (a board with no box has already failed above; tapping it would
+         only throw, and bury that failure under a TypeError) */
+      for (const [fx, fy] of box ? room.taps : []) {
         await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
         await page.waitForTimeout(500);
       }
-      if (room.taps.length) ok("it takes taps on the board", true);
+      if (room.taps.length) ok("it takes taps on the board", !!box, box ? "" : "there was no board to tap");
 
       /* a room whose interface is text rather than pixels: the check is that
          the text is actually there, which is the same question the drawing
@@ -303,17 +322,28 @@ const server = http.createServer((req, res) => {
          did not model it would just click into thin air and pass. */
       let sheetsOk = true, why = "";
       for (const sel of room.menu) {
-        await page.click("#btnMenu");
-        await page.waitForTimeout(220);
+        /* A room whose menu comes back when a sheet chosen from it closes
+           (the well does: changing two settings shouldn't mean finding the
+           pause button twice) is already showing it; every other room needs
+           the button pressed again. Which one this room does is a claim the
+           check holds it to, below. */
+        if (!(room.menuReturns && await page.locator(room.menuReturns + ":not(.hide)").count())) {
+          await page.click("#btnMenu");
+          await page.waitForTimeout(220);
+        }
         const el = page.locator(sel);
         if (await el.count() === 0) { sheetsOk = false; why = "no " + sel; break; }
         await el.click();
         await page.waitForTimeout(300);
-        const open = page.locator(".ov:not(.hide)").first();
+        /* the well stacks a sheet by moving it to the end of the page */
+        const open = room.menuReturns ? page.locator(".ov:not(.hide)").last() : page.locator(".ov:not(.hide)").first();
         if (!(await open.count())) { sheetsOk = false; why = sel + " opened nothing"; break; }
         const close = open.locator("[data-close]").first();
         if (await close.count()) await close.click();
         await page.waitForTimeout(180);
+        if (room.menuReturns && !(await page.locator(room.menuReturns + ":not(.hide)").count())) {
+          sheetsOk = false; why = "closing what " + sel + " opened didn't bring the menu back"; break;
+        }
       }
       /* and leave nothing covering the board */
       await clearSheets(page);

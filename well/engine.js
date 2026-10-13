@@ -610,15 +610,16 @@ function lockPiece(g) {
   g.score = sst.score; g.lines = sst.lines; g.ripple = sst.ripple; g.unbroken = sst.unbroken;
   twist = scoreParts.twist;
 
-  if (twist !== "none") {
-    st.twists++;
-    if (twist === "mini") st.twMini++;
-    else if (lines === 1) st.twSingle++;
-    else if (lines === 2) st.twDouble++;
-    else if (lines === 3) st.twTriple++;
-  }
+  /* each clear is counted once, under its own kind: a Twist Double is not
+     also a Double, and a Twist that clears nothing is not a clear at all
+     (it is still one of the run's twists) */
+  if (twist !== "none") st.twists++;
   if (lines) {
-    if (lines === 1) st.singles++; else if (lines === 2) st.doubles++;
+    if (twist === "mini") st.twMini++;
+    else if (twist === "full") {
+      if (lines === 1) st.twSingle++; else if (lines === 2) st.twDouble++; else st.twTriple++;
+    }
+    else if (lines === 1) st.singles++; else if (lines === 2) st.doubles++;
     else if (lines === 3) st.triples++; else st.quads++;
     if (empty) st.empties++;
     if (g.ripple > st.maxRipple) st.maxRipple = g.ripple;
@@ -713,17 +714,23 @@ function pushSilt(g, rows, holeCol, announce) {
     for (x = 0; x < W; x++) { board[y * W + x] = x === hole ? 0 : SILT; pidA[y * W + x] = 0; }
     prev = hole;
   }
-  /* the piece in the air rides up with the well rather than being buried */
+  /* The piece in the air is never buried and never passes through the
+     stack: the rise is a floor coming up under it. It keeps its height
+     while the stack has room to rise beneath it and is carried once the
+     stack reaches it. Taking the smallest lift that merely fits would sink
+     a piece resting on a shelf through the shelf into a hollow below. */
   var a = g.active;
   if (a) {
-    var lift = 0;
-    while (!fitsA(g, 0, lift) && lift < rows) lift++;
+    var lift = rows;
+    while (lift > 0 && fitsA(g, 0, lift - 1)) lift--;
     a.y += lift;
     g.p.lowestY += lift;
   }
   findTop(g);
   if (announce) emit(g, { t: "silt", rows: rows });
   if (a && !fitsA(g, 0, 0)) { g.active = null; end(g, "silt"); return false; }
+  /* a piece the rise has just carried is now resting on it */
+  if (a) landCheck(g);
   return true;
 }
 Well.addSilt = function (g, rows, holeCol) {
@@ -1044,7 +1051,31 @@ Well.serialize = function (g) {
   for (i = 0; i < DEEP_KEYS.length; i++) s[DEEP_KEYS[i]] = copyPlain(g[DEEP_KEYS[i]]);
   return s;
 };
+/* A save outlives the code that wrote it, and one with the wrong shape
+   does not fail here: it restores, then stops the piece stream at the
+   next spawn or drop and is written straight back by the next pause. So
+   the shape is checked first, and a save that cannot run throws — the app
+   puts it away and says so. A future change to the format bumps v; a new
+   key gets a default below, as pend, p and grace already do. */
+function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+function isNum(v) { return typeof v === "number" && isFinite(v); }
+function saveFault(s) {
+  if (!isObj(s) || s.v !== 1) return "not a version 1 save";
+  if (!isObj(s.opts)) return "no options";
+  if (typeof s.board !== "string" || s.board.length !== N) return "no board";
+  if (!Array.isArray(s.pid) || s.pid.length !== N) return "no bodies";
+  if (!Array.isArray(s.queue) || !Array.isArray(s.qbag) || s.qbag.length !== s.queue.length) return "no queue";
+  if (!Array.isArray(s.fixed)) return "no fixed queue";
+  if (!isObj(s.rng) || !Array.isArray(s.rng.bag) || !isNum(s.rng.v)) return "no dealer";
+  if (!isObj(s.siltRng) || !isNum(s.siltRng.s)) return "no silt dealer";
+  if (!isObj(s.stats) || !isObj(s.breath)) return "no stats";
+  if (s.active !== null && s.active !== undefined && !isObj(s.active)) return "a broken piece";
+  if (!isNum(s.level) || !isNum(s.lines) || !isNum(s.score) || !isNum(s.time)) return "broken numbers";
+  return null;
+}
 Well.restore = function (s) {
+  var bad = saveFault(s);
+  if (bad) throw new Error("Well.restore: " + bad);
   var o = copyPlain(s.opts);
   o = resolve(o);
   var g = { opts: o, board: new Uint8Array(N), pid: new Uint16Array(N), events: [], ev2: [] };
@@ -1058,6 +1089,10 @@ Well.restore = function (s) {
   if (!g.pend) g.pend = { rot: 0, hold: false };
   if (!g.p) g.p = blankPiece();
   if (g.grace === undefined) g.grace = 0;
+  if (g.active === undefined) g.active = null;
+  /* a counter added since the save was written starts at nothing */
+  var bs = blankStats();
+  for (var k in bs) if (!isNum(g.stats[k])) g.stats[k] = bs[k];
   findTop(g);
   return g;
 };
@@ -1154,12 +1189,20 @@ function pathTo(s) {
   out.reverse();
   return out;
 }
-/* the four cells of a resting place as one number, for comparing places */
+/* the four cells of a resting place as one number, for comparing places.
+   It runs for every state the search reaches, on every lock, so it sorts
+   its four cells with a five-step network in plain locals: an array and a
+   sort here cost about 17 KB of garbage per lock. */
 function restKey(type, r, x, y) {
-  var o = (type * 4 + r) * 8, a = [0, 0, 0, 0];
-  for (var k = 0; k < 4; k++) a[k] = (y + SH[o + k * 2 + 1]) * W + x + SH[o + k * 2];
-  a.sort(function (p, q) { return p - q; });
-  return ((a[0] * 400 + a[1]) * 400 + a[2]) * 400 + a[3];
+  var o = (type * 4 + r) * 8, t;
+  var a = (y + SH[o + 1]) * W + x + SH[o], b = (y + SH[o + 3]) * W + x + SH[o + 2];
+  var c = (y + SH[o + 5]) * W + x + SH[o + 4], d = (y + SH[o + 7]) * W + x + SH[o + 6];
+  if (a > b) { t = a; a = b; b = t; }
+  if (c > d) { t = c; c = d; d = t; }
+  if (a > c) { t = a; a = c; c = t; }
+  if (b > d) { t = b; b = d; d = t; }
+  if (b > c) { t = b; b = c; c = t; }
+  return ((a * 400 + b) * 400 + c) * 400 + d;
 }
 
 /* fewest presses to rest exactly here, or -1 if no hard drop can */
@@ -1246,11 +1289,13 @@ Well.routes = function (board, type, x, y, rot, modern) {
    deadline counts as met within half a millisecond; without that, the
    ten-frame delay everybody tunes by would land on the eleventh frame.
 
-   With ARR 0 there are no repeats: once the charge completes the machine
-   emits a single slide to the wall ("dasLeft"/"dasRight"), and renew()
-   asks for that slide again — the input layer calls it when a new piece
-   appears, so a held slide carries into the next piece as it does at any
-   other ARR.
+   With ARR 0 there are no single steps: once the charge completes the
+   machine emits a slide to the wall ("dasLeft"/"dasRight"), and goes on
+   emitting it on every tick while the direction is held, so a turn or a
+   row of fall that opens room is filled at once, as it is at any other
+   ARR. renew() asks for the slide straight away when a new piece appears
+   (the input layer calls it), so a held slide carries into that piece
+   without waiting for the next tick.
 
    emit(action, tMs, repeat) — repeat is false for the press itself and
    true for everything the machine generates. Nothing here allocates. */
@@ -1312,8 +1357,13 @@ function dasTick(d, t, emit) {
   var due = d.start + d.das;
   if (t < due - SLACK) return;
   var name = d.arr <= 0 ? (d.dir < 0 ? "dasLeft" : "dasRight") : (d.dir < 0 ? "left" : "right");
+  /* ARR 0: the slide goes on being asked for every tick the direction is
+     held, so a turn or a row of fall that opens room carries the piece on
+     to the wall at once. After the first, each is a quiet repeat: no key,
+     no press, no bump against the wall. */
   if (d.arr <= 0) {
     if (!d.slid) { d.slid = true; emit(name, due, true); }
+    else emit(name, t, true);
     return;
   }
   var n = 0;

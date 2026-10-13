@@ -169,6 +169,21 @@ function deltaL(c, alpha, base) {
   return after - before;
 }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+/* How far a cell of the skin's colours can be tinted toward warm white
+   (laid over it, not added) before its luminance has changed by "dl":
+   the clear's warmth stays a change of colour, under the flash line, on
+   any skin — pale Sea Glass gets less, dark Ink a little more. */
+function tintFor(colors, dl, cap) {
+  var r = 0, g = 0, b = 0, n = 0;
+  for (var t = 1; t <= 7; t++) if (colors[t]) { r += colors[t][0]; g += colors[t][1]; b += colors[t][2]; n++; }
+  if (!n) return cap;
+  var c0 = [r / n, g / n, b / n], l0 = luma(c0), w;
+  for (w = 0.02; w <= cap; w += 0.02) {
+    var c1 = [c0[0] + (WARM[0] - c0[0]) * w, c0[1] + (WARM[1] - c0[1]) * w, c0[2] + (WARM[2] - c0[2]) * w];
+    if (luma(c1) - l0 > dl) return Math.max(0, w - 0.02);
+  }
+  return cap;
+}
 function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
 function easeOut(t) { t = clamp(t, 0, 1); var u = 1 - t; return 1 - u * u * u; }
 /* a spring from 0 to 1 in about "dur", with a small overshoot */
@@ -771,6 +786,8 @@ function create(canvas, opts) {
   var colors = [null, null, null, null, null, null, null, null, null];   /* rgb by type, 8 = silt */
   var paint = null;
   var atlas = null, ax = null, built = null;        /* built[type*32+mask] */
+  /* each tile's shape in warm light, made the first time a clear needs it */
+  var glowAtlas = null, gax = null, glowBuilt = null, clearTint = 0.2;
   var pieceSpr = [];                                /* [type*4+rot] = {c, minX, maxY, pad, w, h} */
   var prevSpr = [];                                 /* [slot][type] */
   var keepSpr = [];                                 /* [type] */
@@ -869,6 +886,7 @@ function create(canvas, opts) {
   var pRot = new Float32Array(PMAX), pVR = new Float32Array(PMAX), pSway = new Float32Array(PMAX), pPh = new Float32Array(PMAX);
   var pSw = new Float32Array(PMAX), pCX = new Float32Array(PMAX), pCY = new Float32Array(PMAX);
   var pKind = new Uint8Array(PMAX), pOn = new Uint8Array(PMAX), pHead = 0, pLive = 0;
+  var pA = new Float32Array(PMAX);           /* each particle's own opacity ceiling */
   var kindSpr = [];                                  /* by kind index, rebuilt per world */
 
   /* ================================================================
@@ -885,6 +903,7 @@ function create(canvas, opts) {
     atlas = canvasOf(16 * S, 15 * S);
     ax = ctxOf(atlas);
     built = new Uint8Array(9 * 32);
+    glowAtlas = null; gax = null; glowBuilt = new Uint8Array(9 * 32);
     var need = masksInUse(), n = 0;
     for (var ty = 1; ty <= 8; ty++) for (var m = 0; m < 16; m++) {
       if (!need[ty][m]) continue;
@@ -904,6 +923,24 @@ function create(canvas, opts) {
     ax.clearRect((m & 15) * S, tileY(ty, m), S, S);
     ax.drawImage(P.tile, (m & 15) * S, tileY(ty, m));
     built[ty * 32 + m] = 1;
+    if (glowBuilt) glowBuilt[ty * 32 + m] = 0;
+  }
+  /* A tile's silhouette filled with warm white, at the same place in a
+     second atlas: laid over the tile itself, it turns that tile toward
+     light without spilling past its rounded, fused edges. */
+  function glowReady(ty, m) {
+    tileReady(ty, m);
+    if (glowBuilt[ty * 32 + m]) return;
+    if (!glowAtlas) { glowAtlas = canvasOf(atlas.width, atlas.height); gax = ctxOf(glowAtlas); }
+    var sx = (m & 15) * S, sy = tileY(ty, m);
+    gax.clearRect(sx, sy, S, S);
+    gax.globalCompositeOperation = "source-over";
+    gax.drawImage(atlas, sx, sy, S, S, sx, sy, S, S);
+    gax.globalCompositeOperation = "source-atop";
+    gax.fillStyle = css(WARM, 1);
+    gax.fillRect(sx, sy, S, S);
+    gax.globalCompositeOperation = "source-over";
+    glowBuilt[ty * 32 + m] = 1;
   }
   function tileReady(ty, m) {
     if (!built[ty * 32 + m]) { painterFor(S); bakeTile(ty, m); }
@@ -1124,11 +1161,12 @@ function create(canvas, opts) {
       x.fillStyle = "rgba(0,0,0,0.4)";
       x.fillRect(s === 0 ? wl : wl + wallD - px1, o, px1, bodyH);
     }
-    /* the coping: a stone laid along each wall top, a touch wider than the
-       wall, its top face lit and a little shadow under its lip */
-    var cope = Math.max(1, Math.round(C * 0.07)), copeH = Math.max(3, Math.round(C * 0.22));
+    /* the coping: a stone laid along each wall top, overhanging the
+       wall's outer face (as the 3D well's does, so the silhouette has a
+       cap), its top face lit and a little shadow under its lip */
+    var cope = Math.max(1, Math.round(C * 0.07)), copeOut = Math.max(2, Math.round(C * 0.12)), copeH = Math.max(3, Math.round(C * 0.22));
     for (s = 0; s < 2; s++) {
-      var cl = sides[s] - cope, cw = wallD + cope * 2;
+      var cl = s === 0 ? sides[s] - copeOut : sides[s] - cope, cw = wallD + cope + copeOut;
       x.save();
       x.shadowColor = "rgba(0,0,0,0.45)"; x.shadowBlur = C * 0.15; x.shadowOffsetY = C * 0.06;
       x.fillStyle = css(mix(base, key, 0.2));
@@ -1139,56 +1177,101 @@ function create(canvas, opts) {
       x.fillStyle = "rgba(255,255,255,0.18)";
       x.fillRect(cl, o - Math.round(C * 0.04), cw, px1);
     }
-    /* the floor slab: a lit top face, a front face in shade */
-    var ft = faceT + faceH, fTop = Math.max(2, Math.round(floorD * 0.42));
+    /* the floor slab, standing out beyond the walls as a plinth: a lit
+       top face, a front face in shade, and under it a soft contact
+       shadow, so the well stands on something */
+    var ft = faceT + faceH, fTop = Math.max(2, Math.round(floorD * 0.42)), pl = Math.max(2, Math.round(C * 0.15));
+    x.save();
+    x.shadowColor = "rgba(0,0,0,0.55)"; x.shadowBlur = C * 0.5; x.shadowOffsetY = C * 0.22;
+    x.fillStyle = css(darken(base, 0.6));
+    x.fillRect(o - pl, ft + floorD - C * 0.15, bodyW + 2 * pl, C * 0.15);
+    x.restore();
     x.fillStyle = css(mix(lighten(base, 0.06), key, 0.2));
-    x.fillRect(o - cope, ft, bodyW + 2 * cope, fTop);
+    x.fillRect(o - pl, ft, bodyW + 2 * pl, fTop);
     x.fillStyle = "rgba(255,255,255,0.12)";
-    x.fillRect(o - cope, ft + fTop - px1, bodyW + 2 * cope, px1);
+    x.fillRect(o - pl, ft + fTop - px1, bodyW + 2 * pl, px1);
     g = x.createLinearGradient(0, ft + fTop, 0, ft + floorD);
     g.addColorStop(0, css(darken(base, 0.2))); g.addColorStop(1, css(darken(base, 0.58)));
     x.fillStyle = g;
-    x.fillRect(o - cope, ft + fTop, bodyW + 2 * cope, floorD - fTop);
+    x.fillRect(o - pl, ft + fTop, bodyW + 2 * pl, floorD - fTop);
     x.fillStyle = css(rim, 0.25);
     x.fillRect(faceL, ft, faceW, px1);
     return { c: c, id: wd.id };
   }
 
-  /* the Keep niche: an alcove cut into a block of the same stone */
+  /* the Keep niche: an alcove cut into a block of the same stone. Beside
+     a wide well the block reaches across to the wall, as the 3D well's
+     does, its corners square where it meets the wall, the coping carried
+     across its top and a chamfered corbel under it on the wall, so the
+     niche is part of the frame rather than a box fixed to it; the alcove
+     stays where the layout put the niche, with an arched top. */
+  function nicheArch(rw, rh) { return { t: Math.min(rw, rh) * 0.45, b: Math.min(rw, rh) * 0.08 }; }
   function buildNiche(wd) {
     if (!L || !L.keep || !wd) return null;
-    var k = L.keep, w = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.5);
+    var k = L.keep, w0 = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.8);
+    var reach = L.shape === "wide" && L.well ? Math.max(0, (L.well.x - (L.wall || 0)) - (k.x + k.w)) * dpr : 0;
+    var beside = L.shape === "wide";
+    var w = w0 + reach;
     var c = canvasOf(w + 2 * o, h + 2 * o), x = ctxOf(c);
-    var base = hexRgb(wd.wall), key = hexRgb(wd.key), hor = hexRgb(wd.sky.horizon);
-    var r = Math.min(w, h) * 0.2;
+    var base = hexRgb(wd.wall), key = hexRgb(wd.key), hor = hexRgb(wd.sky.horizon), rim = hexRgb(wd.rim);
+    var r = Math.min(w, h) * 0.2, rs = beside ? 0 : r;
+    var cw = Math.round(C * 0.45), ch = Math.round(C * 0.45);
     x.save();
     x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = C * 0.6; x.shadowOffsetY = C * 0.1;
     var g = x.createLinearGradient(0, o, 0, o + h);
     g.addColorStop(0, css(mix(base, key, 0.14))); g.addColorStop(1, css(darken(base, 0.4)));
     x.fillStyle = g;
-    x.beginPath(); roundRect(x, o, o, w, h, r, r, r, r); x.fill();
+    x.beginPath(); roundRect(x, o, o, w, h, r, rs, rs, r); x.fill();
+    if (beside) {
+      /* the corbel, a chamfered stone carrying the block on the wall */
+      x.beginPath();
+      x.moveTo(o + w - cw, o + h - 1); x.lineTo(o + w, o + h - 1); x.lineTo(o + w, o + h + ch);
+      x.lineTo(o + w - cw, o + h + ch * 0.22); x.closePath();
+      x.fillStyle = css(darken(base, 0.42)); x.fill();
+    }
     x.restore();
+    if (beside) {
+      x.strokeStyle = css(mix(rim, key, 0.4), 0.35); x.lineWidth = Math.max(1, dpr);
+      x.beginPath(); x.moveTo(o + w - cw, o + h + ch * 0.22); x.lineTo(o + w, o + h + ch); x.stroke();
+    }
     x.save();
-    x.beginPath(); roundRect(x, o, o, w, h, r, r, r, r); x.clip();
+    x.beginPath(); roundRect(x, o, o, w, h, r, rs, rs, r); x.clip();
     dressStone(x, o, o, w, h, C, wd, base, 1.4, 77);
     x.fillStyle = css(mix(lighten(base, 0.25), key, 0.3));
     x.fillRect(o, o, w, Math.max(1, Math.round(C * 0.1)));
     x.restore();
+    if (beside) {
+      /* the coping, carried across its top to meet the frame's */
+      var copeOut = Math.max(2, Math.round(C * 0.12)), copeH = Math.max(3, Math.round(C * 0.22)), cy = o - Math.round(C * 0.04);
+      x.save();
+      x.shadowColor = "rgba(0,0,0,0.45)"; x.shadowBlur = C * 0.15; x.shadowOffsetY = C * 0.06;
+      x.fillStyle = css(mix(base, key, 0.2));
+      x.fillRect(o - copeOut, cy, w + copeOut, copeH);
+      x.restore();
+      x.fillStyle = css(mix(lighten(base, 0.3), key, 0.35));
+      x.fillRect(o - copeOut, cy, w + copeOut, Math.max(1, Math.round(copeH * 0.42)));
+      x.fillStyle = "rgba(255,255,255,0.18)";
+      x.fillRect(o - copeOut, cy, w + copeOut, Math.max(1, Math.round(dpr)));
+    }
     /* the recess */
-    var inset = Math.max(2, Math.round(Math.min(w, h) * 0.12)), rw = w - 2 * inset, rh = h - 2 * inset, rr = r * 0.7;
-    var back = mix(darken(base, 0.76), hor, 0.2);
+    var inset = Math.max(2, Math.round(Math.min(w0, h) * 0.12)), rw = w0 - 2 * inset, rh = h - 2 * inset;
+    var ar = nicheArch(rw, rh), rr = ar.t, rb = ar.b;
+    /* the alcove is stone in its own shade, not a hole: what is kept in
+       it, and the light that pools there when Keep is free, read against
+       it the way they would in a niche in a wall */
+    var back = mix(darken(base, 0.58), hor, 0.3);
     x.fillStyle = css(back);
-    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.fill();
+    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rb, rb); x.fill();
     x.save();
-    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.clip();
-    x.shadowColor = "rgba(0,0,0,0.75)"; x.shadowBlur = C * 0.35; x.shadowOffsetY = C * 0.12; x.shadowOffsetX = C * 0.04;
+    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rb, rb); x.clip();
+    x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = C * 0.35; x.shadowOffsetY = C * 0.12; x.shadowOffsetX = C * 0.04;
     x.lineWidth = C * 0.4;
     x.strokeStyle = "#000";
-    x.beginPath(); roundRect(x, o + inset - C * 0.2, o + inset - C * 0.2, rw + C * 0.4, rh + C * 0.4, rr, rr, rr, rr); x.stroke();
+    x.beginPath(); roundRect(x, o + inset - C * 0.2, o + inset - C * 0.2, rw + C * 0.4, rh + C * 0.4, rr, rr, rb, rb); x.stroke();
     x.restore();
-    /* the shelf the piece rests on */
+    /* the sill the piece rests on */
     x.fillStyle = css(mix(base, key, 0.25), 0.55);
-    x.fillRect(o + inset + rr, o + inset + rh - Math.max(1, Math.round(dpr)), rw - 2 * rr, Math.max(1, Math.round(dpr)));
+    x.fillRect(o + inset + rb, o + inset + rh - Math.max(1, Math.round(dpr)), rw - 2 * rb, Math.max(1, Math.round(dpr)));
     return { c: c, id: wd.id, o: o, inset: inset };
   }
 
@@ -1205,7 +1288,8 @@ function create(canvas, opts) {
       x.fillStyle = g; x.fillRect(0, 0, 4, 128);
       return c;
     })();
-    beadOn = softDot(32, lighten(keyRgb, 0.2), true);
+    /* lit beads are light in the stone, the key light warmed toward the rim */
+    beadOn = softDot(32, mix(keyRgb, rimRgb, 0.3), true);
     beadOff = (function () {
       var c = canvasOf(32, 32), x = ctxOf(c);
       x.fillStyle = css(mix(hexRgb(w.wall), WHITE, 0.15), 0.55);
@@ -1230,23 +1314,36 @@ function create(canvas, opts) {
     }
     partSpr.world = KINDS.indexOf(kind);
     if (partSpr.world < 0) partSpr.world = 2;
-    /* the rim glow (Breath) and the niche glow (Keep available) */
+    /* Breath breathes the shaft's own light, as the 3D well does: light
+       falling in at the mouth and fading down the shaft, never a lit
+       outline round the well */
     rimGlow = (function () {
-      var m = Math.round(C * 0.9), c = canvasOf(bodyW + 2 * m, bodyH + 2 * m), x = ctxOf(c);
-      x.shadowColor = css(rimRgb, 0.9); x.shadowBlur = C * 0.7;
-      x.strokeStyle = css(lighten(rimRgb, 0.3), 0.8); x.lineWidth = Math.max(1, dpr * 1.5);
-      var r = C * 0.3;
-      x.beginPath(); roundRect(x, m, m, bodyW, bodyH, r, r, r, r); x.stroke();
-      return { c: c, m: m };
+      var c = canvasOf(Math.max(4, Math.round(bodyW / 4)), Math.max(16, Math.round(bodyH / 4))), x = ctxOf(c);
+      var g = x.createLinearGradient(0, 0, 0, c.height);
+      var lc = mix(keyRgb, hexRgb(w.sky.top), 0.25);
+      g.addColorStop(0, css(lc, 0.5)); g.addColorStop(0.35, css(lc, 0.2)); g.addColorStop(1, css(lc, 0.06));
+      x.fillStyle = g; x.fillRect(0, 0, c.width, c.height);
+      return { c: c, m: 0 };
     })();
+    /* Keep is free: a lamp in the niche. Light pools on the sill and
+       climbs the back of the alcove; only the faintest edge of it reaches
+       the rim, so the niche never reads as an outlined box */
     nicheGlow = null;
     if (L.keep) {
       var k = L.keep, kw = k.w * dpr, kh = k.h * dpr, mg = Math.round(C * 0.6);
-      var inset = Math.max(2, Math.round(Math.min(kw, kh) * 0.12)), rr = Math.min(kw, kh) * 0.14;
+      var inset = Math.max(2, Math.round(Math.min(kw, kh) * 0.12));
       var c = canvasOf(kw + 2 * mg, kh + 2 * mg), x = ctxOf(c);
-      x.shadowColor = css(rimRgb, 1); x.shadowBlur = C * 0.45;
-      x.strokeStyle = css(lighten(rimRgb, 0.35), 0.9); x.lineWidth = Math.max(1, dpr * 1.25);
-      x.beginPath(); roundRect(x, mg + inset, mg + inset, kw - 2 * inset, kh - 2 * inset, rr, rr, rr, rr); x.stroke();
+      var rx0 = mg + inset, ry0 = mg + inset, rw2 = kw - 2 * inset, rh2 = kh - 2 * inset;
+      var ar = nicheArch(rw2, rh2), rr = ar.t, rb = ar.b;
+      var lamp = mix(keyRgb, rimRgb, 0.3);
+      x.save();
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rb, rb); x.clip();
+      var g = x.createRadialGradient(rx0 + rw2 / 2, ry0 + rh2, 0, rx0 + rw2 / 2, ry0 + rh2, Math.max(rw2 * 0.6, rh2 * 1.1));
+      g.addColorStop(0, css(lamp, 0.6)); g.addColorStop(0.45, css(lamp, 0.24)); g.addColorStop(1, css(lamp, 0));
+      x.fillStyle = g; x.fillRect(rx0, ry0, rw2, rh2);
+      x.restore();
+      x.strokeStyle = css(lighten(rimRgb, 0.2), 0.2); x.lineWidth = Math.max(1, dpr);
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rb, rb); x.stroke();
       nicheGlow = { c: c, m: mg };
     }
   }
@@ -1365,6 +1462,7 @@ function create(canvas, opts) {
     var res = Sk ? Sk.resolve(skin, palette) : (skin.colors || {});
     for (var t = 1; t <= 7; t++) colors[t] = hexRgb(res[LETTERS[t]]);
     colors[8] = hexRgb(res.silt || skin.silt || "#5A6470");
+    clearTint = tintFor(colors, 0.075, 0.35);
     var mode = Sk && Sk.glyphs ? Sk.glyphs(skin, glyphPref) : glyphPref;
     var gl = (Sk && Sk.GLYPHS) || { I: "lines", O: "dot", T: "triangle", S: "slash", Z: "backslash", J: "bracket", L: "bracketR" };
     var glyphs2 = [];
@@ -1423,7 +1521,7 @@ function create(canvas, opts) {
 
   R.dispose = function () {
     if (canvas.removeEventListener) canvas.removeEventListener("contextrestored", restored);
-    atlas = null; ax = null; pieceSpr = []; prevSpr = []; keepSpr = [];
+    atlas = null; ax = null; glowAtlas = null; gax = null; pieceSpr = []; prevSpr = []; keepSpr = [];
     wellA = wellB = nicheA = nicheB = null; sky = null; skx = null; ws = null; wsx = null; layer = null; shL = null;
     canvas.width = 1; canvas.height = 1;
   };
@@ -1478,7 +1576,7 @@ function create(canvas, opts) {
     pX[i] = x; pY[i] = y; pVX[i] = vx; pVY[i] = vy; pAY[i] = ay;
     pAge[i] = 0; pLife[i] = life; pSize[i] = size; pRot[i] = Math.random() * TAU;
     pVR[i] = (Math.random() - 0.5) * 2.4; pSway[i] = 0; pPh[i] = Math.random() * TAU;
-    pSw[i] = 0; pCX[i] = 0; pCY[i] = 0; pKind[i] = kind; pOn[i] = 1;
+    pSw[i] = 0; pCX[i] = 0; pCY[i] = 0; pKind[i] = kind; pOn[i] = 1; pA[i] = 1;
     return i;
   }
   /* world particles for a dissolving cell (device px) */
@@ -1673,13 +1771,16 @@ function create(canvas, opts) {
     c.warm = Math.min(1, 0.25 + rip * 0.08);
     c.parts = count(parts);
     /* the glow's brightness, through the governor */
+    /* the band of light and the warmth on the leaving cells are one pulse,
+       and pass the flash governor together */
     var gl = n >= 4 ? 0.24 : 0.2;
-    c.gl = gl * flashGate(deltaL(WARM, gl * 0.6, 0.3) * (n >= 4 ? 1.4 : 1));
+    c.gate = flashGate(deltaL(WARM, gl * 0.6, 0.3) * (n >= 4 ? 1.4 : 1));
+    c.gl = gl * c.gate;
     if (c.empty) {
       bigEffect(LADDER.empty[0], 0, 0, LADDER.empty[4]);
       emptyFx.on = true; emptyFx.t0 = -2;
       emptyFx.a = 0.2 * flashGate(deltaL(WARM, 0.2, 0.12));
-      emptyFx.motes = count(LADDER.empty[1] * 0.8); emptyFx.spent = 0;
+      emptyFx.motes = count(LADDER.empty[1] * 0.3); emptyFx.spent = 0;
       c.parts = count(40);
     } else bigEffect(L0[0] + (ev.unbroken ? 0.5 : 0) + Math.min(1, rip * 0.25), kick, L0[3], L0[4]);
     if (n >= 4 && !optSteady) reactT0 = -2;
@@ -2105,16 +2206,22 @@ function create(canvas, opts) {
 
   /* light on the back wall: the Empty Well's one slow breath, Steady's
      breathing outro, a PB or chapter shimmer */
-  /* the Empty Well's motes: warm lights lifting off the floor like
-     lanterns, slowly, over the breath */
+  /* The Empty Well's motes: lanterns lifting off the floor, slowly, over
+     the breath. A few at a time across a second and a half, from anywhere
+     in the bottom two rows, each a soft dot in the world's own key light at
+     under half strength: lanterns, one by one. (All at once, white, and
+     added on top of each other, they piled into an overexposed band of
+     foam along the floor at the game's biggest moment.) */
   function releaseMotes(u) {
     if (emptyFx.motes <= 0 || u < 0.2) return;
-    var want = Math.ceil(emptyFx.motes * clamp((u - 0.2) / 0.6, 0, 1)), gentle = optMotion === "gentle";
+    var want = Math.ceil(emptyFx.motes * clamp((u - 0.2) / 1.4, 0, 1)), gentle = optMotion === "gentle";
+    var kind = KINDS.indexOf("dust");
     while (emptyFx.spent < want && emptyFx.spent < emptyFx.motes) {
-      var i = spawnParticle(0, WX + Math.random() * WWd, WY + WHd - Math.random() * C * 0.4,
-                            (Math.random() - 0.5) * C * 0.3, -C * (0.6 + Math.random() * 0.9), -C * 0.08,
-                            2.2 + Math.random() * 1.2, C * (0.3 + Math.random() * 0.35));
-      pSway[i] = C * 0.5;
+      var i = spawnParticle(kind, WX + C * 0.3 + Math.random() * (WWd - C * 0.6), WY + WHd - C * 0.3 - Math.random() * C * 1.7,
+                            (Math.random() - 0.5) * C * 0.25, -C * (0.45 + Math.random() * 0.7), -C * 0.06,
+                            2.4 + Math.random() * 1.2, C * (0.22 + Math.random() * 0.22));
+      pA[i] = 0.32 + Math.random() * 0.13;
+      pSway[i] = C * 0.45;
       if (gentle) { pVX[i] = 0; pVY[i] = 0; pAY[i] = 0; pLife[i] = 0.3; pSway[i] = 0; }
       emptyFx.spent++;
     }
@@ -2124,8 +2231,9 @@ function create(canvas, opts) {
     if (emptyFx.on) {
       var u = fxNow - emptyFx.t0;
       releaseMotes(u);
-      if (u > 1.2) emptyFx.on = false;
-      else a += emptyFx.a * (u < 0.3 ? smooth(0, 0.3, u) : 1 - smooth(0.3, 1.2, u));
+      /* the breath of light is over by 1.2 s; the lanterns go on rising */
+      if (u <= 1.2) a += emptyFx.a * (u < 0.3 ? smooth(0, 0.3, u) : 1 - smooth(0.3, 1.2, u));
+      else if (u > 1.7) emptyFx.on = false;
     }
     if (breatheOutro.on) {
       var ph = breatheOutro.phase;
@@ -2327,39 +2435,64 @@ function create(canvas, opts) {
     layerTop = Math.max(0, Math.floor(minTop - C));
   }
 
-  /* cleared cells: they brighten toward warm white, then dissolve left to
-     right into the world's particles (or along a twisting ribbon) */
+  /* Cleared cells turn to light. Each one warms toward white as the glow
+     reaches it, then draws in toward its own centre as its particles lift
+     away, paling as it shrinks, until it is a point of warm light that
+     goes out among them. Fading a whole tile out over the dark wall behind
+     it would pass through a muddy grey-brown on the way, which reads as
+     the clear going dark; a warm tile drawing in never does, and the
+     warmth is held to a change of colour while the tile is large (it may
+     pale further only once it is small, when it is no longer an area). Rows sweep left to
+     right (or run out along a twisting ribbon); a Quad's four rows melt
+     together into one band of light as it rises. */
   function drawClearGhosts(x) {
+    var still = optMotion === "still";
     for (var i = 0; i < clears.length; i++) {
       var c = clears[i];
       if (!c.on || c.t0 < 0) continue;
       var age = fxNow - c.t0;
       var peak = Math.max(0.2, c.sync);
       var sweep = c.kind === "quad" ? 0.12 : 0.18;
+      /* the warmth's ceiling: as much as stays a change of colour on this
+         skin, and less again if the governor turned the band down */
+      var warmMax = clearTint * (c.gate === undefined ? 1 : Math.min(1, c.gate));
       for (var k = 0; k < c.cn; k++) {
         var cx = c.cx[k], cy = c.cy[k], v = c.cv[k];
         if (!v) continue;
-        var start = peak + sweep * (cx / 9), fade = 0.14;
+        var start = peak + sweep * (cx / 9), fade = 0.22;
         if (c.twist && !c.mini) {
           /* the ribbon runs out from the T both ways */
           start = peak + 0.24 * Math.abs(cx - c.tx) / 6;
         } else if (c.kind === "quad") {
-          /* four rows do not sweep: they melt together into one band of
-             light as it rises */
-          start = 0.04; fade = Math.max(0.2, peak);
+          start = 0.04 + 0.25 * peak; fade = Math.max(0.24, 0.6 * peak);
         }
         var u = (age - start) / fade;
         if (u >= 1) continue;
-        if (u >= 0 && c.spawned < c.parts && optMotion !== "still") {
-          /* this cell's share of the particles, released as it goes */
+        /* the particles leave a beat before the cell does, so the light
+           seems to come out of it */
+        if (age >= start - 0.06 && c.spawned < c.parts && !still) {
           var share = Math.ceil(c.parts / Math.max(1, c.cn));
           var nn = Math.min(share, c.parts - c.spawned);
           c.spawned += nn;
           burst(nn, WX + cx * C, cellTop(cy), C, C, c.warm, c.kind === "quad" || c.empty, c.twist && c.n >= 2,
                 WX + (c.tx + 0.5) * C, cellTop(c.ty) + C * 0.5);
         }
-        var a = u < 0 ? 1 : 1 - easeOut(u);
-        if (optMotion === "still") a = age < 0.15 ? 1 - age / 0.15 : 0;
+        var a, sc = 1, w;
+        if (still) {
+          a = age < 0.15 ? 1 - age / 0.15 : 0;
+          w = 0;
+        } else if (optMotion === "gentle") {
+          /* reduced motion: no drawing in (that is a zoom), just a warm
+             cross-fade where the cell was */
+          a = u < 0 ? 1 : 1 - smooth(0, 1, u);
+          w = u < 0 ? warmMax * smooth(start - 0.16, start, age) : warmMax + (0.5 - warmMax) * smooth(0, 0.8, u);
+        } else {
+          /* warm as the glow arrives; then it draws in, paling as it goes,
+             until what is left is a point of warm light among the motes */
+          a = u < 0.75 ? 1 : 1 - smooth(0.75, 1, u);
+          sc = u <= 0 ? 1 : 1 - 0.85 * easeOut(u);
+          w = u < 0 ? warmMax * smooth(start - 0.16, start, age) : warmMax + (0.7 - warmMax) * smooth(0.5, 0.95, u);
+        }
         if (a <= 0) continue;
         /* the leaving cells keep their fused shape among themselves */
         var m = 0;
@@ -2373,10 +2506,20 @@ function create(canvas, opts) {
           if (ddx === 0 && ddy === 1 && v !== 8) m |= MN;
           if (ddx === 0 && ddy === -1 && v !== 8) m |= MS;
         }
+        /* once it starts to draw in, a cell is its own small light */
+        if (sc < 0.97) m = 0;
         tileReady(v, m);
         var lift = u > 0 && optMotion === "full" ? u * C * 0.18 : 0;
+        var cw = colX[cx + 1] - colX[cx], dw = cw * sc, dh = S * sc;
+        var dx = colX[cx] + (cw - dw) / 2, dy = cellTop(cy) - lift + (S - dh) / 2;
         x.globalAlpha = a;
-        x.drawImage(atlas, (m & 15) * S, tileY(v, m), S, S, colX[cx], cellTop(cy) - lift, colX[cx + 1] - colX[cx], S);
+        x.drawImage(atlas, (m & 15) * S, tileY(v, m), S, S, dx, dy, dw, dh);
+        if (w > 0.004) {
+          /* laid over the tile, not added: warmer and paler, never a flash */
+          glowReady(v, m);
+          x.globalAlpha = a * w;
+          x.drawImage(glowAtlas, (m & 15) * S, tileY(v, m), S, S, dx, dy, dw, dh);
+        }
         x.globalAlpha = 1;
       }
     }
@@ -2556,7 +2699,7 @@ function create(canvas, opts) {
         a = u < 0.12 ? u / 0.12 : u > 0.55 ? 1 - (u - 0.55) / 0.45 : 1;
         if (a <= 0) continue;
         s = pSize[i];
-        x.globalAlpha = a * (pass === 0 ? 0.85 : 0.95);
+        x.globalAlpha = a * pA[i] * (pass === 0 ? 0.85 : 0.95);
         var spr = kindSpr[k];
         if (!spr) continue;
         if (KINDS[k] === "leaf" || KINDS[k] === "petal" || KINDS[k] === "flake") {
@@ -2736,7 +2879,8 @@ function create(canvas, opts) {
     /* the rim glows while Keep is free to use */
     var avail = !view.holdUsed;
     var pulse = keepPulseT0 >= 0 ? clamp(1 - (now - keepPulseT0) / 0.5, 0, 1) : 0;
-    var ga = (avail ? 0.55 : 0.08) + pulse * 0.4;
+    /* and the lamp in it never goes out, only down to half */
+    var ga = (avail ? 0.55 : 0.28) + pulse * 0.4;
     if (nicheGlow && ga > 0.01) {
       x.globalCompositeOperation = "lighter";
       x.globalAlpha = Math.min(1, ga);
@@ -2789,7 +2933,8 @@ function create(canvas, opts) {
           sc = (from.s / r.s) + (1 - from.s / r.s) * e;
         } else a = e;
       }
-      x.globalAlpha = a;
+      /* the later ones hang a little further off in the air */
+      x.globalAlpha = a * (1 - (L.shape === "wide" ? 0.12 : 0.08) * i);
       if (sc !== 1) {
         localT(x, sc, 0, cx, cy);
         x.drawImage(spr.c, -spr.c.width / 2, -spr.c.height / 2);
@@ -2799,7 +2944,7 @@ function create(canvas, opts) {
     x.globalAlpha = 1;
   }
 
-  /* the rim: Breath beads, the breathing ring, the Unbroken filament,
+  /* the rim: Breath beads, the shaft breathing with Breath, the Unbroken filament,
      and a passing shimmer for a personal best or a chapter's end */
   function drawRim(x, view) {
     var br = view.breath;
@@ -2811,7 +2956,7 @@ function create(canvas, opts) {
         var on = i < charge;
         if (on) {
           x.globalCompositeOperation = "lighter";
-          x.globalAlpha = i < 10 && charge >= 10 ? 0.95 : 0.7;
+          x.globalAlpha = i < 10 && charge >= 10 ? 0.55 : 0.4;
           x.drawImage(beadOn, bx - rad * 2, y0 - rad * 2, rad * 4, rad * 4);
           x.globalCompositeOperation = "source-over";
         } else {
@@ -2820,15 +2965,14 @@ function create(canvas, opts) {
         }
       }
       x.globalAlpha = 1;
-      /* a Breath: the rim breathes with it, 4 s in and 6 s out */
+      /* a Breath: the shaft's light breathes with it, 4 s in and 6 s out,
+         a change of light and nothing else (so reduced motion keeps it) */
       if (br.active && rimGlow) {
         var ph = clamp(br.phase || 0, 0, 1), cyc = (ph * 10) % 10;
         var lvl = cyc < 4 ? smooth(0, 4, cyc) : 1 - smooth(4, 10, cyc);
-        var s = optMotion === "full" ? 1 + lvl * 0.012 : 1;
         x.globalCompositeOperation = "lighter";
-        x.globalAlpha = 0.25 + lvl * 0.45;
-        var gw = rimGlow.c.width * s, gh = rimGlow.c.height * s;
-        x.drawImage(rimGlow.c, bodyL + bodyW / 2 - gw / 2, bodyT + bodyH / 2 - gh / 2, gw, gh);
+        x.globalAlpha = 0.04 + lvl * 0.14;
+        x.drawImage(rimGlow.c, WX, WY, WWd, WHd);
         x.globalCompositeOperation = "source-over";
         x.globalAlpha = 1;
       }

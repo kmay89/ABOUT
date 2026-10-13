@@ -141,6 +141,16 @@ var CSS = [
   ".wsx h3{margin:26px 0 4px;padding-top:16px;border-top:1px solid var(--line);",
   "  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}",
   ".wsx h3.wfirst{border-top:0;padding-top:0;margin-top:12px}",
+  /* a folded section: its summary is the section's heading */
+  ".wsx details.wfold{margin:26px 0 4px;padding-top:6px;border-top:1px solid var(--line)}",
+  ".wsx details.wfold.wfirst{border-top:0;margin-top:6px}",
+  ".wsx details.wfold>summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;",
+  "  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}",
+  ".wsx details.wfold>summary::-webkit-details-marker{display:none}",
+  ".wsx details.wfold>summary:after{content:\"\";width:7px;height:7px;margin-left:2px;border:solid currentColor;border-width:0 1.5px 1.5px 0;",
+  "  transform:rotate(-45deg);transition:transform .2s}",
+  ".wsx details.wfold[open]>summary:after{transform:rotate(45deg) translate(-2px,-2px)}",
+  ".wsx details.wfold>.note{margin:0 2px 12px}",
   ".wsx .note{color:var(--soft);font-size:.82rem;line-height:1.45;margin:6px 2px 0}",
   ".wsx h3 + .note{margin:0 2px 12px}",
   ".wsx .wgrp{margin:16px 0}",
@@ -243,7 +253,19 @@ var CSS = [
   /* the device's wish, and the player's own Gentle or Still, both stop the
      sheets' small movements: the switch's slide, the keycap's caret */
   "@media (prefers-reduced-motion:reduce){.wsx *,.wsx *::after{transition:none!important;animation:none!important}}",
-  ".wsx.wstill *,.wsx.wstill *::after{transition:none!important;animation:none!important}"
+  ".wsx.wstill *,.wsx.wstill *::after{transition:none!important;animation:none!important}",
+  /* Forced colours (Windows High Contrast) flatten the tint and the accent
+     border that say which card is chosen, and the switch's track and thumb
+     with them. The chosen card's tint becomes an inner ring in Highlight
+     (never an outline: that is the focus ring, and the focused card is
+     usually the chosen one), and the switch is drawn in system colours. */
+  "@media (forced-colors:active){",
+  "  .wsx .opt.on::before,.wsx .wseg .btn.on::before{opacity:1;background:none;border:3px solid Highlight;inset:2px}",
+  "  .wsx .wsw{border:2px solid CanvasText}",
+  "  .wsx .wsw::after{top:2px;left:2px;background:CanvasText;box-shadow:none}",
+  "  .wsx .wtg[aria-checked=true] .wsw{border-color:Highlight;background:Highlight}",
+  "  .wsx .wtg[aria-checked=true] .wsw::after{background:HighlightText}",
+  "}"
 ].join("\n");
 
 function addStyle() {
@@ -400,7 +422,11 @@ function slider(parent, k, name, text, s, tag) {
   lab.setAttribute("for", id);
   put(lab, el("b", null, name));
   if (tag) put(lab, el("i", null, tag));
+  /* the value shown beside the name is not part of the name: a screen
+     reader has it from aria-valuetext, and a name that changed on every
+     step would be read out again on every step */
   var val = put(lab, el("span", "val"));
+  val.setAttribute("aria-hidden", "true");
   var r = put(f, el("input"));
   r.type = "range"; r.id = id;
   r.min = String(s.min); r.max = String(s.max); r.step = String(s.step);
@@ -1239,6 +1265,7 @@ function buildHandling(body) {
       put(lab, el("b", null, "Delay before sliding"));
       put(lab, el("i", null, "DAS"));
       var val = put(lab, el("span", "val"));
+      val.setAttribute("aria-hidden", "true");
       var pre = put(g, el("div", "wseg wgrid"));
       pre.style.margin = "4px 0 2px";
       var items = [];
@@ -1345,9 +1372,14 @@ function buildHandling(body) {
       showIf(btn, function () { return P.get("scheme") === "buttons"; });
     },
     keys: function (first) {
-      section(body, "Keyboard",
-        "Choose a key, then press the one you want. Esc cancels, Delete clears, and a key already in use swaps places.", first);
-      buildKeys(body);
+      /* On a touch screen the key map is two screens of something most
+         people there will never need, so it waits folded under its
+         heading; with a mouse or trackpad it starts open. */
+      var fold = put(body, el("details", "wfold" + (first ? " wfirst" : "")));
+      fold.open = !touchFirst;
+      put(fold, el("summary", null, "Keyboard"));
+      put(fold, el("p", "note", "Choose a key, then press the one you want. Esc cancels, Delete clears, and a key already in use swaps places."));
+      buildKeys(fold);
     }
   };
   var order = touchFirst
@@ -1555,8 +1587,12 @@ function assign(a, slot, code) {
                 : keys[other].length ? " " + actionName(other) + " lets it go."
                                      : " " + actionName(other) + " has no key now.";
   }
+  /* allowed, but said: the system takes Control with an arrow first */
+  if (ON_MAC && /^Control/.test(code)) msg += " On a Mac, Control with the arrows belongs to Mission Control and Spaces.";
   say(msg);
 }
+var ON_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || "") &&
+             (navigator.maxTouchPoints || 0) < 2;
 
 /* ======================================================================
    Sound
@@ -1593,7 +1629,7 @@ function buildSound(body) {
   if (iosLike() && "audioSession" in nav()) {
     var dev = /iPad/.test(nav().userAgent || "") || nav().platform === "MacIntel" ? "iPad" : "iPhone";
     toggle(body, "playOnSilent", "Play sound when " + dev + " is on silent",
-      "Normally the silent setting quiets The Well, and your own music keeps playing. This plays through it, and pauses other audio.");
+      "Normally the silent setting quiets the well, and your own music keeps playing. This plays through it, and pauses other audio.");
   }
   toggle(body, "muteOnBlur", "Mute when you look away",
     "Sound fades when you switch to another app or window, and comes back with you.");
@@ -1608,8 +1644,8 @@ function buildComfort(body) {
   var mc = cards(body, "motion", [
     { v: "system", name: "System", line: "" },
     { v: "full", name: "Full", line: "Every glide, spring and drift of light." },
-    { v: "gentle", name: "Gentle", line: "Pieces snap instead of gliding, the camera holds still, and particles fade where they are." },
-    { v: "still", name: "Still", line: "No camera motion, no nudge, no particles. Changes cross-fade." }
+    { v: "gentle", name: "Gentle", line: "Pieces snap instead of gliding, the camera holds still, and particles fade where they are. The well on the title screen holds still." },
+    { v: "still", name: "Still", line: "No camera motion, no nudge, no particles. Changes cross-fade. The well on the title screen holds still." }
   ], mh, "wtwo");
   live(function () {
     var r = sys().reducedMotion;
@@ -1666,7 +1702,7 @@ function buildComfort(body) {
   if (iPhone() && !standalone()) {
     var tip = put(body, el("div", "wtip"));
     put(tip, el("b", null, "Best from the Home Screen"));
-    put(tip, el("span", null, "On iPhone, tap Share, then Add to Home Screen. The Well opens full screen, without Safari's bars, and works offline."));
+    put(tip, el("span", null, "On iPhone, tap Share, then Add to Home Screen. The game opens full screen, without Safari's bars, and works offline."));
     var tr = put(tip, el("div", "row"));
     var ok = put(tr, el("button", "btn", "Got it"));
     ok.type = "button";
@@ -1876,7 +1912,7 @@ Sheets.init = function (o) {
 };
 
 var LEAD = {
-  look: "How The Well looks, never how it plays. Every change shows at once.",
+  look: "How the well looks, never how it plays. Every change shows at once.",
   handling: "How the pieces answer your hands. Timings are in milliseconds, so they feel the same on every screen.",
   sound: "Every move plays a note in the key of the world you're in. Turn any of it down, or all of it off.",
   comfort: "Motion, size, pace and the gentle reminder: make the well as easy on you as you like."

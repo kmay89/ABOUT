@@ -628,7 +628,8 @@ guarded("® where the name is used", () => {
       if (s.id === "steady") {
         const flat = el.textContent.replace(/\s+/g, " ");
         ok("the research sheet ends with the not-a-treatment footer",
-           /The Well is not Tetris, is not a treatment, and makes no health claims/.test(flat));
+           /(^|[.;:!?] )well is not Tetris, is not a treatment, and makes no health claims/.test(flat) &&
+           el.innerHTML.indexOf("<i>well</i> is not Tetris, is not a treatment, and makes no health claims") >= 0);
       }
     } catch (e) {
       ok("the “" + s.id + "” sheet renders outside a browser", false, short(String(e.message || e), 90));
@@ -643,7 +644,8 @@ guarded("® where the name is used", () => {
   const aboutText = htmlText(typeof about === "string" ? about : JSON.stringify(about || ""));
   sheetVerdict("the in-game credits (Learn.ABOUT)", aboutText);
   ok("the credits say what the room is, word for word",
-     aboutText.indexOf("The Well is an independent falling-blocks game.") >= 0 &&
+     typeof about === "string" && about.indexOf("<i>well</i> is an independent falling-blocks game.") >= 0 &&
+     /(^|[.;:!?] )well is an independent falling-blocks game\./.test(aboutText.replace(/\s+/g, " ").trim()) &&
      aboutText.indexOf("Not affiliated with or endorsed by The Tetris Company.") >= 0 &&
      /Tetris® is a registered trademark of Tetris Holding, LLC\./.test(aboutText.replace(/\s+/g, " ")));
   if (has("README.md")) sheetVerdict("well/README.md", read("README.md"));
@@ -652,8 +654,14 @@ guarded("® where the name is used", () => {
     const page = htmlText(fs.readFileSync(legal, "utf8"));
     sheetVerdict("the legal page", page);
     ok("the legal page says the well is not affiliated, and has not been tested in any study",
-       /The Well is an independent, non-commercial falling-blocks game/.test(page.replace(/\s+/g, " ")) &&
+       /(^|[.;:!?] )well is an independent, non-commercial falling-blocks game/.test(page.replace(/\s+/g, " ")) &&
+       /<i>well<\/i>(<\/a>)?\s+is an independent, non-commercial/.test(fs.readFileSync(legal, "utf8")) &&
        /has not been tested in any study/.test(page.replace(/\s+/g, " ")));
+  }
+  /* the trademark notice and the research are written down on the legal
+     page; the room has to be able to reach it, not just the games page */
+  if (has("index.html")) {
+    ok("the room links to the legal page", /href=["'](\/legal\/|\.\.\/legal\/)/.test(read("index.html")));
   }
 });
 
@@ -915,7 +923,7 @@ guarded("an offline shell that lists the page", () => {
   const v = (sw.match(/VERSION\s*=\s*["']([^"']+)["']/) || [])[1] || "";
   ok("its cache is named for the room (" + (v || "no VERSION") + ")", /^well-/.test(v));
   const title = ((html.match(/<title>([^<]*)<\/title>/) || [])[1] || "").trim();
-  ok("the page is called “The Well — a falling-blocks game”", decodeEntities(title) === "The Well — a falling-blocks game",
+  ok("the page is called “well — a falling-blocks game”", decodeEntities(title) === "well — a falling-blocks game",
      "title: " + JSON.stringify(title));
   if (has("look.css")) {
     const theirs = path.join(ROOT, "breaker", "look.css");
@@ -924,7 +932,7 @@ guarded("an offline shell that lists the page", () => {
   }
   if (has("manifest.webmanifest")) {
     const man = JSON.parse(read("manifest.webmanifest"));
-    ok("the manifest calls it The Well, long and short", man.name === "The Well" && man.short_name === "The Well",
+    ok("the manifest calls it well, long and short", man.name === "well" && man.short_name === "well",
        JSON.stringify({ name: man.name, short_name: man.short_name }));
     const lost = (man.icons || []).filter((i) => !has(String(i.src).replace(/^\.\//, "")));
     ok("every icon the manifest names exists", (man.icons || []).length > 0 && lost.length === 0,

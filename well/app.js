@@ -80,6 +80,56 @@ var Well = root.Well || null, Bot = root.Bot || null, Modes = root.Modes || null
 function $(id) { return doc.getElementById(id); }
 function on(el, type, fn, opt) { if (el) el.addEventListener(type, fn, opt || false); }
 function press(el, fn) { on(el, "click", function (e) { e.preventDefault(); fn(e); }); }
+/* The buttons that live over the well during play answer a finger on
+   pointerup, not on the click that should follow it. Straight after a fast
+   flick on the well, Chrome on Android spends the next touch cancelling
+   the fling and never sends that click, so Pause would do nothing on the
+   first try — just after Keep, which is exactly when it is wanted. The
+   tap counts if it lifts inside the button having moved less than 10 px,
+   the way a tap on the well is judged. The click that may still follow is
+   the same tap: its touchend is cancelled, so no click is made, and a
+   guard at the top of the page catches any that comes anyway, so it can't
+   land on a sheet that has just opened under the finger. A mouse and the
+   keyboard (Enter and Space arrive as a click) are still answered by click. */
+var ghost = { on: false, t: 0 };
+function tapPress(el, fn) {
+  if (!el) return;
+  var pid = -1, x0 = 0, y0 = 0;
+  on(el, "pointerdown", function (e) {
+    if (e.pointerType === "mouse") { pid = -1; return; }
+    /* A tap on the iPhone's haptic switch laid over the button (input.js
+       hapticize) is left to its click: the switch ticks only for a real
+       click, and cancelling the touchend would cancel the click with it.
+       The click arrives after the touch is over, so it can't land on the
+       sheet it opens. */
+    if (e.target && e.target.matches && e.target.matches("input[data-well-hx]")) { pid = -1; return; }
+    pid = e.pointerId; x0 = e.clientX; y0 = e.clientY;
+  });
+  on(el, "pointercancel", function (e) { if (e.pointerId === pid) pid = -1; });
+  on(el, "pointerup", function (e) {
+    if (e.pointerId !== pid) return;
+    pid = -1;
+    var dx = e.clientX - x0, dy = e.clientY - y0, r = el.getBoundingClientRect();
+    if (dx * dx + dy * dy > 100) return;
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+    ghost.on = true; ghost.t = now();
+    fn(e);
+  });
+  on(el, "touchend", function (e) { if (ghost.on && now() - ghost.t < 400) e.preventDefault(); }, { passive: false });
+  on(el, "click", function (e) { e.preventDefault(); fn(e); });
+}
+function wireGhostGuard() {
+  /* any new touch, click or key means the tap that was answered is over */
+  doc.addEventListener("pointerdown", function () { ghost.on = false; }, true);
+  doc.addEventListener("keydown", function () { ghost.on = false; }, true);
+  doc.addEventListener("click", function (e) {
+    if (!ghost.on) return;
+    ghost.on = false;
+    if (now() - ghost.t > 900) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+}
 function esc(s) {
   return String(s === undefined || s === null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -93,7 +143,7 @@ var faults = {};
 function fault(where, e) {
   if (faults[where]) return;
   faults[where] = 1;
-  if (root.console && console.error) console.error("The Well: " + where + " — " + (e && e.stack ? e.stack : e));
+  if (root.console && console.error) console.error("well: " + where + " — " + (e && e.stack ? e.stack : e));
 }
 
 function fmtInt(n) {
@@ -101,9 +151,11 @@ function fmtInt(n) {
   while (s.length > 3) { out = "," + s.slice(-3) + out; s = s.slice(0, -3); }
   return (neg ? "−" : "") + s + out;
 }
-/* 58.31 s, or 1:02.45 once a minute has gone by */
+/* 58.31 s, or 1:02.45 once a minute has gone by — to the nearest
+   hundredth, the same rounding the run card and the end card use, so the
+   share line can never disagree with them by one */
 function fmtStopwatch(ms) {
-  var cs = Math.floor(Math.max(0, ms) / 10), s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
+  var cs = Math.round(Math.max(0, ms) / 10), s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
   s = s % 60;
   var hh = (h < 10 ? "0" : "") + h;
   return m ? m + ":" + (s < 10 ? "0" : "") + s + "." + hh : s + "." + hh + " s";
@@ -121,7 +173,7 @@ function copyObj(o) { var c = {}, k; if (o) for (k in o) c[k] = o[k]; return c; 
    constants
    ================================================================ */
 var TICK = 1000 / 240;
-var GRACE_MS = 600, READY_MS = 1500, END_MS = 1600, SURFACE_MS = 3800;
+var GRACE_MS = 600, READY_MS = 1500, END_MS = 1600, SURFACE_MS = 3800, SPLASH_FADE_MS = 200;
 var LABEL_MS = 1150, SAY_GAP = 2000, BANNER_MS = 2000;
 var BREAK_MS = 5 * 60000, QUIET_MS = 30 * 60000;
 var WATCH_STEP = 150;
@@ -173,7 +225,7 @@ function memoryPrefs() {
     scoreHidden: false, descentPace: "gentle", driftTide: 2, driftChapter: 40, driftWorld: "dawn",
     fortyLines: 40, steadyLength: 20, steadyPace: "slow", steadyLanding: true, steadySound: "soft",
     steadyWorld: "snowfall",
-    seen: { intro: false, touchCards: false, steadyTip: false, silentChip: false, landscape: false, homeScreen: false }
+    seen: { intro: false, touchCards: false, steadyTip: false, silentChip: false, landscape: false, homeScreen: false, breath: false }
   };
   var subs = [], mem = {};
   return {
@@ -483,18 +535,88 @@ function doResize() {
   lopt.buttons = padOn;
   lopt.trayH = padOn ? (padEl.offsetHeight - safe.b - 24) : 0;
   if (lopt.trayH < 0) lopt.trayH = 0;
+  lopt.trayW = padOn ? trayClusterW() : 0;
   lopt.dpr = dpr;
   /* the HUD's band grows with the text size, so big text never runs into
      the Keep niche below it */
   lopt.hudTop = Math.max(44, Math.ceil(42 * (+pref("textSize") || 1)) + 2);
   var nl = null;
   if (Layout) { try { nl = Layout.compute(vw, vh, lopt); } catch (e) { fault("Layout.compute", e); nl = null; } }
+  /* a two-row HUD (hudWrapWanted) only ever applies to the tall shape */
+  if (nl && hudWrap && run && nl.shape === "tall") {
+    lopt.hudTop = 2 * lopt.hudTop + 4;
+    try { nl = Layout.compute(vw, vh, lopt); } catch (e) { fault("Layout.compute", e); }
+  }
+  trayBeside = false;
+  if (nl && padOn && vw > vh) {
+    var alt = besideTray(nl);
+    if (alt) { nl = alt; trayBeside = true; }
+  }
   L = nl || fallbackLayout(vw, vh);
   if (R) { try { R.resize(vw, vh, dpr, L); } catch (e) { fault("R.resize", e); } }
   placeChrome();
 }
 
+/* A phone on its side with the Buttons scheme: the tray's two clusters sit
+   at the far left and right, and reserving the tray's whole height under
+   the well would leave cells of nine pixels. If the well laid out as if
+   there were no tray fits between the clusters — the well, Keep, the
+   previews and the HUD all clear of every button — that layout is used,
+   and the side panel is given up (the Glass Well and the coach go over
+   the well, as on a phone held upright). */
+var trayBeside = false, altOpt = {};
+/* the wider of the tray's two clusters, measured from its screen edge, for
+   a layout that can seat the well between them */
+function trayClusterW() {
+  var bs = padEl.querySelectorAll("[role=button]"), l = 0, r = 0;
+  for (var i = 0; i < bs.length; i++) {
+    var b = bs[i].getBoundingClientRect();
+    if (!(b.width > 0)) return 0;
+    if (b.left + b.width / 2 < vw / 2) l = Math.max(l, b.right); else r = Math.max(r, vw - b.left);
+  }
+  return Math.ceil(Math.max(l, r));
+}
+function besideTray(reserved) {
+  var bs = padEl.querySelectorAll("[role=button]");
+  if (!bs.length) return null;
+  var left = 0, right = vw, top = vh, i, k;
+  for (i = 0; i < bs.length; i++) {
+    var b = bs[i].getBoundingClientRect();
+    if (!(b.width > 0)) return null;
+    if (b.left + b.width / 2 < vw / 2) left = Math.max(left, b.right); else right = Math.min(right, b.left);
+    top = Math.min(top, b.top);
+  }
+  for (k in lopt) altOpt[k] = lopt[k];
+  altOpt.buttons = false; altOpt.trayH = 0;
+  var alt = null;
+  try { alt = Layout.compute(vw, vh, altOpt); } catch (e) { fault("Layout.compute", e); return null; }
+  if (!alt || !(alt.cell > reserved.cell)) return null;
+  function clear(r) {
+    return !r || r.y + r.h <= top || (r.x >= left + 6 && r.x + r.w <= right - 6);
+  }
+  var wall = alt.wall || 0, w = alt.well;
+  if (!clear({ x: w.x - wall, y: w.y, w: w.w + 2 * wall, h: w.h + (alt.floor || 0) })) return null;
+  if (!clear(alt.keep) || !clear(alt.hud)) return null;
+  for (i = 0; alt.next && i < alt.next.length; i++) if (!clear(alt.next[i])) return null;
+  return alt;
+}
+
 function px(el, prop, v) { el.style[prop] = Math.round(v) + "px"; }
+
+/* the room right of the well and its previews, below the pause button,
+   when a wide screen has some (a phone on its side) */
+var rpBox = { x: 0, y: 0, w: 0, h: 0 };
+function rightPanel(bottom) {
+  if (L.shape !== "wide") return null;
+  var x = L.well.x + L.well.w + (L.wall || 0) + 10, y = (L.pause ? L.pause.y + L.pause.h : safe.t + 50) + 10;
+  for (var i = 0; L.next && i < L.next.length; i++) {
+    x = Math.max(x, L.next[i].x + L.next[i].w + 10);
+  }
+  var w = Math.min(340, vw - safe.r - 8 - x), h = bottom - y;
+  if (w < 170 || h < 150) return null;
+  rpBox.x = x; rpBox.y = y; rpBox.w = w; rpBox.h = h;
+  return rpBox;
+}
 
 /* Everything in the DOM that sits on the well is placed from the same
    rectangles the renderers draw from. */
@@ -506,21 +628,75 @@ function placeChrome() {
   px(btnMenu, "left", pz.x); px(btnMenu, "top", pz.y);
   btnMenu.style.right = "auto";
 
-  /* layout.js already stops the HUD short of the pause button */
-  px(hudEl, "left", hud.x); px(hudEl, "top", hud.y);
-  px(hudEl, "width", Math.max(120, hud.w > 0 ? hud.w : vw - safe.l - safe.r - 70));
-  hudEl.style.minHeight = Math.round(Math.max(36, Math.min(hud.h, 48))) + "px";
-  hudEl.style.flexDirection = hud.stack ? "column" : "row";
+  /* the side panel beside a wide well, when nothing else has it */
+  var side = L.side && L.side.w >= 170 && !trayBeside ? L.side : null;
+  var sideTop = side ? side.y : 0;
 
-  /* labels: beside the well when there is room beside it, otherwise just
-     inside it, on whichever side the piece is not */
+  /* Everything in the side panel lines up on one right edge, a short step
+     from the well's wall, so on a big screen the numbers sit beside the
+     game they describe rather than out in the far corner. */
+  var edge = side ? Math.max(side.x + 170, w.x - (L.wall || 0) - 22) : 0;
+  function inPanel(width) { return Math.max(side.x, edge - width); }
+
+  /* layout.js already stops the HUD short of the pause button. Where its
+     strip beside the Keep niche is too narrow for a world's name, a score
+     and the Breath button side by side (an iPad, a Mac, a phone on its
+     side), the HUD becomes a column in the side panel instead, with larger
+     numbers, and everything else in the panel moves down below it. */
+  var colW = side ? Math.min(side.w, Math.round(220 * Math.max(1, +pref("textSize") || 1)), Math.max(170, edge - side.x)) : 0;
+  var colX = side ? inPanel(colW) : 0;
+  var colY = side ? (L.keep && colX + colW > L.keep.x - 8 && colX < L.keep.x + L.keep.w + 8 ? side.y : hud.y) : 0;
+  /* The column must end above whatever is below it: the Buttons tray on a
+     phone on its side (its whole band takes taps, so its top, not its
+     keys'), else the bottom of the screen. In a mode with Breath it keeps
+     room for the button that appears later, under Score, so that button
+     can never come up under the tray. Measured against fixed numbers, not
+     the HUD's own height, which depends on which shape it is in now. */
+  var colBottom = padOn && padEl.offsetHeight ? padEl.getBoundingClientRect().top - 8 : vh - safe.b - 8;
+  var colNeed = 210 + (run && run.mode && run.mode.hasBreath ? 58 : 0);
+  var hudCol = !!side && hud.w < 480 && colY + colNeed <= colBottom;
+  hudEl.classList.toggle("col", hudCol);
+  if (hudCol) {
+    /* up in the corner when the column clears the Keep niche, else just
+       under it */
+    px(hudEl, "left", colX); px(hudEl, "top", colY);
+    px(hudEl, "width", colW);
+    hudEl.style.minHeight = "0px";
+    hudEl.style.flexDirection = "column";
+    sideTop = Math.max(side.y, colY + (hudEl.offsetHeight || 104) +
+      (run && run.mode && run.mode.hasBreath && hudEl.offsetHeight && btnBreath.classList.contains("hide") ? 62 : 0) + 14);
+  } else {
+    px(hudEl, "left", hud.x); px(hudEl, "top", hud.y);
+    px(hudEl, "width", Math.max(120, hud.w > 0 ? hud.w : vw - safe.l - safe.r - 70));
+    hudEl.style.minHeight = hudWrap ? "0px" : Math.round(Math.max(36, Math.min(hud.h, 48))) + "px";
+    hudEl.style.flexDirection = hud.stack ? "column" : "row";
+  }
+  hudEl.classList.toggle("wrap", hudWrap && L.shape === "tall" && !hudCol);
+  hudRow = !hudCol && !hud.stack;
+  var bottom = vh - safe.b - 8;
+  var glassShown = glassOn && !glassEl.classList.contains("hide");
+  var glassH = glassEl.offsetHeight || 260;
+
+  /* the Glass Well: in the side panel when it fits there below the HUD,
+     else in the free strip right of the previews (a phone on its side),
+     else a compact card under the Keep niche that steps out of the way */
+  var rp = rightPanel(bottom);
+  var glassSide = !!side && sideTop + Math.min(glassH, 200) <= bottom;
+  var glassRight = !glassSide && !!rp;
+  glassBand.over = !glassSide && !glassRight;
+  var belowGlass = sideTop + (glassShown && glassSide ? glassH + 12 : 0);
+
+  /* labels: beside the well when there is room beside it (below anything
+     already in the panel), otherwise just inside it, on whichever side the
+     piece is not */
   var room = w.x - safe.l - 16;
-  lblBand.wide = room >= 130;
+  var lblTop = Math.max(w.y + w.h * 0.48, side ? belowGlass : 0);
+  lblBand.wide = room >= 130 && lblTop + 100 <= bottom;
   if (lblBand.wide) {
     labelsEl.className = "r";
     px(labelsEl, "left", safe.l + 8);
     px(labelsEl, "width", room - 4);
-    px(labelsEl, "top", w.y + w.h * 0.48);
+    px(labelsEl, "top", lblTop);
   } else {
     px(labelsEl, "left", w.x + 8);
     px(labelsEl, "width", w.w - 16);
@@ -531,11 +707,10 @@ function placeChrome() {
   lblBand.top = 22 - (lt - w.y) / c;
   lblBand.bottom = lblBand.top - (4 * 1.3 * 18 * (+pref("textSize") || 1)) / c;
 
-  /* the Glass Well: the side panel on a wide screen, a compact card under
-     the Keep niche on a phone */
-  glassBand.over = !(L.side && L.side.w >= 170);
-  if (!glassBand.over) {
-    px(glassEl, "left", L.side.x); px(glassEl, "top", L.side.y); px(glassEl, "width", Math.min(L.side.w, 250));
+  if (glassSide) {
+    px(glassEl, "left", inPanel(Math.min(side.w, 250))); px(glassEl, "top", sideTop); px(glassEl, "width", Math.min(side.w, 250));
+  } else if (glassRight) {
+    px(glassEl, "left", rp.x); px(glassEl, "top", rp.y); px(glassEl, "width", Math.min(rp.w, 250));
   } else {
     var gy = L.keep ? L.keep.y + L.keep.h + 6 : w.y + 6, gw = Math.min(214, w.w * 0.66);
     px(glassEl, "left", w.x + 4); px(glassEl, "top", gy); px(glassEl, "width", gw);
@@ -543,26 +718,87 @@ function placeChrome() {
        do; its rectangle in board cells is worked out once here */
     glassBand.x1 = (gw + 4) / c;
     glassBand.top = 22 - (gy - w.y) / c;
-    glassBand.bottom = glassBand.top - (glassEl.offsetHeight || 260) / c;
+    glassBand.bottom = glassBand.top - glassH / c;
   }
 
-  /* the coach: in the side panel when there is one, under the HUD when not */
-  if (L.side && L.side.w >= 170) {
+  /* the coach: in the side panel below whatever is already there, or in
+     the strip right of the previews, or — on a phone — inside the well */
+  coachBand.on = false;
+  coachSpot.side = false;
+  /* measured at the width it would have, since the words wrap */
+  function coachFits(box, top) {
     coachEl.classList.remove("compact");
-    px(coachEl, "left", L.side.x); px(coachEl, "width", Math.min(L.side.w, 320));
-    px(coachEl, "top", Math.max(L.side.y + (glassOn ? 250 : 0), w.y + w.h * 0.58));
+    px(coachEl, "width", Math.min(box.w, 320));
+    return top + (coachEl.offsetHeight || 180) <= bottom;
+  }
+  var cbox = side && coachFits(side, belowGlass) ? side
+           : rp && !(glassRight && glassShown) && coachFits(rp, rp.y) ? rp : null;
+  if (cbox) {
+    px(coachEl, "left", cbox === side ? inPanel(Math.min(side.w, 320)) : cbox.x); px(coachEl, "width", Math.min(cbox.w, 320));
+    /* low in the panel, but never past the bottom of the screen: on a
+       phone held sideways the panel is short */
+    coachSpot.want = cbox === rp ? rp.y : Math.max(belowGlass, w.y + w.h * 0.58);
+    coachSpot.min = cbox === rp ? rp.y : belowGlass;
+    coachSpot.side = true;
+    coachFit();
     coachEl.style.right = "auto";
   } else {
+    /* a phone: a passing line inside the well, a third of the way down —
+       below the mouth, where a lesson's piece waits to be moved, and above
+       the stack — and it fades to a whisper whenever a piece passes under
+       it, the way the labels do */
     coachEl.classList.add("compact");
-    px(coachEl, "left", safe.l + 8); px(coachEl, "width", vw - safe.l - safe.r - 16);
-    px(coachEl, "top", hud.y + Math.max(40, Math.min(hud.h, 48)) + 4);
+    px(coachEl, "left", w.x + 6); px(coachEl, "width", w.w - 12);
+    var cy = w.y + w.h * 0.3;
+    px(coachEl, "top", cy);
     coachEl.style.right = "auto";
+    coachBand.on = true;
+    coachBand.top = 22 - (cy - w.y) / c;
+    coachBand.bottom = coachBand.top - Math.max(coachEl.offsetHeight || 0, 3.2 * c) / c;
   }
 
   px(paceEl, "left", w.x - 2); px(paceEl, "top", w.y - (L.lip || 0) - 2);
   px(paceEl, "width", w.w + 4); px(paceEl, "height", w.h + (L.lip || 0) + 4);
 
-  px(chip, "top", hud.y + Math.max(40, Math.min(hud.h, 48)) + 8);
+  /* The reminder chip and the toast never sit on the well: the mouth is
+     where a piece appears and the bottom is where the stack lives. Beside
+     a wide well they take the foot of the side panel (the toast just above
+     the chip's place), or on a phone held sideways the strip right of the
+     previews; on a phone held upright they sit over the HUD, whose
+     numbers can wait a few seconds, clear of the pause button — the chip
+     as one solid line that stops above the Keep niche. */
+  chip.style.transform = "none";
+  chip.classList.remove("compact");
+  toastWell.on = false;
+  var chipH = chip.offsetHeight || 116;
+  if (side && belowGlass + chipH + 60 <= bottom) {
+    /* at the foot of the panel, clear of the labels and the coach above */
+    var chw = Math.min(side.w, 340), chx = inPanel(chw);
+    px(chip, "left", chx); px(chip, "width", chw);
+    px(chip, "top", bottom - chipH);
+    toastSpot.x = chx + chw / 2; toastSpot.y = bottom - chipH - 52; toastSpot.max = chw;
+  } else if (rp) {
+    /* a phone on its side: the free strip right of the previews */
+    px(chip, "left", rp.x); px(chip, "width", rp.w); px(chip, "top", rp.y);
+    toastSpot.x = rp.x + rp.w / 2; toastSpot.y = rp.y; toastSpot.max = rp.w;
+  } else {
+    var pzw = (L.pause ? L.pause.w : 44) + 14;
+    chip.classList.add("compact");
+    px(chip, "left", safe.l + 8); px(chip, "width", vw - safe.l - safe.r - 16 - pzw);
+    var lim = (L.keep ? L.keep.y : w.y - (L.lip || 0)) - 4;
+    px(chip, "top", Math.max(safe.t + 2, Math.min(safe.t + 4, lim - (chip.offsetHeight || 60))));
+    toastSpot.x = vw / 2; toastSpot.y = safe.t + 10; toastSpot.max = vw - 2 * (pzw + 8);
+    /* a note about something in the HUD (the Breath button) can't cover
+       the HUD: it passes through the empty upper well instead, and steps
+       out of a falling piece's way */
+    toastWell.on = true;
+    /* below where a depth's name goes and above an early stack: a piece
+       in hand spends the least time here, falling or dropped */
+    toastWell.x = w.x + w.w / 2; toastWell.y = w.y + w.h * 0.56; toastWell.max = w.w - 20;
+    toastWell.top = 22 - (toastWell.y - w.y) / c;
+    toastWell.bottom = toastWell.top - 3.4;
+  }
+  placeToast();
 
   /* the splash title floats in the empty upper reach of the well, below
      the mouth, the Keep niche and the drifting previews, where the demo's
@@ -570,13 +806,29 @@ function placeChrome() {
   var mouth = w.y + c * 0.9;
   if (L.keep) mouth = Math.max(mouth, L.keep.y + L.keep.h + c * 0.4);
   splash.style.paddingTop = Math.round(Math.max(safe.t + 12, Math.min(mouth, vh * 0.3))) + "px";
-  px(bannerEl, "top", w.y + w.h * 0.24);
+  /* a depth's name arrives with the clear that reached it: when the
+     labels sit inside the well (a phone) the banner goes below their band
+     rather than on top of the words */
+  bannerY = w.y + w.h * (lblBand.wide ? 0.24 : 0.42);
+  px(bannerEl, "top", bannerY);
 }
 
 /* ================================================================
    the HUD — DOM text, written only when a number changes
    ================================================================ */
-var hc = { a: -1, b: -1, c: -1, s: "", breathVis: false, breath: -1, breathOn: false, clock: -1, ahead: false };
+var hc = { a: -1, b: -1, c: -1, s: "", breathVis: false, breath: -1, breathOn: false, breathLbl: "", clock: -1, ahead: false };
+/* A phone's HUD is one row: when space runs short the world's name gives
+   way to an ellipsis and every number stays whole. At a large text size
+   that row cannot hold three cards and the Breath button at all, so for a
+   mode with three cards the HUD takes two rows from the start of the run
+   — the name on a line of its own — and the layout gives it the height.
+   It is decided when a run begins, never during one: a well that changes
+   size mid-run is worse than a shortened name. */
+var hudWrap = false, hudRow = true;
+function hudWrapWanted(r) {
+  return !!r && !r.steady && (+pref("textSize") || 1) >= 1.25 &&
+         (r.modeId === "descent" || r.modeId === "drift" || r.modeId === "three");
+}
 var clockNodes = null, clockDig = [-1, -1, -1, -1, -1, -1], clockM10 = null, clockHund = true;
 
 function setText(el, s) {
@@ -607,6 +859,16 @@ function makeClock(vEl, hundredths) {
     if (parts[i] === "m10") clockM10 = sp;
   }
   for (i = 0; i < 6; i++) clockDig[i] = -1;
+  /* each digit is a contained box (index.html) as wide as one of this
+     font's digits, measured once here in em so it holds at any size */
+  try {
+    var probe = doc.createElement("span");
+    probe.textContent = "0";
+    vEl.appendChild(probe);
+    var w = probe.getBoundingClientRect().width, fs = parseFloat(root.getComputedStyle(vEl).fontSize);
+    vEl.removeChild(probe);
+    if (w > 0 && fs > 0) vEl.style.setProperty("--dw", (w / fs).toFixed(3) + "em");
+  } catch (e) { /* the CSS default stands */ }
 }
 function digit(i, d) {
   if (clockDig[i] === d) return;
@@ -617,7 +879,7 @@ function digit(i, d) {
 function clockSet(ms, countdown) {
   if (!clockNodes) return;
   if (ms < 0) ms = 0;
-  var cs = countdown ? Math.ceil(ms / 1000) * 100 : Math.floor(ms / 10);
+  var cs = countdown ? Math.ceil(ms / 1000) * 100 : Math.round(ms / 10);
   if (cs === hc.clock) return;
   hc.clock = cs;
   var s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
@@ -629,35 +891,40 @@ function clockSet(ms, countdown) {
 
 function hudSetup() {
   var r = run;
+  var wrapNow = hudWrapWanted(r);
+  if (wrapNow !== hudWrap) { hudWrap = wrapNow; needResize = true; }
   hc.a = hc.b = hc.c = hc.clock = hc.breath = -1;
-  hc.s = ""; hc.breathVis = false; hc.breathOn = false; hc.ahead = false;
+  hc.s = ""; hc.breathVis = false; hc.breathOn = false; hc.ahead = false; hc.breathLbl = "";
   clockNodes = null;
   hAv.className = "hv"; hBv.className = "hv"; hCv.className = "hv";
   hA.classList.add("hide"); hB.classList.add("hide"); hC.classList.add("hide");
   btnBreath.classList.add("hide");
   hudEl.classList.toggle("off", r.steady);
+  /* Every label in one case, a capital and then lower case, and the
+     first card — the one that grows — always carries a name: the world
+     in Descent and Drift, the lesson in a challenge */
   var learner = r.learner ? " · learner speed" : "";
   switch (r.modeId) {
     case "descent":
       cell(hA, hAk, hAv, "Depth " + r.depth + learner, worldName(r.world));
-      cell(hB, hBk, hBv, "lines left", "25");
-      cell(hC, hCk, hCv, "score", "0");
+      cell(hB, hBk, hBv, "Lines left", "25");
+      cell(hC, hCk, hCv, "Score", "0");
       break;
     case "forty":
-      cell(hA, hAk, hAv, "time" + learner, "");
+      cell(hA, hAk, hAv, "Time" + learner, "");
       makeClock(hAv, true);
-      cell(hB, hBk, hBv, "lines", "0 / " + r.goal);
+      cell(hB, hBk, hBv, "Lines", "0 / " + r.goal);
       break;
     case "three":
-      cell(hA, hAk, hAv, "time left" + learner, "");
+      cell(hA, hAk, hAv, "Time left" + learner, "");
       makeClock(hAv, false);
-      cell(hB, hBk, hBv, "score", "0");
-      cell(hC, hCk, hCv, "level", "1");
+      cell(hB, hBk, hBv, "Score", "0");
+      cell(hC, hCk, hCv, "Level", "1");
       break;
     case "drift":
-      cell(hA, hAk, hAv, "tide" + learner, "");
-      cell(hB, hBk, hBv, "chapter", "");
-      cell(hC, hCk, hCv, "score", "0");
+      cell(hA, hAk, hAv, tideLabel(r.tide) + learner, worldName(r.world));
+      cell(hB, hBk, hBv, "Chapter", "");
+      cell(hC, hCk, hCv, "Score", "0");
       if (pref("scoreHidden")) hC.classList.add("hide");
       break;
     case "challenges":
@@ -666,6 +933,7 @@ function hudSetup() {
   }
 }
 
+function tideLabel(t) { return t > 0 ? "Tide " + t : "Tide off"; }
 function displayScore() { return run.scoreBase + (run.g.score || 0); }
 function totalLines() { return run.linesBase + (run.g.lines || 0); }
 
@@ -694,7 +962,7 @@ function hudUpdate() {
       break;
     case "drift":
       v = r.tide;
-      if (v !== hc.a) { hc.a = v; setText(hAv, v > 0 ? String(v) : "off"); }
+      if (v !== hc.a) { hc.a = v; setText(hAk, tideLabel(v) + (r.learner ? " · learner speed" : "")); }
       v = totalLines() - (r.chapterEnd - r.chapterLen);
       if (v !== hc.b) { hc.b = v; setText(hBv, Math.max(0, Math.min(v, r.chapterLen)) + " / " + r.chapterLen); }
       v = displayScore();
@@ -705,15 +973,33 @@ function hudUpdate() {
   if (r.mode && r.mode.hasBreath && view && view.breath) {
     var ch = Math.floor(view.breath.charge), act = !!view.breath.active;
     var vis = ch >= 10 || act;
-    if (vis !== hc.breathVis) { hc.breathVis = vis; btnBreath.classList.toggle("hide", !vis); }
+    if (vis !== hc.breathVis) {
+      hc.breathVis = vis;
+      btnBreath.classList.toggle("hide", !vis);
+      if (vis && !act && state === "play" && !seen("breath")) breathIntro();
+    }
+    if (ch === hc.breath && act === hc.breathOn) return;
     if (ch !== hc.breath) { hc.breath = ch; setText(breathBeads, ch + "/20"); }
     if (act !== hc.breathOn) {
       hc.breathOn = act;
       btnBreath.classList.toggle("active", act);
-      btnBreath.setAttribute("aria-label", act ? "Breathing" : "Take a Breath");
     }
+    /* the name a screen reader hears carries the beads the button shows */
+    var lbl = act ? "Breathing" : "Take a Breath, " + ch + " of 20 beads";
+    if (lbl !== hc.breathLbl) { hc.breathLbl = lbl; btnBreath.setAttribute("aria-label", lbl); }
   }
 }
+/* The first time Breath is ready, it says what it is, once. On a phone
+   the note passes through the empty upper well rather than over the HUD,
+   since the button it describes is in the HUD. */
+function breathIntro() {
+  markSeen("breath");
+  var keys = pref("keys"), k = keys && keys.breath && keys.breath[0] ? keyName(keys.breath[0]) : "B";
+  var how = device === "keys" ? "press " + k + " (or click it)" : device === "pad" ? "press the left trigger (or tap it)" : "tap it (or press " + k + ")";
+  toast("Breath is ready: " + how + " and gravity rests for one long breath. Each line you clear adds a bead.", 6500, true);
+}
+/* "KeyB" → "B", "Digit1" → "1", "Space" → "Space" */
+function keyName(code) { return String(code).replace(/^Key/, "").replace(/^Digit/, ""); }
 function hudLesson() {
   if (!run || !run.coach) return;
   var p = null;
@@ -774,40 +1060,102 @@ function labelsOff() {
 }
 
 /* The polite live region speaks at most once every two seconds; anything
-   that arrives sooner waits, and only the latest waiting line is kept. */
-var sayLast = -1e9, sayPending = null;
-function say(text) {
+   that arrives sooner waits, and only the latest waiting line is kept.
+   It is the room's one voice: the toast is only seen, and says its words
+   here, as a line that is kept (keep) — a clear's word arriving in the
+   same moment can wait behind it, but cannot push it out. */
+var sayLast = -1e9, sayPending = null, sayKeep = false;
+function say(text, keep) {
   if (!text) return;
   var t = now();
-  if (t - sayLast >= SAY_GAP) { sayEl.textContent = text; sayLast = t; sayPending = null; }
-  else sayPending = text;
+  if (t - sayLast >= SAY_GAP) { sayEl.textContent = text; sayLast = t; sayPending = null; sayKeep = false; }
+  else if (keep || !sayKeep) { sayPending = text; sayKeep = !!keep; }
 }
 function sayTick() {
-  if (sayPending !== null && clock[FRAME] - sayLast >= SAY_GAP) { sayEl.textContent = sayPending; sayLast = clock[FRAME]; sayPending = null; }
+  if (sayPending !== null && clock[FRAME] - sayLast >= SAY_GAP) {
+    sayEl.textContent = sayPending; sayLast = clock[FRAME]; sayPending = null; sayKeep = false;
+  }
 }
 
-var bannerUntil = 0;
+/* A depth's name over the well. It sits where it was placed (bannerY),
+   and like the labels it fades to a whisper while a falling piece passes
+   behind it, so the name of a world never hides the piece in play. */
+var bannerUntil = 0, bannerY = 0, bannerDodge = false, bannerRows = { top: 0, bottom: 0 };
 function banner(big, sub, ms) {
   bannerBig.textContent = big || "";
   bannerSub.textContent = sub || "";
   bannerEl.classList.add("on");
   bannerUntil = now() + (ms || BANNER_MS);
+  if (L && L.cell) {
+    bannerRows.top = 22 - (bannerY - L.well.y) / L.cell;
+    bannerRows.bottom = bannerRows.top - (bannerEl.offsetHeight || 64) / L.cell;
+  }
 }
-function bannerTick() { if (bannerUntil && clock[FRAME] >= bannerUntil) { bannerUntil = 0; bannerEl.classList.remove("on"); } }
+function bannerTick() {
+  if (!bannerUntil) return;
+  if (clock[FRAME] >= bannerUntil) {
+    bannerUntil = 0;
+    bannerEl.classList.remove("on");
+    if (bannerDodge) { bannerDodge = false; bannerEl.classList.remove("dodge"); }
+    return;
+  }
+  var d = false;
+  if (run && view && view.active && state === "play") {
+    var cs = view.active.cells;
+    for (var i = 0; i < 4; i++) if (cs[i][1] <= bannerRows.top + 0.5 && cs[i][1] >= bannerRows.bottom - 0.5) { d = true; break; }
+  }
+  if (d !== bannerDodge) { bannerDodge = d; bannerEl.classList.toggle("dodge", d); }
+}
 
-var toastT = 0;
-function toast(text, ms) {
+/* where a toast goes (placeChrome works both out), and whether the one
+   showing is a note for the empty upper well rather than the usual spot */
+var toastT = 0, toastIn = false, toastDodge = false;
+var toastSpot = { x: 195, y: 10, max: 360 };
+var toastWell = { on: false, x: 0, y: 0, max: 0, top: 0, bottom: 0 };
+function placeToast() {
+  var sp = toastIn && toastWell.on ? toastWell : toastSpot;
+  px(toastEl, "left", sp.x); px(toastEl, "top", sp.y); px(toastEl, "maxWidth", sp.max);
+}
+function toast(text, ms, inWell) {
   toastEl.textContent = text;
+  if (!calmNow) say(text, true);
+  toastIn = !!inWell;
+  toastEl.classList.toggle("inwell", toastIn && toastWell.on);
+  placeToast();
+  if (toastIn && toastWell.on && L && L.cell) toastWell.bottom = toastWell.top - (toastEl.offsetHeight || 100) / L.cell;
   toastEl.classList.add("on");
   if (toastT) clearTimeout(toastT);
-  toastT = setTimeout(function () { toastEl.classList.remove("on"); toastT = 0; }, ms || 3400);
+  toastT = setTimeout(clearToast, ms || 3400);
+}
+function clearToast() {
+  if (toastT) { clearTimeout(toastT); toastT = 0; }
+  toastEl.classList.remove("on");
+  if (toastDodge) { toastDodge = false; toastEl.classList.remove("dodge"); }
+}
+/* the in-well note fades to a whisper while a piece passes under it */
+function toastTick() {
+  var d = false;
+  if (toastIn && toastWell.on && toastT && view && view.active) {
+    var cs = view.active.cells;
+    for (var i = 0; i < 4; i++) if (cs[i][1] <= toastWell.top + 0.5 && cs[i][1] >= toastWell.bottom - 0.5) { d = true; break; }
+  }
+  if (d !== toastDodge) { toastDodge = d; toastEl.classList.toggle("dodge", d); }
+}
+/* Steady shows no text during play (index.html hides the toast and the
+   update bar under html.calm); anything shown then waits unseen, and the
+   bar comes back by itself at the next pause, rest or end */
+var calmNow = false;
+function calmTick() {
+  var calm = !!run && run.steady && state === "play";
+  if (calm !== calmNow) { calmNow = calm; doc.documentElement.classList.toggle("calm", calm); }
 }
 var lowPowerSaid = false;
 /* Low Power Mode is an iPhone, iPad and Mac thing; a steady 30 fps
    anywhere else is just a busy machine, and naming a setting it doesn't
-   have would be a puzzle, not a help */
+   have would be a puzzle, not a help. Not during Steady's play, where it
+   could not be seen: the renderer asks again a minute later. */
 function lowPowerChip() {
-  if (lowPowerSaid || !APPLE) return;
+  if (lowPowerSaid || !APPLE || (run && run.steady && state === "play")) return;
   lowPowerSaid = true;
   toast("Low Power Mode: drawing at 30 fps. Gameplay timing is unaffected.", 5200);
 }
@@ -819,6 +1167,26 @@ var gBag = [], gPip = [], gBead = [], gLock = $("gLock"), gDas = $("gDas"), gGra
     gFormula = $("gFormula"), gBreathRow = $("gBreathRow");
 var gc = { bag: -1, lock: -1, das: -1, pips: -1, beads: -1, grav: -2, breathRow: null, dodge: false };
 var glassBand = { over: false, x1: 0, top: 0, bottom: 0 };
+var coachBand = { on: false, top: 0, bottom: 0, dodge: false };
+var coachSpot = { side: false, want: 0, min: 0 };
+/* the side panel's coach sits low, but never past the bottom of the
+   screen, however many lines the coach has to say */
+function coachFit() {
+  if (!coachSpot.side) return;
+  var h = coachEl.offsetHeight || 150;
+  px(coachEl, "top", Math.max(coachSpot.min, Math.min(coachSpot.want, vh - safe.b - h - 10)));
+}
+/* the phone's coach line steps out of the active piece's way */
+function coachDodge() {
+  var d = false;
+  if (coachBand.on && run && run.coach && view && view.active) {
+    var cs = view.active.cells;
+    for (var i = 0; i < 4; i++) {
+      if (cs[i][1] <= coachBand.top + 0.5 && cs[i][1] >= coachBand.bottom - 0.5) { d = true; break; }
+    }
+  }
+  if (d !== coachBand.dodge) { coachBand.dodge = d; coachEl.classList.toggle("dodge", d); }
+}
 function buildGlass() {
   var bagEl = $("gBag"), pipEl = $("gPips"), beadEl = $("gBeads"), i, s;
   for (i = 1; i <= 7; i++) { s = doc.createElement("span"); s.textContent = NAMES[i]; bagEl.appendChild(s); gBag.push(s); }
@@ -928,13 +1296,18 @@ function frameBody() {
      to keep its look-ahead full */
   if (Music && Music.tick) { try { Music.tick(); } catch (e) { fault("Music.tick", e); } }
 
-  var live = (state === "play" && run) || (state === "splash" && demo.g);
+  /* the splash's well plays itself only with Motion at Full: it is
+     decoration beside the title, with no way to pause it, so Gentle, Still
+     and a device that asks for less motion all hold it where it is (it
+     carries on from there if the setting comes back to Full) */
+  var demoOn = state === "splash" && !!demo.g && motionPref() === "full";
+  var live = (state === "play" && run) || demoOn;
   if (live) {
     if (t - clock[SIM] > 250) clock[SIM] = t - 250;
     while (clock[SIM] + TICK <= t) {
       clock[SIM] += TICK;
       if (state === "play" && run) tickRun();
-      else if (state === "splash" && demo.g) tickDemo();
+      else if (demoOn) tickDemo();
       else break;
     }
   } else clock[SIM] = t;
@@ -942,6 +1315,7 @@ function frameBody() {
   if (state === "play" && run) afterTicks();
   else if (state === "ending" && t >= endAt) showEndCard();
   remindTick();
+  calmTick();
   present();
 }
 
@@ -953,11 +1327,15 @@ function tickRun() {
        clock waits for the first spawn after it */
     var before = r.readyMs;
     r.readyMs -= TICK;
-    if ((before >= 1000 && r.readyMs < 1000) || (before >= 500 && r.readyMs < 500)) music("ui", "tap");
+    if (r.readyShow) {
+      if (r.readyMs <= READY_MS) { r.readyShow = false; music("ui", "tap"); banner("Ready", "", READY_MS); }
+    } else if ((before >= 1000 && r.readyMs < 1000) || (before >= 500 && r.readyMs < 500)) music("ui", "tap");
     if (r.readyMs <= 0) { r.readyMs = 0; bannerUntil = 1; }
     return;
   }
-  if (!r.halted) {
+  /* the clock stops on the tick the run ends: the ticks left in that frame
+     come after the last lock, and Forty's time is read to the hundredth */
+  if (!r.halted && !g.over) {
     r.elapsedMs += TICK;
     if (I) { try { I.tick(clock[SIM]); } catch (e) { fault("Input.tick", e); } }
   }
@@ -1126,10 +1504,14 @@ function afterTicks() {
   if (r.steady && S && !r.halting && !g.over) {
     var st = null;
     try { st = S.tick(r.elapsedMs); } catch (e) { fault("Steady.tick", e); }
-    if (st === "timeup") {
-      r.halting = true; r.steadyTimeup = true;
-      try { Well.stopGravity(g, true); } catch (e) { fault("Well.stopGravity", e); }
-    }
+    if (st === "timeup") { r.halting = true; r.steadyTimeup = true; r.stopPending = true; }
+  }
+  /* Steady's time never interrupts a piece: the one in hand falls and
+     locks in its own time, with the hands still live, and the well comes
+     to rest in the wait before the next one appears */
+  if (r.stopPending && !g.active && !g.over) {
+    r.stopPending = false;
+    try { Well.stopGravity(g, true); } catch (e) { fault("Well.stopGravity", e); }
   }
   /* a save made while the well was resting comes back resting */
   if (g.halted && !r.halted && (r.modeId === "drift" || r.steady)) {
@@ -1137,6 +1519,12 @@ function afterTicks() {
   }
   if ((r.chapterHalting || r.halting) && g.halted) r.halted = true;
   if (r.halted && !r.restShown && !g.over) { restCard(); return; }
+  /* a passed lesson's card, a moment after the coach has said so — counted
+     in play time, so a pause in that moment only puts it off */
+  if (!fin && r.passEndAt && r.elapsedMs >= r.passEndAt) {
+    r.passEndAt = 0;
+    fin = { why: "pass", title: "Lesson passed", lead: (r.lesson.name || "The lesson") + " — passed. It stays open; come back to it any time." };
+  }
   if (fin || g.over) { endRun(fin, t); return; }
 
   /* a personal best passed mid-run: one soft chime, a mark, no banner */
@@ -1173,6 +1561,8 @@ function present() {
     }
   }
   labelsTick();
+  coachDodge();
+  toastTick();
   sayTick();
   bannerTick();
 }
@@ -1197,7 +1587,30 @@ function startDemo() {
   /* the first piece is already there; drain its spawn and plan it */
   var evs = null;
   try { evs = Well.drain(demo.g); } catch (e) { evs = null; }
+  if (motionPref() !== "full") { try { settleDemo(); } catch (e) { fault("settleDemo", e); } }
   demoPlan();
+}
+/* A well that holds still (Motion below Full) is drawn as a well rather
+   than an empty shaft: a few of the bot's pieces are placed at once, in
+   copies, with nothing drawn or heard for them and stopping short of any
+   clear, and nothing is left hanging in the air behind the title. */
+function settleDemo() {
+  var g = demo.g, kept = null;
+  for (var n = 0; n < 12 && g && !g.over; n++) {
+    var t = Well.clone(g);
+    if (!t.active) { Well.step(t, 1000); Well.drain(t); }
+    if (!t.active) break;
+    demo.g = t;
+    demoPlan();
+    for (var k = 0; k < 30 && t.active; k++) demoAct();
+    if (t.active) Well.act(t, "hard");
+    var evs = Well.drain(t), cleared = t.over;
+    for (var i = 0; i < evs.length; i++) if (evs[i].t === "clear") cleared = true;
+    if (cleared) break;
+    kept = g = t;
+  }
+  demo.g = kept || g;
+  demo.held = false;
 }
 function stopDemo() { demo.g = null; demo.q = null; demo.target = null; }
 
@@ -1270,18 +1683,24 @@ function tickDemo() {
   if (clock[SIM] >= demo.next && g.active) demoAct();
 }
 
+/* The splash's doors. Continue is the run left last. "Enter the well" is
+   Descent, so while a Descent is saved it would quietly throw that one
+   away, one button from Continue, with no "are you sure?" by design: it
+   goes. A saved Descent that isn't the run left last gets its own
+   Continue in that place instead; starting Descent afresh is a deliberate
+   choice in Modes ("Begin again"), never a slip on the splash. */
 function splashRefresh() {
   var last = saves && saves.last && saves.runs[saves.last] ? saves.last : null;
+  var desc = !!(saves && saves.runs.descent);
   var cont = $("goContinue"), play = $("goPlay");
   if (last) {
     var m = modeOf(last);
     cont.textContent = "Continue · " + (m ? m.name : last);
     cont.classList.remove("hide");
-    play.classList.remove("primary");
-  } else {
-    cont.classList.add("hide");
-    play.classList.add("primary");
-  }
+  } else cont.classList.add("hide");
+  play.classList.toggle("hide", desc && last === "descent");
+  play.textContent = desc ? "Continue · " + ((modeOf("descent") || {}).name || "Descent") : "Enter the well";
+  play.classList.toggle("primary", !last);
   var note = "";
   if (webglOk === false && !HAS_AUDIO && APPLE) note = "Lockdown Mode is on, so here is the quiet version.";
   else if (!R) note = "This browser couldn't draw the well. Reloading the page sometimes helps.";
@@ -1290,7 +1709,9 @@ function splashRefresh() {
   $("spNote").textContent = note;
 }
 
+var swDeferred = false;
 function toSplash() {
+  if (swDeferred) { swDeferred = false; saveAll(); location.reload(); return; }
   var was = run;
   if (run && run.coach) { try { run.coach.stop(); } catch (e) { fault("Coach.stop", e); } }
   run = null;
@@ -1308,7 +1729,7 @@ function toSplash() {
   showGlass();
   setPad(false);
   freeScreen();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   if (was) { music("stop"); music("calm", false); }
   splashMusic = false;
   applyAudio();
@@ -1321,6 +1742,7 @@ function toSplash() {
   splash.classList.remove("gone");
   startDemo();
   needResize = true;
+  focusSplash();
 }
 
 /* ================================================================
@@ -1371,11 +1793,17 @@ function challengeKey(id) {
   try { return m && m.pbKey ? m.pbKey({ id: id }) : null; } catch (e) { fault("Modes.pbKey", e); return null; }
 }
 function levelAtDepth(pace, d) { return pace === "swift" ? d + 5 : d; }
-function tideMs(level) {
-  level = level | 0;
-  if (level <= 0) return 0;
-  var k = level - 1;
-  return Math.round(1000 * Math.pow(0.8 - k * 0.007, k));
+/* Drift's tide is Modes' table, the same one its engine options come
+   from, so the slider, the sheet and the falling piece always agree */
+function tideMs(n) {
+  var t = null;
+  if (Modes && Modes.tide) { try { t = Modes.tide(n); } catch (e) { fault("Modes.tide", e); } }
+  return t ? t.ms : 0;
+}
+function tideLevel(n) {
+  var t = null;
+  if (Modes && Modes.tide) { try { t = Modes.tide(n); } catch (e) { t = null; } }
+  return t ? t.level : Math.max(1, n | 0);
 }
 
 /* The engine's options: the player's handling, then the mode's (which for
@@ -1416,7 +1844,9 @@ function makeCoach(lesson) {
       onSay: function (text, kind) { coachSay(text, kind); },
       onPass: function (id) { lessonPassed(id); },
       onRewind: function () { if (run && run.g) { try { Well.rewind(run.g); } catch (e) { fault("Well.rewind", e); } } },
-      onNext: function (opts) { nextWell(opts); }
+      onNext: function (opts) { nextWell(opts); },
+      /* corrections are said in the hand in use: gestures or keys */
+      device: function () { return device; }
     });
   } catch (e) { fault("Coach.create", e); return null; }
 }
@@ -1426,11 +1856,15 @@ function startRun(modeId, opts, from) {
   var mode = modeOf(modeId);
   if (!Well || !mode) { toast("That part of the well didn't load. Reloading the page usually brings it back.", 4800); return; }
   if (run) leaveQuietly();
+  /* each run starts from what is stored, which another tab may have added to */
+  loadRecords();
   stopDemo();
   hideChip();
   var o = optsFor(modeId, opts);
   var seed = from.seed != null ? from.seed : (pendingSeed != null ? pendingSeed : newSeed());
-  pendingSeed = null;
+  /* a typed code deals one run; the field is emptied so the next visit to
+     Modes doesn't seem to promise the same pieces again */
+  clearCode();
   var lesson = null, coach = null;
   if (modeId === "challenges") {
     lesson = findChallenge(o.id || o.lesson);
@@ -1448,12 +1882,17 @@ function startRun(modeId, opts, from) {
     modeId: modeId, mode: mode, opts: o, seed: seed, code: codeOf(seed), g: g, eo: eo,
     lesson: lesson, coach: coach, steady: steady,
     timed: modeId === "forty" || modeId === "three",
-    elapsedMs: from.elapsedMs || 0, readyMs: 0, graceMs: 0,
+    elapsedMs: from.elapsedMs || 0, readyMs: 0, readyShow: false, graceMs: 0,
     rests: from.rests || 0, linesBase: from.linesBase || 0, scoreBase: from.scoreBase || 0,
-    depth: from.depth || 1, depthScore: from.scoreBase || 0, depthLines: from.linesBase || 0,
+    depth: from.depth || 1, depthLines: from.linesBase || 0,
+    /* the score a depth began with, which Begin again restores: kept in the
+       save, or else (an older save, or a run begun again from a depth) the
+       score this run was handed */
+    depthScore: finite(from.depthScore, finite(from.scoreBase, 0)),
     world: "dawn", tide: +o.tide || 0,
     chapterLen: +o.chapter || 40, chapterEnd: from.chapterEnd || (+o.chapter || 40),
-    chapterHalting: false, halting: false, halted: false, restShown: false, steadyTimeup: false,
+    chapterHalting: false, halting: !!from.stopPending, halted: false, restShown: false,
+    steadyTimeup: !!from.stopPending, stopPending: !!from.stopPending, passEndAt: 0,
     learner: from.learner !== undefined ? !!from.learner : ts < 1, hint: !!from.hint,
     newStones: [], recordsDirty: false, lastHard: false, lastLockX: 4.5, drains: 0,
     goal: +o.lines || (eo.goalLines | 0) || 40, timeLimit: +eo.timeLimit || 180000,
@@ -1476,6 +1915,10 @@ function startRun(modeId, opts, from) {
 
   if (run.scoreBase && g.score >= run.scoreBase) run.scoreBase = 0;
   rctx.modeId = modeId; rctx.opts = o; rctx.g = g; rctx.view = view;
+  /* the view still carries the splash's demo flag until the next frame, and
+     Records ignores anything the demo does: this run's first moments (its
+     world, the Glass Well already open) are the player's */
+  if (view) { view.demo = false; view.paused = false; }
   fctx.opts = o; fctx.elapsedMs = run.elapsedMs;
 
   if (coach) {
@@ -1486,7 +1929,9 @@ function startRun(modeId, opts, from) {
     try { coach.start(lesson, g); } catch (e) { fault("Coach.start", e); }
   } else coachEl.classList.add("off");
 
-  /* the room changes for play */
+  /* the room changes for play; the splash takes a moment to fade (see
+     beginPlay) */
+  var fromSplash = !splash.classList.contains("gone");
   splash.classList.add("gone");
   doc.documentElement.classList.add("playing");
   btnMenu.classList.remove("off");
@@ -1507,7 +1952,7 @@ function startRun(modeId, opts, from) {
   showGlass();
   needResize = true;
   replaceHistory();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
 
   /* the first time, four cards: one idea each. Never in Steady, whose own
      tip card has just been read and which shows no text during play; the
@@ -1516,30 +1961,51 @@ function startRun(modeId, opts, from) {
   if (from.restore || steady) cards = false;
   if (!steady) markSeen("intro");
   if (cards) { state = "intro"; openCards(); }
-  else beginPlay(!!from.restore);
+  else beginPlay(!!from.restore, fromSplash ? SPLASH_FADE_MS : 0);
 }
 
-function beginPlay(resumed) {
+/* wait: how long the splash still has to fade (0 after the cards). The
+   first things to read — Ready, a depth's name — and the first fall all
+   wait for it, so nothing new appears through the title on its way out. */
+function beginPlay(resumed, wait) {
   if (!run) return;
+  var r = run;
+  wait = wait || 0;
   state = "play";
-  if (run.timed) startReady();
+  if (r.timed) startReady(wait);
   else if (resumed) grace();
+  else if (wait) r.graceMs = wait;
+  /* a Descent names the world it begins in, as every later depth does */
+  if (r.modeId === "descent" && !resumed) {
+    var nm = worldName(r.world);
+    if (wait) setTimeout(function () { if (run === r && state === "play") banner(nm, "Depth " + r.depth, BANNER_MS); }, wait);
+    else banner(nm, "Depth " + r.depth, BANNER_MS);
+    say("Depth " + r.depth + ", " + nm + ".");
+  }
   holdScreen();
   showGlass();
+  /* the Glass Well switched on before the run counts as looking inside
+     the moment the run is played with it */
+  if (glassOn && !run.steady) observe(EV_GLASS);
   lastToggle = now();
-  /* a few things worth saying exactly once */
-  if (IOS && HAS_AUDIO && !seen("silentChip")) {
-    markSeen("silentChip");
-    setTimeout(function () { toast("No sound? Your iPhone may be on silent.", 4200); }, 1400);
-  } else if (TOUCH && vw > vh && vh < 520 && !seen("landscape")) {
-    markSeen("landscape");
-    toast("Turn your phone upright for a bigger well.", 4200);
+  /* a few things worth saying exactly once — never in Steady, which shows
+     no text during play; they wait for the next run of anything else */
+  if (!r.steady) {
+    if (IOS && HAS_AUDIO && !seen("silentChip")) {
+      markSeen("silentChip");
+      setTimeout(function () { toast("No sound? Your iPhone may be on silent.", 4200); }, 1400);
+    } else if (TOUCH && vw > vh && vh < 520 && !seen("landscape")) {
+      markSeen("landscape");
+      toast("Turn your phone upright for a bigger well.", 4200);
+    }
   }
 }
-function startReady() {
-  run.readyMs = READY_MS;
-  music("ui", "tap");
-  banner("Ready", "", READY_MS);
+/* Forty and Three Minutes: a calm Ready of three soft plucks, after the
+   splash has faded if it was still there */
+function startReady(wait) {
+  run.readyMs = READY_MS + (wait || 0);
+  run.readyShow = !!wait;
+  if (!wait) { music("ui", "tap"); banner("Ready", "", READY_MS); }
 }
 function grace() {
   if (!run) return;
@@ -1555,7 +2021,7 @@ function pause(how) {
   if (state !== "play" || !run) return false;
   state = "paused";
   lastToggle = now();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   music("pause", true);
   appFx(EV_PAUSE, false);
   freeScreen();
@@ -1591,23 +2057,31 @@ function togglePauseFromUI() {
 /* ---------- saving ---------- */
 function loadSaves() {
   var s = storeGet("save");
-  saves = (s && typeof s === "object" && s.runs && typeof s.runs === "object") ? s : { v: 1, last: null, runs: {} };
+  saves = (s && typeof s === "object" && s.runs && typeof s.runs === "object" && !Array.isArray(s.runs)) ? s : { v: 1, last: null, runs: {} };
 }
+/* Another tab of the room may have saved or put away a run of its own
+   since this one looked: every write starts from what is stored now, so
+   it changes only this tab's mode and never puts back a save that tab
+   removed. (Prefs keeps its copy of the store fresh across tabs, so this
+   costs a copy, not a read.) */
 function saveRun() {
   var r = run;
   if (!r || !r.mode || !r.mode.resumable || !Well) return;
   if (state === "ending" || state === "over" || r.g.over) return;
+  loadSaves();
   var snap = null;
   try { snap = Well.serialize(r.g); } catch (e) { fault("Well.serialize", e); return; }
   saves.runs[r.modeId] = {
     v: 1, modeId: r.modeId, opts: r.opts, seed: r.seed, state: snap, elapsedMs: r.elapsedMs,
     rests: r.rests, linesBase: r.linesBase, scoreBase: r.scoreBase, depth: r.depth,
-    chapterEnd: r.chapterEnd, learner: r.learner, hint: r.hint
+    depthScore: r.depthScore, chapterEnd: r.chapterEnd, learner: r.learner, hint: r.hint,
+    stopPending: !!r.stopPending
   };
   saves.last = r.modeId;
   storePut("save", saves);
 }
 function clearSave(modeId) {
+  loadSaves();
   if (!saves || !saves.runs[modeId]) return;
   delete saves.runs[modeId];
   if (saves.last === modeId) {
@@ -1616,6 +2090,8 @@ function clearSave(modeId) {
   }
   storePut("save", saves);
 }
+/* a number from a save, or the default when the save holds anything else */
+function finite(v, d) { return typeof v === "number" && isFinite(v) ? v : d; }
 function continueRun(modeId) {
   var s = saves && saves.runs[modeId];
   if (!s || !Well) return;
@@ -1631,16 +2107,38 @@ function continueRun(modeId) {
      on the glass after a reload, so let it go */
   try { Well.act(g, "softOff"); Well.drain(g); } catch (e) { fault("Well.act (restore)", e); }
   startRun(modeId, s.opts, {
-    g: g, seed: s.seed, restore: true, elapsedMs: s.elapsedMs, rests: s.rests, linesBase: s.linesBase,
-    scoreBase: s.scoreBase, depth: s.depth, chapterEnd: s.chapterEnd, learner: s.learner, hint: s.hint
+    g: g, seed: s.seed, restore: true, elapsedMs: finite(s.elapsedMs, 0), rests: finite(s.rests, 0), linesBase: finite(s.linesBase, 0),
+    scoreBase: finite(s.scoreBase, 0), depth: Math.max(1, Math.min(10, finite(s.depth, 1) | 0)),
+    depthScore: s.depthScore, chapterEnd: finite(s.chapterEnd, 0), learner: s.learner, hint: s.hint,
+    stopPending: !!s.stopPending
   });
 }
 function loadRecords() {
   var d = storeGet("records");
-  records = (d && typeof d === "object") ? d : (Records ? Records.blank() : {});
+  records = (d && typeof d === "object" && !Array.isArray(d)) ? d : (Records ? Records.blank() : {});
   if (Records && Records.ensure) { try { records = Records.ensure(records); } catch (e) { fault("Records.ensure", e); } }
+  lifeBase = lifeOf(records);
 }
-function saveRecords() { if (records) storePut("records", records); }
+/* The records are written whole, and another tab of the room may have
+   written its own since this one read them: Records.merge folds what is
+   stored into ours first, so the last tab to write never undoes a best,
+   a Stone or a run the other one recorded (records.js says how). */
+var lifeBase = null;
+function lifeOf(d) {
+  var out = {}, l = d && d.life;
+  if (l) for (var k in l) if (typeof l[k] === "number") out[k] = l[k];
+  return out;
+}
+function saveRecords() {
+  if (!records) return;
+  var disk = storeGet("records");
+  if (disk && Records && Records.merge) {
+    try { Records.merge(records, disk, lifeBase); } catch (e) { fault("Records.merge", e); }
+  }
+  storePut("records", records);
+  lifeBase = lifeOf(records);
+  if (run) run.recordsDirty = false;
+}
 function bestOf(key) {
   if (!Records || !records || !key) return null;
   try { return Records.best ? Records.best(records, key) : null; } catch (e) { fault("Records.best", e); return null; }
@@ -1680,7 +2178,9 @@ function depthChanged(d) {
   r.world = wid;
   setWorld(wid, false, false);
   var name = worldName(wid);
-  banner("Depth " + d + " · " + name, "", BANNER_MS);
+  /* the world's name large and the depth beneath it: two short lines
+     always fit over the well, where one long one ran into the previews */
+  banner(name, "Depth " + d, BANNER_MS);
   say("Depth " + d + ", " + name + ".");
   EV_WORLD.world = wid;
   appFx(EV_WORLD, false);
@@ -1697,7 +2197,7 @@ function restCard() {
   r.restShown = true;
   state = "rest";
   freeScreen();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   labelsOff();
   if (r.steady) {
     if (S) { try { S.timeUp(); } catch (e) { fault("Steady.timeUp", e); } }
@@ -1721,7 +2221,7 @@ function continueAfterRest() {
   var r = run;
   if (!r || state !== "rest") return;
   if (r.modeId === "drift") r.chapterEnd += r.chapterLen;
-  r.chapterHalting = false; r.halting = false; r.halted = false; r.restShown = false;
+  r.chapterHalting = false; r.halting = false; r.halted = false; r.restShown = false; r.stopPending = false;
   try { Well.resume(r.g); } catch (e) { fault("Well.resume", e); }
   closeSheet("ovChapter");
   hideVeil();
@@ -1736,6 +2236,7 @@ var coachHideT = 0;
 function coachSay(text, kind) {
   if (!text) return;
   $("coachText").textContent = text;
+  coachFit();
   say(text);
   if (coachEl.classList.contains("compact")) {
     coachEl.classList.remove("quiet");
@@ -1757,9 +2258,7 @@ function lessonPassed(id) {
      and get their card a moment after the coach has said so */
   var kind = r.lesson && r.lesson.kind;
   if (kind === "finesse") return;
-  setTimeout(function () {
-    if (run === r && state === "play") endRun({ why: "pass", title: "Lesson passed", lead: (r.lesson.name || "The lesson") + " — passed. It stays open; come back to it any time." }, now());
-  }, 1600);
+  r.passEndAt = r.elapsedMs + 1600;
 }
 /* the Twist Slot lesson's next prepared well */
 function nextWell(opts) {
@@ -1831,7 +2330,7 @@ function endRun(fin, t) {
   r.surface = r.modeId === "descent" && r.why === "surface";
   state = "ending";
   lastRun = r;
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   r.watching = false;
   freeScreen();
   labelsOff();
@@ -1882,6 +2381,10 @@ function showEndCard() {
   /* the mode's own words when it has them; the room's when it doesn't */
   var title = fin.title, lead = fin.lead;
   var filled = topOut(r.why);
+  /* at Depth 1 (and at Gentle pace, which drains rather than fills),
+     beginning again from this depth is simply Again, so it isn't offered */
+  var depthRow = r.modeId === "descent" && filled && r.opts.pace !== "gentle" && r.depth > 1;
+  if (r.modeId === "descent" && filled && !depthRow && /this depth/.test(lead || "")) lead = "Rest for a moment, or begin again.";
   if (r.surface) { title = title || "The Surface"; lead = lead || "Ten depths down, and back up into the dawn."; }
   else if (filled) {
     title = title || "The well rests.";
@@ -1891,9 +2394,11 @@ function showEndCard() {
     if (!lead) lead = r.modeId === "three" && r.why === "time" ? "Three minutes, gone by." : "";
   }
   $("endTitle").textContent = title;
+  /* Records' plain notes ("with 1 rest", "learner speed") read as plain
+     sentences after the lead: facts, never a judgement */
   var notes = [], i;
-  if (res.notes) for (i = 0; i < res.notes.length; i++) if (res.notes[i] !== "New personal best") notes.push(res.notes[i]);
-  $("endLead").textContent = lead + (notes.length ? (lead ? " " : "") + notes.join(" · ") : "") + remindLine("end");
+  if (res.notes) for (i = 0; i < res.notes.length; i++) if (res.notes[i] !== "New personal best") notes.push(sentence(res.notes[i]));
+  $("endLead").textContent = lead + (notes.length ? (lead ? " " : "") + notes.join(" ") : "") + remindLine("end");
 
   var pbEl = $("endPb");
   var pbText = res.pb ? "New personal best" : "";
@@ -1909,7 +2414,9 @@ function showEndCard() {
     var it = card[i];
     if (it.kind === "strip") {
       var parts = it.strip || [];
-      for (var j = 0; j < parts.length; j++) strip += "<span><b>" + esc(parts[j].n) + "</b> " + esc(parts[j].label) + "</span>";
+      for (var j = 0; j < parts.length; j++) {
+        strip += "<span><b>" + esc(parts[j].n) + "</b> " + esc(parts[j].n !== 1 && parts[j].plural ? parts[j].plural : parts[j].label) + "</span>";
+      }
       if (!parts.length) strip += "<span>" + esc(it.value) + "</span>";
       continue;
     }
@@ -1931,7 +2438,6 @@ function showEndCard() {
   $("endStones").innerHTML = !stones.length ? "" : (last ? "New stones for the rim: <b>" + esc(stones.join(", ")) +
     "</b> and <b>" + esc(last) + "</b>." : "A new stone for the rim: <b>" + esc(stones[0]) + "</b>.");
 
-  var depthRow = r.modeId === "descent" && filled && r.opts.pace !== "gentle";
   $("endDepthRow").classList.toggle("hide", !depthRow);
   if (depthRow) $("endDepth").textContent = "Begin again from Depth " + r.depth;
   $("endCode").textContent = r.code ? "well code " + r.code : "";
@@ -1939,6 +2445,12 @@ function showEndCard() {
   openSheet("ovEnd", "endDone");
   music("stop");
   remindBoundary("end");
+}
+function sentence(t) {
+  t = String(t || "");
+  if (!t) return t;
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(t) ? t : t + ".";
 }
 function paceName(p) { return p === "swift" ? "Swift" : p === "standard" ? "Standard" : "Gentle"; }
 function doneRun() {
@@ -1976,7 +2488,7 @@ function beginAgainFromDepth() {
 
 /* the line people may copy, never prompted */
 function shareLine(r) {
-  var res = r.result || {}, parts = ["The Well", r.mode ? r.mode.name : r.modeId], g = r.g;
+  var res = r.result || {}, parts = ["well", r.mode ? r.mode.name : r.modeId], g = r.g;
   if (r.modeId === "forty") {
     if (r.goal !== 40) parts.push(r.goal + " lines");
     if (r.why === "goal") parts.push(fmtStopwatch(r.elapsedMs)); else parts.push((g.lines || 0) + " lines");
@@ -2047,10 +2559,21 @@ function remindBoundary(where) {
   var m = remindDue();
   if (!m) return;
   remindSpent();
-  $("chipText").textContent = remindText(m);
+  /* the full sentence, and the short one a phone's one-line chip shows */
+  var mw = remindWords(m);
+  $("chipText").innerHTML = '<span class="cl">' + esc(remindText(m)) + '</span><span class="cs">' +
+    esc(mw.charAt(0).toUpperCase() + mw.slice(1)) + " at the well — a good moment to rest your eyes.</span>";
   chip.classList.remove("hide");
+  needResize = true;
+  /* non-modal, and it doesn't linger: left alone, it goes by itself */
+  if (chipT) clearTimeout(chipT);
+  chipT = setTimeout(function () { chipT = 0; hideChip(); }, CHIP_MS);
 }
-function hideChip() { chip.classList.add("hide"); }
+var chipT = 0, CHIP_MS = 15000;
+function hideChip() {
+  if (chipT) { clearTimeout(chipT); chipT = 0; }
+  chip.classList.add("hide");
+}
 
 /* ================================================================
    sheets
@@ -2062,13 +2585,34 @@ function countSheets() {
   var n = 0;
   for (var i = 0; i < OV.length; i++) if (!OV[i].classList.contains("hide")) n++;
   sheetsOpen = n;
+  setBehind(n > 0);
   return n;
 }
+/* can this element take the focus right now? (not hidden, not faded out,
+   not inside something closed) */
+function canFocus(el) {
+  if (!el || el === doc.body || !el.focus || !doc.body.contains(el) || el.offsetParent === null) return false;
+  if (el.closest && el.closest(".hide, .off")) return false;
+  try { if (getComputedStyle(el).visibility === "hidden") return false; } catch (e) { return false; }
+  return true;
+}
+/* show: let the browser scroll the sheet to it, as a plain Tab does. The
+   wrap at either end of a sheet needs that — the last Begin in Modes is a
+   long way below the top — where a restore that keeps its place does not. */
+function focusEl(f, show) {
+  if (!f) return false;
+  try { f.focus(show ? undefined : { preventScroll: true }); } catch (e) { try { f.focus(); } catch (e2) { return false; } }
+  return doc.activeElement === f;
+}
+/* a sheet's first stop: the named button, else its primary one, else its
+   first button that isn't the ✕ */
 function focusIn(el, id) {
   var f = id ? $(id) : null;
-  if (!f && el) f = el.querySelector(".btn.primary:not(.hide), .btn:not(.hide), button:not(.close), [href], input");
+  if (!canFocus(f)) f = null;
+  if (!f && el) f = el.querySelector(".btn.primary:not(.hide)") || el.querySelector(".btn:not(.hide)") ||
+                    el.querySelector("button:not(.close), [href], input");
   if (!f && el) f = el.querySelector("button");
-  if (f) { try { f.focus({ preventScroll: true }); } catch (e) { try { f.focus(); } catch (e2) { /* nothing to focus */ } } }
+  focusEl(f);
 }
 function openSheet(id, focusId) {
   var el = $(id);
@@ -2081,7 +2625,7 @@ function openSheet(id, focusId) {
   var body = el.querySelector(".sheet");
   if (body) body.scrollTop = 0;
   countSheets();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   focusIn(el, focusId);
 }
 function closeSheet(id) {
@@ -2104,36 +2648,140 @@ function closeTopSheet() {
   countSheets();
 }
 
+/* A sheet chosen from the menu (Look, Handling, the explainer, Modes…)
+   takes the menu's place, and closing it — ✕ or Esc — brings the menu
+   back with the focus on the item it came from, so changing two settings
+   doesn't mean reopening the menu, and Esc never resumes play from under
+   a settings sheet. The way back holds through a chain of sheets (Modes,
+   then Steady's card; Breathe, then noticing) and is let go the moment
+   anything starts a run or the room moves on. */
+var menuReturn = null;
+function fromMenu(openerId) {
+  if (isOpen("ovMenu")) menuReturn = { opener: openerId || null, state: state, run: run };
+  closeSheet("ovMenu");
+}
+
+/* While a sheet is up, everything behind it is inert: Tab can't wander
+   onto the pause button or the HUD under a modal, a screen reader reads
+   only the sheet, and nothing behind can be tapped by accident. Older
+   browsers without inert get aria-hidden, which hides it from a screen
+   reader at least; the Tab wrap below covers the keyboard. */
+var behind = [$("app"), splash], behindInert = false;
+function setBehind(onOff) {
+  if (onOff === behindInert) return;
+  behindInert = onOff;
+  for (var i = 0; i < behind.length; i++) {
+    var el = behind[i];
+    if (!el) continue;
+    if ("inert" in el) el.inert = onOff;
+    else if (onOff) el.setAttribute("aria-hidden", "true");
+    else el.removeAttribute("aria-hidden");
+  }
+}
+/* the last thing focused inside each sheet, and outside them all, so
+   closing a sheet gives the focus back to where it was */
+var lastIn = {}, lastOut = null;
+function noteFocus(e) {
+  var t = e.target;
+  if (!t || t === doc.body || !t.closest) return;
+  var ov = t.closest(".ov");
+  if (ov && ov.id) lastIn[ov.id] = t;
+  else if (!ov) lastOut = t;
+}
+function topSheet() {
+  var open = doc.querySelectorAll(".ov:not(.hide)");
+  return open.length ? open[open.length - 1] : null;
+}
+/* Tab and Shift-Tab go round the top sheet. sheets.js and steady.js wrap
+   their own (and say so with preventDefault); this covers the rest. */
+function sheetTab(e) {
+  var top = topSheet();
+  if (!top) return;
+  var all = top.querySelectorAll("button, [href], input, select, textarea, [tabindex]"), list = [];
+  for (var i = 0; i < all.length; i++) {
+    var n = all[i];
+    if (n.tabIndex < 0 || n.disabled || !canFocus(n)) continue;
+    list.push(n);
+  }
+  if (!list.length) return;
+  var at = doc.activeElement, first = list[0], last = list[list.length - 1];
+  if (!top.contains(at)) { e.preventDefault(); focusEl(e.shiftKey ? last : first, true); }
+  else if (e.shiftKey && (at === first || list.indexOf(at) < 0 && at === top.querySelector(".sheet"))) { e.preventDefault(); focusEl(last, true); }
+  else if (!e.shiftKey && at === last) { e.preventDefault(); focusEl(first, true); }
+}
+/* the splash's own first door, for someone using the keyboard */
+var keyboardLast = device === "keys";
+function focusSplash() {
+  if (!keyboardLast || state !== "splash" || sheetsOpen) return;
+  var c = $("goContinue"), p = $("goPlay");
+  focusEl(canFocus(c) ? c : canFocus(p) ? p : $("goModes"));
+}
+
 /* Sheets open and close from four files (this one, sheets.js, steady.js and
    learn.js), so the bookkeeping watches the classes rather than trusting
    every caller to report in. */
+var sheetsSeen = 0;      /* the count as this function last saw it */
 function sheetsChanged() {
-  var was = sheetsOpen, n = countSheets(), open = doc.querySelectorAll(".ov:not(.hide)");
-  var top = open.length ? open[open.length - 1] : null;
-  if (n > was && I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
-  if (top && !top.contains(doc.activeElement)) focusIn(top, null);
+  /* not sheetsOpen: openSheet() has usually counted already, before the
+     change arrives here */
+  var was = sheetsSeen, n = countSheets();
+  sheetsSeen = n;
+  var top = topSheet();
+  if (n > was) {
+    resetInput();
+    /* a passing note never sits over a sheet's buttons */
+    clearToast();
+  }
+  setBehind(n > 0);
+  /* the title and the doors step back while a sheet is over the splash,
+     so a card floats over the well playing itself, not over half a title */
+  splash.classList.toggle("covered", n > 0);
+  /* Breathe is a whole screen of its own: the pause sheet goes while it
+     is up, and comes back after (the way back is the menu's) */
+  if (isOpen("ovBreathe") && isOpen("ovMenu")) { fromMenu("stxBreathe"); return; }
+  /* and nothing to read shows through it: the veil's words and the pause
+     button wait behind until it closes */
+  doc.documentElement.classList.toggle("breathing", isOpen("ovBreathe"));
+  if (top && !top.contains(doc.activeElement)) {
+    var back = lastIn[top.id];
+    if (!(canFocus(back) && top.contains(back) && focusEl(back))) focusIn(top, null);
+  }
   /* a well code belongs to the Modes sheet it was typed into: closing the
      sheet without starting a run lets it go */
-  if (pendingSeed !== null && !isOpen("ovModes")) {
-    pendingSeed = null;
-    $("codeIn").value = "";
-    $("codeNote").textContent = "";
-  }
+  if (!isOpen("ovModes") && (pendingSeed !== null || $("codeIn").value)) clearCode();
   if (state === "over" && !isOpen("ovEnd")) { doneRun(); return; }
   if (state === "intro" && !isOpen("ovCards")) { beginPlay(false); return; }
+  if (menuReturn) {
+    if (menuReturn.state !== state || menuReturn.run !== run) menuReturn = null;
+    else if (n === 0) {
+      var op = menuReturn.opener;
+      menuReturn = null;
+      openMenu(op);
+      return;
+    }
+  }
   if (n === 0) {
     if (state === "paused") showVeil("Paused · tap to return");
     else if (state === "rest") showVeil(run && run.steady ? "Resting · tap for choices" : "Chapter complete · tap for choices");
-    if (lastFocus && lastFocus.focus && doc.body.contains(lastFocus) && lastFocus.offsetParent !== null) {
-      try { lastFocus.focus({ preventScroll: true }); } catch (e) { /* it went away */ }
-    } else if (state === "paused" || state === "rest") { try { veil.focus({ preventScroll: true }); } catch (e) { /* fine */ } }
+    var at = doc.activeElement;
+    if (!at || at === doc.body || !canFocus(at)) {
+      var f = canFocus(lastFocus) ? lastFocus : canFocus(lastOut) ? lastOut : null;
+      if (!(f && focusEl(f))) {
+        if (state === "paused" || state === "rest") focusEl(veil);
+        else if (state === "splash") focusSplash();
+      }
+    }
     lastFocus = null;
   }
 }
 
 function showVeil(text) {
   veilText.textContent = text;
-  veil.setAttribute("aria-label", text.replace(" · ", ". ") + ".");
+  /* the words on the glass say tap (brief §4.7); the name a screen reader
+     hears says how a keyboard does it */
+  var parts = text.split(" · "), how = parts[1] || "";
+  if (how && device === "keys") how = how.replace("tap", "press Enter or Escape");
+  veil.setAttribute("aria-label", parts[0] + (how ? ". " + how.charAt(0).toUpperCase() + how.slice(1) : "") + ".");
   /* in the races the board is hidden while paused, for fairness */
   veil.classList.toggle("full", !!(run && run.timed && state === "paused"));
   veil.classList.remove("hide");
@@ -2143,15 +2791,20 @@ function hideVeil() { veil.classList.add("hide"); }
 /* ---------- the pause sheet, which is also the menu ---------- */
 var GRID_IDS = ["mModes", "mSteady", "mLook", "mHandling", "mSound", "mComfort", "mLearn", "mLog", "mAbout"];
 var STEADY_GRID = { mLook: 1, mSound: 1, mComfort: 1, mLearn: 1 };
-function openMenu() {
+function openMenu(focusId) {
   var live = !!run && (state === "paused" || state === "rest");
   var steady = live && run.steady;
-  $("menuTitle").textContent = live ? "Paused" : "The Well";
+  $("menuTitle").textContent = live ? "Paused" : "well";
   $("menuLead").textContent = !live ? "Modes, settings, and how it all works."
     : steady ? "Take all the time you like." : "Nothing moves while this is open.";
   $("menuRun").classList.toggle("hide", !live || state !== "paused");
   $("menuLeaveRow").classList.toggle("hide", !live);
-  $("mLeave").textContent = live && run.mode && run.mode.resumable ? "Leave · it's saved" : "Leave";
+  /* Steady's sheet also has Finish, which means something else: there,
+     Leave says what it does in small words, as Finish does */
+  var lv = $("mLeave");
+  lv.classList.toggle("two", !!steady);
+  if (steady) lv.innerHTML = 'Leave<small class="bsub">pick up later</small>';
+  else lv.textContent = live && run.mode && run.mode.resumable ? "Leave · it's saved" : "Leave";
   for (var i = 0; i < GRID_IDS.length; i++) $(GRID_IDS[i]).classList.toggle("hide", steady && !STEADY_GRID[GRID_IDS[i]]);
   var ex = $("menuExtras");
   ex.innerHTML = "";
@@ -2162,7 +2815,7 @@ function openMenu() {
   if (live && run.code) note = "well code " + run.code;
   if (live && run.learner) note += (note ? " · " : "") + "learner speed";
   $("menuNote").textContent = note;
-  openSheet("ovMenu", live && state === "paused" ? "mResume" : "mModes");
+  openSheet("ovMenu", focusId || (live && state === "paused" ? "mResume" : "mModes"));
 }
 function driftExtras(ex) {
   ex.innerHTML =
@@ -2170,7 +2823,7 @@ function driftExtras(ex) {
     '<div class="stepper"><button class="btn" id="xTideDn" aria-label="Slower tide">−</button>' +
     '<output id="xTideOut" aria-live="polite"></output>' +
     '<button class="btn" id="xTideUp" aria-label="Faster tide">+</button></div></div>' +
-    '<div class="fld"><label><b>World</b></label><div class="chips" id="xWorlds"></div></div>';
+    '<div class="fld"><label><b>World</b></label><div class="chips" id="xWorlds" role="group" aria-label="World"></div></div>';
   function paint() {
     var t = run ? run.tide : 0;
     $("xTideOut").textContent = t ? "Tide " + t : "Off";
@@ -2183,7 +2836,9 @@ function driftExtras(ex) {
     var b = doc.createElement("button");
     b.textContent = list[i].name;
     b.setAttribute("data-world", list[i].id);
-    b.className = run && run.world === list[i].id ? "on" : "";
+    var cur = !!run && run.world === list[i].id;
+    b.className = cur ? "on" : "";
+    b.setAttribute("aria-pressed", String(cur));
     wl.appendChild(b);
   }
   on(wl, "click", function (e) {
@@ -2191,7 +2846,10 @@ function driftExtras(ex) {
     if (!b || !run) return;
     setPref("driftWorld", b.getAttribute("data-world"));
     var all = wl.querySelectorAll("button");
-    for (var j = 0; j < all.length; j++) all[j].className = all[j] === b ? "on" : "";
+    for (var j = 0; j < all.length; j++) {
+      all[j].className = all[j] === b ? "on" : "";
+      all[j].setAttribute("aria-pressed", String(all[j] === b));
+    }
   });
   paint();
 }
@@ -2367,14 +3025,23 @@ function renderModes() {
       stats = life && life.steadySessions ? "Steady sessions: <b>" + life.steadySessions + "</b> · " + esc(fmtDuration(life.steadyMs)) + " in all" : "";
     } else if (best && best.value > 0) {
       stats = "Best <b>" + esc(fmtBest(m, best.value)) + "</b>" + sparkline(hist, m.pbBetter === "low");
-    } else if (m.scoreShown !== false) stats = "No best yet — the first run sets it, quietly.";
-    var save = saves && saves.runs[m.id];
-    html += '<div class="mcard' + (m.group === "calm" ? " calm" : "") + '"><div class="mh"><b>' + esc(m.name) + "</b>" +
+    } else if (key && m.scoreShown !== false) stats = "No best yet — the first run sets it, quietly.";
+    var save = saves && saves.runs[m.id], mid = esc(m.id);
+    /* Each card's name is a heading, and each button is named by its own
+       words and then the card's ("Begin Forty", "Continue Descent"), so a
+       list of a screen reader's buttons is not thirteen Begins. The visible
+       words come first, as voice control needs them to. */
+    html += '<div class="mcard' + (m.group === "calm" ? " calm" : "") + '"><div class="mh"><h3 id="mt_' + mid + '">' + esc(m.name) + "</h3>" +
       (medal ? '<span class="medal">' + esc(medal) + "</span>" : "") + "</div>" +
       '<p class="ml">' + esc(m.line) + "</p>" + opts +
       (stats ? '<div class="ms">' + stats + "</div>" : "") +
-      '<div class="row">' + (save ? '<button class="btn" data-continue="' + m.id + '">Continue</button>' : "") +
-      '<button class="btn primary" data-begin="' + m.id + '">' + (m.id === "steady" ? "Begin…" : save ? "Begin anew" : "Begin") + "</button></div></div>";
+      /* a saved run: Continue leads, and beginning again is the quieter
+         second button beside it, because it lets the saved one go */
+      '<div class="row">' + (save ? '<button class="btn primary" id="mc_' + mid + '" aria-labelledby="mc_' + mid + " mt_" + mid +
+        '" data-continue="' + mid + '">Continue</button>' : "") +
+      '<button class="btn' + (save ? "" : " primary") + '" id="mb_' + mid + '" aria-labelledby="mb_' + mid + " mt_" + mid +
+      '" data-begin="' + mid + '">' +
+      (m.id === "steady" ? (save ? "Begin again…" : "Begin…") : save ? "Begin again" : "Begin") + "</button></div></div>";
   }
   body.innerHTML = html;
   renderChallenges();
@@ -2386,17 +3053,19 @@ function renderChallenges() {
   var lessons = Modes && Modes.LESSONS ? Modes.LESSONS : [], silt = Modes && Modes.SILT ? Modes.SILT : [];
   var done = records && records.lessons ? records.lessons : {};
   for (i = 0; i < lessons.length; i++) {
-    var ls = lessons[i];
-    html += '<div class="chal"><div class="ct"><b>' + (ls.n || i + 1) + ". " + esc(ls.name) + "</b><small>" + esc(ls.teaches || "") +
+    var ls = lessons[i], lid = esc(ls.id);
+    html += '<div class="chal"><div class="ct"><h4 id="ct_' + lid + '">' + (ls.n || i + 1) + ". " + esc(ls.name) + "</h4><small>" + esc(ls.teaches || "") +
       (typeof ls.pass === "string" ? " " + esc(ls.pass) : "") +
-      (done[ls.id] ? ' <span class="done">Passed.</span>' : "") + '</small></div><button class="btn" data-lesson="' + esc(ls.id) + '">Begin</button></div>';
+      (done[ls.id] ? ' <span class="done">Passed.</span>' : "") + '</small></div><button class="btn" id="lb_' + lid +
+      '" aria-labelledby="lb_' + lid + " ct_" + lid + '" data-lesson="' + lid + '">Begin</button></div>';
   }
   for (i = 0; i < silt.length; i++) {
-    var s = silt[i], best = bestOf(challengeKey(s.id));
-    html += '<div class="chal"><div class="ct"><b>' + esc(s.name || "Silt") + "</b><small>" +
+    var s = silt[i], best = bestOf(challengeKey(s.id)), sid = esc(s.id);
+    html += '<div class="chal"><div class="ct"><h4 id="ct_' + sid + '">' + esc(s.name || "Silt") + "</h4><small>" +
       esc(s.teaches || "") + (typeof s.pass === "string" ? " " + esc(s.pass) : "") +
       (best && best.value > 0 ? " Best " + esc(fmtStopwatch(best.value)) + "." : "") +
-      '</small></div><button class="btn" data-lesson="' + esc(s.id) + '">Begin</button></div>';
+      '</small></div><button class="btn" id="lb_' + sid + '" aria-labelledby="lb_' + sid + " ct_" + sid +
+      '" data-lesson="' + sid + '">Begin</button></div>';
   }
   el.innerHTML = html || '<p class="note">The challenges didn\'t load this time.</p>';
 }
@@ -2422,20 +3091,40 @@ function modesClick(e) {
   if (cont) { closeAllSheets(); if (run) leaveQuietly(); run = null; continueRun(cont); return; }
   if (lesson) { closeAllSheets(); startRun("challenges", { id: lesson }); }
 }
+function clearCode() {
+  pendingSeed = null;
+  var el = $("codeIn"), note = $("codeNote");
+  if (el) { el.value = ""; el.removeAttribute("aria-invalid"); }
+  if (note) { note.textContent = ""; note.className = "note"; }
+}
+/* The note under the field is a status (index.html), so what it says is
+   heard as well as seen; it is only rewritten when its words change, so
+   typing the first five letters says "Six letters and numbers" once, not
+   five times. A good code is read back as the code itself. */
 function codeInput() {
   var el = $("codeIn"), note = $("codeNote");
   var raw = (el.value || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
   if (el.value !== raw) el.value = raw;
   pendingSeed = null;
-  note.className = "note";
-  if (!raw) { note.textContent = ""; return; }
-  if (raw.length < 6) { note.textContent = "Six letters and numbers."; return; }
-  var seed = null;
-  try { seed = Modes && Modes.code ? Modes.code.decode(raw) : null; } catch (e) { seed = null; }
-  if (seed === null || seed === undefined || seed === false) { note.textContent = "That code doesn't look quite right — check it and try again."; return; }
-  pendingSeed = seed;
-  note.className = "note ok";
-  note.textContent = "Pieces from well code " + raw + ". Pick a mode and they're yours.";
+  var txt = "", cls = "note", bad = false;
+  if (raw && raw.length < 6) txt = "Six letters and numbers.";
+  else if (raw) {
+    var seed = null;
+    try { seed = Modes && Modes.code ? Modes.code.decode(raw) : null; } catch (e) { seed = null; }
+    if (seed === null || seed === undefined || seed === false) {
+      txt = "That code doesn't look quite right — check it and try again.";
+      bad = true;
+    } else {
+      pendingSeed = seed;
+      var shown = raw;
+      try { if (Modes.code.encode) shown = Modes.code.encode(seed) || raw; } catch (e) { shown = raw; }
+      cls = "note ok";
+      txt = "Pieces from well code " + shown + ". Pick a mode and they're yours.";
+    }
+  }
+  if (bad) el.setAttribute("aria-invalid", "true"); else el.removeAttribute("aria-invalid");
+  if (note.className !== cls) note.className = cls;
+  if (note.textContent !== txt) note.textContent = txt;
 }
 
 /* ---------- the Logbook ---------- */
@@ -2477,11 +3166,14 @@ function openLog() {
       try { p = Records.progress(records, stones[i].id); } catch (e) { p = null; }
       if (p && p.have) prog = " (" + p.have + " of " + p.need + ")";
     }
-    html += '<div class="stone' + (got ? " got" : "") + '"><i></i><div><b>' + esc(stones[i].name) + "</b><small>" +
-      esc(stones[i].line) + esc(prog) + '</small><span class="vh">' + (got ? "Found." : "Not yet.") + "</span></div></div>";
+    /* a stone not yet found is simply dimmer: the list is what there is
+       to find, not a row of things still to do, so only a found one says so */
+    html += '<li class="stone' + (got ? " got" : "") + '"><i></i><div><b>' + esc(stones[i].name) + "</b><small>" +
+      esc(stones[i].line) + esc(prog) + "</small>" + (got ? '<span class="vh">Found.</span>' : "") + "</div></li>";
   }
   $("logRim").innerHTML = stones.length ? rimSvg(stones) : "";
-  $("logRim").setAttribute("aria-label", have + " of " + stones.length + " stones set into the rim");
+  $("logSum").textContent = !stones.length ? "" : !have ? "Stones arrive on their own as you play. These are the ones there are to find."
+    : have + " of " + stones.length + " stones set into the rim.";
   $("logStones").innerHTML = html;
   var life = lifetime() || { pieces: 0, lines: 0, ms: 0, sessions: 0, steadySessions: 0, steadyMs: 0 };
   $("logLife").innerHTML =
@@ -2500,7 +3192,7 @@ function bestsHtml() {
     b = bestOf(k);
     md = null;
     try { md = Records && Records.medal ? Records.medal(records, k) : null; } catch (e) { md = null; }
-    rows.push("<tr><th>" + esc(label) + "</th><td>" + (b && b.value > 0 ? esc(fmtBest(mode, b.value)) : "—") + "</td><td>" + esc(md || "") + "</td></tr>");
+    rows.push('<tr><th scope="row">' + esc(label) + "</th><td>" + (b && b.value > 0 ? esc(fmtBest(mode, b.value)) : "—") + "</td><td>" + esc(md || "") + "</td></tr>");
   }
   m = modeOf("descent");
   if (m && m.pbKey) {
@@ -2525,7 +3217,8 @@ function bestsHtml() {
   var silt = Modes && Modes.SILT ? Modes.SILT : [];
   for (var s = 0; s < silt.length; s++) row(silt[s].name || "Silt", challengeKey(silt[s].id), { pbBetter: "low" });
   if (!rows.length) return '<p class="note">Your bests will appear here.</p>';
-  return '<table class="tally"><tr><th>Mode</th><td>Best</td><td>Medal</td></tr>' + rows.join("") + "</table>";
+  return '<table class="tally"><thead><tr><th scope="col">Mode</th><th scope="col">Best</th><th scope="col">Medal</th></tr></thead><tbody>' +
+    rows.join("") + "</tbody></table>";
 }
 
 /* ---------- How it works ---------- */
@@ -2563,8 +3256,10 @@ function openAbout() {
   var a = Learn ? Learn.ABOUT : null, body = $("aboutBody");
   if (!a) body.innerHTML = "";
   else if (typeof a === "string") {
-    if (/<[a-z]/i.test(a)) body.innerHTML = a;
-    else body.innerHTML = '<p class="note">' + esc(a).replace(/\n\n+/g, '</p><p class="note">') + "</p>";
+    /* the credits carry inline HTML (the name, in italics); only text
+       that brings its own paragraphs goes in bare */
+    if (/<(p|div|ul|ol)\b/i.test(a)) body.innerHTML = a;
+    else body.innerHTML = '<p class="note">' + (/<[a-z]/i.test(a) ? a : esc(a)).replace(/\n\n+/g, '</p><p class="note">') + "</p>";
   } else if (a.length) {
     var h = "";
     for (var i = 0; i < a.length; i++) h += '<p class="note">' + esc(a[i]) + "</p>";
@@ -2577,12 +3272,10 @@ function openAbout() {
 
 /* ---------- the settings sheets, and Steady's ---------- */
 function openSettings(which) {
-  closeSheet("ovMenu");
   if (Sheets) { try { Sheets.open(which); countSheets(); return; } catch (e) { fault("Sheets.open", e); } }
   openSheet("ov" + which.charAt(0).toUpperCase() + which.slice(1), null);
 }
 function openSteadyEntry() {
-  closeSheet("ovMenu");
   if (S) { try { S.openEntry(); countSheets(); return; } catch (e) { fault("Steady.openEntry", e); } }
   openSheet("ovSteady", null);
 }
@@ -2610,6 +3303,8 @@ function makeSteady() {
       /* {t:"breathed"} and {t:"stop"}: already the events records.js reads */
       onMoment: function (ev) { if (ev && ev.t) momentObserve(ev); },
       onWhy: function () { openLearn("steady"); },
+      /* the tip teaches the gestures to a first session on glass */
+      device: function () { return device; },
       onHelp: function () { if (S && S.openHelp) S.openHelp(); }
     });
   } catch (e) { fault("Steady.create", e); S = null; }
@@ -2643,13 +3338,20 @@ function finishSteady(reason) {
 function inputEnabled() {
   return state === "play" && !!run && run.readyMs <= 0 && !run.halted && sheetsOpen === 0;
 }
+/* the same, through a Ready: input.js remembers what is held then and
+   counts it at Go, so a direction held through the countdown is charged */
+function inputArmed() {
+  return state === "play" && !!run && !run.halted && sheetsOpen === 0;
+}
 /* Returns what the engine said: input.js cuts DAS (DCD) only after a turn
    or Keep that actually happened against a wall, so a refused press has
    to say so. */
 function onAction(a, meta) {
   var r = run;
   if (!r || state !== "play") return false;
-  if (meta && meta.source) device = meta.source === "key" ? "keys" : meta.source === "pad" ? "pad" : "touch";
+  /* the Breath button and the tray are pressed by a mouse as often as a
+     finger, so only keys, pads and the well itself say what the hands are */
+  if (meta && meta.source && meta.source !== "button") device = meta.source === "key" ? "keys" : meta.source === "pad" ? "pad" : "touch";
   if (a === "breath" && !(r.mode && r.mode.hasBreath)) return false;
   if (r.watching && a !== "softOff") r.watching = false;
   if (r.coach) {
@@ -2669,11 +3371,20 @@ function makeInput() {
   try {
     I = Input.create({
       el: stage, layout: function () { return L; }, prefs: Prefs,
-      onAction: onAction, onUI: onUI, enabled: inputEnabled,
+      onAction: onAction, onUI: onUI, enabled: inputEnabled, armed: inputArmed,
       /* lent so a slow drag can soft-drop exactly as far as the thumb went */
       game: function () { return run && state === "play" ? run.g : null; }
     });
   } catch (e) { fault("Input.create", e); I = null; }
+}
+/* Let go of everything. The input layer forgets what it was holding, and
+   the engine's soft drop is released here too: input.js reports a release
+   through onAction, which only listens during play, so a soft drop held
+   into a pause, a sheet or a chapter's end would otherwise come back on
+   its own when play resumed, with no finger on the glass. */
+function resetInput() {
+  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  if (run && run.g && run.g.soft && Well) { try { Well.act(run.g, "softOff"); } catch (e) { fault("Well.act (release)", e); } }
 }
 function setPad(onOff) {
   var want = !!onOff && TOUCH && pref("scheme") === "buttons" && !!run && !run.steady;
@@ -2709,7 +3420,10 @@ function replaceHistory() {
 }
 function saveAll() {
   if (run && (state === "play" || state === "paused" || state === "rest")) saveRun();
-  saveRecords();
+  /* a tab with no run open has changed nothing since its last write, and
+     writing its copy back on every hide is how an idle tab used to undo a
+     best set in another */
+  if (run) saveRecords();
   try { if (Prefs.save) Prefs.save(); } catch (e) { fault("Prefs.save", e); }
 }
 
@@ -2717,7 +3431,7 @@ function wirePlatform() {
   doc.addEventListener("visibilitychange", function () {
     if (doc.hidden) {
       pause("quiet");
-      if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+      resetInput();
       music("suspend");
       saveAll();
     } else {
@@ -2727,9 +3441,17 @@ function wirePlatform() {
     }
   });
   on(root, "pagehide", function () { pause("quiet"); saveAll(); });
+  /* another tab of the room wrote: a tab with no run open takes up its
+     records and saves at once, so Continue and the Logbook stay true */
+  on(root, "storage", function (e) {
+    if ((e.key !== null && e.key !== (Prefs.store && Prefs.store.KEY)) || run) return;
+    loadRecords();
+    loadSaves();
+    if (state === "splash") splashRefresh();
+  });
   on(root, "blur", function () {
     pause("quiet");
-    if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+    resetInput();
     if (pref("muteOnBlur")) music("suspend");
   });
   on(root, "focus", function () { if (!doc.hidden && pref("muteOnBlur")) music("resume"); });
@@ -2751,11 +3473,20 @@ function wirePlatform() {
   root.addEventListener("click", unlockAudio, true);
   root.addEventListener("keydown", unlockAudio, true);
 
+  /* which hands are in use, for where the focus should land; and what
+     was last focused, in each sheet and outside them */
+  doc.addEventListener("keydown", function (e) {
+    if (e.key !== "Shift" && e.key !== "Control" && e.key !== "Alt" && e.key !== "Meta") keyboardLast = true;
+  }, true);
+  doc.addEventListener("pointerdown", function () { keyboardLast = false; }, true);
+  doc.addEventListener("focusin", noteFocus, true);
+
   /* the keys that belong to the room rather than the game */
   on(doc, "keydown", function (e) {
     /* a sheet that handled its own Escape has had its say */
     if (e.defaultPrevented) return;
     var k = e.key, code = e.code;
+    if (k === "Tab") { if (sheetsOpen) sheetTab(e); return; }
     if (k === "Escape" || code === "Escape") {
       if (state === "paused" && sheetsOpen && onlyMenuOpen()) {
         e.preventDefault();
@@ -2793,6 +3524,8 @@ function wireUI() {
   if (mo) for (var i = 0; i < OV.length; i++) mo.observe(OV[i], { attributes: true, attributeFilter: ["class"] });
 
   press($("goPlay"), function () {
+    /* a saved Descent is carried on, never replaced (splashRefresh) */
+    if (saves && saves.runs.descent) { continueRun("descent"); return; }
     /* the first time, Descent at Gentle pace; after that, whatever pace
        was chosen last */
     var o = seen("intro") ? null : { pace: "gentle" };
@@ -2814,27 +3547,37 @@ function wireUI() {
     music("start");
   });
 
-  press(btnMenu, function () {
+  wireGhostGuard();
+  tapPress(btnMenu, function () {
     if (state === "play") pause("menu");
     else if (state === "paused" || state === "rest") openMenu();
   });
-  press(btnBreath, function () { onAction("breath", { source: "button", t: clock[SIM], repeat: false }); });
-  press(veil, function () {
+  tapPress(btnBreath, function () { onAction("breath", { source: "button", t: clock[SIM], repeat: false }); });
+  tapPress(veil, function () {
     if (state === "paused") { if (now() - lastToggle > 200) resume(); }
     else if (state === "rest") reopenRest();
+  });
+  /* the veil is a div with role=button, so Enter and Space don't click it
+     by themselves. The key stops here: Space is also the hard drop, and
+     on the window it would resume the run and drop the piece in one press. */
+  on(veil, "keydown", function (e) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.repeat) veil.click();
   });
 
   press($("mResume"), function () { resume(); });
   press($("mLeave"), function () { leaveRun(); });
-  press($("mModes"), function () { closeSheet("ovMenu"); openModes(); });
-  press($("mSteady"), function () { openSteadyEntry(); });
-  press($("mLook"), function () { openSettings("look"); });
-  press($("mHandling"), function () { openSettings("handling"); });
-  press($("mSound"), function () { openSettings("sound"); });
-  press($("mComfort"), function () { openSettings("comfort"); });
-  press($("mLearn"), function () { closeSheet("ovMenu"); openLearn(null); });
-  press($("mLog"), function () { closeSheet("ovMenu"); openLog(); });
-  press($("mAbout"), function () { closeSheet("ovMenu"); openAbout(); });
+  press($("mModes"), function () { fromMenu("mModes"); openModes(); });
+  press($("mSteady"), function () { fromMenu("mSteady"); openSteadyEntry(); });
+  press($("mLook"), function () { fromMenu("mLook"); openSettings("look"); });
+  press($("mHandling"), function () { fromMenu("mHandling"); openSettings("handling"); });
+  press($("mSound"), function () { fromMenu("mSound"); openSettings("sound"); });
+  press($("mComfort"), function () { fromMenu("mComfort"); openSettings("comfort"); });
+  press($("mLearn"), function () { fromMenu("mLearn"); openLearn(null); });
+  press($("mLog"), function () { fromMenu("mLog"); openLog(); });
+  press($("mAbout"), function () { fromMenu("mAbout"); openAbout(); });
 
   on($("modesBody"), "click", modesClick);
   on($("chalBody"), "click", modesClick);
@@ -2874,11 +3617,11 @@ function wireUI() {
   press($("coachHint"), function () { coachHint(); });
   press($("coachWatch"), function () { coachWatch(); });
 
-  press($("chipRest"), function () {
+  tapPress($("chipRest"), function () {
     hideChip();
     if (run && state === "play") { pause("quiet"); leaveRun(); }
   });
-  press($("chipKeep"), function () { hideChip(); });
+  tapPress($("chipKeep"), function () { hideChip(); });
 }
 
 /* ================================================================
@@ -2908,12 +3651,13 @@ function onPref(key, value) {
     case "driftTide":
       if (run && run.modeId === "drift") {
         run.tide = +value || 0;
-        try { Well.setGravity(run.g, tideMs(run.tide), Math.max(1, run.tide)); } catch (e) { fault("Well.setGravity", e); }
+        try { Well.setGravity(run.g, tideMs(run.tide), tideLevel(run.tide)); } catch (e) { fault("Well.setGravity", e); }
       }
       break;
     case "driftWorld":
       if (run && run.modeId === "drift" && value) {
         run.world = value;
+        setText(hAv, worldName(value));
         setWorld(value, false, false);
         EV_WORLD.world = value;
         observe(EV_WORLD);
@@ -2949,11 +3693,17 @@ function wireSW() {
     if (reg.installing) watch(reg.installing);
     reg.addEventListener("updatefound", function () { if (reg.installing) watch(reg.installing); });
   }).catch(function () { /* offline play is a bonus, never a requirement */ });
-  /* on a first visit clients.claim() also fires controllerchange: only a
-     genuine version swap reloads, and never with a run unsaved */
+  /* On a first visit clients.claim() also fires controllerchange: only a
+     genuine version swap reloads, and never with a run unsaved. The swap
+     may have been asked for by another tab of the room. A run that can be
+     saved is saved and reloads at once (the splash offers Continue); a
+     Forty, Three Minutes or lesson cannot be, so this tab finishes it under
+     the new worker — every script it needs is already loaded — and
+     reloads when it gets back to the splash. */
   sw.addEventListener("controllerchange", function () {
     if (!hadController) { hadController = true; return; }
     if (reloading) return;
+    if (run && !(run.mode && run.mode.resumable) && state !== "over") { swDeferred = true; return; }
     reloading = true;
     saveAll();
     location.reload();
@@ -3018,6 +3768,9 @@ root.WELL = {
   records: function () { return records; },
   saves: function () { return saves; },
   faults: function () { return faults; },
+  /* the gentle reminder's clock, so a tool can stand at the thirty-minute
+     mark without playing for thirty minutes */
+  reminder: function () { return remind; },
   start: function (modeId, opts) { closeAllSheets(); startRun(modeId, opts || null); },
   pause: function () { return pause("menu"); },
   resume: function () { resume(); }

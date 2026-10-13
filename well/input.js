@@ -79,7 +79,8 @@
 
    ## Guards
 
-   While a run is live, and only then: no pinch (gesturestart), no long-
+   While a run is live, and only then: no pinch (gesturestart in Safari,
+   a ctrl+wheel in Chromium and Firefox), no long-
    press menu, no back-swipe from a screen edge (a touchstart within 24 px
    of either side is cancelled), and no gesture that starts in the strip
    above the home indicator. Menus and the explainer stay zoomable, because
@@ -107,14 +108,17 @@ var C_LEFT = 0, C_RIGHT = 1, C_SOFT = 2, C_HARD = 3, C_CW = 4, C_CCW = 5, C_FLIP
 var SOURCES = ["key", "touch", "pad", "button"];
 var S_KEY = 0, S_TOUCH = 1, S_PAD = 2, S_BUTTON = 3;
 
-/* what a missing Prefs falls back to — the same defaults prefs.js ships */
+/* what a missing Prefs falls back to — the same defaults prefs.js ships,
+   Control left out of the turn keys on a Mac as it is there */
+var MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || "") &&
+          (navigator.maxTouchPoints || 0) < 2;
 var DEF = {
   das: 167, arr: 33, sdf: 20, dcd: 0, hdTouch: 133, hdKeys: 0,
   irs: false, ihs: false, modern: false, keep: true,
   scheme: "gestures", tap: "sides", sensitivity: 1, lefty: false,
   btnSize: 64, btnOpacity: 1, haptics: true,
   keys: { left: ["ArrowLeft"], right: ["ArrowRight"], soft: ["ArrowDown"], hard: ["Space"],
-          cw: ["ArrowUp", "KeyX"], ccw: ["KeyZ", "ControlLeft", "ControlRight"], flip: ["KeyA"],
+          cw: ["ArrowUp", "KeyX"], ccw: MAC ? ["KeyZ"] : ["KeyZ", "ControlLeft", "ControlRight"], flip: ["KeyA"],
           hold: ["KeyC", "ShiftLeft", "ShiftRight"], breath: ["KeyB"], glass: ["KeyG"],
           pause: ["Escape", "KeyP"] }
 };
@@ -261,6 +265,12 @@ Input.create = function (opts) {
   var onAction = typeof opts.onAction === "function" ? opts.onAction : null;
   var onUI = typeof opts.onUI === "function" ? opts.onUI : null;
   var enabledFn = typeof opts.enabled === "function" ? opts.enabled : null;
+  /* armed: a run is about to be live (Forty's and Three Minutes' Ready).
+     A key, button or stick held then is remembered, never acted on, and
+     becomes a press at the first live tick — already charged, as holding
+     a direction through a countdown is meant to be. */
+  var armedFn = typeof opts.armed === "function" ? opts.armed : null;
+  var early = Object.create(null), earlyN = 0;   /* held through Ready, not yet counted */
   var layoutFn = typeof opts.layout === "function" ? opts.layout : null;
   var gameFn = typeof opts.game === "function" ? opts.game : null;
   var now = typeof opts.now === "function" ? opts.now
@@ -551,10 +561,38 @@ Input.create = function (opts) {
     pollPads(w);
   };
 
+  /* Held across Ready: each becomes held now. A direction's charge is
+     already full, so the press and its first repeat come at Go and then the
+     usual ARR — not a burst replaying the whole countdown. Soft drop starts
+     now, and a held turn or Keep is simply held, for IRS/IHS at the spawn.
+     A tap made during Ready, or a hold let go before Go, does nothing. */
+  function holdNow(c, src, t) {
+    held[c]++; pressT[c] = t; pressSrc[c] = src; inWait[c] = 0; lastSrc = src;
+    if ((c === C_LEFT || c === C_RIGHT) && held[c] === 1) {
+      dirSrc[c === C_LEFT ? 0 : 1] = src;
+      var d = +pref("das"); if (!(d >= 0)) d = 0;
+      dasRep = false; das.press(c === C_LEFT ? -1 : 1, Math.max(lastM, t - d), emitDas); dasRep = true;
+    } else if (c === C_SOFT) softSync(src, t, false);
+  }
+  function goLive(t) {
+    for (var code in early) {
+      if (!early[code]) continue;
+      early[code] = 0;
+      var c = keyHeld[code];
+      if (c >= 0) holdNow(c, S_KEY, t);
+    }
+    for (var i = 0; i < padBtn.length; i++) if (padBtn[i] === 3) { padBtn[i] = 1; holdNow(padCtl(i % PAD_BTNS), S_PAD, t); }
+    for (var s = 0; s < PAD_SLOTS; s++) {
+      if (padSX[s] === 3 || padSX[s] === -3) { padSX[s] = padSX[s] / 3; holdNow(padSX[s] < 0 ? C_LEFT : C_RIGHT, S_PAD, t); }
+      if (padSY[s] === 3) { padSY[s] = 1; holdNow(C_SOFT, S_PAD, t); }
+    }
+    earlyN = 0;
+  }
   I.tick = function (t) {
     if (disposed) return;
     var w = now();
     if (lastT !== null && t < lastT - 0.5) rebase(t);
+    if (earlyN > 0) goLive(t);
     /* never polled, or polling stopped: measure from this tick instead */
     if (lag === null || pollWall < 0 || w - pollWall > 250) lag = w - t;
     ticksSince++;
@@ -662,7 +700,7 @@ Input.create = function (opts) {
   function releaseKeys(t) {
     for (var code in keyHeld) {
       var c = keyHeld[code];
-      if (c >= 0) { keyHeld[code] = -1; if (c !== C_PAUSE && c !== C_GLASS) push(Q_UP, c, S_KEY, 0, t); }
+      if (c >= 0) { keyHeld[code] = -1; if (early[code]) { early[code] = 0; earlyN--; continue; } if (c !== C_PAUSE && c !== C_GLASS) push(Q_UP, c, S_KEY, 0, t); }
     }
   }
   function onKeyDown(e) {
@@ -671,7 +709,16 @@ Input.create = function (opts) {
     if (isMeta(code)) { releaseKeys(evTime(e)); return; }
     if (e.metaKey || typingInto(e.target)) return;   /* ⌘ belongs to the browser */
     var c = codeMap[code];
-    if (c === undefined || !live()) return;
+    if (c === undefined) return;
+    if (!live()) {
+      /* Ready: a held key is remembered, never acted on; it becomes a press,
+         already charged, at the first live tick */
+      if (c === C_PAUSE || c === C_GLASS || c === C_HARD || !(armedFn && armedFn())) return;
+      e.preventDefault();
+      if (e.repeat || keyHeld[code] >= 0) return;
+      keyHeld[code] = c; early[code] = 1; earlyN++;
+      return;
+    }
     /* our keys only, and only while playing: arrows and Space never scroll
        the page under the well, and never press a focused menu button */
     e.preventDefault();
@@ -691,6 +738,7 @@ Input.create = function (opts) {
     var c = keyHeld[code];
     if (c === undefined || c < 0) return;
     keyHeld[code] = -1;
+    if (early[code]) { early[code] = 0; earlyN--; return; }
     if (live() && !typingInto(e.target)) e.preventDefault();
     if (c !== C_PAUSE && c !== C_GLASS) push(Q_UP, c, S_KEY, 0, evTime(e));
   }
@@ -706,7 +754,7 @@ Input.create = function (opts) {
       x0: 0, y0: 0, t0: 0, x: 0, y: 0, t: 0, upT: 0, travel: 0,
       axis: AX_NONE, accX: 0, ax: 0, ay: 0, lastDir: 0,
       softY0: 0, lowY: 0, rows: 0,
-      dTop: 0, dLow: 0, uBot: 0, uHigh: 0,
+      dTop: 0, dLow: 0, uBot: 0, uHigh: 0, restT: 0, sx: 0, sy: 0, st: 0, prov: false,
       rx: new Float32Array(RING), ry: new Float32Array(RING), rt: new Float64Array(RING), rn: 0, ri: 0
     };
   }
@@ -768,9 +816,10 @@ Input.create = function (opts) {
   function initPtr(p, id, x, y, t) {
     p.id = id; p.on = true; p.mode = M_FULL; p.used = false; p.keep = false; p.pending = false;
     p.x0 = p.x = x; p.y0 = p.y = y; p.t0 = p.t = t; p.travel = 0; p.upT = 0;
-    p.axis = AX_NONE; p.accX = 0; p.ax = x; p.ay = y; p.lastDir = 0;
+    p.axis = AX_NONE; p.accX = 0; p.ax = x; p.ay = y; p.lastDir = 0; p.prov = false;
     p.softY0 = y; p.lowY = y; p.rows = 0;
     p.dTop = p.dLow = p.uBot = p.uHigh = y;
+    p.restT = p.st = t; p.sx = x; p.sy = y;
     p.rn = 0; p.ri = 0;
     ring(p, x, y, t);
   }
@@ -780,9 +829,14 @@ Input.create = function (opts) {
     if (p.rn < RING) p.rn++;
   }
   /* Displacement over the last FLICK_MS, interpolated to the window's start
-     so a flick reads the same at 60, 120 or 240 touch samples a second. */
+     so a flick reads the same at 60, 120 or 240 touch samples a second.
+     The window never reaches back past the end of a rest (restT, kept by
+     track()): a thumb that lands, settles and then flicks is judged on the
+     flick, not on the flick averaged with the stillness before it — which
+     asked a flick from rest to cover three cells rather than a cell and a
+     half. It is never shorter than 30 ms, so a twitch is still a twitch. */
   function flickWindow(p) {
-    var tEnd = p.t, tStart = tEnd - FLICK_MS;
+    var tEnd = p.t, tStart = Math.min(tEnd - 30, Math.max(tEnd - FLICK_MS, p.restT));
     var x0 = p.x, y0 = p.y, t0 = tEnd, newer = -1;
     for (var k = 0; k < p.rn; k++) {
       var i = (p.ri - 1 - k + RING) % RING;
@@ -870,6 +924,13 @@ Input.create = function (opts) {
   function track(p, x, y, t) {
     if (t < p.t) t = p.t;
     var dx = x - p.x;
+    /* Rest is a silence (Safari sends nothing for a finger held still) or
+       24 ms within 2 px of one spot. It is judged by how far the finger
+       moved, not by the speed of single samples: the lift repeats the last
+       position, and that zero-speed sample is not a rest. */
+    if (t - p.t > 30) { p.restT = t - 8; p.sx = x; p.sy = y; p.st = t; }
+    else if (Math.abs(x - p.sx) > 2 || Math.abs(y - p.sy) > 2) { p.sx = x; p.sy = y; p.st = t; }
+    else if (t - p.st >= 24) p.restT = t;
     p.x = x; p.y = y; p.t = t;
     ring(p, x, y, t);
     var ddx = x - p.x0, ddy = y - p.y0, d = Math.sqrt(ddx * ddx + ddy * ddy);
@@ -888,7 +949,7 @@ Input.create = function (opts) {
       if (Math.abs(ddx) >= LOCK_RATIO * Math.abs(ddy)) {
         p.axis = AX_H; p.accX = ddx; dx = 0; p.ax = x; p.ay = y;
       } else {
-        startSoft(p, p.y0); p.ax = x; p.ay = y;
+        startSoft(p, p.y0); p.ax = x; p.ay = y; p.prov = true;
       }
     }
     if (flick(p)) return;
@@ -906,6 +967,19 @@ Input.create = function (opts) {
       else return;
     }
     if (p.axis === AX_V) {
+      /* The ten-pixel verdict is only a guess until it has dropped a row: a
+         few pixels of roll as the thumb lands can tip a sideways sweep at
+         30-40 degrees into the soft drop, and the way back from there to a
+         move is deliberately stricter. So while no row has dropped, a
+         stroke that, taken whole, is inside the sideways cone is a move,
+         with all its travel. (Not after a move turned soft, which also
+         starts at no rows: prov marks the first verdict only.) */
+      if (p.prov && p.rows === 0 && Math.abs(ddx) >= LOCK_RATIO * Math.abs(ddy)) {
+        p.prov = false; push(Q_SOFT_END, 0, S_TOUCH, 0, t);
+        p.axis = AX_H; p.accX = ddx; p.ax = x; p.ay = y; p.lastDir = 0;
+        steps(p, step, t);
+        return;
+      }
       if (y > p.lowY) {
         p.lowY = y;
         /* A stroke already moving at flick speed, not yet far enough to be
@@ -916,14 +990,14 @@ Input.create = function (opts) {
         var racing = FW.span >= FLICK_MIN_MS && FW.dy >= 0.75 * FLICK_DOWN * FW.span &&
                      p.y - p.dTop < FLICK_CELLS * c;
         var want = racing ? p.rows : Math.floor((p.lowY - p.softY0) / softPx());
-        while (p.rows < want) { p.rows++; push(Q_SOFT, 0, S_TOUCH, 0, t); p.ax = x; p.ay = y; }
+        while (p.rows < want) { p.rows++; p.prov = false; push(Q_SOFT, 0, S_TOUCH, 0, t); p.ax = x; p.ay = y; }
       }
       /* and the other way: a soft drop that turns plainly sideways for a
          whole column is a move again */
       var hdx = x - p.ax, hdy = Math.abs(y - p.ay);
       if (Math.abs(hdx) >= step && hdy <= 0.5 * Math.abs(hdx)) {
         push(Q_SOFT_END, 0, S_TOUCH, 0, t);
-        p.axis = AX_H; p.accX = hdx; p.ax = x; p.ay = y; p.lastDir = 0;
+        p.prov = false; p.axis = AX_H; p.accX = hdx; p.ax = x; p.ay = y; p.lastDir = 0;
         steps(p, step, t);
       }
     }
@@ -945,16 +1019,31 @@ Input.create = function (opts) {
     var half = pref("modern") && pref("tap") === "sides";
     push(Q_ACT, half ? A_HALF : A_CCW, S_TOUCH, 0, t);
   }
+  /* A tap held back in case it was half of a two-finger tap, settled as
+     the single tap it turned out to be — if it was quick enough to be a
+     tap at all. Every way out of waiting comes through here. */
+  function settleTap(q) {
+    q.pending = false;
+    if (q.upT - q.t0 < TAP_MS) singleTap(q, q.upT, true);
+  }
   /* the partner of a pending tap turned out to be a drag: the tap was a
      tap after all, and is late by however long that took to show */
   function releasePending(p, t) {
     var o = otherOf(p);
-    if (o.pending) { o.pending = false; if (o.upT - o.t0 < TAP_MS) singleTap(o, o.upT, true); }
+    if (o.pending) settleTap(o);
   }
-  /* two fingers down together, one lifted, and the other neither lifted
-     nor moved in time: nobody can say which tap that was, so it is none */
+  /* Two fingers down together, one lifted, and the other neither lifted nor
+     moved in time, or held past the point a two-finger tap could still
+     happen: the lifted one was a plain tap, and turns by its side of the
+     screen, as the rules for a tap say. The price is that a sloppy
+     two-finger tap (the second lift far too late) turns one way rather
+     than the other; dropping the tap instead lost every turn a thumb made
+     while the other thumb rested on the glass. */
   function pendingTimeout(w) {
-    for (var k = 0; k < 2; k++) if (ptrs[k].pending && w - ptrs[k].upT > TWO_LIFT_MS) ptrs[k].pending = false;
+    for (var k = 0; k < 2; k++) {
+      var p = ptrs[k], o = otherOf(p);
+      if (p.pending && (w - p.upT > TWO_LIFT_MS || (o.on && w - o.t0 >= TWO_HOLD_MS))) settleTap(p);
+    }
   }
 
   function surfaceTarget(tg) {
@@ -971,7 +1060,12 @@ Input.create = function (opts) {
     if (!live()) return;
     lastSrc = S_TOUCH;
     var p = freePtr();
-    if (!p) return;                       /* a third finger is a palm, not a command */
+    if (!p) {
+      /* a slot still waiting on a tap is settled, and the new touch takes
+         it; a third finger otherwise is a palm, not a command */
+      for (var k = 0; k < 2; k++) if (ptrs[k].pending) { settleTap(ptrs[k]); p = ptrs[k]; break; }
+      if (!p) return;
+    }
     var r = host.getBoundingClientRect();
     if (ptrs[0].on === false && ptrs[1].on === false) { ox = r.left; oy = r.top; ow = r.width; }
     var x = e.clientX - ox, y = e.clientY - oy, t = evTime(e);
@@ -1009,11 +1103,12 @@ Input.create = function (opts) {
       if (owner === p.id) owner = -1;
       if (p.axis === AX_V && !p.used) push(Q_SOFT_END, 0, S_TOUCH, 0, t);
       if (tapish && o.pending) {
-        o.pending = false;
         if (t - o.upT <= TWO_LIFT_MS && dur < TWO_HOLD_MS && Math.abs(o.t0 - p.t0) <= TWO_DOWN_MS && !p.keep && !o.keep) {
+          o.pending = false;
           twoTap(t);
           return;
         }
+        settleTap(o);
       }
       if (tapish && o.on && o.mode !== M_DEAD && !o.used && o.travel < SLOP &&
           Math.abs(o.t0 - p.t0) <= TWO_DOWN_MS && dur < TWO_HOLD_MS && !p.keep) {
@@ -1082,6 +1177,9 @@ Input.create = function (opts) {
     }
   }
   function onGuard(e) { if (!disposed && live()) e.preventDefault(); }
+  /* a trackpad pinch reaches Chromium and Firefox as a wheel with ctrlKey
+     (Safari sends gesturestart instead); only while a run is live */
+  function onWheelGuard(e) { if (e.ctrlKey && !disposed && live()) e.preventDefault(); }
 
   /* ================================================================
      the Buttons tray
@@ -1173,8 +1271,10 @@ Input.create = function (opts) {
       var x = (b.cl === 0 ? moveX : turnX) + col * (S + gap);
       var y = top + b.row * (S + gap);
       var w = S, h = S;
-      if (b.c === C_HOLD) { h = Math.round(S * 0.72); y += S - h; }
-      if (b.c === C_HARD) { h = Math.round(S * 0.86); y += S - h; }
+      /* Keep and the drop are a little shorter than the rest, to tell
+         them apart by feel, but never below the 44 px a thumb needs */
+      if (b.c === C_HOLD) { h = Math.min(S, Math.max(44, Math.round(S * 0.72))); y += S - h; }
+      if (b.c === C_HARD) { h = Math.min(S, Math.max(44, Math.round(S * 0.86))); y += S - h; }
       var st = b.el.style;
       st.left = x + "px"; st.top = y + "px"; st.width = w + "px"; st.height = h + "px";
       if (b.c !== C_CW && b.c !== C_CCW) st.borderRadius = Math.round(S * 0.3) + "px";
@@ -1283,15 +1383,16 @@ Input.create = function (opts) {
      ================================================================ */
   /* Every physical input remembers whether its press was counted: 0 up,
      1 down and counted, 2 down but not counted (pressed while paused, or
-     still held across a reset). Only a counted press is ever released, so
+     still held across a reset), 3 held through a Ready and counted at the
+     first live tick (goLive). Only a counted press is ever released, so
      a pad button released after a pause can never release a key that the
-     keyboard is holding. Sticks use ±1 / ±2 the same way. */
+     keyboard is holding. Sticks use ±1 / ±2 / ±3 the same way. */
   var padSeen = false, padLast = -1;
   var padBtn = new Uint8Array(PAD_SLOTS * PAD_BTNS);
   var padSX = new Int8Array(PAD_SLOTS), padSY = new Int8Array(PAD_SLOTS);
   var padOn = new Uint8Array(PAD_SLOTS);
 
-  /* returns whether the press was counted */
+  /* returns whether the press was counted, or 3 for one held through Ready */
   function padPress(slot, c, t, playing) {
     if (c === C_PAUSE || c === C_GLASS) {
       /* Start pauses — and, because a pad has no other way into a paused
@@ -1299,11 +1400,12 @@ Input.create = function (opts) {
       if (playing || c === C_PAUSE) { padLast = slot; ui(c === C_PAUSE ? "pause" : "glass", S_PAD, t, playing); }
       return false;
     }
-    if (!playing) return false;
+    if (!playing) { if (c !== C_HARD && armedFn && armedFn()) { earlyN++; return 3; } return false; }
     padLast = slot; lastSrc = S_PAD;
     push(Q_DOWN, c, S_PAD, 0, t);
     return true;
   }
+  function padCtl(b) { for (var j = 0; j < PAD_MAP.length; j += 2) if (PAD_MAP[j] === b) return PAD_MAP[j + 1]; return -1; }
   function padRelease(c, t) { push(Q_UP, c, S_PAD, 0, t); }
   /* a pad that vanished lets go of everything it was holding */
   function padForget(slot, t) {
@@ -1319,10 +1421,11 @@ Input.create = function (opts) {
     padSX[slot] = 0; padSY[slot] = 0; padOn[slot] = 0;
   }
   function padLatch() {
-    for (var i = 0; i < padBtn.length; i++) if (padBtn[i] === 1) padBtn[i] = 2;
+    for (var i = 0; i < padBtn.length; i++) if (padBtn[i] === 1 || padBtn[i] === 3) padBtn[i] = 2;
     for (var s = 0; s < PAD_SLOTS; s++) {
       if (padSX[s] === 1 || padSX[s] === -1) padSX[s] *= 2;
-      if (padSY[s] === 1) padSY[s] = 2;
+      if (padSX[s] === 3 || padSX[s] === -3) padSX[s] = padSX[s] / 3 * 2;
+      if (padSY[s] === 1 || padSY[s] === 3) padSY[s] = 2;
     }
   }
   function pollPads(w) {
@@ -1350,8 +1453,8 @@ Input.create = function (opts) {
           is = was ? v > TRIG_OFF : v >= TRIG_ON;
         } else is = !!btn.pressed;
         if (is === was) continue;
-        if (is) padBtn[base + bi] = padPress(s, c, t, playing) ? 1 : 2;
-        else { if (st === 1) padRelease(c, t); padBtn[base + bi] = 0; }
+        if (is) { var pr = padPress(s, c, t, playing); padBtn[base + bi] = pr === 3 ? 3 : pr ? 1 : 2; }
+        else { if (st === 1) padRelease(c, t); if (st === 3) earlyN = Math.max(0, earlyN - 1); padBtn[base + bi] = 0; }
       }
       /* the left stick: engage at 0.5, release only below 0.35, so a thumb
          resting at the threshold produces one press rather than a stutter */
@@ -1363,12 +1466,15 @@ Input.create = function (opts) {
       if (nx !== dx) {
         if (sx === -1) padRelease(C_LEFT, t);
         if (sx === 1) padRelease(C_RIGHT, t);
-        padSX[s] = nx === 0 ? 0 : (padPress(s, nx < 0 ? C_LEFT : C_RIGHT, t, playing) ? nx : nx * 2);
+        if (sx === 3 || sx === -3) earlyN = Math.max(0, earlyN - 1);
+        var prx = nx === 0 ? 0 : padPress(s, nx < 0 ? C_LEFT : C_RIGHT, t, playing);
+        padSX[s] = nx === 0 ? 0 : prx === 3 ? nx * 3 : prx ? nx : nx * 2;
       }
       var sy = padSY[s], dy = sy ? 1 : 0, ny = dy ? (ay > STICK_OFF ? 1 : 0) : (ay >= STICK_ON ? 1 : 0);
       if (ny !== dy) {
         if (sy === 1) padRelease(C_SOFT, t);
-        padSY[s] = ny === 0 ? 0 : (padPress(s, C_SOFT, t, playing) ? 1 : 2);
+        var pry = ny === 0 ? 0 : padPress(s, C_SOFT, t, playing);
+        padSY[s] = ny === 0 ? 0 : pry === 3 ? 3 : pry ? 1 : 2;
       }
     }
   }
@@ -1449,6 +1555,9 @@ Input.create = function (opts) {
      event; the click then bubbles to the button as usual. Used for Pause. */
   I.hapticize = function (target) {
     if (disposed || !doc || !target || target.querySelector && target.querySelector("input[data-well-hx]")) return;
+    /* where vibrate() exists the switch never ticks, so it would only sit
+       over the button for nothing */
+    if (canVibrate) return;
     var sw = doc.createElement("input");
     sw.type = "checkbox";
     sw.setAttribute("switch", "");
@@ -1511,6 +1620,7 @@ Input.create = function (opts) {
       host.addEventListener("gesturestart", onGuard);
       host.addEventListener("gesturechange", onGuard);
       host.addEventListener("contextmenu", onGuard);
+      host.addEventListener("wheel", onWheelGuard, { passive: false });
     }
     var hapList = opts.hapticButtons !== undefined ? opts.hapticButtons : ["btnMenu"];
     for (var hb = 0; hapList && hb < hapList.length; hb++) {
@@ -1563,6 +1673,7 @@ Input.create = function (opts) {
     var t = lastT === null ? now() : lastT;
     qHead = 0; qLen = 0;
     for (var code in keyHeld) keyHeld[code] = -1;
+    early = Object.create(null); earlyN = 0;
     for (var c = 0; c < NCTRL; c++) { held[c] = 0; inWait[c] = 0; }
     das.reset();
     ts.live = ts.open = ts.on = false; ts.want = ts.got = 0; ts.hasBase = false;
@@ -1627,6 +1738,7 @@ Input.create = function (opts) {
       host.removeEventListener("gesturestart", onGuard);
       host.removeEventListener("gesturechange", onGuard);
       host.removeEventListener("contextmenu", onGuard);
+      host.removeEventListener("wheel", onWheelGuard, { passive: false });
     }
     if (tray && tray.parentNode) tray.parentNode.removeChild(tray);
     if (lab && lab.parentNode) lab.parentNode.removeChild(lab);
