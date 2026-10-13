@@ -67,6 +67,18 @@
    chosen. Both are watched: change them in the device settings with the
    page open and the change arrives through Prefs.on like any other.
 
+   ## The guide's notebook
+
+   One value is not a setting anyone chooses. "guide" is where guide.js
+   keeps what it has noticed about the moves, for each kind of hands
+   (gestures, the button tray, keys, a controller): pieces since a move was
+   last used, runs it was used in, whether its practice was finished, how
+   often it was offered or put off. Counts only, each one capped, with no
+   time or date anywhere in it, and it never leaves the device. It is
+   checked by being rebuilt rather than patched, so whatever was stored
+   comes back in exactly the shape guide.js reads, and a garbled notebook
+   costs the notebook and nothing else.
+
    This file loads in node without touching the DOM, so the checks in
    tools/ can read DEFAULTS and exercise the store against a fake
    localStorage handed in on "self".                                      */
@@ -105,7 +117,14 @@ var DEFAULTS = {
   steadyLength: 20, steadyPace: "slow", steadyLanding: true, steadySound: "soft",
   steadyWorld: "snowfall",
   seen: { intro: false, touchCards: false, steadyTip: false, silentChip: false,
-          landscape: false, homeScreen: false, breath: false }
+          landscape: false, homeScreen: false, breath: false },
+  /* the guide's notebook (above): counts only, capped, no timestamps */
+  guide: { v: 1, tips: true,
+    first: { gestures: 0, buttons: 0, keys: 0, pad: 0 },
+    dry:   { gestures: {}, buttons: {}, keys: {}, pad: {} },
+    runs:  { gestures: {}, buttons: {}, keys: {}, pad: {} },
+    done:  { gestures: {}, buttons: {}, keys: {}, pad: {} },
+    offers: {}, later: {}, since: 999, sinceRuns: 99 }
 };
 
 /* The defaults are frozen all the way down. A caller that pushes onto
@@ -186,6 +205,56 @@ function flags(v) {
   return out;
 }
 
+/* The guide's notebook. It is rebuilt from scratch rather than patched,
+   so whatever arrives — an old build's half-shape, a hand edit, a newer
+   build's extra fields — leaves with exactly the shape guide.js expects:
+   the four kinds of hands, the eight move ids, small whole numbers inside
+   their caps. A count that is not a number is simply not there (it reads
+   as zero); anything this file does not recognise is dropped, because
+   this object is only ever counts, and an unknown field in it is noise. */
+var HANDS = ["gestures", "buttons", "keys", "pad"];
+var MOVE_IDS = ["move", "turn", "turnBack", "drop", "ease", "keep", "breath", "half"];
+function whole(v, hi) {
+  if (typeof v !== "number" || !isFinite(v)) return undefined;
+  v = Math.round(v);
+  return v < 0 ? 0 : v > hi ? hi : v;
+}
+function counts(src, ids, hi) {
+  var out = {}, n;
+  if (!src || typeof src !== "object" || Array.isArray(src)) return out;
+  for (var i = 0; i < ids.length; i++) {
+    n = whole(src[ids[i]], hi);
+    if (n !== undefined) out[ids[i]] = n;
+  }
+  return out;
+}
+function perHands(src, hi) {
+  var out = {}, ok = src && typeof src === "object" && !Array.isArray(src);
+  for (var i = 0; i < HANDS.length; i++) out[HANDS[i]] = counts(ok ? src[HANDS[i]] : null, MOVE_IDS, hi);
+  return out;
+}
+function guideShape(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  var first = {}, f = v.first && typeof v.first === "object" ? v.first : {}, n, i;
+  for (i = 0; i < HANDS.length; i++) {
+    n = whole(f[HANDS[i]], 2);
+    first[HANDS[i]] = n === undefined ? 0 : n;
+  }
+  var since = whole(v.since, 999), sinceRuns = whole(v.sinceRuns, 99);
+  return {
+    v: 1,
+    tips: typeof v.tips === "boolean" ? v.tips : true,
+    first: first,
+    dry: perHands(v.dry, 999),
+    runs: perHands(v.runs, 9),
+    done: perHands(v.done, 1),
+    offers: counts(v.offers, MOVE_IDS.concat("hands"), 9),
+    later: counts(v.later, MOVE_IDS.concat("hands"), 2),
+    since: since === undefined ? 999 : since,
+    sinceRuns: sinceRuns === undefined ? 99 : sinceRuns
+  };
+}
+
 var CHECK = {
   skin: oneOf(["seaglass", "riverstone", "jelly", "lantern", "ink", "moonlight"]),
   palette: oneOf(["skin", "safe"]),
@@ -219,7 +288,8 @@ var CHECK = {
   driftWorld: oneOf(WORLD_IDS), fortyLines: anyNum,
   steadyLength: anyNum, steadyPace: str, steadyLanding: bool, steadySound: str,
   steadyWorld: oneOf(WORLD_IDS),
-  seen: flags
+  seen: flags,
+  guide: guideShape
 };
 
 /* ---------- small helpers ---------- */

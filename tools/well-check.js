@@ -56,7 +56,7 @@ const TODAY = process.env.WELL_TODAY ? new Date(process.env.WELL_TODAY + "T12:00
 /* the room's contract: every script, in the order index.html loads them */
 const SCRIPTS = ["rules.js", "engine.js", "bot.js", "modes.js", "records.js", "worlds.js",
   "skins.js", "layout.js", "prefs.js", "sky.js", "gfx2d.js", "gfx3d.js", "music.js",
-  "input.js", "learn.js", "coach.js", "steady.js", "sheets.js", "app.js"];
+  "input.js", "learn.js", "coach.js", "steady.js", "sheets.js", "guide.js", "app.js"];
 const WORLD_IDS = ["dawn", "tide", "rain", "bamboo", "aurora", "moonpool", "lanterns",
   "snowfall", "bells", "starfield"];
 const PIECES = ["I", "O", "T", "S", "Z", "J", "L"];
@@ -899,6 +899,57 @@ guarded("help lines checked within the year", () => {
                                    !it.label || !(it.tel || it.sms || it.url));
   ok("every line has a label and a working link (digits-only tel:/sms:, https:// pages)", bad.length === 0,
      bad.slice(0, 3).map((it) => JSON.stringify(it.label || it)).join(", "));
+});
+
+/* ================================================================
+   7½. how long it may take
+   ================================================================
+   The room tells people roughly how long the way down takes, learned from
+   their own pace. The wording is a promise, so the known answers are
+   pinned here: the prior's ranges, "a minute or two", the player who
+   never drops a piece (whose answer has to be long, and said plainly),
+   and the moment the estimate becomes theirs. The pace bucket must stay
+   bounded, two tabs' buckets must merge without adding, and neither file
+   may ever touch a clock or a date. */
+guarded("estimates, in honest words", () => {
+  const Modes = load("modes.js"), Records = load("records.js");
+  ok("Modes.estimate and Modes.about are there", typeof Modes.estimate === "function" && typeof Modes.about === "function");
+  const say = (b, k, d, l) => { const a = Modes.about(Modes.estimate(b, k, d, l)); return a ? a.text + (a.personal ? " · yours" : "") : String(a); };
+  const zeros = () => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const nodrop = { ms: zeros(), ln: zeros() }; nodrop.ms[0] = 1125000; nodrop.ln[0] = 25;
+  const four = { ms: zeros(), ln: zeros() }; four.ms[0] = four.ms[1] = 100000; four.ln[0] = four.ln[1] = 25;
+  const cases = [
+    ["Gentle, no data, the whole way", say(null, "descent.gentle", 1, 25), "about 15\u201330 minutes"],
+    ["Standard, no data", say(null, "descent.standard", 1, 25), "about 10\u201325 minutes"],
+    ["Swift, no data", say(null, "descent.swift", 1, 25), "about 9\u201320 minutes"],
+    ["a Drift chapter of 40, no data", say(null, "drift", 1, 40), "about 3\u20135 minutes"],
+    ["Gentle, five lines from the Surface", say(null, "descent.gentle", 10, 5), "a minute or two"],
+    ["the player who never drops, from Depth 2", say(nodrop, "descent.gentle", 2, 25), "about 1 hour 50 minutes · yours"],
+    ["…and from Depth 1", say(nodrop, "descent.gentle", 1, 25), "about 2 hours 10 minutes · yours"],
+    ["four seconds a line on two depths, from Depth 3", say(four, "descent.gentle", 3, 25), "about 15 minutes · yours"]
+  ];
+  for (const c of cases) ok(c[0] + ": “" + c[1] + "”", c[1] === c[2], "expected “" + c[2] + "”");
+  ok("a key with no prior has no estimate", Modes.estimate(null, "forty", 1, 40) === null && Modes.about(null) === null);
+
+  const d = Records.blank();
+  ok("records start with an empty pace and depth book", d.pace && d.deep && !Object.keys(d.pace).length && !Object.keys(d.deep).length);
+  for (let i = 0; i < 400; i++) Records.paceAdd(d, "descent.gentle", 3, 9000, 2);
+  const b = d.pace["descent.gentle"];
+  ok("a depth's pace stays bounded (≤ 150 lines) and keeps its rate", b.ln[3] <= 150 && Math.abs(b.ms[3] / b.ln[3] - 4500) < 1e-6,
+     b.ln[3] + " lines, " + (b.ms[3] / b.ln[3]) + " ms a line");
+  ok("nonsense is ignored", Records.paceAdd(Records.blank(), "drift", 0, -5, 3).pace.drift === undefined);
+  Records.reach(d, "gentle", 6); Records.reach(d, "gentle", 3);
+  ok("the deepest depth only rises", Records.deepest(d, "gentle") === 6 && Records.deepest(d, "swift") === 0);
+  const other = Records.blank();
+  Records.paceAdd(other, "descent.gentle", 3, 1000, 1);
+  for (let j = 0; j < 30; j++) Records.paceAdd(other, "drift", 0, 5000, 2);
+  Records.reach(other, "gentle", 9); Records.reach(other, "swift", 2);
+  Records.merge(d, other, null);
+  ok("merging keeps the fuller pace bucket, as a copy", d.pace["descent.gentle"].ln[3] === b.ln[3] &&
+     d.pace.drift && d.pace.drift.ln[0] === 60 && d.pace.drift !== other.pace.drift);
+  ok("…and the deepest depth per pace", d.deep.gentle === 9 && d.deep.swift === 2);
+  const clocks = ["modes.js", "records.js"].filter((f) => /\bDate\s*\(|getTime\s*\(|\bDate\.now\b/.test(without(lexJs(read(f)), ["string", "comment"])));
+  ok("neither modes.js nor records.js reads a clock or a date", clocks.length === 0, clocks.join(", "));
 });
 
 /* ================================================================

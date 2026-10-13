@@ -102,6 +102,81 @@ function paceOf(id) {
 Modes.pace = paceOf;
 
 /* ================================================================
+   how long it may take — estimates, honestly worded
+   ================================================================
+   The room says how far down the well goes and roughly how long the way
+   takes, because "ten worlds" means little without "about twenty
+   minutes". The figure starts as a prior — milliseconds a line at each
+   depth of each pace, set from the bot's play and a relaxed human's —
+   and leans toward the player's own pace as their lines come in. The
+   app hands over a bucket of {ms[], ln[]} per pace (records.js keeps it:
+   play time and lines cleared at each depth, halved whenever a depth's
+   lines pass 150, so recent play counts most).
+
+   The blend is two shrinkages. F, one factor for the whole pace, says
+   how much slower or quicker than the prior this player is, from every
+   depth they have data for; it starts at exactly 1 and needs a dozen
+   lines (PACE_K) of evidence before it moves far. Then each depth's own
+   rate leans on its own data where it has some and on F times the prior
+   where it doesn't, so a player who has only seen Dawn still gets an
+   honest guess for the Starfield.
+
+   With fewer than 25 of the player's own lines the answer is a range,
+   −20% to +50% of the prior, and never says "at your pace"; after that
+   it is one figure that does. The wording (about()) rounds hard — to a
+   minute below ten, to five above, to ten past the hour — because a
+   figure that looks precise is a promise, and this is a guess. There is
+   no date or clock in here: the app measures the play time it adds. */
+Modes.PACE_K = 12;                                   /* lines of prior weight */
+Modes.PACE_PRIOR = {                                 /* ms per line, per depth */
+  "descent.gentle":   [5200, 5000, 4800, 4600, 4600, 4600, 4600, 4600, 4600, 4600],
+  "descent.standard": [5200, 4800, 4400, 4000, 3700, 3400, 3200, 3000, 2900, 2800],
+  "descent.swift":    [3600, 3300, 3100, 2900, 2800, 2700, 2600, 2500, 2500, 2400],
+  "drift":            [4800]
+};
+/* bucket {ms[], ln[]} or null; depth 1..n; linesLeft in that depth.
+   -> {ms, lo, hi, personal} or null for a key with no prior */
+Modes.estimate = function (bucket, key, depth, linesLeft) {
+  var P = Modes.PACE_PRIOR[key];
+  if (!P) return null;
+  var n = P.length, ms = bucket && bucket.ms || [], ln = bucket && bucket.ln || [], K = Modes.PACE_K;
+  var sMs = 0, sLn = 0, sPri = 0, pBar = 0, i;
+  for (i = 0; i < n; i++) {
+    pBar += P[i] / n;
+    var m = +ms[i] || 0, l = +ln[i] || 0;
+    if (m > 0 && l > 0) { sMs += m; sLn += l; sPri += l * P[i]; }
+  }
+  var F = (sMs + K * pBar) / (sPri + K * pBar);       /* 1 with no data */
+  F = Math.max(0.3, Math.min(12, F));
+  function rate(j) { return ((+ms[j] || 0) + K * P[j] * F) / ((+ln[j] || 0) + K); }
+  var d0 = Math.max(1, Math.min(n, depth | 0)) - 1;
+  var t = Math.max(0, linesLeft) * rate(d0);
+  for (i = d0 + 1; i < n; i++) t += 25 * rate(i);
+  var personal = sLn >= 25;
+  return { ms: t, lo: personal ? t : t * 0.8, hi: personal ? t : t * 1.5, personal: personal };
+};
+/* an estimate in words: "about 15–30 minutes", "about 9 minutes",
+   "a minute or two", "about 1 hour 50 minutes". The caller adds " at your
+   pace" when personal, and where it leads ("to the Surface"). */
+Modes.about = function (est) {        /* -> {text, personal} or null */
+  if (!est) return null;
+  function r(m) { return m < 10 ? Math.round(m) : 5 * Math.round(m / 5); }
+  function one(m) {
+    if (m < 1.5) return "a minute or two";
+    if (m < 10) return "about " + Math.round(m) + " minutes";
+    if (m < 57.5) return "about " + 5 * Math.round(m / 5) + " minutes";
+    var t = 10 * Math.round(m / 10), h = Math.floor(t / 60), rem = t % 60;
+    return "about " + h + (h === 1 ? " hour" : " hours") + (rem ? " " + rem + " minutes" : "");
+  }
+  var lo = est.lo / 60000, hi = est.hi / 60000;
+  if (est.personal || hi >= 57.5) return { text: one(est.ms / 60000), personal: !!est.personal };
+  if (hi < 1.5) return { text: "a minute or two", personal: false };
+  var rl = Math.max(1, r(lo)), rh = Math.max(rl, r(hi));
+  if (rl === rh) return { text: one(est.ms / 60000), personal: false };
+  return { text: "about " + rl + "–" + rh + " minutes", personal: false };
+};
+
+/* ================================================================
    Steady and Drift
    ================================================================ */
 Modes.STEADY_PACES = [
@@ -221,29 +296,31 @@ var SLOT_BOARDS = [
     hint: "Down the open right-hand side, then turn under the ledge." }
 ];
 
+/* `minutes` is roughly how long a first pass takes, for the Modes list's
+   "about 5 min" — a guide to whether there is time now, not a target */
 Modes.LESSONS = [
-  { id: "finesse", n: 1, kind: "finesse", name: "Fewest Moves",
+  { id: "finesse", n: 1, kind: "finesse", name: "Fewest Moves", minutes: 5,
     teaches: "Every piece to any column in the fewest presses.",
     pass: "Twenty pieces in a row placed in the fewest presses.", need: 20, world: "dawn",
     engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "drain" } },
-  { id: "keep", n: 2, kind: "keep", name: "Keep and Look Ahead",
+  { id: "keep", n: 2, kind: "keep", name: "Keep and Look Ahead", minutes: 5,
     teaches: "Using Keep and the previews to avoid holes.",
     pass: "Forty pieces with no covered holes.", need: 40, world: "tide",
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } },
-  { id: "clean", n: 3, kind: "clean", name: "Clean Stacking",
+  { id: "clean", n: 3, kind: "clean", name: "Clean Stacking", minutes: 4,
     teaches: "Keep nine columns flat and the long piece for the tenth.",
     pass: "Three Quads within forty lines.", need: 3, world: "rain",
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end", goalLines: 40 } },
-  { id: "slot", n: 4, kind: "slot", name: "The Twist Slot",
+  { id: "slot", n: 4, kind: "slot", name: "The Twist Slot", minutes: 6,
     teaches: "Recognising the three-corner shape.",
     pass: "Five Twist Doubles from five prepared wells.", need: 5, world: "lanterns",
     boards: SLOT_BOARDS,
     engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "end", queueThen: "end" } },
-  { id: "build", n: 5, kind: "slot", name: "Build a Slot", later: true,
+  { id: "build", n: 5, kind: "slot", name: "Build a Slot", later: true, minutes: 8,
     teaches: "Making the overhang yourself.",
     pass: "Five Twist Doubles, each in a slot you built yourself.", need: 5, world: "lanterns",
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } },
-  { id: "freestyle", n: 6, kind: "slot", name: "Freestyle Twists", later: true,
+  { id: "freestyle", n: 6, kind: "slot", name: "Freestyle Twists", later: true, minutes: 10,
     teaches: "Twists without a fixed setup.",
     pass: "Ten Twist Doubles in a row.", need: 10, world: "lanterns",
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } }
@@ -251,11 +328,11 @@ Modes.LESSONS = [
 /* Silt (brief §10.2): clear the rows from a well that starts with them.
    Time is the record, lower is better; a top-out rests the run. */
 Modes.SILT = [
-  { id: "silt10", kind: "silt", name: "Silt \u00b7 ten rows", rows: 10, world: "moonpool",
+  { id: "silt10", kind: "silt", name: "Silt \u00b7 ten rows", rows: 10, world: "moonpool", minutes: 3,
     teaches: "Digging: one hole in every row, never two in a column.",
     pass: "Clear all ten rows of silt.", need: 10,
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 500, topOut: "end", silt: 10 } },
-  { id: "silt18", kind: "silt", name: "Silt \u00b7 eighteen rows", rows: 18, world: "moonpool",
+  { id: "silt18", kind: "silt", name: "Silt \u00b7 eighteen rows", rows: 18, world: "moonpool", minutes: 5,
     teaches: "Digging deep, most of the well full of silt.",
     pass: "Clear all eighteen rows of silt.", need: 18,
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 500, topOut: "end", silt: 18 } }
@@ -286,6 +363,7 @@ function overCard(g, goal) {
 var descent = {
   id: "descent", name: "Descent", group: "play",
   line: "Ten depths, from Dawn to the stars at the bottom of the well.",
+  goal: "Ten depths of 25 lines, Dawn to the stars and back up.",
   hasBreath: true, resumable: true, scoreShown: true, pbBetter: "high",
   options: { pace: "gentle", depth: 1 },
   pbKey: function (opts) { return "descent." + paceOf(opts && opts.pace).id; },
@@ -324,6 +402,7 @@ var descent = {
 var steady = {
   id: "steady", name: "Steady", group: "calm",
   line: "A quiet twenty minutes. Slow, even, nothing sudden.",
+  goal: "A quiet twenty minutes. Slow, even, nothing sudden.",
   hasBreath: false, resumable: true, scoreShown: false, pbBetter: "high",
   options: { length: 20, pace: "slow", landing: true, sound: "soft", world: "snowfall" },
   pbKey: function () { return null; },
@@ -344,6 +423,8 @@ var steady = {
 var drift = {
   id: "drift", name: "Drift", group: "calm",
   line: "Endless, unhurried play in chapters.",
+  /* {chapter} is the chapter size the player has chosen, filled in live */
+  goal: "No end. A rest every {chapter} lines.",
   hasBreath: true, resumable: true, scoreShown: true, pbBetter: "high",
   options: { tide: 2, chapter: 40, world: "dawn" },
   pbKey: function () { return null; },
@@ -374,6 +455,7 @@ var drift = {
 var forty = {
   id: "forty", name: "Forty", group: "race",
   line: "Clear forty lines as smoothly as you can.",
+  goal: "Forty lines, as smoothly as you can.",
   hasBreath: false, resumable: false, scoreShown: false, pbBetter: "low",
   options: { lines: 40 },
   pbKey: function (opts) { return "forty." + ((opts && opts.lines) || 40); },
@@ -401,6 +483,7 @@ var forty = {
 var three = {
   id: "three", name: "Three Minutes", group: "race",
   line: "Three minutes, as many points as feel good.",
+  goal: "Always three minutes. Score as you like.",
   hasBreath: false, resumable: false, scoreShown: true, pbBetter: "high",
   options: {},
   pbKey: function () { return "three"; },
@@ -423,6 +506,7 @@ var three = {
 var challenges = {
   id: "challenges", name: "Challenges", group: "learn",
   line: "Lessons, puzzles and silt. Learn the deep stuff at your own pace.",
+  goal: "Six lessons and two silt wells, in any order.",
   hasBreath: false, resumable: false, scoreShown: false, pbBetter: "low",
   options: { id: "finesse", board: 0 },
   pbKey: function (opts) {
@@ -462,7 +546,35 @@ var challenges = {
   }
 };
 
-Modes.list = [descent, steady, drift, forty, three, challenges];
+/* The practice well: one move, on an empty well, as many tries as it
+   takes. It is never listed (hidden), keeps nothing (no best, no save, no
+   Stones — the app sends it no records at all) and never ends by itself:
+   the guide says when the move has been done and the app leaves. Gravity
+   is still so a piece waits for the move being learned, except for
+   Breath, which only means something when the piece is falling. The ring
+   starts full for that one (the app sets the charge after create). */
+var practice = {
+  id: "practice", name: "Practice", group: "learn", hidden: true,
+  line: "One move, on an empty well, as many times as you like.",
+  goal: "One move, on an empty well.",
+  hasBreath: false, resumable: false, scoreShown: false, pbBetter: "high",
+  options: { move: "drop", world: "dawn" },
+  pbKey: function () { return null; },
+  engine: function (opts) {
+    opts = merge(practice.options, opts || {});
+    var breath = opts.move === "breath";
+    return {
+      mode: "practice", gravity: breath ? Rules.gravityMs(3) : 0, level: 1, linesPerLevel: 0,
+      lockDelay: 1000, moveResets: Rules.MOVE_RESETS, spawnDelay: 150, clearDelay: 300,
+      topOut: "drain", breath: breath, keep: true
+    };
+  },
+  world: function (opts) { return (opts && opts.world) || "dawn"; },
+  depthOf: function () { return null; },
+  finish: function () { return null; }
+};
+
+Modes.list = [descent, steady, drift, forty, three, challenges, practice];
 Modes.get = function (id) {
   for (var i = 0; i < Modes.list.length; i++) if (Modes.list[i].id === id) return Modes.list[i];
   return null;

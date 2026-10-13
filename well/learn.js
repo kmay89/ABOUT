@@ -45,6 +45,8 @@ function Well() { return mod("Well", "./engine.js"); }
 function Modes() { return mod("Modes", "./modes.js"); }
 function Skins() { return mod("Skins", "./skins.js"); }
 function PrefsMod() { return mod("Prefs", "./prefs.js"); }
+function WorldsMod() { return mod("Worlds", "./worlds.js"); }
+function GuideMod() { return root && root.Guide ? root.Guide : null; }
 
 var LETTERS = ["I", "O", "T", "S", "Z", "J", "L"];
 
@@ -54,16 +56,24 @@ var LETTERS = ["I", "O", "T", "S", "Z", "J", "L"];
 
 var Learn = {};
 
+/* Each section's title heads its page; `short` names it where room is
+   tight; `sum` is the one line under it in the explainer's index, and
+   `lead` the paragraph that opens the page itself. */
 Learn.sections = [
   { id: "why", title: "Why it's absorbing", short: "Why it absorbs",
+    sum: "Flow, mental rotation, and where the science stops.",
     lead: "A falling-blocks game can hold your attention for an hour with seven shapes and one rule. Here is what is going on underneath, and where the science stops." },
   { id: "how", title: "How it works", short: "How it works",
+    sum: "The real rules, read from this game.",
     lead: "The real rules, read from the game itself as this page opens." },
   { id: "steady", title: "Why this might help — and what it can't do", short: "Might it help?",
+    sum: "What the research found, and what it can't say.",
     lead: "The research behind the headline, what the studies actually did, and what this game is and isn't." },
   { id: "controls", title: "Controls", short: "Controls",
+    sum: "Every move, for the device you're on.",
     lead: "Everything you can press, tap or flick, for the device you're on." },
   { id: "refuses", title: "What the well won't do", short: "What it won't do",
+    sum: "Streaks, nags and the rest we left out.",
     lead: "The things this game deliberately leaves out, and why." }
 ];
 
@@ -130,6 +140,18 @@ function fmt(n) {
   return (neg ? "−" : "") + s;
 }
 function num(n, d) { return n.toFixed(d); }
+/* An icon from the room's sprite (index.html), never a font glyph; and
+   the one the sprite has no need for elsewhere, Play, drawn in place. */
+function icon(name, cls) {
+  return "<svg class=\"ic" + (cls ? " " + cls : "") + "\" aria-hidden=\"true\" focusable=\"false\"><use href=\"#i-" + name + "\"></use></svg>";
+}
+var PLAY = "<svg class=\"ic\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M8.5 6.5v11l9-5.5z\"/></svg>";
+/* "#9FB4FF" -> "159 180 255", for rgb(var(--c)) */
+function trip(hex) {
+  var n = parseInt(String(hex || "#ffffff").replace("#", ""), 16);
+  if (isNaN(n)) n = 0xffffff;
+  return ((n >> 16) & 255) + " " + ((n >> 8) & 255) + " " + (n & 255);
+}
 var WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
              "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
 function word(n) { return WORDS[n] || String(n); }
@@ -923,6 +945,8 @@ PAGES.how = function (ctx, live) {
   out += p("<i>well</i> plays by the modern rules of the falling-blocks family that Tetris® began: seven pieces, a fair dealer, wall kicks, a forgiving lock, Keep, and the scoring that makes a Quad and a Twist worth chasing. " +
     (live.engine ? "Every number here is read from the game's own rule tables and engine as the page opens, and the ones marked ✓ were played on a hidden well to check them — so the page can't drift from the game, because it is reading the game." : "These numbers come straight from the game's rule tables."));
 
+  out += wayDown();
+
   out += h3("The well") +
     p("It is " + word(live.W) + " columns wide and " + live.VISIBLE + " rows tall, with " + hidden + " more hidden above it for pieces to appear in. There are seven pieces, each four cells joined edge to edge: I, O, T, S, Z, J and L.") +
     "<div class=\"lrn-aside\"><b>Why " + live.VISIBLE + " rows?</b> Most games in this family use a well 20 rows tall. Ours is " + live.VISIBLE + ": " + word(extra) + " extra rows of headroom make it a little more forgiving, and its shape fits a phone held upright. Line clears, scores and the forty-line race work exactly the same.</div>";
@@ -933,7 +957,7 @@ PAGES.how = function (ctx, live) {
   if (bag.first.length) {
     out += p("Here are the first three sets of " + (bag.code ? "well code <b class=\"lrn-code\">" + esc(bag.code) + "</b>" : "one game") + ", dealt just now by the game's own dealer:") +
       "<div class=\"lrn-fig\"><canvas data-fig=\"bag\" role=\"img\" aria-label=\"" + esc("Three rows of seven pieces: " + bag.first.slice(0, 7).join(" ") + "; " + bag.first.slice(7, 14).join(" ") + "; " + bag.first.slice(14, 21).join(" ")) + "\"></canvas></div>" +
-      "<p class=\"lrn-cap\"><span data-dealcap>" + dealCaption(bag) + "</span> <button class=\"lrn-mini\" data-deal>Deal another</button></p>";
+      "<p class=\"lrn-cap\"><span data-dealcap>" + dealCaption(bag) + "</span> </p><p class=\"lrn-cap\"><button class=\"btn small lrn-mini\" type=\"button\" data-deal>Deal another</button></p>";
   }
 
   out += h3("How fast pieces fall") +
@@ -957,18 +981,18 @@ PAGES.how = function (ctx, live) {
   /* Breath, from the rule table, so the page and the game can't disagree */
   var Rb = Rules() || {}, bMax = Rb.BREATH_MAX || 20, bCost = Rb.BREATH_COST || 10, bSec = Math.round((Rb.BREATH_MS || 10000) / 1000);
   out += h3("Breath") +
-    p("In Descent and Drift, every line you clear adds a bead to a ring of " + word(bMax) + " on the well's rim. Once " + word(bCost) + " are lit, the Breath button appears beside the score (or press " + keyList(ctx, "breath", ["KeyB"]) + "). A Breath spends " + word(bCost) + " beads and gravity rests for " + word(bSec) + " seconds — one long breath, four in and six out — with the lock wait held still. You can still move, turn and drop, and clears, points, Ripple and Unbroken count just as usual; only the falling stops. It is a moment to think, not a bonus: nothing multiplies.");
+    p("In Descent and Drift, every line you clear adds a bead to a ring of " + word(bMax) + " on the well's rim. Once " + word(bCost) + " are lit, the Breath button beside the score lights up: tap it, or press " + keyList(ctx, "breath", ["KeyB"]) + ". A Breath spends " + word(bCost) + " beads and gravity rests for " + word(bSec) + " seconds — one long breath, four in and six out — with the lock wait held still. You can still move, turn and drop, and clears, points, Ripple and Unbroken count just as usual; only the falling stops. It is a moment to think, not a bonus: nothing multiplies.");
 
   out += h3("Turning, and the five tests") +
     p("When you turn a piece, the game first tries it where it is. If it doesn't fit, it tries four other spots in a fixed order — a step sideways, a step up or down — and takes the first that fits. If none does, the piece doesn't turn. Players call these wall kicks. The O never needs one: it looks the same every way round. The I has its own list.") +
     "<div class=\"lrn-kick\" data-kick>" +
-      "<div class=\"lrn-tabs\" role=\"tablist\">" + sceneTabs() + "</div>" +
+      "<div class=\"seg lrn-tabs\" role=\"group\" aria-label=\"Which turn\">" + sceneTabs() + "</div>" +
       "<div class=\"lrn-fig\"><canvas data-fig=\"kick\" role=\"img\" aria-label=\"\"></canvas></div>" +
       "<div class=\"lrn-steps\" data-steps></div>" +
       "<p class=\"lrn-cap\" data-kcap aria-live=\"polite\"></p>" +
       "<table class=\"tally lrn-t lrn-kt\" data-ktab></table>" +
     "</div>" +
-    p("Modern turning (in Handling, off by default) adds a half-turn and a mirror-symmetric list for the I that some online games call SRS+. Neither is part of the classic rule set.");
+    p("Modern turning (in Settings › Controls › Fine-tuning, off by default) adds a half-turn and a mirror-symmetric list for the I that some online games call SRS+. Neither is part of the classic rule set.");
 
   var tm = live.twistMini || {}, tf = live.twistFull || {};
   out += h3("The Twist") +
@@ -1011,7 +1035,7 @@ PAGES.how = function (ctx, live) {
   out += p("<b>The Glass Well.</b> Press G during play (View on a controller) and the well turns to glass: what's left in the current set of seven, the lock light with its " + resets + " reset pips, the repeat timer filling, the fall speed in seconds a row, the Breath beads, and after each clear, its sum — Quad " + fmt(L.none[4]) + " × 4 × 1.5 = " + fmt(L.none[4] * 4 * 1.5) + ".");
 
   out += h3("Holding a direction") +
-    p("Press and hold a direction and the piece moves at once, waits " + dm.delay + " ms, then " + (dm.slide ? "slides straight to the wall" : "moves every " + dm.every + " ms") + " until you let go. Press both and the newer one wins; let go of it and the older one takes over, with the full wait again. A piece's repeat carries over to the next, so a held key keeps going. All of it is adjustable in Handling." + (dm.measured ? " Timed just now on the game's own repeat clock." : ""));
+    p("Press and hold a direction and the piece moves at once, waits " + dm.delay + " ms, then " + (dm.slide ? "slides straight to the wall" : "moves every " + dm.every + " ms") + " until you let go. Press both and the newer one wins; let go of it and the older one takes over, with the full wait again. A piece's repeat carries over to the next, so a held key keeps going. All of it is adjustable in Settings › Controls › Fine-tuning." + (dm.measured ? " Timed just now on the game's own repeat clock." : ""));
 
   var tu = tuning();
   out += h3("Honesty about tuning") +
@@ -1037,12 +1061,41 @@ PAGES.how = function (ctx, live) {
   return out;
 };
 
+/* The way down: Descent's ten worlds in the order you meet them, read from
+   worlds.js and modes.js so the list is the game's own, ending where a
+   run ends, at the Surface. How long a relaxed run takes comes from the
+   same estimate the splash and the pause sheet use, in the form it takes
+   with nothing learned yet — a range, and never "at your pace", because
+   this page knows nothing about anybody's pace. */
+function wayDown() {
+  var Wd = WorldsMod(), M = Modes();
+  var list = Wd && Wd.list && Wd.list.length ? Wd.list : null;
+  if (!list) return "";
+  var per = (M && M.LINES_PER_DEPTH) || 25, n = Math.min(list.length, (M && M.DEPTHS) || 10);
+  var rowsH = "";
+  for (var i = 0; i < n; i++) {
+    rowsH += "<li><span class=\"lrn-wn\" style=\"--c:" + trip(list[i].rim) + "\" aria-hidden=\"true\"></span>" +
+      "<span class=\"lrn-wd\">Depth " + (i + 1) + "<span class=\"vh\"> · </span></span>" +
+      "<span class=\"lrn-wname\">" + esc(list[i].name) + "<span class=\"vh\"> · </span></span>" +
+      "<span class=\"lrn-wl\">" + per + " lines</span></li>";
+  }
+  rowsH += "<li class=\"lrn-ws\"><span class=\"lrn-wn\" aria-hidden=\"true\"></span><span class=\"lrn-wname\">The Surface</span></li>";
+  var about = "about 15–30 minutes";
+  try {
+    var a = M && M.about && M.estimate ? M.about(M.estimate(null, "descent.gentle", 1, per)) : null;
+    if (a && a.text) about = a.text;
+  } catch (e) { /* the range above is the same estimate, written down */ }
+  return h3("The way down") +
+    "<ol class=\"lrn-way\" aria-label=\"" + esc("The way down: " + n + " depths, then the Surface") + "\">" + rowsH + "</ol>" +
+    p(fmt(n * per) + " lines in all. A relaxed run takes " + about + ", and it saves whenever you stop.");
+}
+
 function dealCaption(b) {
   return "Each row holds all seven shapes once. Across " + fmt(b.pieces) + " pieces from the same dealer, the longest wait between two I pieces was " + b.gap + ".";
 }
 function sceneTabs() {
   var s = "";
-  for (var i = 0; i < SCENES.length; i++) s += "<button class=\"lrn-tab\" role=\"tab\" data-scene=\"" + i + "\">" + SCENES[i].name + "</button>";
+  for (var i = 0; i < SCENES.length; i++) s += "<button class=\"lrn-tab\" type=\"button\" aria-pressed=\"false\" data-scene=\"" + i + "\">" + SCENES[i].name + "</button>";
   return s;
 }
 function measureDas(das, arr) {
@@ -1110,31 +1163,37 @@ function telLink(it, cls, inner) {
   return "<a class=\"" + cls + "\" href=\"tel:" + esc(it.tel) + "\" aria-label=\"" + esc("Call " + (it.show || it.tel) + ", " + (it.say || it.label)) + "\">" + inner + "</a>";
 }
 /* tag: the regions' heading level, h4 under the explainer's own h3, h3
-   when the list is a sheet of its own (Steady's Help lines) */
+   when the list is a sheet of its own (Steady's Help lines). Each region
+   is a small heading over a grouped list in the room's kit; each line is
+   its name, what it is, and its links as plain glass buttons — a tel: or
+   sms: link the phone hands straight to its own dialler. Nothing about
+   them is coloured to alarm. */
 function helpHTML(tag) {
   tag = tag || "h4";
   var h = "<div class=\"lrn-help\">";
   for (var i = 0; i < Learn.HELP.lines.length; i++) {
     var reg = Learn.HELP.lines[i];
-    h += "<section class=\"lrn-region\"><" + tag + ">" + esc(reg.region) + "</" + tag + ">" + (reg.note ? "<p class=\"lrn-note\">" + esc(reg.note) + "</p>" : "");
+    h += "<section class=\"lrn-region\"><" + tag + " class=\"lrn-rh\">" + esc(reg.region) + "</" + tag + ">";
     if (reg.compact) {
       /* the emergency numbers: one row of buttons, each with where it works */
-      h += "<div class=\"lrn-links\">";
+      h += "<div class=\"list lrn-lines\"><div class=\"lrn-line\">" + (reg.note ? "<span class=\"lrn-note lrn-first\">" + esc(reg.note) + "</span>" : "") +
+        "<span class=\"lrn-links\">";
       for (var k = 0; k < reg.items.length; k++) {
         var e = reg.items[k];
-        h += telLink(e, "lrn-call lrn-call2", "Call " + esc(e.tel) + "<small>" + esc(e.label) + "</small>");
+        h += telLink(e, "btn small two lrn-call lrn-call2", "Call " + esc(e.tel) + "<span class=\"bsub\">" + esc(e.label) + "</span>");
       }
-      h += "</div></section>";
+      h += "</span></div></div></section>";
       continue;
     }
-    h += "<ul>";
+    if (reg.note) h += "<p class=\"lrn-note lrn-rnote\">" + esc(reg.note) + "</p>";
+    h += "<ul class=\"list lrn-lines\">";
     for (var j = 0; j < reg.items.length; j++) {
       var it = reg.items[j], links = [];
-      if (it.tel) links.push(telLink(it, "lrn-call", "Call " + esc(it.show || it.tel)));
+      if (it.tel) links.push(telLink(it, "btn small lrn-call", "Call " + esc(it.show || it.tel)));
       var host = it.url ? it.url.replace(/^https?:\/\//, "").replace(/\/$/, "") : "";
-      if (it.sms) links.push("<a class=\"lrn-call\" href=\"sms:" + esc(it.sms) + "\" aria-label=\"" + esc("Text " + it.sms + ", " + it.label) + "\">Text " + esc(it.sms) + "</a>");
-      if (it.url) links.push("<a class=\"lrn-call\" href=\"" + esc(it.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\" aria-label=\"" + esc(host + ", " + it.label + ", opens in a new tab") + "\">" + esc(host) + "</a>");
-      h += "<li><b>" + esc(it.label) + "</b><span class=\"lrn-note\">" + esc(it.note) + "</span>" + (links.length ? "<span class=\"lrn-links\">" + links.join("") + "</span>" : "") + "</li>";
+      if (it.sms) links.push("<a class=\"btn small lrn-call\" href=\"sms:" + esc(it.sms) + "\" aria-label=\"" + esc("Text " + it.sms + ", " + it.label) + "\">Text " + esc(it.sms) + "</a>");
+      if (it.url) links.push("<a class=\"btn small lrn-call\" href=\"" + esc(it.url) + "\" target=\"_blank\" rel=\"noopener noreferrer\" aria-label=\"" + esc(host + ", " + it.label + ", opens in a new tab") + "\">" + esc(host) + "</a>");
+      h += "<li class=\"lrn-line\"><b>" + esc(it.label) + "</b><span class=\"lrn-note\">" + esc(it.note) + "</span>" + (links.length ? "<span class=\"lrn-links\">" + links.join("") + "</span>" : "") + "</li>";
     }
     h += "</ul></section>";
   }
@@ -1159,7 +1218,7 @@ function keyName(code) {
 }
 function keyList(ctx, k, dflt) {
   var keys = pref(ctx, "keys", null), list = keys && keys[k] ? keys[k] : dflt, seen = {}, out = [];
-  for (var i = 0; i < list.length; i++) { var n = keyName(list[i]); if (!seen[n]) { seen[n] = 1; out.push("<kbd>" + esc(n) + "</kbd>"); } }
+  for (var i = 0; i < list.length; i++) { var n = keyName(list[i]); if (!seen[n]) { seen[n] = 1; out.push("<kbd class=\"kc\">" + esc(n) + "</kbd>"); } }
   return out.join(" or ");
 }
 function detect() {
@@ -1173,12 +1232,22 @@ function detect() {
   return "keys";
 }
 function row(a, b) { return "<tr><th>" + a + "</th><td>" + b + "</td></tr>"; }
+/* A move's words as the guide (guide.js) writes them for touch, when it
+   is loaded and gives back plain words; otherwise the fallback here. */
+function guideWords(move, form, env, fallback) {
+  var G = GuideMod();
+  if (!G || typeof G.text !== "function") return fallback;
+  try {
+    var t = G.text(move, "gestures", form, env);
+    return typeof t === "string" && t && t.indexOf("{") < 0 ? t : fallback;
+  } catch (e) { return fallback; }
+}
 /* a Mac leaves Control out of the turn keys (prefs.js says why) */
 var ON_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || "") &&
              (navigator.maxTouchPoints || 0) < 2;
 function controlsBody(ctx, dev) {
   var modern = !!pref(ctx, "modern", false), keepOn = pref(ctx, "keep", true) !== false;
-  var hd = pref(ctx, "hdTouch", 133), tap = pref(ctx, "tap", "sides"), lefty = !!pref(ctx, "lefty", false);
+  var hd = pref(ctx, "hdTouch", 133), tap = pref(ctx, "tap", "sides");
   var das = pref(ctx, "das", 167), arr = pref(ctx, "arr", 33);
   var out = "";
   if (dev === "keys") {
@@ -1189,31 +1258,42 @@ function controlsBody(ctx, dev) {
       row("Turn clockwise", keyList(ctx, "cw", ["ArrowUp", "KeyX"])) +
       row("Turn counter-clockwise", keyList(ctx, "ccw", ON_MAC ? ["KeyZ"] : ["KeyZ", "ControlLeft"])) +
       row("Half-turn", keyList(ctx, "flip", ["KeyA"]) + (modern ? "" : " <small>with Modern turning on</small>")) +
-      row("Keep", keyList(ctx, "hold", ["KeyC", "ShiftLeft"]) + (keepOn ? "" : " <small>Keep is off in Handling</small>")) +
+      row("Keep", keyList(ctx, "hold", ["KeyC", "ShiftLeft"]) + (keepOn ? "" : " <small>Keep is off in Settings</small>")) +
       row("Breath", keyList(ctx, "breath", ["KeyB"]) + " <small>Descent and Drift</small>") +
       row("Glass Well", keyList(ctx, "glass", ["KeyG"])) +
       row("Pause", keyList(ctx, "pause", ["Escape", "KeyP"])) +
       "</tbody></table>" +
-      p("Press and hold a direction and the piece waits " + das + " ms, then " + (arr === 0 ? "slides to the wall" : "moves every " + arr + " ms") + ". Every key can be changed in Handling, by the key's position on the keyboard. While you play, arrows and Space never scroll the page, and every key is let go if the window loses focus. There are no ⌘ shortcuts.");
+      p("Press and hold a direction and the piece waits " + das + " ms, then " + (arr === 0 ? "slides to the wall" : "moves every " + arr + " ms") + ". Every key can be changed in Settings › Controls › Keys, by the key's position on the keyboard. While you play, arrows and Space never scroll the page, and every key is let go if the window loses focus. There are no ⌘ shortcuts.");
   } else if (dev === "touch") {
-    out += "<div class=\"lrn-cards\">" +
-      "<div class=\"lrn-card\"><span class=\"lrn-glyph\">↔</span><b>Drag to move</b><small>The piece follows your finger, a column at a time.</small></div>" +
-      "<div class=\"lrn-card\"><span class=\"lrn-glyph\">↻</span><b>Tap to turn</b><small>" + (tap === "anywhere" ? "Anywhere turns clockwise." : (lefty ? "Left half clockwise, right half back." : "Right half clockwise, left half back.")) + "</small></div>" +
-      "<div class=\"lrn-card\"><span class=\"lrn-glyph\">⤓</span><b>Flick down to drop</b><small>A slow drag down is a soft drop.</small></div>" +
-      "<div class=\"lrn-card\"><span class=\"lrn-glyph\">⤒</span><b>Flick up to keep</b><small>Or tap the Keep niche.</small></div>" +
-      "</div>" +
+    /* the four moves in the words the guide teaches them with on the well
+       (guide.js), so the two never disagree; its own words when it isn't
+       here. A tap turns by the half of the screen it lands on, whichever
+       hand you play with: left-handed mirrors only the button tray. */
+    var env = { tap: tap, keep: keepOn, modern: modern, landing: pref(ctx, "landing", true) !== false,
+                keys: pref(ctx, "keys", null), pad: null };
+    var cards = [
+      ["drag", guideWords("move", "title", env, "Drag to move"), guideWords("move", "line", env, "The piece follows your finger, a column at a time.")],
+      ["turn", guideWords("turn", "title", env, "Tap to turn"), guideWords("turn", "line", env, tap === "anywhere" ? "Anywhere turns clockwise." : "Right half clockwise, left half back.")],
+      ["drop", guideWords("drop", "title", env, "Flick down to drop"), guideWords("drop", "line", env, "A slow drag down is a soft drop.")],
+      ["flick-up", guideWords("keep", "title", env, "Flick up to keep"), guideWords("keep", "line", env, "Or tap the Keep niche.")]
+    ];
+    out += "<div class=\"lrn-cards\">";
+    for (var c = 0; c < cards.length; c++) {
+      out += "<div class=\"lrn-card\"><span class=\"lrn-glyph\">" + icon(cards[c][0]) + "</span><b>" + esc(cards[c][1]) + "</b><small>" + esc(cards[c][2]) + "</small></div>";
+    }
+    out += "</div>" +
       "<table class=\"tally lrn-t lrn-ctl\"><tbody>" +
-      row("Tap", "turn — " + (tap === "anywhere" ? "clockwise anywhere" : (lefty ? "left half clockwise, right half counter-clockwise" : "right half clockwise, left half counter-clockwise"))) +
+      row("Tap", "turn — " + (tap === "anywhere" ? "clockwise anywhere" : "right half clockwise, left half counter-clockwise")) +
       row("Two-finger tap", modern && tap !== "anywhere" ? "half-turn" : "turn counter-clockwise") +
       row("Drag sideways", "move, one column per short stretch of travel; the finger is the repeat") +
       row("Drag down slowly", "soft drop") +
       row("Flick down", "hard drop") +
       row("Flick up", "Keep") +
-      row("Breath button", "beside the score, once ten beads are lit — gravity rests for one long breath <small>Descent and Drift</small>") +
+      row("Breath button", "beside the score; once ten beads are lit, tap it and gravity rests for one long breath <small>Descent and Drift</small>") +
       row("Pause button", "top corner, inside the safe area; there is no pause gesture, so it can't happen by accident") +
       "</tbody></table>" +
-      p("<b>Hard-drop protection.</b> A flick within " + hd + " ms of a new piece appearing is ignored, so a drop meant for the last piece can't land the next one.") +
-      p("Prefer buttons? Handling → Buttons puts a tray of big controls under the well, with left-handed mirroring and adjustable size.");
+      p("<b>Hard-drop protection.</b> A flick within " + hd + "\u00a0ms of a new piece appearing is ignored, so a drop meant for the last piece can't land the next one.") +
+      p("Prefer buttons? Settings › Controls › Buttons puts a tray of big controls under the well, with left-handed mirroring and adjustable size.");
   } else {
     out += "<table class=\"tally lrn-t lrn-ctl\"><tbody>" +
       row("D-pad ← → or left stick", "move") +
@@ -1231,14 +1311,20 @@ function controlsBody(ctx, dev) {
   }
   return out;
 }
+/* The controls, for the device in hand first and the others a tap away.
+   At the top, the door to the Moves page, where every move can be
+   practised on a real well (the explainer's host answers data-go). */
 PAGES.controls = function (ctx) {
   var dev = ctx.device || detect();
   if (dev !== "keys" && dev !== "touch" && dev !== "pad") dev = "keys";
-  var tabs = [["keys", "Keyboard"], ["touch", "Touch"], ["pad", "Controller"]], t = "";
+  var tabs = [["touch", "Touch"], ["keys", "Keyboard"], ["pad", "Controller"]], t = "";
   for (var i = 0; i < tabs.length; i++) {
-    t += "<button class=\"lrn-tab" + (tabs[i][0] === dev ? " on" : "") + "\" role=\"tab\" aria-selected=\"" + (tabs[i][0] === dev) + "\" data-device=\"" + tabs[i][0] + "\">" + tabs[i][1] + "</button>";
+    var on = tabs[i][0] === dev;
+    t += "<button class=\"lrn-tab" + (on ? " on" : "") + "\" type=\"button\" aria-pressed=\"" + on + "\" data-device=\"" + tabs[i][0] + "\">" + tabs[i][1] + "</button>";
   }
-  return "<div class=\"lrn-tabs\" role=\"tablist\">" + t + "</div><div data-ctl>" + controlsBody(ctx, dev) + "</div>";
+  return "<div class=\"list icons lrn-go\"><button class=\"li\" type=\"button\" data-go=\"moves\"><span class=\"li-ic\">" + icon("moves") +
+    "</span><span class=\"li-t\">Practise any move in Moves</span>" + icon("chevron", "chev") + "</button></div>" +
+    "<div class=\"seg lrn-tabs lrn-dev\" role=\"group\" aria-label=\"Controls for\">" + t + "</div><div data-ctl>" + controlsBody(ctx, dev) + "</div>";
 };
 
 PAGES.refuses = function () {
@@ -1270,90 +1356,132 @@ PAGES.refuses = function () {
    rendering and wiring
    ================================================================ */
 
+/* The explainer's look, on the room's kit and nothing but its tokens:
+   the title in the room's serif, each page's lead in the serif too and a
+   shade quieter, the reading text at a comfortable 17 px with generous
+   leading and a line no longer than about 62 characters, and asides set
+   off by a thin rule in the world's key light rather than a box. The
+   device and kick switches are the kit's segmented control, the help
+   lines its grouped lists and glass buttons, the keys its keycaps. */
 var STYLE = "" +
-".lrn{-webkit-user-select:text;user-select:text}" +
-".lrn .lrn-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid var(--line)}" +
-".lrn .lrn-nav button{font-size:.8rem;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card2);color:var(--soft);min-height:32px}" +
-".lrn .lrn-nav button.on{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" +
-".lrn h3{font-size:1.02rem;margin:1.35em 0 .35em}" +
-".lrn h4{font-size:.92rem;margin:0 0 .3em;color:var(--ink)}" +
-".lrn .lrn-p{font-size:.92rem;line-height:1.55;margin:.45em 0;color:var(--ink);opacity:.92}" +
-".lrn .lrn-soft{color:var(--soft);opacity:1;font-size:.86rem}" +
-".lrn .lrn-src{font-size:.78rem;line-height:1.5;color:var(--soft);margin:1.2em 0 .4em}" +
+".lrn{-webkit-user-select:text;user-select:text;font:400 1rem/1.5 var(--sans);color:var(--ink)}" +
+".lrn h2{font:400 1.375rem/1.75rem var(--serif);color:var(--ink);margin:0 0 8px;text-wrap:balance}" +
+".lrn .lead{font:400 1.25rem/1.5 var(--serif);color:var(--ink-2);margin:0 0 8px;max-width:62ch;text-wrap:pretty}" +
+".lrn .lrn-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;padding:0 0 12px;border-bottom:1px solid var(--hair)}" +
+".lrn .lrn-nav button{font:500 .8125rem/1 var(--sans);padding:0 12px;border-radius:999px;border:1px solid var(--hair);background:var(--fill-1);color:var(--ink-2);min-height:44px}" +
+".lrn .lrn-nav button.on{color:var(--ink);background:var(--fill-3);box-shadow:inset 0 0 0 1px rgb(var(--wa) / .45)}" +
+".lrn h3{font:600 1.0625rem/1.4 var(--sans);color:var(--ink);margin:2em 0 .5em;text-wrap:balance}" +
+".lrn b,.lrn strong{font-weight:600}" +
+".lrn h4{font:600 1rem/1.4 var(--sans);margin:0 0 .3em;color:var(--ink)}" +
+".lrn .lrn-p{font:400 1.0625rem/1.65 var(--sans);margin:.6em 0;color:var(--ink);max-width:62ch;text-wrap:pretty}" +
+".lrn .lrn-soft{color:var(--ink-2);font-size:.9375rem;line-height:1.55}" +
+".lrn .lrn-src{font:400 .8125rem/1.125rem var(--sans);color:var(--ink-3);margin:1.6em 0 .4em;max-width:62ch}" +
 ".lrn .lrn-src i i{font-style:normal}" +
-".lrn .lrn-about{font-size:.76rem;color:var(--soft);border-top:1px solid var(--line);padding-top:10px;margin-top:1.2em}" +
-".lrn .lrn-ul{margin:.4em 0 .6em;padding-left:1.25em;font-size:.92rem;line-height:1.55}" +
-".lrn .lrn-ul li{margin:.35em 0}" +
-".lrn a{color:var(--glow)}" +
-".lrn .lrn-aside{margin:.8em 0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--line);font-size:.9rem;line-height:1.5}" +
-".lrn .lrn-sum{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--glow)}" +
-".lrn .lrn-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;color:var(--glow)}" +
-".lrn .lrn-fig{display:flex;justify-content:center;margin:10px 0 4px}" +
-".lrn .lrn-fig canvas{display:block;border-radius:12px;max-width:100%}" +
-".lrn .lrn-cap{font-size:.82rem;color:var(--soft);text-align:center;margin:.3em 0 .8em;line-height:1.45;min-height:1.45em}" +
-".lrn .lrn-mini{font-size:.78rem;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card2);color:var(--ink);margin-left:4px}" +
-".lrn .lrn-t{font-size:.84rem;margin:8px 0}" +
-".lrn .lrn-t th,.lrn .lrn-t td{font-variant-numeric:tabular-nums}" +
-".lrn .lrn-t tbody th{font-weight:600;text-align:left;color:var(--ink)}" +
-".lrn .lrn-t tbody th small,.lrn .lrn-t td small{display:block;color:var(--soft);font-weight:400;font-size:.76rem}" +
-".lrn .lrn-t thead th{color:var(--soft);font-weight:600;font-size:.76rem}" +
+".lrn .lrn-about{font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2);border-top:1px solid var(--hair);padding-top:12px;margin-top:1.6em}" +
+".lrn .lrn-ul{margin:.5em 0 .8em;padding-left:1.25em;font:400 1.0625rem/1.65 var(--sans);max-width:62ch}" +
+".lrn .lrn-ul li{margin:.4em 0}" +
+".lrn .lrn-ul li::marker{color:var(--ink-3)}" +
+".lrn a{color:rgb(var(--wk));text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}" +
+".lrn a.btn{text-decoration:none;color:var(--ink)}" +
+".lrn .lrn-aside{margin:1.2em 0;padding:2px 0 2px 16px;border-left:2px solid rgb(var(--wk) / .5);font:400 1rem/1.6 var(--sans);color:var(--ink);max-width:62ch}" +
+".lrn .lrn-aside b{font:italic 400 1.125rem/1.5 var(--serif);color:var(--ink)}" +
+".lrn .lrn-sum{white-space:nowrap;font-variant-numeric:tabular-nums;color:rgb(var(--wk))}" +
+".lrn .lrn-code{font:600 .9375rem var(--mono);letter-spacing:.14em;color:rgb(var(--wk))}" +
+".lrn .lrn-fig{display:flex;justify-content:center;margin:14px 0 6px}" +
+".lrn .lrn-fig canvas{display:block;border-radius:var(--r3);max-width:100%}" +
+".lrn .lrn-cap{font:400 .9375rem/1.25rem var(--sans);color:var(--ink-2);text-align:center;margin:.4em 0 .9em;min-height:1.25rem}" +
+".lrn .lrn-cap .btn{display:inline-flex;margin:0 auto}" +
+".lrn .lrn-t{font:400 .9375rem/1.3 var(--sans);margin:12px 0;border-collapse:collapse}" +
+".lrn .lrn-t th,.lrn .lrn-t td{font-variant-numeric:tabular-nums;border-bottom:1px solid var(--hair);padding:8px 8px}" +
+".lrn .lrn-t tbody th{font-weight:500;text-align:left;color:var(--ink)}" +
+".lrn .lrn-t tbody th small,.lrn .lrn-t td small{display:block;color:var(--ink-2);font:400 .8125rem/1.125rem var(--sans)}" +
+".lrn .lrn-t thead th{color:var(--ink-2);font:500 .75rem/1rem var(--sans);letter-spacing:.02em}" +
+".lrn .lrn-t td{color:var(--ink)}" +
+".lrn .lrn-ctl th,.lrn .lrn-ctl td{font-variant-numeric:normal;text-align:left;vertical-align:top}" +
+".lrn .lrn-ctl tbody th{width:38%;padding-left:0}" +
 ".lrn .lrn-barh{width:34%}" +
 ".lrn .lrn-barc{text-align:left!important;padding-left:2px}" +
-".lrn .lrn-bar{display:inline-block;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--glow));opacity:.75;vertical-align:middle}" +
+".lrn .lrn-bar{display:inline-block;height:4px;border-radius:2px;background:linear-gradient(90deg,rgb(var(--wa)),rgb(var(--wk)));opacity:.8;vertical-align:middle}" +
 ".lrn .lrn-ok{color:var(--good);font-size:.8em;margin-left:3px}" +
-".lrn .lrn-dim{color:var(--soft);opacity:.6}" +
+".lrn .lrn-dim{color:var(--ink-3)}" +
 ".lrn .lrn-score th,.lrn .lrn-score td{text-align:right}" +
-".lrn .lrn-score thead th{font-size:.76rem}" +
 ".lrn .lrn-score tbody th{text-align:left}" +
-".lrn .lrn-bonus td{text-align:left!important;color:var(--ink)}" +
+".lrn .lrn-bonus td{text-align:left!important}" +
 ".lrn .lrn-bonus th{width:38%;vertical-align:top}" +
-".lrn .lrn-modes{list-style:none;margin:8px 0;padding:0}" +
-".lrn .lrn-modes li{padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem}" +
+".lrn .lrn-modes{list-style:none;margin:10px 0;padding:0}" +
+".lrn .lrn-modes li{padding:12px 0;border-bottom:1px solid var(--hair);font:500 1rem/1.4 var(--sans)}" +
 ".lrn .lrn-modes li:last-child{border-bottom:0}" +
-".lrn .lrn-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}" +
-".lrn .lrn-chips span{font-size:.78rem;padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid var(--line);color:var(--soft);font-variant-numeric:tabular-nums}" +
+".lrn .lrn-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}" +
+".lrn .lrn-chips span{font:400 .8125rem/1.125rem var(--sans);padding:3px 10px;border-radius:999px;background:var(--fill-1);border:1px solid var(--hair);color:var(--ink-2);font-variant-numeric:tabular-nums}" +
 ".lrn .lrn-chips span:first-child{color:var(--ink)}" +
 ".lrn .lrn-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px}" +
-".lrn .lrn-tu td,.lrn .lrn-tu th{text-align:left!important;font-size:.78rem;vertical-align:top}" +
-".lrn .lrn-tu td:first-child{font-weight:600;white-space:nowrap}" +
-".lrn .lrn-tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:10px 0 2px}" +
-".lrn .lrn-tab{font-size:.84rem;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card2);color:var(--soft);min-height:36px}" +
-".lrn .lrn-tab.on{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" +
-".lrn .lrn-steps{display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin:4px 0}" +
-".lrn .lrn-step{min-width:40px;min-height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--soft);font-size:.82rem;font-variant-numeric:tabular-nums}" +
-".lrn .lrn-step.on{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}" +
+/* the way down: the ten worlds on one thin rail, each node its world's rim light */
+".lrn .lrn-way{list-style:none;margin:12px 0 8px;padding:0;max-width:62ch}" +
+".lrn .lrn-way li{display:grid;grid-template-columns:20px 4.75rem minmax(0,1fr) auto;align-items:center;column-gap:10px;min-height:34px;position:relative}" +
+".lrn .lrn-way li:before{content:\"\";position:absolute;left:9.5px;top:0;bottom:0;width:1px;background:var(--hair-2)}" +
+".lrn .lrn-way li:first-child:before{top:50%}" +
+".lrn .lrn-way li:last-child:before{bottom:50%}" +
+".lrn .lrn-wn{position:relative;z-index:1;justify-self:center;width:8px;height:8px;border-radius:50%;background:rgb(var(--c,238 240 248))}" +
+".lrn .lrn-wd{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2);font-variant-numeric:tabular-nums}" +
+".lrn .lrn-wname{font:400 1.0625rem/1.4 var(--serif);color:var(--ink);min-width:0}" +
+".lrn .lrn-wl{font:400 .8125rem/1.125rem var(--sans);color:var(--ink-3);font-variant-numeric:tabular-nums}" +
+".lrn .lrn-ws .lrn-wn{width:12px;height:7px;margin-top:2px;border-radius:12px 12px 0 0;border:1.5px solid rgb(var(--wk));border-bottom:0;background:none}" +
+".lrn .lrn-ws .lrn-wname{grid-column:2 / 5;color:rgb(var(--wk))}" +
+/* switches: the kit's segmented control */
+".lrn .lrn-tabs{margin:14px 0 4px}" +
+".lrn .lrn-tabs>button{min-height:44px}" +
+".lrn .lrn-steps{display:flex;gap:4px;justify-content:center;align-items:center;flex-wrap:wrap;margin:6px 0}" +
+".lrn .lrn-step{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 6px;border-radius:var(--r2);border:1px solid transparent;background:none;color:var(--ink-2);font:500 .9375rem/1 var(--sans);font-variant-numeric:tabular-nums}" +
+".lrn .lrn-step.on{color:var(--ink);background:var(--fill-3);box-shadow:inset 0 0 0 1px rgb(var(--wa) / .45)}" +
 ".lrn .lrn-step.fit{color:var(--good)}" +
 ".lrn .lrn-step.nav{color:var(--ink)}" +
+".lrn .lrn-step .ic{width:18px;height:18px}" +
+".lrn .lrn-step svg:not([viewBox]){fill:none}" +
+".lrn .lrn-step svg[viewBox]{fill:currentColor;stroke:none}" +
+"@media (hover:hover){.lrn .lrn-step:hover{background:var(--fill-1)}}" +
 ".lrn .lrn-kt td,.lrn .lrn-kt th{text-align:left!important}" +
+".lrn .lrn-kt thead th{font:500 .8125rem/1.125rem var(--sans);color:var(--ink-2)}" +
 ".lrn .lrn-kt tbody th,.lrn .lrn-kt td:nth-child(2){white-space:nowrap}" +
-".lrn .lrn-kt tr.on td,.lrn .lrn-kt tr.on th{background:rgba(255,255,255,.05)}" +
-".lrn .lrn-kt td.r{text-align:right!important;color:var(--soft)}" +
+".lrn .lrn-kt tr.on td,.lrn .lrn-kt tr.on th{background:var(--fill-1)}" +
+".lrn .lrn-kt td.r{text-align:right!important;color:var(--ink-2)}" +
 ".lrn .lrn-kt tr.fit td.r{color:var(--good)}" +
-".lrn .lrn-pair{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}" +
+".lrn .lrn-pair{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}" +
 ".lrn .lrn-pair figure{margin:0;flex:1 1 220px;max-width:300px}" +
-".lrn .lrn-pair figcaption{font-size:.82rem;color:var(--soft);line-height:1.45;text-align:center}" +
-".lrn .lrn-pair figcaption b{color:var(--ink)}" +
-".lrn .lrn-help{margin:.4em 0;padding:12px 14px 4px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--line)}" +
-".lrn .lrn-region{margin:0 0 14px}" +
-".lrn .lrn-region h4,.lrn .lrn-region h3{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);font-weight:650;margin:0 0 2px}" +
-".lrn .lrn-region ul{list-style:none;margin:0;padding:0}" +
-".lrn .lrn-region li{padding:8px 0;border-bottom:1px solid var(--line);font-size:.9rem;line-height:1.45}" +
-".lrn .lrn-region li:last-child{border-bottom:0}" +
-".lrn .lrn-note{display:block;color:var(--soft);font-size:.85rem}" +
-".lrn .lrn-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}" +
-".lrn .lrn-call{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--ink);text-decoration:none;font-weight:600;font-size:.88rem}" +
-".lrn .lrn-call2{flex-direction:column;align-items:flex-start;justify-content:center;padding:6px 14px;line-height:1.2}" +
-".lrn .lrn-call2 small{font-weight:400;color:var(--soft);font-size:.74rem}" +
-".lrn .lrn-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}" +
-".lrn .lrn-card{border:1px solid var(--line);border-radius:13px;background:var(--card2);padding:10px;display:flex;flex-direction:column;gap:2px;font-size:.88rem}" +
-".lrn .lrn-card small{color:var(--soft);font-size:.78rem;line-height:1.35}" +
-".lrn .lrn-glyph{font-size:1.4rem;line-height:1;color:var(--glow)}" +
-".lrn kbd{font-family:inherit;font-size:.82rem;padding:1px 7px;border-radius:6px;border:1px solid var(--line);background:var(--card2);box-shadow:0 1px 0 rgba(0,0,0,.4)}" +
-".lrn .lrn-refuse{list-style:none;margin:0;padding:0}" +
-".lrn .lrn-refuse li{padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem;line-height:1.5}" +
-".lrn .lrn-refuse li span{color:var(--soft)}" +
-".lrn button:focus-visible,.lrn a:focus-visible{outline:2px solid var(--glow);outline-offset:2px}" +
-"@media (prefers-reduced-motion:reduce){.lrn *{transition:none!important}}";
+".lrn .lrn-pair figcaption{font:400 .9375rem/1.35 var(--sans);color:var(--ink-2);text-align:center}" +
+".lrn .lrn-pair figcaption b{color:var(--ink);font-weight:500}" +
+/* help lines: a heading over a grouped list for each region */
+".lrn .lrn-help{margin:.6em 0}" +
+".lrn .lrn-region{margin:0 0 20px}" +
+".lrn .lrn-region .lrn-rh{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2);margin:0 4px 8px}" +
+".lrn .lrn-rnote{margin:-4px 4px 8px}" +
+".lrn .lrn-lines{list-style:none;margin:0;padding:0}" +
+".lrn .lrn-line{display:block;position:relative;padding:12px 16px 14px;font:400 1rem/1.4 var(--sans)}" +
+".lrn .lrn-line + .lrn-line:before{content:\"\";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--hair)}" +
+".lrn .lrn-line b{font-weight:600;color:var(--ink)}" +
+".lrn .lrn-note{display:block;color:var(--ink-2);font:400 .9375rem/1.35 var(--sans);margin-top:2px}" +
+".lrn .lrn-note.lrn-first{margin:0 0 2px}" +
+".lrn .lrn-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}" +
+".lrn .lrn-links .btn{flex:none}" +
+".lrn .lrn-call2{align-items:flex-start;padding:6px 14px;text-align:left}" +
+".lrn .lrn-help>.lrn-src{margin:4px 4px 0}" +
+/* controls */
+".lrn .lrn-go{margin:4px 0 6px}" +
+".lrn .lrn-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:10px;margin:14px 0}" +
+".lrn .lrn-card{border:1px solid var(--hair);border-radius:var(--r3);background:var(--fill-1);padding:14px;display:flex;flex-direction:column;gap:4px}" +
+".lrn .lrn-card b{font:500 1rem/1.3 var(--sans);color:var(--ink)}" +
+".lrn .lrn-card small{color:var(--ink-2);font:400 .875rem/1.35 var(--sans)}" +
+".lrn .lrn-glyph{display:flex;width:32px;height:32px;margin-bottom:4px;border-radius:var(--r1);align-items:center;justify-content:center;background:rgb(var(--wa) / .14);color:rgb(var(--wa))}" +
+".lrn .lrn-glyph .ic{width:20px;height:20px}" +
+".lrn kbd,.lrn kbd.kc{display:inline-flex;align-items:center;justify-content:center;min-width:1.9em;height:1.75em;padding:0 .45em;border-radius:var(--r1);" +
+"background:var(--fill-2);border:1px solid var(--hair-2);box-shadow:inset 0 -2px 0 rgb(0 0 0 / .35);font:600 .8125rem/1 var(--sans);color:var(--ink);white-space:nowrap;vertical-align:baseline}" +
+".lrn .lrn-refuse{list-style:none;margin:0;padding:0;max-width:62ch}" +
+".lrn .lrn-refuse li{padding:14px 0;border-bottom:1px solid var(--hair);font:400 1rem/1.55 var(--sans)}" +
+".lrn .lrn-refuse li:last-child{border-bottom:0}" +
+".lrn .lrn-refuse li b{font-weight:600;color:var(--ink)}" +
+".lrn .lrn-refuse li span{color:var(--ink-2)}" +
+"@media (min-width:900px) and (pointer:fine){.lrn h2{font-size:1.375rem}.lrn .lrn-t{font-size:.9375rem}}" +
+"html.rm .lrn *{transition-duration:.15s!important;animation:none!important}" +
+"@media (prefers-reduced-motion:reduce){.lrn *{transition-duration:.15s!important}}";
 
 function style() {
   if (typeof document === "undefined" || document.getElementById("lrnStyle")) return;
@@ -1440,7 +1568,7 @@ function wire(el, id, ctx, data, stops) {
     for (var t = 0; t < tabs.length; t++) {
       tabs[t].addEventListener("click", function () {
         var dev = this.getAttribute("data-device");
-        for (var u = 0; u < tabs.length; u++) { var on = tabs[u] === this; tabs[u].classList.toggle("on", on); tabs[u].setAttribute("aria-selected", on ? "true" : "false"); }
+        for (var u = 0; u < tabs.length; u++) { var on = tabs[u] === this; tabs[u].classList.toggle("on", on); tabs[u].setAttribute("aria-pressed", on ? "true" : "false"); }
         el.querySelector("[data-ctl]").innerHTML = controlsBody(ctx, dev);
       });
     }
@@ -1520,15 +1648,15 @@ function wireKick(box, ctx, data, pal, stops) {
     }
     tab.innerHTML = "<thead><tr><th colspan=\"4\">" + esc(s.piece) + " turning " + (s.to === ((s.from + 1) & 3) ? "clockwise" : "counter-clockwise") + ", " + ORDER[s.from] + " → " + ORDER[s.to] + (kickList(s.piece, s.from, s.to).source === "rules" ? ", read from the game's rule table" : "") + "</th></tr></thead><tbody>" + h + "</tbody>";
     var b = "";
-    if (still) b += "<button class=\"lrn-step nav\" data-k=\"prev\" aria-label=\"Previous test\">‹</button>";
-    b += "<button class=\"lrn-step" + (step < 0 ? " on" : "") + "\" data-k=\"-1\" aria-label=\"Before the turn\">Start</button>";
-    for (var j = 0; j < ts.length; j++) b += "<button class=\"lrn-step" + (j === step ? " on" : "") + (j === fit ? " fit" : "") + "\" data-k=\"" + j + "\" aria-label=\"Test " + (j + 1) + "\">" + (j + 1) + "</button>";
-    if (still) b += "<button class=\"lrn-step nav\" data-k=\"next\" aria-label=\"Next test\">›</button>";
-    else b += "<button class=\"lrn-step nav\" data-k=\"play\" aria-label=\"" + (auto ? "Pause" : "Play") + "\">" + (auto ? "❚❚" : "▶") + "</button>";
+    if (still) b += "<button class=\"lrn-step nav\" type=\"button\" data-k=\"prev\" aria-label=\"Previous test\">" + icon("back") + "</button>";
+    b += "<button class=\"lrn-step" + (step < 0 ? " on" : "") + "\" type=\"button\" data-k=\"-1\" aria-label=\"Before the turn\">Start</button>";
+    for (var j = 0; j < ts.length; j++) b += "<button class=\"lrn-step" + (j === step ? " on" : "") + (j === fit ? " fit" : "") + "\" type=\"button\" data-k=\"" + j + "\" aria-label=\"Test " + (j + 1) + (j === fit ? ", the one that fits" : "") + "\">" + (j + 1) + "</button>";
+    if (still) b += "<button class=\"lrn-step nav\" type=\"button\" data-k=\"next\" aria-label=\"Next test\">" + icon("chevron") + "</button>";
+    else b += "<button class=\"lrn-step nav\" type=\"button\" data-k=\"play\" aria-label=\"" + (auto ? "Pause" : "Play") + "\">" + (auto ? icon("pause") : PLAY) + "</button>";
     stepsEl.innerHTML = b;
     for (var t = 0; t < tabs.length; t++) {
       var on = +tabs[t].getAttribute("data-scene") === scene;
-      tabs[t].classList.toggle("on", on); tabs[t].setAttribute("aria-selected", on ? "true" : "false");
+      tabs[t].classList.toggle("on", on); tabs[t].setAttribute("aria-pressed", on ? "true" : "false");
     }
   }
   entry = mountFig(cv, 12, 8, 26, function (f) { drawKick(f, sc(), step, pal); });

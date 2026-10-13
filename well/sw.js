@@ -28,13 +28,13 @@
    · On activate only this room's old caches go. The cache store belongs
      to the whole site, and deleting every name but ours took the chess and
      sudoku rooms' offline copies with it. */
-var VERSION = "well-v4";
+var VERSION = "well-v5";
 var SHELL = [
   "./", "./index.html", "./look.css",
   "./rules.js", "./engine.js", "./bot.js", "./modes.js", "./records.js",
   "./worlds.js", "./skins.js", "./layout.js", "./prefs.js", "./sky.js",
   "./gfx2d.js", "./gfx3d.js", "./music.js", "./input.js", "./learn.js",
-  "./coach.js", "./steady.js", "./sheets.js",
+  "./coach.js", "./steady.js", "./sheets.js", "./guide.js",
   "./app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",

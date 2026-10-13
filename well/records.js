@@ -166,7 +166,9 @@ Records.blank = function () {
     medals: {},     /* pbKey -> best medal name ever earned on that key   */
     lessons: {},    /* lesson id -> {pass:1, hint:0|1}                    */
     worlds: {},     /* world id -> 1, for Every World                     */
-    life: { pieces: 0, lines: 0, ms: 0, sessions: 0, steadySessions: 0, steadyMs: 0 }
+    life: { pieces: 0, lines: 0, ms: 0, sessions: 0, steadySessions: 0, steadyMs: 0 },
+    pace: {},       /* "descent.gentle" | … | "drift" -> {ms[], ln[]}, see paceAdd */
+    deep: {}        /* pace -> deepest depth reached, 1..10, 11 = the Surface */
   };
 };
 
@@ -180,6 +182,8 @@ function ensure(d) {
   if (!d.lessons || typeof d.lessons !== "object") d.lessons = {};
   if (!d.worlds || typeof d.worlds !== "object") d.worlds = {};
   if (!d.life || typeof d.life !== "object") d.life = {};
+  if (!d.pace || typeof d.pace !== "object" || Array.isArray(d.pace)) d.pace = {};
+  if (!d.deep || typeof d.deep !== "object" || Array.isArray(d.deep)) d.deep = {};
   for (var i = 0; i < LIFE_KEYS.length; i++) {
     var k = LIFE_KEYS[i];
     if (typeof d.life[k] !== "number" || !isFinite(d.life[k]) || d.life[k] < 0) d.life[k] = 0;
@@ -238,6 +242,18 @@ Records.merge = function (into, other, base) {
     b = other.hist[k];
     if (Array.isArray(b) && (!Array.isArray(into.hist[k]) || b.length > into.hist[k].length)) into.hist[k] = b.slice();
   }
+  /* a pace bucket is a running blend, not a count, so two tabs' buckets
+     can't be added: the one with more lines in it is kept, as a copy */
+  for (k in other.pace) {
+    b = goodBucket(other.pace[k]);
+    if (!b) continue;
+    a = goodBucket(into.pace[k]);
+    if (!a || bucketLines(b) > bucketLines(a)) into.pace[k] = { ms: b.ms.slice(), ln: b.ln.slice() };
+  }
+  for (k in other.deep) {
+    b = deepOf(other.deep[k]);
+    if (b > deepOf(into.deep[k])) into.deep[k] = b;
+  }
   for (i = 0; i < LIFE_KEYS.length; i++) {
     k = LIFE_KEYS[i];
     var mine = into.life[k], theirs = other.life[k];
@@ -245,6 +261,56 @@ Records.merge = function (into, other, base) {
     else into.life[k] = Math.max(mine, theirs);
   }
   return into;
+};
+
+/* ---------- how long the way takes, and how deep you have been ----------
+   The estimates on the splash, the pause sheet and the Modes sheet lean
+   on the player's own pace (modes.js, Modes.estimate). The app measures
+   it — play time between clears, never a clock or a date — and hands each
+   clear here: ms of play and the lines it cleared, at a depth index
+   (0..9 in Descent; Drift has one bucket). When a depth's lines pass 150
+   both sums are halved, so the bucket is a blend that recent play
+   dominates and that can never grow without bound. Nothing in it says
+   when anything happened. */
+function goodBucket(b) {
+  return b && typeof b === "object" && Array.isArray(b.ms) && Array.isArray(b.ln) &&
+         b.ms.length === b.ln.length && b.ms.length > 0 ? b : null;
+}
+function bucketLines(b) {
+  var t = 0;
+  for (var i = 0; i < b.ln.length; i++) t += num(b.ln[i]);
+  return t;
+}
+function deepOf(v) { return typeof v === "number" && isFinite(v) ? Math.max(0, Math.min(11, v | 0)) : 0; }
+Records.paceAdd = function (data, key, idx, ms, lines) {
+  ensure(data);
+  if (typeof key !== "string" || !(ms > 0) || !(lines > 0)) return data;
+  var n = key === "drift" ? 1 : 10, b = data.pace[key], i;
+  if (!b || !Array.isArray(b.ms) || !Array.isArray(b.ln) || b.ms.length !== n || b.ln.length !== n) {
+    b = data.pace[key] = { ms: [], ln: [] };
+    for (i = 0; i < n; i++) { b.ms.push(0); b.ln.push(0); }
+  }
+  idx = Math.max(0, Math.min(n - 1, idx | 0));
+  b.ms[idx] += ms; b.ln[idx] += lines;
+  if (b.ln[idx] > 150) { b.ms[idx] /= 2; b.ln[idx] /= 2; }     /* recent play dominates */
+  return data;
+};
+/* a Descent depth reached at a pace (11 is the Surface); only ever rises */
+Records.reach = function (data, pace, depth) {
+  ensure(data);
+  if (typeof pace !== "string" || !pace) return data;
+  var d = deepOf(depth);
+  if (d >= 1 && d > deepOf(data.deep[pace])) data.deep[pace] = d;
+  return data;
+};
+/* 0 (never played at this pace) … 10, or 11 for the Surface. A Surface
+   Stone found before depths were kept counts as the Surface. */
+Records.deepest = function (data, pace) {
+  if (!data) return 0;
+  var d = deepOf(data.deep ? data.deep[pace] : 0);
+  var st = { gentle: "surfaceGentle", standard: "surfaceStandard", swift: "surfaceSwift" }[pace];
+  if (st && data.stones && data.stones[st]) d = 11;
+  return d;
 };
 
 /* ---------- the run-scoped scratch ---------- */
@@ -758,11 +824,13 @@ function card(run, info, prev, value) {
   function scoreItem() { add("Score", commas(score), TIP.score, score); }
   function piecesItem() { add("Pieces", commas(pieces), TIP.pieces, pieces); }
   function linesItem() { add("Lines", commas(lines), TIP.lines, lines); }
-  function ppsItem() { if (secs > 0 && pieces) add("PPS", (pieces / secs).toFixed(2), TIP.pps, pieces / secs); }
-  function kppItem() { if (pieces && typeof st.keys === "number") add("KPP", (st.keys / pieces).toFixed(2), TIP.kpp, st.keys / pieces); }
+  /* the labels are words, not the initials players of other games use;
+     the tips still give the initials, for anyone who knows them */
+  function ppsItem() { if (secs > 0 && pieces) add("Pieces a second", (pieces / secs).toFixed(2), TIP.pps, pieces / secs); }
+  function kppItem() { if (pieces && typeof st.keys === "number") add("Presses a piece", (st.keys / pieces).toFixed(2), TIP.kpp, st.keys / pieces); }
   function finesseItem() {
     var t = num(st.finesseTotal);
-    if (t > 0) { var f = Math.round(100 * num(st.finessePerfect) / t); add("Finesse", f + "%", TIP.finesse, f); }
+    if (t > 0) { var f = Math.round(100 * num(st.finessePerfect) / t); add("Fewest moves", f + "%", TIP.finesse, f); }
   }
   function rippleItem() { var r = num(st.maxRipple); if (r > 0) add("Best Ripple", String(r), TIP.ripple, r); }
   function unbrokenItem() { var u = num(st.maxUnbroken); if (u > 0) add("Best Unbroken", "\u00d7" + u, TIP.unbroken, u); }
