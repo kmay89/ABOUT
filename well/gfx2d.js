@@ -1218,12 +1218,15 @@ function create(canvas, opts) {
     x.restore();
     /* the recess */
     var inset = Math.max(2, Math.round(Math.min(w0, h) * 0.12)), rw = w0 - 2 * inset, rh = h - 2 * inset, rr = r * 0.7;
-    var back = mix(darken(base, 0.76), hor, 0.2);
+    /* the alcove is stone in its own shade, not a hole: what is kept in
+       it, and the light that pools there when Keep is free, read against
+       it the way they would in a niche in a wall */
+    var back = mix(darken(base, 0.58), hor, 0.3);
     x.fillStyle = css(back);
     x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.fill();
     x.save();
     x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.clip();
-    x.shadowColor = "rgba(0,0,0,0.75)"; x.shadowBlur = C * 0.35; x.shadowOffsetY = C * 0.12; x.shadowOffsetX = C * 0.04;
+    x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = C * 0.35; x.shadowOffsetY = C * 0.12; x.shadowOffsetX = C * 0.04;
     x.lineWidth = C * 0.4;
     x.strokeStyle = "#000";
     x.beginPath(); roundRect(x, o + inset - C * 0.2, o + inset - C * 0.2, rw + C * 0.4, rh + C * 0.4, rr, rr, rr, rr); x.stroke();
@@ -1247,7 +1250,8 @@ function create(canvas, opts) {
       x.fillStyle = g; x.fillRect(0, 0, 4, 128);
       return c;
     })();
-    beadOn = softDot(32, lighten(keyRgb, 0.2), true);
+    /* lit beads are light in the stone, the key light warmed toward the rim */
+    beadOn = softDot(32, mix(keyRgb, rimRgb, 0.3), true);
     beadOff = (function () {
       var c = canvasOf(32, 32), x = ctxOf(c);
       x.fillStyle = css(mix(hexRgb(w.wall), WHITE, 0.15), 0.55);
@@ -1272,23 +1276,35 @@ function create(canvas, opts) {
     }
     partSpr.world = KINDS.indexOf(kind);
     if (partSpr.world < 0) partSpr.world = 2;
-    /* the rim glow (Breath) and the niche glow (Keep available) */
+    /* Breath breathes the shaft's own light, as the 3D well does: light
+       falling in at the mouth and fading down the shaft, never a lit
+       outline round the well */
     rimGlow = (function () {
-      var m = Math.round(C * 0.9), c = canvasOf(bodyW + 2 * m, bodyH + 2 * m), x = ctxOf(c);
-      x.shadowColor = css(rimRgb, 0.9); x.shadowBlur = C * 0.7;
-      x.strokeStyle = css(lighten(rimRgb, 0.3), 0.8); x.lineWidth = Math.max(1, dpr * 1.5);
-      var r = C * 0.3;
-      x.beginPath(); roundRect(x, m, m, bodyW, bodyH, r, r, r, r); x.stroke();
-      return { c: c, m: m };
+      var c = canvasOf(Math.max(4, Math.round(bodyW / 4)), Math.max(16, Math.round(bodyH / 4))), x = ctxOf(c);
+      var g = x.createLinearGradient(0, 0, 0, c.height);
+      var lc = mix(keyRgb, hexRgb(w.sky.top), 0.25);
+      g.addColorStop(0, css(lc, 0.5)); g.addColorStop(0.35, css(lc, 0.2)); g.addColorStop(1, css(lc, 0.06));
+      x.fillStyle = g; x.fillRect(0, 0, c.width, c.height);
+      return { c: c, m: 0 };
     })();
+    /* Keep is free: a lamp in the niche. Light pools on the sill and
+       climbs the back of the alcove; only the faintest edge of it reaches
+       the rim, so the niche never reads as an outlined box */
     nicheGlow = null;
     if (L.keep) {
       var k = L.keep, kw = k.w * dpr, kh = k.h * dpr, mg = Math.round(C * 0.6);
       var inset = Math.max(2, Math.round(Math.min(kw, kh) * 0.12)), rr = Math.min(kw, kh) * 0.14;
       var c = canvasOf(kw + 2 * mg, kh + 2 * mg), x = ctxOf(c);
-      x.shadowColor = css(rimRgb, 1); x.shadowBlur = C * 0.45;
-      x.strokeStyle = css(lighten(rimRgb, 0.35), 0.9); x.lineWidth = Math.max(1, dpr * 1.25);
-      x.beginPath(); roundRect(x, mg + inset, mg + inset, kw - 2 * inset, kh - 2 * inset, rr, rr, rr, rr); x.stroke();
+      var rx0 = mg + inset, ry0 = mg + inset, rw2 = kw - 2 * inset, rh2 = kh - 2 * inset;
+      var lamp = mix(keyRgb, rimRgb, 0.3);
+      x.save();
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rr, rr); x.clip();
+      var g = x.createRadialGradient(rx0 + rw2 / 2, ry0 + rh2, 0, rx0 + rw2 / 2, ry0 + rh2, Math.max(rw2 * 0.6, rh2 * 1.1));
+      g.addColorStop(0, css(lamp, 0.6)); g.addColorStop(0.45, css(lamp, 0.24)); g.addColorStop(1, css(lamp, 0));
+      x.fillStyle = g; x.fillRect(rx0, ry0, rw2, rh2);
+      x.restore();
+      x.strokeStyle = css(lighten(rimRgb, 0.2), 0.2); x.lineWidth = Math.max(1, dpr);
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rr, rr); x.stroke();
       nicheGlow = { c: c, m: mg };
     }
   }
@@ -2877,7 +2893,8 @@ function create(canvas, opts) {
           sc = (from.s / r.s) + (1 - from.s / r.s) * e;
         } else a = e;
       }
-      x.globalAlpha = a;
+      /* the later ones hang a little further off in the air */
+      x.globalAlpha = a * (1 - (L.shape === "wide" ? 0.12 : 0.08) * i);
       if (sc !== 1) {
         localT(x, sc, 0, cx, cy);
         x.drawImage(spr.c, -spr.c.width / 2, -spr.c.height / 2);
@@ -2887,7 +2904,7 @@ function create(canvas, opts) {
     x.globalAlpha = 1;
   }
 
-  /* the rim: Breath beads, the breathing ring, the Unbroken filament,
+  /* the rim: Breath beads, the shaft breathing with Breath, the Unbroken filament,
      and a passing shimmer for a personal best or a chapter's end */
   function drawRim(x, view) {
     var br = view.breath;
@@ -2899,7 +2916,7 @@ function create(canvas, opts) {
         var on = i < charge;
         if (on) {
           x.globalCompositeOperation = "lighter";
-          x.globalAlpha = i < 10 && charge >= 10 ? 0.95 : 0.7;
+          x.globalAlpha = i < 10 && charge >= 10 ? 0.55 : 0.4;
           x.drawImage(beadOn, bx - rad * 2, y0 - rad * 2, rad * 4, rad * 4);
           x.globalCompositeOperation = "source-over";
         } else {
@@ -2908,15 +2925,14 @@ function create(canvas, opts) {
         }
       }
       x.globalAlpha = 1;
-      /* a Breath: the rim breathes with it, 4 s in and 6 s out */
+      /* a Breath: the shaft's light breathes with it, 4 s in and 6 s out,
+         a change of light and nothing else (so reduced motion keeps it) */
       if (br.active && rimGlow) {
         var ph = clamp(br.phase || 0, 0, 1), cyc = (ph * 10) % 10;
         var lvl = cyc < 4 ? smooth(0, 4, cyc) : 1 - smooth(4, 10, cyc);
-        var s = optMotion === "full" ? 1 + lvl * 0.012 : 1;
         x.globalCompositeOperation = "lighter";
-        x.globalAlpha = 0.25 + lvl * 0.45;
-        var gw = rimGlow.c.width * s, gh = rimGlow.c.height * s;
-        x.drawImage(rimGlow.c, bodyL + bodyW / 2 - gw / 2, bodyT + bodyH / 2 - gh / 2, gw, gh);
+        x.globalAlpha = 0.04 + lvl * 0.14;
+        x.drawImage(rimGlow.c, WX, WY, WWd, WHd);
         x.globalCompositeOperation = "source-over";
         x.globalAlpha = 1;
       }

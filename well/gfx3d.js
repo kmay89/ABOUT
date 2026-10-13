@@ -22,12 +22,23 @@
    "camera breath" moves the eye, not the plane, so the well breathes in
    parallax while the cells you are aiming at hold still.
 
-   The frame is cut from the same stone: two slim pillars, a floor slab
-   with twenty Breath beads set into its face, and a coping along the
-   mouth whose rounded front edge catches the key light. On the left of
-   the mouth a block of that stone holds the Keep niche — an arched
-   alcove carved into it, a sill for the kept piece to rest on, and a
-   bevel round the opening that glows when Keep is there to use.
+   The frame is cut from the same stone, dressed smooth: two slim
+   pillars, a floor slab with twenty Breath beads set into its face, and
+   a coping along the mouth whose chamfered ends sit flush with the face.
+   Its outer edges catch the world's rim light, so the well stands out as
+   architecture against any sky. On the left of the mouth a block of that
+   stone holds the Keep niche — an arched alcove carved into it, a sill
+   for the kept piece to rest on — and when Keep is there to use, light
+   pools on the sill and climbs the back of the alcove like a lamp in a
+   niche in a wall.
+
+   The shaft is lit from its mouth. The key light falls in where the
+   stack lets it, the sky overhead falls into the top six rows, and the
+   fill takes the colour of the world's horizon, so the well belongs to
+   its world (Dawn's shadows go mauve) rather than standing in front of
+   it as a coloured box. Down the shaft the light falls away to a little
+   over half, and the middle of the shaft stays under a luminance of
+   0.02 in every world, so every piece reads against it by 7:1.
 
    Each piece is one body. A cell is drawn from one of 47 meshes picked
    by which of its eight neighbours belong to the same piece: faces
@@ -46,10 +57,16 @@
    second, harder glint for glass and jelly), a studio made of four
    spherical Gaussians to reflect, a Fresnel rim in the world's rim
    colour, a subsurface tint, a speckle for stone and a fibre for paper,
-   the shaft behind seen through Sea Glass on the Full tier, and for Ink
-   no lighting at all — flat fills, a two-pixel light outline on each
-   piece's outer edge, and strong glyphs. Glass, jelly and paper lend the
-   stone behind them a little of their colour.
+   and for Ink no lighting at all — flat fills, a two-pixel light outline
+   on each piece's outer edge, and strong glyphs. Each material is pushed
+   until it reads as itself: Sea Glass lets the key light through a broad
+   band inside its edge, is darker through its thick middle, carries a
+   frosted sheen and shows the wall's courses blurred through it on the
+   Full tier; Jelly has a wet clear coat; Paper Lantern's fibre runs
+   across it, three ribs to a cell show through, and it glows from the
+   inside out. Glass, jelly and paper lend the stone behind them a little
+   of their colour, turned halfway to the world's key light so it is a
+   blush and never a halo.
 
    ## Paying for it: bake what does not move
 
@@ -86,12 +103,13 @@
         where the screen has it
 
    The scene target's alpha channel is not transparency. It marks what
-   was drawn (0 nothing, so the composite fills it), what must never be
-   dimmed or washed (1: the active piece, the previews, the Keep niche),
-   and adds 2 under the landing light — so the composite keeps bloom,
-   particles, vignette and the danger tint off everything readable, and
-   still knows what lies under a rail of light. Readability is a property
-   of the pipeline, not a promise in a comment.
+   was drawn (0 nothing, so the composite fills it; 0.02 the stone; 0.04
+   the stack), what must never be dimmed or washed (1: the active piece,
+   the previews, the Keep niche), and adds 2 under the landing light — so
+   the composite keeps bloom, particles, vignette and the danger tint off
+   everything readable, keeps danger's greying off the stack, and still
+   knows what lies under a rail of light. Readability is a property of
+   the pipeline, not a promise in a comment.
 
    The Simple tier keeps the same passes minus bloom and edge AA, at a
    smaller budget, holding its scene in 8-bit sRGB at half value (half
@@ -99,11 +117,17 @@
    drawing its back wall as geometry, because an 8-bit alpha cannot carry
    the marks above.
 
-   Cleared rows do not shatter. The cleared cells are fused into one
-   band, whatever pieces they came from; it warms toward white and thins
-   away in soft clumps laid out across the well, not cell by cell, keeping
-   more of its light than of its body while the world's particles lift
-   off it — a row of light going out, never a breaking one.
+   Cleared rows do not shatter or flatten. Through the glow's rise each
+   cleared body keeps its own shape and shading and lights from within,
+   toward a colour halfway between the world's key light and the skin's
+   warm white, held to about half luminance. Then, crossfading over 60 ms,
+   the cleared cells become one band, whatever pieces they came from; once
+   it is fully lit it lets go — each row drawing in toward its own
+   midline, its top and bottom soft, keeping more of its light than of its
+   body — while the world's particles lift off it: a row of light going
+   out, never a breaking one, and never grey. A finished run goes the same
+   way, body by body from the top down, each rising a cell or two as it
+   goes out.
 
    ## Calm, by construction (brief §8.4)
 
@@ -114,8 +138,8 @@
    is held a fifth longer. Hit-stop freezes pictures, never the game.
    The kick is a single directional nudge with a spring home, scaled by
    the well-nudge setting and zero under reduced motion or in Steady;
-   there is no random shake anywhere. Danger cools and greys the edges
-   and never turns red or pulses.
+   there is no random shake anywhere. Danger cools and greys the edges of
+   the sky and the stone, never the stack, and never turns red or pulses.
 
    ## Cheap enough for a phone in Low Power Mode
 
@@ -709,7 +733,7 @@ layout(std140) uniform Frame {
   vec4 uDeep;      /* what the shaft falls away into, w the lip's height */
   vec4 uRing[4];   /* ripple rings: x, y, age, amplitude */
   vec4 uPal[12];   /* 0 warm white, 1..7 pieces, 8 silt, 9 glyph ink, 10 outline, 11 moon glyph */
-  vec4 uMat3;      /* edge transmission, its falloff, clear coat, paper (fibre across, ribs, lit from inside) */
+  vec4 uMat3;      /* edge transmission, broad (1) or narrow (0), clear coat, paper (fibre across, ribs, lit from inside) */
   vec4 uMat4;      /* frosted sheen, a thicker middle, the wall seen through, spare */
   vec4 uSkyC;      /* the world's horizon, w the shaft's own breath of light */
   vec4 uSkyT;      /* the world's sky overhead, w how far up the shaft the Empty Well's light has risen */
@@ -847,7 +871,7 @@ vec3 backWallLit(vec2 xy){
   float lt = sh.r;
   float fall = exp2(-deep * 0.6);
   vec3 col = alb * (uKeyCol.rgb * 0.28 * lt * clamp(uKey.z * 0.5 + 0.55, 0.0, 1.0) * (0.5 + 0.5 * fall)
-                  + shaftFill(fall) * 1.1 + skyFall(xy.y) * 1.5);
+                  + shaftFill(fall) * 1.75 + skyFall(xy.y) * 2.0);
   float corner = smoothstep(-0.2, 1.2, min(min(xy.x, 10.0 - xy.x), xy.y + 0.2));
   col *= (0.6 + 0.4 * corner) * shaftDepth(xy.y);
   col += mix(uEnvTop.rgb, uKeyCol.rgb * 0.35, 0.5) * st.a * uFx1.z * 0.02 * (0.3 + 0.7 * lt);
@@ -863,15 +887,8 @@ vec3 backWallLit(vec2 xy){
     col += uKeyCol.rgb * beam * uFx1.y * (0.2 + 0.8 * lt) * smoothstep(-1.0, 6.0, xy.y) * 0.8;
   }
   /* the bodies' own light on the stone behind them */
-  col += sh.gba * (alb * 0.9 + 0.05) * uFx1.w;
+  col += sh.gba * (alb * 0.9 + 0.012) * uFx1.w;
   return col;
-}
-/* The back wall at a point, as the glass sees it: its stone, the light
-   that reaches it past the stack, and the shaft's own dark */
-vec3 backWallAt(vec2 xy){
-  vec3 alb = coolStone(stoneSoft(xy));
-  float lt = shadeAt(xy);
-  return alb * (uKeyCol.rgb * 0.2 * lt + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
 }
 `;
 
@@ -884,7 +901,7 @@ var GLSL_LIVE = `
 vec3 shaftLive(vec3 col, float y){
   vec3 add = vec3(0.0);
   if (uSkyC.w > 0.0) add += (col * 0.9 + uKeyCol.rgb * 0.004 + uSkyT.rgb * 0.05) * uSkyC.w * (0.25 + 0.75 * smoothstep(-2.0, 23.0, y));
-  if (uFx0.x > 0.0) add += (col * 3.2 + uKeyCol.rgb * 0.01) * uFx0.x * smoothstep(uSkyT.w + 2.5, uSkyT.w - 1.0, y) * (0.7 + 0.3 * exp2(-y * 0.1));
+  if (uFx0.x > 0.0) add += (col * 1.5 + uKeyCol.rgb * 0.017) * uFx0.x * smoothstep(uSkyT.w + 2.5, uSkyT.w - 1.0, y) * (0.7 + 0.3 * exp2(-y * 0.1));
   return col + add;
 }
 `;
@@ -918,7 +935,7 @@ void main(){
      own midline, so it thins to lines of light rather than breaking up;
      with reduced motion it only fades */
   if (vF.w > 0.5 && iC.z > 0.0 && uRimCol.w > 0.5)
-    p.y *= 1.0 - 0.9 * smoothstep(0.35, 0.9, clamp(iC.z * 1.3 - 0.15, 0.0, 1.0));
+    p.y *= 1.0 - 0.8 * smoothstep(0.35, 0.9, clamp(iC.z * 1.3 - 0.15, 0.0, 1.0));
   p.z += 0.45;
   p.xy = (p.xy + iB.xy) * iB.zw;
   vec3 n = aNrm;
@@ -988,6 +1005,19 @@ float edgeDist(vec2 l){
   return max(d, 0.0);
 }
 
+/* the same outline, felt rather than measured: how much of the body's
+   edge is near, summed over every outer side and bend, so where two
+   edges meet their light adds instead of meeting along a mitred crease */
+float edgeNear(vec2 l, float k){
+  vec4 ds = vec4(0.5 - l.y, 0.5 - l.x, l.y + 0.5, l.x + 0.5);
+  float e = dot(uVarS, exp2(-ds * k));
+  if (dot(uVarB, uVarB) > 0.0) {
+    vec4 db = vec4(length(l - vec2(0.5, 0.5)), length(l - vec2(0.5, -0.5)), length(l + vec2(0.5, 0.5)), length(l - vec2(-0.5, 0.5)));
+    e += dot(uVarB, exp2(-db * k));
+  }
+  return e;
+}
+
 void main(){
   float fg = vF.x;
   vec3 warm = uPal[0].rgb;
@@ -1006,7 +1036,7 @@ void main(){
     float pr = clamp(prL + (nz.r - 0.5) * 0.12, 0.0, 1.0);
     /* it lets go only once it is fully lit: a band that thins while the
        piece colours still show through it goes grey, not bright */
-    fade = 1.0 - smoothstep(0.5, 1.0, pr);
+    fade = 1.0 - smoothstep(0.5, 0.92, pr);
   }
   vec3 base = uPal[int(vC.x + 0.5)].rgb;
   float front = smoothstep(0.85, 0.97, vLN.z);
@@ -1017,12 +1047,13 @@ void main(){
     base *= 1.0 + uMat1.y * ((dt.g - 0.5) * 0.3 - dt.a * 0.12);
   }
   if (uMat1.z > 0.0) {
-    /* paper: the fibre runs across the body, the way a lantern's paper
-       is laid round its frame, and three ribs to a cell show through it
-       as faint shadows */
+    /* paper: a cloudy, hand-laid sheet with a faint fibre running across
+       the body, the way a lantern's paper is laid round its frame, and
+       three ribs to a cell showing through it as faint shadows */
     float fb = texture(uDetail, vec2(vP.y * 0.55, vP.x * 0.07 + vLocal.z * 0.11)).b;
+    float cloud = texture(uDetail, vP * 0.37 + vec2(vLocal.z * 0.17, 0.5)).r;
     float rd = abs(fract(vP.y * 3.0 + 0.5) - 0.5);
-    base *= (1.0 + uMat1.z * (fb - 0.5) * 0.26) * (1.0 - 0.06 * uMat3.w * (1.0 - smoothstep(0.03, 0.11, rd)));
+    base *= (1.0 + uMat1.z * ((fb - 0.5) * 0.12 + (cloud - 0.5) * 0.2)) * (1.0 - 0.06 * uMat3.w * (1.0 - smoothstep(0.03, 0.11, rd)));
   }
 
   /* glyphs: an inner motif on every cell's face */
@@ -1103,9 +1134,11 @@ void main(){
        there: a soft glow just inside the outline of the whole body.
        Paper is lit from inside, so it glows most where it is furthest
        from its frame and least at its edges */
-    float ed = edgeDist(l);
-    vec3 emi = base * uMat0.z * 0.4 * mix(1.0, 0.6 + 0.6 * smoothstep(0.0, 0.3, ed), uMat3.w);
-    float inner = exp2(-ed * uMat3.y) * uFx1.x;
+    /* one measure of the edge serves all three: the paper's glow, the
+       light through the rim, and the thickness of the glass */
+    float e6 = edgeNear(l, 6.0), nearE = min(e6, 1.0);
+    vec3 emi = base * uMat0.z * 0.4 * mix(1.0, 1.2 - 0.6 * nearE, uMat3.w);
+    float inner = min(mix(e6 * e6, e6, uMat3.y), 1.3) * uFx1.x;
     vec3 thin = base * keyC * inner * uMat3.x + warm * inner * 0.025;
     col = (diff + amb + sss + emi + thin) * ao + (spec + env + rim) * mix(1.0, ao, 0.6);
     /* a pillow of light across each body's face: a little brighter
@@ -1113,25 +1146,34 @@ void main(){
     float dTop = mix(2.0, 0.5 - l.y, uVarS.x), dBot = mix(2.0, l.y + 0.5, uVarS.z);
     col *= 1.0 + front * (0.09 * exp2(-dTop * 7.2) - 0.11 * exp2(-dBot * 5.8));
     /* thick glass is darker in the middle of its face than at its edges */
-    col *= 1.0 - uMat4.y * front * smoothstep(0.12, 0.42, ed);
+    col *= 1.0 - uMat4.y * front * (1.0 - smoothstep(0.1, 0.7, e6));
     /* Sea Glass on the Full tier: the shaft behind, seen through the
        glass and bent by it, under a frosted, luminous body; the courses
        of the wall show through it faintly, as through real glass */
     if (uMat0.w > 0.0) {
       vec2 off = N.xy * uMat0.w * 40.0 + (vW.xy - uEye.xy) * (uWallP.z / uEye.z);
       vec2 wp = vW.xy + off;
-      vec3 behind = backWallAt(wp);
+      vec3 soft = stoneSoft(wp);
+      vec3 behind = coolStone(soft) * (uKeyCol.rgb * 0.2 * shadeAt(wp) + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
       float edge = 1.0 - front;
       col = col * (0.84 + 0.1 * edge) + base * behind * 5.5 + base * keyC * 0.03 * (0.5 + edge) + keyC * 0.012 * edge;
-      float sharp = luma(stoneAt(wp).rgb), soft = luma(stoneSoft(wp));
-      col *= 1.0 + clamp(sharp / max(soft, 1e-3) - 1.0, -0.5, 0.5) * uMat4.z;
+      /* frosted, so they come through blurred, and they slide behind the
+         glass as it falls, because the wall is three cells further back */
+      float sharp = luma(stoneLod(wp, 2.2).rgb);
+      col *= 1.0 + clamp(sharp / max(luma(soft), 1e-3) - 1.0, -0.3, 0.3) * uMat4.z;
     }
     /* a preview hangs further off in the world's air the further it is */
     if (fg > 0.5 && vD.w > 0.0) col = mix(col, uSkyC.rgb * 0.9 + uSkyT.rgb * 0.35, vD.w);
   }
+  /* The light a body is lit with: halfway between the world's key light
+     and the skin's warm white, never a piece's own colour (brief §8.4.2),
+     held to a relative luminance of about half. A cleared body keeps four
+     tenths of its own shading as it lights, so it keeps its form until the
+     band takes over; the band's colours then give way to the light as it
+     goes, so what goes out is one band of light, not a mosaic. */
   if (lightUp > 0.0) {
     vec3 bandCol = (uKeyCol.rgb * 0.41667 + warm) * 0.5;
-    col = mix(col, bandCol * 0.75, lightUp * 0.55) + bandCol * (lightUp * 0.08);
+    col = mix(col, bandCol * 0.6, lightUp * (0.6 + 0.25 * smoothstep(0.0, 0.5, prL))) + bandCol * (lightUp * 0.08);
   }
 
   /* silt: a soft seam of light where the gap is */
@@ -1151,8 +1193,12 @@ void main(){
     float a = fade * smoothstep(-0.1, 0.08, vW.y);
     if (vF.w > 0.5) {
       float kc = uRimCol.w > 0.5 ? smoothstep(0.35, 0.9, prL) : 0.0;
-      float fo = mix(0.2, 0.5, kc), fi = 0.5 * kc + 1e-3;
-      a *= smoothstep(0.0, mix(fi, fo, uVarS.x), 0.5 - l.y) * smoothstep(0.0, mix(fi, fo, uVarS.z), l.y + 0.5);
+      float fo = mix(0.2, 0.5, kc), fi = 0.5 * kc;
+      /* a seam between two rows of the band is only softened once the
+         rows draw apart; until then it is not an edge at all */
+      float fN = uVarS.x > 0.5 ? smoothstep(0.0, fo, 0.5 - l.y) : (fi > 0.01 ? smoothstep(0.0, fi, 0.5 - l.y) : 1.0);
+      float fS = uVarS.z > 0.5 ? smoothstep(0.0, fo, l.y + 0.5) : (fi > 0.01 ? smoothstep(0.0, fi, l.y + 0.5) : 1.0);
+      a *= fN * fS;
     }
     float op = clamp(vD.w, 0.0, 1.0);
     outColor = vec4(col * (uEnvTop.w * op * a * (2.0 - a)), op * a * a);
@@ -1220,7 +1266,7 @@ void main(){
     float fall = exp2(-deep * 0.6);
     float wrapL = clamp(dot(N, uKey.xyz) * 0.5 + 0.55, 0.0, 1.0);
     col = alb * (uKeyCol.rgb * 0.3 * lt * wrapL * (0.5 + 0.5 * fall)
-               + shaftFill(fall) * 1.15 * (1.0 - 0.45 * cont) + skyFall(vW.y) * 1.5 * (0.4 + 0.6 * fall));
+               + shaftFill(fall) * 1.8 * (1.0 - 0.45 * cont) + skyFall(vW.y) * 2.0 * (0.4 + 0.6 * fall));
     /* the crease where it meets the back wall */
     col *= (0.62 + 0.38 * smoothstep(1.0, 0.72, back)) * shaftDepth(vW.y);
     /* wet, icy or lacquered stone holds the mouth's light */
@@ -1284,8 +1330,8 @@ void main(){
       float inD = clamp((uNiche.w - vW.z) / max(uNiche.z * 1.4 + 0.3, 0.3), 0.0, 1.0);
       col = alb * (uKeyCol.rgb * (0.07 + 0.09 * max(N.y, 0.0)) * (1.0 - 0.45 * inD) + (shaftFill(0.6) * 0.8 + irr * 0.35) * (1.0 - 0.3 * inD));
       vec2 q = (vW.xy - uNicheO.xy) / max(uNicheO.zw, vec2(0.05));
-      float pool = exp2(-q.x * q.x * 1.1) * exp2(-(q.y + 1.0) * 1.3);
-      col += glowC * uNiche.x * pool * (alb * 2.4 + 0.012) * (0.75 * max(N.y, 0.0) + 0.55 * max(N.z, 0.0) + 0.25);
+      float pool = exp2(-q.x * q.x * 0.8) * exp2(-(q.y + 1.0) * 0.75);
+      col += uKeyCol.rgb * 0.45 * uNiche.x * pool * (alb * 3.2 + 0.02) * (0.75 * max(N.y, 0.0) + 0.6 * max(N.z, 0.0) + 0.3);
     }
   }
   outColor = vec4(col * uEnvTop.w, uNiche.y);
@@ -1574,7 +1620,7 @@ void main(){
     float body = smoothstep(1.0, 0.82, r2) * (0.35 + 0.65 * (1.0 - r2));
     vec2 hv = uv - vec2(-0.32, 0.38);
     float hi = exp2(-dot(hv, hv) * 31.7);
-    a = body * prm + hi * (0.4 + 0.6 * prm) + exp2(-r2 * 1.6) * vD.x;
+    a = body * prm * 0.8 + hi * (0.15 + 0.3 * prm) + exp2(-r2 * 1.6) * vD.x;
   } else if (shape < 7.5) {                /* rounded frame line, inset param3 inside its quad */
     vec2 h = vB.xy;
     vec2 q2 = abs(uv * h) - (h - vec2(vD.y) - vec2(prm));
@@ -1659,7 +1705,7 @@ void main(){
        light, face-on a broad pearl sheen */
     float face = abs(vTw);
     float f2 = face * face;
-    float sheen = 0.25 + 0.75 * face + 0.5 * f2 * f2 * f2;
+    float sheen = 0.12 + 0.88 * face + 0.7 * f2 * f2 * f2;
     float head = exp2(-(1.0 - vU) * (1.0 - vU) * 160.0);
     a = across * (vU * vU * 0.75 + head * 0.9) * sheen;
     vec3 kc = uKeyCol.rgb / max(max(uKeyCol.r, max(uKeyCol.g, uKeyCol.b)), 1e-3);
@@ -1913,7 +1959,10 @@ void main(){
       c = mix(c, hz > vt ? (cN + cS) * 0.5 : (cE + cW) * 0.5, 0.36);
     }
   }
-  if (uC5.w > 0.5) c += texture(uBloom, uv).rgb * uC2.w * uC0.x * (1.0 - fg);
+  /* bloom is light spilling, not paint: a third of its colour is let go,
+     so a pink piece glows warm on the stone rather than throwing a red
+     halo */
+  if (uC5.w > 0.5) { vec3 bl = texture(uBloom, uv).rgb; c += mix(bl, vec3(dot(bl, vec3(0.2126, 0.7152, 0.0722))), 0.35) * uC2.w * uC0.x * (1.0 - fg); }
   c *= uC1.x;
   vec2 d = uv - 0.5;
   float r2 = dot(d * vec2(1.0, 1.15), d * vec2(1.0, 1.15)) * 2.2;
@@ -2055,7 +2104,7 @@ Gfx3D.create = function (canvas, opts) {
   var SK = {
     id: "seaglass", unlit: false, outline: false, mono: false, refract: 0.02, bloomCap: 1,
     rough: 0.3, rim: 0.7, emissive: 0, sss: 0.35, speckle: 0, fibre: 0, gloss: 0.4, inner: 0.75, glow: 0.09,
-    trans: 0.5, tfall: 6.5, coatK: 0.35, paper: 0, sheen: 0.25, thick: 0.1, see: 1.1,
+    trans: 0.5, tfall: 1, coatK: 0.35, paper: 0, sheen: 0.25, thick: 0.1, see: 0.8,
     glyph: 0, lift: [0, 0, 0], gamma: [1, 1, 1], gain: [1, 1, 1], landing: 0.75
   };
   var pal = new Float32Array(48);
@@ -2466,10 +2515,10 @@ Gfx3D.create = function (canvas, opts) {
        paper's fibre runs across it, its ribs show, and it glows from
        inside. River Stone needs none of it. */
     var glass = id === "seaglass";
-    SK.trans = glass ? 0.5 : 0.2; SK.tfall = glass ? 6.5 : 10.8;
+    SK.trans = glass ? 0.5 : 0.2; SK.tfall = glass ? 1 : 0;   /* broad band inside the edge, or narrow */
     SK.coatK = id === "jelly" ? 1.2 : 0.35;
     SK.paper = id === "lantern" || (SK.fibre > 0.3 && !glass) ? 1 : 0;
-    SK.sheen = glass ? 0.25 : 0; SK.thick = glass ? 0.1 : 0; SK.see = glass ? 1.1 : 0;
+    SK.sheen = glass ? 0.25 : 0; SK.thick = glass ? 0.1 : 0; SK.see = glass ? 0.8 : 0;
     var g = m.grade || {};
     vec3of(g.lift, 0, SK.lift); vec3of(g.gamma, 1, SK.gamma); vec3of(g.gain, 1, SK.gain);
     for (var i = 0; i < 3; i++) if (!(SK.gamma[i] > 0.05)) SK.gamma[i] = 1;
@@ -2764,7 +2813,7 @@ Gfx3D.create = function (canvas, opts) {
     }
   }
   var squash = { pid: -1, t0: -1e9, x: 0, y: 0, cleared: false };
-  var landVis = 1;
+  var landVis = 1, bandLive = 0;
   var lastLockX = 5, lastLockY = 5;
   /* the stack's display offset per row, in rows: after a clear the rows
      above hold their place a moment and then spring down; after a drain
@@ -2971,11 +3020,11 @@ Gfx3D.create = function (canvas, opts) {
     var jk = juiceK();
     if (!still) {
       if (quad) {
-        var qa = govern(0.16 * Math.min(1.25, jk), 300, 900) / 0.9;
-        band((minRow + maxRow + 1) * 0.5, 2.2, qa, 0.3, 0.9, 2.6);
+        var qa = govern(0.16 * Math.min(1.25, jk), 300, 1100) / 0.9;
+        band((minRow + maxRow + 1) * 0.5, 3.0, qa, 0.3, 1.1, 1.6);
       } else if (lead || !twist) {
-        var ba = govern(0.12 * Math.min(1.25, jk), 200, 500) / 0.9;
-        for (y = minRow; y <= maxRow; y++) if (clearedRow[y]) band(y + 0.5, 0.75, lead ? ba : Math.min(ba, 0.06), 0.2, 0.5, 0);
+        var ba = govern(0.12 * Math.min(1.25, jk), 200, 750) / 0.9;
+        for (y = minRow; y <= maxRow; y++) if (clearedRow[y]) band(y + 0.5, 1.1, lead ? ba : Math.min(ba, 0.06), 0.2, 0.75, 0);
       }
     }
     /* particles, along the sweep */
@@ -3024,7 +3073,7 @@ Gfx3D.create = function (canvas, opts) {
       var ne = pCount(EMPTY_FX.motes), w0 = domWorld();
       for (k = 0; k < ne; k++) {
         spawnP(0.3 + rnd() * 9.4, 0.1 + rnd() * 0.5, 0, 0.35 + rnd() * 0.45, 0, 1.3 + rnd() * 0.4,
-               fxNow + 0.1 + rnd() * 1.5, 4 + rnd() * 2, 0.16 + rnd() * 0.12, 0,
+               fxNow + 0.1 + rnd() * 1.5, 4 + rnd() * 2, 0.32 + rnd() * 0.24, 0,
                mixf(w0.key[0], 1, 0.2) * 1.3, mixf(w0.key[1], 0.86, 0.2) * 1.2, mixf(w0.key[2], 0.6, 0.2) * 1.05, 0.5, 0.15);
       }
     }
@@ -3395,16 +3444,18 @@ Gfx3D.create = function (canvas, opts) {
     }
     return k;
   }
-  /* the highest row of the body this cell belongs to: a piece is never
-     more than four cells across, so the search stays in a small box */
-  function bodyTop(b, pa, x, y, pid) {
-    var t = y;
-    for (var yy = y + 1; yy < y + 4 && yy < DRAW_ROWS; yy++)
+  /* the body this cell belongs to: its highest row (BODY[0]) and its
+     middle (BODY[1], BODY[2]). A piece is never more than four cells
+     across, so the search stays in a small box. */
+  var BODY = new Float32Array(3);
+  function bodyOf(b, pa, x, y, pid) {
+    var t = y, sx = 0, sy = 0, n = 0;
+    for (var yy = Math.max(0, y - 3); yy < y + 4 && yy < DRAW_ROWS; yy++)
       for (var xx = Math.max(0, x - 3); xx <= Math.min(W - 1, x + 3); xx++) {
         var j = yy * W + xx;
-        if (b[j] && pa[j] === pid) { t = yy; break; }
+        if (b[j] && pa[j] === pid) { if (yy > t) t = yy; sx += xx + 0.5; sy += yy + 0.5; n++; }
       }
-    return t;
+    BODY[0] = t; BODY[1] = n ? sx / n : x + 0.5; BODY[2] = n ? sy / n : y + 0.5;
   }
   function buildInstances(view) {
     instN = 0;
@@ -3440,9 +3491,11 @@ Gfx3D.create = function (canvas, opts) {
             /* The run ends: the stack rises into light, one body at a
                time from the top down, so nothing ever passes through
                anything. Each lights from within, lifts 1.2 to 1.8 cells
-               (the higher, the further) and goes out as it lifts. */
-            var bt = pid > 0 ? bodyTop(b, pa, x, y, pid) : y;
-            var rel = top > 0 ? bt / top : 1;
+               (the higher, the further) and goes out as it lifts, drawing
+               in toward its own middle as it goes. */
+            if (pid > 0) bodyOf(b, pa, x, y, pid);
+            else { BODY[0] = y; BODY[1] = x + 0.5; BODY[2] = y + 0.5; }
+            var rel = top > 0 ? BODY[0] / top : 1;
             var et = endT - (O.motion === "full" ? (1 - rel) * 0.9 : 0);
             if (et > 0) {
               lay = 2; op = 1; flags = flags & 7;
@@ -3452,6 +3505,10 @@ Gfx3D.create = function (canvas, opts) {
                 dis = Math.max(0.0006, sat((et - 0.05) / 0.55));
                 if (O.motion === "full") ey = (1.2 + 0.6 * rel) * easeOut3(et / 0.6);
               }
+              var shrink = O.motion === "full" ? 1 - 0.3 * smooth((dis - 0.3) / 0.7) : 1;
+              inst(2, VARIANT_OF[key], BODY[1], BODY[2] + oy + ey, 0, 0, x + 0.5 - BODY[1], y + 0.5 - BODY[2],
+                   shrink, shrink, v, glow, dis, flags, 0, 0, 1, op);
+              continue;
             }
           }
           if (sqOn && pid === squash.pid) {
@@ -3466,6 +3523,7 @@ Gfx3D.create = function (canvas, opts) {
     }
     /* cells dissolving into light (see fxCell for their life) */
     var pdir = domWorld().pdir;
+    bandLive = 0;
     for (i = 0; i < FXC; i++) {
       if (!fcOn[i]) continue;
       var ft = fxNow - fcT0[i], prog = (ft - fcD0[i]) / fcDur[i];
@@ -3479,11 +3537,9 @@ Gfx3D.create = function (canvas, opts) {
         continue;
       }
       var lu = fcRise[i] > 0 ? smooth(ft / fcRise[i]) : 1;
-      /* the band takes over from the bodies at 170 ms, or sooner if the
-         rows above were let go sooner, so a body is never in their way */
-      var sw = CLEAR_SWAP;
-      if (setl.kind === SET_CLEAR && Math.abs(setl.t0 - fcT0[i]) < 1e-4) sw = Math.min(sw, setl.hold);
-      var xf = fcRise[i] > 0 ? smooth((ft - sw) / CLEAR_XF) : 1;
+      bandLive = Math.max(bandLive, lu * (1 - smooth(sat(prog * 1.3 - 0.15))));
+      /* the band takes over from the bodies at 170 ms, over 60 ms */
+      var xf = fcRise[i] > 0 ? smooth((ft - CLEAR_SWAP) / CLEAR_XF) : 1;
       /* Both stand a little proud of the face: when the rows above are let
          go at once (a mode with no clear delay) they settle behind the
          light, which goes out over them, instead of fighting it for the
@@ -3659,7 +3715,7 @@ Gfx3D.create = function (canvas, opts) {
       var sa = (1 - (fxNow - softT0) / 0.15) * 0.07;
       sprite(0, A.bcx, A.py + 2.2, 0.03, 0, 0.5, 1.6, 8, 0, kc[0], kc[1], kc[2], sa, 0, 0, 0, Math.PI);
     }
-    /* the rim: Unbroken's gold filament, a Triple's shimmer, the breath ring */
+    /* the rim: Unbroken's gold filament and a Triple's shimmer (Breath breathes the shaft's own light instead; see stepState) */
     if (unbroken > 0.01) {
       /* along the coping, from the niche (when it sits on the mouth) to
          the far side */
@@ -3693,11 +3749,12 @@ Gfx3D.create = function (canvas, opts) {
       }
     }
     /* ---- the never-dimmed layer ---- */
-    /* while cleared rows are going out and the rows above settle, the
-       landing light would be drawn through the band at a place the stack
-       has not reached yet: it waits, and comes back as the rows land */
+    /* while the rows above a clear settle, the landing light would be
+       drawn at a place the stack has not reached yet: it waits; and while
+       a band of light is going out it stays faint, so its rails never cut
+       seams through the band. It comes back as the light goes. */
     if (setl.kind === SET_CLEAR) landVis = 0;
-    else landVis += (1 - landVis) * (1 - Math.exp(-frameDt / 0.04));
+    else landVis += (1 - 0.85 * bandLive - landVis) * (1 - Math.exp(-frameDt / 0.04));
     if (A.on && view.active) {
       var act = view.active, gh = view.ghost, b = view.board;
       var lt = SK.landing * landVis, cI = A.type * 4;
@@ -3846,7 +3903,7 @@ Gfx3D.create = function (canvas, opts) {
     ubo[61] = live;
     for (i = 0; i < 48; i++) ubo[88 + i] = pal[i];
     ubo[136] = SK.trans; ubo[137] = SK.tfall; ubo[138] = SK.coatK; ubo[139] = SK.paper;
-    ubo[140] = t.refract ? SK.sheen : SK.sheen * 0.6; ubo[141] = SK.thick; ubo[142] = SK.see; ubo[143] = 0;
+    ubo[140] = t.refract ? SK.sheen : 0; ubo[141] = SK.thick; ubo[142] = SK.see; ubo[143] = 0;
     ubo[144] = cur.hor[0]; ubo[145] = cur.hor[1]; ubo[146] = cur.hor[2]; ubo[147] = shaftBreath;
     ubo[148] = cur.top[0]; ubo[149] = cur.top[1]; ubo[150] = cur.top[2]; ubo[151] = front;
     gl.bindBuffer(gl.UNIFORM_BUFFER, B.ubo);
@@ -4407,9 +4464,10 @@ Gfx3D.create = function (canvas, opts) {
     wellNDC[0] = wellUV[0] * 2 - 1; wellNDC[1] = wellUV[1] * 2 - 1;
     /* The previews. Beside a wide well each one hangs half a cell further
        back than the one before and 18% further into the world's air; on a
-       phone they stay at the face, where the frame would otherwise cut
-       through them. Each is moved and sized for its depth so that it
-       still lands exactly on the rectangle the layout gave it. */
+       phone the two that hang over the rim stand a little in front of the
+       frame, whose stone they may cross. Each is moved and sized for its
+       depth so that it still lands exactly on the rectangle the layout
+       gave it. */
     slots = [];
     if (L && L.next && L.next.length) {
       var wideL = L.shape === "wide";
@@ -4418,9 +4476,9 @@ Gfx3D.create = function (canvas, opts) {
         var r = L.next[i];
         if (!r || !(r.w > 0)) continue;
         var sx0 = winL + (r.x + r.w * 0.5) / cellXpx, sy0 = winT - (r.y + r.h * 0.5) / cellYpx;
-        var z = wideL ? -0.5 * i : 0, k = (ez0 - z) / ez0;
+        var z = wideL ? -0.5 * i : (i > 0 ? 0.4 : 0), k = (ez0 - z) / ez0;
         slots.push({ x: ex0 + (sx0 - ex0) * k, y: ey0 + (sy0 - ey0) * k, z: z,
-                     s: clamp(num(r.s, 0.6), 0.2, 1.2) * k, haze: (wideL ? 0.18 : 0.1) * i });
+                     s: clamp(num(r.s, 0.6), 0.2, 1.2) * k, haze: Math.min(0.6, (wideL ? 0.18 : 0.1) * i) });
       }
     }
     /* the frame's thickness is the layout's, so the stone ends where
