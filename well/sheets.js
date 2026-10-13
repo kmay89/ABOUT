@@ -1629,7 +1629,7 @@ function buildSound(body) {
   if (iosLike() && "audioSession" in nav()) {
     var dev = /iPad/.test(nav().userAgent || "") || nav().platform === "MacIntel" ? "iPad" : "iPhone";
     toggle(body, "playOnSilent", "Play sound when " + dev + " is on silent",
-      "Normally the silent setting quiets The Well, and your own music keeps playing. This plays through it, and pauses other audio.");
+      "Normally the silent setting quiets the well, and your own music keeps playing. This plays through it, and pauses other audio.");
   }
   toggle(body, "muteOnBlur", "Mute when you look away",
     "Sound fades when you switch to another app or window, and comes back with you.");
@@ -1702,7 +1702,7 @@ function buildComfort(body) {
   if (iPhone() && !standalone()) {
     var tip = put(body, el("div", "wtip"));
     put(tip, el("b", null, "Best from the Home Screen"));
-    put(tip, el("span", null, "On iPhone, tap Share, then Add to Home Screen. The Well opens full screen, without Safari's bars, and works offline."));
+    put(tip, el("span", null, "On iPhone, tap Share, then Add to Home Screen. The game opens full screen, without Safari's bars, and works offline."));
     var tr = put(tip, el("div", "row"));
     var ok = put(tr, el("button", "btn", "Got it"));
     ok.type = "button";
@@ -1912,7 +1912,7 @@ Sheets.init = function (o) {
 };
 
 var LEAD = {
-  look: "How The Well looks, never how it plays. Every change shows at once.",
+  look: "How the well looks, never how it plays. Every change shows at once.",
   handling: "How the pieces answer your hands. Timings are in milliseconds, so they feel the same on every screen.",
   sound: "Every move plays a note in the key of the world you're in. Turn any of it down, or all of it off.",
   comfort: "Motion, size, pace and the gentle reminder: make the well as easy on you as you like."

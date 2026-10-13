@@ -1,6 +1,6 @@
 /* coach.js — the lesson runner.
 
-   Challenges are where The Well teaches the deep stuff, and every one of
+   Challenges are where well teaches the deep stuff, and every one of
    them is open from the first launch. This file runs them: it watches the
    engine's events and the player's presses, decides when a lesson has been
    passed, and can show — at any time, without waiting — where a piece could

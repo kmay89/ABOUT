@@ -63,20 +63,23 @@ Learn.sections = [
     lead: "The research behind the headline, what the studies actually did, and what this game is and isn't." },
   { id: "controls", title: "Controls", short: "Controls",
     lead: "Everything you can press, tap or flick, for the device you're on." },
-  { id: "refuses", title: "What The Well won't do", short: "What it won't do",
+  { id: "refuses", title: "What the well won't do", short: "What it won't do",
     lead: "The things this game deliberately leaves out, and why." }
 ];
 
-/* The in-game credits, as the legal brief wrote them. */
-Learn.ABOUT = "The Well is an independent falling-blocks game. Not affiliated with or endorsed by The Tetris Company. Tetris® is a registered trademark of Tetris Holding, LLC.";
+/* The in-game credits, as the legal brief wrote them. HTML, so the
+   name can be set in italics; both places that show it take it as written. */
+Learn.ABOUT = "<i>well</i> is an independent falling-blocks game. Not affiliated with or endorsed by The Tetris Company. Tetris® is a registered trademark of Tetris Holding, LLC.";
 
 /* The paragraph that closes every page that discusses the research. The
    research page cites only studies of the licensed game; the page on why
    it's absorbing also cites slot machines, other games and players in
    general, so its first sentence is only as wide as that is true. The
-   legal sentence is the same, word for word, on both. */
-Learn.FOOTER = "Studies cited here used Tetris®, the licensed game, inside specific research protocols. The Well is not Tetris, is not a treatment, and makes no health claims.";
-Learn.FOOTER_MIXED = "Where studies cited here used Tetris®, they used the licensed game, inside specific research protocols. The Well is not Tetris, is not a treatment, and makes no health claims.";
+   legal sentence is the same, word for word, on both. HTML: the name is in
+   <i>, and since the footer itself is set in italics, it stands upright
+   there (.lrn-src i i), the way a title does inside italic text. */
+Learn.FOOTER = "Studies cited here used Tetris®, the licensed game, inside specific research protocols. <i>well</i> is not Tetris, is not a treatment, and makes no health claims.";
+Learn.FOOTER_MIXED = "Where studies cited here used Tetris®, they used the licensed game, inside specific research protocols. <i>well</i> is not Tetris, is not a treatment, and makes no health claims.";
 
 Learn.CREDIT = "We cross-checked the rotation and scoring tables against the open-source projects cold-clear, Techmino, Triangle.js and python-tetris.";
 
@@ -639,7 +642,7 @@ function rr(c, x, y, w, h, r) {
   c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
 }
 /* A cell rectangle that reaches its same-body neighbours and rounds only
-   the corners that face open space — the fused look of The Well's pieces,
+   the corners that face open space — the fused look of well's pieces,
    with no seam or outline inside a piece. */
 function addCell(c, px, py, s, m, r) {
   var g = Math.max(1, s * 0.06);
@@ -876,7 +879,7 @@ PAGES.why = function () {
     h3("A decision about once a second") +
     p("Forty lines need at least " + per + " pieces: forty rows of " + word(Wd) + " cells, four cells to a piece. At a relaxed pace you place one every 0.6 to 2 seconds, each with two to six small moves. Every decision has perfect information about the present — the whole well is in front of you — and a short look ahead, in the pieces waiting above the mouth.") +
     h3("Turning is thinking") +
-    p("Kirsh and Maglio (1994) found that players rotate pieces on screen to find out where they fit, solving some problems more quickly, easily and reliably than by thinking alone. That's why The Well works so hard at instant, smooth response: when a turn shows up late, your thinking tool is slow.") +
+    p("Kirsh and Maglio (1994) found that players rotate pieces on screen to find out where they fit, solving some problems more quickly, easily and reliably than by thinking alone. That's why <i>well</i> works so hard at instant, smooth response: when a turn shows up late, your thinking tool is slow.") +
     h3("Flow") +
     p("Flow is most likely when goals are clear, feedback is immediate, and the challenge is high but matched to your skill. A row either clears or it doesn't. Speed rises on a fixed, visible curve — " + navTo("how", "the table is on the How page") + ".") +
     h3("Fair dealing") +
@@ -884,22 +887,22 @@ PAGES.why = function () {
     h3("Never solved, always solvable locally") +
     p("Even if you knew every piece in advance, computing the best possible play is NP-hard: on large enough boards, no known method does it efficiently. A few pieces of look-ahead is just enough to feel clever.") +
     h3("The open loop") +
-    p("The well is never finished, so there is always a next thing to fix. The pull to resume an unfinished task is supported as a general tendency. The famous claim that “you remember unfinished tasks better” mostly hasn't held up (Ghibellini &amp; Meier 2025). The Well lets that loop close: runs end, chapters rest, and nothing calls you back.") +
+    p("The well is never finished, so there is always a next thing to fix. The pull to resume an unfinished task is supported as a general tendency. The famous claim that “you remember unfinished tasks better” mostly hasn't held up (Ghibellini &amp; Meier 2025). <i>well</i> lets that loop close: runs end, chapters rest, and nothing calls you back.") +
     h3("Near-misses that are really yours") +
     p("In slot machines, near-misses raise the urge to play (Clark et al. 2009). Here, a row with one hole is information you made. We never manufacture near-misses.") +
     h3("The brain gets more efficient") +
     p("After four to eight weeks of practice, eight young men used <i>less</i> cortical glucose while playing more than seven times better (Haier et al. 1992). Three months of practice changed cortical thickness in two small areas (Haier et al. 2009). That shows efficiency. It doesn't show that the game makes you smarter.") +
     h3("The shapes follow you to sleep") +
-    p("After three days of play, most people in a small study saw falling shapes as they fell asleep, including three of five people with amnesia who couldn't remember playing (Stickgold et al. 2000). In a large survey of gamers, almost everyone reported some carry-over after play; about one in five said it had caused them some distress or trouble. That's one reason The Well ends runs naturally and never starts another by itself.") +
+    p("After three days of play, most people in a small study saw falling shapes as they fell asleep, including three of five people with amnesia who couldn't remember playing (Stickgold et al. 2000). In a large survey of gamers, almost everyone reported some carry-over after play; about one in five said it had caused them some distress or trouble. That's one reason <i>well</i> ends runs naturally and never starts another by itself.") +
     h3("Sound that answers you") +
-    p("<i>Tetris Effect</i>'s makers aimed for a “zen-like, relaxed, flow state feeling”, and its music and sound effects respond to every move. <i>Rez</i> and <i>Lumines</i> quantize sounds to the beat. In The Well, every move is a note from a five-note scale with no clashing intervals, and clears wait for the beat — never more than 120 milliseconds.") +
+    p("<i>Tetris Effect</i>'s makers aimed for a “zen-like, relaxed, flow state feeling”, and its music and sound effects respond to every move. <i>Rez</i> and <i>Lumines</i> quantize sounds to the beat. In <i>well</i>, every move is a note from a five-note scale with no clashing intervals, and clears wait for the beat — never more than 120 milliseconds.") +
     h3("Juice, in moderation") +
     p("In one controlled study of an action RPG, medium and high amounts of “juice” gave a better experience than none or an extreme amount (Kao 2020). Our effects grow with the rarity of what you did, and they stop growing.") +
     h3("Absorbed, not hooked") +
-    p("It's healthy when the task itself is the reward and the game lets you stop. It becomes compulsive when a schedule is the reward — random prizes, streaks, timers — and stopping costs you something. The “machine zone” and “zen flow” can feel alike from inside; the difference is who benefits from the extra minutes. " + navTo("refuses", "Here is everything The Well refuses to do") + ".") +
+    p("It's healthy when the task itself is the reward and the game lets you stop. It becomes compulsive when a schedule is the reward — random prizes, streaks, timers — and stopping costs you something. The “machine zone” and “zen flow” can feel alike from inside; the difference is who benefits from the extra minutes. " + navTo("refuses", "Here is everything <i>well</i> refuses to do") + ".") +
     src("Sources: Kirsh &amp; Maglio 1994 (Cognitive Science); Csikszentmihalyi 1990 (<i>Flow</i>, Harper &amp; Row); Burgiel 1997 (The Mathematical Gazette); Breukelaar, Demaine et al. 2004 (International Journal of Computational Geometry &amp; Applications); Ghibellini &amp; Meier 2025 (Humanities and Social Sciences Communications); Clark et al. 2009 (Neuron); Haier et al. 1992 (Brain Research); Haier et al. 2009 (BMC Research Notes); Stickgold et al. 2000 (Science); Ortiz de Gortari &amp; Griffiths 2016 (International Journal of Human–Computer Interaction); Kao 2020 (Entertainment Computing); Schüll 2012 (<i>Addiction by Design</i>, Princeton University Press).") +
-    src("<i>" + esc(Learn.FOOTER_MIXED) + "</i>") +
-    "<p class=\"lrn-about\">" + esc(Learn.ABOUT) + "</p>";
+    src("<i>" + Learn.FOOTER_MIXED + "</i>") +
+    "<p class=\"lrn-about\">" + Learn.ABOUT + "</p>";
 };
 
 function tick(ok) { return ok ? "<span class=\"lrn-ok\" title=\"Checked against the game's scorer as this page opened\">✓</span>" : ""; }
@@ -917,7 +920,7 @@ PAGES.how = function (ctx, live) {
   var gv = live.gravity, g15 = gv[gv.length - 1];
   var out = "";
 
-  out += p("The Well plays by the modern rules of the falling-blocks family that Tetris® began: seven pieces, a fair dealer, wall kicks, a forgiving lock, Keep, and the scoring that makes a Quad and a Twist worth chasing. " +
+  out += p("<i>well</i> plays by the modern rules of the falling-blocks family that Tetris® began: seven pieces, a fair dealer, wall kicks, a forgiving lock, Keep, and the scoring that makes a Quad and a Twist worth chasing. " +
     (live.engine ? "Every number here is read from the game's own rule tables and engine as the page opens, and the ones marked ✓ were played on a hidden well to check them — so the page can't drift from the game, because it is reading the game." : "These numbers come straight from the game's rule tables."));
 
   out += h3("The well") +
@@ -995,7 +998,7 @@ PAGES.how = function (ctx, live) {
   out += p("Difficult clears are Quads and any Twist that clears lines. Only a plain Single, Double or Triple breaks an Unbroken chain; Keep doesn't, and neither does a piece that clears nothing. A piece that clears nothing does end a Ripple.", "lrn-p lrn-soft");
 
   out += h3("Why the points make sense") +
-    p("Four Singles score " + fmt(4 * L.none[1]) + " but one Quad scores " + fmt(L.none[4]) + ": the game pays " + times(L.none[4] / (4 * L.none[1])) + " for the risk of keeping a column open. A Twist Double (" + fmt(L.full[2]) + ") pays " + times(L.full[2] / L.none[4]) + " a Quad for using fewer cells cleverly. Unbroken pays 1.5× for sustaining difficult clears. Ripple rewards clearing on consecutive pieces. Games differ on whether the Empty Well bonus adds to the line score or replaces it; The Well adds it.");
+    p("Four Singles score " + fmt(4 * L.none[1]) + " but one Quad scores " + fmt(L.none[4]) + ": the game pays " + times(L.none[4] / (4 * L.none[1])) + " for the risk of keeping a column open. A Twist Double (" + fmt(L.full[2]) + ") pays " + times(L.full[2] / L.none[4]) + " a Quad for using fewer cells cleverly. Unbroken pays 1.5× for sustaining difficult clears. Ripple rewards clearing on consecutive pieces. Games differ on whether the Empty Well bonus adds to the line score or replaces it; <i>well</i> adds it.");
   var ex = live.example;
   if (ex) {
     var exOk = checked(live, "worked example");
@@ -1080,9 +1083,9 @@ PAGES.steady = function () {
       "<li><b>It doesn't erase memories.</b></li>" +
       "<li><b>It isn't settled science.</b> Lab replications have been inconsistent. A 2025 replication study found fewer intrusions while people played, but not over the following week. In another lab study, playing on three days was no better than playing once.</li>" +
       "<li><b>Timing and the reminder matter.</b> In a lab study where the film had been seen a day earlier, only the reminder plus the game reduced intrusions; neither alone did. Played within hours of the film, the game helped without a separate reminder.</li>" +
-      "<li><b>The Well is not Tetris, and it has never been tested in any study.</b> We made it to be calm and kind. It is not a therapy.</li>" +
+      "<li><b><i>well</i> is not Tetris, and it has never been tested in any study.</b> We made it to be calm and kind. It is not a therapy.</li>" +
     "</ul>" +
-    h3("So what is The Well for?") +
+    h3("So what is <i>well</i> for?") +
     p("It's a quiet place to fit shapes together. Many people find steady, focused play settling, and you're welcome to use it that way. Steady mode is built for that: twenty minutes, slow and even, nothing sudden, and an easy way to stop. <b>We will never ask you to think about something painful.</b> Please don't use this game to try the memory part of the procedure on your own; that part was always done with support. If you'd like to play the way some research versions did, turn on <i>Mind's eye</i> (no landing light) and turn the sound off.") +
     p("<b>Cravings, briefly.</b> In two small studies, three minutes of Tetris reduced the strength of everyday cravings (food, drink, nicotine and others), once in a lab and once over a week of daily life. This game itself hasn't been tested.") +
     h3("This is not treatment") +
@@ -1090,7 +1093,7 @@ PAGES.steady = function () {
     h3("If you need someone right now") +
     helpHTML() +
     src("<i>Sources: Holmes et al. 2009 and 2010 (PLoS ONE); James et al. 2015 (Psychological Science); Iyadurai et al. 2018 (Molecular Psychiatry); Iyadurai et al. 2023 (Translational Psychiatry); Kanstrup et al. 2024 (BMC Medicine); Wessel et al. 2025 (Collabra: Psychology); Broughill et al. 2025 (Journal of Traumatic Stress); Skorka-Brown et al. 2014 (Appetite) and 2015 (Addictive Behaviors).</i>") +
-    src("<i>" + esc(Learn.FOOTER) + "</i>");
+    src("<i>" + Learn.FOOTER + "</i>");
 };
 
 /* ---------- help lines ---------- */
@@ -1253,8 +1256,8 @@ PAGES.refuses = function () {
     ["No secret difficulty.", "Every mode says exactly how it eases, on the How page. Speed rises only with lines cleared, by a published rule; nothing eases off or tightens up by watching how you play."],
     ["No leaderboards and no multiplayer.", "A static site can't check anyone's score, and status anxiety isn't the point. Personal bests and share codes instead."],
     ["Nothing tracked.", "No analytics, no mood logs, no diary, no record of why you play. Settings and records live on your device and nowhere else."],
-    ["No memory exercises.", "The Well will never ask you to think about something painful."],
-    ["No health claims.", "The Well has never been tested in any study. " + navTo("steady", "What the research does and doesn't say") + " has its own page."],
+    ["No memory exercises.", "<i>well</i> will never ask you to think about something painful."],
+    ["No health claims.", "<i>well</i> has never been tested in any study. " + navTo("steady", "What the research does and doesn't say") + " has its own page."],
     ["No borrowed names, colours, music or look.", "The rules are the genre's; every word, colour, material and note is our own."],
     ["No fire, thunder, sirens, weapons or emergency imagery, in any world.", "They are common reminders of frightening things, so none of the ten worlds uses them."]
   ];
@@ -1277,6 +1280,7 @@ var STYLE = "" +
 ".lrn .lrn-p{font-size:.92rem;line-height:1.55;margin:.45em 0;color:var(--ink);opacity:.92}" +
 ".lrn .lrn-soft{color:var(--soft);opacity:1;font-size:.86rem}" +
 ".lrn .lrn-src{font-size:.78rem;line-height:1.5;color:var(--soft);margin:1.2em 0 .4em}" +
+".lrn .lrn-src i i{font-style:normal}" +
 ".lrn .lrn-about{font-size:.76rem;color:var(--soft);border-top:1px solid var(--line);padding-top:10px;margin-top:1.2em}" +
 ".lrn .lrn-ul{margin:.4em 0 .6em;padding-left:1.25em;font-size:.92rem;line-height:1.55}" +
 ".lrn .lrn-ul li{margin:.35em 0}" +
@@ -1396,7 +1400,7 @@ Learn.render = function (el, id, ctx) {
   var hosted = el.getAttribute && el.getAttribute("role") === "tabpanel";
   var nav = "";
   if (ctx.nav === true) {
-    nav = "<nav class=\"lrn-nav\" aria-label=\"The Well, explained\">";
+    nav = "<nav class=\"lrn-nav\" aria-label=\"The well, explained\">";
     for (var i = 0; i < Learn.sections.length; i++) {
       var s = Learn.sections[i];
       nav += "<button data-learn=\"" + s.id + "\"" + (s.id === sec.id ? " class=\"on\" aria-current=\"page\"" : "") + ">" + esc(s.short || s.title) + "</button>";

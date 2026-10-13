@@ -1,6 +1,6 @@
 {
-  "name": "The Well",
-  "short_name": "The Well",
+  "name": "well",
+  "short_name": "well",
   "description": "A calm, beautiful falling-blocks game with music that answers every move. Ten worlds, a quiet Steady mode, and the real rules explained. Free, offline, nothing tracked.",
   "start_url": ".",
   "scope": ".",

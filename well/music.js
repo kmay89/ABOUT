@@ -2815,7 +2815,7 @@ function updateMedia() {
   if (!nav || !nav.mediaSession) return;
   try {
     if (S.session === "playback" && typeof root.MediaMetadata === "function") {
-      nav.mediaSession.metadata = new root.MediaMetadata({ title: "The Well — " + D.W.name, artist: "kmay89.com", album: "The Well" });
+      nav.mediaSession.metadata = new root.MediaMetadata({ title: "well — " + D.W.name, artist: "kmay89.com", album: "well" });
       nav.mediaSession.setActionHandler("play", function () { Music.resume(); remote("play"); });
       nav.mediaSession.setActionHandler("pause", function () { Music.suspend(); remote("pause"); });
     } else if (S.session !== "playback") {

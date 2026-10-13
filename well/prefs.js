@@ -1,6 +1,6 @@
 /* prefs.js — the player's settings, and the only door to localStorage.
 
-   Everything The Well remembers lives under one localStorage key, "well",
+   Everything well remembers lives under one localStorage key, "well",
    as one small JSON object:
 
      { v: 1, prefs: {...}, records: {...}, save: {...} }

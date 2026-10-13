@@ -1793,7 +1793,7 @@ console.log("\n──  the well");
     ok("well codes: 2,000 seeds there and back", round && Modes.code.encode(0) === "000000" && Modes.code.encode(1073741823) === "ZZZZZZ");
     const k = Modes.code.decode("K7Q2MX");
     ok("…and a code survives being read out, pasted, or written by hand",
-       Modes.code.decode("k7q-2mx") === k && Modes.code.decode("The Well · Forty · 58.31 s · Jade · well code K7Q2MX") === k &&
+       Modes.code.decode("k7q-2mx") === k && Modes.code.decode("well · Forty · 58.31 s · Jade · well code K7Q2MX") === k &&
        Modes.code.decode("1L0O00") === Modes.code.decode("110000") && Modes.code.decode("K7Q2MU") === null && Modes.code.decode("K7Q2M") === null);
   }
 })();

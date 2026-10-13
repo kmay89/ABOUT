@@ -170,7 +170,7 @@ ok("the home page links to the games page", home.indexOf('href="/games/"') >= 0)
    keeps its offline copy in the same place. A worker that cleans up by
    deleting every cache name but its own therefore empties every *other*
    room's offline copy each time it updates — which is exactly what fifteen
-   of them did, quietly, until The Well's review caught it.
+   of them did, quietly, until well's review caught it.
 
    So this is proved by running them rather than by reading them. Each
    room's real service worker is loaded into a sandbox; its install handler

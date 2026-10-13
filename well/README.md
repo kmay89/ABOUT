@@ -1,4 +1,4 @@
-# ⊔ The Well
+# ⊔ well
 
 **A falling-blocks game that is as absorbing as the classic and kinder than any
 version of it.** The rules are the modern ones experts know — seven pieces, a
@@ -182,7 +182,7 @@ can hide the landing light (Mind's eye) or play in silence.
 
 What it doesn't do matters more. It makes no health claim, anywhere. It never
 asks anyone to recall anything, keeps no diary, asks no questions about how you
-feel, and records nothing about why you play. The Well has never been tested in
+feel, and records nothing about why you play. *well* has never been tested in
 any study, and the explainer's page on the research says so, says what the
 studies actually did and didn't show, and lists who to talk to if things feel
 heavy. That page is the only place the game and the research meet.
@@ -281,6 +281,6 @@ node tools/room-parity.js
 node tools/open-check.js well     # opens it in a real browser and plays it
 ```
 
-*The Well is an independent falling-blocks game. Not affiliated with or
+*well is an independent falling-blocks game. Not affiliated with or
 endorsed by The Tetris Company. Tetris® is a registered trademark of Tetris
 Holding, LLC.*

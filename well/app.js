@@ -143,7 +143,7 @@ var faults = {};
 function fault(where, e) {
   if (faults[where]) return;
   faults[where] = 1;
-  if (root.console && console.error) console.error("The Well: " + where + " — " + (e && e.stack ? e.stack : e));
+  if (root.console && console.error) console.error("well: " + where + " — " + (e && e.stack ? e.stack : e));
 }
 
 function fmtInt(n) {
@@ -1683,7 +1683,7 @@ function tickDemo() {
   if (clock[SIM] >= demo.next && g.active) demoAct();
 }
 
-/* The splash's doors. Continue is the run left last. "Enter the Well" is
+/* The splash's doors. Continue is the run left last. "Enter the well" is
    Descent, so while a Descent is saved it would quietly throw that one
    away, one button from Continue, with no "are you sure?" by design: it
    goes. A saved Descent that isn't the run left last gets its own
@@ -1699,7 +1699,7 @@ function splashRefresh() {
     cont.classList.remove("hide");
   } else cont.classList.add("hide");
   play.classList.toggle("hide", desc && last === "descent");
-  play.textContent = desc ? "Continue · " + ((modeOf("descent") || {}).name || "Descent") : "Enter the Well";
+  play.textContent = desc ? "Continue · " + ((modeOf("descent") || {}).name || "Descent") : "Enter the well";
   play.classList.toggle("primary", !last);
   var note = "";
   if (webglOk === false && !HAS_AUDIO && APPLE) note = "Lockdown Mode is on, so here is the quiet version.";
@@ -2488,7 +2488,7 @@ function beginAgainFromDepth() {
 
 /* the line people may copy, never prompted */
 function shareLine(r) {
-  var res = r.result || {}, parts = ["The Well", r.mode ? r.mode.name : r.modeId], g = r.g;
+  var res = r.result || {}, parts = ["well", r.mode ? r.mode.name : r.modeId], g = r.g;
   if (r.modeId === "forty") {
     if (r.goal !== 40) parts.push(r.goal + " lines");
     if (r.why === "goal") parts.push(fmtStopwatch(r.elapsedMs)); else parts.push((g.lines || 0) + " lines");
@@ -2794,7 +2794,7 @@ var STEADY_GRID = { mLook: 1, mSound: 1, mComfort: 1, mLearn: 1 };
 function openMenu(focusId) {
   var live = !!run && (state === "paused" || state === "rest");
   var steady = live && run.steady;
-  $("menuTitle").textContent = live ? "Paused" : "The Well";
+  $("menuTitle").textContent = live ? "Paused" : "well";
   $("menuLead").textContent = !live ? "Modes, settings, and how it all works."
     : steady ? "Take all the time you like." : "Nothing moves while this is open.";
   $("menuRun").classList.toggle("hide", !live || state !== "paused");
@@ -3256,8 +3256,10 @@ function openAbout() {
   var a = Learn ? Learn.ABOUT : null, body = $("aboutBody");
   if (!a) body.innerHTML = "";
   else if (typeof a === "string") {
-    if (/<[a-z]/i.test(a)) body.innerHTML = a;
-    else body.innerHTML = '<p class="note">' + esc(a).replace(/\n\n+/g, '</p><p class="note">') + "</p>";
+    /* the credits carry inline HTML (the name, in italics); only text
+       that brings its own paragraphs goes in bare */
+    if (/<(p|div|ul|ol)\b/i.test(a)) body.innerHTML = a;
+    else body.innerHTML = '<p class="note">' + (/<[a-z]/i.test(a) ? a : esc(a)).replace(/\n\n+/g, '</p><p class="note">') + "</p>";
   } else if (a.length) {
     var h = "";
     for (var i = 0; i < a.length; i++) h += '<p class="note">' + esc(a[i]) + "</p>";
