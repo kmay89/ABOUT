@@ -988,6 +988,11 @@ PAGES.how = function (ctx, live) {
       (live.lockMs && live.lockMoves ? "Measured just now: a piece left on the floor locked after " + lockMs + " ms, and one shuffled from side to side locked on move " + live.lockMoves + "." : "")) +
     p("The thin light under a landed piece is that wait, draining. Calmer modes wait longer; the table at the end of this page has every mode's number.");
 
+  /* Breath, from the rule table, so the page and the game can't disagree */
+  var Rb = Rules() || {}, bMax = Rb.BREATH_MAX || 20, bCost = Rb.BREATH_COST || 10, bSec = Math.round((Rb.BREATH_MS || 10000) / 1000);
+  out += h3("Breath") +
+    p("In Descent and Drift, every line you clear adds a bead to a ring of " + word(bMax) + " on the well's rim. Once " + word(bCost) + " are lit, the Breath button appears beside the score (or press " + keyList(ctx, "breath", ["KeyB"]) + "). A Breath spends " + word(bCost) + " beads and gravity rests for " + word(bSec) + " seconds — one long breath, four in and six out — with the lock wait held still. You can still move, turn and drop, and clears, points, Ripple and Unbroken count just as usual; only the falling stops. It is a moment to think, not a bonus: nothing multiplies.");
+
   out += h3("Turning, and the five tests") +
     p("When you turn a piece, the game first tries it where it is. If it doesn't fit, it tries four other spots in a fixed order — a step sideways, a step up or down — and takes the first that fits. If none does, the piece doesn't turn. Players call these wall kicks. The O never needs one: it looks the same every way round. The I has its own list.") +
     "<div class=\"lrn-kick\" data-kick>" +
@@ -1228,6 +1233,7 @@ function controlsBody(ctx, dev) {
       row("Drag down slowly", "soft drop") +
       row("Flick down", "hard drop") +
       row("Flick up", "Keep") +
+      row("Breath button", "beside the score, once ten beads are lit — gravity rests for one long breath <small>Descent and Drift</small>") +
       row("Pause button", "top corner, inside the safe area; there is no pause gesture, so it can't happen by accident") +
       "</tbody></table>" +
       p("<b>Hard-drop protection.</b> A flick within " + hd + " ms of a new piece appearing is ignored, so a drop meant for the last piece can't land the next one.") +

@@ -141,6 +141,16 @@ var CSS = [
   ".wsx h3{margin:26px 0 4px;padding-top:16px;border-top:1px solid var(--line);",
   "  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}",
   ".wsx h3.wfirst{border-top:0;padding-top:0;margin-top:12px}",
+  /* a folded section: its summary is the section's heading */
+  ".wsx details.wfold{margin:26px 0 4px;padding-top:6px;border-top:1px solid var(--line)}",
+  ".wsx details.wfold.wfirst{border-top:0;margin-top:6px}",
+  ".wsx details.wfold>summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;",
+  "  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}",
+  ".wsx details.wfold>summary::-webkit-details-marker{display:none}",
+  ".wsx details.wfold>summary:after{content:\"\";width:7px;height:7px;margin-left:2px;border:solid currentColor;border-width:0 1.5px 1.5px 0;",
+  "  transform:rotate(-45deg);transition:transform .2s}",
+  ".wsx details.wfold[open]>summary:after{transform:rotate(45deg) translate(-2px,-2px)}",
+  ".wsx details.wfold>.note{margin:0 2px 12px}",
   ".wsx .note{color:var(--soft);font-size:.82rem;line-height:1.45;margin:6px 2px 0}",
   ".wsx h3 + .note{margin:0 2px 12px}",
   ".wsx .wgrp{margin:16px 0}",
@@ -1345,9 +1355,14 @@ function buildHandling(body) {
       showIf(btn, function () { return P.get("scheme") === "buttons"; });
     },
     keys: function (first) {
-      section(body, "Keyboard",
-        "Choose a key, then press the one you want. Esc cancels, Delete clears, and a key already in use swaps places.", first);
-      buildKeys(body);
+      /* On a touch screen the key map is two screens of something most
+         people there will never need, so it waits folded under its
+         heading; with a mouse or trackpad it starts open. */
+      var fold = put(body, el("details", "wfold" + (first ? " wfirst" : "")));
+      fold.open = !touchFirst;
+      put(fold, el("summary", null, "Keyboard"));
+      put(fold, el("p", "note", "Choose a key, then press the one you want. Esc cancels, Delete clears, and a key already in use swaps places."));
+      buildKeys(fold);
     }
   };
   var order = touchFirst

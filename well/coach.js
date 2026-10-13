@@ -410,15 +410,23 @@ var WORD = { L: "left", R: "right", DL: "slide left", DR: "slide right", CW: "tu
              CCW: "turn counter-clockwise", "180": "half-turn", D: "down", HD: "drop", K: "keep" };
 var ACTION = { L: "left", R: "right", DL: "dasLeft", DR: "dasRight", CW: "cw", CCW: "ccw", "180": "180",
                D: "down", HD: "hard", K: "hold" };
-/* A run of soft-drop rows reads as one ↓: "down until it's there". */
-function icons(path) {
-  if (!path.length) return "⤓";
+/* On glass the keyboard's arrows mean nothing (⇤ is a key concept), so
+   a finger is told in its own words: the gestures, as the first-run cards
+   name them. */
+var TOUCH = { L: "drag ←", R: "drag →", DL: "drag ← to the wall", DR: "drag → to the wall", CW: "tap right",
+              CCW: "tap left", "180": "two-finger tap", D: "drag down", HD: "flick down", K: "flick up" };
+/* A run of soft-drop rows reads as one ↓: "down until it's there". With
+   src "touch" the path is said in gestures; an empty path is just a drop,
+   said in whichever hand is in use. */
+function icons(path, src) {
+  var touch = src === "touch";
+  if (!path.length) return "just drop it (" + (touch ? "flick down" : src === "key" ? "Space" : src === "pad" ? "D-pad ↑" : "flick down / Space") + ")";
   var o = [];
   for (var i = 0; i < path.length; i++) {
     if (path[i] === "D" && i && path[i - 1] === "D") continue;
-    o.push(ICON[path[i]] || path[i]);
+    o.push((touch ? TOUCH[path[i]] : ICON[path[i]]) || path[i]);
   }
-  return o.join(" ");
+  return o.join(touch ? ", " : " ");
 }
 function words(path) {
   if (!path.length) return "Just drop it.";
@@ -514,6 +522,13 @@ Coach.create = function (o) {
   var lastTarget = "";
   var audit = { pieces: 0, presses: 0, counted: 0, perfect: 0 };
   var quads = 0, lines = 0, siltDone = 0, pendingT = false, saidSoft = false, timer = null;
+  /* the hand in use, from the last press (or the app's guess before one):
+     corrections are said in its terms */
+  var src = "";
+  function hand() {
+    if (src) return src;
+    try { var d = typeof o.device === "function" ? o.device() : o.device; return d === "keys" ? "key" : d || ""; } catch (e) { return ""; }
+  }
 
   function freshPiece(g) {
     var a = g && g.active;
@@ -616,7 +631,7 @@ Coach.create = function (o) {
     piece.presses = 0; piece.last = null; piece.soft = false; piece.perfectIfLands = false;
     var path = tgt ? tgt.path : [];
     var lead = why === "place" ? "Not quite there — back to the top. " : "Back to the top. ";
-    say(lead + "Shortest: " + icons(path), "fault");
+    say(lead + "Shortest: " + icons(path, hand()), "fault");
     return "rewind";
   }
 
@@ -713,6 +728,7 @@ Coach.create = function (o) {
   };
 
   C.action = function (a, meta, g) {
+    if (meta && (meta.source === "touch" || meta.source === "key" || meta.source === "pad")) src = meta.source;
     if (!lesson || !g || !g.active || !piece) return "allow";
     if (piece.type !== g.active.type && !piece.presses) newPiece(g);
     if (kind !== "finesse") return "allow";
@@ -777,7 +793,7 @@ Coach.create = function (o) {
           if (done % 5 === 0) say(done + " in a row.", "good");
         } else if (!piece.soft) {
           done = 0;
-          if (tgt && key !== tgt.key) say("That one landed off its outline. Shortest was " + icons(tgt.path), "tip");
+          if (tgt && key !== tgt.key) say("That one landed off its outline. Shortest was " + icons(tgt.path, hand()), "tip");
         }
       } else if (phase === "audit") {
         audit.pieces++;
@@ -844,7 +860,7 @@ Coach.create = function (o) {
   function describe(g, p, path, text) {
     var a = g.active;
     var d = { type: a.type, rot: p.rot, x: p.x, y: p.y, cells: cellsAt(a.type, p.rot, p.x, p.y),
-              path: path, inputs: [], icons: icons(path), words: words(path), keep: false, text: text };
+              path: path, inputs: [], icons: icons(path, hand()), words: words(path), keep: false, text: text };
     for (var i = 0; i < path.length; i++) d.inputs.push(ACTION[path[i]]);
     d.inputs.push("hard");
     return d;
@@ -887,7 +903,7 @@ Coach.create = function (o) {
     if (!a) return null;
     if (kind === "finesse" && phase === "lesson" && tgt) {
       var map = reach(g.board, a.type, { rot: a.rot, x: a.x, y: a.y }, isModern(g)), e = map[tgt.key];
-      if (e) return describe(g, e, e.path, "Shortest from here: " + icons(e.path) + ".");
+      if (e) return describe(g, e, e.path, "Shortest from here: " + icons(e.path, hand()) + ".");
     }
     if (kind === "slot") {
       var want = slotIntended();

@@ -169,6 +169,21 @@ function deltaL(c, alpha, base) {
   return after - before;
 }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+/* How far a cell of the skin's colours can be tinted toward warm white
+   (laid over it, not added) before its luminance has changed by "dl":
+   the clear's warmth stays a change of colour, under the flash line, on
+   any skin — pale Sea Glass gets less, dark Ink a little more. */
+function tintFor(colors, dl, cap) {
+  var r = 0, g = 0, b = 0, n = 0;
+  for (var t = 1; t <= 7; t++) if (colors[t]) { r += colors[t][0]; g += colors[t][1]; b += colors[t][2]; n++; }
+  if (!n) return cap;
+  var c0 = [r / n, g / n, b / n], l0 = luma(c0), w;
+  for (w = 0.02; w <= cap; w += 0.02) {
+    var c1 = [c0[0] + (WARM[0] - c0[0]) * w, c0[1] + (WARM[1] - c0[1]) * w, c0[2] + (WARM[2] - c0[2]) * w];
+    if (luma(c1) - l0 > dl) return Math.max(0, w - 0.02);
+  }
+  return cap;
+}
 function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
 function easeOut(t) { t = clamp(t, 0, 1); var u = 1 - t; return 1 - u * u * u; }
 /* a spring from 0 to 1 in about "dur", with a small overshoot */
@@ -771,6 +786,8 @@ function create(canvas, opts) {
   var colors = [null, null, null, null, null, null, null, null, null];   /* rgb by type, 8 = silt */
   var paint = null;
   var atlas = null, ax = null, built = null;        /* built[type*32+mask] */
+  /* each tile's shape in warm light, made the first time a clear needs it */
+  var glowAtlas = null, gax = null, glowBuilt = null, clearTint = 0.2;
   var pieceSpr = [];                                /* [type*4+rot] = {c, minX, maxY, pad, w, h} */
   var prevSpr = [];                                 /* [slot][type] */
   var keepSpr = [];                                 /* [type] */
@@ -869,6 +886,7 @@ function create(canvas, opts) {
   var pRot = new Float32Array(PMAX), pVR = new Float32Array(PMAX), pSway = new Float32Array(PMAX), pPh = new Float32Array(PMAX);
   var pSw = new Float32Array(PMAX), pCX = new Float32Array(PMAX), pCY = new Float32Array(PMAX);
   var pKind = new Uint8Array(PMAX), pOn = new Uint8Array(PMAX), pHead = 0, pLive = 0;
+  var pA = new Float32Array(PMAX);           /* each particle's own opacity ceiling */
   var kindSpr = [];                                  /* by kind index, rebuilt per world */
 
   /* ================================================================
@@ -885,6 +903,7 @@ function create(canvas, opts) {
     atlas = canvasOf(16 * S, 15 * S);
     ax = ctxOf(atlas);
     built = new Uint8Array(9 * 32);
+    glowAtlas = null; gax = null; glowBuilt = new Uint8Array(9 * 32);
     var need = masksInUse(), n = 0;
     for (var ty = 1; ty <= 8; ty++) for (var m = 0; m < 16; m++) {
       if (!need[ty][m]) continue;
@@ -904,6 +923,24 @@ function create(canvas, opts) {
     ax.clearRect((m & 15) * S, tileY(ty, m), S, S);
     ax.drawImage(P.tile, (m & 15) * S, tileY(ty, m));
     built[ty * 32 + m] = 1;
+    if (glowBuilt) glowBuilt[ty * 32 + m] = 0;
+  }
+  /* A tile's silhouette filled with warm white, at the same place in a
+     second atlas: laid over the tile itself, it turns that tile toward
+     light without spilling past its rounded, fused edges. */
+  function glowReady(ty, m) {
+    tileReady(ty, m);
+    if (glowBuilt[ty * 32 + m]) return;
+    if (!glowAtlas) { glowAtlas = canvasOf(atlas.width, atlas.height); gax = ctxOf(glowAtlas); }
+    var sx = (m & 15) * S, sy = tileY(ty, m);
+    gax.clearRect(sx, sy, S, S);
+    gax.globalCompositeOperation = "source-over";
+    gax.drawImage(atlas, sx, sy, S, S, sx, sy, S, S);
+    gax.globalCompositeOperation = "source-atop";
+    gax.fillStyle = css(WARM, 1);
+    gax.fillRect(sx, sy, S, S);
+    gax.globalCompositeOperation = "source-over";
+    glowBuilt[ty * 32 + m] = 1;
   }
   function tileReady(ty, m) {
     if (!built[ty * 32 + m]) { painterFor(S); bakeTile(ty, m); }
@@ -1370,6 +1407,7 @@ function create(canvas, opts) {
     var res = Sk ? Sk.resolve(skin, palette) : (skin.colors || {});
     for (var t = 1; t <= 7; t++) colors[t] = hexRgb(res[LETTERS[t]]);
     colors[8] = hexRgb(res.silt || skin.silt || "#5A6470");
+    clearTint = tintFor(colors, 0.075, 0.35);
     var mode = Sk && Sk.glyphs ? Sk.glyphs(skin, glyphPref) : glyphPref;
     var gl = (Sk && Sk.GLYPHS) || { I: "lines", O: "dot", T: "triangle", S: "slash", Z: "backslash", J: "bracket", L: "bracketR" };
     var glyphs2 = [];
@@ -1428,7 +1466,7 @@ function create(canvas, opts) {
 
   R.dispose = function () {
     if (canvas.removeEventListener) canvas.removeEventListener("contextrestored", restored);
-    atlas = null; ax = null; pieceSpr = []; prevSpr = []; keepSpr = [];
+    atlas = null; ax = null; glowAtlas = null; gax = null; pieceSpr = []; prevSpr = []; keepSpr = [];
     wellA = wellB = nicheA = nicheB = null; sky = null; skx = null; ws = null; wsx = null; layer = null; shL = null;
     canvas.width = 1; canvas.height = 1;
   };
@@ -1483,7 +1521,7 @@ function create(canvas, opts) {
     pX[i] = x; pY[i] = y; pVX[i] = vx; pVY[i] = vy; pAY[i] = ay;
     pAge[i] = 0; pLife[i] = life; pSize[i] = size; pRot[i] = Math.random() * TAU;
     pVR[i] = (Math.random() - 0.5) * 2.4; pSway[i] = 0; pPh[i] = Math.random() * TAU;
-    pSw[i] = 0; pCX[i] = 0; pCY[i] = 0; pKind[i] = kind; pOn[i] = 1;
+    pSw[i] = 0; pCX[i] = 0; pCY[i] = 0; pKind[i] = kind; pOn[i] = 1; pA[i] = 1;
     return i;
   }
   /* world particles for a dissolving cell (device px) */
@@ -1678,13 +1716,16 @@ function create(canvas, opts) {
     c.warm = Math.min(1, 0.25 + rip * 0.08);
     c.parts = count(parts);
     /* the glow's brightness, through the governor */
+    /* the band of light and the warmth on the leaving cells are one pulse,
+       and pass the flash governor together */
     var gl = n >= 4 ? 0.24 : 0.2;
-    c.gl = gl * flashGate(deltaL(WARM, gl * 0.6, 0.3) * (n >= 4 ? 1.4 : 1));
+    c.gate = flashGate(deltaL(WARM, gl * 0.6, 0.3) * (n >= 4 ? 1.4 : 1));
+    c.gl = gl * c.gate;
     if (c.empty) {
       bigEffect(LADDER.empty[0], 0, 0, LADDER.empty[4]);
       emptyFx.on = true; emptyFx.t0 = -2;
       emptyFx.a = 0.2 * flashGate(deltaL(WARM, 0.2, 0.12));
-      emptyFx.motes = count(LADDER.empty[1] * 0.8); emptyFx.spent = 0;
+      emptyFx.motes = count(LADDER.empty[1] * 0.3); emptyFx.spent = 0;
       c.parts = count(40);
     } else bigEffect(L0[0] + (ev.unbroken ? 0.5 : 0) + Math.min(1, rip * 0.25), kick, L0[3], L0[4]);
     if (n >= 4 && !optSteady) reactT0 = -2;
@@ -2110,16 +2151,22 @@ function create(canvas, opts) {
 
   /* light on the back wall: the Empty Well's one slow breath, Steady's
      breathing outro, a PB or chapter shimmer */
-  /* the Empty Well's motes: warm lights lifting off the floor like
-     lanterns, slowly, over the breath */
+  /* The Empty Well's motes: lanterns lifting off the floor, slowly, over
+     the breath. A few at a time across a second and a half, from anywhere
+     in the bottom two rows, each a soft dot in the world's own key light at
+     under half strength: lanterns, one by one. (All at once, white, and
+     added on top of each other, they piled into an overexposed band of
+     foam along the floor at the game's biggest moment.) */
   function releaseMotes(u) {
     if (emptyFx.motes <= 0 || u < 0.2) return;
-    var want = Math.ceil(emptyFx.motes * clamp((u - 0.2) / 0.6, 0, 1)), gentle = optMotion === "gentle";
+    var want = Math.ceil(emptyFx.motes * clamp((u - 0.2) / 1.4, 0, 1)), gentle = optMotion === "gentle";
+    var kind = KINDS.indexOf("dust");
     while (emptyFx.spent < want && emptyFx.spent < emptyFx.motes) {
-      var i = spawnParticle(0, WX + Math.random() * WWd, WY + WHd - Math.random() * C * 0.4,
-                            (Math.random() - 0.5) * C * 0.3, -C * (0.6 + Math.random() * 0.9), -C * 0.08,
-                            2.2 + Math.random() * 1.2, C * (0.3 + Math.random() * 0.35));
-      pSway[i] = C * 0.5;
+      var i = spawnParticle(kind, WX + C * 0.3 + Math.random() * (WWd - C * 0.6), WY + WHd - C * 0.3 - Math.random() * C * 1.7,
+                            (Math.random() - 0.5) * C * 0.25, -C * (0.45 + Math.random() * 0.7), -C * 0.06,
+                            2.4 + Math.random() * 1.2, C * (0.22 + Math.random() * 0.22));
+      pA[i] = 0.32 + Math.random() * 0.13;
+      pSway[i] = C * 0.45;
       if (gentle) { pVX[i] = 0; pVY[i] = 0; pAY[i] = 0; pLife[i] = 0.3; pSway[i] = 0; }
       emptyFx.spent++;
     }
@@ -2129,8 +2176,9 @@ function create(canvas, opts) {
     if (emptyFx.on) {
       var u = fxNow - emptyFx.t0;
       releaseMotes(u);
-      if (u > 1.2) emptyFx.on = false;
-      else a += emptyFx.a * (u < 0.3 ? smooth(0, 0.3, u) : 1 - smooth(0.3, 1.2, u));
+      /* the breath of light is over by 1.2 s; the lanterns go on rising */
+      if (u <= 1.2) a += emptyFx.a * (u < 0.3 ? smooth(0, 0.3, u) : 1 - smooth(0.3, 1.2, u));
+      else if (u > 1.7) emptyFx.on = false;
     }
     if (breatheOutro.on) {
       var ph = breatheOutro.phase;
@@ -2332,39 +2380,64 @@ function create(canvas, opts) {
     layerTop = Math.max(0, Math.floor(minTop - C));
   }
 
-  /* cleared cells: they brighten toward warm white, then dissolve left to
-     right into the world's particles (or along a twisting ribbon) */
+  /* Cleared cells turn to light. Each one warms toward white as the glow
+     reaches it, then draws in toward its own centre as its particles lift
+     away, paling as it shrinks, until it is a point of warm light that
+     goes out among them. Fading a whole tile out over the dark wall behind
+     it would pass through a muddy grey-brown on the way, which reads as
+     the clear going dark; a warm tile drawing in never does, and the
+     warmth is held to a change of colour while the tile is large (it may
+     pale further only once it is small, when it is no longer an area). Rows sweep left to
+     right (or run out along a twisting ribbon); a Quad's four rows melt
+     together into one band of light as it rises. */
   function drawClearGhosts(x) {
+    var still = optMotion === "still";
     for (var i = 0; i < clears.length; i++) {
       var c = clears[i];
       if (!c.on || c.t0 < 0) continue;
       var age = fxNow - c.t0;
       var peak = Math.max(0.2, c.sync);
       var sweep = c.kind === "quad" ? 0.12 : 0.18;
+      /* the warmth's ceiling: as much as stays a change of colour on this
+         skin, and less again if the governor turned the band down */
+      var warmMax = clearTint * (c.gate === undefined ? 1 : Math.min(1, c.gate));
       for (var k = 0; k < c.cn; k++) {
         var cx = c.cx[k], cy = c.cy[k], v = c.cv[k];
         if (!v) continue;
-        var start = peak + sweep * (cx / 9), fade = 0.14;
+        var start = peak + sweep * (cx / 9), fade = 0.22;
         if (c.twist && !c.mini) {
           /* the ribbon runs out from the T both ways */
           start = peak + 0.24 * Math.abs(cx - c.tx) / 6;
         } else if (c.kind === "quad") {
-          /* four rows do not sweep: they melt together into one band of
-             light as it rises */
-          start = 0.04; fade = Math.max(0.2, peak);
+          start = 0.04 + 0.25 * peak; fade = Math.max(0.24, 0.6 * peak);
         }
         var u = (age - start) / fade;
         if (u >= 1) continue;
-        if (u >= 0 && c.spawned < c.parts && optMotion !== "still") {
-          /* this cell's share of the particles, released as it goes */
+        /* the particles leave a beat before the cell does, so the light
+           seems to come out of it */
+        if (age >= start - 0.06 && c.spawned < c.parts && !still) {
           var share = Math.ceil(c.parts / Math.max(1, c.cn));
           var nn = Math.min(share, c.parts - c.spawned);
           c.spawned += nn;
           burst(nn, WX + cx * C, cellTop(cy), C, C, c.warm, c.kind === "quad" || c.empty, c.twist && c.n >= 2,
                 WX + (c.tx + 0.5) * C, cellTop(c.ty) + C * 0.5);
         }
-        var a = u < 0 ? 1 : 1 - easeOut(u);
-        if (optMotion === "still") a = age < 0.15 ? 1 - age / 0.15 : 0;
+        var a, sc = 1, w;
+        if (still) {
+          a = age < 0.15 ? 1 - age / 0.15 : 0;
+          w = 0;
+        } else if (optMotion === "gentle") {
+          /* reduced motion: no drawing in (that is a zoom), just a warm
+             cross-fade where the cell was */
+          a = u < 0 ? 1 : 1 - smooth(0, 1, u);
+          w = u < 0 ? warmMax * smooth(start - 0.16, start, age) : warmMax + (0.5 - warmMax) * smooth(0, 0.8, u);
+        } else {
+          /* warm as the glow arrives; then it draws in, paling as it goes,
+             until what is left is a point of warm light among the motes */
+          a = u < 0.75 ? 1 : 1 - smooth(0.75, 1, u);
+          sc = u <= 0 ? 1 : 1 - 0.85 * easeOut(u);
+          w = u < 0 ? warmMax * smooth(start - 0.16, start, age) : warmMax + (0.7 - warmMax) * smooth(0.5, 0.95, u);
+        }
         if (a <= 0) continue;
         /* the leaving cells keep their fused shape among themselves */
         var m = 0;
@@ -2378,10 +2451,20 @@ function create(canvas, opts) {
           if (ddx === 0 && ddy === 1 && v !== 8) m |= MN;
           if (ddx === 0 && ddy === -1 && v !== 8) m |= MS;
         }
+        /* once it starts to draw in, a cell is its own small light */
+        if (sc < 0.97) m = 0;
         tileReady(v, m);
         var lift = u > 0 && optMotion === "full" ? u * C * 0.18 : 0;
+        var cw = colX[cx + 1] - colX[cx], dw = cw * sc, dh = S * sc;
+        var dx = colX[cx] + (cw - dw) / 2, dy = cellTop(cy) - lift + (S - dh) / 2;
         x.globalAlpha = a;
-        x.drawImage(atlas, (m & 15) * S, tileY(v, m), S, S, colX[cx], cellTop(cy) - lift, colX[cx + 1] - colX[cx], S);
+        x.drawImage(atlas, (m & 15) * S, tileY(v, m), S, S, dx, dy, dw, dh);
+        if (w > 0.004) {
+          /* laid over the tile, not added: warmer and paler, never a flash */
+          glowReady(v, m);
+          x.globalAlpha = a * w;
+          x.drawImage(glowAtlas, (m & 15) * S, tileY(v, m), S, S, dx, dy, dw, dh);
+        }
         x.globalAlpha = 1;
       }
     }
@@ -2561,7 +2644,7 @@ function create(canvas, opts) {
         a = u < 0.12 ? u / 0.12 : u > 0.55 ? 1 - (u - 0.55) / 0.45 : 1;
         if (a <= 0) continue;
         s = pSize[i];
-        x.globalAlpha = a * (pass === 0 ? 0.85 : 0.95);
+        x.globalAlpha = a * pA[i] * (pass === 0 ? 0.85 : 0.95);
         var spr = kindSpr[k];
         if (!spr) continue;
         if (KINDS[k] === "leaf" || KINDS[k] === "petal" || KINDS[k] === "flake") {

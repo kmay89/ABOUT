@@ -218,6 +218,8 @@ Steady.CSS = [
   ".st-help a{color:var(--glow)}",
   ".st-pauseExtras{margin-top:4px}",
   ".st-pauseExtras .row .btn{flex:1 1 45%}",
+  ".st-ctl{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;list-style:none;margin:14px 0 0;padding:0}",
+  ".st-ctl li{font-size:.86rem;line-height:1.2;color:var(--ink);background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:6px 11px}",
   /* the entry card: choices in the middle, Begin always in reach below */
   ".st-ov .sheet.st.st-entry{display:flex;flex-direction:column;overflow:hidden}",
   ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -8px;padding:0 8px 6px}",
@@ -568,8 +570,16 @@ Steady.create = function (o) {
     setPref("steadySound", c.sound);
     setPref("steadyWorld", c.world);
     var seen = pref("seen", {}) || {};
-    if (!seen.steadyTip) openTip(c);
+    if (!seen.steadyTip || (touchHands() && !seen.touchCards)) openTip(c);
     else go(c);
+  }
+  /* is this a touch screen in use? The app knows which hands were used
+     last; without it, a coarse pointer or a touch screen with no fine one */
+  function touchHands() {
+    try { if (typeof o.device === "function") return o.device() === "touch"; } catch (e) { /* guess below */ }
+    var mm = function (q) { try { return !!(root.matchMedia && root.matchMedia(q).matches); } catch (e) { return false; } };
+    var touch = ("ontouchstart" in root) || ((root.navigator || {}).maxTouchPoints > 0);
+    return mm("(pointer: coarse)") || (touch && !mm("(pointer: fine)"));
   }
 
   function go(c) {
@@ -643,7 +653,12 @@ Steady.create = function (o) {
   function openTip(c) {
     var seen = pref("seen", {}) || {}, next = {};
     for (var k in seen) if (Object.prototype.hasOwnProperty.call(seen, k)) next[k] = seen[k];
+    /* Steady shows no words during play, so a first session on glass
+       learns the four gestures here, between sessions, in one line — and
+       they are then taught, so no other mode repeats them as cards */
+    var teach = touchHands() && !seen.touchCards;
     next.steadyTip = true;
+    if (teach) next.touchCards = true;
     setPref("seen", next);
 
     var sheet = shell("ovSteady");
@@ -656,6 +671,13 @@ Steady.create = function (o) {
     sheet.appendChild(art.firstChild);
     sheet.appendChild(el("p", "st-tip", TIP));
     sheet.appendChild(el("p", "st-small", "It's only a suggestion. Play however feels right."));
+    if (teach) {
+      var ctl = el("ul", "st-ctl");
+      ctl.setAttribute("aria-label", "How to play");
+      var how = ["Drag to move", "Tap to turn", "Flick down to drop", "Flick up to keep"];
+      for (var h = 0; h < how.length; h++) ctl.appendChild(el("li", null, how[h]));
+      sheet.appendChild(ctl);
+    }
     var goWrap = el("div", "st-go");
     var b = button("Begin", "primary", function () { go(c); });
     goWrap.appendChild(b);
@@ -1087,10 +1109,20 @@ Steady.create = function (o) {
     if (old) old.parentNode.removeChild(old);
     var box = el("div", "st-pauseExtras");
     var r1 = el("div", "row"), r2 = el("div", "row");
-    r1.appendChild(button("Breathe", "", function () { openBreathe("pause"); }));
-    r1.appendChild(button("Why this game?", "", function () { why(); }));
-    r2.appendChild(button("Help lines", "", function () { openHelp(); }));
-    r2.appendChild(button("Finish", "", function () { finish("pause", false); }));
+    /* ids, so the pause sheet can come back with the focus where it was */
+    var bb = button("Breathe", "", function () { openBreathe("pause"); });
+    bb.id = "stxBreathe";
+    var bw = button("Why this game?", "", function () { why(); });
+    bw.id = "stxWhy";
+    var bh = button("Help lines", "", function () { openHelp(); });
+    bh.id = "stxHelp";
+    /* Finish and the pause sheet's Leave sit near each other and mean
+       different things, so each says which in a few small words */
+    var bf = button("Finish", "two", function () { finish("pause", false); });
+    bf.id = "stxFinish";
+    bf.appendChild(el("small", "bsub", "end the session"));
+    r1.appendChild(bb); r1.appendChild(bw);
+    r2.appendChild(bh); r2.appendChild(bf);
     box.appendChild(r1); box.appendChild(r2);
     host.appendChild(box);
     return box;

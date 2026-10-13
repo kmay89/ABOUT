@@ -97,7 +97,7 @@ var DEFAULTS = {
   steadyLength: 20, steadyPace: "slow", steadyLanding: true, steadySound: "soft",
   steadyWorld: "snowfall",
   seen: { intro: false, touchCards: false, steadyTip: false, silentChip: false,
-          landscape: false, homeScreen: false }
+          landscape: false, homeScreen: false, breath: false }
 };
 
 /* The defaults are frozen all the way down. A caller that pushes onto

@@ -66,6 +66,12 @@ anything.
   a Slot, Freestyle Twists) and two silt wells to dig out, each with Hint and
   Show me from the first second.
 
+In Descent and Drift every line you clear lights a bead on the well's rim.
+With ten lit, **Breath** (the button that appears beside the score, or B)
+spends them, and gravity and the lock rest for ten seconds — one long breath
+— while everything else carries on as usual. It says what it is the first
+time it is ready, and the explainer has the details.
+
 Every run has a six-character **well code**. Type one into Modes and you get
 the same pieces its player had, in any mode, on any day. The run card has a
 quiet link that copies a one-line summary with the code in it; nothing ever
@@ -75,7 +81,12 @@ Pausing never resumes by itself — not after a call, a switched tab or a
 closed sheet — and resuming holds gravity for 600 ms so the first thing after
 a pause is a decision (the races hide the board while paused and give a calm
 Ready instead). Leaving Descent, Drift or Steady saves the run quietly,
-and the splash offers Continue. A run ends on "The well rests.",
+and the splash offers Continue; while a Descent is saved, the splash's own
+door carries it on rather than starting a fresh one beside it (beginning
+again is a choice made in Modes). A sheet chosen from the pause menu goes
+back to the menu when it closes, with the focus where it was, so changing
+two settings never means finding the pause button twice, and Escape never
+resumes play from under a settings sheet. A run ends on "The well rests.",
 with Done holding the focus and no countdown to another go. After half an
 hour of play (the time is yours to change, or turn off) a small note at the
 next natural stopping point suggests resting your eyes, and then stays quiet
@@ -251,8 +262,9 @@ shell that loads all nineteen scripts in order and caches every one of them.
 well (through `?gl=soft`, a test hook that lets the 3D renderer accept the
 software GL a GPU-less machine has, which it refuses on purpose everywhere
 else) and the 2D one (`?gfx=2d`). Each time it enters the well, taps the
-board, opens every sheet the pause menu reaches, and fails on a console
-error, on the other canvas showing, or on a board that isn't actually drawn.
+board, opens every sheet the pause menu reaches (and checks that closing
+each one brings the menu back), and fails on a console error, on the other
+canvas showing, or on a board that isn't actually drawn.
 It also watches the splash's demo for ten seconds, sampling the brightness of
 the whole canvas, the well and every patch of about 150 px, and fails on more
 than two opposing swings in any second — or if the page drew too slowly to

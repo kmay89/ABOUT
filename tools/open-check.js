@@ -136,10 +136,10 @@ const ROOMS = [
      that, so without the hook this entry would quietly test the 2D well. */
   { game: "well", label: "well, in WebGL2 (?gl=soft)", query: "?gl=soft", start: "#goPlay", canvas: "#cv3", other: "#cv2",
     gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
-    menu: WELL_MENU, wait: 1500 },
+    menu: WELL_MENU, menuReturns: "#ovMenu", wait: 1500 },
   { game: "well", label: "well, in 2D (?gfx=2d)", query: "?gfx=2d", start: "#goPlay", canvas: "#cv2", other: "#cv3",
     gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
-    menu: WELL_MENU, wait: 1500 }
+    menu: WELL_MENU, menuReturns: "#ovMenu", wait: 1500 }
 ];
 /* node tools/open-check.js well checks just the rooms named */
 const ONLY = process.argv.slice(2);
@@ -260,11 +260,13 @@ const server = http.createServer((req, res) => {
         await page.waitForTimeout(700);
       }
 
-      for (const [fx, fy] of room.taps) {
+      /* (a board with no box has already failed above; tapping it would
+         only throw, and bury that failure under a TypeError) */
+      for (const [fx, fy] of box ? room.taps : []) {
         await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
         await page.waitForTimeout(500);
       }
-      if (room.taps.length) ok("it takes taps on the board", true);
+      if (room.taps.length) ok("it takes taps on the board", !!box, box ? "" : "there was no board to tap");
 
       /* a room whose interface is text rather than pixels: the check is that
          the text is actually there, which is the same question the drawing
@@ -303,17 +305,28 @@ const server = http.createServer((req, res) => {
          did not model it would just click into thin air and pass. */
       let sheetsOk = true, why = "";
       for (const sel of room.menu) {
-        await page.click("#btnMenu");
-        await page.waitForTimeout(220);
+        /* A room whose menu comes back when a sheet chosen from it closes
+           (the well does: changing two settings shouldn't mean finding the
+           pause button twice) is already showing it; every other room needs
+           the button pressed again. Which one this room does is a claim the
+           check holds it to, below. */
+        if (!(room.menuReturns && await page.locator(room.menuReturns + ":not(.hide)").count())) {
+          await page.click("#btnMenu");
+          await page.waitForTimeout(220);
+        }
         const el = page.locator(sel);
         if (await el.count() === 0) { sheetsOk = false; why = "no " + sel; break; }
         await el.click();
         await page.waitForTimeout(300);
-        const open = page.locator(".ov:not(.hide)").first();
+        /* the well stacks a sheet by moving it to the end of the page */
+        const open = room.menuReturns ? page.locator(".ov:not(.hide)").last() : page.locator(".ov:not(.hide)").first();
         if (!(await open.count())) { sheetsOk = false; why = sel + " opened nothing"; break; }
         const close = open.locator("[data-close]").first();
         if (await close.count()) await close.click();
         await page.waitForTimeout(180);
+        if (room.menuReturns && !(await page.locator(room.menuReturns + ":not(.hide)").count())) {
+          sheetsOk = false; why = "closing what " + sel + " opened didn't bring the menu back"; break;
+        }
       }
       /* and leave nothing covering the board */
       await clearSheets(page);

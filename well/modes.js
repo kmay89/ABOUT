@@ -314,7 +314,10 @@ var descent = {
       return { why: "surface", title: "The Surface",
                lead: "Down through all ten depths, and back up into the light." };
     }
-    return { why: "filled", title: "The well filled.", lead: "Rest for a moment, or begin again from this depth." };
+    /* the card only offers "this depth" below the first one: at Depth 1,
+       beginning again from it is simply Again */
+    return { why: "filled", title: "The well filled.",
+             lead: descent.depthOf(g) > 1 ? "Rest for a moment, or begin again from this depth." : "Rest for a moment, or begin again." };
   }
 };
 

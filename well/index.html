@@ -77,16 +77,30 @@
   /* when a phone's row is tight, the numbers keep every digit and only the
      world's name gives way, to an ellipsis */
   #hud .hc.grow{flex:1 1 auto}
-  /* two rows, when one left the world's name unreadable */
+  /* two rows, when one left the world's name unreadable: the name and the
+     Breath button above, the numbers below — never a third row, which
+     would sit on the well (the break between rows is an empty flex item) */
   #hud.wrap{flex-wrap:wrap; row-gap:4px}
-  #hud.wrap .hc.grow{flex:1 0 100%}
-  #hud.wrap .hc,#hud.wrap #btnBreath{flex-grow:1}
+  #hud.wrap .hc.grow{flex:1 1 50%}
+  #hud.wrap #btnBreath{order:1; flex:0 0 auto}
+  #hud.wrap:after{content:""; order:1; flex:0 0 100%; height:0; margin-top:-4px}
+  #hud.wrap #hudB,#hud.wrap #hudC{order:2; flex-grow:1}
   #hud .hc.hide{display:none}
   #hud .hk{font-size:.68rem; letter-spacing:.06em; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
   #hud .hv{font-size:1.04rem; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
   #hud .hv.pb{color:var(--glow); transition:color .6s}
   #hud .clock .m10.z{display:none}
   #hud .learner{color:var(--glow); font-size:.66rem; letter-spacing:.04em}
+  /* beside a wide well (an iPad, a Mac, a phone on its side) the HUD is a
+     column with room to spare, so its numbers are read at a glance from
+     the well rather than squinted at in a corner */
+  #hud.col{gap:8px}
+  #hud.col .hc,#hud.col #btnBreath{padding:7px 13px 8px; border-radius:14px}
+  #hud.col .hk,#hud.col #btnBreath .bk{font-size:.75rem}
+  #hud.col .hv{font-size:clamp(1.4rem, 1.1vw + .9rem, 2rem); line-height:1.18}
+  #hud.col .hv.clock{font-size:clamp(1.6rem, 1.4vw + 1.1rem, 2.2rem)}
+  #hud.col #btnBreath{min-height:56px}
+  #hud.col #btnBreath .beads{font-size:clamp(1.2rem, .8vw + .85rem, 1.6rem)}
 
   /* the pause button: 44 pt, top-trailing, inside the safe area. There is no
      gesture for pause during play, so it can never happen by accident. */
@@ -168,6 +182,7 @@
     text-align:center; padding:24px; cursor:pointer;
   }
   #veil.full{background:var(--room)}
+  html.breathing #veil span,html.breathing #btnMenu{visibility:hidden}
   #veil span{background:rgba(12,14,24,.78); border:1px solid var(--line); border-radius:999px; padding:10px 20px}
 
   /* the banner names a depth, calmly: no slam, no scale, a fade */
@@ -176,6 +191,7 @@
                text-shadow:0 2px 24px rgba(0,0,0,.85); color:var(--glow)}
   #banner .sub{font-size:.95rem; color:var(--soft)}
   #banner{transition:opacity .45s}
+  #banner.on.dodge{opacity:.22; transition:opacity .2s}
 
   /* the coach for lessons: placed by the app, never at the bottom edge */
   #coach.off{visibility:hidden; transition:opacity .25s, transform .25s, visibility 0s .25s}
@@ -197,12 +213,21 @@
   /* the gentle reminder: a chip, never a dialog */
   #chip{
     position:absolute; z-index:9; left:50%; transform:translateX(-50%);
-    background:rgba(14,17,30,.95); border:1px solid var(--line); border-radius:16px;
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
     padding:10px 12px; width:min(420px, calc(100% - 24px)); font-size:.88rem; box-shadow:var(--shadow);
   }
   #chip p{margin:0 0 8px}
   #chip .row{margin-top:0}
   #chip .btn{min-height:44px}
+  /* on a phone it is one solid line over the HUD, stopping short of the
+     Keep niche: the words, then the two buttons beside them */
+  #chip.compact{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:6px 6px 6px 11px; border-radius:14px}
+  /* with large text the words take their own line and the buttons follow */
+  #chip.compact p{flex:1 1 7.5rem; min-width:0; margin:0; font-size:.78rem; line-height:1.3}
+  #chip.compact .row{flex:0 0 auto; flex-wrap:nowrap; gap:6px; margin-left:auto}
+  #chip.compact .btn{flex:none; min-height:44px; padding:4px 10px; font-size:.82rem; border-radius:12px}
+  #chip .cs,#chip.compact .cl{display:none}
+  #chip.compact .cs{display:inline}
 
   /* the PB pace tint: a faint warm rim, luminance change well under 0.03 */
   #pace{position:absolute; z-index:2; pointer-events:none; border-radius:6px; opacity:0;
@@ -216,7 +241,11 @@
 
   /* the toast arrives under the HUD, never at the bottom where the stack
      is; the app places it from the layout */
-  #toast{z-index:56; top:calc(var(--safe-top) + 58px); bottom:auto; position:fixed}
+  #toast{z-index:56; top:calc(var(--safe-top) + 58px); bottom:auto; position:fixed; width:max-content}
+  /* a note passing through the empty upper well (a phone): it fades to a
+     whisper while a falling piece goes behind it */
+  #toast.inwell{background:rgba(14,17,30,.9); line-height:1.4}
+  #toast.on.dodge{opacity:.14}
 
   /* ---------- the splash: the real well, playing itself, behind the title ----------
      Everything to read and press sits in the empty upper reach of the
@@ -255,21 +284,39 @@
     #splash .links,#splash .note{flex:1 1 100%}
     #splash .links{margin-top:2px}
   }
-  #splash{transition:opacity .5s, visibility 0s}
-  #splash.gone{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .5s, visibility 0s .5s}
+  /* quick to go, so a run's first moments (Ready, a depth's name) never
+     show through the title; the app waits out the same 0.18 s */
+  #splash{transition:opacity .18s, visibility 0s}
+  #splash.gone{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .18s, visibility 0s .18s}
+  /* a sheet over the splash: the title and the doors step back, and the
+     card floats over the well playing itself */
+  #splash .sp-top,#splash .sp-bottom{transition:opacity .2s, visibility 0s}
+  #splash.covered .sp-top,#splash.covered .sp-bottom{opacity:0; visibility:hidden; transition:opacity .2s, visibility 0s .2s}
 
   /* ---------- sheets ----------
      Above the splash, because the splash opens them too. No blur behind
      them, for the same reason as everywhere else in this room. */
   .ov{z-index:50; background:rgba(4,5,10,.86); backdrop-filter:none; -webkit-backdrop-filter:none;
       padding:calc(var(--safe-top) + 12px) calc(var(--safe-r) + 12px) calc(var(--safe-bot) + 12px) calc(var(--safe-l) + 12px)}
-  .sheet{max-height:min(90vh,820px); border-color:rgba(159,180,255,.14)}
+  /* scrolling a control into view (by Tab, or by the page) stops short of
+     the header bar, so nothing focused ends up underneath it */
+  .sheet{max-height:min(90vh,820px); border-color:rgba(159,180,255,.14); scroll-padding-top:64px}
   .sheet.wide{width:min(720px,100%)}
   .sheet h3{font-size:1.02rem; margin:18px 0 6px; color:var(--ink)}
   .close{min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center}
-  /* look.css's ✕ is sticky, so it rides over a long sheet's words as they
-     scroll: the sheet's own colour behind it keeps it readable, and changes
-     nothing at rest (Steady's cards place their own) */
+  /* A sheet's title and its ✕ ride along as one solid bar at the top while
+     a long sheet scrolls, so the words pass under the bar instead of under
+     a floating ✕ (which covered a Begin, or a value, as they went by). A
+     short fade beneath the bar lets the words go under softly. The first
+     cards keep look.css's floating ✕; Steady's cards place their own. */
+  /* (a sticky box keeps clear of its scroller's padding, hence the -18px:
+     the bar rides at the very top edge of the sheet, not 18px below it) */
+  .shead{position:sticky; top:-18px; z-index:3; display:flex; align-items:center; gap:10px; min-height:44px;
+         margin:-18px -18px 8px; padding:12px 10px 4px 18px; background:var(--card)}
+  .shead h2{flex:1 1 auto; min-width:0; margin:0}
+  .shead .close{position:static; float:none; flex:none; width:44px; height:44px; padding:0; border-radius:50%}
+  .shead:after{content:""; position:absolute; left:0; right:0; top:100%; height:8px; pointer-events:none;
+               background:linear-gradient(var(--card), rgba(18,22,36,0))}
   .sheet:not(.st) > .close{width:44px; height:44px; margin:0 -10px 0 8px; padding:0; border-radius:50%; background:var(--card)}
   .link{color:var(--glow); text-decoration:underline; text-underline-offset:3px; padding:6px 2px; font-size:inherit}
 
@@ -280,6 +327,7 @@
   @media (min-width:600px){ #ovMenu .mgrid{grid-template-columns:repeat(4,1fr)} }
   /* a phone on its side: everything in one screen, nothing to scroll for */
   @media (max-height:520px){
+    .shead{padding-top:6px; padding-bottom:0; margin-bottom:4px}
     #ovMenu .lead{display:none}
     #ovMenu #menuRun{clear:right}
     #ovMenu .mgrid{gap:6px; margin-top:8px}
@@ -288,6 +336,9 @@
   }
   #ovMenu .mfoot{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; margin:6px 0 -8px}
   #ovMenu .mfoot .link{color:var(--soft); margin-left:auto; min-height:44px}
+  /* a button with a few small words under its name (Finish, Leave) */
+  .btn.two{flex-direction:column; gap:1px}
+  .btn .bsub{display:block; font-size:.74rem; font-weight:500; color:var(--soft); letter-spacing:.01em}
   #menuExtras:empty{display:none}
   #menuExtras{margin-top:10px}
   #menuExtras .fld{margin:8px 0}
@@ -362,6 +413,7 @@
   .stone b{display:block; font-weight:650}
   .stone small{color:var(--soft); display:block; line-height:1.35}
   .stone:not(.got) b{color:var(--soft)}
+  .stone:not(.got) small{opacity:.78}
 
   /* the first-touch cards: one idea each */
   .tcard{text-align:center; padding:4px 4px 0}
@@ -418,7 +470,7 @@
       <div class="hc grow hide" id="hudA"><span class="hk" id="hudAk"></span><span class="hv" id="hudAv"></span></div>
       <div class="hc hide" id="hudB"><span class="hk" id="hudBk"></span><span class="hv" id="hudBv"></span></div>
       <div class="hc hide" id="hudC"><span class="hk" id="hudCk"></span><span class="hv" id="hudCv"></span></div>
-      <button id="btnBreath" class="hide" aria-label="Take a Breath"><span class="bk">Breath</span><span class="beads" id="breathBeads"></span></button>
+      <button id="btnBreath" class="hide" aria-label="Take a Breath" title="Breath: gravity rests for one long breath (B). Each line you clear adds a bead."><span class="bk">Breath</span><span class="beads" id="breathBeads"></span></button>
     </div>
 
     <div id="labels" class="r" aria-hidden="true">
@@ -490,8 +542,7 @@
 <!-- ======== sheets ======== -->
 
 <div class="ov hide" id="ovMenu" role="dialog" aria-modal="true" aria-labelledby="menuTitle"><div class="sheet">
-  <button class="close" data-close="ovMenu" aria-label="Close">✕</button>
-  <h2 id="menuTitle">Paused</h2>
+  <div class="shead"><h2 id="menuTitle">Paused</h2><button class="close" data-close="ovMenu" aria-label="Close">✕</button></div>
   <p class="lead" id="menuLead">Nothing moves while this is open.</p>
   <div class="row" id="menuRun"><button class="btn primary wide" id="mResume">Resume</button></div>
   <div id="menuExtras"></div>
@@ -510,8 +561,7 @@
 </div></div>
 
 <div class="ov hide" id="ovModes" role="dialog" aria-modal="true" aria-labelledby="modesTitle"><div class="sheet wide">
-  <button class="close" data-close="ovModes" aria-label="Close">✕</button>
-  <h2 id="modesTitle">Modes</h2>
+  <div class="shead"><h2 id="modesTitle">Modes</h2><button class="close" data-close="ovModes" aria-label="Close">✕</button></div>
   <p class="lead">Every mode, world and skin is open from the start. Nothing unlocks anything.</p>
   <div id="modesBody"></div>
   <h3>Play a well code</h3>
@@ -524,10 +574,10 @@
 </div></div>
 
 <div class="ov hide" id="ovLog" role="dialog" aria-modal="true" aria-labelledby="logTitle"><div class="sheet wide">
-  <button class="close" data-close="ovLog" aria-label="Close">✕</button>
-  <h2 id="logTitle">Logbook</h2>
+  <div class="shead"><h2 id="logTitle">Logbook</h2><button class="close" data-close="ovLog" aria-label="Close">✕</button></div>
   <p class="lead">Stones set into the rim, one for each moment worth keeping. They only ever add up: nothing here decays, expires or counts days.</p>
   <div id="logRim" aria-hidden="true"></div>
+  <p class="vh" id="logSum"></p>
   <div class="stones" id="logStones"></div>
   <h3>At the well, so far</h3>
   <div class="rcard" id="logLife"></div>
@@ -536,8 +586,7 @@
 </div></div>
 
 <div class="ov hide" id="ovEnd" role="dialog" aria-modal="true" aria-labelledby="endTitle"><div class="sheet">
-  <button class="close" data-close="ovEnd" aria-label="Close">✕</button>
-  <h2 id="endTitle">The well rests.</h2>
+  <div class="shead"><h2 id="endTitle">The well rests.</h2><button class="close" data-close="ovEnd" aria-label="Close">✕</button></div>
   <p class="lead" id="endLead"></p>
   <p class="pbLine hide" id="endPb">New personal best</p>
   <div class="rcard" id="endCard"></div>
@@ -549,8 +598,7 @@
 </div></div>
 
 <div class="ov hide" id="ovChapter" role="dialog" aria-modal="true" aria-labelledby="chapterTitle"><div class="sheet">
-  <button class="close" data-close="ovChapter" aria-label="Close">✕</button>
-  <h2 id="chapterTitle">Chapter complete</h2>
+  <div class="shead"><h2 id="chapterTitle">Chapter complete</h2><button class="close" data-close="ovChapter" aria-label="Close">✕</button></div>
   <p class="lead" id="chapterLead">The well is still. Rest here, or carry on with the board just as it is.</p>
   <div class="row"><button class="btn wide" id="chapterRest">Rest</button><button class="btn wide" id="chapterGo">Continue</button></div>
 </div></div>
@@ -564,34 +612,29 @@
 </div></div>
 
 <div class="ov hide" id="ovLearn" role="dialog" aria-modal="true" aria-labelledby="learnTitle"><div class="sheet wide">
-  <button class="close" data-close="ovLearn" aria-label="Close">✕</button>
-  <h2 id="learnTitle">The well, explained</h2>
+  <div class="shead"><h2 id="learnTitle">The well, explained</h2><button class="close" data-close="ovLearn" aria-label="Close">✕</button></div>
   <div class="tabs" id="learnTabs" role="tablist" aria-label="Sections"></div>
   <div id="learnBody" role="tabpanel"></div>
   <label class="tog"><input type="checkbox" id="glassToggle"> Show the Glass Well while playing (or press G)</label>
 </div></div>
 
 <div class="ov hide" id="ovLook" role="dialog" aria-modal="true" aria-labelledby="lookTitle"><div class="sheet">
-  <button class="close" data-close="ovLook" aria-label="Close">✕</button>
-  <h2 id="lookTitle">Look</h2>
+  <div class="shead"><h2 id="lookTitle">Look</h2><button class="close" data-close="ovLook" aria-label="Close">✕</button></div>
   <div id="lookBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovHandling" role="dialog" aria-modal="true" aria-labelledby="handlingTitle"><div class="sheet">
-  <button class="close" data-close="ovHandling" aria-label="Close">✕</button>
-  <h2 id="handlingTitle">Handling</h2>
+  <div class="shead"><h2 id="handlingTitle">Handling</h2><button class="close" data-close="ovHandling" aria-label="Close">✕</button></div>
   <div id="handlingBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovSound" role="dialog" aria-modal="true" aria-labelledby="soundTitle"><div class="sheet">
-  <button class="close" data-close="ovSound" aria-label="Close">✕</button>
-  <h2 id="soundTitle">Sound</h2>
+  <div class="shead"><h2 id="soundTitle">Sound</h2><button class="close" data-close="ovSound" aria-label="Close">✕</button></div>
   <div id="soundBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovComfort" role="dialog" aria-modal="true" aria-labelledby="comfortTitle"><div class="sheet">
-  <button class="close" data-close="ovComfort" aria-label="Close">✕</button>
-  <h2 id="comfortTitle">Comfort</h2>
+  <div class="shead"><h2 id="comfortTitle">Comfort</h2><button class="close" data-close="ovComfort" aria-label="Close">✕</button></div>
   <div id="comfortBody"></div>
 </div></div>
 
@@ -621,8 +664,7 @@
 </div></div>
 
 <div class="ov hide" id="ovAbout" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"><div class="sheet">
-  <button class="close" data-close="ovAbout" aria-label="Close">✕</button>
-  <h2 id="aboutTitle">About The Well</h2>
+  <div class="shead"><h2 id="aboutTitle">About The Well</h2><button class="close" data-close="ovAbout" aria-label="Close">✕</button></div>
   <div id="aboutBody"></div>
   <p class="note">Made by hand for kmay89.com: raw HTML, CSS and JavaScript, every sound synthesized and every picture drawn in code. No accounts, no ads, nothing tracked — your bests and settings live only on this device.</p>
   <p class="note"><a href="/games/">The Games Room</a> · <a href="/">Back to the desk</a> · <a href="/legal/">Legal</a> · <a href="/privacy/">Privacy</a></p>

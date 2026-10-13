@@ -1173,8 +1173,10 @@ Input.create = function (opts) {
       var x = (b.cl === 0 ? moveX : turnX) + col * (S + gap);
       var y = top + b.row * (S + gap);
       var w = S, h = S;
-      if (b.c === C_HOLD) { h = Math.round(S * 0.72); y += S - h; }
-      if (b.c === C_HARD) { h = Math.round(S * 0.86); y += S - h; }
+      /* Keep and the drop are a little shorter than the rest, to tell
+         them apart by feel, but never below the 44 px a thumb needs */
+      if (b.c === C_HOLD) { h = Math.min(S, Math.max(44, Math.round(S * 0.72))); y += S - h; }
+      if (b.c === C_HARD) { h = Math.min(S, Math.max(44, Math.round(S * 0.86))); y += S - h; }
       var st = b.el.style;
       st.left = x + "px"; st.top = y + "px"; st.width = w + "px"; st.height = h + "px";
       if (b.c !== C_CW && b.c !== C_CCW) st.borderRadius = Math.round(S * 0.3) + "px";

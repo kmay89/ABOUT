@@ -649,7 +649,6 @@ Records.fmt = { commas: commas, stopwatch: stopwatch, clock: clock };
 
 var TIP = {
   score:   "Points from clears, Twists, Ripples and drops. Bigger clears are worth more, and deeper levels multiply them.",
-  forty:   "From the first piece to the last of the forty lines, to the hundredth of a second.",
   time:    "How long the run lasted.",
   silt:    "From the first piece to the last row of silt, to the hundredth of a second.",
   pieces:  "How many pieces you placed.",
@@ -665,6 +664,13 @@ var TIP = {
   vsHigh:  "Compared with your personal best before this run. \u2191 means more, \u2193 fewer.",
   clears:  "How many of each kind of clear you made this run."
 };
+
+/* Forty's time tip names the run's own goal: a 20-line run isn't "the
+   forty lines" */
+function fortyTip(n) {
+  var w = n === 20 ? "twenty" : n === 40 ? "forty" : n === 100 ? "hundred" : String(n);
+  return "From the first piece to the last of the " + w + " lines, to the hundredth of a second.";
+}
 
 var STRIP = [
   ["singles", "Single", "Singles"], ["doubles", "Double", "Doubles"],
@@ -717,7 +723,7 @@ function card(run, info, prev, value) {
       piecesItem(); linesItem();
       break;
     case "forty":
-      add("Time", stopwatch(ms), TIP.forty, ms);
+      add("Time", stopwatch(ms), fortyTip(fortyLines(run)), ms);
       vsItem(); piecesItem(); ppsItem(); kppItem(); finesseItem(); stripItem();
       break;
     case "three":
