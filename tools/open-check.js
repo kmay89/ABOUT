@@ -566,8 +566,9 @@ async function flashCheck(page, sel, seconds) {
   if (res.why) { ok("its demo can be watched for flashes", false, res.why); return; }
   const n = res.out.length, rate = n / seconds;
   /* A check that looked a couple of times a second has not looked. Five a
-     second is the floor: the slowest pulse the well is allowed (400 ms rise
-     to fall) still shows up as two swings at that rate. Twenty is the aim. */
+     second is the floor, because below it a strobe at WCAG's limit of three
+     flashes a second can alias into something that looks calm (sampled
+     four times a second, it reads as one slow flash). Twenty is the aim. */
   ok("the demo was watched for " + seconds + " s (" + n + " samples, " + rate.toFixed(1) + " a second)", rate >= 5,
      "too few to see a flash: samples are taken after frames, and the page is drawing too slowly here to judge");
   if (res.warm > 1500) console.log("  · its demo took " + (res.warm / 1000).toFixed(1) + " s to start drawing steadily");
