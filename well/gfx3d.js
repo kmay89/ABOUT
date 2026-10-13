@@ -540,6 +540,9 @@ var VARIANT_OF = new Int16Array(256), VARIANT_KEY = [];
   }
 })();
 var NVAR = VARIANT_KEY.length;   /* 47 */
+/* a band of light: flat at its two ends (it runs wall to wall), soft at
+   its top and bottom */
+var BAND_VAR = VARIANT_OF[2 | 8];
 
 /* the bends a variant has, for the outline shader */
 function notchBits(k) {
@@ -577,25 +580,32 @@ function addQuad(m, kind, ax, ay, az, bx, by, bz, cx, cy, cz, nx, ny, nz) {
   m.kind.push(kind, kind, kind, kind);
   mTri(m, i0, i1, i3); mTri(m, i0, i3, i2);
 }
-function buildShell(wallT, floorT, noLeftCope) {
+/* how far the coping overhangs the outer face of a pillar, the chamfer
+   along its edges (its lit top edge), and how far the plinth at the
+   foot of the well stands out beyond the pillars */
+var COPE_OV = 0.12, COPE_CH = 0.08, PLINTH = 0.15;
+function buildShell(wallT, floorT, noLeftCope, nicheBeside) {
   var m = newMesh(), d = SHAFT_D, t = wallT, r = Math.min(RAD, t * 0.45), rf = Math.min(RAD, floorT * 0.45);
-  var cr = Math.min(0.13, COPE_H * 0.45), ov = Math.min(0.05, t * 0.25), top = LIP_Y + COPE_H * 0.5;
-  /* the coping's ends are cut square and finished with a small chamfer,
-     flush with the face of the pillar under them: a rounded end there
-     read as the end of a pipe, not of a stone */
-  var ce = 0.045;
+  var cr = Math.min(0.13, COPE_H * 0.45), ov = COPE_OV, top = LIP_Y + COPE_H * 0.5;
+  /* The coping's ends are cut square and finished with a chamfer, and it
+     overhangs the pillars' outer faces, so the well's silhouette has a
+     cap rather than running straight up like a box; the chamfer along
+     its top catches the key light as a line. A rounded end there read as
+     the end of a pipe, not of a stone. */
+  var ce = COPE_CH;
   /* the pillars run up inside the coping, so no seam of sky shows
      between the two where their rounded edges meet */
   addBody(m, 1, -t, 0, 0, top, d, r, 4);                            /* left pillar */
   addBody(m, 1, W, W + t, 0, top, d, r, 4);                         /* right pillar */
-  addBody(m, 1, -t, 0, -floorT, 0, d, rf, 1 | 2);                   /* bottom-left */
+  /* the floor slab, and the plinth it makes at the foot of the well:
+     wider than the pillars, so the well stands on something */
+  addBody(m, 1, -t - PLINTH, 0, -floorT, 0, d, rf, 2);              /* bottom-left */
   addBody(m, 1, 0, W, -floorT, 0, d, rf, 2 | 8);                    /* floor */
-  addBody(m, 1, W, W + t, -floorT, 0, d, rf, 1 | 8);                /* bottom-right */
-  /* the coping: flush with the face and overhanging the walls a little,
-     so its chamfered front edge catches the key light as a line */
+  addBody(m, 1, W, W + t + PLINTH, -floorT, 0, d, rf, 8);           /* bottom-right */
   /* where the Keep niche's block sits on the mouth it takes the place
-     of the left coping */
-  if (!noLeftCope) addBody(m, 5, -t - ov, 0.16, LIP_Y, LIP_Y + COPE_H, d + 0.02, ce, 0, 0.0);
+     of the left coping; where it stands beside a wide well the coping
+     carries on across its top, so this end is cut flat to meet it */
+  if (!noLeftCope) addBody(m, 5, -t - ov, 0.16, LIP_Y, LIP_Y + COPE_H, d + 0.02, ce, nicheBeside ? 8 : 0, 0.0);
   addBody(m, 5, W - 0.16, W + t + ov, LIP_Y, LIP_Y + COPE_H, d + 0.02, ce, 0, 0.0);
   addBody(m, 5, 0.14, W - 0.14, LIP_Y, LIP_Y + COPE_H, 0.5, cr, 2 | 8, BACK_Z + 0.42);
   /* the back wall is not part of this mesh: it is one quad with a
@@ -617,11 +627,32 @@ function holeSd(x, y, h) {
   var qx = Math.abs(px) - h.hw + r, qy = Math.abs(py) - h.hh + r;
   return Math.min(Math.max(qx, qy), 0) + Math.sqrt(Math.max(qx, 0) * Math.max(qx, 0) + Math.max(qy, 0) * Math.max(qy, 0)) - r;
 }
-function buildNiche(bx0, bx1, by0, by1, ox0, ox1, oy0, oy1, inDepth, blockDepth, key) {
+/* a polygon's face, flat, of one kind */
+function addFace(m, kind, pts, z, nx, ny, nz) {
+  var first = m.pos.length / 3;
+  for (var i = 0; i < pts.length; i += 2) { mVert(m, pts[i], pts[i + 1], z, nx, ny, nz); m.kind.push(kind); }
+  for (i = 2; i < pts.length / 2; i++) mTri(m, first, first + i - 1, first + i);
+}
+/* an edge of a polygon run straight back from the face */
+function addRun(m, kind, ax, ay, bx, by, depth, nx, ny) {
+  addQuad(m, kind, ax, ay, 0, bx - ax, by - ay, 0, 0, 0, -depth, nx, ny, 0);
+}
+function buildNiche(bx0, bx1, by0, by1, ox0, ox1, oy0, oy1, inDepth, blockDepth, key, pillarX) {
   var m = newMesh(), r = Math.min(RAD, (bx1 - bx0) * 0.2, (by1 - by0) * 0.2);
   var na = NICHE_ALONG, i, k, j;
   key = key || 0;
   addBody(m, 2, bx0, bx1, by0, by1, blockDepth, r, key, 0, true, na);
+  if (pillarX !== undefined) {
+    /* Beside a wide well the block is part of the frame, not a drawer
+       fixed to it: the coping carries on across its top, cut flat where
+       it meets the frame's own, and a chamfered corbel under it carries
+       it on the pillar */
+    addBody(m, 5, bx0 - COPE_OV, pillarX - COPE_OV, by1, by1 + COPE_H, blockDepth + 0.02, COPE_CH, 2, 0);
+    var cw = 0.45, ch = 0.45, cy = by0 + 0.02;
+    addFace(m, 2, [pillarX - cw, cy, pillarX, cy, pillarX, cy - ch, pillarX - cw, cy - ch * 0.22], 0, 0, 0, 1);
+    addRun(m, 2, pillarX - cw, cy - ch * 0.22, pillarX, cy - ch, blockDepth, -ch * 0.78, -cw);
+    addRun(m, 2, pillarX - cw, cy, pillarX - cw, cy - ch * 0.22, blockDepth, -1, 0);
+  }
   var ix0 = bx0 + (key & 8 ? 0 : r), ix1 = bx1 - (key & 2 ? 0 : r), iy0 = by0 + (key & 4 ? 0 : r), iy1 = by1 - (key & 1 ? 0 : r);
   var hw = (ox1 - ox0) * 0.5, hh = (oy1 - oy0) * 0.5;
   var h = { cx: (ox0 + ox1) * 0.5, cy: (oy0 + oy1) * 0.5, hw: hw, hh: hh,
@@ -734,7 +765,7 @@ layout(std140) uniform Frame {
   vec4 uRing[4];   /* ripple rings: x, y, age, amplitude */
   vec4 uPal[12];   /* 0 warm white, 1..7 pieces, 8 silt, 9 glyph ink, 10 outline, 11 moon glyph */
   vec4 uMat3;      /* edge transmission, broad (1) or narrow (0), clear coat, paper (fibre across, ribs, lit from inside) */
-  vec4 uMat4;      /* frosted sheen, a thicker middle, the wall seen through, spare */
+  vec4 uMat4;      /* frosted sheen, a thicker middle, the wall seen through, where the Empty Well's light has left from */
   vec4 uSkyC;      /* the world's horizon, w the shaft's own breath of light */
   vec4 uSkyT;      /* the world's sky overhead, w how far up the shaft the Empty Well's light has risen */
 };
@@ -847,6 +878,7 @@ float occAt(vec2 xy){ return texture(uOcc, vec2(xy.x * 0.1, xy.y * (1.0 / 24.0))
    middle of the shaft stays under a relative luminance of 0.02 in every
    world, so every piece stands out against it by 7:1 or more. */
 float shaftDepth(float y){ return mix(0.55, 1.0, clamp(y * 0.0444, 0.0, 1.0)); }
+vec3 beamCol(){ return mix(uKeyCol.rgb, uRimCol.rgb * (luma(uKeyCol.rgb) / max(luma(uRimCol.rgb), 1e-3)), 0.5); }
 vec3 shaftFill(float fall){ return mix(uDeep.rgb, uSkyC.rgb * 0.55 + uDeep.rgb * 0.45, 0.4 + 0.6 * fall); }
 vec3 skyFall(float y){ return uSkyT.rgb * smoothstep(16.0, 22.5, y); }
 /* The back wall, lit: its stone, the light from the mouth that gets past
@@ -873,11 +905,13 @@ vec3 backWallLit(vec2 xy){
     vec2 g = fract(f); vec2 dd = min(g, 1.0 - g); float d = min(dd.x, dd.y);
     col += uWall.rgb * uKeyCol.rgb * (1.0 - smoothstep(0.006, 0.022, d)) * uWall.w * 0.03 * (0.35 + 0.65 * lt);
   }
+  /* two broad shafts of haze from the mouth, half in the world's rim
+     light so they read as air, not as a stain of the key's colour */
   if (uFx1.y > 0.0) {
     float yb = 22.5 - xy.y;
     vec2 bx = vec2(xy.x - 1.4 - yb * 0.52, xy.x - 6.6 - yb * 0.52);
-    float beam = exp2(-bx.x * bx.x * 0.55) + 0.7 * exp2(-bx.y * bx.y * 0.8);
-    col += uKeyCol.rgb * beam * uFx1.y * (0.2 + 0.8 * lt) * smoothstep(-1.0, 6.0, xy.y) * 0.8;
+    float beam = exp2(-bx.x * bx.x * 0.22) + 0.7 * exp2(-bx.y * bx.y * 0.31);
+    col += beamCol() * beam * uFx1.y * (0.2 + 0.8 * lt) * smoothstep(-1.0, 6.0, xy.y) * 0.4;
   }
   /* the bodies' own light on the stone behind them */
   col += sh.gba * (alb * 0.9 + 0.012) * uFx1.w;
@@ -888,15 +922,20 @@ vec3 backWallLit(vec2 xy){
 var GLSL_LIVE = `
 /* What moves in the shaft's light, added every frame over the still
    wall: Breath and a new chapter breathing it from the mouth, and the
-   Empty Well's breath, a front of the key light climbing from the floor
-   to the mouth and then letting go. Both are held well under the flash
-   threshold by construction (ΔL 0.03 and about 0.06). */
+   Empty Well's breath. That one is a travelling light, not a lamp
+   switched on: a band four rows tall climbs from the floor to the mouth,
+   the shaft behind it held at four tenths, and that light lets go from
+   the floor upward so it leaves by the mouth; it is coloured six parts
+   the world's rim light to four of its key. Both are held well under the
+   flash threshold by construction (ΔL 0.03 and about 0.05). */
 vec3 shaftLive(vec3 col, float y){
   /* no branches: this runs on every pixel of the back wall, and a GPU
      that cannot skip a branch would pay for both sides */
   float b = uSkyC.w * (0.25 + 0.75 * clamp((y + 2.0) * 0.04, 0.0, 1.0));
-  float e = uFx0.x * clamp((uSkyT.w + 2.5 - y) * 0.2857, 0.0, 1.0) * (1.0 - 0.012 * y);
-  return col * (1.0 + 0.9 * b + 1.5 * e) + uKeyCol.rgb * (0.004 * b + 0.017 * e) + uSkyT.rgb * (0.05 * b);
+  float df = (y - uSkyT.w) * 0.5;
+  float e = uFx0.x * (exp2(-df * df) + 0.4 * clamp((uSkyT.w - y) * 0.5, 0.0, 1.0) * clamp((y - uMat4.w) * 0.3333, 0.0, 1.0));
+  vec3 lc = mix(uKeyCol.rgb / max(luma(uKeyCol.rgb), 1e-3), uRimCol.rgb / max(luma(uRimCol.rgb), 1e-3), 0.6);
+  return col * (1.0 + 0.9 * b + 0.9 * e) + uKeyCol.rgb * (0.004 * b) + lc * (0.03 * e) + uSkyT.rgb * (0.05 * b);
 }
 `;
 
@@ -908,8 +947,9 @@ layout(location = 2) in vec4 iA;   /* pivot xyz, turn about z */
 layout(location = 3) in vec4 iB;   /* offset from pivot xy, squash xy */
 layout(location = 4) in vec4 iC;   /* colour, light, dissolve, flags */
 layout(location = 5) in vec4 iD;   /* tilt x, tilt y, scale, and one more: the haze a
-                                      preview hangs in, how opaque a fading body is,
-                                      or -1 for the piece in hand */
+                                      preview hangs in, how opaque a fading body is
+                                      (2 for one going out at a run's end), or -1 for
+                                      the piece in hand */
 out vec3 vLocal; out vec3 vLN; out vec3 vN; out vec3 vW; out vec2 vP;
 flat out vec4 vC; flat out vec4 vD; flat out vec4 vF; flat out vec4 vE;
 void main(){
@@ -925,21 +965,22 @@ void main(){
   vF = vec4(mod(f, 2.0), mod(floor(f / 2.0), 2.0), mod(floor(f / 4.0), 2.0), mod(floor(f / 8.0), 2.0));
   vE = vec4(mod(floor(f / 16.0), 2.0), mod(floor(f / 32.0), 2.0), mod(floor(f / 64.0), 2.0), mod(floor(f / 128.0), 2.0));
   vec3 p = aPos;
-  /* a band of light going out draws each of its rows in toward the row's
-     own midline, so it thins to lines of light rather than breaking up;
-     with reduced motion it only fades */
-  if (vF.w > 0.5 && iC.z > 0.0 && uRimCol.w > 0.5)
-    p.y *= 1.0 - 0.8 * smoothstep(0.35, 0.9, clamp(iC.z * 1.3 - 0.15, 0.0, 1.0));
   p.z += 0.45;
-  p.xy = (p.xy + iB.xy) * iB.zw;
+  /* A band of light is one body for a whole run of cleared rows, sized by
+     iB.zw (it draws in toward the run's own midline in the JS, so no seam
+     ever opens between its rows); its iD.xy carry its height and where a
+     ribbon's head is, not a tilt. Everything else is a cell of a body. */
+  float band = vF.w;
+  p.xy = (p.xy + iB.xy * (1.0 - band)) * iB.zw;
+  vec2 tilt = iD.xy * (1.0 - band);
   vec3 n = aNrm;
   float c = cos(iA.w), s = sin(iA.w);
   p.xy = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
   n.xy = vec2(c * n.x - s * n.y, s * n.x + c * n.y);
-  float cx = cos(iD.x), sx = sin(iD.x);
+  float cx = cos(tilt.x), sx = sin(tilt.x);
   p.yz = vec2(cx * p.y - sx * p.z, sx * p.y + cx * p.z);
   n.yz = vec2(cx * n.y - sx * n.z, sx * n.y + cx * n.z);
-  float cy = cos(iD.y), sy = sin(iD.y);
+  float cy = cos(tilt.y), sy = sin(tilt.y);
   p.xz = vec2(cy * p.x + sy * p.z, -sy * p.x + cy * p.z);
   n.xz = vec2(cy * n.x + sy * n.z, -sy * n.x + cy * n.z);
   p *= iD.z;
@@ -1018,22 +1059,48 @@ void main(){
   float fg = vF.x;
   vec3 warm = uPal[0].rgb;
   vec2 l = vLocal.xy;
-
-  /* light from within: a clear, or a run's end, lights a body toward a
-     colour between the world's key light and the skin's warm white, then
-     lets it go. "fade" is how much of it is left; the clumps it goes out
-     in are laid out in the well, not in each cell, and kept faint, so a
-     row goes out as one soft band and never as a grid of tiles */
-  float lightUp = fg > 0.5 ? 0.0 : vC.y;
-  float fade = 1.0, prL = 0.0;
+  /* the light a clear is made of: halfway between the world's key light
+     and the skin's warm white, never a piece's own colour (brief §8.4.2) */
+  vec3 bandCol = (uKeyCol.rgb * 0.41667 + warm) * 0.5;
+  /* "fade" is how much of a body going out is left; the clumps it goes
+     out in are laid out in the well, not in each cell, so nothing ever
+     goes out as a grid of tiles */
+  float nz = 0.5, fade = 1.0, prL = 0.0;
   if (vC.z > 0.0) {
-    vec4 nz = texture(uDetail, vW.xy * 0.11 + vec2(vW.z * 0.23, 0.0));
-    prL = clamp(vC.z * 1.3 - 0.15, 0.0, 1.0);
-    float pr = clamp(prL + (nz.r - 0.5) * 0.12, 0.0, 1.0);
-    /* it lets go only once it is fully lit: a band that thins while the
-       piece colours still show through it goes grey, not bright */
-    fade = 1.0 - smoothstep(0.5, 0.92, pr);
+    nz = texture(uDetail, vW.xy * 0.11 + vec2(vW.z * 0.23, 0.0)).r;
+    /* a band goes out along its length (a row left to right, a Twist
+       behind its ribbon) or, for a Quad, from the bottom row up: vC.x
+       says how far behind its first part its last one starts */
+    float lag = vF.w > 0.5 ? (vC.x > 0.0 ? vC.x * (l.x + 0.5) : -vC.x * (l.y + 0.5)) : 0.0;
+    prL = clamp((vC.z - lag) * 1.3 - 0.15, 0.0, 1.0);
+    fade = 1.0 - smoothstep(0.5, 0.92, clamp(prL + (nz - 0.5) * 0.12, 0.0, 1.0));
   }
+
+  /* A band of light over cleared rows. It is light, not paint: none of
+     the pieces' colours, brightest along its middle (a relative luminance
+     of about a half there, a quarter at its edges), its top and bottom
+     turned a little toward the world's rim light. Where a Twist's ribbon
+     runs over it, it steps back so the ribbon reads. */
+  if (vF.w > 0.5 && uFade > 0.5) {
+    float prof = exp2(-l.y * l.y * 9.77);
+    vec3 bc = bandCol * (0.5 / max(luma(bandCol), 1e-3));
+    vec3 rimN = uRimCol.rgb * (luma(bc) / max(luma(uRimCol.rgb), 1e-3));
+    vec3 bcol = mix(bc, rimN, 0.15 * (1.0 - prof)) * (0.55 + 0.45 * prof);
+    float dh = vW.x - vD.y;
+    bcol *= (1.0 - 0.42 * exp2(-dh * dh * 0.9)) * vC.y;
+    /* its top and bottom soften, and soften more as it draws in; the
+       softness is in rows, whatever the run's height */
+    float kc = uRimCol.w > 0.5 ? smoothstep(0.35, 0.9, clamp(vC.z * 1.3 - 0.15, 0.0, 1.0)) : 0.0;
+    float fo = mix(0.2, 0.5, kc) / max(vD.x, 0.05);
+    float ab = fade * smoothstep(0.0, fo, 0.5 - l.y) * smoothstep(0.0, fo, l.y + 0.5);
+    float opb = clamp(vD.w, 0.0, 1.0);
+    outColor = vec4(bcol * (uEnvTop.w * opb * ab * (2.0 - ab)), opb * ab * ab);
+    return;
+  }
+
+  /* light from within: a clear, or a run's end, lights a body in its own
+     colour (lightUp), so blue goes bright blue and never grey */
+  float lightUp = fg > 0.5 ? 0.0 : vC.y;
   vec3 base = uPal[int(vC.x + 0.5)].rgb;
   float front = smoothstep(0.85, 0.97, vLN.z);
 
@@ -1045,11 +1112,12 @@ void main(){
   if (uMat1.z > 0.0) {
     /* paper: a cloudy, hand-laid sheet with a faint fibre running across
        the body, the way a lantern's paper is laid round its frame, and
-       three ribs to a cell showing through it as faint shadows */
+       two soft ribs to a cell; the paper glows a little more between
+       them, as lit paper does, rather than darkening where they are */
     float fb = texture(uDetail, vec2(vP.y * 0.55, vP.x * 0.07 + vLocal.z * 0.11)).b;
     float cloud = texture(uDetail, vP * 0.37 + vec2(vLocal.z * 0.17, 0.5)).r;
-    float rd = abs(fract(vP.y * 3.0 + 0.5) - 0.5);
-    base *= (1.0 + uMat1.z * ((fb - 0.5) * 0.06 + (cloud - 0.5) * 0.28)) * (1.0 - 0.06 * uMat3.w * (1.0 - smoothstep(0.03, 0.11, rd)));
+    float rd = abs(fract(vP.y * 2.0 + 0.5) - 0.5);
+    base *= (1.0 + uMat1.z * ((fb - 0.5) * 0.06 + (cloud - 0.5) * 0.28)) * (1.0 + 0.03 * uMat3.w * smoothstep(0.0, 0.25, rd));
   }
 
   /* glyphs: an inner motif on every cell's face */
@@ -1133,7 +1201,7 @@ void main(){
     /* one measure of the edge serves all three: the paper's glow, the
        light through the rim, and the thickness of the glass */
     float e6 = edgeNear(l), nearE = min(e6, 1.0);
-    vec3 emi = base * uMat0.z * 0.4 * mix(1.0, 1.2 - 0.6 * nearE, uMat3.w);
+    vec3 emi = base * uMat0.z * 0.4 * mix(1.0, 1.45 - 0.9 * nearE, uMat3.w);
     float inner = min(mix(e6 * e6, e6, uMat3.y), 1.3) * uFx1.x;
     vec3 thin = base * keyC * inner * uMat3.x + warm * inner * 0.025;
     col = (diff + amb + sss + emi + thin) * ao + (spec + env + rim) * mix(1.0, ao, 0.6);
@@ -1141,37 +1209,54 @@ void main(){
        under its top edge, a little deeper toward its bottom one */
     float dTop = mix(2.0, 0.5 - l.y, uVarS.x), dBot = mix(2.0, l.y + 0.5, uVarS.z);
     col *= 1.0 + front * (0.09 * exp2(-dTop * 7.2) - 0.11 * exp2(-dBot * 5.8));
-    /* thick glass is darker in the middle of its face than at its edges */
-    col *= 1.0 - uMat4.y * front * (1.0 - smoothstep(0.1, 0.7, e6));
+    /* Thick glass is deeper in its own hue through its middle, and paper
+       a little deeper toward its frame: the body's colour, not grey, is
+       what the thickness shows (a grey there read as a smudge) */
+    if (uMat4.y > 0.0) {
+      vec3 dye = base / max(max(base.r, base.g), max(base.b, 1e-3));
+      float zone = mix(1.0 - smoothstep(0.1, 0.7, e6), smoothstep(0.15, 0.8, e6), uMat3.w);
+      col *= mix(vec3(1.0), dye, uMat4.y * front * zone);
+    }
     /* Sea Glass on the Full tier: the shaft behind, seen through the
-       glass and bent by it, under a frosted, luminous body; the courses
-       of the wall show through it faintly, as through real glass */
+       glass and bent by it, under a frosted, luminous body. The stack
+       shows the wall's courses through it, faintly and well out of
+       focus; the piece in hand and the previews see only the stone's
+       average, so nothing drawn behind them ever rides across them */
     if (uMat0.w > 0.0) {
       vec2 off = N.xy * uMat0.w * 40.0 + (vW.xy - uEye.xy) * (uWallP.z / uEye.z);
       vec2 wp = vW.xy + off;
-      vec3 seen = stoneLod(wp, 2.4).rgb;
-      vec3 behind = coolStone(seen) * (uKeyCol.rgb * 0.2 * shadeAt(wp) + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
+      float wl = luma(uWall.rgb);
+      vec3 seen = mix(vec3(wl), uWall.rgb, 0.36) * min(1.0, 0.2 / max(wl, 1e-3));
+      float lit = 0.6;
+      if (fg < 0.5) { seen = stoneLod(wp, 4.0).rgb; lit = shadeAt(wp); }
+      vec3 behind = coolStone(seen) * (uKeyCol.rgb * 0.2 * lit + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
       float edge = 1.0 - front;
       col = col * (0.84 + 0.1 * edge) + base * behind * 5.5 + base * keyC * 0.03 * (0.5 + edge) + keyC * 0.012 * edge;
-      /* frosted, so they come through blurred, and they slide behind the
-         glass as it falls, because the wall is three cells further back:
-         the stone against its own average brightness (the bake holds every
-         world's stone to the wall colour's luminance, up to 0.2) */
-      float ref = min(luma(uWall.rgb), 0.2) * 0.93;
-      col *= 1.0 + clamp(luma(seen) / max(ref, 1e-3) - 1.0, -0.3, 0.3) * uMat4.z;
+      /* the stone against its own average brightness (the bake holds
+         every world's stone to the wall colour's luminance, up to 0.2) */
+      float ref = min(wl, 0.2) * 0.93;
+      col *= 1.0 + clamp(luma(seen) / max(ref, 1e-3) - 1.0, -0.08, 0.08) * uMat4.z * (1.0 - fg);
     }
-    /* a preview hangs further off in the world's air the further it is */
-    if (fg > 0.5 && vD.w > 0.0) col = mix(col, uSkyC.rgb * 0.9 + uSkyT.rgb * 0.35, vD.w);
+    /* never a saturated red, whatever the light did to it (brief §7.3,
+       §8.4.2): linear red held under 60% of the light */
+    col.r = min(col.r, 1.5 * (col.g + col.b));
+    /* a preview hangs further off in the world's air the further it is,
+       but keeps most of its colour: the air takes its contrast, not its
+       identity */
+    if (fg > 0.5 && vD.w > 0.0) {
+      float lc = luma(col);
+      vec3 hz = mix(col, uSkyC.rgb * 0.9 + uSkyT.rgb * 0.35, vD.w);
+      float lh = luma(hz);
+      col = vec3(lh) + mix(hz - vec3(lh), (col - vec3(lc)) * (lh / max(lc, 1e-4)), 0.7);
+    }
   }
-  /* The light a body is lit with: halfway between the world's key light
-     and the skin's warm white, never a piece's own colour (brief §8.4.2),
-     held to a relative luminance of about half. A cleared body keeps four
-     tenths of its own shading as it lights, so it keeps its form until the
-     band takes over; the band's colours then give way to the light as it
-     goes, so what goes out is one band of light, not a mosaic. */
+  /* Lit from within, in its own colour: a cleared body brightens toward
+     its own hue at nearly twice its light with a breath of the clear's
+     light in it (the tonemap whitens only its hottest core), so a clear
+     reads as light and never as milk */
   if (lightUp > 0.0) {
-    vec3 bandCol = (uKeyCol.rgb * 0.41667 + warm) * 0.5;
-    col = mix(col, bandCol * 0.6, lightUp * (0.6 + 0.25 * smoothstep(0.0, 0.5, prL))) + bandCol * (lightUp * 0.08);
+    col += base * (lightUp * 0.9) + bandCol * (lightUp * 0.12);
+    col.r = min(col.r, 1.5 * (col.g + col.b));
   }
 
   /* silt: a soft seam of light where the gap is */
@@ -1182,22 +1267,18 @@ void main(){
   /* The scene's alpha is the readability mask: 1 never dimmed, 0.04 the
      stack (free to glow, kept out of the danger tint), 0.02 the stone,
      0 the sky. The fading layer is premultiplied and keeps more of its
-     light than of its body (alpha a², colour a(2 - a)), so a thinning
-     band reads as light going out and never as smoke; its top and bottom
-     are soft, and softer as it draws in; what sinks through the floor in
-     a drain goes out of sight there; vD.w is how opaque it is while it
-     takes over from the body it was. */
+     light than of its body (alpha a², colour a(2 - a)); what sinks
+     through the floor in a drain goes out of sight there. A body going
+     out at a run's end (vD.w 2) is not faded whole — a faint copy of a
+     piece would linger — but worn away from its edges inward, unevenly,
+     and gone by two thirds of its time; its light carries on as motes. */
   if (uFade > 0.5) {
-    float a = fade * smoothstep(-0.1, 0.08, vW.y);
-    if (vF.w > 0.5) {
-      float kc = uRimCol.w > 0.5 ? smoothstep(0.35, 0.9, prL) : 0.0;
-      float fo = mix(0.2, 0.5, kc), fi = 0.5 * kc;
-      /* a seam between two rows of the band is only softened once the
-         rows draw apart; until then it is not an edge at all */
-      float fN = uVarS.x > 0.5 ? smoothstep(0.0, fo, 0.5 - l.y) : (fi > 0.01 ? smoothstep(0.0, fi, 0.5 - l.y) : 1.0);
-      float fS = uVarS.z > 0.5 ? smoothstep(0.0, fo, l.y + 0.5) : (fi > 0.01 ? smoothstep(0.0, fi, l.y + 0.5) : 1.0);
-      a *= fN * fS;
-    }
+    float a = smoothstep(-0.1, 0.08, vW.y);
+    if (vD.w > 1.5) {
+      float er = 0.6 * clamp(edgeDist(l) * 2.0, 0.0, 1.0) + 0.4 * nz;
+      float pe = clamp((vC.z - 0.05) * 1.6667, 0.0, 1.0) * 1.3 - 0.15;
+      a *= smoothstep(pe - 0.15, pe + 0.15, er);
+    } else a *= fade;
     float op = clamp(vD.w, 0.0, 1.0);
     outColor = vec4(col * (uEnvTop.w * op * a * (2.0 - a)), op * a * a);
   } else outColor = vec4(col * uEnvTop.w, mix(0.04, 1.0, fg));
@@ -1243,6 +1324,9 @@ void main(){
   if (vKind > 2.5 && vKind < 4.5) p = p * 1.35 + vec2(2.0, 9.0);
   vec4 st = inside ? stoneAt(p) : stoneLod(p, vKind > 1.5 && vKind < 4.5 ? 1.5 : 3.0);
   vec3 alb = coolStone(st.rgb);
+  /* the niche is drawn never-dimmed, so the composite's danger greying
+     passes it by: it cools here instead, with the frame it belongs to */
+  if (uNiche.y > 0.5) alb = mix(alb, vec3(luma(alb)) * vec3(0.82, 0.93, 1.12), uKeyCol.w * 0.55) * (1.0 - 0.15 * uKeyCol.w);
   float polish = st.a * uFx1.z;
   vec3 R = reflect(-V, N);
   vec3 col;
@@ -1279,8 +1363,8 @@ void main(){
     if (uFx1.y > 0.0) {
       float yb = 22.5 - vW.y;
       vec2 bx = vec2(vW.x - 1.4 - yb * 0.52, vW.x - 6.6 - yb * 0.52);
-      float beam = exp2(-bx.x * bx.x * 0.55) + 0.7 * exp2(-bx.y * bx.y * 0.8);
-      col += uKeyCol.rgb * beam * uFx1.y * (0.2 + 0.8 * lt) * smoothstep(-1.0, 6.0, vW.y) * min(deep, 2.0) * 0.4;
+      float beam = exp2(-bx.x * bx.x * 0.22) + 0.7 * exp2(-bx.y * bx.y * 0.31);
+      col += beamCol() * beam * uFx1.y * (0.2 + 0.8 * lt) * smoothstep(-1.0, 6.0, vW.y) * min(deep, 2.0) * 0.2;
     }
     col = shaftLive(col, vW.y);
   } else {
@@ -1311,7 +1395,7 @@ void main(){
       col += uRimCol.rgb * 0.19 * smoothstep(0.3, 0.85, outward);
     }
     /* the coping breathes with the shaft */
-    if (vKind > 4.5) col *= 1.0 + 0.35 * uSkyC.w;
+    if (vKind > 4.5) col *= 1.0 + 0.8 * uSkyC.w;
     /* the lamp in the niche: the key light, warmed a little toward the rim */
     vec3 glowC = mix(uKeyCol.rgb * 0.42, uRimCol.rgb, 0.3);
     if (vKind > 1.5 && vKind < 2.5 && uNiche.x > 0.0) {
@@ -1329,7 +1413,9 @@ void main(){
       col = alb * (uKeyCol.rgb * (0.07 + 0.09 * max(N.y, 0.0)) * (1.0 - 0.45 * inD) + (shaftFill(0.6) * 0.8 + irr * 0.35) * (1.0 - 0.3 * inD));
       vec2 q = (vW.xy - uNicheO.xy) / max(uNicheO.zw, vec2(0.05));
       float pool = exp2(-q.x * q.x * 0.8) * exp2(-(q.y + 1.0) * 0.75);
-      col += uKeyCol.rgb * 0.45 * uNiche.x * pool * (alb * 3.2 + 0.02) * (0.75 * max(N.y, 0.0) + 0.6 * max(N.z, 0.0) + 0.3);
+      /* the lamp never goes out: half lit when Keep is spent (or the run
+         is over), so the alcove is never a black hole in the stone */
+      col += uKeyCol.rgb * 0.45 * max(uNiche.x, 0.43) * pool * (alb * 3.2 + 0.02) * (0.75 * max(N.y, 0.0) + 0.6 * max(N.z, 0.0) + 0.3);
     }
   }
   outColor = vec4(col * uEnvTop.w, uNiche.y);
@@ -1388,15 +1474,22 @@ void main(){
 var FS_SKYSHADE = GLSL_HEAD + `
 uniform vec2 uRes;
 uniform vec4 uFr;      /* the well's frame in uv: x0, x1, y0, y1 */
-uniform vec4 uSh;      /* aspect, strength, reach (in screen heights), spare */
+uniform vec4 uSh;      /* aspect, strength, reach (in screen heights), a cell's height */
 out vec4 outColor;
 void main(){
   vec2 uv = gl_FragCoord.xy / uRes;
   vec2 h = vec2((uFr.y - uFr.x) * 0.5, (uFr.w - uFr.z) * 0.5);
-  vec2 q = abs(uv - vec2((uFr.x + uFr.y) * 0.5, (uFr.z + uFr.w) * 0.5 - h.y * 0.012)) - h;
+  float cx = (uFr.x + uFr.y) * 0.5;
+  vec2 q = abs(uv - vec2(cx, (uFr.z + uFr.w) * 0.5 - h.y * 0.012)) - h;
   q.x *= uSh.x;
   float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-  outColor = vec4(0.0, 0.0, 0.0, uSh.y * exp2(-max(d, 0.0) / uSh.z));
+  float a = uSh.y * exp2(-max(d, 0.0) / uSh.z);
+  /* and where the well stands, a contact shadow on whatever lies under
+     its plinth, so it is grounded rather than hanging in the sky */
+  float cell = max(uSh.w, 1e-4);
+  float dy = (uFr.z - uv.y) / cell, ex = (abs(uv.x - cx) - h.x) * uSh.x / cell;
+  a = max(a, 0.35 * exp2(-max(dy, 0.0) * 2.4) * step(-0.02, dy) * smoothstep(0.45, 0.05, ex));
+  outColor = vec4(0.0, 0.0, 0.0, a);
 }
 `;
 
@@ -1487,10 +1580,12 @@ void pat(vec2 p, out vec3 alb, out float h, out float gl){
     vec3 a = ashlar(p, 5.0, 3.0);
     float b = fbmP(p * 1.0, vec2(16.0));
     float frost = smoothstep(0.45, 0.8, vnP(p * 6.0, vec2(96.0))) * 0.5 + (1.0 - smoothstep(0.0, 0.2, a.x)) * 0.15;
-    float glint = step(0.988, hash12(mod(floor(p * 24.0), 384.0)));
+    /* a few fixed glints, few and faint: frost catching light, not a
+       speckle across the whole wall */
+    float glint = step(0.9964, hash12(mod(floor(p * 24.0), 384.0)));
     h = smoothstep(-0.02, 0.14, a.x) * (0.92 + 0.08 * b);
-    alb = w * (0.92 + 0.1 * b + 0.06 * a.y) * mix(0.92, 1.0, smoothstep(0.0, 0.12, a.x)) + vec3(0.03, 0.033, 0.04) * frost + glint * 0.2;
-    gl = 0.12 + glint * 0.85;
+    alb = w * (0.92 + 0.1 * b + 0.06 * a.y) * mix(0.92, 1.0, smoothstep(0.0, 0.12, a.x)) * (1.0 + 0.04 * glint) + vec3(0.02, 0.022, 0.027) * frost;
+    gl = 0.12 + glint * 0.4;
   } else if (id < 8.5) {     /* mountain bells: granite, big blocks, flecked */
     vec3 a = ashlar(p, 4.0, 3.0);
     float b = fbmP(p * 0.75, vec2(12.0));
@@ -1558,12 +1653,12 @@ void main(){
   float so = oc(xy + vec2(0.0, 1.3)) * 0.3 + oc(xy + vec2(0.0, 2.8)) * 0.25 + oc(xy + vec2(0.0, 4.6)) * 0.2
            + (oc(xy + vec2(0.9, 2.2)) + oc(xy - vec2(0.9, 2.2))) * 0.12;
   float light = mouth(xy.y) * (1.0 - clamp(ks * 0.72 + so * 0.42, 0.0, 0.9));
-  vec2 u = vec2(xy.x * 0.1, xy.y * (1.0 / 24.0)), e = vec2(0.1, 1.0 / 24.0);
-  vec3 glow = texture(uOccC, u).rgb * 0.26
+  /* the bodies' glow on the stone keeps close to them: gone within a row
+     and a half of the stack's surface, never a cloud over the shaft */
+  vec2 u = vec2(xy.x * 0.1, xy.y * (1.0 / 24.0)), e = vec2(0.1, 0.75 / 24.0);
+  vec3 glow = texture(uOccC, u).rgb * 0.4
             + (texture(uOccC, u + vec2(e.x, 0.0)).rgb + texture(uOccC, u - vec2(e.x, 0.0)).rgb
-             + texture(uOccC, u + vec2(0.0, e.y)).rgb + texture(uOccC, u - vec2(0.0, e.y)).rgb) * 0.12
-            + (texture(uOccC, u + e * 1.6).rgb + texture(uOccC, u - e * 1.6).rgb
-             + texture(uOccC, u + vec2(e.x, -e.y) * 1.6).rgb + texture(uOccC, u + vec2(-e.x, e.y) * 1.6).rgb) * 0.065;
+             + texture(uOccC, u + vec2(0.0, e.y)).rgb + texture(uOccC, u - vec2(0.0, e.y)).rgb) * 0.15;
   outColor = vec4(light, glow);
 }
 `;
@@ -1613,12 +1708,13 @@ void main(){
   } else if (shape < 5.5) {                /* band of soft light */
     float yy = uv.y * uv.y;
     a = exp2(-yy * 5.2) * (1.0 - yy) * smoothstep(1.0, 0.86, abs(uv.x));
-  } else if (shape < 6.5) {                /* a bead: a lit pearl and its glow */
+  } else if (shape < 6.5) {                /* a bead: a lit pearl param3 of its quad across, and its glow */
     float r2 = dot(uv, uv);
-    float body = smoothstep(1.0, 0.82, r2) * (0.35 + 0.65 * (1.0 - r2));
-    vec2 hv = uv - vec2(-0.32, 0.38);
-    float hi = exp2(-dot(hv, hv) * 31.7);
-    a = body * prm * 0.8 + hi * (0.15 + 0.3 * prm) + exp2(-r2 * 1.6) * vD.x;
+    float R = max(vD.y, 0.05), rb2 = r2 / (R * R);
+    float body = smoothstep(1.0, 0.82, rb2) * (0.35 + 0.65 * max(1.0 - rb2, 0.0));
+    vec2 hv = uv / R - vec2(-0.32, 0.38);
+    float hi = exp2(-dot(hv, hv) * 31.7) * step(rb2, 1.0);
+    a = body * prm * 0.8 + hi * (0.15 + 0.3 * prm) + exp2(-r2 * 4.0) * max(1.0 - r2, 0.0) * vD.x;
   } else if (shape < 7.5) {                /* rounded frame line, inset param3 inside its quad */
     vec2 h = vB.xy;
     vec2 q2 = abs(uv * h) - (h - vec2(vD.y) - vec2(prm));
@@ -1634,8 +1730,11 @@ void main(){
     a = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
   }
   /* light on the never-dimmed layer adds exactly 2 to alpha, so the
-     composite can tell it apart from what it lies on (see FS_COMP) */
-  outColor = vec4(vC.rgb * vC.a * a * uEnvTop.w, vD.z * 2.0);
+     composite can tell it apart from what it lies on (see FS_COMP) —
+     only where there is light: the rest of its quad must stay free to
+     take the bloom like anything else (a whole quad marked once cut a
+     dark slot round the floor's pool) */
+  outColor = vec4(vC.rgb * vC.a * a * uEnvTop.w, vD.z * 2.0 * step(0.004, a));
 }
 `;
 
@@ -1700,16 +1799,19 @@ void main(){
     c = uR2.rgb * (0.82 + 0.18 * cos(6.2831853 * (vS * 1.3 + vec3(0.0, 0.33, 0.67))));
   } else {
     /* how squarely its face is turned to us: edge-on it is a thread of
-       light, face-on a broad pearl sheen */
+       light, face-on a broad pearl sheen. Its two faces are two lights,
+       the world's key light on the one toward us and its rim light on the
+       one away, so each pinch where it turns shows the twist */
     float face = abs(vTw);
     float f2 = face * face;
     float sheen = 0.12 + 0.88 * face + 0.7 * f2 * f2 * f2;
-    float head = exp2(-(1.0 - vU) * (1.0 - vU) * 160.0);
-    a = across * (vU * vU * 0.75 + head * 0.9) * sheen;
+    float hd = (1.0 - vU) * 5.0;
+    float head = exp2(-hd * hd * 8.0);
+    a = across * (vU * vU * 0.75 + head * 1.5) * sheen;
     vec3 kc = uKeyCol.rgb / max(max(uKeyCol.r, max(uKeyCol.g, uKeyCol.b)), 1e-3);
     vec3 rc = uRimCol.rgb / max(max(uRimCol.r, max(uRimCol.g, uRimCol.b)), 1e-3);
-    c = mix(kc, rc, clamp(vS, 0.0, 1.0)) * (0.86 + 0.14 * cos(6.2831853 * (vS * 0.2 + vec3(0.0, 0.33, 0.67))));
-    c = mix(c, vec3(1.0), head * 0.35) * uR2.rgb;
+    c = mix(rc, kc, smoothstep(-0.3, 0.3, vTw));
+    c = mix(c, vec3(1.0), head * 0.55) * uR2.rgb;
   }
   outColor = vec4(c * a * uR2.a * uEnvTop.w, 0.0);
 }
@@ -1759,7 +1861,9 @@ float shapeOf(float kind, vec2 uv){
   if (kind < 6.5) { vec2 q = abs(uv); return (1.0 - smoothstep(0.5, 0.72, max(q.x * 0.85, q.y * 1.3))) * 0.85 + exp2(-r2 * 4.3) * 0.3; }
   if (kind < 7.5) return exp2(-r2 * 3.46) * 0.9;
   if (kind < 8.5) { vec2 q = uv * vec2(1.0, 1.65); float d = length(q - vec2(0.0, -0.1)); float xs = uv.x * 6.0; return smoothstep(1.0, 0.72, d) * (1.0 - 0.5 * exp2(-xs * xs * 1.4427) * step(0.55, uv.y)); }
-  return exp2(-abs(uv.x * uv.y) * 57.7 - r2 * 2.3) + exp2(-r2 * 26.0);
+  if (kind < 9.5) return exp2(-abs(uv.x * uv.y) * 57.7 - r2 * 2.3) + exp2(-r2 * 26.0);
+  /* a lantern of light: a small bright core in a soft halo */
+  return exp2(-r2 * 18.0) + 0.35 * exp2(-r2 * 3.0) * max(1.0 - r2, 0.0);
 }
 void main(){
   float a = shapeOf(vKind, vUV) * vA;
@@ -2060,7 +2164,7 @@ Gfx3D.create = function (canvas, opts) {
   var cellGeo = buildCells();
   var cellData = packMesh(cellGeo.mesh, false), cellIdx = new Uint16Array(cellGeo.mesh.idx);
   var VT = cellGeo.table;
-  var wallT = 0.25, floorT = 0.5, shellNoCope = false;
+  var wallT = 0.25, floorT = 0.5, shellNoCope = false, shellBeside = false;
   var shellGeo = buildShell(wallT, floorT, false);
   var shellData = packMesh(shellGeo, true), shellIdx = new Uint16Array(shellGeo.idx);
   var niche = null, nicheData = null, nicheIdx = null;
@@ -2237,10 +2341,10 @@ Gfx3D.create = function (canvas, opts) {
     locs(P.backc, ["uRes"].concat(stoneU));
     locs(P.ribbon, ["uR0", "uR1", "uR2", "uR3"]);
     locs(P.part, ["uNow"]);
-    /* uAnchor and uMouth are offered to sky.js for composing a tall
-       screen (see passSky); a sky that does not declare them gets null
-       locations, and setting a null location is a no-op */
-    var skyU = ["uRes", "uTime", "uA", "uB", "uMix", "uReact", "uMotion", "uDanger", "uTopA", "uHorA", "uTopB", "uHorB", "uWell", "uHole", "uAnchor", "uMouth"];
+    /* uAnchor, uMouth and uFloor are offered to sky.js for composing
+       the sky round the well (see passSky); a sky that does not declare
+       them gets null locations, and setting a null location is a no-op */
+    var skyU = ["uRes", "uTime", "uA", "uB", "uMix", "uReact", "uMotion", "uDanger", "uTopA", "uHorA", "uTopB", "uHorB", "uWell", "uHole", "uAnchor", "uMouth", "uFloor"];
     locs(P.plain, skyU);
     if (P.sky !== P.plain) locs(P.sky, skyU);
     locs(P.bright, ["uSrc", "uTexel", "uInv", "uP"]);
@@ -2519,7 +2623,9 @@ Gfx3D.create = function (canvas, opts) {
     SK.trans = glass ? 0.5 : 0.2; SK.tfall = glass ? 1 : 0;   /* broad band inside the edge, or narrow */
     SK.coatK = id === "jelly" ? 1.2 : 0.35;
     SK.paper = id === "lantern" || (SK.fibre > 0.3 && !glass) ? 1 : 0;
-    SK.sheen = glass ? 0.25 : 0; SK.thick = glass ? 0.1 : 0; SK.see = glass ? 0.8 : 0;
+    /* the thicker middle deepens glass in its own hue (and paper toward
+       its frame); the wall seen through it is a faint, far-off thing */
+    SK.sheen = glass ? 0.25 : 0; SK.thick = glass ? 0.35 : (SK.paper ? 0.15 : 0); SK.see = glass ? 0.4 : 0;
     var g = m.grade || {};
     vec3of(g.lift, 0, SK.lift); vec3of(g.gamma, 1, SK.gamma); vec3of(g.gain, 1, SK.gain);
     for (var i = 0; i < 3; i++) if (!(SK.gamma[i] > 0.05)) SK.gamma[i] = 1;
@@ -2786,6 +2892,25 @@ Gfx3D.create = function (canvas, opts) {
       }
     }
   }
+  /* The band of light a clear becomes: one per run of adjacent cleared
+     rows, drawn as one body however many rows it spans, so its rows can
+     never open seams between them. It draws in toward the run's own
+     midline as it goes out. Its sweep is how far behind its start its
+     far end starts, in units of its own time: positive along the row,
+     negative up the run (a Quad goes out from the bottom row up). */
+  var BG = 12;
+  var bgOn = new Uint8Array(BG), bgY = new Float32Array(BG), bgK = new Float32Array(BG), bgT0 = new Float32Array(BG);
+  var bgRise = new Float32Array(BG), bgD0 = new Float32Array(BG), bgDur = new Float32Array(BG);
+  var bgSweep = new Float32Array(BG), bgRib = new Float32Array(BG), bgHead = 0;
+  /* this frame's middle, height and light of each run, for its halo */
+  var bgMidF = new Float32Array(BG), bgHF = new Float32Array(BG), bgLitF = new Float32Array(BG);
+  function bandRun(y0, k, rise, d0, dur, sweep, rib) {
+    var i = bgHead;
+    for (var tries = 0; tries < BG; tries++) { if (!bgOn[(bgHead + tries) % BG]) { i = (bgHead + tries) % BG; break; } }
+    bgHead = (i + 1) % BG;
+    bgOn[i] = 1; bgY[i] = y0; bgK[i] = k; bgT0[i] = fxNow; bgRise[i] = rise; bgD0[i] = d0;
+    bgDur[i] = dur; bgSweep[i] = sweep; bgRib[i] = rib;
+  }
   /* bands of light over cleared rows; the Quad band; the Empty Well */
   var bands = []; for (var bi0 = 0; bi0 < 6; bi0++) bands.push({ on: false, t0: 0, y: 0, h: 0.75, amp: 0, rise: 0.2, fall: 0.5, lift: 0 });
   function band(y, h, amp, rise, fall, lift) {
@@ -2983,16 +3108,23 @@ Gfx3D.create = function (canvas, opts) {
       if (!(kb & 8) && (x === 0 || mirB[i - 1])) fl |= 128;
       tmpKB[i] = kb; tmpFl[i] = fl;
     }
-    for (i = 0; i < W * ROWS; i++) if (tmpGrid[i] >= 0) tmpGrid[i] = 1;
     var rise = still ? 0 : (quad ? 0.22 : 0.2);
     var sweep = still ? 0 : (twist ? 0.42 : (quad ? 0.0 : 0.12));
     var start0 = still ? 0.04 : (twist ? 0.04 : (quad ? 0.2 : 0.16));
     var cellDur = still ? 0.15 : (quad ? 0.42 : 0.3);
-    for (i = 0; i < W * ROWS; i++) {
+    /* each cleared cell's own body, lit in its own colour through the rise */
+    if (rise > 0) for (i = 0; i < W * ROWS; i++) {
       if (tmpGrid[i] < 0) continue;
       x = i % W; yy = (i / W) | 0;
-      fxCell(x, yy, tmpV[i], keyIn(x, yy), tmpKB[i], tmpFl[i], fxNow, rise,
-             start0 + sweep * ((x + 0.5) / 10) + (quad ? (yy - minRow) * 0.03 : 0), cellDur, 0, 1);
+      fxCell(x, yy, tmpV[i], 0, tmpKB[i], tmpFl[i], fxNow, rise, CLEAR_SWAP, CLEAR_XF, 0, 1);
+    }
+    /* then the band: one per run of adjacent cleared rows */
+    for (y = minRow; y <= maxRow; y++) {
+      if (!clearedRow[y] || (y > minRow && clearedRow[y - 1])) continue;
+      var k0 = 0;
+      while (y + k0 < ROWS && clearedRow[y + k0]) k0++;
+      var sw = quad ? -(k0 * 0.03) / cellDur : sweep / cellDur;
+      bandRun(y, k0, rise, start0, cellDur, sw, twist && !still ? fxNow + 0.06 : -1);
     }
 
     /* the rows above: hold, then spring down (released early the moment
@@ -3050,15 +3182,16 @@ Gfx3D.create = function (canvas, opts) {
       /* a twisting ribbon along each cleared row, and a spiral of
          particles round the T that made it */
       /* the helix runs each cleared row in 420 ms, starting as the row
-         glow rises; the band goes out behind its head */
-      for (y = minRow; y <= maxRow; y++) if (clearedRow[y]) ribbon(1, 0, y + 0.5, 0, 0, 0.11, 1, 0, 0.42, 1.6, 0, 0.06);
+         glow rises; the band goes out behind its head, and steps back
+         under it so the ribbon reads */
+      for (y = minRow; y <= maxRow; y++) if (clearedRow[y]) ribbon(1, 0, y + 0.5, 0, 0, 0.2, 1, 0, 0.42, 1.6, 0, 0.06);
       if (n >= 2) {
-        /* then, once the ribbon has run, a spiral of light round the T */
+        /* then, as the ribbon runs out, a spiral of light round the T */
         var arms = n >= 3 ? 1.6 : 1.1, cnt = pCount(n >= 3 ? 60 : 40), ws = domWorld();
         for (k = 0; k < cnt; k++) {
           var a = k * 0.42, sp = 1.2 + (k / Math.max(1, cnt)) * 2.6 * arms;
           spawnP(lastLockX, lastLockY, Math.cos(a) * sp, Math.sin(a) * sp, -Math.cos(a) * 0.8, -Math.sin(a) * 0.8,
-                 fxNow + 0.4 + k * 0.006, 0.8 + rnd() * 0.4, 0.06 + rnd() * 0.04, 4,
+                 fxNow + 0.25 + k * 0.006, 0.8 + rnd() * 0.4, 0.1 + rnd() * 0.04, 4,
                  mixf(ws.pcol[0], 1, 0.4) * 2.4, mixf(ws.pcol[1], 1, 0.4) * 2.4, mixf(ws.pcol[2], 1, 0.4) * 2.4, 0.9, 0);
         }
       }
@@ -3068,14 +3201,17 @@ Gfx3D.create = function (canvas, opts) {
       /* stillness: one slow breath of light, and motes rising from the
          floor like lanterns; no kick */
       emptyFx.t0 = fxNow; emptyFx.amp = govern(0.075, 300, 900);
-      /* a few dozen lanterns of light, not a fizz: born across the whole
-         floor over a second and a half, each setting off slowly and
-         gathering pace, swaying a little, until it leaves by the mouth */
+      /* a few dozen small lanterns of light in the world's own colour,
+         not a fizz: born low in the shaft over the first second, each
+         setting off briskly and easing to a drift as it climbs, swaying a
+         little, a bright core in a soft halo */
       var ne = pCount(EMPTY_FX.motes), w0 = domWorld();
+      var mr = w0.pcol[0] * 1.6, mg2 = w0.pcol[1] * 1.6, mb = w0.pcol[2] * 1.6;
+      if (mr > 1.5 * (mg2 + mb)) mr = 1.5 * (mg2 + mb);
       for (k = 0; k < ne; k++) {
-        spawnP(0.3 + rnd() * 9.4, 0.1 + rnd() * 0.5, 0, 0.35 + rnd() * 0.45, 0, 1.3 + rnd() * 0.4,
-               fxNow + 0.1 + rnd() * 1.5, 4 + rnd() * 2, 0.32 + rnd() * 0.24, 0,
-               mixf(w0.key[0], 1, 0.2) * 1.3, mixf(w0.key[1], 0.86, 0.2) * 1.2, mixf(w0.key[2], 0.6, 0.2) * 1.05, 0.5, 0.15);
+        var v0 = 0.9 + rnd() * 0.6, lf = 4 + rnd() * 2;
+        spawnP(0.3 + rnd() * 9.4, rnd() * 2.5, 0, v0, 0, (0.5 - v0) / lf,
+               fxNow + rnd() * 0.9, lf, 0.12 + rnd() * 0.08, 10, mr, mg2, mb, 0.8, 0.15);
       }
     }
   }
@@ -3138,6 +3274,7 @@ Gfx3D.create = function (canvas, opts) {
   }
   function startEnd(surface) {
     endFx.on = true; endFx.done = false; endFx.t0 = fxNow; endFx.surface = surface;
+    for (var i = 0; i < W * ROWS; i++) endSpent[i] = 0;
     endFx.amp = govern(0.14, 600, 900) / 0.9;
     if (surface) { riseT0 = fxNow; }
     claim(3, 1.5);
@@ -3148,6 +3285,7 @@ Gfx3D.create = function (canvas, opts) {
     A.on = false; spawnFlag = false; enterFrom = 0; flyer.on = false;
     setl.kind = SET_NONE; major.E = 0; major.dur = 0; kick.t0 = -1e9; hitUntil = 0;
     for (i = 0; i < FXC; i++) fcOn[i] = 0;
+    for (i = 0; i < BG; i++) bgOn[i] = 0;
     for (i = 0; i < bands.length; i++) bands[i].on = false;
     for (i = 0; i < ribbons.length; i++) ribbons[i].on = false;
     for (i = 0; i < rings.length; i++) rings[i].t0 = -1e9;
@@ -3491,24 +3629,30 @@ Gfx3D.create = function (canvas, opts) {
           if (endFx.on) {
             /* The run ends: the stack rises into light, one body at a
                time from the top down, so nothing ever passes through
-               anything. Each lights from within, lifts 1.2 to 1.8 cells
-               (the higher, the further) and goes out as it lifts, drawing
-               in toward its own middle as it goes. */
+               anything. Each brightens in its own colour (to nearly twice
+               its light in a quarter of a second, swelling a little as it
+               does), lifts 1.2 to 1.8 cells (the higher, the further), and
+               is worn away from its edges inward while its light goes on
+               up the shaft as motes, two from every cell. */
             if (pid > 0) bodyOf(b, pa, x, y, pid);
             else { BODY[0] = y; BODY[1] = x + 0.5; BODY[2] = y + 0.5; }
             var rel = top > 0 ? BODY[0] / top : 1;
-            var et = endT - (O.motion === "full" ? (1 - rel) * 0.9 : 0);
+            var et = endT - (full ? (1 - rel) * 0.9 : 0);
             if (et > 0) {
-              lay = 2; op = 1; flags = flags & 7;
-              if (O.motion === "still") { glow = 1; dis = sat(et / 0.15); }
+              flags = flags & 7;
+              if (O.motion === "still") { glow = 0.65; dis = Math.max(0.0006, sat(et / 0.15)); }
               else {
-                glow = smooth(et / 0.25);
-                dis = Math.max(0.0006, sat((et - 0.05) / 0.55));
-                if (O.motion === "full") ey = (1.2 + 0.6 * rel) * easeOut3(et / 0.6);
+                glow = 0.65 * smooth(et / 0.25);
+                dis = Math.max(0.0006, sat((et - 0.15) / 0.75));
+                if (full) ey = (1.2 + 0.6 * rel) * easeOut3(et / 0.6);
               }
-              var shrink = O.motion === "full" ? 1 - 0.3 * smooth((dis - 0.3) / 0.7) : 1;
+              var grow = full ? 1 + 0.05 * smooth(et / 0.3) : 1;
               inst(2, VARIANT_OF[key], BODY[1], BODY[2] + oy + ey, 0, 0, x + 0.5 - BODY[1], y + 0.5 - BODY[2],
-                   shrink, shrink, v, glow, dis, flags, 0, 0, 1, op);
+                   grow, grow, v, glow, dis, flags, 0, 0, 1, 2);
+              if (dis > 0.3 && !endSpent[i] && O.motion !== "still") {
+                endSpent[i] = 1;
+                endMote(x + 0.5 + (BODY[1] - x - 0.5) * (1 - grow), y + 0.5 + oy + ey, v);
+              }
               continue;
             }
           }
@@ -3520,7 +3664,6 @@ Gfx3D.create = function (canvas, opts) {
           }
         }
       }
-      if (endFx.on && !endFx.done && O.motion !== "still" && endT < 1.5) endMotes(b, endT, top);
     }
     /* cells dissolving into light (see fxCell for their life) */
     var pdir = domWorld().pdir;
@@ -3537,22 +3680,38 @@ Gfx3D.create = function (canvas, opts) {
              fcV[i], fcGlow[i] * smooth(ft / 0.2), dis, 0, 0, 0, 1, 1);
         continue;
       }
-      var lu = fcRise[i] > 0 ? smooth(ft / fcRise[i]) : 1;
-      bandLive = Math.max(bandLive, lu * (1 - smooth(sat(prog * 1.3 - 0.15))));
-      /* the band takes over from the bodies at 170 ms, over 60 ms */
-      var xf = fcRise[i] > 0 ? smooth((ft - CLEAR_SWAP) / CLEAR_XF) : 1;
-      /* Both stand a little proud of the face: when the rows above are let
-         go at once (a mode with no clear delay) they settle behind the
+      /* a cleared cell's own body, lit from within until the band has
+         taken over from it (fxCell's d0 and dur are that handover). It
+         stands a little proud of the face: when the rows above are let go
+         at once (a mode with no clear delay) they settle behind the
          light, which goes out over them, instead of fighting it for the
-         same place. The band lifts a little toward the way the world's
-         particles travel, keeping its size so no seam opens in it. */
-      if (xf < 1) inst(0, VARIANT_OF[fcKeyB[i]], fcX[i] + 0.5, fcY[i] + 0.5, 0.06, 0, 0, 0, 1, 1,
-                       fcV[i], lu, 0, fcFl[i], 0, 0, 1, 0);
-      if (xf > 0) {
-        var lift = 0.12 * pdir * smooth(sat(prog));
-        inst(2, VARIANT_OF[fcKey[i]], fcX[i] + 0.5, fcY[i] + 0.5 + lift, 0.064, 0, 0, 0, 1, 1,
-             fcV[i], lu, dis, 8, 0, 0, 1, xf);
-      }
+         same place. */
+      inst(0, VARIANT_OF[fcKeyB[i]], fcX[i] + 0.5, fcY[i] + 0.5, 0.06, 0, 0, 0, 1, 1,
+           fcV[i], fcRise[i] > 0 ? smooth(ft / fcRise[i]) : 1, 0, fcFl[i], 0, 0, 1, 0);
+    }
+    /* the bands: one body per run of cleared rows, drawn in toward the
+       run's midline as it goes out (whole, so no seam ever opens between
+       its rows), lifting a little the way the world's particles travel */
+    for (i = 0; i < BG; i++) {
+      if (!bgOn[i]) continue;
+      var bt = fxNow - bgT0[i], bsw = Math.abs(bgSweep[i]);
+      var bp = (bt - bgD0[i]) / bgDur[i];
+      if (bp >= 1 + bsw) { bgOn[i] = 0; continue; }
+      var blu = bgRise[i] > 0 ? smooth(bt / bgRise[i]) : 1;
+      var bxf = bgRise[i] > 0 ? smooth((bt - CLEAR_SWAP) / CLEAR_XF) : 1;
+      var bpg = sat((bp - 0.5 * bsw) * 1.3 - 0.15);
+      bandLive = Math.max(bandLive, blu * (1 - smooth(bpg)));
+      bgLitF[i] = 0;
+      if (bxf <= 0) continue;
+      var bs = full ? 1 - 0.8 * smooth((bpg - 0.35) / 0.55) : 1;
+      var bmid = bgY[i] + bgK[i] * 0.5 + 0.12 * pdir * smooth(sat(bp));
+      /* where the Twist's ribbon has got to, so the band can step back
+         under its head */
+      var hx = -99;
+      if (bgRib[i] > 0) { var hq = (fxNow - bgRib[i]) / 0.42; if (hq > -0.1 && hq < 1.2) hx = 0.06 + hq * 9.88; }
+      bgMidF[i] = bmid; bgHF[i] = bgK[i] * bs; bgLitF[i] = blu * bxf * (1 - smooth((bpg - 0.45) / 0.45));
+      inst(2, BAND_VAR, CX, bmid, 0.064, 0, 0, 0, W, bgK[i] * bs, bgSweep[i], blu, bp > 0 ? Math.max(0.0006, bp) : 0, 8,
+           bgK[i] * bs, hx, 1, bxf);
     }
     /* the piece in hand */
     if (A.on) {
@@ -3622,21 +3781,16 @@ Gfx3D.create = function (canvas, opts) {
     }
     groupInstances();
   }
-  function endMotes(b, endT, top) {
-    /* rising light: a few motes leave each body as it lifts */
-    var ws = domWorld();
-    var rate = pCount(120) / 1.2;
-    var want = rate * frameDt;
-    while (want > 0) {
-      if (want < 1 && rnd() > want) break;
-      want -= 1;
-      var row = Math.floor(rnd() * (top + 1));
-      var st = (1 - (top > 0 ? row / top : 1)) * (O.motion === "full" ? 0.9 : 0);
-      if (endT < st || endT > st + 0.5) continue;
-      var x = rnd() * 10;
-      if (!b[row * W + Math.min(9, x | 0)]) continue;
-      spawnP(x, row + rnd(), (rnd() - 0.5) * 0.3, 1.0 + rnd() * 1.4, 0, 0.5, fxNow, 1.4 + rnd() * 0.9,
-             0.09 + rnd() * 0.07, 0, mixf(ws.key[0], 1, 0.3) * 1.8, mixf(ws.key[1], 0.9, 0.3) * 1.7, mixf(ws.key[2], 0.75, 0.3) * 1.5, 0.85, 0.2);
+  /* the light of one cell of a body going out at a run's end: two motes
+     of its own colour, turned halfway to the world's key light, rising */
+  var endSpent = new Uint8Array(W * ROWS);
+  function endMote(cx, cy, v) {
+    var n = pCount(2), ws = domWorld(), c = v >= 1 && v <= 7 ? v * 4 : 0;
+    var r = mixf(pal[c], ws.key[0], 0.5) * 1.6, g = mixf(pal[c + 1], ws.key[1], 0.5) * 1.6, bl = mixf(pal[c + 2], ws.key[2], 0.5) * 1.6;
+    if (r > 1.5 * (g + bl)) r = 1.5 * (g + bl);
+    for (var k = 0; k < n; k++) {
+      spawnP(cx + (rnd() - 0.5) * 0.7, cy + (rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.25, 1.0 + rnd() * 0.6, 0, 0.3,
+             fxNow + rnd() * 0.12, 1.2 + rnd() * 0.6, 0.08 + rnd() * 0.04, 10, r, g, bl, 0.85, 0.15);
     }
   }
   function groupInstances() {
@@ -3671,10 +3825,23 @@ Gfx3D.create = function (canvas, opts) {
     sprite(reg, (x0 + x1) * 0.5, (y0 + y1) * 0.5, z, 0, w, len * 0.5, 3, px, r, g, b, a, fade0, 0, layer,
            Math.atan2(dy, dx) - Math.PI / 2);
   }
+  var sprBloomN = 0, colLow = new Int8Array(W);
   function buildSprites(view) {
     sprN = 0;
     var i, k, t, kc = cur.key, wr = 1.0, wg = 0.945, wb = 0.87;
     var full = motionFull();
+    /* First, and drawn into the bloom rather than the scene: each band's
+       own light at 1.3 times, so a halo of it spills a third of a cell or
+       so onto the stone either side and the band reads as light, not as
+       a slab laid over the well */
+    var bcR = (kc[0] + pal[0]) * 0.5, bcG = (kc[1] + pal[1]) * 0.5, bcB = (kc[2] + pal[2]) * 0.5;
+    var bcL = Math.max(1e-3, 0.2126 * bcR + 0.7152 * bcG + 0.0722 * bcB);
+    for (i = 0; i < BG; i++) {
+      if (!bgOn[i] || bgLitF[i] <= 0.002) continue;
+      sprite(0, CX, bgMidF[i], 0.064, 0, W * 0.5, Math.max(0.05, bgHF[i] * 0.5), 1, 0.04,
+             bcR / bcL, bcG / bcL, bcB / bcL, 0.65 * bgLitF[i], 0, 0, 0, 0);
+    }
+    sprBloomN = sprN;
     /* the motes in the shaft: a soft rise in, a long drift, a soft fade,
        brighter where the mouth's light reaches */
     var mc = motesCap();
@@ -3699,7 +3866,6 @@ Gfx3D.create = function (canvas, opts) {
       var yb = bd.y + bd.lift * easeOut3(t / (bd.rise + bd.fall));
       /* the same light the band is made of: halfway between the world's
          key light and the skin's warm white, never a piece's colour */
-      var bcR = (kc[0] + pal[0]) * 0.5, bcG = (kc[1] + pal[1]) * 0.5, bcB = (kc[2] + pal[2]) * 0.5;
       var bcM = Math.max(bcR, bcG, bcB, 1e-3);
       sprite(0, CX, yb, 0.06, 0, W * 0.5 - 0.1, bd.h, 5, 0, bcR / bcM, bcG / bcM, bcB / bcM, bd.amp * env * 0.7, 0, 0, 0, 0);
     }
@@ -3711,16 +3877,27 @@ Gfx3D.create = function (canvas, opts) {
       var ta = (1 - t / 0.14) * 0.32 * Math.min(1.3, juiceK());
       sprite(0, tr.x, (tr.y0 + tr.y1) * 0.5, 0.04, 0, 0.4, (tr.y1 - tr.y0) * 0.5, 8, 0, kc[0], kc[1], kc[2], ta, 0, 0, 0, 0);
     }
-    /* a faint streak above a soft-dropping piece */
+    /* a faint streak of the key light above a soft-dropping piece, as
+       wide as the piece */
     if (A.on && full && fxNow - softT0 < 0.15) {
-      var sa = (1 - (fxNow - softT0) / 0.15) * 0.07;
-      sprite(0, A.bcx, A.py + 2.2, 0.03, 0, 0.5, 1.6, 8, 0, kc[0], kc[1], kc[2], sa, 0, 0, 0, Math.PI);
+      var sa = (1 - (fxNow - softT0) / 0.15) * 0.04, smn = 9, smx = -9;
+      for (i = 0; i < A.n; i++) { smn = Math.min(smn, A.ox[i]); smx = Math.max(smx, A.ox[i]); }
+      sprite(0, A.bcx, A.py + 2.2, 0.03, 0, (smx - smn + 1) * 0.5, 1.6, 8, 0, kc[0], kc[1], kc[2], sa, 0, 0, 0, Math.PI);
     }
     /* the rim: Unbroken's gold filament and a Triple's shimmer (Breath breathes the shaft's own light instead; see stepState) */
     if (unbroken > 0.01) {
       /* along the coping, from the niche (when it sits on the mouth) to
          the far side */
       var fx0 = niche && niche.onMouth ? niche.bx1 + 0.2 : -wallT + 0.05, fx1 = W + wallT - 0.05;
+      /* and short of the next piece where it stands on the coping, so
+         the filament never runs through it */
+      if (slots.length && qN > 0 && O.previews > 0) {
+        var s0 = slots[0], t0 = qCur[0];
+        if (t0 >= 1 && t0 <= 7 && s0.y - s0.s * 1.2 < LIP_Y + COPE_H + 0.2) {
+          var pw = (t0 === 1 ? 4 : (t0 === 2 ? 2 : 3)) * s0.s * 0.5;
+          if (s0.x + pw > fx0 && s0.x - pw < fx1) fx1 = Math.min(fx1, s0.x - pw - 0.2);
+        }
+      }
       hair(0, fx0, LIP_Y + COPE_H + 0.012, fx1, LIP_Y + COPE_H + 0.012, 0.1, 1.6, 1.0, 0.72, 0.32, 1.6 * unbroken, 1, 0);
       sprite(0, (fx0 + fx1) * 0.5, LIP_Y + COPE_H, 0.1, 0, (fx1 - fx0) * 0.5, 0.09, 1, 0.9, 1.0, 0.7, 0.3, 0.25 * unbroken, 0, 0, 0, 0);
     }
@@ -3737,25 +3914,28 @@ Gfx3D.create = function (canvas, opts) {
        more than the stone it is set in. (Breath itself breathes the
        shaft's own light; see stepState.) */
     if (beadsShown) {
-      var rb = Math.min(0.08, floorT * 0.24);
+      /* each bead's quad is wider than the gap to the next, so the glow
+         of lit beads runs together into one string of light rather than
+         a row of holes; an unlit bead is barely more than its stone */
+      var rb = Math.min(0.08, floorT * 0.24), bq = rb * 5;
       var ready2 = view && view.breath && view.breath.charge >= 10 ? 1 : 0;
       var bcr = kc[0] * 0.7 + cur.rim[0] * 0.3, bcg = kc[1] * 0.7 + cur.rim[1] * 0.3, bcb = kc[2] * 0.7 + cur.rim[2] * 0.3;
       for (k = 0; k < 20; k++) {
         var lv = beads[k];
         var bx = 0.25 + k * 0.5;
         var br = 0.08 + lv * (0.45 + 0.15 * ready2);
-        sprite(0, bx, -floorT * 0.55, 0.015, 0, rb, rb, 6, 0.25 + 0.75 * lv,
-               mixf(cur.wall[0] * 2.2 + 0.05, bcr, lv), mixf(cur.wall[1] * 2.2 + 0.05, bcg, lv), mixf(cur.wall[2] * 2.2 + 0.05, bcb, lv),
-               br, lv * 0.35, 0, 0, 0);
+        sprite(0, bx, -floorT * 0.55, 0.015, 0, bq, bq, 6, 0.25 + 0.75 * lv,
+               mixf(cur.wall[0] * 1.2 + 0.01, bcr, lv), mixf(cur.wall[1] * 1.2 + 0.01, bcg, lv), mixf(cur.wall[2] * 1.2 + 0.01, bcb, lv),
+               br, lv * 0.22, 0.2, 0, 0);
       }
     }
     /* ---- the never-dimmed layer ---- */
     /* while the rows above a clear settle, the landing light would be
        drawn at a place the stack has not reached yet: it waits; and while
-       a band of light is going out it stays faint, so its rails never cut
-       seams through the band. It comes back as the light goes. */
-    if (setl.kind === SET_CLEAR) landVis = 0;
-    else landVis += (1 - 0.85 * bandLive - landVis) * (1 - Math.exp(-frameDt / 0.04));
+       a band of light is going out it waits too, so no rail or tick ever
+       cuts through the band. It comes back as the light goes. */
+    if (setl.kind === SET_CLEAR || bandLive > 0.05) landVis = 0;
+    else landVis += (1 - landVis) * (1 - Math.exp(-frameDt / 0.04));
     if (A.on && view.active) {
       var act = view.active, gh = view.ghost, b = view.board;
       var lt = SK.landing * landVis, cI = A.type * 4;
@@ -3768,16 +3948,28 @@ Gfx3D.create = function (canvas, opts) {
           var gx = cellX(gh[i]), gy = cellY(gh[i]);
           if (gx < gx0) gx0 = gx; if (gx > gx1) gx1 = gx; if (gy < gy0) gy0 = gy; if (gy > gy1) gy1 = gy;
         }
-        /* (1) light pools on the exact cells it will rest on */
+        /* (1) light pools on the exact cells it will rest on: the lowest
+           cell of each column, where something holds it up, and one soft
+           pool for each run of them at one height, fused like the body it
+           predicts (a pool per cell read as a row of headlights) */
+        for (i = 0; i < W; i++) colLow[i] = -1;
         for (i = 0; i < gh.length; i++) {
           gx = cellX(gh[i]); gy = cellY(gh[i]);
-          var lowest = true;
-          for (k = 0; k < gh.length; k++) if (cellX(gh[k]) === gx && cellY(gh[k]) < gy) lowest = false;
-          if (!lowest) continue;
-          var supported = gy === 0 || (b && b[(gy - 1) * W + gx]);
-          if (!supported) continue;
-          if (gy > 0) sprite(2, gx + 0.5, gy - 0.3, 0.012, 0, 0.46, 0.3, 2, 0, lr, lg, lb, 0.75 * lt, 0, 0, 1, 0);
-          sprite(2, gx + 0.5, gy + 0.015, -0.45, 1, 0.62, 0.62, 0, 0, lr, lg, lb, 0.8 * lt, 0, 0, 1, 0);
+          if (gx < 0 || gx >= W) continue;
+          if (colLow[gx] < 0 || gy < colLow[gx]) colLow[gx] = gy;
+        }
+        for (i = 0; i < W; i++) {
+          gy = colLow[i];
+          if (gy >= 0 && !(gy === 0 || (b && b[(gy - 1) * W + i]))) colLow[i] = -1;
+        }
+        for (i = 0; i < W; i++) {
+          gy = colLow[i];
+          if (gy < 0 || (i > 0 && colLow[i - 1] === gy)) continue;
+          var re = i;
+          while (re + 1 < W && colLow[re + 1] === gy) re++;
+          var rcx = (i + re + 1) * 0.5, rhw = (re - i + 1) * 0.5 - 0.04;
+          if (gy > 0) sprite(2, rcx, gy - 0.3, 0.012, 0, rhw, 0.3, 2, 0, lr, lg, lb, 0.75 * lt, 0, 0, 1, 0);
+          sprite(2, rcx, gy + 0.015, -0.45, 1, rhw, 0.3, 1, 0.45, lr, lg, lb, 0.8 * lt, 0, 0, 1, 0);
         }
         /* (2) two hairline rails from the piece's outer columns */
         var amin = 99;
@@ -3886,11 +4078,14 @@ Gfx3D.create = function (canvas, opts) {
     ubo[52] = SK.sss; ubo[53] = SK.speckle; ubo[54] = SK.fibre; ubo[55] = SK.unlit ? 1 : 0;
     ubo[56] = SK.outline ? 1 : 0; ubo[57] = SK.glyph; ubo[58] = SK.mono ? 1 : 0; ubo[59] = SK.gloss;
     var et = fxNow - emptyFx.t0, live = 0;
-    /* the Empty Well's breath: a front of light climbs from the floor to
-       the mouth over the 300 ms rise, and the whole shaft lets it go over
-       the 900 ms fall */
-    ubo[60] = et >= 0 && et < 1.2 ? emptyFx.amp / 0.075 * (et < 0.3 ? smooth(et / 0.3) : 1 - smooth((et - 0.3) / 0.9)) : 0;
-    var front = et >= 0 && et < 1.2 ? 24 * easeOut3(et / 0.3) - 1 : -1;
+    /* The Empty Well's breath (see shaftLive): a band of light four rows
+       tall climbs from the floor to the mouth in 300 ms, and the light it
+       leaves behind lets go from the floor upward over the next 900 ms,
+       so it leaves by the mouth */
+    var eOn = et >= 0 && et < 1.3;
+    ubo[60] = eOn ? emptyFx.amp / 0.075 : 0;
+    var front = !eOn ? -40 : (et < 0.3 ? -2 + 28 * easeOut3(et / 0.3) : 26 + (et - 0.3) * 25);
+    var tail = !eOn || et < 0.3 ? -40 : -3 + 30 * easeInOut((et - 0.3) / 0.9);
     ubo[62] = unbroken;
     var endT = fxNow - endFx.t0;
     ubo[63] = endFx.on && endT < 2.2 ? Math.sin(Math.PI * clamp(endT / 2.2, 0, 1)) * 0.6 : 0;
@@ -3904,7 +4099,7 @@ Gfx3D.create = function (canvas, opts) {
     ubo[61] = live;
     for (i = 0; i < 48; i++) ubo[88 + i] = pal[i];
     ubo[136] = SK.trans; ubo[137] = SK.tfall; ubo[138] = SK.coatK; ubo[139] = SK.paper;
-    ubo[140] = t.refract ? SK.sheen : 0; ubo[141] = SK.thick; ubo[142] = SK.see; ubo[143] = 0;
+    ubo[140] = t.refract ? SK.sheen : 0; ubo[141] = SK.thick; ubo[142] = SK.see; ubo[143] = tail;
     ubo[144] = cur.hor[0]; ubo[145] = cur.hor[1]; ubo[146] = cur.hor[2]; ubo[147] = shaftBreath;
     ubo[148] = cur.top[0]; ubo[149] = cur.top[1]; ubo[150] = cur.top[2]; ubo[151] = front;
     gl.bindBuffer(gl.UNIFORM_BUFFER, B.ubo);
@@ -3940,38 +4135,33 @@ Gfx3D.create = function (canvas, opts) {
     var e = projY(x0, y0), f = projY(x1, y1), g = projY(x0, y1), h = projY(x1, y0);
     out[2] = Math.min(e, h); out[3] = Math.max(f, g);
   }
-  /* where the stack is, for the stone: the board in red, the falling
-     piece in green (it shades the shaft below it but leaves no contact
-     shadow) */
-  var occG = new Uint8Array(W * 24), occT = new Uint8Array(W * 24), keyN = [1, 1, 1];
+  /* Where the stack is, for the stone: the board in red (the green
+     channel is kept for a cast shadow and left empty). The piece in hand
+     is not in it: its shadow on a wall three cells back was a soft dark
+     blob that followed it about, a stain rather than depth, and leaving
+     it out means the shaft's light is redrawn only when the stack moves. */
+  var keyN = [1, 1, 1];
   function uploadOcc(view) {
     var b = view.board, i, changed = occDirty;
     /* the key light's colour at unit brightness, for the glow's tint */
     var kl = Math.max(1e-3, 0.2126 * cur.key[0] + 0.7152 * cur.key[1] + 0.0722 * cur.key[2]);
     keyN[0] = cur.key[0] / kl; keyN[1] = cur.key[1] / kl; keyN[2] = cur.key[2] / kl;
-    for (i = 0; i < W * 24; i++) { occG[i] = 0; occT[i] = 0; }
-    if (A.on && view.active && view.active.cells) {
-      var cells = view.active.cells;
-      for (i = 0; i < cells.length; i++) {
-        var x = cellX(cells[i]), y = cellY(cells[i]);
-        if (x >= 0 && x < W && y >= 0 && y < 24) { occG[y * W + x] = 200; occT[y * W + x] = A.type; }
-      }
-    }
     var gone = endFx.on && endFx.done;
     for (i = 0; i < W * 24; i++) {
       var v = (b && b[i] && !gone) ? 255 : 0;
       if (occData[i * 2] !== v) { occData[i * 2] = v; changed = true; }
-      if (occData[i * 2 + 1] !== occG[i]) { occData[i * 2 + 1] = occG[i]; changed = true; }
+      if (occData[i * 2 + 1] !== 0) { occData[i * 2 + 1] = 0; changed = true; }
       /* the colour each cell gives the wall behind it: the piece's own,
-         half of it turned to the world's key light at the same brightness,
-         and never redder than 60% of its light (linear), so a pink piece
-         lends the stone a warm blush and never a red halo; nothing for
-         silt. Written as 8-bit linear, plenty for a glow this soft. */
-      var t = occT[i] || (v ? b[i] : 0), o = i * 4, cr = 0, cg = 0, cb = 0;
+         three quarters of it turned to the world's key light at the same
+         brightness, and never redder than 60% of its light (linear), so a
+         pink piece lends the stone a warm blush and never a red halo, and
+         a clear in Dawn no brown cloud; nothing for silt. Written as
+         8-bit linear, plenty for a glow this soft. */
+      var t = v ? b[i] : 0, o = i * 4, cr = 0, cg = 0, cb = 0;
       if (t >= 1 && t <= 7) {
         var pr0 = pal[t * 4], pg0 = pal[t * 4 + 1], pb0 = pal[t * 4 + 2];
         var pl = 0.2126 * pr0 + 0.7152 * pg0 + 0.0722 * pb0;
-        var tr = mixf(pr0, pl * keyN[0], 0.5), tg = mixf(pg0, pl * keyN[1], 0.5), tb = mixf(pb0, pl * keyN[2], 0.5);
+        var tr = mixf(pr0, pl * keyN[0], 0.75), tg = mixf(pg0, pl * keyN[1], 0.75), tb = mixf(pb0, pl * keyN[2], 0.75);
         if (tr > 1.5 * (tg + tb)) tr = 1.5 * (tg + tb);
         cr = (clamp(tr, 0, 1) * 255) | 0; cg = (clamp(tg, 0, 1) * 255) | 0; cb = (clamp(tb, 0, 1) * 255) | 0;
       }
@@ -4042,6 +4232,9 @@ Gfx3D.create = function (canvas, opts) {
        compose its horizon into that band. */
     gl.uniform1f(u.uAnchor, clamp((cssH / Math.max(1, cssW) - 1.3) / 0.8, 0, 1));
     gl.uniform1f(u.uMouth, clamp(projY(0, LIP_Y + COPE_H), 0, 1));
+    /* and uFloor where the foot of the well lands, so a landscape sky
+       can lay its ground line there and the well stands on it */
+    gl.uniform1f(u.uFloor, clamp(projY(0, -floorT), 0, 1));
     /* everything but the face of the well, which the shaft covers; the
        hole is pulled in a texel and a half so filtering at its edge never
        reads sky that was not drawn */
@@ -4059,7 +4252,7 @@ Gfx3D.create = function (canvas, opts) {
     gl.useProgram(P.skyshade.p);
     gl.uniform2f(P.skyshade.u.uRes, tS.w, tS.h);
     gl.uniform4f(P.skyshade.u.uFr, frameUV[0], frameUV[1], frameUV[2], frameUV[3]);
-    gl.uniform4f(P.skyshade.u.uSh, cssW / cssH, 0.45, 0.03, 0);
+    gl.uniform4f(P.skyshade.u.uSh, cssW / cssH, 0.45, 0.03, cellYpx / cssH);
     full3();
     gl.disable(gl.BLEND);
   }
@@ -4111,13 +4304,15 @@ Gfx3D.create = function (canvas, opts) {
       draws++;
     }
   }
-  function drawSprites() {
-    if (sprN <= 0) return;
+  /* sprites from..to-1: the first sprBloomN go to the bloom, the rest
+     to the scene */
+  function drawSprites(from, to) {
+    if (to - from <= 0) return;
     gl.useProgram(P.sprite.p);
     gl.bindVertexArray(V.spr);
     gl.bindBuffer(gl.ARRAY_BUFFER, B.spr);
-    for (var a = 0; a < 4; a++) gl.vertexAttribPointer(a, 4, gl.FLOAT, false, 64, a * 16);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, sprN);
+    for (var a = 0; a < 4; a++) gl.vertexAttribPointer(a, 4, gl.FLOAT, false, 64, from * 64 + a * 16);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, to - from);
     draws++;
   }
   function drawRibbons() {
@@ -4209,7 +4404,7 @@ Gfx3D.create = function (canvas, opts) {
        tier the particles too */
     gl.disable(gl.CULL_FACE);
     gl.blendFunc(gl.ONE, gl.ONE);
-    drawSprites();
+    drawSprites(sprBloomN, sprN);
     drawRibbons();
     if (!T.bloom.length) drawParticles();
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
@@ -4234,6 +4429,7 @@ Gfx3D.create = function (canvas, opts) {
        and they cost a quarter of the fill */
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     drawParticles();
+    drawSprites(0, sprBloomN);
     gl.disable(gl.BLEND);
     gl.useProgram(P.down.p);
     gl.uniform1i(P.down.u.uSrc, 0);
@@ -4471,8 +4667,8 @@ Gfx3D.create = function (canvas, opts) {
     wellUV[0] = (wx + ww * 0.5) / cssW; wellUV[1] = 1 - (wy + wh * 0.5) / cssH;
     wellNDC[0] = wellUV[0] * 2 - 1; wellNDC[1] = wellUV[1] * 2 - 1;
     /* The previews. Beside a wide well each one hangs half a cell further
-       back than the one before and 18% further into the world's air; on a
-       phone the two that hang over the rim stand a little in front of the
+       back than the one before and a little further into the world's air;
+       on a phone the two that hang over the rim stand a little in front of the
        frame, whose stone they may cross. Each is moved and sized for its
        depth so that it still lands exactly on the rectangle the layout
        gave it. */
@@ -4485,8 +4681,10 @@ Gfx3D.create = function (canvas, opts) {
         if (!r || !(r.w > 0)) continue;
         var sx0 = winL + (r.x + r.w * 0.5) / cellXpx, sy0 = winT - (r.y + r.h * 0.5) / cellYpx;
         var z = wideL ? -0.5 * i : (i > 0 ? 0.4 : 0), k = (ez0 - z) / ez0;
+        /* the air takes a little more of each later one, never more
+           than a third: enough to set it back, never to lose its colour */
         slots.push({ x: ex0 + (sx0 - ex0) * k, y: ey0 + (sy0 - ey0) * k, z: z,
-                     s: clamp(num(r.s, 0.6), 0.2, 1.2) * k, haze: Math.min(0.6, (wideL ? 0.18 : 0.1) * i) });
+                     s: clamp(num(r.s, 0.6), 0.2, 1.2) * k, haze: Math.min(0.35, 0.07 * i) });
       }
     }
     /* the frame's thickness is the layout's, so the stone ends where
@@ -4495,9 +4693,10 @@ Gfx3D.create = function (canvas, opts) {
     var ft = L && L.floor > 0 ? clamp(L.floor / cellXpx, 0.3, 0.8) : 0.5;
     var mouthNiche = !!(L && L.keep && L.keep.w > 0 && (winL + (L.keep.x + L.keep.w) / cellXpx) > 0.05 &&
                         (winT - (L.keep.y + L.keep.h) / cellYpx) >= VIS - 0.05);
-    if (Math.abs(wt - wallT) > 1e-4 || Math.abs(ft - floorT) > 1e-4 || mouthNiche !== shellNoCope) {
-      wallT = wt; floorT = ft; shellNoCope = mouthNiche;
-      shellGeo = buildShell(wallT, floorT, shellNoCope);
+    var besideNiche = !!(L && L.keep && L.keep.w > 0 && L.keep.h > 0 && !mouthNiche);
+    if (Math.abs(wt - wallT) > 1e-4 || Math.abs(ft - floorT) > 1e-4 || mouthNiche !== shellNoCope || besideNiche !== shellBeside) {
+      wallT = wt; floorT = ft; shellNoCope = mouthNiche; shellBeside = besideNiche;
+      shellGeo = buildShell(wallT, floorT, shellNoCope, shellBeside);
       shellData = packMesh(shellGeo, true); shellIdx = new Uint16Array(shellGeo.idx);
       if (ready && !lost) uploadShell();
     }
@@ -4519,7 +4718,8 @@ Gfx3D.create = function (canvas, opts) {
       var inD = DEPTH * s + 0.35, zf = 0;
       /* flush with the frame's face; beside a wide well its side against
          the pillar is not rounded, so the two read as one stone */
-      niche = buildNiche(bx0, bx1, ky0, ky1, ox0, ox1, oy0, oy1, inD, onMouth ? inD + 0.3 : SHAFT_D, onMouth ? 0 : 2);
+      niche = buildNiche(bx0, bx1, ky0, ky1, ox0, ox1, oy0, oy1, inD, onMouth ? inD + 0.3 : SHAFT_D, onMouth ? 0 : 2,
+                         onMouth ? undefined : -wallT);
       if (zf) for (i = 0; i < niche.mesh.pos.length; i += 3) niche.mesh.pos[i + 2] += zf;
       niche.onMouth = onMouth; niche.bx1 = bx1; niche.zf = zf;
       nicheData = packMesh(niche.mesh, true); nicheIdx = new Uint16Array(niche.mesh.idx);
@@ -4626,7 +4826,9 @@ Gfx3D.create = function (canvas, opts) {
     spawnP(5, 5, 0, 0, 0, 0, fxNow, 0.05, 0.1, 0, 1, 1, 1, 0.01, 0);
     ribbon(0, 5, 5, 1, 1, 0.05, 1, 7, 0.05, 0.001, 0.5);
     band(5, 0.5, 0.0001, 0.02, 0.02, 0);
-    fxCell(4, 6, 3, 0, 0, 0, fxNow - 0.3, 0.1, 0.05, 1, 0, 0);   /* the blended, fading layer */
+    fxCell(4, 6, 3, 0, 0, 0, fxNow - 0.3, 0.1, 0.05, 1, 0, 0);   /* a cleared body, lit */
+    fxCell(6, 1, 3, 0, 0, 0, fxNow - 0.3, 0, 0.05, 1, 1, 0);     /* the blended, fading layer */
+    bandRun(5, 1, 0, -0.1, 1, 0.3, -1);                          /* and a band of light */
     var t0 = now;
     R.render(PRIME_VIEW, 0, t0);
     resetAll();

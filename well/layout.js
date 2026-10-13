@@ -103,7 +103,9 @@ var PAUSE = 44, PAUSE_INSET = 6;
 /* the coping stone along the mouth stands this many cells above the lip
    and overhangs the frame by this much: the 3D well draws it, and nothing
    that floats (a preview) may sit on it */
-var COPE = 0.3, COPE_OVER = 0.15;
+var COPE = 0.3, COPE_OVER = 0.15, PLINTH = 0.15;
+/* the floor slab under the face, in cells, for centring the whole well */
+var FLOOR = 0.4;
 
 function num(v, d) { return (typeof v === "number" && isFinite(v)) ? v : d; }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -144,9 +146,15 @@ var Layout = {
     var below = buttons ? 0.5 : 0;
     var cTall = Math.min((H - hudTop) / (ROWS + LIP + BAND + below), (W - 20) / (COLS + 2 * gutterK));
     /* on a screen with height to spare the wide well keeps a little air
-       above and below; on an iPad held sideways every pixel goes to cells */
+       above and below; on an iPad held sideways every pixel goes to cells,
+       except that the coping, and a little air over it, must stay on the
+       screen: it may stand in the top safe inset (it is stone, not a
+       control), and where there is no inset to stand in, the cells give
+       up what it needs (about 2% at 768 px tall) rather than the coping
+       and a piece peeking over the mouth being cut off */
     var air = clamp((H - 760) / H * 0.6, 0, 0.05);
-    var cWide = Math.min(H * (1 - air) / (ROWS + LIP + below), (W - 24) / (COLS + 0.44 + 2 * SIDE));
+    var cWide = Math.min(H * (1 - air) / (ROWS + LIP + below), (H + st) / (ROWS + LIP + below + COPE + 0.12),
+                         (W - 24) / (COLS + 0.44 + 2 * SIDE));
     /* wide also needs a left column the HUD can live in */
     var wideCol = (W - cWide * (COLS + 0.44)) / 2 - cWide * 0.3 - 12;
     var wideOk = wideCol >= 110;
@@ -166,7 +174,8 @@ var Layout = {
       var key = Math.max(40, (trayH - 6) / 2.16);
       clusterW = num(o.trayW, 0) > 0 ? o.trayW : Math.ceil(3.32 * key + 10);
       var airS = clamp((Hfull - 760) / Hfull * 0.6, 0, 0.05);
-      cSide = Math.min(Hfull * (1 - airS) / (ROWS + LIP), (W - 2 * (clusterW + 12)) / (COLS + 0.44 + 0.6));
+      cSide = Math.min(Hfull * (1 - airS) / (ROWS + LIP), (Hfull + st) / (ROWS + LIP + COPE + 0.12),
+                       (W - 2 * (clusterW + 12)) / (COLS + 0.44 + 0.6));
       var sideCol = (W - cSide * (COLS + 0.44)) / 2 - cSide * 0.3 - 12;
       sides = sideCol >= 110 && cSide > Math.max(cTall, wideOk ? cWide : 0);
     }
@@ -180,6 +189,8 @@ var Layout = {
     if (sides) { below = 0; H = Hfull; }
 
     var wall = snap(Math.max(3, c * (wide ? 0.3 : 0.22)));
+    /* the plinth at the foot of the well stands this far beyond the wall */
+    var plinth = c * PLINTH;
     var lip = snap(c * LIP);
     var floor = snap(c * 0.4);
     var pause = rect(snap(w - sr - PAUSE_INSET - PAUSE), snap(st + PAUSE_INSET), PAUSE, PAUSE);
@@ -226,7 +237,7 @@ var Layout = {
       var lg = (W - c * COLS) / 2, shift = 0;
       if (previews > 1) {
         var need = 2 + (4 * c * TALL_S[1] + 4) + EDGE;
-        shift = clamp(need - lg, 0, Math.min(c * 0.7, lg - wall - 8));
+        shift = clamp(need - lg, 0, Math.min(c * 0.7, lg - wall - plinth - 4));
         if (shift < 0) shift = 0;
       }
       L.well = rect(snap(x0 + lg - shift), snap(lipTop + lip), c * COLS, c * ROWS);
@@ -279,8 +290,13 @@ var Layout = {
       }
     } else {
       /* ---------- wide ---------- */
+      /* The whole well — coping to floor slab — is centred in the height
+         it has (the slab is scenery and may sit in the gesture band), as
+         long as its face stays above the limit and its coping on screen */
       var slackW = Math.max(0, H - lip - c * ROWS - c * below);
-      var lipTopW = snap(y0 + slackW * 0.45);
+      var bottomEdge = buttons && !sides ? yLimit : h - sb;
+      var centred = (y0 + bottomEdge - lip - c * (ROWS + FLOOR - COPE)) / 2;
+      var lipTopW = snap(clamp(centred, y0 + Math.min(slackW, c * (COPE + 0.05)), y0 + slackW));
       L.well = rect(snap(x0 + (W - c * COLS) / 2), snap(lipTopW + lip), c * COLS, c * ROWS);
       var gap = snap(Math.max(6, c * 0.3));
       var leftEdge = L.well.x - wall - gap;           /* right edge of the left column */
@@ -312,13 +328,58 @@ var Layout = {
       if (sideW >= 120 && sideH >= 80) L.side = rect(colX, snap(sideY), snap(sideW), snap(sideH));
 
       if (previews > 0) {
-        /* An arc away from the end of the coping: the next piece beside
-           the mouth, the rest drifting out to the right and curving down,
-           each smaller and (in 3D) further off. A landscape screen has no
-           room above the mouth, so the arc bends down, not up. The curve
-           runs from beside the coping's end toward the far corner of the
-           column, and is lowered further until no two of them touch. */
+        /* A shallow arc away from the end of the coping: the next piece
+           beside the mouth, the rest drifting off to the right, each
+           smaller than the last (and in 3D further off), falling no more
+           than a cell and a half in all — depth is carried by size and
+           distance, so the stream reads as things receding, not as things
+           falling off the screen. Where the column is too narrow for all
+           of them at full size the later ones are drawn smaller; where even
+           that will not do, one fewer is shown (never under three); and on
+           a phone on its side, with no width at all, they hang in a curve
+           down the column instead (below). */
         var colL = rightEdge, colR = x1 - 8;
+        var rowR = colR;
+        /* where the panel on the left is too short to hold the Glass Well
+           and the coach (a phone on its side), a strip at the right edge
+           holds them instead and the previews keep clear of it */
+        if (!L.side || L.side.h < 420) rowR = Math.min(rowR, colR - 190);
+        var rowGap = Math.max(6, c * 0.25), rowSet = null;
+        for (var rn = Math.min(previews, WIDE_S.length); rn >= Math.min(3, previews) && !rowSet; rn--) {
+          for (var rf = 1; rf >= 0.6 - 1e-9 && !rowSet; rf -= 0.02) {
+            var rws = [], rhs = [], rms = [], tot = 0;
+            for (i = 0; i < rn; i++) {
+              /* the next piece keeps more of its size than the rest */
+              var fk = i === 0 ? Math.max(rf, 0.8) : rf;
+              var rm = c * WIDE_S[i] * fk, rp = snap(Math.max(3, c * 0.2 * WIDE_S[i] * fk / 0.6));
+              rms.push(rm); rws.push(snap(4 * rm + 2 * rp)); rhs.push(snap(2 * rm + 2 * rp));
+              tot += rws[i] + (i ? rowGap : 0);
+            }
+            if (rms[rn - 1] < 5 || tot > rowR - colL) continue;
+            /* what is left over opens the gaps a little, never so much
+               that the stream falls apart */
+            var g2 = rowGap + Math.min(c * 0.5, (rowR - colL - tot) / Math.max(1, rn - 1) * 0.5);
+            var xs = [], xc = colL;
+            for (i = 0; i < rn; i++) { xs.push(xc); xc += rws[i] + g2; }
+            var cx0 = xs[0] + rws[0] / 2, cxN = xs[rn - 1] + rws[rn - 1] / 2, cy0 = lipTopW + rhs[0] / 2;
+            var drop = Math.min(c * 1.5, Math.max(0, floatLimit - lipTopW - rhs[0]) * 0.5);
+            rowSet = [];
+            for (i = 0; i < rn && rowSet; i++) {
+              var u = rn > 1 ? (xs[i] + rws[i] / 2 - cx0) / Math.max(1, cxN - cx0) : 0;
+              var ryc = cy0 + drop * Math.pow(u, 1.5);
+              var it = { x: snap(xs[i]), y: snap(ryc - rhs[i] / 2), w: rws[i], h: rhs[i], s: rms[i] / c };
+              /* none of them under the pause button */
+              if (it.x + it.w > pause.x - 6 && it.y < pause.y + pause.h + 6) rowSet = null;
+              else rowSet.push(it);
+            }
+          }
+        }
+        if (rowSet) for (i = 0; i < rowSet.length; i++) L.next.push(rowSet[i]);
+      }
+      if (previews > 0 && !L.next.length) {
+        /* A phone on its side: an arc away from the end of the coping,
+           curving down the column, each smaller and (in 3D) further off,
+           lowered until no two of them touch. */
         var colW = colR - colL;
         var sz = [], ws = [], hs = [];
         n = Math.min(previews, WIDE_S.length);
