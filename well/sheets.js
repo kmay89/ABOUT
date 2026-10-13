@@ -422,7 +422,11 @@ function slider(parent, k, name, text, s, tag) {
   lab.setAttribute("for", id);
   put(lab, el("b", null, name));
   if (tag) put(lab, el("i", null, tag));
+  /* the value shown beside the name is not part of the name: a screen
+     reader has it from aria-valuetext, and a name that changed on every
+     step would be read out again on every step */
   var val = put(lab, el("span", "val"));
+  val.setAttribute("aria-hidden", "true");
   var r = put(f, el("input"));
   r.type = "range"; r.id = id;
   r.min = String(s.min); r.max = String(s.max); r.step = String(s.step);
@@ -1261,6 +1265,7 @@ function buildHandling(body) {
       put(lab, el("b", null, "Delay before sliding"));
       put(lab, el("i", null, "DAS"));
       var val = put(lab, el("span", "val"));
+      val.setAttribute("aria-hidden", "true");
       var pre = put(g, el("div", "wseg wgrid"));
       pre.style.margin = "4px 0 2px";
       var items = [];

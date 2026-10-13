@@ -376,7 +376,7 @@ var GLSL_DAWN = [
      a minute and a half, elbows flexing at a tenth of a hertz */
   "  float span = 0.5 * asp + 0.12;",
   "  float bx = mix(-span, span, fract(t / 95.0 + 0.62));",
-  "  float by = anchorY(0.45, 0.078);",
+  "  float by = anchorY(0.45, 0.060);",
   "  float bd = 1.0;",
   "  for (int i = 0; i < 4; i++){",
   "    float fi = float(i);",
@@ -1111,7 +1111,7 @@ var GLSL_STARS = [
   "  float AN = fr.x, MO = fr.y;",
   "  float mk = 1.0 - 0.35 * calm;",
   "  float hz = anchorY(0.33, 0.030);",
-  "  float vs = mix(1.0, 0.40, AN);",
+  "  float vs = mix(1.0, 0.25, AN);",
   "  vec3 dim = mix(hor, top, 0.6);",
   "  if (q.y >= hz){",
   "    return mix(dim, starSky(q, t, r, hz, vs, asp, px, top, hor), mk);",
@@ -1489,7 +1489,7 @@ SCENES[0] = {
       ctx.globalCompositeOperation = "source-over";
     }
     /* four far birds, gliding */
-    var span = e + 0.12, bx = -span + 2 * span * fract(t / 95 + 0.62), by = ay(E, 0.45, 0.078);
+    var span = e + 0.12, bx = -span + 2 * span * fract(t / 95 + 0.62), by = ay(E, 0.45, 0.060);
     ctx.globalAlpha = al;
     ctx.strokeStyle = E.bird;
     ctx.lineWidth = Math.max(1, h * 0.0016);
@@ -2238,7 +2238,7 @@ SCENES[9] = {
     var top = E.top, hor = E.hor;
     /* on a phone the water line lies just above the coping */
     var hz = ay(E, 0.33, 0.030), Yh = h - hz * h;
-    E.hz = hz; E.vs = 1 - 0.6 * E.an;
+    E.hz = hz; E.vs = 1 - 0.75 * E.an;
     var gr = g.createLinearGradient(0, 0, 0, Yh);
     gr.addColorStop(0, css(top)); gr.addColorStop(1, css(hor));
     g.fillStyle = gr; g.fillRect(0, 0, w, Yh);

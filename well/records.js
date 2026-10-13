@@ -734,10 +734,14 @@ function fortyTip(n) {
   return "From the first piece to the last of the " + w + " lines, to the hundredth of a second.";
 }
 
+/* one entry per kind of clear, each clear counted once (engine.js): a
+   Twist Double is not also a Double, and a Twist that cleared nothing is
+   not a clear. "Mini Twist" alone means the lineless kind in the brief, so
+   the ones here, which cleared a line or two, say so. */
 var STRIP = [
   ["singles", "Single", "Singles"], ["doubles", "Double", "Doubles"],
   ["triples", "Triple", "Triples"], ["quads", "Quad", "Quads"],
-  ["twMini", "Mini Twist", "Mini Twists"], ["twSingle", "Twist Single", "Twist Singles"],
+  ["twMini", "Mini Twist clear", "Mini Twist clears"], ["twSingle", "Twist Single", "Twist Singles"],
   ["twDouble", "Twist Double", "Twist Doubles"], ["twTriple", "Twist Triple", "Twist Triples"],
   ["empties", "Empty Well", "Empty Wells"]
 ];
