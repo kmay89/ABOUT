@@ -2144,8 +2144,11 @@ var RUNG = {
 var FIG_CAL = -2.2;
 var FIG = [];
 function figure() { FIG.length = 0; return FIG; }
+/* how long a lead note effectively rings, for the model: a chime's upper
+   partials are gone in a fraction of a second, so it overlaps its
+   neighbours as if it rang for about 0.75 s, not its fundamental's 1.2 */
 function leadDecay(W, d) {
-  if (W.lead.kind === "chime") return CHIME.decays[0];
+  if (W.lead.kind === "chime") return 0.75;
   return d || W.lead.decay;
 }
 /* a bell of the world's lead voice */
@@ -2160,7 +2163,7 @@ function fSwell(F, dt, midi, rel, attack, hold, release, o) {
 }
 function itemLevel(it, d) {
   if (d < 0) return 0;
-  var a = dbToGain(it.rel);
+  var a = dbToGain(it.rel) * (it.kind === "pad" ? 1 : hfTrim(mtof(it.midi)));
   if (it.kind === "pad") {
     if (d < it.attack) return a * d / it.attack;
     if (d < it.attack + it.hold) return a;
@@ -2173,7 +2176,8 @@ function itemLevel(it, d) {
    moment each note peaks. Notes of different pitches seldom crest together,
    so the true peak sits between the plain sum and the power sum: measured
    across all ten worlds, it is the plain sum times n^−0.3, where n is the
-   number of notes effectively sounding. */
+   number of notes effectively sounding — except that notes struck at the
+   same instant start in phase and add in full, so they count as one. */
 function sideGain(pan, right) {
   var x = (clamp(pan || 0, -1, 1) + 1) / 2;
   return (right ? Math.sin(x * Math.PI / 2) : Math.cos(x * Math.PI / 2)) / Math.SQRT1_2;
@@ -2183,11 +2187,19 @@ function figurePeak(F) {
   for (j = 0; j < F.length; j++) {
     var at = F[j].dt + (F[j].kind === "pad" ? F[j].attack : 0.006);
     for (side = 0; side < 2; side++) {
-      var sum = 0, sq = 0;
+      var sum = 0, sq = 0, k;
       for (i = 0; i < F.length; i++) {
-        var v = itemLevel(F[i], at - F[i].dt) * sideGain(F[i].kind === "pad" ? 0 : F[i].o.pan, side);
-        sum += v; sq += v * v;
+        if (F[i].grouped) continue;
+        /* everything struck with this note is one contributor */
+        var grp = 0;
+        for (k = i; k < F.length; k++) {
+          if (k > i && (F[k].dt !== F[i].dt || F[k].kind !== F[i].kind)) continue;
+          grp += itemLevel(F[k], at - F[k].dt) * sideGain(F[k].kind === "pad" ? 0 : F[k].o.pan, side);
+          if (k > i) F[k].grouped = true;
+        }
+        sum += grp; sq += grp * grp;
       }
+      for (i = 0; i < F.length; i++) F[i].grouped = false;
       if (sum <= 0) continue;
       var est = sum * Math.pow(sum * sum / sq, -0.3);
       if (est > best) best = est;

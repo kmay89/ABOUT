@@ -457,6 +457,9 @@ function doResize() {
   lopt.trayH = padOn ? (padEl.offsetHeight - safe.b - 24) : 0;
   if (lopt.trayH < 0) lopt.trayH = 0;
   lopt.dpr = dpr;
+  /* the HUD's band grows with the text size, so big text never runs into
+     the Keep niche below it */
+  lopt.hudTop = Math.max(44, Math.ceil(42 * (+pref("textSize") || 1)) + 2);
   var nl = null;
   if (Layout) { try { nl = Layout.compute(vw, vh, lopt); } catch (e) { fault("Layout.compute", e); nl = null; } }
   L = nl || fallbackLayout(vw, vh);
@@ -503,11 +506,17 @@ function placeChrome() {
 
   /* the Glass Well: the side panel on a wide screen, a compact card under
      the Keep niche on a phone */
-  if (L.side && L.side.w >= 170) {
+  glassBand.over = !(L.side && L.side.w >= 170);
+  if (!glassBand.over) {
     px(glassEl, "left", L.side.x); px(glassEl, "top", L.side.y); px(glassEl, "width", Math.min(L.side.w, 250));
   } else {
-    var gy = L.keep ? L.keep.y + L.keep.h + 6 : w.y + 6;
-    px(glassEl, "left", w.x + 4); px(glassEl, "top", gy); px(glassEl, "width", Math.min(214, w.w * 0.66));
+    var gy = L.keep ? L.keep.y + L.keep.h + 6 : w.y + 6, gw = Math.min(214, w.w * 0.66);
+    px(glassEl, "left", w.x + 4); px(glassEl, "top", gy); px(glassEl, "width", gw);
+    /* over the well, it gets out of the active piece's way like the labels
+       do; its rectangle in board cells is worked out once here */
+    glassBand.x1 = (gw + 4) / c;
+    glassBand.top = 22 - (gy - w.y) / c;
+    glassBand.bottom = glassBand.top - (glassEl.offsetHeight || 260) / c;
   }
 
   /* the coach: in the side panel when there is one, under the HUD when not */
@@ -778,7 +787,8 @@ function lowPowerChip() {
    ================================================================ */
 var gBag = [], gPip = [], gBead = [], gLock = $("gLock"), gDas = $("gDas"), gGrav = $("gGrav"),
     gFormula = $("gFormula"), gBreathRow = $("gBreathRow");
-var gc = { bag: -1, lock: -1, das: -1, pips: -1, beads: -1, grav: -2, breathRow: null };
+var gc = { bag: -1, lock: -1, das: -1, pips: -1, beads: -1, grav: -2, breathRow: null, dodge: false };
+var glassBand = { over: false, x1: 0, top: 0, bottom: 0 };
 function buildGlass() {
   var bagEl = $("gBag"), pipEl = $("gPips"), beadEl = $("gBeads"), i, s;
   for (i = 1; i <= 7; i++) { s = doc.createElement("span"); s.textContent = NAMES[i]; bagEl.appendChild(s); gBag.push(s); }
@@ -803,11 +813,20 @@ function setGlass(onOff, fromPlay) {
 function showGlass() {
   var vis = glassOn && !!run && !run.steady && (state === "play" || state === "paused" || state === "intro" || state === "rest");
   glassEl.classList.toggle("hide", !vis);
-  if (vis) { gc.bag = gc.lock = gc.das = gc.pips = gc.beads = gc.grav = -2; gc.breathRow = null; }
+  if (vis) { gc.bag = gc.lock = gc.das = gc.pips = gc.beads = gc.grav = -2; gc.breathRow = null; needResize = true; }
 }
 function glassUpdate() {
   if (!glassOn || !view || glassEl.classList.contains("hide")) return;
   var i, m = 0, b = view.bag, q;
+  /* never over the active piece: a whisper while it passes beneath */
+  var dodge = false;
+  if (glassBand.over && view.active) {
+    var cs = view.active.cells;
+    for (i = 0; i < 4; i++) {
+      if (cs[i][0] < glassBand.x1 && cs[i][1] <= glassBand.top + 0.5 && cs[i][1] >= glassBand.bottom - 0.5) { dodge = true; break; }
+    }
+  }
+  if (dodge !== gc.dodge) { gc.dodge = dodge; glassEl.classList.toggle("dodge", dodge); }
   if (b) for (i = 0; i < b.length; i++) { var ix = typeIx(b[i]); if (ix) m |= 1 << (ix - 1); }
   if (m !== gc.bag) { gc.bag = m; for (i = 0; i < 7; i++) gBag[i].classList.toggle("used", !(m & (1 << i))); }
   q = Math.round(Math.max(0, Math.min(1, view.lock || 0)) * 64);
