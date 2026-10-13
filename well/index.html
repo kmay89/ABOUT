@@ -68,7 +68,10 @@
     pointer-events:none; font-variant-numeric:tabular-nums; left:0; top:0;
     opacity:1; transition:opacity .3s;
   }
-  #hud.off{opacity:0}
+  /* hidden is hidden for a screen reader too: on the splash an empty (or a
+     finished run's) group of numbers was the first thing read, before the
+     title. visibility follows the fade, as it does for the pause button. */
+  #hud.off{opacity:0; visibility:hidden; transition:opacity .3s, visibility 0s .3s}
   #hud .hc{
     background:rgba(9,11,20,.62); border:1px solid rgba(160,176,230,.10); border-radius:12px;
     padding:3px 9px 4px; min-width:0; display:flex; flex-direction:column; justify-content:center;
@@ -90,6 +93,14 @@
   #hud .hv{font-size:1.04rem; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
   #hud .hv.pb{color:var(--glow); transition:color .6s}
   #hud .clock .m10.z{display:none}
+  /* Forty's hundredths change every frame. Each digit sits in a box of its
+     own, sized and contained, so a changing digit relays out only its box
+     rather than the whole page. The box is as tall as the line around it
+     and as wide as this font's digit (the app measures --dw once). */
+  #hud .clock>span{display:inline-block; vertical-align:top; height:1.25em}
+  #hud.col .clock>span{height:1.18em}
+  #hud .clock .m10,#hud .clock .m1,#hud .clock .s10,#hud .clock .s1,#hud .clock .h10,#hud .clock .h1{
+    contain:strict; width:var(--dw,.62em); text-align:center}
   #hud .learner{color:var(--glow); font-size:.66rem; letter-spacing:.04em}
   /* beside a wide well (an iPad, a Mac, a phone on its side) the HUD is a
      column with room to spare, so its numbers are read at a glance from
@@ -234,8 +245,10 @@
         box-shadow:0 0 0 1px rgba(255,226,196,.10), 0 0 18px rgba(255,226,196,.06); transition:opacity 1.2s}
   #pace.on{opacity:1}
 
-  /* the Buttons scheme's tray; input.js fills and owns it */
-  #pad{position:absolute; left:0; right:0; bottom:0; z-index:7;
+  /* the Buttons scheme's tray; input.js fills and owns it. Only its keys
+     take taps (they say so themselves): the empty band between the two
+     clusters must not swallow a tap meant for what is beside it. */
+  #pad{position:absolute; left:0; right:0; bottom:0; z-index:7; pointer-events:none;
        padding:0 calc(var(--safe-r) + 10px) calc(var(--safe-bot) + 24px) calc(var(--safe-l) + 10px)}
   #pad:not(.on){display:none}
 
@@ -246,6 +259,9 @@
      whisper while a falling piece goes behind it */
   #toast.inwell{background:rgba(14,17,30,.9); line-height:1.4}
   #toast.on.dodge{opacity:.14}
+  /* Steady shows no text during play: a note that arrives then waits,
+     unseen, and the update bar comes back by itself at the next pause */
+  html.calm #toast,html.calm #updateBar{visibility:hidden}
 
   /* ---------- the splash: the real well, playing itself, behind the title ----------
      Everything to read and press sits in the empty upper reach of the
@@ -255,6 +271,8 @@
   #splash{
     background:transparent; justify-content:flex-start; padding:0;
     padding:calc(var(--safe-top) + 7vh) 18px calc(var(--safe-bot) + 18px);
+    /* at 400% zoom the doors run past the bottom: let them be scrolled to */
+    overflow-y:auto; overscroll-behavior:contain;
   }
   #splash .scrim{
     position:absolute; inset:0; pointer-events:none; z-index:-1;
@@ -319,6 +337,8 @@
                background:linear-gradient(var(--card), rgba(18,22,36,0))}
   .sheet:not(.st) > .close{width:44px; height:44px; margin:0 -10px 0 8px; padding:0; border-radius:50%; background:var(--card)}
   .link{color:var(--glow); text-decoration:underline; text-underline-offset:3px; padding:6px 2px; font-size:inherit}
+  /* the About sheet's way out: a row of links, each a 24 px target */
+  #ovAbout .note a{display:inline-block; padding:4px 2px; line-height:16px}
 
   /* eight doors: two columns on a phone, four where the sheet is wide —
      never three, which would leave one door standing on its own */
@@ -358,7 +378,8 @@
   /* the Modes sheet */
   .mcard{border:1px solid var(--line); background:var(--card2); border-radius:16px; padding:14px; margin-top:10px}
   .mcard .mh{display:flex; align-items:baseline; gap:10px}
-  .mcard .mh b{font-size:1.08rem}
+  .mcard .mh b,.mcard .mh h3{font-size:1.08rem}
+  .mcard .mh h3{margin:0; font-weight:700; color:var(--ink)}
   .mcard .mh .medal{margin-left:auto; font-size:.8rem; color:var(--glow)}
   .mcard .ml{color:var(--soft); font-size:.88rem; margin:2px 0 8px}
   .mcard .mo{margin:6px 0}
@@ -371,7 +392,8 @@
   .chal{display:flex; align-items:center; gap:10px; border-top:1px solid var(--line); padding:10px 0}
   .chal:first-child{border-top:none}
   .chal .ct{flex:1; min-width:0}
-  .chal .ct b{display:block}
+  .chal .ct b,.chal .ct h4{display:block}
+  .chal .ct h4{margin:0; font-size:1rem; font-weight:700}
   .chal .ct small{color:var(--soft); font-size:.8rem; display:block; line-height:1.35}
   .chal .ct .done{color:var(--good)}
   .chal .btn{flex:0 0 auto; min-height:44px; padding:6px 16px}
@@ -405,7 +427,8 @@
   /* the Logbook: stones set into the rim of a well */
   #logRim{display:flex; justify-content:center; margin:4px 0 6px}
   #logRim svg{width:min(300px,78vw); height:auto}
-  .stones{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 14px; margin-top:6px}
+  .stones{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 14px; margin-top:6px;
+          list-style:none; padding:0; margin-bottom:0}
   .stone{display:flex; gap:9px; align-items:flex-start; padding:5px 0; font-size:.86rem}
   .stone i{flex:none; width:12px; height:10px; border-radius:50%; margin-top:5px; background:#2a3046; border:1px solid #3a4260}
   .stone.got i{background:radial-gradient(circle at 35% 35%, #fff4e6, var(--glow) 55%, #c9a27a); border-color:#ffe2c4;
@@ -450,11 +473,26 @@
     position:fixed; top:calc(var(--safe-top) + 8px); left:50%; transform:translateX(-50%);
     background:var(--accent); color:var(--accent-ink); font-weight:650; border-radius:999px;
     padding:10px 18px; z-index:60; box-shadow:var(--shadow); font-size:.9rem; max-width:calc(100% - 24px);
+    width:max-content;
   }
+  /* never over a run: it would cover the HUD, and a tap on it mid-Forty
+     threw the run away. It waits for the splash or the end of the run. */
+  html.playing #updateBar{display:none}
 
   @media (prefers-reduced-motion: reduce){
     .anim-drag,.anim-tap,.anim-down,.anim-up{animation:none}
-    .lbl,.lbl.on,#banner,#hud,#pace,#splash{transition:none}
+    .lbl,.lbl.on,#banner,#hud,#hud.off,#pace,#splash{transition:none}
+  }
+
+  /* Forced colours (Windows High Contrast) flatten the accent borders and
+     tints that say which choice is on. The choice gets an inner ring in
+     Highlight instead — never an outline, which is the focus ring's, and
+     the focused choice is usually the chosen one. (The settings sheets'
+     cards and switches do the same in sheets.js.) */
+  @media (forced-colors: active){
+    .chips button.on,.tabs button[aria-selected="true"]{position:relative}
+    .chips button.on::after,.tabs button[aria-selected="true"]::after{
+      content:""; position:absolute; inset:2px; border:3px solid Highlight; border-radius:inherit; pointer-events:none}
   }
 </style>
 </head>
@@ -513,7 +551,7 @@
 </div>
 
 <div id="say" class="vh" aria-live="polite" aria-atomic="true"></div>
-<div id="toast" role="status"></div>
+<div id="toast" aria-hidden="true"></div>
 
 <!-- the splash: the real well plays itself behind the title, silent until the first tap -->
 <div id="splash">
@@ -566,8 +604,8 @@
   <div id="modesBody"></div>
   <h3>Play a well code</h3>
   <p class="note" style="margin-top:0">Six letters deal the same pieces to anyone, on any day. Type one in, then pick a mode.</p>
-  <input type="text" id="codeIn" class="codeIn" maxlength="8" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Well code" placeholder="······">
-  <p class="note" id="codeNote"></p>
+  <input type="text" id="codeIn" class="codeIn" maxlength="8" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Well code" aria-describedby="codeNote" placeholder="······">
+  <p class="note" id="codeNote" role="status"></p>
   <h3>Challenges</h3>
   <p class="note" style="margin-top:0">Lessons and silt, in a suggested order — take them in any order you like. Retrying is unlimited.</p>
   <div id="chalBody"></div>
@@ -578,7 +616,7 @@
   <p class="lead">Stones set into the rim, one for each moment worth keeping. They only ever add up: nothing here decays, expires or counts days.</p>
   <div id="logRim" aria-hidden="true"></div>
   <p class="vh" id="logSum"></p>
-  <div class="stones" id="logStones"></div>
+  <ul class="stones" id="logStones" role="list"></ul>
   <h3>At the well, so far</h3>
   <div class="rcard" id="logLife"></div>
   <h3>Personal bests</h3>

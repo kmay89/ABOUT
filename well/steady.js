@@ -229,6 +229,13 @@ Steady.CSS = [
   "@media (max-height:820px){.st-ov .sheet.st{padding-top:18px;padding-bottom:14px}.st-field{margin-top:10px}.st-seg>button{min-height:42px}.st-line{margin-top:4px}.st-world{height:44px}.st-go{margin-top:14px}}",
   "@media (max-width:380px){.st-seg>button{font-size:.88rem;padding:6px 2px}}",
   "@media (max-height:700px){.st-art{width:160px;height:152px}.st h2{font-size:1.35rem}.st .lead{font-size:.92rem}.st-seg>button{min-height:40px}.st-line{font-size:.82rem}.st-world{height:36px}.st-go .btn{min-height:50px}}",
+  /* very short screens (a laptop at 300-400% zoom): the options area would
+     shrink to a sliver above Begin, so the whole card scrolls as one page */
+  "@media (max-height:300px){.st-ov .sheet.st.st-entry{overflow-y:auto}.st-entry .st-body{flex:none;overflow:visible}}",
+  /* forced colours flatten the accent ring on a pressed choice, so it is
+     drawn in Highlight; the world tiles are colour swatches, so they keep
+     their own colours (and their ring and dot) */
+  "@media (forced-colors:active){.st-seg>button[aria-pressed=\"true\"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}.st-world{forced-color-adjust:none}}",
   "@media (prefers-reduced-motion:reduce){.st-ov,.st-ov *{transition:none!important;animation:none!important}}"
 ].join("\n");
 
@@ -371,6 +378,12 @@ Steady.create = function (o) {
     if (sheet) sheet.scrollTop = 0;
     if (was && !silent) sound("open");
     focusOn(focus);
+    /* on a screen so short that the card scrolls as a whole (see the CSS),
+       the button given focus is brought into view rather than left focused
+       below the fold */
+    if (focus && sheet && sheet.scrollHeight > sheet.clientHeight + 1 && root.innerHeight && root.innerHeight <= 300) {
+      try { focus.scrollIntoView({ block: "nearest" }); } catch (e) { /* an old engine */ }
+    }
   }
   function hide(id) {
     var ov = document.getElementById(id);

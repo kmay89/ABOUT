@@ -177,11 +177,8 @@ capped, and a set of governors sits on top that nobody can switch off:
 
 Steady is twenty quiet minutes: slow, even gravity, nothing sudden, no score on
 screen and no words during play, a soft timer that never interrupts a piece,
-and at the end an offer of a minute's breathing and an easy way to stop. Some
-studies of intrusive memories used a game in this family as one part of a
-guided, supported procedure, playing for about twenty minutes with the landing
-guide hidden and the sound off; Steady offers those settings as ways to play,
-and nothing more.
+and at the end an offer of a minute's breathing and an easy way to stop. You
+can hide the landing light (Mind's eye) or play in silence.
 
 What it doesn't do matters more. It makes no health claim, anywhere. It never
 asks anyone to recall anything, keeps no diary, asks no questions about how you

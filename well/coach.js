@@ -644,8 +644,9 @@ Coach.create = function (o) {
       piece.last = { dir: dir, src: meta.source };
       /* the slide a held key turns into is the same press */
       if (same && (a === "dasLeft" || a === "dasRight")) return false;
-      /* one drag, one direction, one press */
-      if (same && meta.source === "touch" && last.src === "touch") return false;
+      /* one drag is one press because the input layer marks every column
+         after its first as a repeat; a second drag is a second press, as
+         it is to the engine, the run card and the Stone */
       return true;
     }
     piece.last = { turn: a };

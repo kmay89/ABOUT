@@ -1316,7 +1316,7 @@ var D = {
   loops: [], amb: [], drones: [], pads: [],
   last: {}, rep: 0, repDir: 0, lastX: 4, softRows: 0, ended: false,
   breathIn: false, breathPhase: -1, breathRate: 0, breathT: 0, breathFrac: 0.4, breathFull: -1,
-  worldBar: 0, irFor: "", irJob: null, polyStep: 0, bakeQ: [], verbSwapAt: 0, endAt: 0,
+  worldBar: 0, irFor: "", irJob: null, polyStep: 0, bakeQ: [], verbSwapAt: 0, verbIdle: false, endAt: 0,
   noiseJob: null, probeJob: null, ambAt: 0
 };
 var K = { on: false, bpm: 72, spb: 60 / 72 / 4, u: gridUnit(60 / 72 / 4), origin: 0, pOrigin: 0, pU: 0.1, next: 0, bar: 0, s: 0 };
@@ -1367,8 +1367,14 @@ function retempo(when) {
   K.origin = when; K.spb = spb; K.bpm = 60 / spb / 4; K.u = gridUnit(spb);
 }
 
-var bakeBudgetMs = 3;
-function pump() {
+/* Baking (strings, rooms, the probe's room) has one budget per display
+   frame, shared by every way in here — the app's frame, this file's own
+   frame, the interval, and Music.event inside the game's 240 Hz tick — so
+   a frame that pumps four times still bakes for 3 ms, not 12. The tick
+   never bakes at all (pump(true)): its time belongs to the game. */
+var bakeBudgetMs = 3, bakeUsed = 0, bakeAt = -1e9, tickedAt = -1e9;
+function bakeFrame() { bakeUsed = 0; bakeAt = perfNow(); }
+function pump(noBake) {
   if (!running() || !K.on) return;
   var now = nowT(), horizon = now + LOOKAHEAD, guard = 0;
   /* stalled past the look-ahead: skip whole steps silently, never burst */
@@ -1378,7 +1384,7 @@ function pump() {
   guard = 0;
   while (K.next < horizon && guard++ < 64) { step(K.next, false); advance(); }
   horizonWork(now, horizon);
-  bakeWork(CLOCKFN ? 1e9 : bakeBudgetMs);
+  if (noBake !== true) bakeWork(CLOCKFN ? 1e9 : bakeBudgetMs);
 }
 function advance() {
   K.next += K.spb;
@@ -1549,8 +1555,22 @@ function horizonWork(now, horizon) {
   }
   if (D.ambAt && D.bed && haveNoise()) { swapAmbience(Math.max(now + 0.02, D.ambAt)); D.ambAt = 0; }
   for (i = 0; i < D.amb.length; i++) D.amb[i].tick(now, horizon);
-  /* reverb swap waits for its fade-out */
-  if (D.verbSwapAt && now >= D.verbSwapAt) installVerb(now);
+  /* reverb swap waits for its fade-out, and then for a quiet moment:
+     handing a convolver its room is a synchronous FFT of the whole
+     impulse on the main thread (10-60 ms for a long room), so it is done
+     in an idle callback, or a task after this frame, never inside the
+     frame or the game's tick. The return is already faded to nothing, so
+     the wait is silent; the music is just dry a moment longer. */
+  if (D.verbSwapAt && now >= D.verbSwapAt) {
+    D.verbSwapAt = 0;
+    if (CLOCKFN) installVerb(now);
+    else if (!D.verbIdle) {
+      D.verbIdle = true;
+      var e = E, fn = function () { D.verbIdle = false; if (E === e && E) installVerb(nowT()); };
+      if (root.requestIdleCallback) root.requestIdleCallback(fn, { timeout: 500 });
+      else setTimeoutSafe(fn, 0);
+    }
+  }
   settleBeds(now);
 }
 
@@ -1642,7 +1662,8 @@ function irReady() {
 function swapVerb() {
   var now = nowT();
   if (!E.M.core) { installVerb(now); return; }
-  if (D.verbSwapAt) return;
+  /* one already on its way installs whatever room is newest when it lands */
+  if (D.verbSwapAt || D.verbIdle) return;
   glide(E.M.LverbOut, 0, now, 0.8);
   D.verbSwapAt = now + 0.85;
 }
@@ -1670,9 +1691,19 @@ function queuePlucks(W) {
     D.bakeQ.push([W, W.keys + W.semis[i], 1]);
   }
 }
-/* a few milliseconds of baking per pump, never more */
+/* a few milliseconds of baking per frame, never more (a single string may
+   still run over: it is baked whole) */
 function bakeWork(budget) {
   var t0 = perfNow();
+  if (!CLOCKFN && budget < 1e9) {
+    /* no frame lately (a hidden tab, rAF throttled): the interval bakes */
+    if (t0 - bakeAt > 20) bakeFrame();
+    budget = Math.min(budget, bakeBudgetMs - bakeUsed);
+    if (budget <= 0) return;
+  }
+  try { bakeSlice(budget, t0); } finally { bakeUsed += perfNow() - t0; }
+}
+function bakeSlice(budget, t0) {
   while (D.noiseJob && !D.noiseJob.done) {
     noiseWork(D.noiseJob, 12000);
     if (perfNow() - t0 > budget) return;
@@ -1692,7 +1723,8 @@ function bakeWork(budget) {
     D.probeJob = null;
     PROBE_IR = E.ctx.createBuffer(2, P.n, P.sr);
     PROBE_IR.getChannelData(0).set(P.L); PROBE_IR.getChannelData(1).set(P.R);
-    probe();
+    /* in a task of its own, after this frame, not inside it */
+    setTimeoutSafe(probe, 0);
   }
   while (D.bakeQ.length && perfNow() - t0 < budget) {
     var j = D.bakeQ.shift();
@@ -2677,7 +2709,12 @@ function boot() {
   if (!timer && root.setInterval) timer = root.setInterval(pump, PUMP_MS);
   if (!rafOn && root.requestAnimationFrame) {
     rafOn = true;
-    var frame = function () { pump(); root.requestAnimationFrame(frame); };
+    /* this file's own frame starts a frame's bake budget only when the app
+       is not already calling tick() every frame */
+    var frame = function () {
+      if (perfNow() - tickedAt > 12) bakeFrame();
+      pump(); root.requestAnimationFrame(frame);
+    };
     root.requestAnimationFrame(frame);
   }
   if (S.quality === "auto" && !S.probed) setTimeoutSafe(probe, PROBE_FIRST);
@@ -2854,8 +2891,12 @@ function setTier(name) {
    setting too. The clock that times it is the main thread's, which is
    busiest in the first second of the page, so the probe waits a moment
    before it runs, and a device that does not reach the full tier the first
-   time is asked once more a little later; the better of the two counts. */
-var PROBE_FIRST = 1200, PROBE_AGAIN = 12000, PROBE_IR = null;
+   time is asked once more at the next pause or stop (reprobe()); the
+   better of the two counts. */
+var PROBE_FIRST = 1200, PROBE_IR = null;
+function reprobe() {
+  if (S.reprobe && S.quality === "auto") { S.reprobe = false; setTimeoutSafe(probe, 250); }
+}
 function probe() {
   S.probed = true;
   var OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
@@ -2898,7 +2939,10 @@ function probe() {
       S.rtf = S.rtf ? Math.min(S.rtf, rtf) : rtf;
       S.autoTier = S.rtf < 0.15 ? "full" : S.rtf < 0.35 ? "lite" : "minimal";
       if (S.quality === "auto") setTier(S.autoTier);
-      if (S.autoTier !== "full" && S.probes < 2) setTimeoutSafe(probe, PROBE_AGAIN);
+      /* the second asking waits for a pause, a run's end or the splash:
+         a device that is not full already plays on the lighter tier, and
+         the probe's own work is a dropped frame in the middle of a run */
+      if (S.autoTier !== "full" && S.probes < 2) S.reprobe = true;
       else PROBE_IR = null;
     };
     if (pr && pr.then) pr.then(done, function () {});
@@ -2997,7 +3041,7 @@ var Music = {
     if (t === "breath") { if (audible("music")) eventSound(ev, nowT()); return 0; }
     if (!audible("sfx")) return 0;
     if (S.paused && t !== "over" && t !== "end") return 0;
-    pump();
+    pump(true);
     var sync = eventSound(ev, nowT());
     return sync > 0 ? sync : 0;
   },
@@ -3059,6 +3103,7 @@ var Music = {
     if (S.paused === on) return;
     S.paused = on;
     if (!E) return;
+    if (on) reprobe();
     var M = E.M, t = nowT();
     if (on) {
       /* the music steps back behind a 500 Hz low-pass and 8 dB; effects
@@ -3108,6 +3153,7 @@ var Music = {
 
   stop: function () {
     S.wantBed = false;
+    reprobe();
     if (!E || !D.bed) { D.bed = false; return; }
     bedOff(nowT());
   },
@@ -3123,7 +3169,10 @@ var Music = {
   state: state,
 
   /* called by the app's frame loop; harmless to call as often as you like */
-  tick: function () { pump(); settleBeds(running() ? nowT() : 0); },
+  tick: function () {
+    bakeFrame(); tickedAt = perfNow();
+    pump(); settleBeds(running() ? nowT() : 0);
+  },
 
   /* Notified with state() whenever the context changes state, and with a
      second argument "play" or "pause" when the lock screen's controls are
@@ -3158,7 +3207,7 @@ var Music = {
       noiseCache = null;
       D.pads.length = 0; D.drones.length = 0; D.amb = []; D.ambOld = []; D.loops = [];
       D.melody = 0; D.lastX = 4; D.softRows = 0; D.rep = 0; D.repDir = 0; D.chord = 0; D.arp = 0; D.polyStep = 0;
-      D.breathPhase = -1; D.breathRate = 0; D.breathIn = false; D.breathFull = -1; D.breathFrac = 0.4; D.irJob = null; D.noiseJob = null; D.probeJob = null; D.ambAt = 0; D.irBuf = null; D.verbSwapAt = 0;
+      D.breathPhase = -1; D.breathRate = 0; D.breathIn = false; D.breathFull = -1; D.breathFrac = 0.4; D.irJob = null; D.noiseJob = null; D.probeJob = null; D.ambAt = 0; D.irBuf = null; D.verbSwapAt = 0; D.verbIdle = false;
       D.bed = false; D.pending = null; D.ended = false; D.layer = 0; D.danger = 0; D.last = {};
       S.paused = false; S.calm = false; S.wantBed = false;
       applyLevels(0);

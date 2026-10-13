@@ -774,11 +774,14 @@ layout(std140) uniform Frame {
   vec4 uFx1;       /* the skin's edge light, haze, the stone's polish, frame half-thickness */
   vec4 uDeep;      /* what the shaft falls away into, w the lip's height */
   vec4 uRing[4];   /* ripple rings: x, y, age, amplitude */
-  vec4 uPal[12];   /* 0 warm white, 1..7 pieces, 8 silt, 9 glyph ink, 10 outline, 11 moon glyph */
+  vec4 uPal[12];   /* 0 warm white, 1..7 pieces, 8 silt, 9 glyph ink, 10 outline, 11 moon glyph;
+                      w of 1..8 one over the colour's brightest channel */
   vec4 uMat3;      /* edge transmission, broad (1) or narrow (0), clear coat, paper (fibre across, ribs, lit from inside) */
   vec4 uMat4;      /* frosted sheen, a thicker middle, the wall seen through, where the Empty Well's light has left from */
   vec4 uSkyC;      /* the world's horizon, w the shaft's own breath of light */
   vec4 uSkyT;      /* the world's sky overhead, w how far up the shaft the Empty Well's light has risen */
+  vec4 uLive;      /* the Empty Well's light (its colour at the strength it adds), w 1 while it is in the shaft */
+  vec4 uRingC;     /* a lock's ripple: its colour at the strength it adds, spare */
 };
 `;
 
@@ -939,17 +942,17 @@ var GLSL_LIVE = `
    the floor upward so it leaves by the mouth; it is coloured six parts
    the world's rim light to four of its key. Both are held well under the
    flash threshold by construction (ΔL 0.03 and about 0.05). */
-/* a lock's ripple is a thin ring of the world's light, half key and half
-   rim — never the stone's own colour, which made a brown stain of it */
-vec3 ringCol(){ return mix(uKeyCol.rgb, uRimCol.rgb * (luma(uKeyCol.rgb) / max(luma(uRimCol.rgb), 1e-3)), 0.5); }
 vec3 shaftLive(vec3 col, float y){
-  /* no branches: this runs on every pixel of the back wall, and a GPU
-     that cannot skip a branch would pay for both sides */
+  /* this runs on every pixel of the back wall: the Empty Well's light is
+     behind a branch on a uniform, which every pixel takes the same way,
+     so it costs nothing at all for the whole of a game but one second */
   float b = uSkyC.w * (0.25 + 0.75 * clamp((y + 2.0) * 0.04, 0.0, 1.0));
-  float df = (y - uSkyT.w) * 0.5;
-  float e = uFx0.x * (exp2(-df * df) + 0.4 * clamp((uSkyT.w - y) * 0.5, 0.0, 1.0) * clamp((y - uMat4.w) * 0.3333, 0.0, 1.0));
-  vec3 lc = mix(uKeyCol.rgb / max(luma(uKeyCol.rgb), 1e-3), uRimCol.rgb / max(luma(uRimCol.rgb), 1e-3), 0.6);
-  return col * (1.0 + 0.9 * b + 0.9 * e) + uKeyCol.rgb * (0.004 * b) + lc * (0.03 * e) + uSkyT.rgb * (0.05 * b);
+  float e = 0.0;
+  if (uLive.w > 0.5) {
+    float df = (y - uSkyT.w) * 0.5;
+    e = uFx0.x * (exp2(-df * df) + 0.4 * clamp((uSkyT.w - y) * 0.5, 0.0, 1.0) * clamp((y - uMat4.w) * 0.3333, 0.0, 1.0));
+  }
+  return col * (1.0 + 0.9 * b + 0.9 * e) + uKeyCol.rgb * (0.004 * b) + uLive.rgb * e + uSkyT.rgb * (0.05 * b);
 }
 `;
 
@@ -1010,7 +1013,7 @@ void main(){
 var FS_BLOCK = GLSL_HEAD + GLSL_FRAME + GLSL_COMMON + GLSL_BRDF + GLSL_STONE + `
 uniform vec4 uVarS;         /* this variant's outer sides: N, E, S, W */
 uniform vec4 uVarB;         /* and the insides of its bends: NE, SE, SW, NW */
-uniform float uFade;        /* 1 while drawing bodies that are fading into light */
+uniform float uFade;        /* 1 while drawing bodies that are fading into light, 2 bands of light */
 uniform sampler2D uDetail;  /* the baked tile of fine noise */
 in vec3 vLocal; in vec3 vLN; in vec3 vN; in vec3 vW; in vec2 vP;
 flat in vec4 vC; flat in vec4 vD; flat in vec4 vF; flat in vec4 vE;
@@ -1073,9 +1076,6 @@ void main(){
   float fg = vF.x;
   vec3 warm = uPal[0].rgb;
   vec2 l = vLocal.xy;
-  /* the light a clear is made of: halfway between the world's key light
-     and the skin's warm white, never a piece's own colour (brief §8.4.2) */
-  vec3 bandCol = (uKeyCol.rgb * 0.41667 + warm) * 0.5;
   /* "fade" is how much of a body going out is left; the clumps it goes
      out in are laid out in the well, not in each cell, so nothing ever
      goes out as a grid of tiles */
@@ -1100,7 +1100,11 @@ void main(){
      colour is the clear's light with its warmth drawn out a little
      further. Where a Twist's ribbon runs over it, it steps back so the
      ribbon reads. */
-  if (vF.w > 0.5 && uFade > 0.5) {
+  if (uFade > 1.5) {
+    /* the light a clear is made of: halfway between the world's key
+       light and the skin's warm white, never a piece's own colour (brief
+       §8.4.2) */
+    vec3 bandCol = (uKeyCol.rgb * 0.41667 + warm) * 0.5;
     float yy = l.y * l.y;
     float prof = exp2(-yy * 14.0);
     float bl = luma(bandCol);
@@ -1237,7 +1241,7 @@ void main(){
        what the thickness shows (a grey there read as a smudge), and most
        of its brightness is kept, so it reads as richer, not darker */
     if (uMat4.y > 0.0) {
-      vec3 dye = base / max(max(base.r, base.g), max(base.b, 1e-3));
+      vec3 dye = base * uPal[gk].w;
       float zone = mix(1.0 - smoothstep(0.1, 0.7, e6), smoothstep(0.15, 0.8, e6), uMat3.w);
       vec3 cd = col * mix(vec3(1.0), dye, uMat4.y * front * zone);
       col = cd * mix(1.0, luma(col) / max(luma(cd), 1e-4), 0.6);
@@ -1251,9 +1255,9 @@ void main(){
       vec2 off = N.xy * uMat0.w * 40.0 + (vW.xy - uEye.xy) * (uWallP.z / uEye.z);
       vec2 wp = vW.xy + off;
       float wl = luma(uWall.rgb);
-      vec3 seen = mix(vec3(wl), uWall.rgb, 0.36) * min(1.0, 0.2 / max(wl, 1e-3));
-      float lit = 0.6;
+      vec3 seen; float lit;
       if (fg < 0.5) { seen = stoneLod(wp, 4.0).rgb; lit = shadeAt(wp); }
+      else { seen = mix(vec3(wl), uWall.rgb, 0.36) * min(1.0, 0.2 / max(wl, 1e-3)); lit = 0.6; }
       vec3 behind = coolStone(seen) * (uKeyCol.rgb * 0.2 * lit + uDeep.rgb * 0.8 + uSkyC.rgb * 0.3);
       float edge = 1.0 - front;
       col = col * (0.84 + 0.1 * edge) + base * behind * 5.5 + base * keyC * 0.03 * (0.5 + edge) + keyC * 0.012 * edge;
@@ -1281,7 +1285,7 @@ void main(){
      reads as light and never as milk; a pale piece is given less, so it
      brightens without going white */
   if (lightUp > 0.0) {
-    col += base * (lightUp * 0.9 * (1.0 - 0.5 * luma(base))) + bandCol * (lightUp * 0.12);
+    col += base * (lightUp * 0.9 * (1.0 - 0.5 * luma(base))) + (uKeyCol.rgb * 0.41667 + warm) * (lightUp * 0.06);
     /* and its colour drawn out as it brightens, against the tonemap and
        the bloom, which would otherwise wash a pale piece toward white */
     float lb = luma(col);
@@ -1472,13 +1476,14 @@ in vec2 vXY;
 out vec4 outColor;
 void main(){
   vec3 col = texture(uBackC, vec2(vXY.x * 0.1, vXY.y * (1.0 / 22.5))).rgb;
-  /* a lock's ripple: a thin, faint ring of light through the stone,
+  /* a lock's ripple: a thin, faint ring of the world's light (never the
+     stone's own colour, which made a brown stain of it) through the stone,
      far below anything that could read as a flash */
   if (uFx0.y > 0.0) {
     for (int i = 0; i < 4; i++) {
       vec4 r = uRing[i];
       float d = length(vXY - r.xy) - r.z * 7.0;
-      col += ringCol() * exp2(-d * d * 3.0) * r.w * exp2(-r.z * 3.2) * 0.012;
+      col += uRingC.rgb * exp2(-d * d * 3.0) * r.w * exp2(-r.z * 3.2);
     }
   }
   /* Breath, the Empty Well's one breath, and the light a finished run
@@ -2050,13 +2055,14 @@ vec3 openAt(vec2 uv){
   if (uB0.w > 0.5 && t.x >= 0.0 && t.x <= 1.0 && t.y >= 0.0 && t.y <= uB0.z) {
     vec3 col = texture(uBackC, t).rgb;
     vec2 xy = t * vec2(10.0, 22.5);
-    /* a lock's ripple: a thin, faint ring of light through the stone,
+    /* a lock's ripple: a thin, faint ring of the world's light (never the
+     stone's own colour, which made a brown stain of it) through the stone,
        far below anything that could read as a flash */
     if (uFx0.y > 0.0) {
       for (int i = 0; i < 4; i++) {
         vec4 r = uRing[i];
         float d = length(xy - r.xy) - r.z * 7.0;
-        col += ringCol() * exp2(-d * d * 3.0) * r.w * exp2(-r.z * 3.2) * 0.012;
+        col += uRingC.rgb * exp2(-d * d * 3.0) * r.w * exp2(-r.z * 3.2);
       }
     }
     /* Breath, the Empty Well's one breath, and the light a finished run
@@ -2130,7 +2136,7 @@ void main(){
 /* ================================================================
    the renderer
    ================================================================ */
-var UBO_FLOATS = 152;
+var UBO_FLOATS = 160;
 var MAXI = 900;           /* body instances */
 var MAXS = 256;           /* light sprites, all layers */
 /* light sprites go in one list and one draw: added light does not care
@@ -2220,7 +2226,7 @@ Gfx3D.create = function (canvas, opts) {
   var ubo = new Float32Array(UBO_FLOATS);
   var instTmp = new Float32Array(MAXI * 16), instArr = new Float32Array(MAXI * 16);
   var instBucket = new Int16Array(MAXI), instN = 0;
-  var NB = NVAR * 3;    /* layers: the stack, the never-dimmed, the fading */
+  var NB = NVAR * 4;    /* layers: the stack, the never-dimmed, the fading, bands of light */
   var bCount = new Int32Array(NB), bStart = new Int32Array(NB), bFill = new Int32Array(NB);
   var spr = new Float32Array(MAXS * 16), sprN = 0;
   var pData = new Float32Array(MAXP * 16), pHead = 0, pLo = MAXP, pHi = -1, pLiveUntil = -1e9;
@@ -2680,9 +2686,12 @@ Gfx3D.create = function (canvas, opts) {
       var hx = cols[NAMES.charAt(i)];
       if (SK.mono && !hx) hx = "#C9D6EA";
       hexLin(hx || DEFAULT_SKIN.colors[NAMES.charAt(i)], pal, (i + 1) * 4);
-      pal[(i + 1) * 4 + 3] = 1;
+      /* w: one over the colour's brightest channel, so a shader can have
+         the colour's own hue at full strength (its dye) for a multiply */
+      pal[(i + 1) * 4 + 3] = 1 / Math.max(1e-3, pal[(i + 1) * 4], pal[(i + 1) * 4 + 1], pal[(i + 1) * 4 + 2]);
     }
     hexLin(cols.silt || skin.silt || "#5C6470", pal, 32);
+    pal[35] = 1 / Math.max(1e-3, pal[32], pal[33], pal[34]);
     hexLin("#FFF1DE", pal, 0);                       /* warm white: what a clear turns into */
     hexLin("#0B0E16", pal, 36);                      /* Ink's glyphs */
     hexLin("#F4F7FF", pal, 40);                      /* Ink's outline */
@@ -3745,7 +3754,7 @@ Gfx3D.create = function (canvas, opts) {
       var hx = -99;
       if (bgRib[i] > 0) { var hq = (fxNow - bgRib[i]) / 0.42; if (hq > -0.1 && hq < 1.2) hx = 0.06 + hq * 9.88; }
       bgMidF[i] = bmid; bgHF[i] = bgK[i] * bs; bgLitF[i] = blu * bxf * (1 - smooth((bpg - 0.45) / 0.45));
-      inst(2, BAND_VAR, CX, bmid, 0.064, 0, 0, 0, W, bgK[i] * bs, bgSweep[i], blu, bp > 0 ? Math.max(0.0006, bp) : 0, 8,
+      inst(3, BAND_VAR, CX, bmid, 0.064, 0, 0, 0, W, bgK[i] * bs, bgSweep[i], blu, bp > 0 ? Math.max(0.0006, bp) : 0, 8,
            bgK[i] * bs, hx, 1, bxf);
     }
     /* the piece in hand */
@@ -3953,7 +3962,7 @@ Gfx3D.create = function (canvas, opts) {
       /* each bead's quad is wider than the gap to the next, so the glow
          of lit beads runs together into one string of light rather than
          a row of holes; an unlit bead is barely more than its stone */
-      var rb = Math.min(0.08, floorT * 0.24), bq = rb * 5;
+      var rb = Math.min(0.08, floorT * 0.24), bq = rb * 4;
       var ready2 = view && view.breath && view.breath.charge >= 10 ? 1 : 0;
       var bcr = kc[0] * 0.7 + cur.rim[0] * 0.3, bcg = kc[1] * 0.7 + cur.rim[1] * 0.3, bcb = kc[2] * 0.7 + cur.rim[2] * 0.3;
       for (k = 0; k < 20; k++) {
@@ -3962,7 +3971,7 @@ Gfx3D.create = function (canvas, opts) {
         var br = 0.08 + lv * (0.45 + 0.15 * ready2);
         sprite(0, bx, -floorT * 0.55, 0.015, 0, bq, bq, 6, 0.25 + 0.75 * lv,
                mixf(cur.wall[0] * 1.2 + 0.01, bcr, lv), mixf(cur.wall[1] * 1.2 + 0.01, bcg, lv), mixf(cur.wall[2] * 1.2 + 0.01, bcb, lv),
-               br, lv * 0.3, 0.2, 0, 0);
+               br, lv * 0.3, 0.25, 0, 0);
       }
     }
     /* ---- the never-dimmed layer ---- */
@@ -4138,6 +4147,17 @@ Gfx3D.create = function (canvas, opts) {
     ubo[140] = t.refract ? SK.sheen : 0; ubo[141] = SK.thick; ubo[142] = SK.see; ubo[143] = tail;
     ubo[144] = cur.hor[0]; ubo[145] = cur.hor[1]; ubo[146] = cur.hor[2]; ubo[147] = shaftBreath;
     ubo[148] = cur.top[0]; ubo[149] = cur.top[1]; ubo[150] = cur.top[2]; ubo[151] = front;
+    /* the Empty Well's light: six parts the world's rim light to four of
+       its key, each at unit brightness, worked out here once rather than
+       on every pixel of the shaft */
+    var kl = Math.max(1e-3, 0.2126 * cur.key[0] + 0.7152 * cur.key[1] + 0.0722 * cur.key[2]);
+    var rl = Math.max(1e-3, 0.2126 * cur.rim[0] + 0.7152 * cur.rim[1] + 0.0722 * cur.rim[2]);
+    for (i = 0; i < 3; i++) ubo[152 + i] = (cur.key[i] / kl * 0.4 + cur.rim[i] / rl * 0.6) * 0.03;
+    ubo[155] = ubo[60] > 0 ? 1 : 0;
+    /* and a lock's ripple: half the key light, half the rim, as bright as
+       the key (uKeyCol is the key at 2.4) */
+    for (i = 0; i < 3; i++) ubo[156 + i] = (cur.key[i] * 0.5 + cur.rim[i] * (kl / rl) * 0.5) * 2.4 * 0.012;
+    ubo[159] = 0;
     gl.bindBuffer(gl.UNIFORM_BUFFER, B.ubo);
     gl.bufferSubData(gl.UNIFORM_BUFFER, 0, ubo);
     /* where the face and the frame land on screen this frame (the kick
@@ -4434,6 +4454,10 @@ Gfx3D.create = function (canvas, opts) {
     gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
     gl.uniform1f(P.block.u.uFade, 1);
     drawBodies(2);
+    /* and the bands of light, the same blend, their own branch of the
+       shader chosen by a uniform rather than per pixel */
+    gl.uniform1f(P.block.u.uFade, 2);
+    drawBodies(3);
     gl.uniform1f(P.block.u.uFade, 0);
     /* added light: everything that may glow, the motes in the shaft,
        the landing light (marked never to be washed), and on the Simple

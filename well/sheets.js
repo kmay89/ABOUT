@@ -253,7 +253,19 @@ var CSS = [
   /* the device's wish, and the player's own Gentle or Still, both stop the
      sheets' small movements: the switch's slide, the keycap's caret */
   "@media (prefers-reduced-motion:reduce){.wsx *,.wsx *::after{transition:none!important;animation:none!important}}",
-  ".wsx.wstill *,.wsx.wstill *::after{transition:none!important;animation:none!important}"
+  ".wsx.wstill *,.wsx.wstill *::after{transition:none!important;animation:none!important}",
+  /* Forced colours (Windows High Contrast) flatten the tint and the accent
+     border that say which card is chosen, and the switch's track and thumb
+     with them. The chosen card's tint becomes an inner ring in Highlight
+     (never an outline: that is the focus ring, and the focused card is
+     usually the chosen one), and the switch is drawn in system colours. */
+  "@media (forced-colors:active){",
+  "  .wsx .opt.on::before,.wsx .wseg .btn.on::before{opacity:1;background:none;border:3px solid Highlight;inset:2px}",
+  "  .wsx .wsw{border:2px solid CanvasText}",
+  "  .wsx .wsw::after{top:2px;left:2px;background:CanvasText;box-shadow:none}",
+  "  .wsx .wtg[aria-checked=true] .wsw{border-color:Highlight;background:Highlight}",
+  "  .wsx .wtg[aria-checked=true] .wsw::after{background:HighlightText}",
+  "}"
 ].join("\n");
 
 function addStyle() {
@@ -1570,8 +1582,12 @@ function assign(a, slot, code) {
                 : keys[other].length ? " " + actionName(other) + " lets it go."
                                      : " " + actionName(other) + " has no key now.";
   }
+  /* allowed, but said: the system takes Control with an arrow first */
+  if (ON_MAC && /^Control/.test(code)) msg += " On a Mac, Control with the arrows belongs to Mission Control and Spaces.";
   say(msg);
 }
+var ON_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform || "") &&
+             (navigator.maxTouchPoints || 0) < 2;
 
 /* ======================================================================
    Sound
@@ -1623,8 +1639,8 @@ function buildComfort(body) {
   var mc = cards(body, "motion", [
     { v: "system", name: "System", line: "" },
     { v: "full", name: "Full", line: "Every glide, spring and drift of light." },
-    { v: "gentle", name: "Gentle", line: "Pieces snap instead of gliding, the camera holds still, and particles fade where they are." },
-    { v: "still", name: "Still", line: "No camera motion, no nudge, no particles. Changes cross-fade." }
+    { v: "gentle", name: "Gentle", line: "Pieces snap instead of gliding, the camera holds still, and particles fade where they are. The well on the title screen holds still." },
+    { v: "still", name: "Still", line: "No camera motion, no nudge, no particles. Changes cross-fade. The well on the title screen holds still." }
   ], mh, "wtwo");
   live(function () {
     var r = sys().reducedMotion;
