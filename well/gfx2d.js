@@ -1161,11 +1161,12 @@ function create(canvas, opts) {
       x.fillStyle = "rgba(0,0,0,0.4)";
       x.fillRect(s === 0 ? wl : wl + wallD - px1, o, px1, bodyH);
     }
-    /* the coping: a stone laid along each wall top, a touch wider than the
-       wall, its top face lit and a little shadow under its lip */
-    var cope = Math.max(1, Math.round(C * 0.07)), copeH = Math.max(3, Math.round(C * 0.22));
+    /* the coping: a stone laid along each wall top, overhanging the
+       wall's outer face (as the 3D well's does, so the silhouette has a
+       cap), its top face lit and a little shadow under its lip */
+    var cope = Math.max(1, Math.round(C * 0.07)), copeOut = Math.max(2, Math.round(C * 0.12)), copeH = Math.max(3, Math.round(C * 0.22));
     for (s = 0; s < 2; s++) {
-      var cl = sides[s] - cope, cw = wallD + cope * 2;
+      var cl = s === 0 ? sides[s] - copeOut : sides[s] - cope, cw = wallD + cope + copeOut;
       x.save();
       x.shadowColor = "rgba(0,0,0,0.45)"; x.shadowBlur = C * 0.15; x.shadowOffsetY = C * 0.06;
       x.fillStyle = css(mix(base, key, 0.2));
@@ -1176,16 +1177,23 @@ function create(canvas, opts) {
       x.fillStyle = "rgba(255,255,255,0.18)";
       x.fillRect(cl, o - Math.round(C * 0.04), cw, px1);
     }
-    /* the floor slab: a lit top face, a front face in shade */
-    var ft = faceT + faceH, fTop = Math.max(2, Math.round(floorD * 0.42));
+    /* the floor slab, standing out beyond the walls as a plinth: a lit
+       top face, a front face in shade, and under it a soft contact
+       shadow, so the well stands on something */
+    var ft = faceT + faceH, fTop = Math.max(2, Math.round(floorD * 0.42)), pl = Math.max(2, Math.round(C * 0.15));
+    x.save();
+    x.shadowColor = "rgba(0,0,0,0.55)"; x.shadowBlur = C * 0.5; x.shadowOffsetY = C * 0.22;
+    x.fillStyle = css(darken(base, 0.6));
+    x.fillRect(o - pl, ft + floorD - C * 0.15, bodyW + 2 * pl, C * 0.15);
+    x.restore();
     x.fillStyle = css(mix(lighten(base, 0.06), key, 0.2));
-    x.fillRect(o - cope, ft, bodyW + 2 * cope, fTop);
+    x.fillRect(o - pl, ft, bodyW + 2 * pl, fTop);
     x.fillStyle = "rgba(255,255,255,0.12)";
-    x.fillRect(o - cope, ft + fTop - px1, bodyW + 2 * cope, px1);
+    x.fillRect(o - pl, ft + fTop - px1, bodyW + 2 * pl, px1);
     g = x.createLinearGradient(0, ft + fTop, 0, ft + floorD);
     g.addColorStop(0, css(darken(base, 0.2))); g.addColorStop(1, css(darken(base, 0.58)));
     x.fillStyle = g;
-    x.fillRect(o - cope, ft + fTop, bodyW + 2 * cope, floorD - fTop);
+    x.fillRect(o - pl, ft + fTop, bodyW + 2 * pl, floorD - fTop);
     x.fillStyle = css(rim, 0.25);
     x.fillRect(faceL, ft, faceW, px1);
     return { c: c, id: wd.id };
@@ -1193,47 +1201,77 @@ function create(canvas, opts) {
 
   /* the Keep niche: an alcove cut into a block of the same stone. Beside
      a wide well the block reaches across to the wall, as the 3D well's
-     does, so the niche is part of the stone rather than a box beside it;
-     the alcove stays where the layout put the niche. */
+     does, its corners square where it meets the wall, the coping carried
+     across its top and a chamfered corbel under it on the wall, so the
+     niche is part of the frame rather than a box fixed to it; the alcove
+     stays where the layout put the niche, with an arched top. */
+  function nicheArch(rw, rh) { return { t: Math.min(rw, rh) * 0.45, b: Math.min(rw, rh) * 0.08 }; }
   function buildNiche(wd) {
     if (!L || !L.keep || !wd) return null;
-    var k = L.keep, w0 = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.5);
+    var k = L.keep, w0 = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.8);
     var reach = L.shape === "wide" && L.well ? Math.max(0, (L.well.x - (L.wall || 0)) - (k.x + k.w)) * dpr : 0;
+    var beside = L.shape === "wide";
     var w = w0 + reach;
     var c = canvasOf(w + 2 * o, h + 2 * o), x = ctxOf(c);
-    var base = hexRgb(wd.wall), key = hexRgb(wd.key), hor = hexRgb(wd.sky.horizon);
-    var r = Math.min(w, h) * 0.2;
+    var base = hexRgb(wd.wall), key = hexRgb(wd.key), hor = hexRgb(wd.sky.horizon), rim = hexRgb(wd.rim);
+    var r = Math.min(w, h) * 0.2, rs = beside ? 0 : r;
+    var cw = Math.round(C * 0.45), ch = Math.round(C * 0.45);
     x.save();
     x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = C * 0.6; x.shadowOffsetY = C * 0.1;
     var g = x.createLinearGradient(0, o, 0, o + h);
     g.addColorStop(0, css(mix(base, key, 0.14))); g.addColorStop(1, css(darken(base, 0.4)));
     x.fillStyle = g;
-    x.beginPath(); roundRect(x, o, o, w, h, r, r, r, r); x.fill();
+    x.beginPath(); roundRect(x, o, o, w, h, r, rs, rs, r); x.fill();
+    if (beside) {
+      /* the corbel, a chamfered stone carrying the block on the wall */
+      x.beginPath();
+      x.moveTo(o + w - cw, o + h - 1); x.lineTo(o + w, o + h - 1); x.lineTo(o + w, o + h + ch);
+      x.lineTo(o + w - cw, o + h + ch * 0.22); x.closePath();
+      x.fillStyle = css(darken(base, 0.42)); x.fill();
+    }
     x.restore();
+    if (beside) {
+      x.strokeStyle = css(mix(rim, key, 0.4), 0.35); x.lineWidth = Math.max(1, dpr);
+      x.beginPath(); x.moveTo(o + w - cw, o + h + ch * 0.22); x.lineTo(o + w, o + h + ch); x.stroke();
+    }
     x.save();
-    x.beginPath(); roundRect(x, o, o, w, h, r, r, r, r); x.clip();
+    x.beginPath(); roundRect(x, o, o, w, h, r, rs, rs, r); x.clip();
     dressStone(x, o, o, w, h, C, wd, base, 1.4, 77);
     x.fillStyle = css(mix(lighten(base, 0.25), key, 0.3));
     x.fillRect(o, o, w, Math.max(1, Math.round(C * 0.1)));
     x.restore();
+    if (beside) {
+      /* the coping, carried across its top to meet the frame's */
+      var copeOut = Math.max(2, Math.round(C * 0.12)), copeH = Math.max(3, Math.round(C * 0.22)), cy = o - Math.round(C * 0.04);
+      x.save();
+      x.shadowColor = "rgba(0,0,0,0.45)"; x.shadowBlur = C * 0.15; x.shadowOffsetY = C * 0.06;
+      x.fillStyle = css(mix(base, key, 0.2));
+      x.fillRect(o - copeOut, cy, w + copeOut, copeH);
+      x.restore();
+      x.fillStyle = css(mix(lighten(base, 0.3), key, 0.35));
+      x.fillRect(o - copeOut, cy, w + copeOut, Math.max(1, Math.round(copeH * 0.42)));
+      x.fillStyle = "rgba(255,255,255,0.18)";
+      x.fillRect(o - copeOut, cy, w + copeOut, Math.max(1, Math.round(dpr)));
+    }
     /* the recess */
-    var inset = Math.max(2, Math.round(Math.min(w0, h) * 0.12)), rw = w0 - 2 * inset, rh = h - 2 * inset, rr = r * 0.7;
+    var inset = Math.max(2, Math.round(Math.min(w0, h) * 0.12)), rw = w0 - 2 * inset, rh = h - 2 * inset;
+    var ar = nicheArch(rw, rh), rr = ar.t, rb = ar.b;
     /* the alcove is stone in its own shade, not a hole: what is kept in
        it, and the light that pools there when Keep is free, read against
        it the way they would in a niche in a wall */
     var back = mix(darken(base, 0.58), hor, 0.3);
     x.fillStyle = css(back);
-    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.fill();
+    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rb, rb); x.fill();
     x.save();
-    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.clip();
+    x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rb, rb); x.clip();
     x.shadowColor = "rgba(0,0,0,0.5)"; x.shadowBlur = C * 0.35; x.shadowOffsetY = C * 0.12; x.shadowOffsetX = C * 0.04;
     x.lineWidth = C * 0.4;
     x.strokeStyle = "#000";
-    x.beginPath(); roundRect(x, o + inset - C * 0.2, o + inset - C * 0.2, rw + C * 0.4, rh + C * 0.4, rr, rr, rr, rr); x.stroke();
+    x.beginPath(); roundRect(x, o + inset - C * 0.2, o + inset - C * 0.2, rw + C * 0.4, rh + C * 0.4, rr, rr, rb, rb); x.stroke();
     x.restore();
-    /* the shelf the piece rests on */
+    /* the sill the piece rests on */
     x.fillStyle = css(mix(base, key, 0.25), 0.55);
-    x.fillRect(o + inset + rr, o + inset + rh - Math.max(1, Math.round(dpr)), rw - 2 * rr, Math.max(1, Math.round(dpr)));
+    x.fillRect(o + inset + rb, o + inset + rh - Math.max(1, Math.round(dpr)), rw - 2 * rb, Math.max(1, Math.round(dpr)));
     return { c: c, id: wd.id, o: o, inset: inset };
   }
 
@@ -1293,18 +1331,19 @@ function create(canvas, opts) {
     nicheGlow = null;
     if (L.keep) {
       var k = L.keep, kw = k.w * dpr, kh = k.h * dpr, mg = Math.round(C * 0.6);
-      var inset = Math.max(2, Math.round(Math.min(kw, kh) * 0.12)), rr = Math.min(kw, kh) * 0.14;
+      var inset = Math.max(2, Math.round(Math.min(kw, kh) * 0.12));
       var c = canvasOf(kw + 2 * mg, kh + 2 * mg), x = ctxOf(c);
       var rx0 = mg + inset, ry0 = mg + inset, rw2 = kw - 2 * inset, rh2 = kh - 2 * inset;
+      var ar = nicheArch(rw2, rh2), rr = ar.t, rb = ar.b;
       var lamp = mix(keyRgb, rimRgb, 0.3);
       x.save();
-      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rr, rr); x.clip();
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rb, rb); x.clip();
       var g = x.createRadialGradient(rx0 + rw2 / 2, ry0 + rh2, 0, rx0 + rw2 / 2, ry0 + rh2, Math.max(rw2 * 0.6, rh2 * 1.1));
       g.addColorStop(0, css(lamp, 0.6)); g.addColorStop(0.45, css(lamp, 0.24)); g.addColorStop(1, css(lamp, 0));
       x.fillStyle = g; x.fillRect(rx0, ry0, rw2, rh2);
       x.restore();
       x.strokeStyle = css(lighten(rimRgb, 0.2), 0.2); x.lineWidth = Math.max(1, dpr);
-      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rr, rr); x.stroke();
+      x.beginPath(); roundRect(x, rx0, ry0, rw2, rh2, rr, rr, rb, rb); x.stroke();
       nicheGlow = { c: c, m: mg };
     }
   }
@@ -2840,7 +2879,8 @@ function create(canvas, opts) {
     /* the rim glows while Keep is free to use */
     var avail = !view.holdUsed;
     var pulse = keepPulseT0 >= 0 ? clamp(1 - (now - keepPulseT0) / 0.5, 0, 1) : 0;
-    var ga = (avail ? 0.55 : 0.08) + pulse * 0.4;
+    /* and the lamp in it never goes out, only down to half */
+    var ga = (avail ? 0.55 : 0.28) + pulse * 0.4;
     if (nicheGlow && ga > 0.01) {
       x.globalCompositeOperation = "lighter";
       x.globalAlpha = Math.min(1, ga);

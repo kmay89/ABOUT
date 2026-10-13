@@ -25,11 +25,13 @@
    **Wide** (iPad, Mac, a phone on its side). Height is the limit, so the
    well is centred and fills it, and the room left either side becomes two
    columns: Keep at the mouth on the left with the HUD and a free panel
-   (stats, the Glass Well) under it, and on the right the previews in an
-   arc that leaves the end of the coping heading out and curves down, each
-   smaller than the last (the 3D well also sets each further back into the
-   world's air). There is no room above the mouth on a landscape screen,
-   so the arc bends down rather than up.
+   (stats, the Glass Well) under it, and on the right the previews in a
+   shallow arc that leaves the end of the coping heading out, each smaller
+   than the last (the 3D well also sets each further back into the
+   world's air), falling no more than a cell and a half in all, so it
+   reads as things receding rather than falling. The whole well, coping
+   to plinth, is centred in the height it has. Only a phone on its side,
+   with no width to spare, hangs its previews down the column instead.
 
    The shape that gives the bigger well wins, unless the caller forces
    one with "o.wide".
