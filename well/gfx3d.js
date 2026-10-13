@@ -846,8 +846,8 @@ vec3 backWallLit(vec2 xy){
   vec4 sh = texture(uShade, vec2(xy.x * 0.1, xy.y * (1.0 / 24.0)));
   float lt = sh.r;
   float fall = exp2(-deep * 0.6);
-  vec3 col = alb * (uKeyCol.rgb * 0.16 * lt * clamp(uKey.z * 0.5 + 0.55, 0.0, 1.0) * (0.5 + 0.5 * fall)
-                  + shaftFill(fall) * 0.62 + skyFall(xy.y) * 0.9);
+  vec3 col = alb * (uKeyCol.rgb * 0.28 * lt * clamp(uKey.z * 0.5 + 0.55, 0.0, 1.0) * (0.5 + 0.5 * fall)
+                  + shaftFill(fall) * 1.1 + skyFall(xy.y) * 1.5);
   float corner = smoothstep(-0.2, 1.2, min(min(xy.x, 10.0 - xy.x), xy.y + 0.2));
   col *= (0.6 + 0.4 * corner) * shaftDepth(xy.y);
   col += mix(uEnvTop.rgb, uKeyCol.rgb * 0.35, 0.5) * st.a * uFx1.z * 0.02 * (0.3 + 0.7 * lt);
@@ -897,7 +897,8 @@ layout(location = 2) in vec4 iA;   /* pivot xyz, turn about z */
 layout(location = 3) in vec4 iB;   /* offset from pivot xy, squash xy */
 layout(location = 4) in vec4 iC;   /* colour, light, dissolve, flags */
 layout(location = 5) in vec4 iD;   /* tilt x, tilt y, scale, and one more: the haze a
-                                      preview hangs in, or how opaque a fading body is */
+                                      preview hangs in, how opaque a fading body is,
+                                      or -1 for the piece in hand */
 out vec3 vLocal; out vec3 vLN; out vec3 vN; out vec3 vW; out vec2 vP;
 flat out vec4 vC; flat out vec4 vD; flat out vec4 vF; flat out vec4 vE;
 void main(){
@@ -934,6 +935,9 @@ void main(){
   p.z -= 0.45 * iD.z;
   vW = iA.xyz + p; vN = n; vC = iC; vD = iD;
   gl_Position = uVP * vec4(vW, 1.0);
+  /* the piece in hand (marked -1) wins every depth test within about a
+     tenth of a cell, so a row of light going out never covers it */
+  if (iD.w < -0.5) gl_Position.z -= 0.03 * gl_Position.w;
 }
 `;
 
@@ -1215,8 +1219,8 @@ void main(){
     lt *= 1.0 - 0.7 * cont;
     float fall = exp2(-deep * 0.6);
     float wrapL = clamp(dot(N, uKey.xyz) * 0.5 + 0.55, 0.0, 1.0);
-    col = alb * (uKeyCol.rgb * 0.18 * lt * wrapL * (0.5 + 0.5 * fall)
-               + shaftFill(fall) * 0.66 * (1.0 - 0.45 * cont) + skyFall(vW.y) * 0.9 * (0.4 + 0.6 * fall));
+    col = alb * (uKeyCol.rgb * 0.3 * lt * wrapL * (0.5 + 0.5 * fall)
+               + shaftFill(fall) * 1.15 * (1.0 - 0.45 * cont) + skyFall(vW.y) * 1.5 * (0.4 + 0.6 * fall));
     /* the crease where it meets the back wall */
     col *= (0.62 + 0.38 * smoothstep(1.0, 0.72, back)) * shaftDepth(vW.y);
     /* wet, icy or lacquered stone holds the mouth's light */
@@ -1468,10 +1472,10 @@ void main(){
   pat(p + vec2(0.0, e), a2, h2, g2);
   /* relief from the height, lit from above and a little to the left, the
      way the mouth lights the shaft; joints and hollows gather shade */
-  vec3 n = normalize(vec3((h - h1) / e * 0.022, (h - h2) / e * 0.022, 1.0));
+  vec3 n = normalize(vec3((h - h1) / e * 0.014, (h - h2) / e * 0.014, 1.0));
   vec3 lb = normalize(vec3(-0.35, 0.8, 0.5));
-  float relief = clamp(dot(n, lb) / lb.z, 0.84, 1.16);
-  float cav = mix(0.93, 1.0, clamp(h, 0.0, 1.0));
+  float relief = clamp(dot(n, lb) / lb.z, 0.92, 1.08);
+  float cav = mix(0.95, 1.0, clamp(h, 0.0, 1.0));
   outColor = vec4(clamp(alb * relief * cav, 0.0, 1.0), clamp(gl, 0.0, 1.0));
 }
 `;
@@ -3480,15 +3484,16 @@ Gfx3D.create = function (canvas, opts) {
       var sw = CLEAR_SWAP;
       if (setl.kind === SET_CLEAR && Math.abs(setl.t0 - fcT0[i]) < 1e-4) sw = Math.min(sw, setl.hold);
       var xf = fcRise[i] > 0 ? smooth((ft - sw) / CLEAR_XF) : 1;
-      if (xf < 1) inst(0, VARIANT_OF[fcKeyB[i]], fcX[i] + 0.5, fcY[i] + 0.5, 0, 0, 0, 0, 1, 1,
+      /* Both stand a little proud of the face: when the rows above are let
+         go at once (a mode with no clear delay) they settle behind the
+         light, which goes out over them, instead of fighting it for the
+         same place. The band lifts a little toward the way the world's
+         particles travel, keeping its size so no seam opens in it. */
+      if (xf < 1) inst(0, VARIANT_OF[fcKeyB[i]], fcX[i] + 0.5, fcY[i] + 0.5, 0.06, 0, 0, 0, 1, 1,
                        fcV[i], lu, 0, fcFl[i], 0, 0, 1, 0);
       if (xf > 0) {
-        /* in front of the body while it takes over from it, then just
-           behind the face, so rows that settle onto it cover it; it lifts
-           a little toward the way the world's particles travel, keeping
-           its size so no seam opens in it */
         var lift = 0.12 * pdir * smooth(sat(prog));
-        inst(2, VARIANT_OF[fcKey[i]], fcX[i] + 0.5, fcY[i] + 0.5 + lift, xf < 1 ? 0.004 : -0.04, 0, 0, 0, 1, 1,
+        inst(2, VARIANT_OF[fcKey[i]], fcX[i] + 0.5, fcY[i] + 0.5 + lift, 0.064, 0, 0, 0, 1, 1,
              fcV[i], lu, dis, 8, 0, 0, 1, xf);
       }
     }
@@ -3520,7 +3525,7 @@ Gfx3D.create = function (canvas, opts) {
       var glint = A.glintT0 > -1e8 ? A.glintAmp * Math.exp(-(now - A.glintT0) / 0.12) : 0;
       if (glint < 0.01) glint = 0;
       for (i = 0; i < A.n; i++) {
-        inst(1, VARIANT_OF[A.key[i]], ppx, ppy, 0, ang, A.ox[i], A.oy[i], 1, 1, A.type, glint, 0, 1 | A.ct[i], tX, tY, sc, 0);
+        inst(1, VARIANT_OF[A.key[i]], ppx, ppy, 0, ang, A.ox[i], A.oy[i], 1, 1, A.type, glint, 0, 1 | A.ct[i], tX, tY, sc, -1);
       }
     }
     /* previews, drifting above the mouth; when a run ends they go with
