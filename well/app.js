@@ -31,9 +31,14 @@
    events are a handful of objects made once, the HUD writes to the DOM
    only when a number actually changed, the stopwatch is six digit nodes
    whose text is swapped from a table of ten strings, and the Glass Well's
-   bars are transforms picked from sixty-five strings built at load. Text
-   is built when something *happens* — a clear, a new depth — which is
-   rare, and never on a frame where nothing did.
+   bars are transforms picked from sixty-five strings built at load, and
+   the clocks live in a Float64Array because a double written to an
+   ordinary variable is boxed afresh on every write. Text is built when
+   something *happens* — a clear, a new depth — which is rare, and never
+   on a frame where nothing did. A sampling heap profile of six seconds of
+   play finds nothing allocated by this file per frame except the two
+   timestamps the browser itself hands over (performance.now() and the
+   animation-frame argument), which no script can avoid.
 
    ## One module's mistake is not the page's
 
@@ -210,7 +215,10 @@ var lastRun = null;          /* the run whose card is showing: Again, Begin agai
 var view = null;             /* Well.view's one reusable object */
 var R = null, I = null, S = null;
 var records = null, saves = null;
-var simT = 0, lastNow = 0, frameNow = 0;
+/* The clocks live in a typed array, not in plain variables: a double
+   written to a closure variable is boxed into a fresh heap number every
+   time, and these three are written every frame and every tick. */
+var clock = new Float64Array(4), SIM = 0, LAST = 1, FRAME = 2, DT = 3;
 var needResize = true, pendingSwap2D = false;
 var sheetsOpen = 0, lastToggle = -1e9;
 var L = null, vw = 0, vh = 0, dpr = 1;
@@ -451,7 +459,9 @@ function doResize() {
   dpr = Math.min(root.devicePixelRatio || 1, 2);
   readSafe();
   lopt.previews = +pref("previews");
-  lopt.keep = !!pref("keep");
+  /* Keep is fixed for a run when the engine is made; the niche follows the
+     run in progress, and the setting applies from the next one */
+  lopt.keep = run && run.eo ? run.eo.keep !== false : !!pref("keep");
   lopt.scale = +pref("boardSize") || 1;
   lopt.buttons = padOn;
   lopt.trayH = padOn ? (padEl.offsetHeight - safe.b - 24) : 0;
@@ -722,11 +732,11 @@ function labelGroup(n, t0, c0, s0, t1, c1, s1, t2, c2, s2, t3, c3, s3) {
     }
   }
   lblShown = true;
-  lblUntil = frameNow + LABEL_MS;
+  lblUntil = clock[FRAME] + LABEL_MS;
 }
-function labelsTick(t) {
+function labelsTick() {
   if (!lblShown) return;
-  if (t >= lblUntil) {
+  if (clock[FRAME] >= lblUntil) {
     for (var i = 0; i < LBL.length; i++) LBL[i].className = "lbl";
     lblShown = false;
     if (lblDodge) { lblDodge = false; labelsEl.classList.remove("dodge"); }
@@ -755,8 +765,8 @@ function say(text) {
   if (t - sayLast >= SAY_GAP) { sayEl.textContent = text; sayLast = t; sayPending = null; }
   else sayPending = text;
 }
-function sayTick(t) {
-  if (sayPending !== null && t - sayLast >= SAY_GAP) { sayEl.textContent = sayPending; sayLast = t; sayPending = null; }
+function sayTick() {
+  if (sayPending !== null && clock[FRAME] - sayLast >= SAY_GAP) { sayEl.textContent = sayPending; sayLast = clock[FRAME]; sayPending = null; }
 }
 
 var bannerUntil = 0;
@@ -766,7 +776,7 @@ function banner(big, sub, ms) {
   bannerEl.classList.add("on");
   bannerUntil = now() + (ms || BANNER_MS);
 }
-function bannerTick(t) { if (bannerUntil && t >= bannerUntil) { bannerUntil = 0; bannerEl.classList.remove("on"); } }
+function bannerTick() { if (bannerUntil && clock[FRAME] >= bannerUntil) { bannerUntil = 0; bannerEl.classList.remove("on"); } }
 
 var toastT = 0;
 function toast(text, ms) {
@@ -876,17 +886,21 @@ function toggleGlass() {
    the loop
    ================================================================ */
 var rafId = 0;
+var perf = root.performance && performance.now ? performance : null;
 function frame() {
   rafId = root.requestAnimationFrame(frame);
-  var t = now();
-  var dt = lastNow ? t - lastNow : 16.7;
-  lastNow = t;
-  if (dt > 250) dt = 250; else if (dt < 0) dt = 0;
-  frameNow = t;
-  try { frameBody(t, dt); } catch (e) { fault("frame", e); }
+  /* the frame's times go straight into the typed clock and are read back
+     from it below, rather than passed along as arguments: a double handed
+     to a function that isn't inlined is boxed on the way in */
+  clock[FRAME] = perf ? perf.now() : Date.now();
+  clock[DT] = clock[LAST] ? clock[FRAME] - clock[LAST] : 16.7;
+  clock[LAST] = clock[FRAME];
+  if (clock[DT] > 250) clock[DT] = 250; else if (clock[DT] < 0) clock[DT] = 0;
+  try { frameBody(); } catch (e) { fault("frame", e); }
 }
 
-function frameBody(t, dt) {
+function frameBody() {
+  var t = clock[FRAME];
   if (needResize) doResize();
   if (pendingSwap2D) swapTo2D("lost");
   if (I) { try { I.poll(); } catch (e) { fault("Input.poll", e); } }
@@ -896,19 +910,19 @@ function frameBody(t, dt) {
 
   var live = (state === "play" && run) || (state === "splash" && demo.g);
   if (live) {
-    if (t - simT > 250) simT = t - 250;
-    while (simT + TICK <= t) {
-      simT += TICK;
+    if (t - clock[SIM] > 250) clock[SIM] = t - 250;
+    while (clock[SIM] + TICK <= t) {
+      clock[SIM] += TICK;
       if (state === "play" && run) tickRun();
       else if (state === "splash" && demo.g) tickDemo();
       else break;
     }
-  } else simT = t;
+  } else clock[SIM] = t;
 
-  if (state === "play" && run) afterTicks(t, dt);
+  if (state === "play" && run) afterTicks();
   else if (state === "ending" && t >= endAt) showEndCard();
-  remindTick(t, dt);
-  present(t, dt);
+  remindTick();
+  present();
 }
 
 /* one 240 Hz tick of a live run */
@@ -925,7 +939,7 @@ function tickRun() {
   }
   if (!r.halted) {
     r.elapsedMs += TICK;
-    if (I) { try { I.tick(simT); } catch (e) { fault("Input.tick", e); } }
+    if (I) { try { I.tick(clock[SIM]); } catch (e) { fault("Input.tick", e); } }
   }
   if (r.watching) watchTick();
   if (r.graceMs > 0) r.graceMs -= TICK;
@@ -952,7 +966,7 @@ function dispatch(ev) {
 
   switch (t) {
     case "spawn":
-      if (I) { try { I.spawned(simT); } catch (e) { fault("Input.spawned", e); } }
+      if (I) { try { I.spawned(clock[SIM]); } catch (e) { fault("Input.spawned", e); } }
       if (r.watching && r.watchType !== null && r.watchType !== ev.type) r.watching = false;
       break;
     case "hard":
@@ -1061,8 +1075,8 @@ function appFx(ev, withMusic) {
 
 /* once a frame, after the ticks: the things that follow from the state
    rather than from one event */
-function afterTicks(t, dt) {
-  var r = run, g = r.g;
+function afterTicks() {
+  var r = run, g = r.g, t = clock[FRAME];
   if (r.modeId === "descent") {
     var d = depthNow();
     if (d !== r.depth) depthChanged(d);
@@ -1118,15 +1132,15 @@ function afterTicks(t, dt) {
   if (r.watching && !g.active) r.watching = false;
 }
 
-function present(t, dt) {
-  var g = run ? run.g : demo.g;
+function present() {
+  var g = run ? run.g : demo.g, t = clock[FRAME];
   if (!g || !Well) return;
   try { view = Well.view(g, view); } catch (e) { fault("Well.view", e); return; }
   rctx.view = view;
   view.target = run ? run.target : null;
   view.paused = state === "paused";
   view.demo = state === "splash" || (!run && !!demo.g);
-  if (R) { try { R.render(view, dt / 1000, t / 1000); } catch (e) { fault("R.render", e); } }
+  if (R) { try { R.render(view, clock[DT] / 1000, t / 1000); } catch (e) { fault("R.render", e); } }
   if (run) {
     if (state === "play" || state === "paused" || state === "rest" || state === "intro") hudUpdate();
     glassUpdate();
@@ -1134,9 +1148,9 @@ function present(t, dt) {
       try { Music.setIntensity(view.danger); } catch (e) { fault("Music.setIntensity", e); }
     }
   }
-  labelsTick(t);
-  sayTick(t);
-  bannerTick(t);
+  labelsTick();
+  sayTick();
+  bannerTick();
 }
 
 /* ================================================================
@@ -1153,7 +1167,7 @@ function startDemo() {
   DEMO_OPTS.seed = newSeed();
   DEMO_OPTS.previews = +pref("previews");
   try { demo.g = Well.create(DEMO_OPTS); } catch (e) { fault("Well.create (demo)", e); demo.g = null; return; }
-  demo.q = null; demo.target = null; demo.held = false; demo.next = simT + 900;
+  demo.q = null; demo.target = null; demo.held = false; demo.next = clock[SIM] + 900;
   /* a fresh well for the renderer too, after whatever dissolved before it */
   appFx(EV_START, false);
   /* the first piece is already there; drain its spawn and plan it */
@@ -1207,7 +1221,7 @@ function demoAct() {
   try { Well.act(g, a); } catch (e) { fault("Well.act (demo)", e); }
   /* walking to a place: the piece that came out of Keep needs its own */
   if (a === "hold" && !demo.q) demoPlan();
-  demo.next = simT + wait;
+  demo.next = clock[SIM] + wait;
 }
 function tickDemo() {
   var g = demo.g;
@@ -1224,12 +1238,12 @@ function tickDemo() {
       /* a spawn that is the Keep swap belongs to the plan already running */
       if (ev.t === "spawn") {
         if (demo.held) demo.held = false;
-        else { demoPlan(); demo.next = simT + 380; }
+        else { demoPlan(); demo.next = clock[SIM] + 380; }
       }
     }
   }
   if (g.over) { startDemo(); return; }
-  if (simT >= demo.next && g.active) demoAct();
+  if (clock[SIM] >= demo.next && g.active) demoAct();
 }
 
 function splashRefresh() {
@@ -1540,10 +1554,13 @@ function resume() {
   holdScreen();
   replaceHistory();
 }
+/* paused with nothing open but the pause sheet itself: the pause key
+   (or the pad's Menu button) is a plain toggle back to the game */
+function onlyMenuOpen() { return sheetsOpen === 0 || (sheetsOpen === 1 && isOpen("ovMenu")); }
 function togglePauseFromUI() {
   if (now() - lastToggle < 280) return;
   if (state === "play") pause("menu");
-  else if (state === "paused" && !sheetsOpen) resume();
+  else if (state === "paused" && onlyMenuOpen()) resume();
 }
 
 /* ---------- saving ---------- */
@@ -1753,12 +1770,12 @@ function coachWatch() {
   try { if (r.coach.solution) r.coach.solution(r.g); } catch (e) { fault("Coach.solution", e); }
   r.watching = true;
   r.watchType = r.g.active.type;
-  r.watchNext = simT + 300;
+  r.watchNext = clock[SIM] + 300;
 }
 function watchTick() {
   var r = run;
-  if (simT < r.watchNext || !r.g.active) return;
-  r.watchNext = simT + WATCH_STEP;
+  if (clock[SIM] < r.watchNext || !r.g.active) return;
+  r.watchNext = clock[SIM] + WATCH_STEP;
   var a = null;
   try { a = r.coach.next ? r.coach.next(r.g) : null; } catch (e) { fault("Coach.next", e); a = null; }
   if (!a) { r.watching = false; return; }
@@ -1775,6 +1792,8 @@ function endRun(fin, t) {
   var r = run;
   if (!r || state === "ending" || state === "over") return;
   var g = r.g;
+  /* the numbers behind the card are the final ones */
+  hudUpdate();
   r.fin = fin || null;
   /* Two vocabularies meet here. Modes names an ending for the card
      ("surface", "filled"); the engine names what actually happened
@@ -1963,12 +1982,12 @@ function copyText(text) {
    the gentle reminder
    ================================================================ */
 var remind = { playMs: 0, lastPlay: 0, quietUntil: 0 };
-function remindTick(t, dt) {
+function remindTick() {
   if (state === "play" && run && !run.steady) {
     /* a five-minute break, anywhere, starts the count again */
-    if (remind.lastPlay && t - remind.lastPlay > BREAK_MS) remind.playMs = 0;
-    remind.playMs += dt;
-    remind.lastPlay = t;
+    if (remind.lastPlay && clock[FRAME] - remind.lastPlay > BREAK_MS) remind.playMs = 0;
+    remind.playMs += clock[DT];
+    remind.lastPlay = clock[FRAME];
   }
 }
 function remindDue() {
@@ -2072,6 +2091,13 @@ function sheetsChanged() {
   }
   if (n > was && I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
   if (top && !top.contains(doc.activeElement)) focusIn(top, null);
+  /* a well code belongs to the Modes sheet it was typed into: closing the
+     sheet without starting a run lets it go */
+  if (pendingSeed !== null && !isOpen("ovModes")) {
+    pendingSeed = null;
+    $("codeIn").value = "";
+    $("codeNote").textContent = "";
+  }
   if (state === "over" && !isOpen("ovEnd")) { doneRun(); return; }
   if (state === "intro" && !isOpen("ovCards")) { beginPlay(false); return; }
   if (n === 0) {
@@ -2676,7 +2702,7 @@ function wirePlatform() {
       saveAll();
     } else {
       music("resume");
-      lastNow = 0;
+      clock[LAST] = 0;
       needResize = true;
     }
   });
@@ -2711,12 +2737,17 @@ function wirePlatform() {
     if (e.defaultPrevented) return;
     var k = e.key, code = e.code;
     if (k === "Escape" || code === "Escape") {
+      if (state === "paused" && sheetsOpen && onlyMenuOpen()) {
+        e.preventDefault();
+        if (now() - lastToggle > 280) resume();
+        return;
+      }
       if (sheetsOpen) { e.preventDefault(); closeTopSheet(); lastToggle = now(); return; }
       if (state === "paused" || state === "rest") { e.preventDefault(); if (state === "paused") { if (now() - lastToggle > 280) resume(); } else reopenRest(); return; }
       if (state === "play" && !I) { e.preventDefault(); pause("menu"); }
       return;
     }
-    if (code === "KeyP" && !sheetsOpen) {
+    if (code === "KeyP" && onlyMenuOpen()) {
       if (state === "paused" && now() - lastToggle > 280) { e.preventDefault(); resume(); }
       else if (state === "play" && !I) { e.preventDefault(); pause("menu"); }
       return;
@@ -2767,7 +2798,7 @@ function wireUI() {
     if (state === "play") pause("menu");
     else if (state === "paused" || state === "rest") openMenu();
   });
-  press(btnBreath, function () { onAction("breath", { source: "button", t: simT, repeat: false }); });
+  press(btnBreath, function () { onAction("breath", { source: "button", t: clock[SIM], repeat: false }); });
   press(veil, function () {
     if (state === "paused") { if (now() - lastToggle > 200) resume(); }
     else if (state === "rest") reopenRest();
@@ -2950,8 +2981,8 @@ function boot() {
   });
   step("layout", doResize);
   step("splash", toSplash);
-  lastNow = 0;
-  simT = now();
+  clock[LAST] = 0;
+  clock[SIM] = now();
   rafId = root.requestAnimationFrame(frame);
   step("sw", wireSW);
 }

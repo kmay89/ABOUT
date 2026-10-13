@@ -488,15 +488,19 @@ var GLSL_RAIN = [
    upper left in broad shafts that drift in strength over half a minute.
    For a Quad a gust crosses the screen and each stalk leans as it passes. */
 var GLSL_BAMBOO = [
-  /* one stalk of a rank: column id, its lean on its own 0.08 Hz sine
-     (0.503 rad/s), bending more the higher it goes, plus whatever gust is
+  /* the brief's 0.08 Hz, in seconds of real time at full motion: the
+     world's own motion scale is divided back out of the sway, so it slows
+     the rest of the grove but never the stalks */
+  "#define SWAY (0.50265 / MOT3)",
+  /* one stalk of a rank: column id, its lean on its own 0.08 Hz sine,
+     bending more the higher it goes, plus whatever gust is
      passing. Returns coverage; a is the position across the stalk (-1 left
      edge, +1 right) for shading, node the ring where two segments meet. */
   "float stalk(float id, vec2 q, float t, float cell, float wmin, float wmax, float sway, float seed, float px, float gx, float gust, out float a, out float node){",
   "  float h = hash11(id * 1.31 + seed);",
   "  float x0 = (id + 0.3 + 0.4 * h) * cell;",
   "  float yy = clamp(q.y + 0.1, 0.0, 1.3);",
-  "  float lean = sway * sin(t * 0.50265 + h * 6.2831) + (h - 0.5) * 0.03;",
+  "  float lean = sway * sin(t * SWAY + h * 6.2831) + (h - 0.5) * 0.03;",
   "  lean += gust * gauss((x0 - gx) / 0.30);",
   "  float xc = x0 + lean * yy * yy;",
   "  float w = mix(wmin, wmax, hash11(id * 2.77 + seed));",
@@ -576,7 +580,7 @@ var GLSL_BAMBOO = [
   "  c = mix(c, nearCol, n * (1.0 - 0.65 * calm));",
   /* leaves at the top corners, narrow and pointed */
   "  float rl;",
-  "  float sl = sin(t * 0.50265 + 0.7);",
+  "  float sl = sin(t * SWAY + 0.7);",
   "  float lv = spray(q, vec2(-e - 0.03, 1.04), -0.35, 0.30, 0.22 * s, 0.016 * s, sl * 0.04, 0.003, 31.0, rl);",
   "  lv = max(lv, spray(q, vec2(e + 0.03, 1.02), 3.55, 0.30, 0.22 * s, 0.016 * s, -sl * 0.04, 0.003, 32.0, rl));",
   "  lv = max(lv, spray(q, vec2(-0.25 * e, 1.10), -1.75, 0.32, 0.18 * s, 0.014 * s, sl * 0.03, 0.003, 33.0, rl));",
@@ -735,7 +739,7 @@ var GLSL_LANTERNS = [
   "  if (r > 0.001){",
   "    vec3 cl = vec3(0.0);",
   "    for (int k = 0; k < 2; k++){",
-  "      float cyc = t / 7.0 + 0.5 * float(k);",
+  "      float cyc = t / 10.0 + 0.5 * float(k);",
   "      float ph = fract(cyc);",
   "      float hc = hash11(floor(cyc) * 7.13 + float(k));",
   "      float side = hc < 0.5 ? -1.0 : 1.0;",
@@ -913,7 +917,7 @@ var GLSL_STARS = [
   "  if (r > 0.001){",
   "    float e = 0.5 * asp;",
   "    for (int k = 0; k < 2; k++){",
-  "      float cyc = t / 2.6 + 0.5 * float(k);",
+  "      float cyc = t / 4.0 + 0.5 * float(k);",
   "      float ph = fract(cyc);",
   "      float hs = hash11(floor(cyc) * 3.17 + float(k) * 1.1);",
   "      float dir = hs < 0.5 ? 1.0 : -1.0;",
@@ -1028,9 +1032,11 @@ var FRAG = [
    everything that does not move is painted once into a cached layer per
    world (the sky, the hills, the sun, the far leaves), and each frame lays
    that layer down with one drawImage and then moves a handful of things over
-   it — mist sprites, rain tiles, stalks, lanterns, flakes. Gradients,
+   it — mist sprites, strokes of rain, stalks, lanterns, flakes. Gradients,
    sprites and colour strings are all made when a world is first shown, never
-   per frame, so a frame is a few dozen draw calls and no garbage.
+   per frame, so a frame is a few dozen draw calls (a hundred at most, for
+   snow on a wide screen) and no garbage. It is meant to be drawn the way
+   gfx2d draws it: into a canvas a quarter of the screen's pixels, at 15 Hz.
 
    The cached layers are painted at no more than 1100 pixels on their long
    side and stretched to fit. Everything in them is soft, so the stretch is
@@ -1043,8 +1049,8 @@ var FRAG = [
    uses this tier, so the quiet capsule is simply the middle of the screen.
    Danger is gfx2d's vignette to draw, not this. */
 
-/* small numeric helpers for building layers: a sine hash is fine here,
-   in double precision, at build time only */
+/* small numeric helpers: a sine hash is fine here, in JavaScript's double
+   precision, where it is not on a GPU */
 function h1(n) { var s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 function vn1(x) {
   var i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
@@ -1381,26 +1387,27 @@ SCENES[1] = {
     /* the floor's caustics, twice over the whole floor: a small, faint
        layer for the distance and a large one for the near floor, crawling
        different ways and swelling with the two-bar wave; then the haze,
-       which fades both into the blue toward the horizon with no seam */
+       which fades both into the blue toward the horizon with no seam.
+       Each fill is exactly the floor in the pattern's own space, so no
+       clip is needed, and it is laid on with plain source-over: faint
+       light over dark water looks the same as added light, and a scaled
+       pattern added with "lighter" is the one slow thing a software 2D
+       canvas does here. */
     ctx.save();
-    ctx.beginPath(); ctx.rect(0, fy, w, h - fy); ctx.clip();
-    ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = al * (0.07 + 0.03 * sw);
     ctx.translate(0, fy);
     ctx.scale(s * 0.7, s * 0.3);
     ctx.translate(-t * 5, t * 4);
     ctx.fillStyle = E.pat2;
-    ctx.fillRect(t * 5 - 10, -t * 4 - 10, w / (s * 0.7) + 20, (h - fy) / (s * 0.3) + 20);
+    ctx.fillRect(t * 5, -t * 4, w / (s * 0.7), (h - fy) / (s * 0.3));
     ctx.restore();
     ctx.save();
-    ctx.beginPath(); ctx.rect(0, fy, w, h - fy); ctx.clip();
-    ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = al * (0.11 + 0.05 * sw);
     ctx.translate(0, fy);
     ctx.scale(s * 1.7, s * 0.6);
     ctx.translate(t * 6, t * 3);
     ctx.fillStyle = E.pat;
-    ctx.fillRect(-t * 6 - 10, -t * 3 - 10, w / (s * 1.7) + 20, (h - fy) / (s * 0.6) + 20);
+    ctx.fillRect(-t * 6, -t * 3, w / (s * 1.7), (h - fy) / (s * 0.6));
     ctx.restore();
     ctx.globalAlpha = al;
     ctx.drawImage(E.fog.c, 0, fy, w, 0.3 * h);
@@ -1566,6 +1573,8 @@ SCENES[3] = {
   },
   draw: function (ctx, E, w, h, t, r, al) {
     var e = w / h / 2;
+    /* 0.08 Hz in real time at full motion, whatever the world's own scale */
+    var sway = 0.50265 / E.mot;
     ctx.globalCompositeOperation = "lighter";
     for (var b = 0; b < 3; b++) {
       var u = (0.16 + 0.31 * b) * 2 * e + 0.06 + 0.03 * Math.sin(t * 0.05 + b * 2);
@@ -1584,7 +1593,7 @@ SCENES[3] = {
     ctx.globalAlpha = al;
     for (var i = 0; i < E.stalks.length; i++) {
       var S = E.stalks[i];
-      var lean = (S.sway * Math.sin(t * 0.50265 + S.ph) + 0.10 * r * Math.exp(-Math.pow((S.x - gx) / 0.30, 2))) * 1.2 * h;
+      var lean = (S.sway * Math.sin(t * sway + S.ph) + 0.10 * r * Math.exp(-Math.pow((S.x - gx) / 0.30, 2))) * 1.2 * h;
       var x0 = w / 2 + S.x * h;
       /* a shear about the foot of the stalk: the top leans, the root stays */
       ctx.save();
@@ -1598,7 +1607,7 @@ SCENES[3] = {
       for (var y = (S.off * S.seg) % S.seg; y < h; y += S.seg) ctx.fillRect(px - S.w / 2, y, S.w, Math.max(1, h * 0.003));
       ctx.restore();
     }
-    var sl = Math.sin(t * 0.50265 + 0.7);
+    var sl = Math.sin(t * sway + 0.7);
     for (i = 0; i < E.leaves.length; i++) {
       var Lf = E.leaves[i];
       drawSpray(ctx, Lf.cv, w / 2 + Lf.x * h, h - Lf.y * h, -Lf.a - sl * Lf.k);
@@ -1809,7 +1818,7 @@ SCENES[6] = {
     /* the Quad: a cluster of six, nearer and brighter, lifting together */
     if (r > 0.001) {
       for (var k = 0; k < 2; k++) {
-        var cyc = t / 7 + 0.5 * k, ph = fract(cyc), hc = h1(Math.floor(cyc) * 7.13 + k);
+        var cyc = t / 10 + 0.5 * k, ph = fract(cyc), hc = h1(Math.floor(cyc) * 7.13 + k);
         var side = hc < 0.5 ? -1 : 1;
         var cx = side * (0.25 + 0.17 * fract(hc * 7)) * w / h, cy = 0.12 + 0.55 * ph;
         ctx.globalAlpha = al * r * win(ph) * 0.9;
@@ -2000,7 +2009,7 @@ SCENES[9] = {
     if (r > 0.001) {
       var e = w / h / 2, sl = E.streak.width, st = E.streak.height;
       for (var k = 0; k < 2; k++) {
-        var cyc = t / 2.6 + 0.5 * k, ph = fract(cyc), hs = h1(Math.floor(cyc) * 3.17 + k * 1.1);
+        var cyc = t / 4.0 + 0.5 * k, ph = fract(cyc), hs = h1(Math.floor(cyc) * 3.17 + k * 1.1);
         var dir = hs < 0.5 ? 1 : -1;
         var ax = -dir * (e + 0.1), ay = hz + 0.20 + 0.10 * fract(hs * 5), bx = dir * (e + 0.1), by = hz + 0.05 + 0.05 * fract(hs * 9);
         var hx = px + (ax + (bx - ax) * ph) * h, hy = h - (ay + (by - ay) * ph) * h;
@@ -2051,7 +2060,8 @@ function entry(world, w, h) {
   var E = {
     id: world.id, w: w, h: h, idx: idx,
     top: rgb(world.sky.top), hor: rgb(world.sky.horizon),
-    key: rgb(world.key), rim: rgb(world.rim), par: rgb(world.particle && world.particle.color)
+    key: rgb(world.key), rim: rgb(world.rim), par: rgb(world.particle && world.particle.color),
+    mot: typeof world.motion === "number" && world.motion > 0 ? world.motion : 0.7
   };
   if (P2.cw !== w || P2.ch !== h || !P2.calm) { P2.calm = calmLayer(w, h); P2.cw = w; P2.ch = h; }
   E.calm = P2.calm;

@@ -88,10 +88,12 @@
     position:fixed; z-index:30; top:calc(var(--safe-top) + 6px); right:calc(var(--safe-r) + 6px);
     width:44px; height:44px; border-radius:14px; background:rgba(12,14,24,.66);
     border:1px solid var(--line); display:flex; align-items:center; justify-content:center; gap:5px;
-    transition:opacity .3s;
+    transition:opacity .3s, visibility 0s;
   }
   #btnMenu i{display:block; width:4px; height:16px; border-radius:2px; background:var(--ink); opacity:.85}
-  #btnMenu.off{opacity:0; pointer-events:none}
+  /* what is faded out is also out of the tab order: visibility follows the
+     fade, so a keyboard never lands on a button nobody can see */
+  #btnMenu.off{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .3s, visibility 0s .3s}
 
   /* the Breath button lives at the end of the HUD row, the one place on a
      phone that is never over the well */
@@ -167,6 +169,7 @@
   #banner{transition:opacity .45s}
 
   /* the coach for lessons: placed by the app, never at the bottom edge */
+  #coach.off{visibility:hidden; transition:opacity .25s, transform .25s, visibility 0s .25s}
   #coach{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(14,17,30,.92);
          border-left-color:var(--accent); bottom:auto; z-index:7; max-width:420px}
   #coach .head{color:var(--accent)}
@@ -222,7 +225,8 @@
   #splash .links{display:flex; justify-content:center; flex-wrap:wrap; gap:2px 4px; margin-top:12px}
   #splash .links button{color:var(--soft); font-size:.88rem; padding:10px 10px; min-height:44px}
   #splash .note{text-align:center; margin-top:6px}
-  #splash.gone{opacity:0; pointer-events:none}
+  #splash{transition:opacity .5s, visibility 0s}
+  #splash.gone{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .5s, visibility 0s .5s}
 
   /* ---------- sheets ----------
      Above the splash, because the splash opens them too. No blur behind

@@ -2135,9 +2135,12 @@ function shimmer(t) {
 var RUNG = {
   single: -22, double: -21, triple: -19.5, quad: -16,
   twist: -20, miniTwist: -23.5, miniSingle: -20.5, miniDouble: -19.5,
-  twistSingle: -18, twistDouble: -16, twistTriple: -15.5,
-  empty: -14.5, calm: -23,
-  drain: -25, end: -24, pbChime: -28, pbPhrase: -24, surface: -17, silt: -30
+  twistSingle: -18, twistDouble: -16.2, twistTriple: -16.2,
+  empty: -15.2, calm: -23,
+  /* the drain, the run's last line and silt are slow swells under low-
+     passes, which the model reads a little differently; these are the
+     values that measure as −25, −24 and −30 */
+  drain: -25.8, end: -23, pbChime: -28, pbPhrase: -24, surface: -17, silt: -27
 };
 /* the measured gap between a figure's modelled peak and what the output
    meter reads (the shimmer and the reverb ride on top) */
@@ -2176,8 +2179,9 @@ function itemLevel(it, d) {
    moment each note peaks. Notes of different pitches seldom crest together,
    so the true peak sits between the plain sum and the power sum: measured
    across all ten worlds, it is the plain sum times n^−0.3, where n is the
-   number of notes effectively sounding — except that notes struck at the
-   same instant start in phase and add in full, so they count as one. */
+   number of notes effectively sounding — except that a chord of two or
+   three bells struck at the same instant starts in phase and adds in full,
+   so it counts as one. */
 function sideGain(pan, right) {
   var x = (clamp(pan || 0, -1, 1) + 1) / 2;
   return (right ? Math.sin(x * Math.PI / 2) : Math.cos(x * Math.PI / 2)) / Math.SQRT1_2;
@@ -2190,10 +2194,11 @@ function figurePeak(F) {
       var sum = 0, sq = 0, k;
       for (i = 0; i < F.length; i++) {
         if (F[i].grouped) continue;
-        /* everything struck with this note is one contributor */
-        var grp = 0;
+        /* a chord of up to three bells struck together is one contributor */
+        var grp = 0, together = 0;
+        for (k = 0; k < F.length; k++) if (F[k].kind === "bell" && F[k].dt === F[i].dt) together++;
         for (k = i; k < F.length; k++) {
-          if (k > i && (F[k].dt !== F[i].dt || F[k].kind !== F[i].kind)) continue;
+          if (k > i && (F[i].kind !== "bell" || together > 3 || F[k].kind !== "bell" || F[k].dt !== F[i].dt)) continue;
           grp += itemLevel(F[k], at - F[k].dt) * sideGain(F[k].kind === "pad" ? 0 : F[k].o.pan, side);
           if (k > i) F[k].grouped = true;
         }
@@ -2315,9 +2320,9 @@ function emptyWell(when, now, notes) {
   for (i = 0; i < W.loops.length; i++) loops.push(W.loops[i][0]);
   if (!loops.length && W.poly) for (i = 0; i < W.poly.length; i++) loops.push(poolNote(W, W.poly[i][1][0], W.keys + 12));
   for (i = 0; i < loops.length; i++) {
-    fNote(F, 0, loops[i], -7, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9, decay: 3.5, cat: "bloom" });
+    fNote(F, 0, loops[i], -5, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9, decay: 4, cat: "bloom" });
   }
-  fBloom(F, 0, -8, 0.25, 1.2, 5);
+  fBloom(F, 0, -6, 0.3, 1.6, 5);
   var thirty = 60 / K.bpm / 8, startIdx = W.melody[(D.melody - notes.length + 160) % W.melody.length] + 7;
   for (i = 0; i < 8; i++) {
     fNote(F, i * thirty, poolNote(W, startIdx - i, W.bell), 0,
