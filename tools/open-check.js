@@ -19,22 +19,36 @@
    something on it, because a room that throws no errors and draws nothing is
    the failure mode a smoke test is most likely to miss.
 
-   Needs `playwright-core` (`npm i --no-save playwright-core`) and a Chromium.
-   Without either it says so and exits 0, so it is a bonus rather than a
-   barrier — nothing it installs is ever shipped, and the rooms themselves
-   have no dependencies at all.
+   The well asks one more question than the others, because it is the one
+   room here whose job includes not hurting anybody's eyes: it watches the
+   splash demo for ten seconds and fails on anything that flashes (see
+   flashCheck, below). And because it draws with WebGL2, whose canvas has no
+   2D context to read back, its "is anything drawn" is answered from a
+   screenshot instead.
 
-   Run: node tools/open-check.js                                            */
+   Needs `playwright-core` (`npm i --no-save playwright-core`), or a global
+   `playwright` install, and a Chromium. Without either it says so and exits
+   0, so it is a bonus rather than a barrier — nothing it installs is ever
+   shipped, and the rooms themselves have no dependencies at all.
+
+   Run: node tools/open-check.js            every room
+        node tools/open-check.js well       just the ones named             */
 "use strict";
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 
 const ROOT = path.join(__dirname, "..");
-const PORT = 8391;
+/* OPEN_CHECK_PORT moves it, for a machine where 8391 is somebody else's */
+const PORT = +process.env.OPEN_CHECK_PORT || 8391;
 
 let pw = null;
-try { pw = require("playwright-core"); } catch (e) {
+for (const name of ["playwright-core", "playwright",
+                    path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "playwright")]) {
+  try { pw = require(name); break; } catch (e) { /* try the next */ }
+}
+if (!pw) {
   console.log("\nplaywright-core isn't installed — skipping the browser check.");
   console.log("  npm i --no-save playwright-core\n");
   process.exit(0);
@@ -45,6 +59,9 @@ const TYPES = {
   ".png": "image/png", ".webmanifest": "application/manifest+json",
   ".json": "application/json", ".svg": "image/svg+xml"
 };
+
+/* every sheet the well's menu reaches */
+const WELL_MENU = ["#mModes", "#mLook", "#mHandling", "#mSound", "#mComfort", "#mLearn", "#mLog", "#mSteady"];
 
 /* the rooms, and what to do once each one is open. Every step is a thing a
    finger could do; nothing reaches into the game's internals. */
@@ -96,8 +113,43 @@ const ROOMS = [
     menu: ["#mSetup", "#mLearn"], wait: 700 },
   { game: "guesstures", start: "#goPlay", text: "#card",
     press: ["#btnGo"], taps: [],
-    menu: ["#mSetup", "#mLearn"], wait: 700 }
+    menu: ["#mSetup", "#mLearn"], wait: 700 },
+  /* The well, twice. Once as it is meant to be seen, in WebGL2 on #cv3, and
+     once with ?gfx=2d on #cv2 — the Canvas2D picture that everything without
+     WebGL gets: Lockdown Mode, old phones, three lost contexts in a minute.
+     Both run in a browser that can actually hand out WebGL2 (see glBrowser),
+     so the 2D one is 2D because it was asked to be, not because it had no
+     choice. Each has to show only its own canvas, draw on it, take taps,
+     open every sheet, and get through ten seconds of its demo without
+     flashing. The taps are on the well itself, where a tap turns the piece.
+
+     Both at a device pixel ratio of 1 rather than the 2 every other room
+     gets. A machine running this usually has no GPU, so every pixel of a
+     lit 3D well is drawn by the CPU, four times over at 2× — and none of
+     these questions (does it draw, does it answer, does it flash) depends
+     on how sharp the picture is. How fast it is on a real phone is a
+     question for a real phone.
+
+     The WebGL one is opened with ?gl=soft, the room's test hook: the 3D
+     renderer refuses a software GL on purpose (a phone without a real GPU
+     should get the 2D well, not a slideshow), and SwiftShader is exactly
+     that, so without the hook this entry would quietly test the 2D well. */
+  { game: "well", label: "well, in WebGL2 (?gl=soft)", query: "?gl=soft", start: "#goPlay", canvas: "#cv3", other: "#cv2",
+    gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
+    menu: WELL_MENU, wait: 1500 },
+  { game: "well", label: "well, in 2D (?gfx=2d)", query: "?gfx=2d", start: "#goPlay", canvas: "#cv2", other: "#cv3",
+    gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
+    menu: WELL_MENU, wait: 1500 }
 ];
+/* node tools/open-check.js well checks just the rooms named */
+const ONLY = process.argv.slice(2);
+const CHOSEN = ONLY.length ? ROOMS.filter((r) => ONLY.indexOf(r.game) >= 0) : ROOMS;
+const UNKNOWN = ONLY.filter((g) => !ROOMS.some((r) => r.game === g));
+if (UNKNOWN.length) {
+  /* a typo would otherwise check nothing and call it a pass */
+  console.log("\nno such room: " + UNKNOWN.join(", ") + "\n");
+  process.exit(1);
+}
 
 /* shut every open sheet, however it got opened */
 async function clearSheets(page) {
@@ -142,19 +194,45 @@ const server = http.createServer((req, res) => {
     process.exit(0);
   }
 
-  for (const room of ROOMS) {
-    console.log("\n──  " + room.game);
-    const ctx = await browser.newContext({ viewport: { width: 412, height: 850 },
-                                           hasTouch: true, deviceScaleFactor: 2 });
+  /* A headless Chromium refuses a WebGL2 context asked for with
+     failIfMajorPerformanceCaveat — its default software path is exactly that
+     caveat — and the well asks that way on purpose, so a slow GPU gets the 2D
+     renderer rather than a slideshow. SwiftShader asked for by name is
+     allowed, so the rooms that draw with WebGL get a browser of their own
+     that can give them one. Everything else keeps the one it always had.
+
+     That browser also draws 2D canvases on the CPU, which is what Chromium
+     does anyway on a machine whose GPU it doesn't trust. With no GPU at all,
+     the alternative is Canvas2D emulated through SwiftShader, and the well's
+     2D renderer ran at half a frame a second that way and at seven frames a
+     second this way — the same picture, but only one of them can be watched
+     for flashes. */
+  let glBrowser = null;
+
+  for (const room of CHOSEN) {
+    console.log("\n──  " + (room.label || room.game));
+    if (room.gl && !glBrowser) {
+      glBrowser = await pw.chromium.launch({ executablePath: findChromium(),
+        args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--disable-accelerated-2d-canvas"] });
+    }
+    const ctx = await (room.gl ? glBrowser : browser).newContext({ viewport: { width: 412, height: 850 },
+                                           hasTouch: true, deviceScaleFactor: room.dpr || 2 });
+    /* So the flash check can read a WebGL canvas between frames rather than
+       racing the compositor for it. Nothing a player sees changes. */
+    if (room.flash) await ctx.addInitScript(keepDrawingBuffer);
     const page = await ctx.newPage();
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     page.on("pageerror", (e) => errors.push(String(e)));
 
     try {
-      await page.goto("http://localhost:" + PORT + "/" + room.game + "/", { waitUntil: "load" });
+      await page.goto("http://localhost:" + PORT + "/" + room.game + "/" + (room.query || ""), { waitUntil: "load" });
       await page.waitForTimeout(400);
       ok("the page loads", true);
+
+      /* before anything is pressed: the demo behind the splash is what a
+         person sees first, and it plays Quads */
+      if (room.flash) await flashCheck(page, room.canvas, 10);
 
       await page.click(room.start);
       await page.waitForTimeout(room.wait || 700);
@@ -167,6 +245,14 @@ const server = http.createServer((req, res) => {
         box = await page.locator(room.canvas).boundingBox();
         ok("the board has a size", box && box.width > 100 && box.height > 100,
            box ? Math.round(box.width) + "×" + Math.round(box.height) : "no box");
+      }
+      /* two canvases, and only ever one of them on screen */
+      if (room.other) {
+        const mine = await page.locator(room.canvas).isVisible();
+        const theirs = await page.locator(room.other).isVisible();
+        ok("it draws on " + room.canvas + " and only there", mine && !theirs,
+           [mine ? "" : room.canvas + " is hidden", theirs ? room.other + " is showing too" : ""]
+             .filter(Boolean).join("; "));
       }
 
       for (const sel of room.press || []) {
@@ -242,7 +328,7 @@ const server = http.createServer((req, res) => {
          between the wall and the paddle, and it is one flat colour when
          everything is working perfectly. A check that cannot tell "empty by
          design" from "blank because it never drew" is not a check. */
-      const painted = await page.evaluate((sel) => {
+      let painted = await page.evaluate((sel) => {
         const cv = document.querySelector(sel);
         const g = cv.getContext("2d");
         if (!g) return { ok: false, why: "no 2d context" };
@@ -257,8 +343,10 @@ const server = http.createServer((req, res) => {
         }
         return { ok: seen.size > 6, n: seen.size };
       }, room.canvas);
+      /* a WebGL canvas has no 2D context to read; ask a screenshot instead */
+      if (painted.why === "no 2d context") painted = await drawnInScreenshot(page, room.canvas);
       ok("the board is actually drawn, not blank", painted.ok,
-         painted.why || (painted.n + " distinct colours sampled"));
+         painted.why || (painted.n + " distinct colours sampled" + (painted.how ? ", " + painted.how : "")));
       }
 
       ok("no console errors", errors.length === 0, errors.slice(0, 2).join(" | "));
@@ -269,11 +357,270 @@ const server = http.createServer((req, res) => {
   }
 
   await browser.close();
+  if (glBrowser) await glBrowser.close();
   server.close();
   console.log("");
   if (fails) { console.log("FAILED: " + fails + " problem" + (fails === 1 ? "" : "s")); process.exit(1); }
   console.log("every room opens, draws, and takes a tap");
 })();
+
+/* ================================================================
+   reading a WebGL canvas
+   ================================================================ */
+
+/* Runs in the page before any of its scripts. A WebGL canvas normally
+   throws its picture away once the frame is on screen, so a read taken
+   between frames sees nothing; keeping it changes nothing anybody sees. */
+function keepDrawingBuffer() {
+  const get = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+    if (/^(webgl2?|experimental-webgl)$/.test(type)) attrs = Object.assign({}, attrs, { preserveDrawingBuffer: true });
+    return get.call(this, type, attrs);
+  };
+}
+
+/* "Is anything drawn?", asked of a screenshot of the canvas's box. For the
+   moment of the picture everything except the canvas is hidden — the HUD's
+   antialiased text alone has more than six colours in it, and a check that
+   a label could pass is not a check of the board. Then the same four bands
+   as the 2D check, read out of the PNG. */
+async function drawnInScreenshot(page, sel) {
+  await page.evaluate((sel) => {
+    const cv = document.querySelector(sel);
+    window.__openCheckHidden = [];
+    for (const el of document.querySelectorAll("body *")) {
+      if (el === cv || el.contains(cv)) continue;
+      window.__openCheckHidden.push([el, el.style.visibility]);
+      el.style.visibility = "hidden";
+    }
+  }, sel);
+  await page.waitForTimeout(120);
+  const box = await page.locator(sel).boundingBox();
+  let shot = null;
+  try { shot = await page.screenshot({ clip: box, scale: "css" }); }
+  finally {
+    await page.evaluate(() => {
+      for (const [el, v] of window.__openCheckHidden || []) el.style.visibility = v;
+      delete window.__openCheckHidden;
+    });
+  }
+  const img = decodePng(shot);
+  const seen = new Set();
+  for (const frac of [0.2, 0.4, 0.6, 0.8]) {
+    const h = Math.min(30, img.height);
+    const y0 = Math.max(0, Math.min(img.height - h, (img.height * frac - h / 2) | 0));
+    for (let y = y0; y < y0 + h; y++) {
+      for (let x = 0; x < img.width; x += 7) {
+        const i = (y * img.width + x) * 4;
+        seen.add(img.data[i] + "," + img.data[i + 1] + "," + img.data[i + 2]);
+      }
+    }
+  }
+  return { ok: seen.size > 6, n: seen.size, how: "from a screenshot" };
+}
+
+/* A PNG decoder: just enough for what Chromium writes (8-bit RGB or RGBA,
+   not interlaced). Node's zlib does the inflating; the five row filters are
+   undone here. */
+function decodePng(buf) {
+  let p = 8, w = 0, h = 0, type = -1, depth = 0;
+  const idat = [];
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), kind = buf.toString("ascii", p + 4, p + 8);
+    const data = buf.subarray(p + 8, p + 8 + len);
+    if (kind === "IHDR") {
+      w = data.readUInt32BE(0); h = data.readUInt32BE(4); depth = data[8]; type = data[9];
+      if (data[12]) throw new Error("an interlaced PNG");
+    } else if (kind === "IDAT") idat.push(data);
+    else if (kind === "IEND") break;
+    p += 12 + len;
+  }
+  if (depth !== 8 || (type !== 2 && type !== 6)) throw new Error("a PNG of colour type " + type + ", depth " + depth);
+  const bpp = type === 6 ? 4 : 3, stride = w * bpp;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const out = Buffer.alloc(w * h * 4);
+  let prev = Buffer.alloc(stride), row = Buffer.alloc(stride);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)];
+    raw.copy(row, 0, y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? row[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
+      let v = row[x];
+      if (f === 1) v += a;
+      else if (f === 2) v += b;
+      else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) {
+        const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+        v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c);
+      }
+      row[x] = v & 255;
+    }
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      out[o] = row[x * bpp]; out[o + 1] = row[x * bpp + 1]; out[o + 2] = row[x * bpp + 2];
+      out[o + 3] = bpp === 4 ? row[x * bpp + 3] : 255;
+    }
+    const t = prev; prev = row; row = t;
+  }
+  return { width: w, height: h, data: out };
+}
+
+/* ================================================================
+   the flash check
+   ================================================================
+   WCAG 2.3.1 calls a pair of opposing changes in relative luminance of 0.1
+   or more a flash, and allows three a second; the well's own rule is
+   stricter and allows itself fewer. So: sample the mean relative luminance
+   about twenty times a second for ten seconds — over the whole canvas, over
+   the well itself, and over every patch of the screen about 150 CSS pixels
+   square (roughly the area past which a flash counts as a large one, on the
+   strict reading) — and fail if any one-second window anywhere holds more
+   than two opposing swings of 0.1. The demo plays while it watches, and the
+   demo takes Quads, which are the brightest thing the well does. */
+async function flashCheck(page, sel, seconds) {
+  const res = await page.evaluate(({ sel, ms }) => new Promise((done) => {
+    const cv = document.querySelector(sel);
+    if (!cv) { done({ why: "no " + sel }); return; }
+    const lin = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const c = i / 255; lin[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    const cssW = Math.max(1, cv.clientWidth), cssH = Math.max(1, cv.clientHeight);
+    /* One sample point per 6 CSS pixels: a flash big enough to matter covers
+       hundreds of them. Plain bilinear, and the small canvas left on the GPU:
+       "high" smoothing, or a canvas kept for frequent reading, made each
+       sample cost 70–200 ms here, which is a sampler too slow to see the
+       thing it is looking for. This way it is about 2 ms. */
+    const sw = Math.max(8, Math.round(cssW / 6)), sh = Math.max(8, Math.round(cssH / 6));
+    const small = document.createElement("canvas");
+    small.width = sw; small.height = sh;
+    const g = small.getContext("2d");
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "low";
+    /* what shows through a transparent canvas is the page behind it */
+    let bg = getComputedStyle(document.body).backgroundColor;
+    if (!bg || /rgba\(.*,\s*0\)$|transparent/.test(bg)) bg = "#000";
+    /* the well's own rectangle, from the room's layout if it publishes one,
+       otherwise the middle of the canvas, where a well always is */
+    let well = { x: 0.2, y: 0.12, w: 0.6, h: 0.76 }, how = "the middle of the canvas";
+    try {
+      if (window.Layout && typeof Layout.compute === "function") {
+        const L = Layout.compute(cssW, cssH, { previews: 5, keep: true, safe: { t: 0, r: 0, b: 0, l: 0 },
+                                               hudTop: 0, buttons: false, scale: 1 });
+        if (L && L.well && L.well.w > 0 && L.well.h > 0) {
+          well = { x: L.well.x / cssW, y: L.well.y / cssH, w: L.well.w / cssW, h: L.well.h / cssH };
+          how = "the well, as Layout places it";
+        }
+      }
+    } catch (e) { /* the middle will do */ }
+    const tile = 25, tx = Math.ceil(sw / tile), ty = Math.ceil(sh / tile);
+    const wx0 = Math.floor(well.x * sw), wy0 = Math.floor(well.y * sh);
+    const wx1 = Math.ceil((well.x + well.w) * sw), wy1 = Math.ceil((well.y + well.h) * sh);
+    const said = new Set();
+    const mo = new MutationObserver(() => {
+      for (const id of ["labels", "say"]) {
+        const el = document.getElementById(id);
+        const t = el && el.textContent.trim();
+        if (t) said.add(t.slice(0, 40));
+      }
+    });
+    mo.observe(document.body, { subtree: true, childList: true, characterData: true });
+    /* Sampled from an animation frame, at most every 45 ms, rather than on a
+       timer: a read of a canvas makes the browser finish drawing it first,
+       and one that lands mid-frame waits for the whole frame. Read just
+       after a frame, it doesn't — on a software GPU that is the difference
+       between five samples a second and eighteen. */
+    const out = [];
+    let t0 = 0, last = -1e9, warm = 0;
+    /* The demo has to be playing before it can be watched. A room that
+       compiles its shaders on the splash (the well does, so that it never
+       has to during play) can spend the first seconds not drawing at all —
+       many seconds, on a software GPU — and ten seconds of that is ten
+       seconds of nothing. So: wait until frames come at five a second or
+       better, for up to half a minute, and then start the clock. */
+    const w0 = performance.now(), recent = [];
+    (function warmUp() {
+      const now = performance.now();
+      recent.push(now);
+      while (recent.length && now - recent[0] > 1000) recent.shift();
+      if (recent.length >= 5 || now - w0 > 30000) { warm = now - w0; t0 = now; requestAnimationFrame(sample); return; }
+      requestAnimationFrame(warmUp);
+    })();
+    function sample() {
+      const now = performance.now() - t0;
+      if (now > ms) { mo.disconnect(); done({ out, how, tx, ty, patch: tile * cssW / sw, said: [...said], warm }); return; }
+      if (now - last < 45) { requestAnimationFrame(sample); return; }
+      last = now;
+      g.fillStyle = bg; g.fillRect(0, 0, sw, sh);
+      g.drawImage(cv, 0, 0, cv.width, cv.height, 0, 0, sw, sh);
+      const d = g.getImageData(0, 0, sw, sh).data;
+      const tiles = new Float64Array(tx * ty), counts = new Float64Array(tx * ty);
+      let all = 0, inWell = 0, nWell = 0;
+      for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+        const i = (y * sw + x) * 4;
+        const L = 0.2126 * lin[d[i]] + 0.7152 * lin[d[i + 1]] + 0.0722 * lin[d[i + 2]];
+        all += L;
+        if (x >= wx0 && x < wx1 && y >= wy0 && y < wy1) { inWell += L; nWell++; }
+        const k = Math.floor(y / tile) * tx + Math.floor(x / tile);
+        tiles[k] += L; counts[k]++;
+      }
+      const row = [now, all / (sw * sh), nWell ? inWell / nWell : 0];
+      for (let k = 0; k < tiles.length; k++) row.push(tiles[k] / Math.max(1, counts[k]));
+      out.push(row);
+      requestAnimationFrame(sample);
+    }
+  }), { sel, ms: seconds * 1000 });
+
+  if (res.why) { ok("its demo can be watched for flashes", false, res.why); return; }
+  const n = res.out.length, rate = n / seconds;
+  /* A check that looked a couple of times a second has not looked. Five a
+     second is the floor, because below it a strobe at WCAG's limit of three
+     flashes a second can alias into something that looks calm (sampled
+     four times a second, it reads as one slow flash). Twenty is the aim. */
+  ok("the demo was watched for " + seconds + " s (" + n + " samples, " + rate.toFixed(1) + " a second)", rate >= 5,
+     "too few to see a flash: samples are taken after frames, and the page is drawing too slowly here to judge");
+  if (res.warm > 1500) console.log("  · its demo took " + (res.warm / 1000).toFixed(1) + " s to start drawing steadily");
+  if (rate < 5) return;     /* and no verdict on flashing from a check that could not see */
+  const names = ["the whole canvas", res.how].concat(Array.from({ length: res.tx * res.ty }, (_, k) =>
+    "the " + Math.round(res.patch) + " px patch at " + Math.round((k % res.tx) * res.patch) + "," +
+    Math.round(Math.floor(k / res.tx) * res.patch) + " (CSS px, from the top left)"));
+  let worst = { count: 0, at: 0, where: "" }, lo = 1, hi = 0;
+  for (let k = 0; k < names.length; k++) {
+    const series = res.out.map((r) => [r[0], r[k + 1]]);
+    if (k < 2) for (const r of series) { lo = Math.min(lo, r[1]); hi = Math.max(hi, r[1]); }
+    const swings = swingsOf(series, 0.1);
+    for (let i = 0; i < swings.length; i++) {
+      let j = i;
+      while (j < swings.length && swings[j] - swings[i] < 1000) j++;
+      if (j - i > worst.count) worst = { count: j - i, at: swings[i], where: names[k] };
+    }
+  }
+  ok("nothing in it flashes (at most 2 opposing swings of 0.1 in any second; worst " + worst.count + ")",
+     worst.count <= 2,
+     worst.count + " swings within a second of " + (worst.at / 1000).toFixed(1) + " s, over " + worst.where);
+  console.log("  · luminance ranged " + lo.toFixed(3) + "–" + hi.toFixed(3) + " over the canvas and the well" +
+              (res.said.length ? "; the demo said " + res.said.slice(0, 6).join(", ") : ""));
+}
+/* The swings in a series: the times at which it has moved at least `by`
+   from its last turning point, in the opposite direction to the swing
+   before. A slow drift of 0.1 over a whole minute is one swing, and harmless;
+   a strobe is a swing every frame. */
+function swingsOf(series, by) {
+  const out = [];
+  if (!series.length) return out;
+  let dir = 0, ext = series[0][1], lo = ext, hi = ext;
+  for (const [t, v] of series) {
+    if (dir === 0) {
+      lo = Math.min(lo, v); hi = Math.max(hi, v);
+      if (v - lo >= by) { dir = 1; ext = v; out.push(t); }
+      else if (hi - v >= by) { dir = -1; ext = v; out.push(t); }
+    } else if (dir > 0) {
+      if (v > ext) ext = v;
+      else if (ext - v >= by) { dir = -1; ext = v; out.push(t); }
+    } else {
+      if (v < ext) ext = v;
+      else if (v - ext >= by) { dir = 1; ext = v; out.push(t); }
+    }
+  }
+  return out;
+}
 
 function findChromium() {
   const base = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";

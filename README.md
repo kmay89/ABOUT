@@ -28,7 +28,10 @@ crackers spilled beside it); and [Vantage](https://kmay89.com/vantage/) —
 an engine that turns a year of drone flights over one changing site into
 a story you scroll on a phone (the little drone is parked on the shelf
 beside the tapes; in 1999 it's a stack of aerial prints with a loupe on
-top).
+top); and [The Well](https://kmay89.com/well/) — falling blocks down a
+lit stone shaft, where every move plays a note and nothing ever asks
+for one more go (a small stone well sits on the desk with a faint glow
+coming up out of it).
 
 **Live:** <https://kmay89.com>
 
@@ -71,7 +74,7 @@ top).
   over this one.
 - `games/` — the games room: one page listing everything here that is a
   game, split by how many people it needs. It exists because the desk is
-  a scene rather than an index, and eleven games do not fit on a desk.
+  a scene rather than an index, and seventeen games do not fit on a desk.
 - `checkers/ othello/ halma/ hearts/ euchre/` — five rooms built off the
   domino table, sharing its four-letter front door. Checkers is English
   draughts, where jumping is compulsory and that one rule is the whole
@@ -86,6 +89,26 @@ top).
   against a solver until one turns up that can be finished by reasoning
   alone; and a brick breaker with a curved paddle you aim with rather
   than a mirror you bounce off. Each has its own README.
+- `well/` — The Well, a falling-blocks game that tries to be as
+  absorbing as the classic and kinder than any version of it. The rules
+  are the modern ones experts play by — seven pieces dealt from a fair,
+  seeded bag that never looks at your board, wall kicks, a forgiving
+  lock, Keep, previews, and scoring that makes a four-line Quad and a
+  Twist worth chasing — and everything you see and hear is its own. The
+  pieces are single fused bodies of glass, stone or paper in a lit
+  three-dimensional well (hand-written WebGL2, with a Canvas2D version
+  of the same picture wherever that isn't there), and every move is a
+  note in the key of the world you are in, with clears landing on the
+  beat. Ten worlds take you down the well, from Dawn to the Starfield at
+  the bottom, and back up to the surface. It refuses everything that
+  turns absorbing into compulsive — no streaks, nothing daily, no
+  countdown to "again", nothing that punishes stopping — and runs end on
+  "The well rests." Steady is a quiet twenty minutes: slow, even,
+  nothing sudden, and an easy way to stop. The room also explains
+  itself — how the rules work, why the game absorbs you, and what the
+  research can and can't say — and it makes no health claim. Reached
+  from the desk by a small stone well with a faint glow coming up out of
+  it, and from the games room. Notes in `well/README.md`.
 - `library/` — the reading room: a voxel engine written from scratch
   that renders block worlds in a browser. An NBT reader and an Anvil
   region reader built from the documented formats, our own palette of
@@ -151,8 +174,16 @@ top).
   against each other and requires every rung to actually beat the one
   below; `open-check.js` opens every new room in a real browser, plays
   it, and fails on any console error or on a board that turns out to be
-  blank; `make-game-icons.js` draws every new room's icons analytically,
-  so the repo carries no binary source asset nobody can regenerate.
+  blank — the well twice, in WebGL and in 2D, and it also watches the
+  well's demo for ten seconds and fails on anything that flashes;
+  `well-check.js` holds the well to the promises that are easiest to
+  break by accident — no borrowed names or health claims in anything it
+  ships, every skin's colours told apart under three kinds of colour
+  blindness and kept off the genre's classic mapping, every world's sky
+  too dark to flash, a list of help lines checked within the year, and
+  an offline shell that lists everything the page loads;
+  `make-game-icons.js` draws every new room's icons analytically, so the
+  repo carries no binary source asset nobody can regenerate.
 - `netlify.toml` — hosting config: canonical-host redirect, security
   headers, and the one functions directory. Netlify serves the repo
   as-is; every pull request gets a deploy preview automatically.
@@ -287,7 +318,9 @@ round trips before anything ships.
 If you touch any of the game rooms, run the checks first:
 
 ```
-npm run check        # parity, then the rules, then the mailbox
+npm run check        # parity, the well's promises, the mailbox, the chess room
+npm run check:rules  # replays tens of thousands of games of every new room
+npm run check:well   # just the well: names, colours, skies, help lines, shell
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
 npm run icons        # redraws every new room's icons from scratch
@@ -310,6 +343,17 @@ doubling every frame up to 2²⁵ pixels a side, and the board was one flat
 colour somewhere off the bottom of it. Nothing threw. The console stayed
 clean. What caught it was asking whether the board was actually *drawn*,
 which is the question a smoke test is most likely to skip.
+
+`check:well` is there because the well's most important promises are the
+kind that break without a sound: a label renamed in a hurry, a new skin, a
+sky made a little brighter because it looked nicer. It reads what the room
+actually ships — the explainer is rendered sheet by sheet into a pretend
+document, so the ® is checked on the words a reader sees, in the order
+they see them — and its colour maths has to reproduce published figures
+before it is allowed to fail anybody's palette. Its first alarm was a
+false one, and a fair one: the house stylesheet says "healing" (it is the
+four-letter door's network chip), so the copy of it every room carries is
+now read for exactly one thing, which is that it is still a copy.
 
 And whichever room you touch, bump `VERSION` in its `sw.js`, or everybody
 who installed it keeps the old one forever.

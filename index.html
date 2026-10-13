@@ -45,6 +45,7 @@
     --c-pri:#ff5fd0;
     --c-chili:#ff7454;
     --c-vantage:#4fd6c4;
+    --c-well:#9aa8ff;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -309,6 +310,28 @@
   .nozzle{animation:led 1.1s ease-in-out infinite}
   .wave{animation:wave 2.6s ease-in-out infinite;transform-box:fill-box;transform-origin:bottom center}
   @keyframes wave{0%,55%,100%{transform:rotate(0deg)}65%,85%{transform:rotate(-22deg)}75%{transform:rotate(10deg)}}
+  /* the well: its light breathing slowly, motes riding up on it, and a
+     piece sinking to the bottom over eleven seconds and fading into the
+     glow there. All of it slower than a breath. */
+  .wellglow{animation:wellglow 7s ease-in-out infinite}
+  @keyframes wellglow{0%,100%{opacity:.7}50%{opacity:1}}
+  .wellmote{opacity:0;animation:wellmote 6.6s ease-out infinite}
+  @keyframes wellmote{0%{opacity:0;transform:translateY(1px)}22%{opacity:.85}100%{opacity:0;transform:translateY(-17px)}}
+  .wellsink{opacity:.9;transform-box:fill-box;transform-origin:center;animation:wellsink 11s cubic-bezier(.3,.2,.45,1) infinite}
+  @keyframes wellsink{
+    0%{opacity:0;transform:translateY(-2.6px) scale(1.65)}
+    12%{opacity:.95}
+    78%{opacity:.9}
+    100%{opacity:0;transform:translateY(1.1px) scale(.55)}
+  }
+  /* its light outlasts the lamp (see wellNight in the scene), and lifts
+     with it when you point at it */
+  #wellNight{opacity:0;transition:opacity 1.1s ease .2s}
+  body.lights-out #wellNight{opacity:1}
+  #wellNight > g{transition:transform .3s cubic-bezier(.2,.9,.3,1.35)}
+  .iso-obj[data-id="well"]:hover ~ #wellNight > g,
+  .iso-obj[data-id="well"]:focus-visible ~ #wellNight > g,
+  .iso-obj[data-id="well"].picked ~ #wellNight > g{transform:translateY(-8px)}
   .era-now{display:none}
   #iso.now .era-now{display:inline}
   #iso.now .era-old{display:none}
@@ -763,6 +786,9 @@
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     .lampfx,.crtfx{animation:none}
     .glint{animation:none;opacity:.7;transform:none}
+    .wellglow,.wellsink{animation:none}
+    .wellmote{animation:none;opacity:.4;transform:translateY(-8px)}   /* held up in the light, not sitting on the stone */
+    #wellNight,#wellNight > g{transition:none}
     #moon{transition:none}
     html{scroll-behavior:auto}
   }
@@ -923,6 +949,7 @@
     <a href="/solitaire/">The card table</a>
     <a href="/minesweeper/">The minefield</a>
     <a href="/breaker/">The wall</a>
+    <a href="/well/">The well</a>
     <a href="/library/">The reading room</a>
     <a href="/chili/">The chili</a>
     <a href="/vantage/">Vantage</a>
@@ -1438,6 +1465,7 @@
   S.push(shadowW(516,26,30,30,5,.22));           // flower pot
   S.push(shadowW(518,216,30,30,5,.24));          // impossible object pedestal
   S.push(shadowW(100,102,34,34,5,.20));          // glass prism
+  var SHADOWS_END = S.length;   // a trinket drawn further down can slip its shadow in here (the well does)
 
   /* ---------- charm: coffee mug (est. '89) ---------- */
   var mug = cyl(72,72,0,20,36,"#c8502f");
@@ -2006,6 +2034,240 @@
     '<g stroke="#564a80" stroke-width="2"><line x1="52" y1="92" x2="58" y2="98"/><line x1="56" y1="90" x2="62" y2="96"/></g>');
   S.push(wrapObj("hive","Hive Mind — the game","#f5b63f",gb));
 
+  /* ---------- well: a little stone well, lit from far below ----------
+     The Well is a falling-blocks game, so it sits with the other games:
+     in the pocket of desk in front of the Game Boy and the console,
+     left of the open CD. It is the one patch there that clears all of
+     them. Its footprint runs from y 336 to 366, which starts after the
+     console's pad ends (y 321), and from x 339 to 369, which stops
+     short of the CD tray (x 380) and starts well past the Game Boy
+     (x 314). On screen the pad's front corner comes within a few units
+     of the back of the ring and the tray's edge within a dozen of the
+     front, and neither touches it. Painter's order follows: it goes in
+     after the Game Boy and the console, which are behind it, and long
+     before the CD case, which is in front. Nothing changes here between
+     1999 and 2026, because a stone well is the same in any year.
+
+     It is deeper than it could possibly be, and that is drawn on
+     purpose. In a 2:1 projection a shaft shows its back wall and
+     nothing else: anything more than about two-thirds of the radius
+     down drops out of sight behind the front lip. So the inside gets
+     the one thing the rest of the room doesn't have, which is
+     perspective. The courses of stone going down are equal steps in
+     depth, so each is drawn smaller by 1/(1 + k·depth), slid toward a
+     vanishing point low in the mouth, and painting them largest first
+     leaves a crescent of each showing at the back: the far wall,
+     receding, its courses getting thinner the way real ones do. The
+     joints are lines from one ring to the next at the same angle, so
+     they converge on the bottom. The stone darkens going down, then
+     turns blue again where the light is.
+
+     The light is periwinkle, the rim light of the Starfield, the world
+     at the bottom of the game's own well. A piece sinks slowly through
+     it and fades into the glow at the bottom, where another one has
+     already come to rest and catches the light now and then. Both are
+     the room's own fused pieces in its Sea Glass colours, one rounded
+     body each with no seams between the cells, never flat bevelled
+     squares; this far down they are a few pixels across, which is the
+     right amount. Under reduced motion the sinking one simply hangs
+     part of the way down.
+
+     The glow is its own light, so like the moon it ignores the light
+     switch: a copy of it is drawn after the darkness (wellNight, below)
+     and only shows once the lamp is off. */
+  var WLX = 354, WLY = 351;                      // the middle of the well, on the desk
+  var WLR = 13.9, WLRO = 14.5, WLRI = 10.9;      // the stonework, the capstones' overhang, the mouth
+  var WLH = 11, WLT = 12.6;                      // the top of the stonework, the top of the capstones
+  var WL0 = P(WLX, WLY, 0), WLM = P(WLX, WLY, WLT);
+  var WGLOW = "#9aa8ff";
+  /* A point on the ring at radius r and height z, by the angle it makes
+     on screen: 0 is the right-hand edge of the ellipse, a half-turn the
+     left, and a quarter-turn the point nearest you, so the half from 0
+     to pi is exactly the half you can see. */
+  function wlAt(r, a, z){
+    return [WL0[0] + r * 1.414 * Math.cos(a), WL0[1] + r * .707 * Math.sin(a) - z];
+  }
+  function wlArc(r, a0, a1, z, n){               // n+1 points along an arc, as "x y" pairs
+    var out = [];
+    for (var i = 0; i <= n; i++){
+      var p = wlAt(r, a0 + (a1 - a0) * i / n, z);
+      out.push(n1(p[0]) + " " + n1(p[1]));
+    }
+    return out;
+  }
+  function wlPath(top, bottom){ return "M" + top.join(" L") + " L" + bottom.join(" L") + "Z"; }
+  function wlEll(cx, cy, rx, ry, rest){
+    return '<ellipse cx="' + n1(cx) + '" cy="' + n1(cy) + '" rx="' + n1(rx) + '" ry="' + n1(ry) + '" ' + rest + "/>";
+  }
+  /* a fixed scramble, so the stones are irregular but the same stones
+     every time the page loads */
+  function wlJit(i){ var s = Math.sin(i * 12.9898 + 4.1) * 43758.5453; return s - Math.floor(s); }
+  function wlMix(a, b, t){                       // two #rrggbb colours, t of the way from a to b
+    var p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16);
+    function ch(s){ var u = (p >> s) & 255, v = (q >> s) & 255; return Math.round(u + (v - u) * t); }
+    return "rgb(" + ch(16) + "," + ch(8) + "," + ch(0) + ")";
+  }
+  var WSTONE = ["#9c8468","#a88f72","#8d755d","#b0977a","#967d63","#a4896c"];   // sandstone, in lamplight
+  var WCAP = ["#c6af90","#baa283","#cfb898","#b09778","#c2a988","#cab394"];
+
+  /* Its shadow goes in on its own, so it stays on the desk when the well
+     lifts, and it goes in with the other cast shadows, under everything:
+     painted here, after the console, its soft edge would lie across the
+     foot of the pad behind it instead of on the desk in front. */
+  S.splice(SHADOWS_END, 0, '<g id="wellShadow" aria-hidden="true">' +
+    isoEllipse(WLX + 1.5, WLY + 1.5, 0, WLRO + 2.5, "rgba(12,6,2,.26)", 'filter="url(#soft)" stroke="none"') +
+    isoEllipse(WLX + .5, WLY + .5, 0, WLRO + .4, "rgba(12,6,2,.30)", 'filter="url(#soft)" stroke="none"') + "</g>");
+
+  /* a hit area larger than the ring, for thumbs. It reaches forward, over
+     bare desk, and stops short of the pad behind and the Game Boy beside,
+     so neither loses a tap; the CD case is drawn later and keeps its own. */
+  var well = wlEll(WL0[0] + 1, WL0[1] - 4, 26, 18, 'fill="transparent"');
+
+  /* The outside: mortar first, as one dark cylinder, then three courses
+     of stones laid over it with a gap all round each one, so the mortar
+     is simply what shows between them. Each course is offset half a
+     stone from the one below, the way a wall is actually laid, the
+     stones vary in length the way fieldstone does, and only the front
+     half is drawn because only the front half can be seen. */
+  var wb0 = wlAt(WLR, Math.PI, WLH), wb1 = wlAt(WLR, Math.PI, 0), wb2 = wlAt(WLR, 0, 0), wb3 = wlAt(WLR, 0, WLH);
+  var wBody = "M" + n1(wb0[0]) + " " + n1(wb0[1]) + " L" + n1(wb1[0]) + " " + n1(wb1[1]) +
+    " A" + n1(WLR * 1.414) + " " + n1(WLR * .707) + " 0 0 0 " + n1(wb2[0]) + " " + n1(wb2[1]) +
+    " L" + n1(wb3[0]) + " " + n1(wb3[1]) + " Z";
+  well += '<path d="' + wBody + '" fill="#4a3f35" ' + OUT + "/>";
+  var WCOURSE = [[0, 3.7], [3.7, 7.4], [7.4, WLH]], WNST = 10, wStep = Math.PI * 2 / WNST;
+  for (var wc = 0; wc < WCOURSE.length; wc++){
+    var wa = wc * wStep * .5 - wStep;
+    for (var ws = -1; ws <= WNST; ws++){
+      var wlen = wStep * (.72 + wlJit(wc * 31 + ws) * .56);             // a stone, give or take
+      var wlo = Math.max(wa + .045, 0), whi = Math.min(wa + wlen - .045, Math.PI);
+      wa += wlen;
+      if (whi - wlo < .07) continue;
+      var wcol = WSTONE[Math.floor(wlJit(wc * 7 + ws * 3 + 1) * WSTONE.length)];
+      var wtop = wlArc(WLR, wlo, whi, WCOURSE[wc][1] - .32, 4);
+      well += '<path d="' + wlPath(wtop, wlArc(WLR, whi, wlo, WCOURSE[wc][0] + .32, 4)) + '" fill="' + wcol +
+        '" stroke="' + wcol + '" stroke-width=".9" stroke-linejoin="round"/>' +
+        '<path d="M' + wtop.join(" L") + '" fill="none" stroke="rgba(255,236,206,.22)" stroke-width=".4" stroke-linecap="round"/>';
+    }
+  }
+  well += '<path d="' + wBody + '" fill="url(#litCyl)" stroke="none"/>';   // round, like every other cylinder here
+
+  /* The capstones: a ring of flat stones round the top, overhanging the
+     wall by half a unit, so their front edges show as a lip. A ring of
+     mortar under them first, so the joints between them read as joints
+     and not as gaps you can see the desk through. */
+  var WNCAP = 12, wcStep = Math.PI * 2 / WNCAP, wcOff = .2;
+  var wl1 = wlAt(WLRO, Math.PI, WLT), wl2 = wlAt(WLRO, Math.PI, WLH), wl3 = wlAt(WLRO, 0, WLH), wl4 = wlAt(WLRO, 0, WLT);
+  well += '<path d="M' + n1(wl1[0]) + " " + n1(wl1[1]) + " L" + n1(wl2[0]) + " " + n1(wl2[1]) +
+    " A" + n1(WLRO * 1.414) + " " + n1(WLRO * .707) + " 0 0 0 " + n1(wl3[0]) + " " + n1(wl3[1]) +
+    " L" + n1(wl4[0]) + " " + n1(wl4[1]) + ' Z" fill="#4a3f35"/>' +
+    wlEll(WLM[0], WLM[1], WLRO * 1.414, WLRO * .707, 'fill="#4a3f35" ' + OUT);
+  for (var wci = -1; wci <= WNCAP; wci++){                // their front faces
+    var wc0 = wcOff + wci * wcStep + .03, wclo = Math.max(wc0, 0), wchi = Math.min(wc0 + wcStep - .06, Math.PI);
+    if (wchi - wclo < .05) continue;
+    var wcface = shade(WCAP[(wci + WNCAP) % WCAP.length], -.22);
+    well += '<path d="' + wlPath(wlArc(WLRO, wclo, wchi, WLT - .1, 4), wlArc(WLRO, wchi, wclo, WLH + .25, 4)) + '" fill="' + wcface +
+      '" stroke="' + wcface + '" stroke-width=".45" stroke-linejoin="round"/>';
+  }
+  for (wci = 0; wci < WNCAP; wci++){                      // and their tops, all the way round
+    var wcA = wcOff + wci * wcStep + .03, wcB = wcA + wcStep - .06, wccol = WCAP[wci % WCAP.length];
+    well += '<path d="' + wlPath(wlArc(WLRO, wcA, wcB, WLT, 5), wlArc(WLRI, wcB, wcA, WLT, 5)) + '" fill="' + wccol +
+      '" stroke="' + wccol + '" stroke-width=".5" stroke-linejoin="round"/>';
+  }
+  /* the lamp's ramp over the ring, the same one every box top wears */
+  function wlLoop(r){
+    return " M" + n1(WLM[0] - r * 1.414) + " " + n1(WLM[1]) +
+      " a" + n1(r * 1.414) + " " + n1(r * .707) + " 0 1 0 " + n1(r * 2.828) + " 0" +
+      " a" + n1(r * 1.414) + " " + n1(r * .707) + " 0 1 0 " + n1(-r * 2.828) + " 0";
+  }
+  well += '<path d="' + wlLoop(WLRO) + wlLoop(WLRI) + '" fill="url(#litT)" fill-rule="evenodd"/>';
+
+  /* The inside, clipped to the mouth: eleven courses going down, each
+     an equal step deeper than the last. */
+  var WRX = WLRI * 1.414, WRY = WLRI * .707, WNR = 11, WPERSP = 5, WEND = 1 / (1 + WPERSP);
+  var WDROP = WRY * (1 - WEND) * .84;            // how far toward you the bottom sits; under 1 keeps every ring inside the last
+  function wlRing(k){
+    var s = 1 / (1 + WPERSP * k / (WNR - 1));
+    return { s: s, x: WLM[0], y: WLM[1] + WDROP * (1 - s) / (1 - WEND) };
+  }
+  function wlCourse(k){                          // sandstone at the top, dark in the middle, blue at the bottom
+    var t = k / (WNR - 1);
+    return t < .45 ? wlMix("#4e4236", "#121116", Math.pow(t / .45, .75))
+                   : wlMix("#121116", "#3a4a94", Math.pow((t - .45) / .55, 1.6));
+  }
+  var wIn = "";
+  for (var wk = 0; wk < WNR; wk++){
+    var wr = wlRing(wk);
+    wIn += wlEll(wr.x, wr.y, WRX * wr.s, WRY * wr.s,
+      'fill="' + wlCourse(wk) + '" stroke="rgba(6,5,8,.5)" stroke-width="' + n1(.5 * wr.s + .12) + '"');
+  }
+  for (wk = 0; wk < WNR - 1; wk++){                       // the joints, converging
+    var wra = wlRing(wk), wrb = wlRing(wk + 1);
+    for (var wj = 0; wj < 6; wj++){
+      var wja = Math.PI * (1.07 + wj * .155 + (wk % 2) * .0775);
+      wIn += '<path d="M' + n1(wra.x + WRX * wra.s * Math.cos(wja)) + " " + n1(wra.y + WRY * wra.s * Math.sin(wja)) +
+        " L" + n1(wrb.x + WRX * wrb.s * Math.cos(wja)) + " " + n1(wrb.y + WRY * wrb.s * Math.sin(wja)) +
+        '" stroke="rgba(6,5,8,.45)" stroke-width="' + n1(.4 * wra.s + .08) + '"/>';
+    }
+  }
+  /* the light at the bottom, and what it does to the courses above it */
+  var wBot = wlRing(WNR - 1);
+  var WL_POOL = wlEll(wBot.x, wBot.y, WRX * WEND * 2, WRY * WEND * 2, 'fill="url(#wellPool)"');
+  wIn += wlEll(wBot.x, wBot.y - 1.2, WRX * .6, WRY * .7, 'fill="url(#wellWash)"') + WL_POOL;
+  /* The two pieces. Each is one outline, the cells' union, with round
+     joins, so it is a single rounded body; a darker copy a hair lower is
+     its thickness, the way the oyster crackers are two stacked faces.
+     Laid flat by the same matrix gTop uses, then shrunk by its depth. */
+  function wlPiece(cells, top, side){
+    var pts = cells.map(function(c){ return (c[0] * 2.1).toFixed(1) + "," + (c[1] * 2.1).toFixed(1); }).join(" ");
+    return '<polygon points="' + pts + '" fill="' + side + '" stroke="' + side + '" stroke-width=".55" stroke-linejoin="round" transform="translate(.5 .5)"/>' +
+      '<polygon points="' + pts + '" fill="' + top + '" stroke="' + top + '" stroke-width=".55" stroke-linejoin="round"/>';
+  }
+  function wlFlat(x, y, s, turn){
+    return 'translate(' + n1(x) + " " + n1(y) + ") scale(" + s.toFixed(3) + ") matrix(1,0.5,-1,0.5,0,0) rotate(" + turn + ") translate(-3.15 -2.1)";
+  }
+  var W_S = [[1,0],[3,0],[3,1],[2,1],[2,2],[0,2],[0,1],[1,1]];       // the outline of an S
+  var W_T = [[0,0],[3,0],[3,1],[2,1],[2,2],[1,2],[1,1],[0,1]];       // and of a T
+  /* resting on the bottom, a little turned: Sea Glass's T, and its glint */
+  wIn += '<g transform="' + wlFlat(wBot.x, wBot.y - .1, WEND * 1.3, -14) + '">' + wlPiece(W_T, "#64cdb0", "#2c7564") + "</g>";
+  wIn += glint(wBot.x + 1, wBot.y - .5, 1.9, 3.1);
+  /* and on its way down to join it, Sea Glass's S: drawn where it hangs
+     a third of the way down, and moved from near the top to the bottom
+     by the wellsink animation, which scales it about its own centre */
+  var wMid = wlRing(3.5);
+  wIn += '<g class="wellsink"><g transform="' + wlFlat(wMid.x - .2, wMid.y, wMid.s * 1.15, 10) + '">' +
+    wlPiece(W_S, "#f4a9bc", "#b0647a") + "</g></g>";
+  well += '<defs>' +
+    '<clipPath id="wellMouth">' + wlEll(WLM[0], WLM[1], WRX, WRY, "") + '</clipPath>' +
+    '<radialGradient id="wellPool" cx=".5" cy=".5" r=".5">' +
+      '<stop offset="0" stop-color="#f8f6ff" stop-opacity=".98"/><stop offset=".3" stop-color="#cfd5ff" stop-opacity=".82"/>' +
+      '<stop offset=".68" stop-color="' + WGLOW + '" stop-opacity=".36"/><stop offset="1" stop-color="' + WGLOW + '" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="wellWash" cx=".5" cy=".72" r=".62">' +
+      '<stop offset="0" stop-color="' + WGLOW + '" stop-opacity=".7"/><stop offset=".5" stop-color="#6d7ad0" stop-opacity=".22"/>' +
+      '<stop offset="1" stop-color="#6d7ad0" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="wellRise" cx=".5" cy=".64" r=".5">' +
+      '<stop offset="0" stop-color="#d4daff" stop-opacity=".5"/><stop offset=".45" stop-color="' + WGLOW + '" stop-opacity=".17"/>' +
+      '<stop offset="1" stop-color="' + WGLOW + '" stop-opacity="0"/></radialGradient>' +
+    "</defs>";
+  well += '<g clip-path="url(#wellMouth)">' + wIn + "</g>";
+  /* The lip: shadow where the capstones meet the dark, and along the
+     back of it the glow from below catching the edge it rises past. */
+  var wLipA = wlAt(WLRI, Math.PI * 1.08, WLT), wLipB = wlAt(WLRI, Math.PI * 1.92, WLT);
+  well += wlEll(WLM[0], WLM[1], WRX, WRY, 'fill="none" stroke="rgba(14,10,8,.55)" stroke-width=".7"') +
+    '<path d="M' + n1(wLipA[0]) + " " + n1(wLipA[1]) + " A" + n1(WRX) + " " + n1(WRY) + " 0 0 1 " + n1(wLipB[0]) + " " + n1(wLipB[1]) +
+      '" fill="none" stroke="' + WGLOW + '" stroke-width=".5" stroke-linecap="round" opacity=".42"/>';
+  /* and the light leaving it: a faint column over the mouth, and a few
+     motes riding up on it. Plain alpha, not a screen blend like the
+     lamp's beam: a blend layer in here makes Chromium rasterize the
+     blurred rainbow on the CD, painted after it, a little differently,
+     and over this much dark the two look the same anyway. */
+  var WL_RISE = wlEll(WLM[0], WLM[1] - 7, 10, 14, 'fill="url(#wellRise)"');
+  well += '<g style="pointer-events:none"><g class="wellglow">' + WL_RISE + "</g>" +
+    '<g fill="#e4e8ff">' +
+      '<circle class="wellmote" cx="' + n1(WLM[0] - 3.4) + '" cy="' + n1(WLM[1] - .4) + '" r=".7"/>' +
+      '<circle class="wellmote" style="animation-delay:-2.3s" cx="' + n1(WLM[0] + 2.8) + '" cy="' + n1(WLM[1] - 1.8) + '" r=".55"/>' +
+      '<circle class="wellmote" style="animation-delay:-4.4s" cx="' + n1(WLM[0] + .5) + '" cy="' + n1(WLM[1] + .6) + '" r=".6"/></g></g>';
+  S.push(wrapObj("well","The Well — a falling-blocks game, lit from far below",WGLOW,well));
+
   /* ---------- scqcs: alarm keypad ---------- */
   var kp = box(450,180,0,64,88,13,"#cfc6b4");
   var kpKeys = "";
@@ -2264,6 +2526,13 @@
       '</g>');
   })();
 
+  /* The well's own light, again, for when the lamp is off. It shares the
+     pool and the column the well itself draws (WL_POOL, WL_RISE), and it
+     lifts with the well when you point at it, so the two never part.
+     Plain alpha for the same reason as the well's: no blend layers. */
+  S.push('<g id="wellNight" aria-hidden="true" style="pointer-events:none"><g>' +
+    WL_POOL + '<g class="wellglow">' + WL_RISE + "</g></g></g>");
+
   /* what the dark writes on the wall, in the plane of the wall itself */
   S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
     gLeft(284,-30,184,
@@ -2406,6 +2675,16 @@
       links: [
         {label:"🚁 Fly over — Vantage", href:"/vantage/", cta:true, sameTab:true},
         {label:"github.com/kmay89/timelapse_drone", href:"https://github.com/kmay89/timelapse_drone"}
+      ]
+    },
+    well: {
+      kicker: "The Games Room · New",
+      title: "The Well — A Falling-Blocks Game",
+      story: "You know this game: pieces fall, you turn them and fit them, and every full row melts away. I wanted to make the kindest version of it I could. The rules are the real modern ones — a fair shuffled bag, wall kicks, a forgiving lock, a piece you can keep for later, Quads and Twists worth chasing — and the room explains every one of them honestly, score table and all. Everything you see and hear is new. The pieces are fused bodies of glass, stone or paper in a lit shaft, and every move you make plays a note in the key of the world you're in, so clearing lines slowly plays that world's tune. Ten worlds take you down the well, from Dawn to the Starfield at the bottom, and back up to the surface. Steady is a quiet twenty minutes: slow, even, nothing sudden. It never punishes you, never nags, always lets you stop, and keeps nothing about you. The little one on the desk is deeper than it looks.",
+      chips: ["Ten worlds, Dawn to the stars","Music in the key of each world","A quiet Steady mode","The real rules, explained","Lessons, never required","Touch, keys or a controller","Works offline","Nothing tracked"],
+      links: [
+        {label:"◎ Play — the well", href:"/well/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
       ]
     },
     scqcs: {
@@ -2573,6 +2852,15 @@
       noise({filter:"lowpass", freq:520, at:0.66, dur:0.05, g:0.11});
       tone(2400, {type:"sine", at:0.70, dur:0.05, g:0.025});
     },
+    well: function(){ // a drop falls a long way, the stone answers low, and the echo comes back up
+      tone(1174.66, {type:"sine", dur:0.07, g:0.075, end:2349.3});        // the plink: a drop's rising chirp, D6 to D7
+      tone(73.42,   {type:"sine", at:0.03, dur:1.5, g:0.055});           // the shaft rings on a low D
+      tone(146.83,  {type:"sine", at:0.03, dur:1.0, g:0.032});           // and its octave, so a phone speaker hears it too
+      tone(110,     {type:"sine", at:0.05, dur:0.8, g:0.02});            // a fifth above, faint: stone, not a bell
+      noise({filter:"bandpass", freq:220, q:6, at:0.02, dur:0.45, g:0.4}); // hollow air moving in the stone
+      tone(1479.98, {type:"sine", at:0.30, dur:0.06, g:0.028, end:2959.96}); // the echo, an F♯ further up
+      tone(1760,    {type:"sine", at:0.58, dur:0.05, g:0.012, end:3520});    // and fainter, an A
+    },
     board: function(){ // ATM keypress + card-reader chirp
       noise({filter:"lowpass", freq:900, dur:0.05, g:0.14});
       tone(880,  {type:"square", at:0.05, dur:0.09, g:0.05});
@@ -2648,7 +2936,8 @@
     board:[10,40,10,40,20], toy:[12,30,12,30,12], hive:[70],
     series:[10,25,10], scqcs:[25,60,25], vinyl:[8,90,8,90,8], cam:[18],
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
-    utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18]
+    utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18],
+    well:[6,90,24]                    // the drop, then the stone
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }

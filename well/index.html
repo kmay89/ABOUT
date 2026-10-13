@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Well — a falling-blocks game</title>
+<meta name="description" content="A calm, beautiful falling-blocks game with music that answers every move. Ten worlds, a quiet Steady mode, and the real rules explained. Free, offline, nothing tracked.">
+<meta name="theme-color" content="#0b0d14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="The Well">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="The Well — a falling-blocks game">
+<meta property="og:description" content="A calm, beautiful falling-blocks game with music that answers every move. Ten worlds, a quiet Steady mode, and the real rules explained. Free, offline, nothing tracked.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The Well — a falling-blocks game">
+<meta name="twitter:description" content="A calm, beautiful falling-blocks game with music that answers every move. Ten worlds, a quiet Steady mode, and the real rules explained. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="look.css">
+<style>
+  /* The Well's own colour, over the house style in look.css.
+
+     The room is the deep blue-black of the bottom of a well at night, and
+     the accent is Dawn's rim light — the first world's colour, so the room
+     and the game it opens on agree. Nothing here is red: --bad is a muted
+     lilac, because the brief bans red-black danger anywhere in the room,
+     and a house class that happens to say "warn" is still on screen.
+
+     Two rules from the platform research shape most of what follows.
+     Safari 26 tints its own toolbars by sampling the page, so html and body
+     carry an explicit dark background rather than inheriting transparent
+     white. And nothing that sits over the canvas uses backdrop-filter or
+     filter: a blur over a WebGL surface costs a full-screen pass every
+     frame, which is the one thing a 240 Hz game cannot spend.            */
+  :root{
+    --room:#0b0d14; --card:#121624; --card2:#1a1f31; --line:#2b3249;
+    --ink:#eef0f8; --soft:#a6afc9; --accent:#9fb4ff; --accent-dim:#7a8fe0;
+    --accent-ink:#0a0f24; --glow:#ffe2c4; --good:#8fd8c0; --bad:#cdb0e0; --blue:#9fb4ff;
+    --safe-r:env(safe-area-inset-right, 0px); --safe-l:env(safe-area-inset-left, 0px);
+    --ts:1;
+  }
+  html,body{background:#0b0d14}
+  html{font-size:calc(16px * var(--ts))}
+  body{font-size:1rem}
+  .vh{position:absolute !important; width:1px; height:1px; margin:-1px; padding:0; border:0;
+      overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap}
+  :focus-visible{outline:2px solid var(--glow); outline-offset:2px}
+  button:focus:not(:focus-visible){outline:none}
+
+  /* the stage fills the whole viewport, under the notch and the home
+     indicator too; layout.js keeps everything that matters inside the safe
+     area, and the backdrop is allowed to run to the glass */
+  #app{position:fixed; inset:0; padding:0; display:block}
+  #stage{position:absolute; inset:0; overflow:hidden; background:#0b0d14}
+
+  /* Lock the page down only while a run is live. Menus, the explainer and
+     the splash stay zoomable and selectable, because that is where people
+     read; the well is where they play, and a pinch there is never a zoom. */
+  html.playing, html.playing body{overflow:hidden; overscroll-behavior:none}
+  html.playing #stage{touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+
+  /* ---------- the HUD: plain DOM text, so screen readers can read it ---------- */
+  #hud{
+    position:absolute; z-index:6; display:flex; gap:6px; align-items:stretch;
+    pointer-events:none; font-variant-numeric:tabular-nums; left:0; top:0;
+    opacity:1; transition:opacity .3s;
+  }
+  #hud.off{opacity:0}
+  #hud .hc{
+    background:rgba(9,11,20,.62); border:1px solid rgba(160,176,230,.10); border-radius:12px;
+    padding:3px 10px 4px; min-width:0; display:flex; flex-direction:column; justify-content:center;
+    flex:0 1 auto;
+  }
+  #hud .hc.grow{flex:1 1 auto}
+  #hud .hc.hide{display:none}
+  #hud .hk{font-size:.68rem; letter-spacing:.06em; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
+  #hud .hv{font-size:1.04rem; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
+  #hud .hv.pb{color:var(--glow); transition:color .6s}
+  #hud .clock .m10.z{display:none}
+  #hud .learner{color:var(--glow); font-size:.66rem; letter-spacing:.04em}
+
+  /* the pause button: 44 pt, top-trailing, inside the safe area. There is no
+     gesture for pause during play, so it can never happen by accident. */
+  #btnMenu{
+    position:fixed; z-index:30; top:calc(var(--safe-top) + 6px); right:calc(var(--safe-r) + 6px);
+    width:44px; height:44px; border-radius:14px; background:rgba(12,14,24,.66);
+    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; gap:5px;
+    transition:opacity .3s, visibility 0s;
+  }
+  #btnMenu i{display:block; width:4px; height:16px; border-radius:2px; background:var(--ink); opacity:.85}
+  /* what is faded out is also out of the tab order: visibility follows the
+     fade, so a keyboard never lands on a button nobody can see */
+  #btnMenu.off{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .3s, visibility 0s .3s}
+
+  /* the Breath button lives at the end of the HUD row, the one place on a
+     phone that is never over the well */
+  #btnBreath{
+    flex:0 0 auto; pointer-events:auto; min-width:92px; min-height:44px; border-radius:14px;
+    background:rgba(18,22,38,.78); border:1px solid rgba(159,180,255,.38); color:var(--ink);
+    font-size:.9rem; font-weight:650; padding:0 14px; display:flex; align-items:center; gap:8px;
+    font-variant-numeric:tabular-nums; transition:opacity .4s, border-color .4s;
+  }
+  #btnBreath .beads{color:var(--accent); font-weight:500; font-size:.82rem}
+  #btnBreath.active{border-color:var(--glow); opacity:.7}
+
+  /* ---------- labels beside the well ----------
+     Short words, in and out in under 300 ms, never over the active piece:
+     the app moves them to the side the piece is not on, and fades one to a
+     whisper if a falling piece ever passes under it anyway. */
+  #labels{position:absolute; z-index:5; pointer-events:none; display:flex; flex-direction:column; gap:2px; left:0; top:0}
+  #labels.r{align-items:flex-end; text-align:right}
+  #labels.l{align-items:flex-start; text-align:left}
+  .lbl{
+    font-size:1.12rem; font-weight:650; letter-spacing:.01em; color:var(--glow); white-space:nowrap;
+    text-shadow:0 1px 10px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.7);
+    opacity:0; transform-origin:inherit; transition:opacity .24s ease-out;
+    min-height:0; line-height:1.3;
+  }
+  #labels.r .lbl{transform-origin:right center}
+  #labels.l .lbl{transform-origin:left center}
+  .lbl.on{opacity:1; transition:opacity .14s ease-in}
+  .lbl.small{font-size:.9rem; font-weight:600; color:var(--ink)}
+  .lbl.big{font-size:1.32rem}
+  #labels.dodge .lbl.on{opacity:.16}
+
+  /* ---------- the Glass Well: the workings, on the live game ---------- */
+  #glass{
+    position:absolute; z-index:6; pointer-events:none; left:0; top:0;
+    background:rgba(9,11,20,.78); border:1px solid rgba(159,180,255,.16); border-radius:14px;
+    padding:8px 10px; font-size:.74rem; color:var(--soft); font-variant-numeric:tabular-nums;
+    width:220px; line-height:1.35;
+  }
+  #glass .gh{font-size:.7rem; letter-spacing:.08em; color:var(--accent); margin-bottom:4px}
+  #glass{transition:opacity .2s}
+  #glass.dodge{opacity:.14}
+  #glass .gr{display:flex; align-items:center; gap:8px; min-height:18px; margin:2px 0}
+  #glass .gk{flex:0 0 58px; color:var(--soft)}
+  #glass b{color:var(--ink); font-weight:600}
+  #gBag{display:flex; gap:3px}
+  #gBag span{width:15px; height:15px; border-radius:4px; display:flex; align-items:center; justify-content:center;
+             font-size:.62rem; font-weight:700; color:#0b0d14; transition:opacity .2s}
+  #gBag span.used{opacity:.18}
+  .gbar{flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; position:relative}
+  .gbar i{position:absolute; left:0; top:0; bottom:0; width:100%; background:var(--accent); transform-origin:left center; transform:scaleX(0)}
+  #gLock{background:var(--glow)}
+  .pips{display:flex; gap:2px; flex-wrap:wrap}
+  .pips i{width:5px; height:5px; border-radius:50%; background:var(--glow)}
+  .pips i.used{opacity:.16}
+  #gBeads i{width:6px; height:6px; background:var(--accent)}
+  #gFormula{color:var(--ink); white-space:normal}
+
+  /* ---------- paused, and resting ---------- */
+  #veil{
+    position:absolute; inset:0; z-index:12; display:flex; align-items:center; justify-content:center;
+    background:rgba(5,6,12,.56); color:var(--ink); font-size:1.05rem; letter-spacing:.02em;
+    text-align:center; padding:24px; cursor:pointer;
+  }
+  #veil.full{background:var(--room)}
+  #veil span{background:rgba(12,14,24,.78); border:1px solid var(--line); border-radius:999px; padding:10px 20px}
+
+  /* the banner names a depth, calmly: no slam, no scale, a fade */
+  #banner{top:30%; z-index:8}
+  #banner .big{font-size:clamp(1.5rem,6.4vw,2.4rem); font-weight:500; letter-spacing:.01em;
+               text-shadow:0 2px 24px rgba(0,0,0,.85); color:var(--glow)}
+  #banner .sub{font-size:.95rem; color:var(--soft)}
+  #banner{transition:opacity .45s}
+
+  /* the coach for lessons: placed by the app, never at the bottom edge */
+  #coach.off{visibility:hidden; transition:opacity .25s, transform .25s, visibility 0s .25s}
+  #coach{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(14,17,30,.92);
+         border-left-color:var(--accent); bottom:auto; z-index:7; max-width:420px}
+  #coach .head{color:var(--accent)}
+  #coach .row{margin-top:6px}
+  #coach .row .btn{min-height:44px; font-size:.84rem}
+  #coach .x{font-variant-numeric:tabular-nums}
+  /* on a phone the coach is a passing line under the HUD, not a panel over
+     the well; Hint and Show me live in the pause sheet instead */
+  #coach.compact{pointer-events:none; padding:7px 11px; transition:opacity .4s}
+  #coach.compact .row,#coach.compact .head .x{display:none}
+  #coach.compact.quiet{opacity:0}
+
+  /* the gentle reminder: a chip, never a dialog */
+  #chip{
+    position:absolute; z-index:9; left:50%; transform:translateX(-50%);
+    background:rgba(14,17,30,.95); border:1px solid var(--line); border-radius:16px;
+    padding:10px 12px; width:min(420px, calc(100% - 24px)); font-size:.88rem; box-shadow:var(--shadow);
+  }
+  #chip p{margin:0 0 8px}
+  #chip .row{margin-top:0}
+  #chip .btn{min-height:44px}
+
+  /* the PB pace tint: a faint warm rim, luminance change well under 0.03 */
+  #pace{position:absolute; z-index:2; pointer-events:none; border-radius:6px; opacity:0;
+        box-shadow:0 0 0 1px rgba(255,226,196,.10), 0 0 18px rgba(255,226,196,.06); transition:opacity 1.2s}
+  #pace.on{opacity:1}
+
+  /* the Buttons scheme's tray; input.js fills and owns it */
+  #pad{position:absolute; left:0; right:0; bottom:0; z-index:7;
+       padding:0 calc(var(--safe-r) + 10px) calc(var(--safe-bot) + 24px) calc(var(--safe-l) + 10px)}
+  #pad:not(.on){display:none}
+
+  #toast{z-index:56; bottom:calc(var(--safe-bot) + 72px); position:fixed}
+
+  /* ---------- the splash: the real well, playing itself, behind the title ---------- */
+  #splash{
+    background:transparent; justify-content:space-between; padding:0;
+    padding:calc(var(--safe-top) + 7vh) 18px calc(var(--safe-bot) + 26px);
+  }
+  #splash .scrim{
+    position:absolute; inset:0; pointer-events:none; z-index:-1;
+    background:
+      radial-gradient(ellipse 80% 42% at 50% 22%, rgba(11,13,20,.82), rgba(11,13,20,0) 70%),
+      linear-gradient(180deg, rgba(11,13,20,.18) 40%, rgba(11,13,20,.9) 82%);
+  }
+  #splash .sp-top{display:flex; flex-direction:column; align-items:center}
+  #splash .title{font-size:clamp(2.6rem,13vw,4.6rem); font-weight:300; letter-spacing:.04em; color:var(--glow);
+                 text-shadow:0 2px 30px rgba(0,0,0,.6); margin:0; line-height:1.05}
+  #splash .sub{color:var(--soft); font-size:1rem; margin:.4em 0 0; letter-spacing:.06em; max-width:none}
+  #splash .sp-bottom{width:min(420px,100%); display:flex; flex-direction:column; align-items:stretch}
+  #splash .line{color:var(--ink); opacity:.86; font-size:.94rem; margin:0 0 10px; text-align:center}
+  #splash .row{width:100%}
+  #splash .links{display:flex; justify-content:center; flex-wrap:wrap; gap:2px 4px; margin-top:12px}
+  #splash .links button{color:var(--soft); font-size:.88rem; padding:10px 10px; min-height:44px}
+  #splash .note{text-align:center; margin-top:6px}
+  #splash{transition:opacity .5s, visibility 0s}
+  #splash.gone{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .5s, visibility 0s .5s}
+
+  /* ---------- sheets ----------
+     Above the splash, because the splash opens them too. No blur behind
+     them, for the same reason as everywhere else in this room. */
+  .ov{z-index:50; background:rgba(4,5,10,.86); backdrop-filter:none; -webkit-backdrop-filter:none;
+      padding:calc(var(--safe-top) + 12px) calc(var(--safe-r) + 12px) calc(var(--safe-bot) + 12px) calc(var(--safe-l) + 12px)}
+  .sheet{max-height:min(90vh,820px); border-color:rgba(159,180,255,.14)}
+  .sheet.wide{width:min(720px,100%)}
+  .sheet h3{font-size:1.02rem; margin:18px 0 6px; color:var(--ink)}
+  .close{min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center}
+  .link{color:var(--glow); text-decoration:underline; text-underline-offset:3px; padding:6px 2px; font-size:inherit}
+
+  #ovMenu .mgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:8px; margin-top:12px}
+  #ovMenu .mgrid .btn{min-height:48px}
+  #menuExtras:empty{display:none}
+  #menuExtras{margin-top:10px}
+  #menuExtras .fld{margin:8px 0}
+  .stepper{display:flex; align-items:center; gap:8px}
+  .stepper .btn{flex:0 0 48px; min-height:44px}
+  .stepper output{flex:1; text-align:center; font-variant-numeric:tabular-nums}
+  .chips{display:flex; flex-wrap:wrap; gap:6px}
+  .chips button{border:1px solid var(--line); background:var(--card2); border-radius:999px; padding:6px 12px; min-height:36px; font-size:.86rem}
+  .chips button.on{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); color:var(--ink)}
+
+  .tabs{display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px}
+  .tabs button{border:1px solid var(--line); background:var(--card2); border-radius:999px; padding:7px 13px; min-height:40px; font-size:.86rem}
+  .tabs button[aria-selected="true"]{border-color:var(--accent); color:var(--ink); box-shadow:inset 0 0 0 1px var(--accent)}
+  .tog{display:flex; align-items:center; gap:10px; margin-top:16px; font-size:.9rem; color:var(--soft); min-height:44px}
+  .tog input{width:20px; height:20px; accent-color:var(--accent)}
+
+  /* the Modes sheet */
+  .mcard{border:1px solid var(--line); background:var(--card2); border-radius:16px; padding:14px; margin-top:10px}
+  .mcard .mh{display:flex; align-items:baseline; gap:10px}
+  .mcard .mh b{font-size:1.08rem}
+  .mcard .mh .medal{margin-left:auto; font-size:.8rem; color:var(--glow)}
+  .mcard .ml{color:var(--soft); font-size:.88rem; margin:2px 0 8px}
+  .mcard .mo{margin:6px 0}
+  .mcard .mo .ok{font-size:.76rem; color:var(--soft); display:block; margin-bottom:4px}
+  .mcard .ms{display:flex; align-items:center; gap:10px; font-size:.84rem; color:var(--soft); margin-top:8px; min-height:24px}
+  .mcard .ms b{color:var(--ink); font-variant-numeric:tabular-nums}
+  .mcard .ms svg{flex:none}
+  .mcard .row{margin-top:10px}
+  .mcard.calm{border-color:rgba(184,204,255,.32)}
+  .chal{display:flex; align-items:center; gap:10px; border-top:1px solid var(--line); padding:10px 0}
+  .chal:first-child{border-top:none}
+  .chal .ct{flex:1; min-width:0}
+  .chal .ct b{display:block}
+  .chal .ct small{color:var(--soft); font-size:.8rem; display:block; line-height:1.35}
+  .chal .ct .done{color:var(--good)}
+  .chal .btn{flex:0 0 auto; min-height:44px; padding:6px 16px}
+  #codeNote.ok{color:var(--good)}
+  input.codeIn{font-size:clamp(1.4em,8vw,2em); letter-spacing:.24em; text-indent:.24em}
+
+  /* the run card: a few numbers, large */
+  .rcard{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin:6px 0 4px}
+  .rcard div{background:var(--card2); border:1px solid var(--line); border-radius:13px; padding:9px 11px}
+  .rcard small{display:block; color:var(--soft); font-size:.74rem}
+  .rcard b{display:block; font-size:1.36rem; font-weight:650; font-variant-numeric:tabular-nums; line-height:1.2}
+  .rcard div.main{grid-column:1 / -1}
+  .rcard div.main b{font-size:2.1rem; color:var(--glow)}
+  .strip{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px}
+  .strip span{font-size:.78rem; color:var(--soft); border:1px solid var(--line); border-radius:999px; padding:2px 9px}
+  .strip span b{color:var(--ink); font-weight:650}
+  .pbLine{color:var(--glow); font-weight:650; margin:0 0 6px}
+  .stonesNew{margin-top:10px; font-size:.88rem; color:var(--soft)}
+  .stonesNew b{color:var(--glow)}
+
+  /* the Logbook: stones set into the rim of a well */
+  #logRim{display:flex; justify-content:center; margin:4px 0 6px}
+  #logRim svg{width:min(300px,78vw); height:auto}
+  .stones{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 14px; margin-top:6px}
+  .stone{display:flex; gap:9px; align-items:flex-start; padding:5px 0; font-size:.86rem}
+  .stone i{flex:none; width:12px; height:10px; border-radius:50%; margin-top:5px; background:#2a3046; border:1px solid #3a4260}
+  .stone.got i{background:radial-gradient(circle at 35% 35%, #fff4e6, var(--glow) 55%, #c9a27a); border-color:#ffe2c4;
+               box-shadow:0 0 8px rgba(255,226,196,.45)}
+  .stone b{display:block; font-weight:650}
+  .stone small{color:var(--soft); display:block; line-height:1.35}
+  .stone:not(.got) b{color:var(--soft)}
+
+  /* the first-touch cards: one idea each */
+  .tcard{text-align:center; padding:4px 4px 0}
+  .tcard svg{width:132px; height:132px; display:block; margin:6px auto 10px}
+  .tcard .tl{font-size:1.4rem; font-weight:600; color:var(--glow); margin:0}
+  .tcard .ts{color:var(--soft); font-size:.92rem; margin:.4em auto 0; max-width:30ch}
+  .tdots{display:flex; justify-content:center; gap:7px; margin:14px 0 4px}
+  .tdots i{width:7px; height:7px; border-radius:50%; background:var(--line)}
+  .tdots i.on{background:var(--accent)}
+  .kc{fill:#1a1f31; stroke:#3a4466; stroke-width:1.5}
+  .kt{fill:#eef0f8; font:600 13px system-ui,-apple-system,sans-serif; text-anchor:middle}
+  .fing{fill:rgba(255,226,196,.9)}
+  .anim-drag{animation:tdrag 2.2s ease-in-out infinite}
+  .anim-tap{animation:ttap 1.6s ease-in-out infinite; transform-origin:center; transform-box:fill-box}
+  .anim-down{animation:tdown 1.8s cubic-bezier(.5,0,.2,1) infinite}
+  .anim-up{animation:tup 1.8s cubic-bezier(.5,0,.2,1) infinite}
+  @keyframes tdrag{0%,100%{transform:translateX(-22px)}50%{transform:translateX(22px)}}
+  @keyframes ttap{0%,60%,100%{transform:scale(1); opacity:.9}30%{transform:scale(.72); opacity:1}}
+  @keyframes tdown{0%{transform:translateY(-24px); opacity:0}20%{opacity:1}70%{transform:translateY(26px); opacity:1}100%{transform:translateY(26px); opacity:0}}
+  @keyframes tup{0%{transform:translateY(24px); opacity:0}20%{opacity:1}70%{transform:translateY(-26px); opacity:1}100%{transform:translateY(-26px); opacity:0}}
+
+  #updateBar{
+    position:fixed; top:calc(var(--safe-top) + 8px); left:50%; transform:translateX(-50%);
+    background:var(--accent); color:var(--accent-ink); font-weight:650; border-radius:999px;
+    padding:10px 18px; z-index:60; box-shadow:var(--shadow); font-size:.9rem; max-width:calc(100% - 24px);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .anim-drag,.anim-tap,.anim-down,.anim-up{animation:none}
+    .lbl,.lbl.on,#banner,#hud,#pace,#splash{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="cv3" class="surface" aria-hidden="true"></canvas>
+    <canvas id="cv2" class="surface hide" aria-hidden="true"></canvas>
+    <div id="pace" aria-hidden="true"></div>
+
+    <div id="hud" class="off" role="group" aria-label="The well, in numbers">
+      <div class="hc grow hide" id="hudA"><span class="hk" id="hudAk"></span><span class="hv" id="hudAv"></span></div>
+      <div class="hc hide" id="hudB"><span class="hk" id="hudBk"></span><span class="hv" id="hudBv"></span></div>
+      <div class="hc hide" id="hudC"><span class="hk" id="hudCk"></span><span class="hv" id="hudCv"></span></div>
+      <button id="btnBreath" class="hide" aria-label="Take a Breath">Breath <span class="beads" id="breathBeads"></span></button>
+    </div>
+
+    <div id="labels" class="r" aria-hidden="true">
+      <div class="lbl"></div><div class="lbl"></div><div class="lbl"></div><div class="lbl"></div>
+    </div>
+
+    <div id="glass" class="hide" role="group" aria-label="The Glass Well">
+      <div class="gh">THE GLASS WELL</div>
+      <div class="gr"><span class="gk">bag</span><span id="gBag"></span></div>
+      <div class="gr"><span class="gk">lock</span><span class="gbar"><i id="gLock"></i></span></div>
+      <div class="gr"><span class="gk">resets</span><span class="pips" id="gPips"></span></div>
+      <div class="gr"><span class="gk">DAS</span><span class="gbar"><i id="gDas"></i></span></div>
+      <div class="gr"><span class="gk">gravity</span><b id="gGrav">—</b></div>
+      <div class="gr" id="gBreathRow"><span class="gk">Breath</span><span class="pips" id="gBeads"></span></div>
+      <div class="gr"><span class="gk">last clear</span><span id="gFormula">—</span></div>
+    </div>
+
+    <div id="coach" class="off" role="region" aria-label="Lesson">
+      <div class="head"><span id="coachName">Lesson</span><span class="x" id="coachProg"></span></div>
+      <p id="coachText"></p>
+      <div class="row">
+        <button class="btn" id="coachHint">Hint</button>
+        <button class="btn" id="coachWatch">Show me</button>
+      </div>
+    </div>
+
+    <div id="banner" aria-hidden="true"><div class="big" id="bannerBig"></div><div class="sub" id="bannerSub"></div></div>
+
+    <div id="chip" class="hide" role="status">
+      <p id="chipText"></p>
+      <div class="row"><button class="btn" id="chipRest">Rest</button><button class="btn" id="chipKeep">Keep playing</button></div>
+    </div>
+
+    <div id="pad"></div>
+
+    <div id="veil" class="hide" role="button" tabindex="-1" aria-label="Paused. Tap to return."><span id="veilText">Paused · tap to return</span></div>
+  </div>
+
+  <button id="btnMenu" class="off" aria-label="Pause" title="Pause"><i></i><i></i></button>
+</div>
+
+<div id="say" class="vh" aria-live="polite" aria-atomic="true"></div>
+<div id="toast" role="status"></div>
+
+<!-- the splash: the real well plays itself behind the title, silent until the first tap -->
+<div id="splash">
+  <div class="scrim"></div>
+  <div class="sp-top">
+    <h1 class="title">The Well</h1>
+    <p class="sub">a falling-blocks game</p>
+  </div>
+  <div class="sp-bottom">
+    <p class="line" id="spLine">Music that answers every move. Ten worlds down, and back up to the surface.</p>
+    <div class="row">
+      <button class="btn primary wide hide" id="goContinue">Continue</button>
+      <button class="btn primary wide" id="goPlay">Enter the Well</button>
+    </div>
+    <div class="row"><button class="btn wide" id="goModes">Modes</button></div>
+    <div class="links">
+      <button id="goLearn">How it works</button>
+      <button id="goLog">Logbook</button>
+      <button id="goMenu">Settings</button>
+      <button id="goAbout">About</button>
+    </div>
+    <p class="note" id="spNote"></p>
+  </div>
+</div>
+
+<!-- ======== sheets ======== -->
+
+<div class="ov hide" id="ovMenu" role="dialog" aria-modal="true" aria-labelledby="menuTitle"><div class="sheet">
+  <button class="close" data-close="ovMenu" aria-label="Close">✕</button>
+  <h2 id="menuTitle">Paused</h2>
+  <p class="lead" id="menuLead">Nothing moves while this is open.</p>
+  <div class="row" id="menuRun"><button class="btn primary wide" id="mResume">Resume</button></div>
+  <div id="menuExtras"></div>
+  <div class="mgrid">
+    <button class="btn" id="mModes">Modes</button>
+    <button class="btn" id="mSteady">Steady</button>
+    <button class="btn" id="mLook">Look</button>
+    <button class="btn" id="mHandling">Handling</button>
+    <button class="btn" id="mSound">Sound</button>
+    <button class="btn" id="mComfort">Comfort</button>
+    <button class="btn" id="mLearn">How it works</button>
+    <button class="btn" id="mLog">Logbook</button>
+    <button class="btn" id="mAbout">About</button>
+  </div>
+  <div class="row" id="menuLeaveRow"><button class="btn wide" id="mLeave">Leave</button></div>
+  <p class="note" id="menuNote"></p>
+</div></div>
+
+<div class="ov hide" id="ovModes" role="dialog" aria-modal="true" aria-labelledby="modesTitle"><div class="sheet wide">
+  <button class="close" data-close="ovModes" aria-label="Close">✕</button>
+  <h2 id="modesTitle">Modes</h2>
+  <p class="lead">Every mode, world and skin is open from the start. Nothing unlocks anything.</p>
+  <div id="modesBody"></div>
+  <h3>Play a well code</h3>
+  <p class="note" style="margin-top:0">Six letters deal the same pieces to anyone, on any day. Type one in, then pick a mode.</p>
+  <input type="text" id="codeIn" class="codeIn" maxlength="8" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Well code" placeholder="······">
+  <p class="note" id="codeNote"></p>
+  <h3>Challenges</h3>
+  <p class="note" style="margin-top:0">Lessons and silt, in a suggested order — take them in any order you like. Retrying is unlimited.</p>
+  <div id="chalBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovLog" role="dialog" aria-modal="true" aria-labelledby="logTitle"><div class="sheet wide">
+  <button class="close" data-close="ovLog" aria-label="Close">✕</button>
+  <h2 id="logTitle">Logbook</h2>
+  <p class="lead">Stones set into the rim, one for each moment worth keeping. They only ever add up: nothing here decays, expires or counts days.</p>
+  <div id="logRim" aria-hidden="true"></div>
+  <div class="stones" id="logStones"></div>
+  <h3>At the well, so far</h3>
+  <div class="rcard" id="logLife"></div>
+  <h3>Personal bests</h3>
+  <div id="logBests"></div>
+</div></div>
+
+<div class="ov hide" id="ovEnd" role="dialog" aria-modal="true" aria-labelledby="endTitle"><div class="sheet">
+  <button class="close" data-close="ovEnd" aria-label="Close">✕</button>
+  <h2 id="endTitle">The well rests.</h2>
+  <p class="lead" id="endLead"></p>
+  <p class="pbLine hide" id="endPb">New personal best</p>
+  <div class="rcard" id="endCard"></div>
+  <div class="strip" id="endStrip"></div>
+  <div class="stonesNew" id="endStones"></div>
+  <div class="row"><button class="btn wide" id="endDone">Done</button><button class="btn wide" id="endAgain">Again</button></div>
+  <div class="row hide" id="endDepthRow"><button class="btn wide" id="endDepth">Begin again from this depth</button></div>
+  <p class="note" id="endNote"><span id="endCode"></span> <button class="link" id="endShare">Copy a line to share</button></p>
+</div></div>
+
+<div class="ov hide" id="ovChapter" role="dialog" aria-modal="true" aria-labelledby="chapterTitle"><div class="sheet">
+  <button class="close" data-close="ovChapter" aria-label="Close">✕</button>
+  <h2 id="chapterTitle">Chapter complete</h2>
+  <p class="lead" id="chapterLead">The well is still. Rest here, or carry on with the board just as it is.</p>
+  <div class="row"><button class="btn wide" id="chapterRest">Rest</button><button class="btn wide" id="chapterGo">Continue</button></div>
+</div></div>
+
+<div class="ov hide" id="ovCards" role="dialog" aria-modal="true" aria-labelledby="cardsTitle"><div class="sheet">
+  <button class="close" data-close="ovCards" aria-label="Skip">✕</button>
+  <h2 id="cardsTitle" class="vh">How to play</h2>
+  <div id="cardsBody"></div>
+  <div class="tdots" id="cardsDots" aria-hidden="true"></div>
+  <div class="row"><button class="btn primary wide" id="cardsNext">Next</button></div>
+</div></div>
+
+<div class="ov hide" id="ovLearn" role="dialog" aria-modal="true" aria-labelledby="learnTitle"><div class="sheet wide">
+  <button class="close" data-close="ovLearn" aria-label="Close">✕</button>
+  <h2 id="learnTitle">The well, explained</h2>
+  <div class="tabs" id="learnTabs" role="tablist" aria-label="Sections"></div>
+  <div id="learnBody" role="tabpanel"></div>
+  <label class="tog"><input type="checkbox" id="glassToggle"> Show the Glass Well while playing (or press G)</label>
+</div></div>
+
+<div class="ov hide" id="ovLook" role="dialog" aria-modal="true" aria-labelledby="lookTitle"><div class="sheet">
+  <button class="close" data-close="ovLook" aria-label="Close">✕</button>
+  <h2 id="lookTitle">Look</h2>
+  <div id="lookBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovHandling" role="dialog" aria-modal="true" aria-labelledby="handlingTitle"><div class="sheet">
+  <button class="close" data-close="ovHandling" aria-label="Close">✕</button>
+  <h2 id="handlingTitle">Handling</h2>
+  <div id="handlingBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovSound" role="dialog" aria-modal="true" aria-labelledby="soundTitle"><div class="sheet">
+  <button class="close" data-close="ovSound" aria-label="Close">✕</button>
+  <h2 id="soundTitle">Sound</h2>
+  <div id="soundBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovComfort" role="dialog" aria-modal="true" aria-labelledby="comfortTitle"><div class="sheet">
+  <button class="close" data-close="ovComfort" aria-label="Close">✕</button>
+  <h2 id="comfortTitle">Comfort</h2>
+  <div id="comfortBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovSteady" role="dialog" aria-modal="true" aria-label="Steady"><div class="sheet">
+  <button class="close" data-close="ovSteady" aria-label="Close">✕</button>
+  <div id="steadyBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovBreathe" role="dialog" aria-modal="true" aria-label="Breathe"><div class="sheet">
+  <button class="close" data-close="ovBreathe" aria-label="Close">✕</button>
+  <div id="breatheBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovGround" role="dialog" aria-modal="true" aria-label="Grounding"><div class="sheet">
+  <button class="close" data-close="ovGround" aria-label="Close">✕</button>
+  <div id="groundBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovClose" role="dialog" aria-modal="true" aria-label="Thank you"><div class="sheet">
+  <button class="close" data-close="ovClose" aria-label="Close">✕</button>
+  <div id="closeBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovHelp" role="dialog" aria-modal="true" aria-label="Help lines"><div class="sheet">
+  <button class="close" data-close="ovHelp" aria-label="Close">✕</button>
+  <div id="helpBody"></div>
+</div></div>
+
+<div class="ov hide" id="ovAbout" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"><div class="sheet">
+  <button class="close" data-close="ovAbout" aria-label="Close">✕</button>
+  <h2 id="aboutTitle">About The Well</h2>
+  <div id="aboutBody"></div>
+  <p class="note">Made by hand for kmay89.com: raw HTML, CSS and JavaScript, every sound synthesized and every picture drawn in code. No accounts, no ads, nothing tracked — your bests and settings live only on this device.</p>
+  <p class="note"><a href="/games/">The Games Room</a> · <a href="/">Back to the desk</a> · <a href="/legal/">Legal</a> · <a href="/privacy/">Privacy</a></p>
+</div></div>
+
+<script src="rules.js"></script>
+<script src="engine.js"></script>
+<script src="bot.js"></script>
+<script src="modes.js"></script>
+<script src="records.js"></script>
+<script src="worlds.js"></script>
+<script src="skins.js"></script>
+<script src="layout.js"></script>
+<script src="prefs.js"></script>
+<script src="sky.js"></script>
+<script src="gfx2d.js"></script>
+<script src="gfx3d.js"></script>
+<script src="music.js"></script>
+<script src="input.js"></script>
+<script src="learn.js"></script>
+<script src="coach.js"></script>
+<script src="steady.js"></script>
+<script src="sheets.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
