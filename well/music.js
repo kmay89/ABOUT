@@ -2311,22 +2311,25 @@ function twistAlone(kind, now) {
   playFigure(when, F, S.calm ? RUNG.calm : kind === "mini" ? RUNG.miniTwist : RUNG.twist);
   return when - now;
 }
-/* The Empty Well: every loop voice strikes at once, the chord blooms, and an
-   eight-note cascade falls through the pool on thirty-seconds to rest on the
-   tune's next note. The loudest moment in the game, and still under
-   −14 dBFS. */
+/* The Empty Well: an eight-note cascade falls through the pool on
+   thirty-seconds to rest on the tune's next note; between its notes every
+   loop voice of the world rings in, one after another; and under it all the
+   chord blooms and holds. The loudest moment in the game — by its body more
+   than its edge, because its loop voices arrive in turn rather than all at
+   once — and still under −14 dBFS. */
 function emptyWell(when, now, notes) {
   var W = D.W, F = figure(), i, loops = [];
+  var thirty = 60 / K.bpm / 8, startIdx = W.melody[(D.melody - notes.length + 160) % W.melody.length] + 7;
   for (i = 0; i < W.loops.length; i++) loops.push(W.loops[i][0]);
   if (!loops.length && W.poly) for (i = 0; i < W.poly.length; i++) loops.push(poolNote(W, W.poly[i][1][0], W.keys + 12));
   for (i = 0; i < loops.length; i++) {
-    fNote(F, 0, loops[i], -5, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9, decay: 4, cat: "bloom" });
+    fNote(F, (i * 2 + 1) * thirty, loops[i], -4, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9,
+          decay: 4, cat: "bloom" });
   }
-  fBloom(F, 0, -6, 0.3, 1.6, 5);
-  var thirty = 60 / K.bpm / 8, startIdx = W.melody[(D.melody - notes.length + 160) % W.melody.length] + 7;
+  fBloom(F, 0, -2, 0.35, 2.2, 5);
   for (i = 0; i < 8; i++) {
     fNote(F, i * thirty, poolNote(W, startIdx - i, W.bell), 0,
-          { tag: "cascade", pan: (0.5 - i / 7) * 0.6, decay: i === 7 ? 2.6 : 0.7 });
+          { tag: "cascade", pan: (0.5 - i / 7) * 0.6, decay: i === 7 ? 2.6 : 0.9 });
   }
   playFigure(when, F, RUNG.empty);
   duck(when, -5, 2);
