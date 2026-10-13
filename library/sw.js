@@ -10,6 +10,13 @@
    world, which ships with the page like any other asset and is cached
    with the shell so the room still has ground to stand on offline. */
 var VERSION = "reading-room-v3";
+
+/* Cache Storage belongs to the whole origin, not to this room: every room
+   on kmay89.com keeps its offline copy in the same place. So only this
+   room's own older caches are cleared — clearing everything that is not
+   ours emptied every other room's offline copy each time this one
+   updated. */
+var MINE = VERSION.replace(/v\d+$/, "");
 var SHELL = [
   "./", "./index.html",
   "./nbt.js", "./anvil.js", "./blocks.js", "./mesher.js",
@@ -29,7 +36,7 @@ self.addEventListener("install", function (e) {
 
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.map(function (k) { return k === VERSION ? null : caches.delete(k); }));
+    return Promise.all(keys.map(function (k) { return (k === VERSION || k.indexOf(MINE) !== 0) ? null : caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 

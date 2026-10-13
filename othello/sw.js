@@ -7,6 +7,13 @@
    The update is announced rather than forced — swapping the code out from
    under somebody mid-game would lose the game. */
 var VERSION = "othello-v1";
+
+/* Cache Storage belongs to the whole origin, not to this room: every room
+   on kmay89.com keeps its offline copy in the same place. So only this
+   room's own older caches are cleared — clearing everything that is not
+   ours emptied every other room's offline copy each time this one
+   updated. */
+var MINE = VERSION.replace(/v\d+$/, "");
 var SHELL = [
   "./", "./index.html", "./look.css",
   "./rules.js", "./ai.js", "./coach.js", "./gfx.js",
@@ -26,7 +33,7 @@ self.addEventListener("install", function (e) {
 
 self.addEventListener("activate", function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.map(function (k) { return k === VERSION ? null : caches.delete(k); }));
+    return Promise.all(keys.map(function (k) { return (k === VERSION || k.indexOf(MINE) !== 0) ? null : caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 

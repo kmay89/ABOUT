@@ -165,6 +165,66 @@ for (const game of ROOMS.map((r) => r.game).concat(SOLO)) {
 }
 ok("the home page links to the games page", home.indexOf('href="/games/"') >= 0);
 
-console.log("");
-if (fails) { console.log("FAILED: " + fails + " problem" + (fails === 1 ? "" : "s")); process.exit(1); }
-console.log("the copies are honest");
+/* ---------- and no room empties another's ----------
+   Cache Storage belongs to the origin, not to a room: every room on the site
+   keeps its offline copy in the same place. A worker that cleans up by
+   deleting every cache name but its own therefore empties every *other*
+   room's offline copy each time it updates — which is exactly what fifteen
+   of them did, quietly, until The Well's review caught it.
+
+   So this is proved by running them rather than by reading them. Each
+   room's real service worker is loaded into a sandbox; its install handler
+   says what its cache is called; then its activate handler is run against a
+   store holding every room's cache plus one stale copy of its own, and it
+   must delete exactly that stale copy and nothing else. */
+const vm = require("vm");
+function worker(game) {
+  const on = {}, gone = [], seen = { name: null, keys: [] };
+  const box = {
+    open: (n) => { if (!seen.name) seen.name = n;
+      return Promise.resolve({ add: () => Promise.resolve(), addAll: () => Promise.resolve(),
+                               put: () => Promise.resolve(), match: () => Promise.resolve() }); },
+    keys: () => Promise.resolve(seen.keys.slice()),
+    delete: (k) => { gone.push(k); return Promise.resolve(true); },
+    match: () => Promise.resolve(undefined)
+  };
+  const self = { addEventListener: (t, fn) => { on[t] = fn; },
+                 clients: { claim: () => Promise.resolve() }, skipWaiting: () => Promise.resolve() };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, game, "sw.js"), "utf8"), {
+    self, caches: box, Request: function (u) { this.url = u; }, URL, console, Promise,
+    location: { origin: "https://kmay89.com" },
+    fetch: () => Promise.resolve({ ok: true, clone() { return this; } })
+  });
+  return { on, gone, seen };
+}
+async function fire(w, type) {
+  let wait = null;
+  if (w.on[type]) w.on[type]({ waitUntil: (p) => { wait = p; } });
+  if (wait) await wait;
+}
+
+(async () => {
+  console.log("\n──  no room empties another's offline copy");
+  const games = ROOMS.map((r) => r.game).concat(SOLO);
+  const names = {};
+  for (const game of games) {
+    try { const w = worker(game); await fire(w, "install"); names[game] = w.seen.name; }
+    catch (e) { names[game] = null; }
+    ok(game + "'s worker names its cache when it installs", !!names[game]);
+  }
+  const everyone = games.map((g) => names[g]).filter(Boolean);
+  for (const game of games) {
+    if (!names[game]) continue;
+    const stale = names[game] + "-old";
+    const w = worker(game);
+    w.seen.keys = everyone.concat([stale]);
+    try { await fire(w, "activate"); } catch (e) { ok(game + " activates", false, String(e)); continue; }
+    const others = w.gone.filter((k) => k !== stale);
+    ok(game + " clears only its own stale cache", w.gone.length === 1 && w.gone[0] === stale,
+       others.length ? "it also deleted " + others.join(", ") : "it deleted " + (w.gone.join(", ") || "nothing"));
+  }
+
+  console.log("");
+  if (fails) { console.log("FAILED: " + fails + " problem" + (fails === 1 ? "" : "s")); process.exit(1); }
+  console.log("the copies are honest");
+})();
