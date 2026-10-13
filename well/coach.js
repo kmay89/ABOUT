@@ -69,8 +69,15 @@
      C.event(ev, g)                    for every engine event
      C.next(g) / Coach.apply(g, a)     one step of "Watch", every ~150 ms
 
-   The Twist Slot lesson plays five prepared wells. Between them the coach
-   calls onNext(engineOpts) a moment after the Twist Double lands; the app
+   The engine options are not the coach's to decide. Each lesson's engine
+   block lives in modes.js, which is the one truth about how a challenge
+   plays (gravity, Keep, previews, what a full well does); C.engineOpts
+   returns exactly what Modes says for the lesson, plus which prepared well
+   it has reached.
+
+   The Twist Slot lesson plays five prepared wells. Each deals its one T and
+   then halts. The coach judges the T — on its clear, or on the halt if
+   nothing cleared — and a moment later calls onNext(engineOpts); the app
    starts a fresh game with those options and calls C.start again. Without
    onNext, the next call to C.engineOpts returns the next well, so an app
    that simply starts the lesson again still moves through all five.      */
@@ -469,6 +476,18 @@ function needOf(lesson, kind) {
   if (typeof lesson.need === "number") return lesson.need;
   return countIn(lesson.pass) || NEED[kind] || 1;
 }
+/* A lesson's engine options, from Modes: the challenge's own block, and
+   for a prepared well its board and its one-piece queue. A host without
+   modes.js still gets the lesson's own block, read the same way. */
+function lessonEngine(l, idx) {
+  var M = Modes(), ch = M && M.get ? M.get("challenges") : null, n = (l && l.boards && l.boards.length) || 0;
+  idx = n ? (idx | 0) % n : 0;
+  if (ch && ch.engine && l && l.id && M.lesson && M.lesson(l.id)) return ch.engine({ id: l.id, board: idx });
+  var e = { level: 1, linesPerLevel: 0, breath: false, spawnDelay: 100, clearDelay: 250, moveResets: 15 }, k;
+  if (l && l.engine) for (k in l.engine) e[k] = l.engine[k];
+  if (n) { var b = l.boards[idx]; e.board = b.board.slice(); e.queue = b.queue; e.queueThen = "end"; e.previews = 0; }
+  return e;
+}
 function isModern(g) {
   return !!(g && (g.modern || (g.opts && g.opts.modern) || (g.options && g.options.modern)));
 }
@@ -619,20 +638,10 @@ Coach.create = function (o) {
   }
 
   /* ---------- the slot lesson's wells ---------- */
-  function slotOpts(l, idx) {
-    var bs = (l && l.boards) || [];
-    var b = bs.length ? bs[idx % bs.length] : null;
-    var opts = { gravity: "curve", level: 1, linesPerLevel: 0, lockDelay: 1000, moveResets: 15,
-                 spawnDelay: 100, clearDelay: 250, topOut: "end", breath: false, keep: true };
-    /* with onNext wired the run carries on after the T while the next well
-       is fetched; without it the run ends, and Again brings the next well */
-    if (b) { opts.board = b.board; opts.queue = b.queue; opts.queueThen = b.queueThen || (o.onNext ? "bag" : "end"); }
-    return opts;
-  }
   function nextWell(advance) {
     if (advance) board++;
     if (!o.onNext) return;
-    var opts = slotOpts(lesson, board);
+    var opts = lessonEngine(lesson, board);
     if (timer) clearTimeout(timer);
     if (nextDelay > 0 && typeof setTimeout === "function") {
       timer = setTimeout(function () { timer = null; o.onNext(opts); }, nextDelay);
@@ -673,14 +682,7 @@ Coach.create = function (o) {
 
   C.engineOpts = function (l) {
     if (typeof l === "string") l = findLesson(l);
-    var k = kindOf(l);
-    var base = { level: 1, linesPerLevel: 0, breath: false, spawnDelay: 100, clearDelay: 250, moveResets: 15, keep: true };
-    if (k === "finesse") { base.gravity = 0; base.topOut = "drain"; return base; }
-    if (k === "keep") { base.gravity = "curve"; base.lockDelay = 750; base.topOut = "end"; return base; }
-    if (k === "clean") { base.gravity = "curve"; base.lockDelay = 750; base.topOut = "end"; base.goalLines = 40; return base; }
-    if (k === "silt") { base.gravity = "curve"; base.lockDelay = 750; base.topOut = "end"; base.silt = siltRows(l); return base; }
-    if (k === "slot") return slotOpts(l, lesson && l && lesson.id === l.id ? board : 0);
-    return base;
+    return lessonEngine(l, kindOf(l) === "slot" && lesson && l && lesson.id === l.id ? board : 0);
   };
 
   C.start = function (l, g) {
@@ -745,6 +747,9 @@ Coach.create = function (o) {
       if (tgt) target(tgt.cells);
       return;
     }
+    /* a prepared well's T that turned in but cleared nothing: the well
+       halts with no clear to judge it by, so the halt does */
+    if (t === "halt") { if (kind === "slot" && pendingT) slotResolve(false); return; }
     if (t === "lock") { onLock(ev, g); return; }
     if (t === "clear") { onClear(ev, g); return; }
     if (t === "over") {

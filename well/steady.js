@@ -220,7 +220,7 @@ Steady.CSS = [
   ".st-pauseExtras .row .btn{flex:1 1 45%}",
   /* the entry card: choices in the middle, Begin always in reach below */
   ".st-ov .sheet.st.st-entry{display:flex;flex-direction:column;overflow:hidden}",
-  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -8px;padding:0 8px 2px}",
+  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -8px;padding:0 8px 6px}",
   ".st-foot{flex:none;position:relative}",
   ".st-entry.over .st-foot:before{content:\"\";position:absolute;left:-22px;right:-22px;top:-18px;height:18px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.28));pointer-events:none}",
   "@media (min-width:700px){.st-world{height:60px}.st-ov .sheet.st{padding:26px 28px 24px}}",
@@ -241,6 +241,13 @@ function injectCSS() {
 /* ================================================================
    a session
    ================================================================ */
+/* Steady.create({prefs, music, learn, onBegin(opts), onFinish(reason),
+   onKeepPlaying(), onBreathe(phase, swell), onWhy(section), onMoment(ev)}).
+   onFinish's reason is "timer" (Finish once the time was up) or "pause"
+   (Finish from the pause sheet). onMoment hands the app a moment that
+   happened here rather than in the engine, already in the event shape
+   records.js observes: {t:"breathed"} when the breathing minute runs to
+   its end, {t:"stop"} for Finish once the time is up. */
 Steady.create = function (o) {
   o = o || {};
   var prefs = o.prefs || null, music = o.music || null, learn = o.learn || null;
@@ -372,10 +379,16 @@ Steady.create = function (o) {
   function hideAll(except) {
     for (var i = 0; i < IDS.length; i++) if (IDS[i] !== except) hide(IDS[i]);
   }
+  /* Every ✕ in the room answers to [data-close] naming its sheet (the
+     room's contract, and what tools/open-check.js presses), so Steady's
+     carry it too, even though each card is drawn afresh. The app's own
+     handler runs after this one and only ever hides the same sheet. */
   function closeButton(sheet, label, fn) {
     var b = button("\u2715", null, fn);
     b.className = "close";
     b.setAttribute("aria-label", label);
+    var ov = sheet.parentNode;
+    if (ov && ov.id) b.setAttribute("data-close", ov.id);
     sheet.appendChild(b);
     return b;
   }
@@ -711,7 +724,7 @@ Steady.create = function (o) {
     stopBreath(false);
     hideAll();
     /* choosing to stop when the time is up is the one Stone for stopping */
-    if (atTimer) safe(o.onMoment, "stop");
+    if (atTimer) safe(o.onMoment, { t: "stop" });
     sess = null;
     flow = "pause";
     safe(o.onFinish, reason);
@@ -895,7 +908,7 @@ Steady.create = function (o) {
     paintOrb(0);
     setWord("Rest here as long as you like.");
     stopBreath(true);
-    safe(o.onMoment, "breathed");
+    safe(o.onMoment, { t: "breathed" });
     /* what next depends on where the minute was opened from */
     while (foot.firstChild) foot.removeChild(foot.firstChild);
     var first;

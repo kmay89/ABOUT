@@ -139,7 +139,7 @@ var EV_START = { t: "start", sync: 0 }, EV_PAUSE = { t: "pause", sync: 0 },
     EV_PB = { t: "pb", sync: 0 }, EV_END = { t: "end", why: "", sync: 0 },
     EV_SURFACE = { t: "surface", sync: 0 }, EV_BREATHE = { t: "breathe", phase: 0, sync: 0 },
     EV_CHAPTER = { t: "chapter", sync: 0 }, EV_GLASS = { t: "glass", on: true },
-    EV_STOP = { t: "stop" }, EV_PASS = { t: "pass", lesson: "", hint: false };
+    EV_PASS = { t: "pass", lesson: "", hint: false };
 
 /* ================================================================
    device
@@ -272,6 +272,11 @@ function tierPref() {
 }
 var gfxOpts = {
   tier: "auto",
+  /* A test hook, never a setting: ?gl=soft lets the 3D renderer accept a
+     software GL (SwiftShader in a GPU-less test browser), which it refuses
+     by design so a slow machine gets the 2D well rather than a slideshow.
+     tools/open-check.js uses it to look at the 3D path at all. */
+  allowSoftware: /[?&]gl=soft(&|$)/i.test(root.location ? location.search : ""),
   /* a context lost for good (or three times in a minute): the renderer has
      already said its goodbyes; swap at the top of the next frame, never
      from inside its own callback */
@@ -366,8 +371,13 @@ function applyRenderOpts() {
   ropt.nudge = (steady || (run && run.modeId === "drift") || motion !== "full") ? 0 : +pref("nudge");
   ropt.labels = !steady && !!pref("labels");
   ropt.steady = steady;
-  ropt.previews = +pref("previews");
+  ropt.previews = runPreviews();
   if (R) { try { R.setOptions(ropt); } catch (e) { fault("R.setOptions", e); } }
+}
+
+function runPreviews() {
+  var p = run && run.eo && typeof run.eo.previews === "number" ? run.eo.previews : +pref("previews");
+  return p >= 0 ? p : 5;
 }
 
 function worldEntry(id) {
@@ -394,9 +404,15 @@ function applyAudio() {
   var st = run && run.steady ? run.opts.sound : "";
   levels.master = +pref("master"); levels.music = +pref("music");
   levels.sfx = +pref("sfx"); levels.ambience = +pref("ambience");
-  /* Steady's own choice for the session: "effects" is effects only,
-     "quiet" is every bus at zero, one tap away */
-  if (st === "effects") levels.music = 0;
+  /* Steady's own choice for the session — "effects" is the notes of each
+     move with no music and no ambience, "quiet" every bus at zero — comes
+     from Steady.levels, so the entry card and the mixer can never mean
+     two different things by the same word */
+  if (st && Steady && Steady.levels) {
+    var sl = null;
+    try { sl = Steady.levels(st, Prefs); } catch (e) { fault("Steady.levels", e); }
+    if (sl) { levels.master = sl.master; levels.music = sl.music; levels.sfx = sl.sfx; levels.ambience = sl.ambience; }
+  }
   aopts.soften = !!pref("soften") || !!(run && run.steady);
   aopts.quiet = !!pref("quiet") || st === "quiet";
   aopts.quality = pref("audioQuality") || "auto";
@@ -458,9 +474,10 @@ function doResize() {
   vh = stage.clientHeight || root.innerHeight || 844;
   dpr = Math.min(root.devicePixelRatio || 1, 2);
   readSafe();
-  lopt.previews = +pref("previews");
-  /* Keep is fixed for a run when the engine is made; the niche follows the
-     run in progress, and the setting applies from the next one */
+  /* Keep and the previews are fixed for a run when the engine is made (a
+     lesson may turn either off); the niche and the stream follow the run
+     in progress, and the settings apply from the next one */
+  lopt.previews = runPreviews();
   lopt.keep = run && run.eo ? run.eo.keep !== false : !!pref("keep");
   lopt.scale = +pref("boardSize") || 1;
   lopt.buttons = padOn;
@@ -786,8 +803,11 @@ function toast(text, ms) {
   toastT = setTimeout(function () { toastEl.classList.remove("on"); toastT = 0; }, ms || 3400);
 }
 var lowPowerSaid = false;
+/* Low Power Mode is an iPhone, iPad and Mac thing; a steady 30 fps
+   anywhere else is just a busy machine, and naming a setting it doesn't
+   have would be a puzzle, not a help */
 function lowPowerChip() {
-  if (lowPowerSaid) return;
+  if (lowPowerSaid || !APPLE) return;
   lowPowerSaid = true;
   toast("Low Power Mode: drawing at 30 fps. Gameplay timing is unaffected.", 5200);
 }
@@ -1005,9 +1025,11 @@ function dispatch(ev) {
       if (ev.on) { labelGroup(1, "Breath", "", 1); say("Breath. Gravity rests for one long breath."); }
       break;
     case "halt":
-      /* a halt still queued from before Keep playing or Continue is stale:
-         only a well that is halted now is resting */
-      if (r.g.halted) r.halted = true;
+      /* Only a well that is halted now, and halted because a chapter or
+         Steady's time is up, is resting: a halt still queued from before
+         Keep playing or Continue is stale, and a lesson's prepared well
+         halts after its one piece while the coach fetches the next. */
+      if (r.g.halted && (r.chapterHalting || r.halting)) r.halted = true;
       break;
     case "rewind":
       if (r.coach) hudLesson();
@@ -1081,7 +1103,9 @@ function afterTicks() {
     var d = depthNow();
     if (d !== r.depth) depthChanged(d);
   }
-  /* the mode may have its own view of a chapter's end; either is enough */
+  /* Modes says when a Drift chapter is complete: it is told how many
+     chapters this run has finished, and answers "chapter" (a boundary,
+     not an ending) once the next one's lines are in */
   fctx.elapsedMs = r.elapsedMs;
   fctx.chapters = r.modeId === "drift" ? Math.max(0, Math.round(r.chapterEnd / r.chapterLen) - 1) : 0;
   /* Modes is asked only when something could have changed its answer —
@@ -1093,7 +1117,7 @@ function afterTicks() {
     r.askedAt = t;
     try { fin = r.mode.finish(g, fctx); } catch (e) { fault("Modes.finish", e); fin = null; }
   }
-  var chapterDue = r.modeId === "drift" && !g.over && (totalLines() >= r.chapterEnd || (fin && fin.why === "chapter"));
+  var chapterDue = !!fin && fin.why === "chapter" && !g.over;
   if (fin && fin.why === "chapter") fin = null;
   if (chapterDue && !r.chapterHalting) {
     r.chapterHalting = true;
@@ -1336,19 +1360,15 @@ function codeOf(seed) {
   if (Modes && Modes.code) { try { return Modes.code.encode(seed); } catch (e) { fault("Modes.code.encode", e); } }
   return "";
 }
+/* a lesson (Modes.LESSONS) or a silt challenge (Modes.SILT), by id */
 function findChallenge(id) {
-  var i, list = Modes && Modes.LESSONS ? Modes.LESSONS : [];
-  for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
-  list = Modes && Modes.SILT ? Modes.SILT : [];
-  for (i = 0; i < list.length; i++) {
-    if (list[i].id === id) {
-      var s = copyObj(list[i]);
-      if (!s.kind) s.kind = "silt";
-      if (!s.name) s.name = "Silt · " + s.rows + " rows";
-      return s;
-    }
-  }
-  return null;
+  if (!Modes || !Modes.lesson) return null;
+  try { return Modes.lesson(id); } catch (e) { fault("Modes.lesson", e); return null; }
+}
+/* the key a challenge's best is kept under, as Modes names it */
+function challengeKey(id) {
+  var m = modeOf("challenges");
+  try { return m && m.pbKey ? m.pbKey({ id: id }) : null; } catch (e) { fault("Modes.pbKey", e); return null; }
 }
 function levelAtDepth(pace, d) { return pace === "swift" ? d + 5 : d; }
 function tideMs(level) {
@@ -1358,8 +1378,11 @@ function tideMs(level) {
   return Math.round(1000 * Math.pow(0.8 - k * 0.007, k));
 }
 
-/* The engine's options: the player's handling, then the mode's, then the
-   lesson's, then whatever this particular start needs. */
+/* The engine's options: the player's handling, then the mode's (which for
+   a challenge includes the lesson's own block from modes.js), then the
+   coach's — the same block, plus which prepared well it has reached — then
+   whatever this particular start needs. Each later layer wins, so a lesson
+   that wants Keep off or no previews gets them whatever the settings say. */
 function engineOptions(mode, o, seed, coach, lesson, from) {
   var eo = {}, k, base = null;
   eo.keep = !!pref("keep");
@@ -1486,10 +1509,12 @@ function startRun(modeId, opts, from) {
   replaceHistory();
   if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
 
-  /* the first time, four cards: one idea each */
+  /* the first time, four cards: one idea each. Never in Steady, whose own
+     tip card has just been read and which shows no text during play; the
+     next run of anything else shows them instead. */
   var cards = device === "touch" ? !seen("touchCards") : !seen("intro");
-  if (from.restore) cards = false;
-  markSeen("intro");
+  if (from.restore || steady) cards = false;
+  if (!steady) markSeen("intro");
   if (cards) { state = "intro"; openCards(); }
   else beginPlay(!!from.restore);
 }
@@ -1602,6 +1627,9 @@ function continueRun(modeId) {
     toast("That saved well couldn't be read, so it has been put away.", 4200);
     return;
   }
+  /* a save keeps the engine exactly, held soft drop included; no finger is
+     on the glass after a reload, so let it go */
+  try { Well.act(g, "softOff"); Well.drain(g); } catch (e) { fault("Well.act (restore)", e); }
   startRun(modeId, s.opts, {
     g: g, seed: s.seed, restore: true, elapsedMs: s.elapsedMs, rests: s.rests, linesBase: s.linesBase,
     scoreBase: s.scoreBase, depth: s.depth, chapterEnd: s.chapterEnd, learner: s.learner, hint: s.hint
@@ -1742,7 +1770,7 @@ function nextWell(opts) {
   eo.seed = newSeed();
   var g = null;
   try { g = Well.create(eo); } catch (e) { fault("Well.create (next well)", e); return; }
-  r.g = g; rctx.g = g;
+  r.g = g; r.eo = eo; rctx.g = g;
   r.target = null; r.watching = false;
   try { r.coach.start(r.lesson, g); } catch (e) { fault("Coach.start", e); }
   appFx(EV_START, false);
@@ -1795,13 +1823,12 @@ function endRun(fin, t) {
   /* the numbers behind the card are the final ones */
   hudUpdate();
   r.fin = fin || null;
-  /* Two vocabularies meet here. Modes names an ending for the card
-     ("surface", "filled"); the engine names what actually happened
-     ("goal", "block", "time"), and that is what the records are kept on.
-     An ending the app chose (rest, pass, timer) has no engine reason. */
-  r.overWhy = g.over ? g.overWhy : null;
-  r.why = (fin && fin.why) || g.overWhy || "end";
-  r.surface = r.modeId === "descent" && (r.overWhy === "goal" || r.why === "surface");
+  /* One vocabulary (modes.js, "Endings"): Modes' word when it has one,
+     the app's own for the endings it chose ("rest", "pass"), and the
+     engine's only if neither spoke. records.js keeps its books on the
+     same words. */
+  r.why = (fin && fin.why) || (g.over ? g.overWhy : "") || "end";
+  r.surface = r.modeId === "descent" && r.why === "surface";
   state = "ending";
   lastRun = r;
   if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
@@ -1819,7 +1846,7 @@ function endRun(fin, t) {
     EV_END.why = r.why;
     appFx(EV_END, true);
   }
-  r.result = finishRecords(r, r.overWhy || r.why);
+  r.result = finishRecords(r, r.why);
   clearSave(r.modeId);
   endAt = (t || now()) + (r.surface ? SURFACE_MS : END_MS);
   btnMenu.classList.add("off");
@@ -1854,7 +1881,7 @@ function showEndCard() {
   var fin = r.fin || {};
   /* the mode's own words when it has them; the room's when it doesn't */
   var title = fin.title, lead = fin.lead;
-  var filled = topOut(r.overWhy || r.why);
+  var filled = topOut(r.why);
   if (r.surface) { title = title || "The Surface"; lead = lead || "Ten depths down, and back up into the dawn."; }
   else if (filled) {
     title = title || "The well rests.";
@@ -2083,12 +2110,6 @@ function closeTopSheet() {
 function sheetsChanged() {
   var was = sheetsOpen, n = countSheets(), open = doc.querySelectorAll(".ov:not(.hide)");
   var top = open.length ? open[open.length - 1] : null;
-  /* every sheet's ✕ answers to [data-close], including the ones steady.js
-     builds afresh each time it draws a card */
-  for (var i = 0; i < open.length; i++) {
-    var x = open[i].querySelector(".close:not([data-close])");
-    if (x && open[i].id) x.setAttribute("data-close", open[i].id);
-  }
   if (n > was && I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
   if (top && !top.contains(doc.activeElement)) focusIn(top, null);
   /* a well code belongs to the Modes sheet it was typed into: closing the
@@ -2358,24 +2379,22 @@ function renderModes() {
   body.innerHTML = html;
   renderChallenges();
 }
+/* the lessons in their suggested order, then the silt wells with their
+   best times; Modes keeps the two lists apart, so each is listed once */
 function renderChallenges() {
   var el = $("chalBody"), html = "", i;
   var lessons = Modes && Modes.LESSONS ? Modes.LESSONS : [], silt = Modes && Modes.SILT ? Modes.SILT : [];
   var done = records && records.lessons ? records.lessons : {};
-  var n = 0, named = {};
   for (i = 0; i < lessons.length; i++) {
     var ls = lessons[i];
-    /* the silt wells are listed once, below, with their best times */
-    if (ls.kind === "silt" || ls.rows) { named[ls.id] = ls; continue; }
-    n++;
-    html += '<div class="chal"><div class="ct"><b>' + n + ". " + esc(ls.name) + "</b><small>" + esc(ls.teaches || "") +
-      (ls.pass ? " · " + esc(typeof ls.pass === "string" ? ls.pass : "") : "") +
-      (done[ls.id] ? ' <span class="done">· passed</span>' : "") + '</small></div><button class="btn" data-lesson="' + esc(ls.id) + '">Begin</button></div>';
+    html += '<div class="chal"><div class="ct"><b>' + (ls.n || i + 1) + ". " + esc(ls.name) + "</b><small>" + esc(ls.teaches || "") +
+      (typeof ls.pass === "string" ? " " + esc(ls.pass) : "") +
+      (done[ls.id] ? ' <span class="done">Passed.</span>' : "") + '</small></div><button class="btn" data-lesson="' + esc(ls.id) + '">Begin</button></div>';
   }
   for (i = 0; i < silt.length; i++) {
-    var s = silt[i], key = s.id, best = bestOf(key), nm = named[s.id];
-    html += '<div class="chal"><div class="ct"><b>' + esc(nm && nm.name ? nm.name : "Silt · " + s.rows + " rows") + "</b><small>" +
-      esc(nm && nm.teaches ? nm.teaches : "Clear " + s.rows + " rows of silt from the bottom of the well. Each row has one gap.") +
+    var s = silt[i], best = bestOf(challengeKey(s.id));
+    html += '<div class="chal"><div class="ct"><b>' + esc(s.name || "Silt") + "</b><small>" +
+      esc(s.teaches || "") + (typeof s.pass === "string" ? " " + esc(s.pass) : "") +
       (best && best.value > 0 ? " Best " + esc(fmtStopwatch(best.value)) + "." : "") +
       '</small></div><button class="btn" data-lesson="' + esc(s.id) + '">Begin</button></div>';
   }
@@ -2504,7 +2523,7 @@ function bestsHtml() {
   m = modeOf("drift");
   if (m && m.pbKey) { try { key = m.pbKey(optsFor("drift")); } catch (e) { key = null; } if (key) row("Drift", key, m); }
   var silt = Modes && Modes.SILT ? Modes.SILT : [];
-  for (var s = 0; s < silt.length; s++) row("Silt · " + silt[s].rows + " rows", silt[s].id, { pbBetter: "low" });
+  for (var s = 0; s < silt.length; s++) row(silt[s].name || "Silt", challengeKey(silt[s].id), { pbBetter: "low" });
   if (!rows.length) return '<p class="note">Your bests will appear here.</p>';
   return '<table class="tally"><tr><th>Mode</th><td>Best</td><td>Medal</td></tr>' + rows.join("") + "</table>";
 }
@@ -2515,7 +2534,11 @@ function buildLearnTabs() {
   var tabs = $("learnTabs"), list = Learn && Learn.sections ? Learn.sections : [];
   var h = "";
   for (var i = 0; i < list.length; i++) {
-    h += '<button role="tab" id="lt_' + esc(list[i].id) + '" data-tab="' + esc(list[i].id) + '" aria-selected="false">' + esc(list[i].title) + "</button>";
+    /* the short label on the tab, because the long titles wrap a phone's
+       row of tabs; the full title heads the panel itself (showLearn) */
+    var s = list[i];
+    h += '<button role="tab" id="lt_' + esc(s.id) + '" data-tab="' + esc(s.id) + '" aria-selected="false">' +
+         esc(s.short || s.title) + "</button>";
   }
   tabs.innerHTML = h;
 }
@@ -2529,7 +2552,7 @@ function showLearn(id) {
   var body = $("learnBody");
   body.setAttribute("aria-labelledby", "lt_" + id);
   body.innerHTML = "";
-  try { Learn.render(body, id, { device: device, prefs: Prefs }); } catch (e) { fault("Learn.render", e); }
+  try { Learn.render(body, id, { device: device, prefs: Prefs, title: true }); } catch (e) { fault("Learn.render", e); }
 }
 function openLearn(id) {
   showLearn(id);
@@ -2584,12 +2607,8 @@ function makeSteady() {
         EV_BREATHE.phase = +phase || 0;
         appFx(EV_BREATHE, false);
       },
-      /* Steady names its moments ("breathed", "stop"); Records takes them as
-         events of that type */
-      onMoment: function (ev) {
-        if (typeof ev === "string") momentObserve({ t: ev });
-        else if (ev && ev.t) momentObserve(ev);
-      },
+      /* {t:"breathed"} and {t:"stop"}: already the events records.js reads */
+      onMoment: function (ev) { if (ev && ev.t) momentObserve(ev); },
       onWhy: function () { openLearn("steady"); },
       onHelp: function () { if (S && S.openHelp) S.openHelp(); }
     });
@@ -2607,12 +2626,10 @@ function momentObserve(ev) {
 function finishSteady(reason) {
   var r = run;
   if (!r || !r.steady) return;
-  /* "Finish" while the chime's card is up is the one Records rewards:
-     knowing when to stop */
-  var atTimer = state === "rest" && r.steadyTimeup;
-  var why = atTimer ? "timer" : (reason || "finish");
-  if (atTimer) observe(EV_STOP);
-  finishRecords(r, why);
+  /* "timer" is Finish once the time was up (the Stone for knowing when to
+     stop has already come through onMoment); "pause" is Finish from the
+     pause sheet, which is just as welcome and simply earlier */
+  finishRecords(r, reason === "timer" ? "timer" : "pause");
   clearSave("steady");
   if (r.coach) { try { r.coach.stop(); } catch (e) { fault("Coach.stop", e); } }
   /* Steady's own closing sheet may be up; the splash goes in beneath it */
@@ -2626,18 +2643,21 @@ function finishSteady(reason) {
 function inputEnabled() {
   return state === "play" && !!run && run.readyMs <= 0 && !run.halted && sheetsOpen === 0;
 }
+/* Returns what the engine said: input.js cuts DAS (DCD) only after a turn
+   or Keep that actually happened against a wall, so a refused press has
+   to say so. */
 function onAction(a, meta) {
   var r = run;
-  if (!r || state !== "play") return;
+  if (!r || state !== "play") return false;
   if (meta && meta.source) device = meta.source === "key" ? "keys" : meta.source === "pad" ? "pad" : "touch";
-  if (a === "breath" && !(r.mode && r.mode.hasBreath)) return;
+  if (a === "breath" && !(r.mode && r.mode.hasBreath)) return false;
   if (r.watching && a !== "softOff") r.watching = false;
   if (r.coach) {
     var verdict = "allow";
     try { verdict = r.coach.action(a, meta, r.g); } catch (e) { fault("Coach.action", e); }
-    if (verdict === "rewind") { try { Well.rewind(r.g); } catch (e) { fault("Well.rewind", e); } return; }
+    if (verdict === "rewind") { try { Well.rewind(r.g); } catch (e) { fault("Well.rewind", e); } return false; }
   }
-  try { Well.act(r.g, a, meta); } catch (e) { fault("Well.act", e); }
+  try { return !!Well.act(r.g, a, meta); } catch (e) { fault("Well.act", e); return false; }
 }
 function onUI(name) {
   if (name === "pause") { togglePauseFromUI(); return; }
@@ -2842,7 +2862,8 @@ function wireUI() {
 
   press($("chapterRest"), function () {
     if (!run || state !== "rest") return;
-    observe(EV_STOP);
+    /* Rest at a chapter's end is the other way to earn Knew When to Stop;
+       records.js gives it for a Drift run that ends with "rest" */
     closeSheet("ovChapter");
     endRun({ why: "rest", title: "The well rests.", lead: "A chapter is a good place to stop." }, now());
   });

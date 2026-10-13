@@ -128,8 +128,13 @@ const ROOMS = [
      lit 3D well is drawn by the CPU, four times over at 2× — and none of
      these questions (does it draw, does it answer, does it flash) depends
      on how sharp the picture is. How fast it is on a real phone is a
-     question for a real phone. */
-  { game: "well", label: "well, in WebGL2", start: "#goPlay", canvas: "#cv3", other: "#cv2",
+     question for a real phone.
+
+     The WebGL one is opened with ?gl=soft, the room's test hook: the 3D
+     renderer refuses a software GL on purpose (a phone without a real GPU
+     should get the 2D well, not a slideshow), and SwiftShader is exactly
+     that, so without the hook this entry would quietly test the 2D well. */
+  { game: "well", label: "well, in WebGL2 (?gl=soft)", query: "?gl=soft", start: "#goPlay", canvas: "#cv3", other: "#cv2",
     gl: true, flash: true, dpr: 1, taps: [[0.35, 0.5], [0.65, 0.5], [0.5, 0.4]],
     menu: WELL_MENU, wait: 1500 },
   { game: "well", label: "well, in 2D (?gfx=2d)", query: "?gfx=2d", start: "#goPlay", canvas: "#cv2", other: "#cv3",

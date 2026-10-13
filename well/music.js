@@ -179,7 +179,7 @@ var WORLDS = {
     keys: 62, bell: 74, bpm: 72, bpc: 2,
     prog: [["Dmaj9", 38, [54, 61, 64, 69]], ["E/D", 38, [56, 61, 64, 71]],
            ["Bm11", 35, [54, 62, 64, 69]], ["Dmaj7#11", 38, [54, 61, 64, 68]]],
-    pad: { db: -33, cutoff: 1600, attack: 2.5, release: 3, detune: 6, voices: 2, lfo: 0 },
+    pad: { db: -29, cutoff: 1600, attack: 2.5, release: 3, detune: 6, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "glass", kind: "fm", ratio: 3.5, index: 1.4, end: 0.3, decay: 2.6 },
     pluck: { name: "harp", bright: 0.55, t60: 1.6, tone: 5000 },
@@ -196,7 +196,7 @@ var WORLDS = {
     keys: 57, bell: 69, bpm: 66, bpc: 2,
     prog: [["Asus2", 45, [57, 59, 64, 69]], ["F#m9", 42, [57, 61, 64, 68]],
            ["Dmaj9", 38, [57, 61, 64, 66]], ["Esus4", 40, [57, 59, 64, 66]]],
-    pad: { db: -34, cutoff: 1100, attack: 2.8, release: 3.4, detune: 5, voices: 2, lfo: 0 },
+    pad: { db: -30, cutoff: 1100, attack: 2.8, release: 3.4, detune: 5, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "glass", kind: "fm", ratio: 2, index: 0.8, end: 0.2, decay: 2.8 },
     pluck: { name: "soft", bright: 0.35, t60: 1.3, tone: 3000 },
@@ -212,7 +212,7 @@ var WORLDS = {
     keys: 64, bell: 76, bpm: 76, bpc: 2,
     prog: [["Em9", 40, [55, 62, 66, 71]], ["A/E", 40, [57, 61, 64, 71]],
            ["Gmaj7", 43, [57, 62, 66, 71]], ["D/F#", 42, [57, 62, 66, 69]]],
-    pad: { db: -33, cutoff: 1300, attack: 2.4, release: 3, detune: 6, voices: 2, lfo: 0 },
+    pad: { db: -29, cutoff: 1300, attack: 2.4, release: 3, detune: 6, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "tine", kind: "tine", decay: 1.8 },
     pluck: { name: "koto", bright: 0.7, t60: 1.0, tone: 4200 },
@@ -229,7 +229,7 @@ var WORLDS = {
     keys: 59, bell: 71, bpm: 84, bpc: 2,
     prog: [["Bm(add9)", 35, [59, 62, 66, 73]], ["Gmaj7", 43, [57, 62, 66, 71]],
            ["Em9", 40, [55, 62, 66, 71]], ["F#m7", 42, [57, 61, 64, 71]]],
-    pad: { db: -34, cutoff: 1400, attack: 2.2, release: 2.6, detune: 7, voices: 2, lfo: 0, air: -40 },
+    pad: { db: -30, cutoff: 1400, attack: 2.2, release: 2.6, detune: 7, voices: 2, lfo: 0, air: -40 },
     drone: null,
     lead: { name: "chime", kind: "chime" },
     pluck: { name: "bright", bright: 0.8, t60: 0.75, tone: 5200 },
@@ -245,8 +245,8 @@ var WORLDS = {
     keys: 67, bell: 79, bpm: 60, bpc: 4,
     prog: [["Gmaj9", 43, [57, 59, 62, 66]], ["A/G", 43, [57, 59, 61, 64]],
            ["Em9", 40, [55, 59, 62, 66]], ["Gmaj7#11", 43, [57, 59, 61, 66]]],
-    pad: { db: -35, cutoff: 1800, attack: 3.2, release: 4, detune: 9, voices: 4, lfo: 1 },
-    drone: [[43, -36], [50, -38]],
+    pad: { db: -31, cutoff: 1800, attack: 3.2, release: 4, detune: 9, voices: 4, lfo: 1 },
+    drone: [[43, -32], [50, -34]],
     lead: { name: "high glass", kind: "fm", ratio: 3.5, index: 2.0, end: 0.35, decay: 4 },
     pluck: { name: "sparse", bright: 0.45, t60: 1.8, tone: 4500 },
     loops: [[79, 19.9], [83, 23.3], [86, 27.1], [88, 31.3], [93, 35.9]],
@@ -262,8 +262,8 @@ var WORLDS = {
     keys: 52, bell: 64, bpm: 56, bpc: 4,
     prog: [["Em(add9)", 40, [55, 64, 66, 71]], ["Cmaj7", 36, [55, 62, 64, 71]],
            ["Am9", 45, [55, 60, 64, 71]], ["Bm7", 35, [54, 62, 64, 69]]],
-    pad: { db: -34, cutoff: 1000, attack: 3.4, release: 4, detune: 5, voices: 2, lfo: 0 },
-    drone: [[28, -33], [40, -35]],
+    pad: { db: -30, cutoff: 1000, attack: 3.4, release: 4, detune: 5, voices: 2, lfo: 0 },
+    drone: [[28, -33], [40, -31]],
     lead: { name: "low glass", kind: "fm", ratio: 2, index: 0.6, end: 0.15, decay: 3.2 },
     pluck: { name: "muted", bright: 0.4, t60: 1.1, tone: 1500 },
     loops: [[64, 21.1], [71, 25.9], [74, 29.7]],
@@ -279,7 +279,7 @@ var WORLDS = {
     keys: 62, bell: 74, bpm: 80, bpc: 2,
     prog: [["D", 38, [54, 62, 64, 69]], ["C/D", 38, [55, 60, 64, 69]],
            ["G/D", 38, [55, 59, 62, 69]], ["Am7", 45, [55, 60, 64, 67]]],
-    pad: { db: -33, cutoff: 1800, attack: 2.2, release: 2.6, detune: 6, voices: 2, lfo: 0 },
+    pad: { db: -29, cutoff: 1800, attack: 2.2, release: 2.6, detune: 6, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "tine", kind: "tine", decay: 1.9 },
     pluck: { name: "nylon", bright: 0.4, t60: 1.4, tone: 3600 },
@@ -296,7 +296,7 @@ var WORLDS = {
     keys: 60, bell: 72, bpm: 66, bpc: 2,
     prog: [["Cmaj9", 36, [55, 62, 64, 71]], ["Am9", 45, [55, 60, 64, 71]],
            ["Fmaj9", 41, [55, 60, 64, 69]], ["G6sus4", 43, [55, 62, 64, 72]]],
-    pad: { db: -34, cutoff: 900, attack: 2.8, release: 3.4, detune: 6, voices: 2, lfo: 0 },
+    pad: { db: -30, cutoff: 900, attack: 2.8, release: 3.4, detune: 6, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "music box", kind: "fm", ratio: 4, index: 1.0, end: 0.2, decay: 1.8 },
     pluck: { name: "glassy", bright: 0.9, t60: 1.6, tone: 6000 },
@@ -313,8 +313,8 @@ var WORLDS = {
     keys: 62, bell: 74, bpm: 52, bpc: 4,
     prog: [["Dm9", 38, [53, 60, 64, 69]], ["G/D", 38, [55, 59, 62, 69]],
            ["Fmaj7", 41, [55, 60, 64, 69]], ["C/E", 40, [55, 60, 64, 67]]],
-    pad: { db: -35, cutoff: 1200, attack: 3.4, release: 4, detune: 5, voices: 2, lfo: 0 },
-    drone: [[38, -34], [45, -36]],
+    pad: { db: -31, cutoff: 1200, attack: 3.4, release: 4, detune: 5, voices: 2, lfo: 0 },
+    drone: [[38, -30], [45, -32]],
     lead: { name: "temple glass", kind: "fm", ratio: 3.5, index: 1.0, end: 0.25, decay: 3.6 },
     pluck: { name: "koto", bright: 0.7, t60: 1.2, tone: 4000 },
     loops: [[74, 22.3], [77, 26.9], [81, 31.1], [84, 35.3]],
@@ -330,7 +330,7 @@ var WORLDS = {
     keys: 65, bell: 77, bpm: 90, bpc: 2,
     prog: [["Fmaj9", 41, [55, 60, 64, 69]], ["G/F", 41, [55, 59, 62, 69]],
            ["Dm9", 38, [53, 60, 64, 69]], ["Am7", 45, [55, 60, 64, 67]]],
-    pad: { db: -34, cutoff: 2000, attack: 2.6, release: 3.2, detune: 8, voices: 2, lfo: 0 },
+    pad: { db: -30, cutoff: 2000, attack: 2.6, release: 3.2, detune: 8, voices: 2, lfo: 0 },
     drone: null,
     lead: { name: "glass shimmer", kind: "fm", ratio: 3.5, index: 1.2, end: 0.3, decay: 3.0 },
     pluck: { name: "glass", bright: 0.6, t60: 1.6, tone: 5000 },
@@ -526,8 +526,8 @@ var CAL = -1.8;
 var LV = {
   move: -33, rotate: -30, bump: -37.5, brush: -37.3, thump: -23.5, streak: -35,
   lock: -24.5, keepSwell: -34, keep: -32, shimmer: -31,
-  loop: -33, arp: -34, layerBell: -33, poly: -35, modal: -33, bowl: -34, glide: -36, bass: -32,
-  bloomWorld: -32, wash: -34, ui: -38, chime: -28
+  loop: -31, arp: -32, layerBell: -31, poly: -33, modal: -31, bowl: -32, glide: -34, bass: -30,
+  bloomWorld: -29, wash: -34, ui: -38, chime: -28
 };
 function peak(db) { return dbToGain(db + CAL); }
 
@@ -548,6 +548,13 @@ var CAPS = {
   minimal: { pad: 6,  bloom: 3, bell: 4, pluck: 4, tick: 2, amb: 0 }
 };
 var NODE_BUDGET = 160;
+/* Who gives way when the graph is full. Background texture (loops, the
+   arpeggio, rain and birds) is refused first; then touch sounds; rewards
+   can push out anything below them; the bed — the chords and drones — is
+   never refused and never pushed out by anything but its own next chord,
+   because a well that falls silent mid-chord is worse than a missing
+   raindrop. */
+var P_BG = 0, P_TOUCH = 1, P_REWARD = 2, P_BED = 3;
 var LOOKAHEAD = 0.12, PUMP_MS = 25, SAFETY = 0.010;
 
 /* ================================================================
@@ -717,6 +724,7 @@ function buildMixer(e) {
   M.padL = c.createStereoPanner(); M.padR = c.createStereoPanner(); n += 2;
   M.padL.pan.value = -0.35; M.padR.pan.value = 0.35;
   M.padL.connect(M.padIn); M.padR.connect(M.padIn);
+  M.padL.panned = M.padR.panned = true;
 
   M.sfxDry = G(1); M.sfxWet = G(1); M.sfxSend = G(0.4); M.gate = G(1);
   M.shelf = F("highshelf", 4000); M.shelf.gain.value = 0;
@@ -724,6 +732,12 @@ function buildMixer(e) {
   M.sfxWet.connect(M.sfxSend); M.sfxSend.connect(M.verbIn);
   M.gate.connect(M.shelf); M.shelf.connect(M.master);
   M.ui = G(1); M.ui.connect(M.shelf);
+  /* reward figures share two pre-panned lanes (and the centre) instead of a
+     panner per note: a figure of a dozen bells is a dozen nodes lighter */
+  M.sfxL = c.createStereoPanner(); M.sfxR = c.createStereoPanner(); n += 2;
+  M.sfxL.pan.value = -0.4; M.sfxR.pan.value = 0.4;
+  M.sfxL.connect(M.sfxWet); M.sfxR.connect(M.sfxWet);
+  M.sfxL.panned = M.sfxR.panned = true;
 
   M.ambDry = G(1); M.ambWet = G(1); M.ambSend = G(0.3);
   M.ambDry.connect(M.master); M.ambWet.connect(M.master);
@@ -858,27 +872,29 @@ function admit(cat, t, nodes, prio) {
      the 40 ms of its fade */
   var budget = NODE_BUDGET - 10;
   if (count + nodes > budget) {
-    if (prio === 0) return false;
+    if (prio === P_BG) return false;
+    var reach = prio === P_BED ? P_TOUCH : prio;      /* the bed only clears texture and touches */
     for (var c = 0; c < CATS.length && count + nodes > budget; c++) {
       var M = E.live[CATS[c]];
       while (M.length && count + nodes > budget) {
         k = weakest(M);
-        if (M[k].prio > prio) break;
+        if (M[k].prio > reach) break;
         count -= M[k].end > t ? M[k].nodes : 0;
         stealVoice(M[k], t);
         M.splice(k, 1);
       }
     }
-    if (count + nodes > budget) return false;
+    if (count + nodes > budget && prio !== P_BED) return false;
   }
   return true;
 }
 /* Wire a voice's tail and register it. A stereo panner spreads a mono voice
    at equal power, so even at the centre each side gets it 3 dB down; a voice
-   with no panner reaches both sides at full level. Unpanned voices therefore
-   ride their steal gain at √½, and a voice is equally loud wherever it sits. */
+   with no panner anywhere on its way reaches both sides at full level. Such
+   voices ride their steal gain at √½, and a voice is equally loud wherever
+   it sits. (A voice sent into a panning lane has its panner already.) */
 function finish(cat, t, end, srcs, shape, pan, lane, nodes, prio, tag, midi) {
-  var c = E.ctx, steal = c.createGain(), g0 = pan ? 1 : Math.SQRT1_2;
+  var c = E.ctx, steal = c.createGain(), g0 = pan || lane.panned ? 1 : Math.SQRT1_2;
   steal.gain.value = g0;
   shape.connect(steal);
   var total = nodes + 1;
@@ -890,7 +906,7 @@ function finish(cat, t, end, srcs, shape, pan, lane, nodes, prio, tag, midi) {
   } else steal.connect(lane);
   var v = { t0: t, end: end, srcs: srcs, steal: steal, g0: g0, nodes: total, prio: prio, fadeT0: 0, fadeT1: 0, tag: tag };
   E.live[cat].push(v);
-  if (TRACE) TRACE({ t: t, cat: cat, tag: tag, midi: midi, end: end, nodes: liveNodes(t), live: E.live[cat].length, w: D.W.id });
+  if (TRACE) TRACE({ t: t, cat: cat, tag: tag, midi: midi, end: end, nodes: liveNodes(t), live: E.live[cat].length, w: D.W.id, vn: total });
   var count = liveNodes(t);
   if (count > E.peakNodes) E.peakNodes = count;
   return v;
@@ -904,7 +920,8 @@ function softenOn() { return S.soften || S.calm; }
 function atk(a) { return Math.max(a || 0, softenOn() ? 0.02 : 0.003); }
 function laneOf(name) {
   var M = E.M;
-  return name === "sfxWet" ? M.sfxWet : name === "musicDry" ? M.musicDry : name === "musicWet" ? M.musicWet
+  return name === "sfxWet" ? M.sfxWet : name === "sfxL" ? M.sfxL : name === "sfxR" ? M.sfxR
+       : name === "musicDry" ? M.musicDry : name === "musicWet" ? M.musicWet
        : name === "ambDry" ? M.ambDry : name === "ambWet" ? M.ambWet : name === "ui" ? M.ui : M.sfxDry;
 }
 
@@ -1038,12 +1055,16 @@ function lead(t, midi, dbPeak, W, o) {
                                cat: o.cat, prio: o.prio, tag: o.tag, vel: o.vel });
 }
 
-/* PADS. One call per chord tone; a new set of voices for every chord. */
+/* PADS. A new set of voices for every chord. `midi` may be one note or
+   several: notes that share an envelope, a filter sweep and a side of the
+   stereo field share the nodes for them too, which is the same sound for a
+   quarter fewer nodes. Released voices stop once they are 40 dB down. */
 function pad(t, midi, dur, dbPeak, P, o) {
-  var c = E.ctx, f = mtof(midi), n = E.tier === "full" ? (o.voices || P.voices) : 1;
+  var notes = typeof midi === "number" ? [midi] : midi;
+  var c = E.ctx, n = E.tier === "full" ? (o.voices || P.voices) : 1;
   var a = atk(o.attack || P.attack), rel = o.release || P.release, hold = Math.max(a, dur);
-  var end = o.forever ? Infinity : t + hold + rel * 1.6;
-  var cat = o.cat || "pad", nodes = n + 2;
+  var end = o.forever ? Infinity : t + hold + rel * 1.15;
+  var cat = o.cat || "pad", nodes = notes.length * n + 2;
   if (!admit(cat, t, nodes + 1, o.prio || 0)) return null;
   var lp = c.createBiquadFilter(), g = envGain(), srcs = [], i;
   var co = o.cutoff || P.cutoff;
@@ -1057,15 +1078,17 @@ function pad(t, midi, dur, dbPeak, P, o) {
   }
   var spread = n === 4 ? [-9, -3, 3, 9] : n === 2 ? [-P.detune, P.detune] : [0];
   var w = warmWave(E);
-  for (i = 0; i < n; i++) {
-    var osc = c.createOscillator();
-    osc.setPeriodicWave(w);
-    osc.frequency.setValueAtTime(f, t);
-    osc.detune.setValueAtTime(spread[i], t);
-    osc.connect(lp);
-    osc.start(t);
-    if (end !== Infinity) osc.stop(end);
-    srcs.push(osc);
+  for (var k = 0; k < notes.length; k++) {
+    for (i = 0; i < n; i++) {
+      var osc = c.createOscillator();
+      osc.setPeriodicWave(w);
+      osc.frequency.setValueAtTime(mtof(notes[k]), t);
+      osc.detune.setValueAtTime(spread[i] * (k % 2 ? -1 : 1), t);
+      osc.connect(lp);
+      osc.start(t);
+      if (end !== Infinity) osc.stop(end);
+      srcs.push(osc);
+    }
   }
   lp.connect(g);
   var pk = peak(dbPeak) / Math.sqrt(n);
@@ -1076,7 +1099,7 @@ function pad(t, midi, dur, dbPeak, P, o) {
     g.gain.setTargetAtTime(0, t + hold, rel / 4);
   }
   var lane = o.lane ? laneOf(o.lane) : o.side < 0 ? E.M.padL : o.side > 0 ? E.M.padR : E.M.padIn;
-  return finish(cat, t, end, srcs, g, 0, lane, nodes, o.prio || 0, o.tag || "pad", midi);
+  return finish(cat, t, end, srcs, g, 0, lane, nodes, o.prio || 0, o.tag || "pad", notes[0]);
 }
 
 /* PLUCKS: Karplus–Strong, baked per world (five pool notes, two variants
@@ -1392,10 +1415,9 @@ function playChord(when, idx) {
      would dip 4–5 dB at every change — a gap you can hear breathe. Held
      for about half the next attack, the total stays within a decibel. */
   var ch = W.prog[idx], dur = W.bpc * 16 * K.spb + P.attack * 0.55;
-  D.pads.push(pad(when, ch[1], dur, P.db - 1, P, { side: 0, voices: 1, cutoff: co, attack: attack, tag: "pad" }));
-  for (i = 0; i < ch[2].length; i++) {
-    D.pads.push(pad(when, ch[2][i], dur, P.db, P, { side: i % 2 ? 1 : -1, cutoff: co, attack: attack, tag: "pad" }));
-  }
+  D.pads.push(pad(when, ch[1], dur, P.db - 1, P, { side: 0, voices: 1, cutoff: co, attack: attack, tag: "pad", prio: P_BED }));
+  D.pads.push(pad(when, [ch[2][0], ch[2][2]], dur, P.db, P, { side: -1, cutoff: co, attack: attack, tag: "pad", prio: P_BED }));
+  D.pads.push(pad(when, [ch[2][1], ch[2][3]], dur, P.db, P, { side: 1, cutoff: co, attack: attack, tag: "pad", prio: P_BED }));
   if (P.air && E.tier === "full") {
     /* Bamboo's pads breathe: a little band of noise riding on the chord */
     hiss(when, P.air, { type: "bandpass", f0: mtof(ch[2][3]) * 2, q: 2, attack: attack, hold: dur,
@@ -1418,7 +1440,7 @@ function startDrones(t) {
   if (!W.drone || !bedPlaying()) return;
   for (var i = 0; i < W.drone.length; i++) {
     D.drones.push(pad(t, W.drone[i][0], 0, W.drone[i][1], W.pad,
-                      { forever: true, voices: 1, attack: 5, cutoff: 600, side: 0, tag: "drone" }));
+                      { forever: true, voices: 1, attack: 5, cutoff: 600, side: 0, tag: "drone", prio: P_BED }));
   }
 }
 function stopDrones(t, secs) {
@@ -2131,20 +2153,28 @@ function shimmer(t) {
    outshout the Empty Well. So the envelope sum is worked out at every note's
    peak, and the whole figure is played at the one trim that puts its peak on
    its rung of the ladder (RUNG). Its shape stays the composer's; its height
-   is the ladder's. */
+   is the ladder's.
+
+   Measured over all ten worlds the rungs land within about ±1.5 dB — the
+   honest limit of predicting where a sum of decaying tones crests — so the
+   rungs below the top are set a decibel under the brief's −16 to keep the
+   Empty Well clear of them everywhere, and the Empty Well a little under
+   −14 so that it never crosses it. */
 var RUNG = {
-  single: -22, double: -21, triple: -19.5, quad: -16,
+  single: -22, double: -21, triple: -19.5, quad: -17,
   twist: -20, miniTwist: -23.5, miniSingle: -20.5, miniDouble: -19.5,
-  twistSingle: -18, twistDouble: -16.2, twistTriple: -16.2,
-  empty: -15.2, calm: -23,
-  /* the drain, the run's last line and silt are slow swells under low-
-     passes, which the model reads a little differently; these are the
-     values that measure as −25, −24 and −30 */
-  drain: -25.8, end: -23, pbChime: -28, pbPhrase: -24, surface: -17, silt: -27
+  twistSingle: -18, twistDouble: -17.2, twistTriple: -17.2,
+  empty: -14.9, calm: -23,
+  /* the drain's chord and the run's last line are slow swells and long
+     tails, which the model reads less well than struck bells; these are the
+     rungs that measure as −25 and −24 */
+  drain: -28.4, end: -23, pbChime: -27, pbPhrase: -24, surface: -17, silt: -30
 };
-/* the measured gap between a figure's modelled peak and what the output
-   meter reads (the shimmer and the reverb ride on top) */
-var FIG_CAL = -2.2;
+/* what the output meter reads over a note's nominal level, measured: a
+   bell comes out about 2 dB over it (the immediate shimmer and the reverb
+   ride on top), a swell about 1 dB under (its low fundamental meets the
+   30 Hz high-pass) */
+var FIG_BELL = dbToGain(2), FIG_PAD = dbToGain(-1), FIG_CAL = 0;
 var FIG = [];
 function figure() { FIG.length = 0; return FIG; }
 /* how long a lead note effectively rings, for the model: a chime's upper
@@ -2158,7 +2188,7 @@ function leadDecay(W, d) {
 function fNote(F, dt, midi, rel, o) {
   o = o || {};
   while (midi > 98) midi -= 12;
-  F.push({ kind: "bell", dt: dt, midi: midi, rel: rel, decay: o.spec ? o.spec.decays[0] : leadDecay(D.W, o.decay), o: o });
+  F.push({ kind: "bell", dt: dt, midi: midi, rel: rel, decay: o.spec ? o.spec.decays[0] : o.sine ? o.decay : leadDecay(D.W, o.decay), o: o });
 }
 /* a swell: a soft pad note that blooms and lets go */
 function fSwell(F, dt, midi, rel, attack, hold, release, o) {
@@ -2166,7 +2196,7 @@ function fSwell(F, dt, midi, rel, attack, hold, release, o) {
 }
 function itemLevel(it, d) {
   if (d < 0) return 0;
-  var a = dbToGain(it.rel) * (it.kind === "pad" ? 1 : hfTrim(mtof(it.midi)));
+  var a = dbToGain(it.rel) * (it.kind === "pad" ? FIG_PAD : FIG_BELL * hfTrim(mtof(it.midi)));
   if (it.kind === "pad") {
     if (d < it.attack) return a * d / it.attack;
     if (d < it.attack + it.hold) return a;
@@ -2182,6 +2212,11 @@ function itemLevel(it, d) {
    number of notes effectively sounding — except that a chord of two or
    three bells struck at the same instant starts in phase and adds in full,
    so it counts as one. */
+/* where a figure item actually sits: on the left, centre or right lane */
+function laneGain(it) {
+  var p = it.o.pan || it.o.side || 0;
+  return p < -0.12 ? -0.4 : p > 0.12 ? 0.4 : 0;
+}
 function sideGain(pan, right) {
   var x = (clamp(pan || 0, -1, 1) + 1) / 2;
   return (right ? Math.sin(x * Math.PI / 2) : Math.cos(x * Math.PI / 2)) / Math.SQRT1_2;
@@ -2194,15 +2229,16 @@ function figurePeak(F) {
       var sum = 0, sq = 0, k;
       for (i = 0; i < F.length; i++) {
         if (F[i].grouped) continue;
-        /* a chord of up to three bells struck together is one contributor */
-        var grp = 0, together = 0;
+        /* a chord of up to three bells struck together is one contributor;
+           a swell of several notes is several */
+        var grp = 0, together = 0, many = F[i].kind === "pad" && typeof F[i].midi !== "number" ? F[i].midi.length : 1;
         for (k = 0; k < F.length; k++) if (F[k].kind === "bell" && F[k].dt === F[i].dt) together++;
         for (k = i; k < F.length; k++) {
           if (k > i && (F[i].kind !== "bell" || together > 3 || F[k].kind !== "bell" || F[k].dt !== F[i].dt)) continue;
-          grp += itemLevel(F[k], at - F[k].dt) * sideGain(F[k].kind === "pad" ? 0 : F[k].o.pan, side);
+          grp += itemLevel(F[k], at - F[k].dt) * sideGain(laneGain(F[k]), side);
           if (k > i) F[k].grouped = true;
         }
-        sum += grp; sq += grp * grp;
+        sum += grp * many; sq += grp * grp * many;
       }
       for (i = 0; i < F.length; i++) F[i].grouped = false;
       if (sum <= 0) continue;
@@ -2213,27 +2249,33 @@ function figurePeak(F) {
   D.lastFig = best;
   return best;
 }
+function figLane(pan) { return pan < -0.12 ? "sfxL" : pan > 0.12 ? "sfxR" : "sfxWet"; }
 function playFigure(when, F, rung) {
   var W = D.W, trim = rung + FIG_CAL - 20 * Math.log10(figurePeak(F)), i;
   for (i = 0; i < F.length; i++) {
-    var it = F[i], o = it.o, t = when + it.dt, db = it.rel + trim;
+    var it = F[i], o = it.o, t = when + it.dt, db = it.rel + trim, lane = figLane(o.pan || o.side || 0);
+    var prio = o.prio || P_REWARD;
     if (it.kind === "pad") {
       pad(t, it.midi, it.hold, db, W.pad, { cat: "bloom", voices: 1, attack: it.attack, release: it.release,
-          cutoff: o.cutoff || 2600, side: o.side || 0, prio: o.prio || 2, tag: o.tag || "bloom", lane: "sfxWet" });
+          cutoff: o.cutoff || 2600, prio: prio, tag: o.tag || "bloom", lane: lane });
+    } else if (o.sine) {
+      /* a pure, long-ringing tone: the lightest bell there is */
+      ping(t, mtof(it.midi), mtof(it.midi), 0, db, { cat: o.cat || "bloom", attack: 0.006, tail: it.decay / 6.9,
+           lane: lane, prio: prio, tag: o.tag || "melody", midi: it.midi });
     } else if (o.spec) {
-      additive(t, it.midi, db, o.spec, { lane: "sfxWet", cat: o.cat || "bell", prio: o.prio || 2, tag: o.tag || "melody", pan: o.pan || 0 });
+      additive(t, it.midi, db, o.spec, { lane: lane, cat: o.cat || "bell", prio: prio, tag: o.tag || "melody" });
     } else {
-      lead(t, it.midi, db, W, { lane: "sfxWet", cat: o.cat || "bell", prio: o.prio || 2, tag: o.tag || "melody",
-           pan: o.pan || 0, decay: o.decay, attack: o.attack });
+      lead(t, it.midi, db, W, { lane: lane, cat: o.cat || "bell", prio: prio, tag: o.tag || "melody",
+           decay: o.decay, attack: o.attack });
     }
   }
 }
-/* the current chord, an octave up, as swells */
+/* the current chord, an octave up, as swells: two of them, one on each
+   side, two notes apiece */
 function fBloom(F, dt, rel, attack, hold, release, chord) {
   var ch = D.W.prog[chord === undefined ? D.chord : chord];
-  for (var i = 0; i < ch[2].length; i++) {
-    fSwell(F, dt, ch[2][i] + 12, rel, attack, hold, release, { side: i % 2 ? 1 : -1, cutoff: 3000 });
-  }
+  fSwell(F, dt, [ch[2][0] + 12, ch[2][2] + 12], rel, attack, hold, release, { side: -1, cutoff: 3000 });
+  fSwell(F, dt, [ch[2][1] + 12, ch[2][3] + 12], rel, attack, hold, release, { side: 1, cutoff: 3000 });
 }
 
 function reward(ev, now) {
@@ -2324,9 +2366,9 @@ function emptyWell(when, now, notes) {
   if (!loops.length && W.poly) for (i = 0; i < W.poly.length; i++) loops.push(poolNote(W, W.poly[i][1][0], W.keys + 12));
   for (i = 0; i < loops.length; i++) {
     fNote(F, (i * 2 + 1) * thirty, loops[i], -4, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9,
-          decay: 4, cat: "bloom" });
+          decay: 4, cat: "bloom", sine: 1 });
   }
-  fBloom(F, 0, -2, 0.35, 2.2, 5);
+  fBloom(F, 0, -4, 0.35, 2.2, 5);
   for (i = 0; i < 8; i++) {
     fNote(F, i * thirty, poolNote(W, startIdx - i, W.bell), 0,
           { tag: "cascade", pan: (0.5 - i / 7) * 0.6, decay: i === 7 ? 2.6 : 0.9 });
@@ -2343,9 +2385,8 @@ function drainSound(now) {
   hiss(now + 0.004, LV.wash, { type: "lowpass", f0: 4000, f1: 300, sweep: 3, q: 0.5, attack: 0.5, hold: 1.5,
        release: 0.5, lane: "sfxWet", prio: 1, tag: "wash", offset: D.r() * 3 });
   var ch = W.prog[0];
-  for (var i = 0; i < ch[2].length; i++) {
-    fSwell(F, 0, ch[2][i], 0, 0.9, 1.5, 3, { side: i % 2 ? 1 : -1, cutoff: 1600, tag: "resolve", prio: 1 });
-  }
+  fSwell(F, 0, [ch[2][0], ch[2][2]], 0, 0.9, 1.5, 3, { side: -1, cutoff: 1600, tag: "resolve", prio: P_TOUCH });
+  fSwell(F, 0, [ch[2][1], ch[2][3]], 0, 0.9, 1.5, 3, { side: 1, cutoff: 1600, tag: "resolve", prio: P_TOUCH });
   playFigure(when, F, RUNG.drain);
   return when - now;
 }

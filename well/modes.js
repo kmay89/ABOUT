@@ -21,6 +21,28 @@
    No mode, lesson, world or pace is locked behind another. The order of
    the lessons is a suggestion; every one can be opened first.
 
+   ## Endings, in one vocabulary
+
+   finish(g, ctx) is asked whenever the engine reports something that
+   could end a run (a clear, a level, the game being over) and answers
+   null or {why, title, lead}. ctx is {elapsedMs, opts, chapters}:
+   the run's clock, its options, and — for Drift — how many chapters this
+   run has already completed. The words in `why` are the ones the run
+   card and records.js are both written against:
+
+     "surface"  Descent came up through all ten depths (the engine's goal)
+     "goal"     a goal reached: Forty's lines, the silt cleared, Steady's
+                and Drift's rare clean stop
+     "time"     Three Minutes ran out
+     "filled"   a top-out in a mode that ends rather than drains
+     "chapter"  Drift only, and not an ending: a chapter's lines are in.
+                The app locks the piece, eases gravity to a stop and shows
+                the chapter card; Rest ends the run (the app's own word,
+                "rest"), Continue starts the next chapter on the same board.
+
+   The app has three endings of its own that never come from here: "rest"
+   (above), "pass" (a lesson passed) and "leave" (left a timed mode).
+
    ## Well codes
 
    A run's seed is 30 bits, written as six characters of Douglas
@@ -87,7 +109,8 @@ Modes.STEADY_PACES = [
   { id: "slow", name: "Slow", ms: 1000, line: "One row a second." },
   { id: "even", name: "Even", ms: 793, line: "A little over a row a second." }
 ];
-Modes.STEADY_LENGTHS = [10, 15, 20, 30];
+/* minutes; 0 is no timer (brief §5.2) */
+Modes.STEADY_LENGTHS = [10, 15, 20, 25, 0];
 function steadyPace(id) {
   for (var i = 0; i < Modes.STEADY_PACES.length; i++) if (Modes.STEADY_PACES[i].id === id) return Modes.STEADY_PACES[i];
   return Modes.STEADY_PACES[1];
@@ -127,11 +150,25 @@ Modes.medalFor = function (modeId, value) {
 };
 
 /* ================================================================
-   lessons
+   lessons, and the silt challenges
    ================================================================
-   Lessons 1–4 and the two Silt challenges are v1. Lessons 5 and 6 are
-   listed (later:true) so the menu can say what is coming; they have no
-   boards yet.
+   Lessons 1–4 are v1. Lessons 5 and 6 have no prepared wells yet
+   (later:true): they run as free play that counts Twist Doubles, so they
+   are open like everything else. The two silt challenges are kept in
+   their own list, SILT, and appear nowhere else — every consumer (the
+   Challenges sheet, the coach, the records) reads lessons from LESSONS
+   and silt from SILT, and Modes.lesson(id) finds either.
+
+   Each entry's `engine` block is the one truth about how that challenge
+   plays. The coach asks for it through challenges.engine() rather than
+   keeping its own copy, and the app applies it after the player's
+   handling, so a lesson that needs Keep off or no previews gets them.
+
+   Fewest Moves (brief §10.2) is the referee's table played for real: no
+   gravity, because the table assumes none; no Keep, because the lesson is
+   every piece *as it comes* to its outline; a long lock; and a well that
+   drains rather than ends, because after the pass the lesson carries on
+   as a free-stacking audit with no natural end.
 
    The Twist Slot boards are our own, drawn on our 22-row well, and every
    one is checked by tools/rules-check.js: the intended placement must be
@@ -139,7 +176,9 @@ Modes.medalFor = function (modeId, value) {
    engine must call it a full Twist that clears two rows. Each slot needs a
    turn to get into — a T dropped or slid there is not a Twist, and none of
    these slots can be filled that way. Boards are strings, top row first,
-   the last string being row 0; letters are pieces, G is old silt. */
+   the last string being row 0; letters are pieces, G is old silt. A
+   prepared well deals its one T and then halts (queueThen "end"): the
+   coach judges the T and asks the app for the next well. */
 var SLOT_BOARDS = [
   { board: ["TTT......L",
             "JT...SSLLL",
@@ -181,7 +220,7 @@ Modes.LESSONS = [
   { id: "finesse", n: 1, kind: "finesse", name: "Fewest Moves",
     teaches: "Every piece to any column in the fewest presses.",
     pass: "Twenty pieces in a row placed in the fewest presses.", need: 20, world: "dawn",
-    engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "end" } },
+    engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "drain" } },
   { id: "keep", n: 2, kind: "keep", name: "Keep and Look Ahead",
     teaches: "Using Keep and the previews to avoid holes.",
     pass: "Forty pieces with no covered holes.", need: 40, world: "tide",
@@ -197,22 +236,30 @@ Modes.LESSONS = [
     engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "end", queueThen: "end" } },
   { id: "build", n: 5, kind: "slot", name: "Build a Slot", later: true,
     teaches: "Making the overhang yourself.",
-    pass: "Five Twist Doubles with two setup pieces, then three.", need: 5, world: "lanterns" },
+    pass: "Five Twist Doubles with two setup pieces, then three.", need: 5, world: "lanterns",
+    engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } },
   { id: "freestyle", n: 6, kind: "slot", name: "Freestyle Twists", later: true,
     teaches: "Twists without a fixed setup.",
-    pass: "Ten Twist Doubles in a row.", need: 10, world: "lanterns" },
-  { id: "silt10", kind: "silt", name: "Silt · ten rows", rows: 10, world: "moonpool",
+    pass: "Ten Twist Doubles in a row.", need: 10, world: "lanterns",
+    engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } }
+];
+/* Silt (brief §10.2): clear the rows from a well that starts with them.
+   Time is the record, lower is better; a top-out rests the run. */
+Modes.SILT = [
+  { id: "silt10", kind: "silt", name: "Silt \u00b7 ten rows", rows: 10, world: "moonpool",
     teaches: "Digging: one hole in every row, never two in a column.",
     pass: "Clear all ten rows of silt.", need: 10,
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 500, topOut: "end", silt: 10 } },
-  { id: "silt18", kind: "silt", name: "Silt · eighteen rows", rows: 18, world: "moonpool",
+  { id: "silt18", kind: "silt", name: "Silt \u00b7 eighteen rows", rows: 18, world: "moonpool",
     teaches: "Digging deep, most of the well full of silt.",
     pass: "Clear all eighteen rows of silt.", need: 18,
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 500, topOut: "end", silt: 18 } }
 ];
-Modes.SILT = [{ id: "silt10", rows: 10 }, { id: "silt18", rows: 18 }];
+/* a lesson or a silt challenge, by id */
 Modes.lesson = function (id) {
-  for (var i = 0; i < Modes.LESSONS.length; i++) if (Modes.LESSONS[i].id === id) return Modes.LESSONS[i];
+  var i;
+  for (i = 0; i < Modes.LESSONS.length; i++) if (Modes.LESSONS[i].id === id) return Modes.LESSONS[i];
+  for (i = 0; i < Modes.SILT.length; i++) if (Modes.SILT[i].id === id) return Modes.SILT[i];
   return null;
 };
 
@@ -303,7 +350,9 @@ var drift = {
   },
   world: function (opts) { return (opts && opts.world) || drift.options.world; },
   depthOf: function () { return null; },
-  /* ctx.chapters = chapters already completed in this run */
+  /* ctx.chapters = chapters already completed in this run. A chapter's
+     end is "chapter", a boundary rather than an ending (see the header);
+     the run itself ends only when the player chooses Rest. */
   finish: function (g, ctx) {
     var opts = merge(drift.options, (ctx && ctx.opts) || {});
     var done = (ctx && ctx.chapters) || 0, size = opts.chapter || 40;
