@@ -43,7 +43,7 @@ const ROOMS = [
 /* the rooms nobody else joins — no net, no door, but still a service worker
    and an icon set to keep honest */
 const SOLO = ["sudoku", "library", "solitaire", "minesweeper", "breaker",
-              "catchphrase", "guesstures"];
+              "catchphrase", "guesstures", "well"];
 /* The party games have no door — they are one phone passed round a room — but
    they do share a file, and a word list that has drifted between the two is
    exactly the sort of thing nobody notices until somebody reads the same card

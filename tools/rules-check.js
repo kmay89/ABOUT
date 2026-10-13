@@ -967,6 +967,665 @@ console.log("\n──  the wall");
   ok("the ball never leaves the field — no tunnelling through a wall", escaped === 0, String(escaped));
 })();
 
+/* ================================================================
+   the well — a falling-blocks engine, which is nothing but edges
+   ================================================================
+   The rules of this genre are famous, and famously easy to get almost
+   right: a kick table copied with one sign flipped, a lock that forgets to
+   give its resets back, a Twist that never gets its fifth-test upgrade.
+   None of those crash. They just make a slightly different game. So the
+   tables are derived rather than trusted, the published worked examples
+   are re-scored, the fewest-press table is re-derived by search and then
+   played through the real engine, the lesson boards are solved, the bag is
+   dealt a hundred thousand times, and whole games are replayed twice —
+   from a save, from a clone — and required to come out identical. */
+console.log("\n──  the well");
+(function () {
+  const Rules = load("well", "rules.js");
+  const Well = load("well", "engine.js");
+  const Bot = load("well", "bot.js");
+  const Modes = load("well", "modes.js");
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const NAMES = Rules.NAMES;
+  const PRESS = Rules.PRESS_ACTION;
+  /* a fresh game with its opening spawn already read, and what has
+     happened since the last time we asked */
+  const make = (o) => { const g = Well.create(o); Well.drain(g); return g; };
+  const did = (g) => Well.drain(g).slice();
+
+  /* the kick tables, derived rather than trusted. Each 90° table comes
+     from the five "rotation points" of the two states it joins; the long
+     piece's first difference is subtracted so its first test is no move.
+     Libraries ship typos in these tables, and only a derivation finds
+     them. */
+  const T8 = ["0R", "R0", "R2", "2R", "2L", "L2", "L0", "0L"];
+  const derive = (off) => {
+    const out = {};
+    for (const k of T8) {
+      const a = off[k[0]], b = off[k[1]];
+      const base = [a[0][0] - b[0][0], a[0][1] - b[0][1]];
+      out[k] = a.map((p, i) => [p[0] - b[i][0] - base[0], p[1] - b[i][1] - base[1]]);
+    }
+    return out;
+  };
+  ok("the J L S T Z kicks are exactly what the rotation points derive", same(derive(Rules.OFFSETS.JLSTZ), Rules.KICKS_JLSTZ));
+  ok("the long piece's kicks are exactly what its rotation points derive", same(derive(Rules.OFFSETS.I), Rules.KICKS_I));
+  /* the square: its offsets exist only to cancel the drift of turning it
+     about a corner, so every turn must leave the same four cells */
+  let sq = Rules.CELLS[2][0].map((c) => c.slice()), at = [0, 0], still = true;
+  const key = (cs) => cs.map((c) => c.join(",")).sort().join("|");
+  for (let r = 0; r < 8; r++) {
+    const a = Rules.ROT[r % 4], b = Rules.ROT[(r + 1) % 4];
+    sq = sq.map(([x, y]) => [y, -x]);
+    at = [at[0] + Rules.OFFSETS.O[a][0][0] - Rules.OFFSETS.O[b][0][0], at[1] + Rules.OFFSETS.O[a][0][1] - Rules.OFFSETS.O[b][0][1]];
+    if (key(sq.map(([x, y]) => [x + at[0], y + at[1]])) !== key(Rules.CELLS[2][0])) still = false;
+  }
+  ok("every turn of the square leaves it where it was", still);
+  ok("Modern turning's long-piece kicks are mirror images of each other",
+     T8.every((k) => {
+       const m = { "0R": "0L", "R0": "L0", "R2": "L2", "2R": "2L", "2L": "2R", "L2": "R2", "L0": "R0", "0L": "0R" }[k];
+       return same(Rules.KICKS_I_PLUS[k].map(([x, y]) => [-x, y]), Rules.KICKS_I_PLUS[m]);
+     }));
+
+  /* spawn: born at (4, 22) facing north, then one row down at once */
+  const born = {
+    I: [[3, 22], [4, 22], [5, 22], [6, 22]], O: [[4, 22], [5, 22], [4, 23], [5, 23]],
+    T: [[3, 22], [4, 22], [5, 22], [4, 23]], J: [[3, 23], [3, 22], [4, 22], [5, 22]],
+    L: [[5, 23], [3, 22], [4, 22], [5, 22]], S: [[3, 22], [4, 22], [4, 23], [5, 23]],
+    Z: [[3, 23], [4, 23], [4, 22], [5, 22]]
+  };
+  let spawnOK = true;
+  for (let t = 1; t <= 7; t++) {
+    const g = make({ queue: NAMES[t], queueThen: "end" });
+    const v = Well.view(g, {});
+    const want = born[NAMES[t]].map(([x, y]) => [x, y - 1]);
+    if (key(v.active.cells) !== key(want) || key(Well.cells(t, 0, 4, 22)) !== key(born[NAMES[t]])) spawnOK = false;
+  }
+  const tg = make({ queue: "T", queueThen: "end" });
+  ok("a T on an empty well lands at (3,21)(4,21)(5,21)(4,22) — the nub above, y is up",
+     same(Well.view(tg, {}).active.cells, [[3, 21], [4, 21], [5, 21], [4, 22]]));
+  ok("all seven pieces are born where the table says, and drop one row at once", spawnOK);
+
+  /* the two Twist boards. A T slides under an overhang and turns
+     clockwise; tests one to four collide and the fifth — the long hop —
+     threads it into the slot. Variant A has all four corners: a full
+     Twist Triple. Variant B is missing a corner on the pointing side, a
+     Mini by the corner rule, and the fifth test upgrades it: a full Twist
+     Double. A build that forgets the upgrade fails B. */
+  for (const variantB of [false, true]) {
+    const rows = ["XXXX......", "XXX.......", "XXX.XXXXXX", "XXX..XXXXX", variantB ? "XXX..XXXXX" : "XXX.XXXXXX"]
+      .map((s) => s.replace(/X/g, "G"));
+    const g = make({ board: rows, queue: "T", queueThen: "end", gravity: 0 });
+    g.active.x = 5; g.active.y = 3;
+    Well.act(g, "left");
+    Well.act(g, "cw");
+    const a = Object.assign({}, g.active), kick = g.p.kick;
+    Well.act(g, "hard");
+    const ev = did(g);
+    const lock = ev.find((e) => e.t === "lock"), clear = ev.find((e) => e.t === "clear");
+    const wantLabel = variantB ? "Twist Double" : "Twist Triple";
+    ok("Twist board " + (variantB ? "B" : "A") + ": the fifth test threads it in and it is a full " + wantLabel,
+       kick === 4 && a.x === 3 && a.y === 1 && a.rot === 1 && lock.twist === "full" && clear && clear.label === wantLabel,
+       "kick " + kick + ", at " + a.x + "," + a.y + ", " + (clear && clear.label));
+  }
+  {
+    const b = new Uint8Array(400);
+    const put = (x, y) => { b[y * 10 + x] = 8; };
+    for (let y = 0; y <= 2; y++) for (let x = 0; x < 10; x++) put(x, y);
+    b[3] = b[13] = b[23] = 0; b[14] = 0; b[4] = 0;
+    put(0, 3); put(1, 3); put(2, 3); put(0, 4); put(1, 4); put(2, 4); put(3, 4);
+    ok("…and without the fifth-test upgrade board B would only be a Mini",
+       Rules.twist(b, 3, 1, 1, true, 0, false) === "mini" && Rules.twist(b, 3, 1, 1, true, 4, false) === "full");
+    ok("a half turn never earns the fifth-test upgrade", Rules.twist(b, 3, 1, 1, true, 4, true) === "mini");
+    ok("no turn, no Twist — whatever the corners say", Rules.twist(b, 3, 1, 1, false, 4, false) === "none");
+  }
+
+  /* the scorer, against vectors worked by hand at level 1 */
+  const S = (seq) => {
+    const st = Rules.scoreState(1);
+    let total = 0;
+    for (const s of seq) total += Rules.score(st, s.tw || "none", s.n || 0, !!s.empty, s.soft || 0, s.hard || 0);
+    return total;
+  };
+  ok("Quad, Twist Double, Twist, Quad, Twist Single with quiet locks between: 5,400",
+     S([{ n: 4 }, {}, { tw: "full", n: 2 }, {}, { tw: "full" }, { n: 4 }, {}, { tw: "full", n: 1 }]) === 5400);
+  ok("a Triple that empties the well: 2,300", S([{ n: 3, empty: true }]) === 2300);
+  ok("four Singles on four pieces in a row: 700 (the Ripple)", S([{ n: 1 }, { n: 1 }, { n: 1 }, { n: 1 }]) === 700);
+  {
+    const st = Rules.scoreState(1);
+    Rules.score(st, "none", 4, false, 0, 0);
+    ok("an Unbroken Quad that empties the well, Ripple 1: 4,450",
+       Rules.score(st, "none", 4, true, 0, 0) === 4450);
+  }
+  ok("drops: three rows soft and eighteen hard are 39, whatever the level",
+     (() => { const st = Rules.scoreState(7); return Rules.score(st, "none", 0, false, 3, 18) === 39; })());
+  {
+    const st = Rules.scoreState(1);
+    Rules.score(st, "none", 4, false, 0, 0);
+    Rules.score(st, "full", 0, false, 0, 0);
+    Rules.score(st, "none", 0, false, 0, 0);
+    const kept = st.unbroken === 0;
+    Rules.score(st, "none", 2, false, 0, 0);
+    ok("Unbroken survives quiet locks and a lineless Twist, and only a plain clear breaks it", kept && st.unbroken === -1);
+  }
+  {
+    const g = make({ board: ["IIIIOOOO..", "IIIIOOOO.."].map((s) => s.replace(/[IO]/g, "G")), queue: "O", queueThen: "end", gravity: 0 });
+    Well.act(g, "dasRight"); Well.act(g, "hard");
+    const c = did(g).find((e) => e.t === "clear");
+    ok("in the engine: an O into the last gap empties the well — Double + Empty Well = 1,500",
+       c && c.empty && c.points === 1500 && c.label === "Double" && g.top === -1);
+  }
+
+  /* the bag */
+  {
+    const a = Well.bag(20261013), b = Well.bag(20261013), c = Well.bag(20261014);
+    let identical = true, differs = false, sets = true, worst = 0;
+    const last = [0, -1, -1, -1, -1, -1, -1, -1];
+    const block = [];
+    for (let i = 0; i < 100000; i++) {
+      const p = a();
+      if (p !== b()) identical = false;
+      if (p !== c()) differs = true;
+      if (last[p] >= 0) worst = Math.max(worst, i - last[p] - 1);
+      last[p] = i;
+      block.push(p);
+      if (block.length === 7) { if (new Set(block).size !== 7) sets = false; block.length = 0; }
+    }
+    ok("the bag: the same seed deals the same 100,000 pieces, and another seed does not", identical && differs);
+    ok("every set of seven holds one of each shape", sets);
+    ok("at most 12 pieces between two of the same — and 12 does happen", worst === 12, "longest gap " + worst);
+    const g = make({ seed: 77 });
+    const s = Well.bag(77), first = [];
+    for (let i = 0; i < 8; i++) first.push(s());
+    ok("the engine deals from that same stream", g.active.type === first[0] && same(g.queue.slice(0, 7), first.slice(1)));
+    ok("the bag on view is what is left of the active piece's set",
+       (() => { const v = Well.view(g, {}); return v.bag.length === 6 && v.bag.indexOf(g.active.type) < 0 && new Set(v.bag).size === 6; })());
+  }
+
+  /* DAS, frame by frame. A press steps at once; holding for DAS 167 ms
+     with ARR 33 ms must give the first auto-step on the tenth frame at
+     60 Hz, then one every second frame — and the same moments at 30, 120
+     and 240 Hz, because the machine runs on time, not frames. */
+  {
+    const times = (hz, das, arr) => {
+      const d = Well.Das.create({ das: das, arr: arr, dcd: 0 });
+      const out = [];
+      d.press(1, 0, (a, t, rep) => out.push({ f: 0, a: a, rep: rep }));
+      const dt = 1000 / hz;
+      for (let f = 1; f <= hz; f++) d.tick(f * dt, (a, t, rep) => out.push({ f: f, a: a, t: t, rep: rep }));
+      return out;
+    };
+    const sixty = times(60, 167, 33);
+    const autos = sixty.filter((e) => e.rep).map((e) => e.f);
+    ok("DAS 167 / ARR 33 at 60 Hz: a step on the press, the first auto-step on the 10th frame",
+       sixty[0].f === 0 && !sixty[0].rep && autos[0] === 10, "first auto at frame " + autos[0]);
+    ok("…then one every second frame", autos.slice(0, 6).every((f, i) => f === 10 + 2 * i), autos.slice(0, 6).join(","));
+    const atMs = (hz) => times(hz, 167, 33).filter((e) => e.rep).slice(0, 5).map((e) => Math.round(e.f * 1000 / hz));
+    const r60 = atMs(60);
+    ok("…at the same moments at 30, 120 and 240 Hz",
+       same(atMs(120), r60) && same(atMs(240), r60) && atMs(30)[0] === r60[0], JSON.stringify([atMs(30), r60, atMs(240)]));
+
+    /* newest direction wins; releasing it hands back to the older key,
+       with the delay applied again rather than its old charge */
+    const d = Well.Das.create({ das: 167, arr: 33 });
+    const log = [];
+    const em = (a, t, rep) => log.push([a, Math.round(t), rep]);
+    d.press(-1, 0, em);
+    d.tick(300, em);
+    const leftAutos = log.filter((e) => e[0] === "left" && e[2]).length;
+    d.press(1, 300, em);
+    d.tick(400, em);
+    const rightNow = log.filter((e) => e[0] === "right");
+    ok("pressing the other way steps at once and starts its own full delay",
+       leftAutos > 0 && rightNow.length === 1 && rightNow[0][1] === 300 && !rightNow[0][2]);
+    d.tick(470, em);
+    ok("…and its auto-repeat begins only after that delay", log.filter((e) => e[0] === "right" && e[2])[0][1] === 467);
+    d.release(1, 500, em);
+    log.length = 0;
+    d.tick(650, em);
+    const quiet = log.length === 0;
+    d.tick(700, em);
+    ok("releasing the newer key re-applies DAS to the one still held",
+       quiet && log.length > 0 && log[0][0] === "left" && log[0][1] === 667, JSON.stringify(log[0]));
+    d.release(-1, 720, em);
+    log.length = 0;
+    d.tick(2000, em);
+    ok("with both released, nothing more comes", log.length === 0 && d.charge(2000) === 0);
+
+    /* ARR 0: one slide to the wall when the charge completes, and again
+       for the next piece if the key is still down */
+    const g = make({ queue: "TTT", queueThen: "end", gravity: 0 });
+    const z = Well.Das.create({ das: 167, arr: 0 });
+    const act = (a, t, rep) => Well.act(g, a, { repeat: rep });
+    z.press(1, 0, act);
+    for (let t = 4; t < 400; t += 1000 / 240) z.tick(t, act);
+    const wall1 = g.active.x;
+    Well.act(g, "hard");
+    did(g);
+    z.renew(410, act);
+    ok("ARR 0: held right goes to the wall once charged, and the next piece follows",
+       wall1 === 8 && g.active.x === 8 && g.stats.keys === 2, "x " + wall1 + " then " + g.active.x + ", keys " + g.stats.keys);
+    ok("the charge reads 0 → 1 for the Glass Well", z.charge(0) === 0 && z.charge(100) > 0.5 && z.charge(400) === 1);
+    const c = Well.Das.create({ das: 167, arr: 33, dcd: 50 });
+    const cl = [];
+    c.press(1, 0, (a, t) => cl.push(t));
+    c.tick(200, (a, t) => cl.push(t));
+    c.cut(200);
+    const before = cl.length;
+    c.tick(240, (a, t) => cl.push(t));
+    const paused = cl.length === before;
+    c.tick(260, (a, t) => cl.push(t));
+    ok("DCD: a cut pauses the repeat for the cut delay, then it resumes", paused && cl[cl.length - 1] === 250);
+  }
+
+  /* fewest presses: our own breadth-first search through the real engine,
+     on an empty well, re-deriving every one of the 162 table entries */
+  {
+    const empty = new Uint8Array(400);
+    let entries = 0, bad = [], placements = 0;
+    for (let t = 1; t <= 7; t++) {
+      const cls = Rules.FINESSE[NAMES[t]];
+      for (const k in cls) entries += cls[k].length;
+      for (const p of Well.reach(empty, t, false)) {
+        placements++;
+        const left = Math.min(...p.cells.map((c) => c[0]));
+        const want = Rules.finesseFor(t, p.rot, left);
+        if (want === undefined || Rules.finesseCount(want) !== p.presses) bad.push(NAMES[t] + p.rot + "@" + left);
+      }
+    }
+    ok("all 162 fewest-press entries re-derived by search, and every one agrees", entries === 162 && placements === 162 && !bad.length,
+       bad.slice(0, 4).join(" "));
+    /* and every entry, played on the real engine, lands where it says in
+       exactly that many presses — and counts as perfect */
+    let wrong = 0, perfect = 0;
+    for (let t = 1; t <= 7; t++) {
+      const cls = Rules.FINESSE[NAMES[t]];
+      for (const k in cls) cls[k].forEach((s, left) => {
+        const g = make({ queue: NAMES[t], queueThen: "end", gravity: 0 });
+        if (s) for (const w of s.split(" ")) Well.act(g, PRESS[w]);
+        const a = g.active;
+        const cells = Well.cells(t, a.rot, a.x, a.y);
+        if (Rules.finesseClass(t, a.rot) !== k || Math.min(...cells.map((c) => c[0])) !== left) wrong++;
+        Well.act(g, "hard");
+        if (g.stats.finessePerfect === 1 && g.stats.finesseTotal === 1) perfect++;
+      });
+    }
+    ok("every table entry, pressed on the real engine, lands where it says and is scored perfect",
+       wrong === 0 && perfect === 162, wrong + " wrong, " + perfect + " perfect");
+    const g = make({ queue: "T", queueThen: "end", gravity: 0 });
+    Well.act(g, "right"); Well.act(g, "left"); Well.act(g, "left"); Well.act(g, "hard");
+    ok("three presses where one would do is not perfect", g.stats.finesseTotal === 1 && g.stats.finessePerfect === 0);
+  }
+
+  /* the lock: fifteen resets, then it locks the moment it rests; a new
+     lowest row gives all fifteen back. Sonic soft drop puts a piece on the
+     floor without locking it, which is what these need. */
+  {
+    const floor = (g) => { Well.act(g, "softOn"); Well.act(g, "softOff"); };
+    const g = make({ queue: "T", queueThen: "end", gravity: 0, lockDelay: 500, sdf: Infinity });
+    floor(g);
+    let held = true;
+    for (let i = 0; i < 14; i++) {
+      Well.act(g, i % 2 ? "left" : "right");
+      Well.step(g, 499);
+      if (!g.active) held = false;
+    }
+    ok("fourteen moves on the floor, each just inside the wait: still in play", held && g.lockResets === 14);
+    Well.act(g, "right");
+    ok("the fifteenth move is a reset like the others", g.active && g.lockResets === 15);
+    Well.step(g, 1);
+    ok("…and with all fifteen spent it locks the moment it rests", !g.active && did(g).some((e) => e.t === "lock"));
+
+    /* a ledge: spend resets on it, step off, fall to a new lowest row */
+    const h = make({ board: [".....GGGGG", ".....GGGGG", ".....GGGGG"], queue: "O", queueThen: "end", gravity: 0, sdf: Infinity });
+    Well.act(h, "dasRight");
+    floor(h);
+    for (let i = 0; i < 12; i++) Well.act(h, i % 2 ? "right" : "left");
+    const spent = h.lockResets;
+    Well.act(h, "dasLeft");
+    const airborne = h.lockResets;
+    floor(h);
+    ok("stepping off a ledge to a new lowest row gives all fifteen back", spent === 12 && airborne === 13 && h.active && h.lockResets === 0,
+       spent + " spent, " + airborne + " in the air, now " + h.lockResets);
+    const k = make({ queue: "I", queueThen: "end", gravity: 0, lockDelay: 500, sdf: Infinity });
+    floor(k);
+    Well.act(k, "dasLeft");
+    let r = 0;
+    for (let i = 0; i < 5; i++) if (!Well.act(k, "left")) r++;
+    ok("pressing into a wall is not a reset", r === 5 && k.lockResets === 1);
+    Well.step(k, 499);
+    const waiting = !!k.active;
+    Well.step(k, 2);
+    ok("…and the wait runs only while resting, to the millisecond", waiting && !k.active);
+  }
+
+  /* the drain: a calm well that fills loses rows from the bottom, and
+     the surface the player built survives intact */
+  {
+    const rows = [];
+    for (let y = 20; y >= 0; y--) rows.push("GGGGGGGGGG".split("").map((c, x) => (x === (y * 3) % 10 ? "." : "G")).join(""));
+    const g = make({ board: rows, queue: "OT", queueThen: "end", topOut: "drain", gravity: 0 });
+    Well.act(g, "hard");                        /* the O rests on row 20, filling rows 21 and 22 */
+    const want = [];
+    for (let y = 22; y >= 12; y--) {
+      let s = "";
+      for (let x = 0; x < 10; x++) s += (y >= 21 && (x === 4 || x === 5)) ? "2" : y <= 20 ? (x === (y * 3) % 10 ? "0" : "8") : "0";
+      want.push(s);
+    }
+    const ev = did(g);
+    const drain = ev.find((e) => e.t === "drain");
+    ok("a full calm well drains instead of ending", drain && !g.over && g.active && g.active.type === 3,
+       drain ? drain.rows + " rows" : "no drain");
+    ok("…from the bottom, until the top is at row 10, and at least four rows", drain && drain.rows === 12 && g.top === 10);
+    const got = [];
+    for (let y = 10; y >= 0; y--) got.push(Array.from(g.board.slice(y * 10, y * 10 + 10)).join(""));
+    ok("…and the top surface the player built is exactly as it was", same(got, want));
+    ok("…and the run card can say how many times", g.stats.drains === 1);
+    const e = make({ board: rows, queue: "OT", queueThen: "end", gravity: 0 });
+    Well.act(e, "hard");
+    ok("the same well in a mode that ends: the well rests, by block-out", e.over && e.overWhy === "block");
+  }
+
+  /* Breath: gravity and the lock stop; everything else works */
+  {
+    const g = make({ queue: "TTTTTTTT", queueThen: "end", gravity: 1000, breath: true, lockDelay: 500 });
+    g.breath.charge = 10;
+    ok("a Breath can be taken with ten beads", Well.act(g, "breath") && g.breath.active && g.breath.charge === 0);
+    const y0 = g.active.y;
+    Well.step(g, 4000);
+    ok("during a Breath gravity is zero", g.active.y === y0 && Well.gravityMs(g) === 0);
+    Well.act(g, "softOn"); Well.step(g, 2000); Well.act(g, "softOff");
+    Well.step(g, 3000);
+    ok("…soft drop still works, and a resting piece does not lock", g.active && g.active.y === 0 && g.stats.pieces === 0);
+    Well.act(g, "left");
+    ok("…moves still work, and spend no resets while the lock is frozen", g.active.x === 3 && g.lockResets === 0);
+    Well.step(g, 1100);
+    const ev = did(g);
+    ok("after ten seconds the Breath ends and the wait starts fresh", ev.some((e) => e.t === "breath" && !e.on) && g.active && g.lock === 100);
+    Well.step(g, 399);
+    const still = !!g.active;
+    Well.step(g, 1);
+    ok("…and runs its full length", still && g.stats.pieces === 1);
+    const n = make({ breath: true });
+    ok("no Breath without ten beads, and none where a mode has no Breath", !Well.act(n, "breath") &&
+       !Well.act(Object.assign(make({}), {}), "breath"));
+  }
+
+  /* the Twist Slot lessons: each board's intended placement must be
+     reachable from spawn by turns, moves and soft drop alone, and the real
+     engine must call it what the lesson says it is */
+  {
+    const slot = Modes.lesson("slot");
+    ok("The Twist Slot has five prepared wells", slot && slot.boards.length === 5);
+    slot.boards.forEach((b, i) => {
+      const it = b.intended;
+      const g0 = make(Modes.options("challenges", { id: "slot", board: i }));
+      const routes = Well.routes(g0.board, it.type, it.x, it.y, it.rot, false);
+      let hit = null;
+      for (const r of routes) {
+        const g = make(Modes.options("challenges", { id: "slot", board: i }));
+        for (const s of r.path) {
+          if (s === "D") { Well.act(g, "softOn"); Well.act(g, "softOff"); } else Well.act(g, PRESS[s]);
+        }
+        const a = g.active;
+        const there = a && a.x === it.x && a.y === it.y && a.rot === it.rot;
+        Well.act(g, "hard");
+        const ev = did(g);
+        const lock = ev.find((e) => e.t === "lock"), clear = ev.find((e) => e.t === "clear");
+        if (there && lock.twist === it.twist && clear && clear.n === it.lines) { hit = r; break; }
+      }
+      const dropIn = routes.some((r) => !r.turn);
+      ok("slot well " + (i + 1) + ": the T reaches its slot from spawn and it is a full Twist Double",
+         !!hit && !dropIn, hit ? hit.path.filter((s) => s !== "D").join(" ") + " (+ soft drop)" : routes.length + " routes, none right");
+    });
+  }
+
+  /* conservation: every lock adds four cells and every line takes ten,
+     so after any game the count is placed − 10 × cleared. Random hands
+     first — they reach every odd corner — then the bot, which plays long. */
+  {
+    const drive = (seed, pieces, botStyle) => {
+      const rnd = seeded(seed);
+      const g = make({ seed: seed, gravity: botStyle ? "curve" : 400, lockDelay: 300, spawnDelay: 20, clearDelay: 40,
+                       keep: true, modern: !botStyle && seed % 2 === 0 });
+      let placed = 0, cleared = 0, bad = 0, guard = 0;
+      const acts = ["left", "right", "cw", "ccw", "180", "hold", "dasLeft", "dasRight", "softOn", "softOff", "hard"];
+      while (!g.over && g.stats.pieces < pieces && guard++ < 200000) {
+        /* the random hands borrow the bot for three pieces in four, so the
+           well sees real clears among the nonsense */
+        const lend = !botStyle && g.active && g.stats.pieces % 4 !== 0 && !g.soft;
+        if (lend) {
+          const plan = Bot.plan(g, { style: "tidy" });
+          if (plan) for (const a of plan.actions) Well.act(g, a);
+        } else if (botStyle && g.active) {
+          const plan = Bot.plan(g, { style: botStyle });
+          for (const a of plan.actions) { Well.act(g, a); if (a !== "hard") Well.step(g, 1000 / 60); }
+        } else if (!botStyle) {
+          if (rnd() < 0.6) Well.act(g, acts[Math.floor(rnd() * acts.length)]);
+          Well.step(g, rnd() * 40);
+        } else Well.step(g, 1000 / 240);
+        for (const e of Well.drain(g)) {
+          if (e.t === "lock") placed += 4;
+          if (e.t === "clear") cleared += e.n;
+        }
+        let n = 0;
+        for (let i = 0; i < 400; i++) if (g.board[i]) n++;
+        if (n !== placed - 10 * cleared) { bad++; break; }
+      }
+      return { bad: bad, pieces: g.stats.pieces, lines: g.lines };
+    };
+    let bad = 0, pieces = 0, lines = 0;
+    for (let s = 1; s <= 60; s++) { const r = drive(s, 400, null); bad += r.bad; pieces += r.pieces; lines += r.lines; }
+    ok("60 random games: nothing appears, nothing vanishes", bad === 0, pieces + " pieces, " + lines + " lines");
+    const r = drive(4242, 1500, "quads");
+    ok("1,500 pieces of the bot: still exactly placed − 10 × cleared", r.bad === 0 && r.pieces === 1500, r.lines + " lines");
+  }
+
+  /* determinism, and a save that resumes as if nothing happened */
+  {
+    const run = (g, seed, steps, log) => {
+      const rnd = seeded(seed);
+      const acts = ["left", "right", "cw", "ccw", "hold", "dasLeft", "dasRight", "softOn", "softOff", "hard", "breath"];
+      for (let i = 0; i < steps && !g.over; i++) {
+        if (rnd() < 0.5) Well.act(g, acts[Math.floor(rnd() * acts.length)]);
+        Well.step(g, rnd() * 30);
+        if (rnd() < 0.002) Well.addSilt(g, 1);
+        for (const e of Well.drain(g)) log.push(JSON.stringify(e));
+      }
+      return log;
+    };
+    const opts = { seed: 99, gravity: "curve", lockDelay: 400, spawnDelay: 30, clearDelay: 60, breath: true, topOut: "drain", linesPerLevel: 3 };
+    const a = run(make(opts), 5, 30000, []), b = run(make(opts), 5, 30000, []);
+    ok("same seed, same inputs, same times: an identical stream of events", a.length > 1000 && same(a, b), a.length + " events");
+
+    const g1 = make(opts);
+    run(g1, 8, 6000, []);
+    const saved = JSON.parse(JSON.stringify(Well.serialize(g1)));
+    const g2 = Well.restore(saved);
+    const c1 = run(g1, 9, 12000, []), c2 = run(g2, 9, 12000, []);
+    ok("a game saved mid-run and restored carries on identically", c1.length > 200 && same(c1, c2) &&
+       same(Well.serialize(g1), Well.serialize(g2)), c1.length + " events after the save");
+    const k = Well.clone(g1);
+    const c3 = run(g1, 10, 3000, []), c4 = run(k, 10, 3000, []);
+    ok("a clone is a full, separate copy", same(c3, c4) && k.board !== g1.board);
+    const inf = make({ sdf: Infinity });
+    ok("sonic soft drop survives the trip through JSON", Well.restore(JSON.parse(JSON.stringify(Well.serialize(inf)))).opts.sdf === Infinity);
+  }
+
+  /* every control, in any order, under any options: the piece in play
+     never overlaps the well, and every cell and its body id agree */
+  {
+    const acts = ["left", "right", "cw", "ccw", "180", "hold", "hard", "softOn", "softOff", "dasLeft", "dasRight", "breath"];
+    let bad = 0, steps = 0, thrown = "";
+    for (let s = 1; s <= 60 && !bad && !thrown; s++) {
+      const r = seeded(s + 7000);
+      let g = make({ seed: s, gravity: r() < 0.3 ? "curve" : r() < 0.5 ? 0 : Math.floor(r() * 1000), level: 1 + Math.floor(r() * 15),
+                     modern: r() < 0.5, irs: r() < 0.5, ihs: r() < 0.5, sdf: r() < 0.3 ? Infinity : 5 + Math.floor(r() * 35),
+                     topOut: r() < 0.5 ? "drain" : "end", breath: r() < 0.5, spawnDelay: Math.floor(r() * 200),
+                     clearDelay: Math.floor(r() * 300), lockDelay: Math.floor(r() * 1000), keep: r() < 0.8,
+                     linesPerLevel: [0, 10, 25, "three"][Math.floor(r() * 4)], silt: r() < 0.2 ? Math.floor(r() * 18) : 0 });
+      for (let i = 0; i < 1500 && !g.over && !bad; i++) {
+        try {
+          const x = r();
+          if (x < 0.5) Well.act(g, acts[Math.floor(r() * acts.length)], r() < 0.2 ? { repeat: true } : undefined);
+          else if (x < 0.52) Well.addSilt(g, 1 + Math.floor(r() * 3));
+          else if (x < 0.53) Well.stopGravity(g, true);
+          else if (x < 0.56) Well.resume(g);
+          else if (x < 0.57) Well.rewind(g);
+          else if (x < 0.58) Well.grace(g, r() * 600);
+          else if (x < 0.59) Well.setGravity(g, r() < 0.5 ? "curve" : Math.floor(r() * 1000), 1 + Math.floor(r() * 8));
+          else if (x < 0.6) g = Well.restore(JSON.parse(JSON.stringify(Well.serialize(g))));
+          else if (x < 0.61) g.breath.charge = 20;
+          Well.step(g, r() * 60);
+          Well.view(g, {});
+          Well.drain(g);
+          steps++;
+        } catch (e) { thrown = "seed " + s + ": " + e.message; break; }
+        const a = g.active;
+        if (a && !Well.fits(g, a.type, a.rot, a.x, a.y)) bad++;
+        for (let k = 0; k < 400; k++) {
+          const v = g.board[k], p = g.pid[k];
+          if (v > 8 || (v === 0 && p !== 0) || (v === 8 && p !== 0) || (v >= 1 && v <= 7 && p === 0)) { bad++; break; }
+        }
+      }
+    }
+    ok("60 wells, every control in random order: nothing throws, nothing overlaps", !bad && !thrown,
+       thrown || bad + " bad of " + steps + " steps");
+  }
+
+  /* the view allocates nothing once it has been made */
+  {
+    const g = make({ breath: true });
+    const v = Well.view(g, {});
+    const refs = [v.active, v.active.cells, v.active.cells[0], v.ghost, v.queue, v.bag, v.breath];
+    let stable = true;
+    for (let i = 0; i < 200; i++) {
+      Well.act(g, i % 3 ? "left" : "right");
+      Well.step(g, 50);
+      if (!g.active) continue;
+      const w = Well.view(g, v);
+      const now = [w.active, w.active.cells, w.active.cells[0], w.ghost, w.queue, w.bag, w.breath];
+      if (w !== v || now.some((x, j) => x !== refs[j])) stable = false;
+    }
+    ok("the view is filled in place: every nested object is reused", stable);
+    ok("danger is quiet on an empty well and full at row 20", Well.view(g, v).danger === 0 &&
+       Well.view(make({ board: ["G........."].concat(Array(20).fill("GGGGGGGGG.")) }), {}).danger === 1);
+  }
+
+  /* silt: one hole a row, never in the same column as its neighbour */
+  {
+    let adjacent = 0, rowsOK = true;
+    for (let s = 1; s <= 40; s++) {
+      const g = make({ seed: s, silt: 18 });
+      let prev = -1;
+      for (let y = 17; y >= 0; y--) {
+        let holes = 0, hole = -1;
+        for (let x = 0; x < 10; x++) if (!g.board[y * 10 + x]) { holes++; hole = x; } else if (g.board[y * 10 + x] !== 8) rowsOK = false;
+        if (holes !== 1) rowsOK = false;
+        if (hole === prev) adjacent++;
+        prev = hole;
+      }
+    }
+    ok("silt rows have one hole each, never above another", rowsOK && adjacent === 0);
+    const a = make({ seed: 3, silt: 10 }), b = make({ seed: 3 });
+    ok("silt comes from its own stream: the pieces are the same as without it",
+       a.active.type === b.active.type && same(a.queue, b.queue));
+    const g = make({ seed: 5, silt: 10, gravity: 0 });
+    ok("clearing all the silt ends the challenge", (() => {
+      const plan = () => Bot.plan(g, { style: "tidy" });
+      let guard = 0;
+      while (!g.over && guard++ < 400) { const p = plan(); if (!p) break; for (const x of p.actions) Well.act(g, x); }
+      return g.over && g.overWhy === "goal" && g.stats.siltCleared === 10;
+    })(), g.overWhy + ", " + g.stats.siltCleared + " silt rows");
+  }
+
+  /* gravity and levels */
+  ok("gravity: one row a second at level 1, about 15.6 a second at 10",
+     Rules.gravityMs(1) === 1000 && Math.abs(1000 / Rules.gravityMs(10) - 15.59) < 0.01);
+  {
+    /* four rows ready and the long piece standing up in the gap */
+    const lv = [];
+    for (const start of [0, 4, 11, 20, 220, 300]) {
+      const g = make({ board: Array(4).fill("GGGGGGGGG."), queue: "I", queueThen: "end", gravity: 0,
+                       linesPerLevel: "three", levelCap: 15 });
+      g.lines = start;
+      Well.act(g, "cw"); Well.act(g, "dasRight"); Well.act(g, "hard");
+      lv.push(g.level);
+    }
+    ok("Three Minutes levels up at L² − 1 lines: 3, 8, 15, 24 … capped at 15", same(lv, [2, 3, 4, 5, 15, 15]), lv.join(","));
+    const t = make({ board: Array(4).fill("GGGGGGGGG."), queue: "I", queueThen: "end", gravity: 0, linesPerLevel: 25, level: 6, levelCap: 15 });
+    t.lines = 24;
+    Well.act(t, "cw"); Well.act(t, "dasRight"); Well.act(t, "hard");
+    ok("and by 25s in Descent, from wherever the run began", t.level === 7);
+  }
+
+  /* the modes: every one makes a game that runs, and the medals read right */
+  {
+    let fine = true;
+    for (const m of Modes.list) {
+      const g = make(Object.assign({ seed: 1 }, Modes.options(m.id, {}, { previews: 5 })));
+      for (let i = 0; i < 600 && !g.over; i++) { Well.step(g, 100); if (i % 9 === 0) Well.act(g, "hard"); }
+      if (!g.stats.pieces) fine = false;
+    }
+    ok("every mode starts a game that plays", fine);
+    ok("Forty medals: 58.31 s is Jade, three minutes is Pebble", Modes.medalFor("forty", 58310) === "Jade" &&
+       Modes.medalFor("forty", 180000) === "Pebble" && Modes.medalFor("forty", 180001) === null);
+    const d = Modes.get("descent");
+    const sw = make(d.engine({ pace: "swift", depth: 3 }));
+    const gentle9 = make(d.engine({ depth: 9 }));
+    ok("Descent: Swift at depth 3 is level 8, and Gentle never falls faster than level 4",
+       sw.level === 8 && d.depthOf(sw) === 3 && gentle9.level === 9 && Well.gravityMs(gentle9) === Rules.gravityMs(4));
+  }
+
+  /* the bot, which plays the splash screen: it must look like it knows
+     what it is doing, and it must be quick */
+  {
+    let finished = 0, ms = 0, plans = 0, quads = 0, lines = 0;
+    for (let s = 1; s <= 10; s++) {
+      const g = make(Object.assign({ seed: s * 1013 }, Modes.options("forty", {})));
+      while (!g.over) {
+        if (!g.active) { Well.step(g, 1000 / 240); continue; }
+        const t0 = process.hrtime.bigint();
+        const plan = Bot.plan(g, { style: "quads" });
+        ms += Number(process.hrtime.bigint() - t0) / 1e6; plans++;
+        for (const a of plan.actions) { Well.act(g, a); if (a !== "hard") Well.step(g, 1000 / 60); }
+        Well.drain(g);
+      }
+      if (g.overWhy === "goal") finished++;
+      quads += g.stats.quads; lines += g.lines;
+    }
+    ok("the bot clears forty lines at level-1 gravity on at least 9 seeds of 10", finished >= 9, finished + "/10");
+    ok("…mostly by Quads, with the right-hand column kept open", quads * 4 / lines > 0.7,
+       Math.round(quads * 400 / lines) + "% of lines in Quads");
+    ok("…deciding in under 4 ms a piece on average", ms / plans < 4, (ms / plans).toFixed(2) + " ms");
+    const g = make(Object.assign({ seed: 31337 }, Modes.options("drift", {})));
+    while (g.stats.pieces < 1000 && !g.over) {
+      if (!g.active) { Well.step(g, 1000 / 240); continue; }
+      const plan = Bot.plan(g, { style: "tidy" });
+      for (const a of plan.actions) { Well.act(g, a); if (a !== "hard") Well.step(g, 1000 / 60); }
+      Well.drain(g);
+    }
+    ok("1,000 pieces of Drift without the well ever filling", g.stats.pieces >= 1000 && g.stats.drains === 0,
+       g.lines + " lines, " + g.stats.drains + " drains");
+  }
+
+  /* well codes */
+  {
+    const rnd = seeded(2026);
+    let round = true;
+    for (let i = 0; i < 2000; i++) {
+      const s = Math.floor(rnd() * 1073741824);
+      const c = Modes.code.encode(s);
+      if (c.length !== 6 || Modes.code.decode(c) !== s || Modes.code.decode(c.toLowerCase()) !== s) round = false;
+    }
+    ok("well codes: 2,000 seeds there and back", round && Modes.code.encode(0) === "000000" && Modes.code.encode(1073741823) === "ZZZZZZ");
+    const k = Modes.code.decode("K7Q2MX");
+    ok("…and a code survives being read out, pasted, or written by hand",
+       Modes.code.decode("k7q-2mx") === k && Modes.code.decode("The Well · Forty · 58.31 s · Jade · well code K7Q2MX") === k &&
+       Modes.code.decode("1L0O00") === Modes.code.decode("110000") && Modes.code.decode("K7Q2MU") === null && Modes.code.decode("K7Q2M") === null);
+  }
+})();
+
 console.log("");
 if (fails) { console.log("FAILED: " + fails + " of " + checks + " checks"); process.exit(1); }
 console.log(checks + " checks, all of them honest");
