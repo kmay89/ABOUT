@@ -171,10 +171,12 @@ function poolNear(W, hz) {
    semitone apart. `loops` are the Eno layer: [note, period in seconds].
    `melody` is the sixteen-note tune that clears reveal, as pool steps above
    `bell`. `verb` is T60 s / pre-delay s / damping / return level dB.
-   Ambience levels are dBFS at the ambience bus at the default slider. */
+   `bed` nudges the world's whole music bus so that every bed is equally
+   loud (see BED_LIFT). Ambience levels are dBFS at the ambience bus at the
+   default slider. */
 var WORLDS = {
   dawn: {
-    id: "dawn", n: 1, name: "Dawn",
+    id: "dawn", n: 1, name: "Dawn", bed: -0.2,
     tonic: "D", mode: "lydian", pool: "D E F# A B", color: "G#",
     keys: 62, bell: 74, bpm: 72, bpc: 2,
     prog: [["Dmaj9", 38, [54, 61, 64, 69]], ["E/D", 38, [56, 61, 64, 71]],
@@ -191,7 +193,7 @@ var WORLDS = {
     melody: [0, 1, 2, 1, 3, 4, 3, 2, 1, 2, 3, 4, 5, 4, 3, 2]
   },
   tide: {
-    id: "tide", n: 2, name: "Tide",
+    id: "tide", n: 2, name: "Tide", bed: 0.05,
     tonic: "A", mode: "ionian", pool: "A B C# E F#", color: "D G#",
     keys: 57, bell: 69, bpm: 66, bpc: 2,
     prog: [["Asus2", 45, [57, 59, 64, 69]], ["F#m9", 42, [57, 61, 64, 68]],
@@ -207,7 +209,7 @@ var WORLDS = {
     melody: [2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 2, 3, 4, 3, 1, 0]
   },
   rain: {
-    id: "rain", n: 3, name: "Rain on Leaves",
+    id: "rain", n: 3, name: "Rain on Leaves", bed: -0.7,
     tonic: "E", mode: "dorian", pool: "E G A B D", color: "C#",
     keys: 64, bell: 76, bpm: 76, bpc: 2,
     prog: [["Em9", 40, [55, 62, 66, 71]], ["A/E", 40, [57, 61, 64, 71]],
@@ -224,7 +226,7 @@ var WORLDS = {
     melody: [5, 4, 3, 4, 2, 3, 1, 2, 0, 1, 2, 4, 3, 2, 1, 0]
   },
   bamboo: {
-    id: "bamboo", n: 4, name: "Bamboo Grove",
+    id: "bamboo", n: 4, name: "Bamboo Grove", bed: 0.55,
     tonic: "B", mode: "aeolian", pool: "B D E F# A", color: "G",
     keys: 59, bell: 71, bpm: 84, bpc: 2,
     prog: [["Bm(add9)", 35, [59, 62, 66, 73]], ["Gmaj7", 43, [57, 62, 66, 71]],
@@ -240,7 +242,7 @@ var WORLDS = {
     melody: [0, 2, 1, 3, 2, 4, 3, 2, 1, 3, 2, 4, 5, 3, 2, 1]
   },
   aurora: {
-    id: "aurora", n: 5, name: "Aurora",
+    id: "aurora", n: 5, name: "Aurora", bed: -0.1,
     tonic: "G", mode: "lydian", pool: "G A B D E", color: "C#",
     keys: 67, bell: 79, bpm: 60, bpc: 4,
     prog: [["Gmaj9", 43, [57, 59, 62, 66]], ["A/G", 43, [57, 59, 61, 64]],
@@ -257,7 +259,7 @@ var WORLDS = {
     melody: [2, 3, 4, 5, 4, 3, 2, 1, 2, 4, 5, 6, 5, 4, 2, 0]
   },
   moonpool: {
-    id: "moonpool", n: 6, name: "Moon Pool",
+    id: "moonpool", n: 6, name: "Moon Pool", bed: -0.35,
     tonic: "E", mode: "aeolian", pool: "E G A B D", color: "C",
     keys: 52, bell: 64, bpm: 56, bpc: 4,
     prog: [["Em(add9)", 40, [55, 64, 66, 71]], ["Cmaj7", 36, [55, 62, 64, 71]],
@@ -274,7 +276,7 @@ var WORLDS = {
     melody: [0, 1, 0, 2, 1, 3, 2, 1, 0, 2, 3, 4, 3, 2, 1, 0]
   },
   lanterns: {
-    id: "lanterns", n: 7, name: "Lanterns",
+    id: "lanterns", n: 7, name: "Lanterns", bed: -0.5,
     tonic: "D", mode: "mixolydian", pool: "D E G A C", color: "F# B",
     keys: 62, bell: 74, bpm: 80, bpc: 2,
     prog: [["D", 38, [54, 62, 64, 69]], ["C/D", 38, [55, 60, 64, 69]],
@@ -291,7 +293,7 @@ var WORLDS = {
     melody: [0, 2, 3, 2, 4, 3, 2, 1, 0, 1, 2, 3, 2, 4, 5, 3]
   },
   snowfall: {
-    id: "snowfall", n: 8, name: "Snowfall",
+    id: "snowfall", n: 8, name: "Snowfall", bed: 0.65,
     tonic: "C", mode: "ionian", pool: "C D E G A", color: "F B",
     keys: 60, bell: 72, bpm: 66, bpc: 2,
     prog: [["Cmaj9", 36, [55, 62, 64, 71]], ["Am9", 45, [55, 60, 64, 71]],
@@ -308,7 +310,7 @@ var WORLDS = {
     melody: [2, 3, 4, 3, 2, 1, 0, 1, 2, 4, 5, 4, 3, 2, 1, 0]
   },
   bells: {
-    id: "bells", n: 9, name: "Mountain Bells",
+    id: "bells", n: 9, name: "Mountain Bells", bed: 0.3,
     tonic: "D", mode: "dorian", pool: "D F G A C", color: "B",
     keys: 62, bell: 74, bpm: 52, bpc: 4,
     prog: [["Dm9", 38, [53, 60, 64, 69]], ["G/D", 38, [55, 59, 62, 69]],
@@ -325,7 +327,7 @@ var WORLDS = {
     melody: [0, 3, 2, 3, 1, 2, 0, 1, 3, 4, 5, 4, 3, 2, 1, 0]
   },
   starfield: {
-    id: "starfield", n: 10, name: "Starfield",
+    id: "starfield", n: 10, name: "Starfield", bed: 0.8,
     tonic: "F", mode: "lydian", pool: "F G A C D", color: "B",
     keys: 65, bell: 77, bpm: 90, bpc: 2,
     prog: [["Fmaj9", 41, [55, 60, 64, 69]], ["G/F", 41, [55, 59, 62, 69]],
@@ -489,30 +491,47 @@ function softClipCurve(n) {
 }
 
 /* four seconds of stereo pinkish noise (three leaky integrators of white
-   noise), the raw material for every wind, wave and rain in the game */
-function fillNoise(L, R, rnd) {
-  var chans = [L, R], X = 512;
-  for (var ch = 0; ch < 2; ch++) {
-    var d = chans[ch], n = d.length, g = new Float32Array(n + X), b0 = 0, b1 = 0, b2 = 0, mean = 0, i;
-    for (i = 0; i < n + X; i++) {
-      var w = rnd() * 2 - 1;
+   noise), the raw material for every wind, wave and rain in the game. It is
+   made a slice at a time, like the reverb's rooms, because all at once it
+   is tens of milliseconds of work landing on the very tap that wakes the
+   sound. */
+function noiseJob(L, R, rnd) {
+  return { L: L, R: R, n: L.length, X: 512, g: new Float32Array(L.length + 512), ch: 0, i: 0,
+           b0: 0, b1: 0, b2: 0, rnd: rnd, done: false };
+}
+function noiseWork(J, samples) {
+  var n = J.n, X = J.X, g = J.g, i;
+  while (samples > 0 && !J.done) {
+    var end = Math.min(n + X, J.i + samples), b0 = J.b0, b1 = J.b1, b2 = J.b2;
+    for (i = J.i; i < end; i++) {
+      var w = J.rnd() * 2 - 1;
       b0 = 0.99765 * b0 + w * 0.0990460;
       b1 = 0.96300 * b1 + w * 0.2965164;
       b2 = 0.57000 * b2 + w * 1.0526913;
       g[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2;
     }
+    J.b0 = b0; J.b1 = b1; J.b2 = b2;
+    samples -= end - J.i;
+    J.i = end;
+    if (J.i < n + X) break;
     /* The buffer loops, so its last sample is followed by its first. The
        noise runs X samples past the end, and the first X samples fade from
        that overrun into the real start — so the sample after the wrap is
        exactly the one that would have come next, and the loop never ticks. */
+    var d = J.ch ? J.R : J.L, mean = 0;
     for (i = 0; i < n; i++) {
       d[i] = i < X ? g[i] * (i / X) + g[n + i] * (1 - i / X) : g[i];
       mean += d[i];
     }
     mean /= n;
     for (i = 0; i < n; i++) d[i] -= mean;
+    samples -= n;
+    J.ch++; J.i = 0; J.b0 = J.b1 = J.b2 = 0;
+    if (J.ch > 1) { J.done = true; J.g = null; }
   }
+  return J.done;
 }
+function fillNoise(L, R, rnd) { noiseWork(noiseJob(L, R, rnd), Infinity); }
 
 /* ================================================================
    5. levels
@@ -524,13 +543,22 @@ function fillNoise(L, R, rnd) {
    centred voice comes out 1.8 dB hotter than it goes in. */
 var CAL = -1.8;
 var LV = {
-  move: -33, rotate: -30, bump: -37.5, brush: -37.3, thump: -23.5, streak: -35,
+  move: -33, rotate: -30, bump: -36, brush: -37.3, thump: -23.5, streak: -33,
   lock: -24.5, keepSwell: -34, keep: -32, shimmer: -31,
   loop: -31, arp: -32, layerBell: -31, poly: -33, modal: -31, bowl: -32, glide: -34, bass: -30,
   bloomWorld: -29, wash: -34, ui: -38, chime: -28
 };
 function peak(db) { return dbToGain(db + CAL); }
 
+/* The bed — the music bus: pads, drones, the loops, the arpeggio — is
+   lifted as a whole over the voices' own levels, so that it carries the
+   mix: the whole mix sits at −24 to −20 dBFS RMS in play while every sound
+   effect stays on its rung of the ladder above, and the Empty Well, at
+   −14 dBFS, is still the loudest moment. Each world then has its own small
+   `bed` offset, measured so that all ten beds sit at the same loudness
+   (−22.6 LUFS with the sliders at their defaults) and a change of world
+   never jumps or sags. */
+var BED_LIFT = 4.2;
 /* the ear is most sensitive between 2 and 5 kHz, so notes above 1 kHz are
    eased off at 3 dB an octave and a high pluck never pokes out */
 function hfTrim(f) { return f > 1000 ? Math.sqrt(1000 / f) : 1; }
@@ -553,7 +581,8 @@ var NODE_BUDGET = 160;
    can push out anything below them; the bed — the chords and drones — is
    never refused and never pushed out by anything but its own next chord,
    because a well that falls silent mid-chord is worse than a missing
-   raindrop. */
+   raindrop. When the graph is full the bed makes its own room by taking
+   the oldest tail of anything that is not the bed. */
 var P_BG = 0, P_TOUCH = 1, P_REWARD = 2, P_BED = 3;
 var LOOKAHEAD = 0.12, PUMP_MS = 25, SAFETY = 0.010;
 
@@ -627,16 +656,31 @@ function glide(L, v, t, d, exp) {
 }
 
 var noiseRms = 0.1;
-function noiseBuffer(c) {
-  if (noiseCache && noiseCache.sampleRate === c.sampleRate) return noiseCache;
-  var n = Math.floor(c.sampleRate * 4), b = c.createBuffer(2, n, c.sampleRate);
-  var L = b.getChannelData(0), R = b.getChannelData(1), e = 0;
-  fillNoise(L, R, rng(99));
-  for (var i = 0; i < n; i++) e += L[i] * L[i] + R[i] * R[i];
+/* begin the noise for a sample rate; the bake slices finish it */
+function startNoise(sr) {
+  var n = Math.floor(sr * 4);
+  D.noiseJob = noiseJob(new Float32Array(n), new Float32Array(n), rng(99));
+  D.noiseJob.sr = sr;
+  return D.noiseJob;
+}
+/* the finished noise as a buffer for this context */
+function noiseReady(c) {
+  var J = D.noiseJob, n = J.n, b = c.createBuffer(2, n, c.sampleRate), e = 0;
+  b.getChannelData(0).set(J.L); b.getChannelData(1).set(J.R);
+  for (var i = 0; i < n; i++) e += J.L[i] * J.L[i] + J.R[i] * J.R[i];
   noiseRms = Math.sqrt(e / (2 * n));
   noiseCache = b;
+  D.noiseJob = null;
   return b;
 }
+/* needed now: whatever is left of the noise is made at once */
+function noiseBuffer(c) {
+  if (noiseCache && noiseCache.sampleRate === c.sampleRate) return noiseCache;
+  var J = D.noiseJob && D.noiseJob.sr === c.sampleRate ? D.noiseJob : startNoise(c.sampleRate);
+  noiseWork(J, Infinity);
+  return noiseReady(c);
+}
+function haveNoise() { return !!(E && noiseCache && noiseCache.sampleRate === E.ctx.sampleRate); }
 /* How much of the noise a filter lets through. Pink noise carries equal
    power in every octave, so the power a filter passes is the mean of
    |H(f)|² over a log-spaced grid — which the filter itself will report.
@@ -776,15 +820,21 @@ function setCore(e, kind, buffer, W) {
   } else {
     /* the light tier's reverb: two feedback delays of 87 and 131 ms that
        feed each other through a 2.5 kHz low-pass, one per side. The loop
-       gain is set from the world's T60 so the tail still has its length. */
+       gain is set from the world's T60 so the tail still has its length.
+       The low-passes must not resonate: at the default Q a browser's
+       low-pass peaks 2 dB over unity at its cut-off, which inside a loop of
+       gain 0.8 is a loop of gain above 1 — a tail that grows instead of
+       dying, found by the render tests a minute into Aurora. Q −6 dB is
+       flat to the cut-off, so the loop can never gain. */
     var t60 = W ? W.verb.t60 : 3, merge = c.createChannelMerger(2);
     var dl = c.createDelay(0.5), dr = c.createDelay(0.5);
     var fl = c.createBiquadFilter(), fr = c.createBiquadFilter();
     var gl = c.createGain(), gr = c.createGain();
     dl.delayTime.value = 0.087; dr.delayTime.value = 0.131;
     fl.type = fr.type = "lowpass"; fl.frequency.value = fr.frequency.value = 2500;
-    gl.gain.value = Math.min(0.82, Math.pow(10, -3 * 0.131 / t60));
-    gr.gain.value = Math.min(0.82, Math.pow(10, -3 * 0.087 / t60));
+    fl.Q.value = fr.Q.value = -6;
+    gl.gain.value = Math.min(0.8, Math.pow(10, -3 * 0.131 / t60));
+    gr.gain.value = Math.min(0.8, Math.pow(10, -3 * 0.087 / t60));
     M.verbIn.connect(dl); M.verbIn.connect(dr);
     dl.connect(fl); fl.connect(gl); gl.connect(dr);
     dr.connect(fr); fr.connect(gr); gr.connect(dl);
@@ -867,19 +917,24 @@ function admit(cat, t, nodes, prio) {
     stealVoice(L[k], t);
     L.splice(k, 1);
   }
-  var count = liveNodes(t);
-  /* a little headroom under the budget: a stolen voice still exists for
-     the 40 ms of its fade */
+  /* Nodes exist from the moment they are made, not from when they sound:
+     everything already scheduled counts, even a voice that will have
+     finished by t. A little headroom under the budget, too, because a
+     stolen voice still exists for the 40 ms of its fade. */
+  var at = CLOCKFN || E.ctx.state === "running" ? Math.min(t, nowT()) : t;
+  var count = liveNodes(at);
   var budget = NODE_BUDGET - 10;
   if (count + nodes > budget) {
     if (prio === P_BG) return false;
-    var reach = prio === P_BED ? P_TOUCH : prio;      /* the bed only clears texture and touches */
+    /* the bed may take the oldest of anything but itself; anything else
+       only what ranks no higher than it does */
+    var reach = prio === P_BED ? P_REWARD : prio;
     for (var c = 0; c < CATS.length && count + nodes > budget; c++) {
       var M = E.live[CATS[c]];
       while (M.length && count + nodes > budget) {
         k = weakest(M);
         if (M[k].prio > reach) break;
-        count -= M[k].end > t ? M[k].nodes : 0;
+        count -= M[k].end > at ? M[k].nodes : 0;
         stealVoice(M[k], t);
         M.splice(k, 1);
       }
@@ -1260,8 +1315,9 @@ var D = {
   chordStart: 0, chord: 0, layer: 0, danger: 0, melody: 0,
   loops: [], amb: [], drones: [], pads: [],
   last: {}, rep: 0, repDir: 0, lastX: 4, softRows: 0, ended: false,
-  breathIn: false, breathPhase: -1, breathRate: 0, breathT: 0, breathFrac: 0.4,
-  worldBar: 0, irFor: "", irJob: null, polyStep: 0, bakeQ: [], verbSwapAt: 0
+  breathIn: false, breathPhase: -1, breathRate: 0, breathT: 0, breathFrac: 0.4, breathFull: -1,
+  worldBar: 0, irFor: "", irJob: null, polyStep: 0, bakeQ: [], verbSwapAt: 0, endAt: 0,
+  noiseJob: null, probeJob: null, ambAt: 0
 };
 var K = { on: false, bpm: 72, spb: 60 / 72 / 4, u: gridUnit(60 / 72 / 4), origin: 0, pOrigin: 0, pU: 0.1, next: 0, bar: 0, s: 0 };
 
@@ -1491,6 +1547,7 @@ function horizonWork(now, horizon) {
       }
     }
   }
+  if (D.ambAt && D.bed && haveNoise()) { swapAmbience(Math.max(now + 0.02, D.ambAt)); D.ambAt = 0; }
   for (i = 0; i < D.amb.length; i++) D.amb[i].tick(now, horizon);
   /* reverb swap waits for its fade-out */
   if (D.verbSwapAt && now >= D.verbSwapAt) installVerb(now);
@@ -1535,6 +1592,7 @@ function applyWorld(when, silent) {
   if (D.bed) startLoops(when);
   if (D.amb.length || D.bed) swapAmbience(when);
   glide(M.Ltone, nw.lp || 18000, when, 2.5, true);
+  retrimBed(when, 2.5);
   requestVerb(nw);
   queuePlucks(nw);
   forgetPlucks([nw, old]);
@@ -1596,8 +1654,16 @@ function installVerb(now) {
     setCore(E, "conv", D.irBuf, D.irW);
     W = D.irW;
   } else setCore(E, "delay", null, W);
-  glide(E.M.LverbOut, dbToGain(W.verb.send), now + 0.02, 1.5);
+  glide(E.M.LverbOut, dbToGain(W.verb.send + (E.M.coreKind === "delay" ? delayTrim(W.verb.t60) : 0)), now + 0.02, 1.5);
 }
+/* The delay network rings hotter than the normalised convolver for the
+   same send — by 7.5 dB for a short room, 3.7 for the longest, because the
+   convolver's tail grows with its length and the network's cannot (its
+   loop gain is capped for safety). Measured with steady noise into both in
+   every world, the gap is a straight line in T60 to within half a decibel,
+   so the lighter tiers turn their return down by it — otherwise an older
+   phone would hear every world drenched. */
+function delayTrim(t60) { return clamp(-9.1 + 0.95 * t60, -8, -3.5); }
 function queuePlucks(W) {
   for (var i = 0; i < W.semis.length; i++) {
     D.bakeQ.push([W, W.keys + W.semis[i], 0]);
@@ -1607,11 +1673,27 @@ function queuePlucks(W) {
 /* a few milliseconds of baking per pump, never more */
 function bakeWork(budget) {
   var t0 = perfNow();
+  while (D.noiseJob && !D.noiseJob.done) {
+    noiseWork(D.noiseJob, 12000);
+    if (perfNow() - t0 > budget) return;
+  }
+  if (D.noiseJob && D.noiseJob.done && E && D.noiseJob.sr === E.ctx.sampleRate) noiseReady(E.ctx);
   while (D.irJob && !D.irJob.done) {
-    irWork(D.irJob, 16384);
+    irWork(D.irJob, 6000);
     if (perfNow() - t0 > budget) return;
   }
   if (D.irJob && D.irJob.done) irReady();
+  while (D.probeJob && !D.probeJob.done) {
+    irWork(D.probeJob, 6000);
+    if (perfNow() - t0 > budget) return;
+  }
+  if (D.probeJob && D.probeJob.done && E) {
+    var P = D.probeJob;
+    D.probeJob = null;
+    PROBE_IR = E.ctx.createBuffer(2, P.n, P.sr);
+    PROBE_IR.getChannelData(0).set(P.L); PROBE_IR.getChannelData(1).set(P.R);
+    probe();
+  }
   while (D.bakeQ.length && perfNow() - t0 < budget) {
     var j = D.bakeQ.shift();
     bakeOne(j[0], j[1], j[2]);
@@ -1947,10 +2029,13 @@ function bedOn(t) {
   D.worldBar = D.chordStart;
   startLoops(t);
   startDrones(t + 0.5);
-  swapAmbience(t);
+  /* the ambience fades in over seconds anyway; if its noise is still being
+     made it waits the fraction of a second that takes */
+  if (haveNoise() || CLOCKFN) swapAmbience(t); else D.ambAt = t;
 }
 function bedOff(t) {
   D.bed = false;
+  D.ambAt = 0;
   releasePads(t, 3);
   stopDrones(t, 3);
   D.loops = [];
@@ -2048,14 +2133,19 @@ function eventSound(ev, now) {
       return 0;
     case "rotate":
       if (limited("rotate", now)) return 0;
+      /* two octaves over the keyboard: a glass tick has to sit above the
+         chords, where the pads have let go, or the bed swallows it */
       var tones = chordPool(W, D.chord), to = ((ev.to | 0) % 4 + 4) % 4;
-      m = W.keys + 12 + ((tones[to % tones.length] - W.tonicPc + 12) % 12);
+      m = W.keys + 24 + ((tones[to % tones.length] - W.tonicPc + 12) % 12);
+      while (m > 96) m -= 12;
       fm(t, m, LV.rotate, { ratio: 2, index: ev.kick ? 0.95 : 0.6, end: 0.1, decay: 0.35, attack: 0.004,
          cat: "tick", prio: 1, tag: "rotate", pan: colPan(D.lastX), vel: jit(), lane: "sfxDry" });
       return 0;
     case "bump":
       if (limited("bump", now)) return 0;
-      pluck(t, W.keys - 12, LV.bump, W, { tone: 600, hold: 0.08, release: 0.06, vel: jit(), prio: 1,
+      /* muted, low and short — but with enough of its knock left above
+         600 Hz that the chords do not swallow it */
+      pluck(t, W.keys - 12, LV.bump, W, { tone: 1000, hold: 0.08, release: 0.06, vel: jit(), prio: 1,
             tag: "bump", pan: colPan(D.lastX) });
       return 0;
     case "soft":
@@ -2127,7 +2217,9 @@ function eventSound(ev, now) {
     case "end":
       return runEnd(now);
     case "pb":
-      return ev.final || ev.end ? pbPhrase(now) : chime(now, RUNG.pbChime);
+      /* passed mid-run: one soft chime. At the end of a run (the app says
+         so after the run's last line), the warm phrase instead */
+      return ev.final || ev.end || D.ended ? pbPhrase(now) : chime(now, RUNG.pbChime);
     case "chapter":
       return chime(now, RUNG.pbChime);
     case "surface":
@@ -2155,16 +2247,18 @@ function shimmer(t) {
    its rung of the ladder (RUNG). Its shape stays the composer's; its height
    is the ladder's.
 
-   Measured over all ten worlds the rungs land within about ±1.5 dB — the
-   honest limit of predicting where a sum of decaying tones crests — so the
-   rungs below the top are set a decibel under the brief's −16 to keep the
-   Empty Well clear of them everywhere, and the Empty Well a little under
-   −14 so that it never crosses it. */
+   Measured over all ten worlds, every chord of each and two places in each
+   tune (eighty renders a rung), the rungs land within about ±1.2 dB — the
+   honest limit of predicting where a sum of decaying tones crests. So the
+   Empty Well's rung is set to put its loudest case at −14.2 dBFS, never
+   over −14; and the Quad, whose bloom crests the most variably, sits a
+   little under the brief's −16, so that in every world its loudest case
+   stays below the Empty Well's. */
 var RUNG = {
-  single: -22, double: -21, triple: -19.5, quad: -17,
+  single: -22, double: -21, triple: -19.5, quad: -18,
   twist: -20, miniTwist: -23.5, miniSingle: -20.5, miniDouble: -19.5,
-  twistSingle: -18, twistDouble: -17.2, twistTriple: -17.2,
-  empty: -14.9, calm: -23,
+  twistSingle: -18, twistDouble: -17.6, twistTriple: -17.6,
+  empty: -15.45, calm: -23,
   /* the drain's chord and the run's last line are slow swells and long
      tails, which the model reads less well than struck bells; these are the
      rungs that measure as −25 and −24 */
@@ -2174,7 +2268,7 @@ var RUNG = {
    bell comes out about 2 dB over it (the immediate shimmer and the reverb
    ride on top), a swell about 1 dB under (its low fundamental meets the
    30 Hz high-pass) */
-var FIG_BELL = dbToGain(2), FIG_PAD = dbToGain(-1), FIG_CAL = 0;
+var FIG_BELL = dbToGain(2), FIG_PAD = dbToGain(-1), FIG_CAL = 0, FIG_COH = 0.8;
 var FIG = [];
 function figure() { FIG.length = 0; return FIG; }
 /* how long a lead note effectively rings, for the model: a chime's upper
@@ -2196,13 +2290,50 @@ function fSwell(F, dt, midi, rel, attack, hold, release, o) {
 }
 function itemLevel(it, d) {
   if (d < 0) return 0;
-  var a = dbToGain(it.rel) * (it.kind === "pad" ? FIG_PAD : FIG_BELL * hfTrim(mtof(it.midi)));
+  var a = dbToGain(it.rel) * (it.kind === "pad" ? (it.o.coh ? padPeak(it) : FIG_PAD) : FIG_BELL * hfTrim(mtof(it.midi)));
   if (it.kind === "pad") {
     if (d < it.attack) return a * d / it.attack;
     if (d < it.attack + it.hold) return a;
     return a * Math.exp(-(d - it.attack - it.hold) * 4 / it.release);
   }
   return a * Math.exp(-d * 6.9 / it.decay);
+}
+/* How high a held pad note really peaks: its soft wave, normalised to
+   peak at 1, loses its upper harmonics in the pad's low-pass, and what is
+   left peaks wherever its partials happen to line up. Worked out from the
+   wave's own partials and the filter's response at each of them, once per
+   pitch and cut-off (a few thousand multiplications), and averaged over the
+   notes of a swell. */
+var PADPK = {};
+function wavePeak(midi, cutoff) {
+  var sr = E ? E.ctx.sampleRate : 48000, key = midi + "|" + Math.round(cutoff) + "|" + sr;
+  if (PADPK[key]) return PADPK[key];
+  var f = mtof(midi), N = 24, P = 256, x = new Float32Array(P), y = new Float32Array(P), n, j;
+  var w0 = 2 * Math.PI * Math.min(cutoff, sr * 0.45) / sr, q = Math.pow(10, 0.5 / 20), al = Math.sin(w0) / (2 * q), cw = Math.cos(w0);
+  var b0 = (1 - cw) / 2, b1 = 1 - cw, a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+  for (n = 1; n < N; n++) {
+    if (f * n > sr * 0.5) break;
+    var amp = 1 / Math.pow(n, 1.6), ph = Math.PI * n * (n - 1) / (N - 1), w = 2 * Math.PI * f * n / sr;
+    /* the biquad's response at this partial: H = B(e^jw) / A(e^jw) */
+    var br = b0 + b1 * Math.cos(w) + b0 * Math.cos(2 * w), bi = -b1 * Math.sin(w) - b0 * Math.sin(2 * w);
+    var ar = a0 + a1 * Math.cos(w) + a2 * Math.cos(2 * w), ai = -a1 * Math.sin(w) - a2 * Math.sin(2 * w);
+    var den = ar * ar + ai * ai, hr = (br * ar + bi * ai) / den, hi = (bi * ar - br * ai) / den;
+    var mag = Math.sqrt(hr * hr + hi * hi), arg = Math.atan2(hi, hr);
+    for (j = 0; j < P; j++) {
+      var th = 2 * Math.PI * j / P;
+      x[j] += amp * Math.sin(n * th + ph);
+      y[j] += amp * mag * Math.sin(n * th + ph + arg);
+    }
+  }
+  var mx = 1e-6, my = 0;
+  for (j = 0; j < P; j++) { mx = Math.max(mx, Math.abs(x[j])); my = Math.max(my, Math.abs(y[j])); }
+  PADPK[key] = my / mx;
+  return PADPK[key];
+}
+function padPeak(it) {
+  var notes = typeof it.midi === "number" ? [it.midi] : it.midi, s = 0;
+  for (var i = 0; i < notes.length; i++) s += wavePeak(notes[i], it.o.cutoff || 2600);
+  return s / notes.length;
 }
 /* The model works per side, through the same equal-power law as the
    panners (normalised to the centre, which is what the levels mean), at the
@@ -2226,7 +2357,7 @@ function figurePeak(F) {
   for (j = 0; j < F.length; j++) {
     var at = F[j].dt + (F[j].kind === "pad" ? F[j].attack : 0.006);
     for (side = 0; side < 2; side++) {
-      var sum = 0, sq = 0, k;
+      var sum = 0, sq = 0, coh = 0, k;
       for (i = 0; i < F.length; i++) {
         if (F[i].grouped) continue;
         /* a chord of up to three bells struck together is one contributor;
@@ -2238,8 +2369,13 @@ function figurePeak(F) {
           grp += itemLevel(F[k], at - F[k].dt) * sideGain(laneGain(F[k]), side);
           if (k > i) F[k].grouped = true;
         }
-        sum += grp * many; sq += grp * grp * many;
+        /* long-held swells drift into line with one another over their
+           hold, so together they peak at nearly the plain sum of their
+           notes: one contributor, as loud as all of them */
+        if (F[i].o.coh) coh += grp * many * FIG_COH;
+        else { sum += grp * many; sq += grp * grp * many; }
       }
+      if (coh > 0) { sum += coh; sq += coh * coh; }
       for (i = 0; i < F.length; i++) F[i].grouped = false;
       if (sum <= 0) continue;
       var est = sum * Math.pow(sum * sum / sq, -0.3);
@@ -2272,10 +2408,10 @@ function playFigure(when, F, rung) {
 }
 /* the current chord, an octave up, as swells: two of them, one on each
    side, two notes apiece */
-function fBloom(F, dt, rel, attack, hold, release, chord) {
+function fBloom(F, dt, rel, attack, hold, release, chord, coh) {
   var ch = D.W.prog[chord === undefined ? D.chord : chord];
-  fSwell(F, dt, [ch[2][0] + 12, ch[2][2] + 12], rel, attack, hold, release, { side: -1, cutoff: 3000 });
-  fSwell(F, dt, [ch[2][1] + 12, ch[2][3] + 12], rel, attack, hold, release, { side: 1, cutoff: 3000 });
+  fSwell(F, dt, [ch[2][0] + 12, ch[2][2] + 12], rel, attack, hold, release, { side: -1, cutoff: 3000, coh: coh });
+  fSwell(F, dt, [ch[2][1] + 12, ch[2][3] + 12], rel, attack, hold, release, { side: 1, cutoff: 3000, coh: coh });
 }
 
 function reward(ev, now) {
@@ -2353,31 +2489,50 @@ function twistAlone(kind, now) {
   playFigure(when, F, S.calm ? RUNG.calm : kind === "mini" ? RUNG.miniTwist : RUNG.twist);
   return when - now;
 }
-/* The Empty Well: an eight-note cascade falls through the pool on
-   thirty-seconds to rest on the tune's next note; between its notes every
-   loop voice of the world rings in, one after another; and under it all the
-   chord blooms and holds. The loudest moment in the game — by its body more
-   than its edge, because its loop voices arrive in turn rather than all at
-   once — and still under −14 dBFS. */
+/* The Empty Well, in two breaths. In: an eight-note cascade falls through
+   the pool on thirty-seconds to rest on the tune's next note, every loop
+   voice of the world ringing in between its notes, while the music steps
+   back 5 dB so the cascade rings out alone. Out: as the cascade lands, the
+   chord blooms across both sides of the well, the room opens, and the
+   music comes back up past where it was under it. Each breath peaks under
+   −14 dBFS; the second one, all sustain, is the loudest moment in the game
+   by the ear's measure — louder than the bed, louder than any Quad or
+   Twist — because it is long and full rather than sharp. */
 function emptyWell(when, now, notes) {
   var W = D.W, F = figure(), i, loops = [];
-  var thirty = 60 / K.bpm / 8, startIdx = W.melody[(D.melody - notes.length + 160) % W.melody.length] + 7;
+  var thirty = 60 / K.bpm / 8, landed = 8 * thirty;
+  var startIdx = W.melody[(D.melody - notes.length + 160) % W.melody.length] + 7;
   for (i = 0; i < W.loops.length; i++) loops.push(W.loops[i][0]);
   if (!loops.length && W.poly) for (i = 0; i < W.poly.length; i++) loops.push(poolNote(W, W.poly[i][1][0], W.keys + 12));
   for (i = 0; i < loops.length; i++) {
     fNote(F, (i * 2 + 1) * thirty, loops[i], -4, { tag: "loop", pan: (i / Math.max(1, loops.length - 1) - 0.5) * 0.9,
           decay: 4, cat: "bloom", sine: 1 });
   }
-  fBloom(F, 0, -4, 0.35, 2.2, 5);
   for (i = 0; i < 8; i++) {
     fNote(F, i * thirty, poolNote(W, startIdx - i, W.bell), 0,
           { tag: "cascade", pan: (0.5 - i / 7) * 0.6, decay: i === 7 ? 2.6 : 0.9 });
   }
+  /* the bloom rises through the last notes of the cascade and holds: the
+     chord's four upper voices an octave up, on both sides. (Two more, low
+     in the middle, made it fuller on paper and less predictable in fact:
+     six held notes drift into line with each other so differently from one
+     chord to the next that the Empty Well's crest wandered by 2 dB.) */
+  fBloom(F, landed - 0.25, EW_BLOOM, 0.6, 2.4, 5, D.chord, true);
   playFigure(when, F, RUNG.empty);
-  duck(when, -5, 2);
-  verbLift(when, 3, 2.5);
+  /* the music's own breath: 5 dB back for the cascade, then up past where
+     it was as the bloom opens, and home again two seconds later */
+  var L = E.M.Lduck, v = lineCut(L, when);
+  lineTo(L, Math.min(v, dbToGain(-5)), when + 0.06);
+  lineHold(L, when + landed - 0.15);
+  lineTo(L, dbToGain(EW_SWELL), when + landed + 0.6);
+  lineHold(L, when + landed + 2.2);
+  lineTo(L, 1, when + landed + 4.2);
+  verbLift(when, 3, 3);
   return when - now;
 }
+/* the bloom's level against the cascade's, and how far the music rises
+   past where it was as the bloom opens (dB) */
+var EW_BLOOM = 0, EW_SWELL = 2;
 function drainSound(now) {
   var W = D.W, when = quantize(now), F = figure();
   /* the bottom of the well washes away: noise low-passed from 4 kHz down to
@@ -2400,6 +2555,7 @@ function runEnd(now) {
   }
   fSwell(F, 4 * eighth, W.keys - 12, -4, 0.8, 2, 4, { cutoff: 900, tag: "resolve", prio: 1 });
   playFigure(when, F, RUNG.end);
+  D.endAt = when + 4 * eighth;
   return when - now;
 }
 function chime(now, rung) {
@@ -2413,6 +2569,8 @@ function chime(now, rung) {
    seventh), home — on the electric-piano tine whatever the world */
 function pbPhrase(now) {
   var W = D.W, when = quantize(now), eighth = 60 / K.bpm / 2, F = figure();
+  /* after a run's last line, the phrase waits for that line to come home */
+  if (D.ended && D.endAt + 2 * eighth > when) when = D.endAt + 2 * eighth;
   for (var i = 0; i < 3; i++) {
     fNote(F, i * eighth, poolNote(W, 3 + i, W.bell), 0, { spec: scaleDecay(TINE, i === 2 ? 1.4 : 0.85), tag: "pb", pan: (i - 1) * 0.25 });
   }
@@ -2427,6 +2585,9 @@ function surface(now) {
   for (i = 0; i < 6; i++) fNote(F, i * K.spb * 2, poolNote(W, i, W.bell), 0, { tag: "surface", pan: (i / 5 - 0.5) * 0.6 });
   playFigure(when, F, RUNG.surface);
   verbLift(when, 3, 3);
+  /* the Surface is the end of the run: a best set on it answers after it */
+  D.ended = true;
+  D.endAt = when + 5 * K.spb * 2;
   return when - now;
 }
 
@@ -2509,6 +2670,7 @@ function boot() {
   var now = nowT();
   startClock(now + 0.08);
   D.pads.length = 0;
+  if (!haveNoise() && !D.noiseJob) startNoise(E.ctx.sampleRate);
   requestVerb(D.W);
   queuePlucks(D.W);
   if (S.wantBed) bedOn(now + 0.08);
@@ -2518,7 +2680,7 @@ function boot() {
     var frame = function () { pump(); root.requestAnimationFrame(frame); };
     root.requestAnimationFrame(frame);
   }
-  if (S.quality === "auto" && !S.probed) setTimeoutSafe(probe, 60);
+  if (S.quality === "auto" && !S.probed) setTimeoutSafe(probe, PROBE_FIRST);
 }
 
 function unlock() {
@@ -2552,6 +2714,25 @@ function listen() {
     root.addEventListener("pageshow", function () {
       if (!doc || doc.visibilityState !== "hidden") { S.holds.hidden = false; applyHolds(); }
     });
+    /* After a phone call, Siri or an alarm, iOS can leave the context
+       suspended until the page is touched again — and Quiet chosen before
+       the very first tap means the context has never been allowed to start.
+       Either way the next gesture is the moment to wake it, so every
+       activating gesture gets a look, for the life of the page. The look
+       costs one property read. */
+    var opt = { capture: true, passive: true }, ev = ["pointerup", "touchend", "click", "keydown"];
+    for (var i = 0; i < ev.length; i++) root.addEventListener(ev[i], rearm, opt);
+  }
+}
+function rearm() {
+  if (!E || CLOCKFN || anyHold()) return;
+  var c = E.ctx;
+  if (c.state === "suspended" || c.state === "interrupted") {
+    try { var p = c.resume(); if (p && p.catch) p.catch(function () {}); } catch (x) {}
+    if (!everRan) {
+      /* still never started: the same belt and braces as the first unlock */
+      try { var b = c.createBuffer(1, 1, c.sampleRate), s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch (x2) {}
+    }
   }
 }
 function anyHold() { return S.holds.app || S.holds.hidden || S.holds.quiet; }
@@ -2623,12 +2804,29 @@ function state() {
 function applyLevels(ramp) {
   if (!E) return;
   var M = E.M, t = nowT(), d = ramp === undefined ? 0.05 : ramp, q = S.quiet ? 0 : 1, L = S.levels;
-  var mg = sliderGain(L.master, REF.master) * q, mu = sliderGain(L.music, REF.music);
-  var sf = sliderGain(L.sfx, REF.sfx), am = sliderGain(L.ambience, REF.ambience);
+  var mg = sliderGain(L.master, REF.master) * q, mu = sliderGain(L.music, REF.music) * bedGainOf(D.W);
+  var sf = sliderGain(L.sfx, REF.sfx) * bareTrim(), am = sliderGain(L.ambience, REF.ambience);
   glide(M.Lmaster, mg, t, d);
   glide(M.LmusicDry, mu, t, d); glide(M.LmusicWet, mu, t, d);
   glide(M.LsfxDry, sf, t, d); glide(M.LsfxWet, sf, t, d); glide(M.Lui, sf, t, d);
   glide(M.LambDry, am, t, d); glide(M.LambWet, am, t, d);
+}
+/* The effects were balanced against the bed. With the music turned right
+   down they would land on silence instead, and the same pluck that sits
+   gently in the music would jump out of nothing — the startle guard
+   measures exactly that. So as the music slider goes below half its
+   default level the effects ease down with it, by up to 6 dB with the
+   music off ("Effects only"). */
+function bareTrim() {
+  var mu = sliderGain(S.levels.music, REF.music), db = mu > 0 ? 20 * Math.log10(mu) : -99;
+  return dbToGain(clamp((db + 6) * 0.5, -6, 0));
+}
+/* the music bus at a world's own level (see BED_LIFT) */
+function bedGainOf(W) { return dbToGain(BED_LIFT + (W.bed || 0)); }
+/* a new world's bed settles to its own level over the crossfade */
+function retrimBed(t, secs) {
+  var M = E.M, mu = sliderGain(S.levels.music, REF.music) * bedGainOf(D.W);
+  glide(M.LmusicDry, mu, t, secs); glide(M.LmusicWet, mu, t, secs);
 }
 function applyOptions() {
   if (!E) return;
@@ -2653,18 +2851,29 @@ function setTier(name) {
    rain — rendered offline and timed. Faster than 0.15 of real time is the
    full tier; under 0.35 is lite; anything slower is minimal. Offline
    rendering is not the real-time thread, so the Sound sheet keeps a manual
-   setting too. */
+   setting too. The clock that times it is the main thread's, which is
+   busiest in the first second of the page, so the probe waits a moment
+   before it runs, and a device that does not reach the full tier the first
+   time is asked once more a little later; the better of the two counts. */
+var PROBE_FIRST = 1200, PROBE_AGAIN = 12000, PROBE_IR = null;
 function probe() {
   S.probed = true;
   var OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
-  if (!OAC || !E) return;
+  if (!OAC || !E || CLOCKFN) return;
   var sr = E.ctx.sampleRate, secs = 2, oc;
+  /* always the same room, a four-second one, whatever tier is playing now:
+     the probe asks what the full tier would cost. The room is baked in the
+     background first, and the probe comes back when it is ready. */
+  if (!PROBE_IR || PROBE_IR.sampleRate !== sr) {
+    if (!D.probeJob) { D.probeJob = irJob(sr, 4, 0.025, 0.5, 5); D.probeJob.sr = sr; }
+    return;
+  }
+  S.probes = (S.probes || 0) + 1;
   try { oc = new OAC(2, Math.floor(sr * secs), sr); } catch (x) { return; }
   var saved = E, W = D.W;
   try {
     E = makeEngine(oc, "full");
-    var ir = D.irBuf;
-    if (ir) setCore(E, "conv", ir, W); else setCore(E, "delay", null, W);
+    setCore(E, "conv", PROBE_IR, W);
     E.M.verbOut.gain.value = 0.3;
     var i, ch0 = W.prog[0], ch1 = W.prog[1];
     for (i = 0; i < 4; i++) {
@@ -2686,8 +2895,11 @@ function probe() {
     var pr = oc.startRendering();
     var done = function () {
       var rtf = (perfNow() - t0) / 1000 / secs;
-      S.rtf = rtf;
-      if (S.quality === "auto") setTier(rtf < 0.15 ? "full" : rtf < 0.35 ? "lite" : "minimal");
+      S.rtf = S.rtf ? Math.min(S.rtf, rtf) : rtf;
+      S.autoTier = S.rtf < 0.15 ? "full" : S.rtf < 0.35 ? "lite" : "minimal";
+      if (S.quality === "auto") setTier(S.autoTier);
+      if (S.autoTier !== "full" && S.probes < 2) setTimeoutSafe(probe, PROBE_AGAIN);
+      else PROBE_IR = null;
     };
     if (pr && pr.then) pr.then(done, function () {});
     else oc.oncomplete = done;
@@ -2721,6 +2933,7 @@ var Music = {
       requestVerb(W);
       queuePlucks(W);
       glide(E.M.Ltone, W.lp || 18000, nowT(), 0.1, true);
+      retrimBed(nowT(), 0.1);
       updateMedia();
     }
   },
@@ -2737,21 +2950,27 @@ var Music = {
     if (E && running() && D.bed && bedPlaying() && D.W.drone && !D.drones.length) startDrones(nowT());
   },
 
+  /* The app hands over every sound option whenever any one of them
+     changes, so each is acted on only when it really differs: dragging a
+     volume slider must not re-route the iPhone's audio session under a fade
+     forty times a second. */
   setOptions: function (o) {
     if (!o) return {};
     if (o.soften !== undefined) S.soften = !!o.soften;
-    if (o.quiet !== undefined) {
+    if (o.quiet !== undefined && !!o.quiet !== S.quiet) {
       S.quiet = !!o.quiet;
       S.holds.quiet = S.quiet;
       applyLevels(0.25);
       applyHolds();
     }
-    if (o.quality) {
+    if (o.quality && o.quality !== S.quality) {
       S.quality = o.quality;
-      if (o.quality === "auto") { if (!S.probed && E && everRan) setTimeoutSafe(probe, 60); }
-      else setTier(o.quality);
+      if (o.quality === "auto") {
+        if (!S.probed && E && everRan) setTimeoutSafe(probe, PROBE_FIRST);
+        else if (S.autoTier) setTier(S.autoTier);
+      } else setTier(o.quality);
     }
-    if (o.playOnSilent !== undefined) {
+    if (o.playOnSilent !== undefined && !!o.playOnSilent !== S.playOnSilent) {
       S.playOnSilent = !!o.playOnSilent;
       if (E) {
         /* change the session under a short fade, in case the route glitches */
@@ -2772,7 +2991,11 @@ var Music = {
     if (t === "resume") { Music.pause(false); return 0; }
     if (t === "world") { Music.setWorld(ev.world, ev.now); return 0; }
     if (t === "breathe") { Music.breath(ev.phase); return 0; }
-    if (!running() || !K.on || !audible("sfx")) return 0;
+    if (!running() || !K.on) return 0;
+    /* the Breath swells the pads: it belongs to the music, and is heard
+       whenever the music is, whatever the effects slider says */
+    if (t === "breath") { if (audible("music")) eventSound(ev, nowT()); return 0; }
+    if (!audible("sfx")) return 0;
     if (S.paused && t !== "over" && t !== "end") return 0;
     pump();
     var sync = eventSound(ev, nowT());
@@ -2788,23 +3011,27 @@ var Music = {
     applyOptions();
   },
 
-  /* Steady's closing breath. `phase` runs 0..1 through one breath; `inFrac`
-     is where the in-breath ends (0.4 for four in, six out — the default —
-     or 0.5 for even breathing). Only the turns are acted on: one ramp per
-     half-breath, not an automation event per frame. */
-  breath: function (phase, inFrac) {
+  /* Steady's closing breath. `phase` runs 0..1 through one breath, and
+     `full` — how full the breath is, 0 empty to 1 full, which is what
+     Steady's circle draws — says which half of it we are in: rising is the
+     in-breath, falling the out-breath. Only the turns are acted on: one
+     ramp per half-breath, lasting as long as that half will, never an
+     automation event per frame. The length of the in-breath is learned at
+     the first turn, so "longer out" and "even" both come out right.
+     (0, 0) — nothing drawn, before the first breath or after the last —
+     lets the pad settle. Called with no fullness, the turn is taken to come
+     four tenths of the way through, four seconds in and six out. */
+  breath: function (phase, full) {
     if (!E || !running()) return;
-    var now = nowT();
-    if (typeof phase !== "number" || phase < 0) {
-      if (D.breathPhase >= 0) breathe(now, false, 1.5);
-      D.breathPhase = -1;
+    var now = nowT(), has = typeof full === "number";
+    if (typeof phase !== "number" || phase < 0 || (has && full <= 0.001 && phase <= 0.001)) {
+      if (D.breathIn || D.breathPhase >= 0) breathe(now, false, 1.5);
+      D.breathIn = false; D.breathPhase = -1; D.breathFull = -1;
       return;
     }
-    var f = typeof inFrac === "number" ? clamp(inFrac, 0.2, 0.8) : D.breathFrac;
-    D.breathFrac = f;
     phase = clamp(phase, 0, 1);
-    var last = D.breathPhase, dt = now - D.breathT;
-    /* how fast the phase is moving, so each ramp lasts as long as the
+    var last = D.breathPhase, dt = now - D.breathT, f = D.breathFrac;
+    /* how fast the phase moves, so each ramp lasts as long as the
        half-breath it belongs to (a ten-second breath until it is measured) */
     if (last >= 0 && dt > 0.02 && phase > last) {
       var r = (phase - last) / dt;
@@ -2812,13 +3039,19 @@ var Music = {
     }
     D.breathT = now;
     var rate = D.breathRate || 0.1, fresh = last < 0 || phase < last - 0.5;
-    if (fresh) {
-      if (phase < f) { breathe(now, true, Math.max(0.4, (f - phase) / rate)); D.breathIn = true; }
-      else { breathe(now, false, Math.max(0.4, (1 - phase) / rate)); D.breathIn = false; }
-    } else if (D.breathIn && phase >= f) {
-      breathe(now, false, Math.max(0.4, (1 - phase) / rate)); D.breathIn = false;
+    var rising = has ? (D.breathFull < 0 ? full < 0.98 : full > D.breathFull + 1e-4) : phase < f;
+    var falling = has ? D.breathFull >= 0 && full < D.breathFull - 1e-4 : phase >= f;
+    if ((fresh || !D.breathIn) && rising && !falling) {
+      breathe(now, true, Math.max(0.4, (f - phase) / rate));
+      D.breathIn = true;
+    } else if (D.breathIn && falling) {
+      /* the turn: this is where the in-breath really ended */
+      if (has && phase > 0.15 && phase < 0.85) D.breathFrac = f = phase;
+      breathe(now, false, Math.max(0.4, (1 - phase) / rate));
+      D.breathIn = false;
     }
     D.breathPhase = phase;
+    if (has) D.breathFull = full;
   },
 
   pause: function (on) {
@@ -2859,11 +3092,16 @@ var Music = {
     D.melody = 0;
     if (!E || !K.on || !running()) return;
     pump();
-    if (D.pending) {
+    if (D.pending && !D.bed) {
       /* a world chosen while silent takes effect before the first chord */
       D.W = D.pending.W; D.pending = null; requestVerb(D.W); queuePlucks(D.W);
       glide(E.M.Ltone, D.W.lp || 18000, nowT(), 0.2, true);
+      retrimBed(nowT(), 0.2);
       updateMedia();
+    } else if (D.pending) {
+      /* the bed is already playing (the splash's Dawn): the run's world
+         takes over at the very next step, loops, drones, ambience and all */
+      D.pending.now = true;
     }
     if (!D.bed) bedOn(nowT());
   },
@@ -2901,7 +3139,7 @@ var Music = {
   /* pure pieces, for tools/ checks in node */
   theory: { mtof: mtof, poolNote: poolNote, gridUnit: gridUnit, commonTones: commonTones,
             bakePluck: bakePluck, irJob: irJob, irWork: irWork, softClipCurve: softClipCurve,
-            fillNoise: fillNoise, rng: rng, sliderGain: sliderGain, heardPeak: heardPeak, PIECE_STEP: PIECE_STEP, LV: LV, CAPS: CAPS },
+            fillNoise: fillNoise, rng: rng, sliderGain: sliderGain, heardPeak: heardPeak, PIECE_STEP: PIECE_STEP, LV: LV, CAPS: CAPS, RUNG: RUNG },
 
   /* Point the whole engine at a context somebody else made — an
      OfflineAudioContext, with a clock the caller advances — and listen to
@@ -2920,7 +3158,7 @@ var Music = {
       noiseCache = null;
       D.pads.length = 0; D.drones.length = 0; D.amb = []; D.ambOld = []; D.loops = [];
       D.melody = 0; D.lastX = 4; D.softRows = 0; D.rep = 0; D.repDir = 0; D.chord = 0; D.arp = 0; D.polyStep = 0;
-      D.breathPhase = -1; D.breathRate = 0; D.breathIn = false; D.irJob = null; D.irBuf = null; D.verbSwapAt = 0;
+      D.breathPhase = -1; D.breathRate = 0; D.breathIn = false; D.breathFull = -1; D.breathFrac = 0.4; D.irJob = null; D.noiseJob = null; D.probeJob = null; D.ambAt = 0; D.irBuf = null; D.verbSwapAt = 0;
       D.bed = false; D.pending = null; D.ended = false; D.layer = 0; D.danger = 0; D.last = {};
       S.paused = false; S.calm = false; S.wantBed = false;
       applyLevels(0);
