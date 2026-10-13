@@ -15,7 +15,7 @@ No accounts, nothing tracked, works offline. Part of
 ## What's here
 
 ```
-index.html     markup, the room's colours, and every sheet's shell
+index.html     markup, the room's tokens and component kit, the icons, every sheet's shell
 look.css       the house style, shared with the other new rooms (never edited here)
 rules.js       the rules as data: shapes, kicks, the speed curve, the score table
 engine.js      the game itself — pure, deterministic, and the auto-repeat timer too
@@ -34,7 +34,8 @@ input.js       keys, touch gestures, the button tray, controllers, haptics
 learn.js       the explainer — and its tables, measured from the game as it opens
 coach.js       the lessons and the silt wells, with Hint and Show me for every one
 steady.js      Steady's quiet flow: the entry card, the timer, Breathe, the close
-sheets.js      the Look, Handling, Sound and Comfort sheets
+sheets.js      Settings: one sheet, a short first page and a few pages under it
+guide.js       first steps, a move to try, the practice well and the Moves page
 app.js         the loop, and everything that joins the rest together
 sw.js, manifest.webmanifest, icons/
 ```
@@ -67,10 +68,11 @@ anything.
   Show me from the first second.
 
 In Descent and Drift every line you clear lights a bead on the well's rim.
-With ten lit, **Breath** (the button that appears beside the score, or B)
-spends them, and gravity and the lock rest for ten seconds — one long breath
-— while everything else carries on as usual. It says what it is the first
-time it is ready, and the explainer has the details.
+With ten lit, **Breath** (the round button beside the score, there from the
+start and lighting up once it is ready, or B) spends them, and gravity and the
+lock rest for ten seconds — one long breath — while everything else carries
+on as usual. The first time it is ready, the next depth's name says so in one
+quiet line, never mid-move; the explainer has the details.
 
 Every run has a six-character **well code**. Type one into Modes and you get
 the same pieces its player had, in any mode, on any day. The run card has a
@@ -91,6 +93,94 @@ with Done holding the focus and no countdown to another go. After half an
 hour of play (the time is yours to change, or turn off) a small note at the
 next natural stopping point suggests resting your eyes, and then stays quiet
 for at least another half hour.
+
+## How deep, and how long
+
+Any game with an end owes you two answers: how far is it, and how long might
+it take? This one gives both wherever they help, and never during play. Descent is ten depths of twenty-five lines, one world each, from Dawn to
+the Starfield and back up to the Surface — 250 lines — and **the way down**,
+a thin rail of ten nodes lit in each world's own light, shows where you are
+on it: under the splash's Continue, in the HUD as "Depth 5 of 10", on each
+depth's banner, on the pause sheet, the run card and in the Logbook, and as a
+plain list on the explainer's How page.
+
+How long is an estimate, and it says so. Before you have played, it comes
+from a prior: a few seconds a line at each pace and depth, so a first Gentle
+descent reads "about 15–30 minutes", a range, because nobody's pace is known
+yet. As you play, the time each clear took is added to a small tally for that
+pace and depth (`records.pace` — milliseconds and lines, nothing else, halved
+whenever a depth passes 150 lines so that recent play counts most), and the
+estimate becomes your own: the prior is shrunk toward your pace by how many
+of your lines it has seen, and once twenty-five of them are in, it reads as a
+single figure with "at your pace" after it. Someone who never hard-drops and
+takes forty-five seconds a line is told, honestly, "about 2 hours 10
+minutes", rather than a number that was true for somebody else. The wording rules are strict:
+always "about", ranges until it knows you, rounded to the nearest five
+minutes, "a minute or two" under ninety seconds, hours in words, never a
+countdown, never seconds, never a comparison with anyone, and nothing at all
+at learner speed. Estimates are worked out when a sheet opens and never tick
+while you read them. The deepest depth reached at each pace (`records.deep`)
+is kept beside it, for the Logbook and the Modes card.
+
+## Learning the moves, on the well itself
+
+`guide.js` teaches every move for the hands in use — gestures, the button
+tray, a keyboard, or a controller — and it teaches on the real well rather
+than on cards. On the very first run, **first steps** hold gravity still and
+ask for one move at a time: move, turn, drop, then Keep. Each step is done by
+doing it, says "That's it.", and moves on; any step can be skipped, and the
+pause sheet has "Skip the first steps". The words are the device's own: a
+flick on glass, ⤓ on the tray, the bound key on a keyboard, D-pad up on a
+pad, with the controller's own glyph letters but never its brand.
+
+After that the guide only notices. It counts, per kind of hands, how many
+pieces have gone by since each move was last used, and how many runs used it
+— small capped numbers in `prefs.guide`, no timestamps, no record of any
+run, on this device only, never sent anywhere. When a move hasn't been used
+for a while (thirty pieces without a hard drop, say, on a Gentle descent
+that never ends), it may offer **a move to try** — at a boundary only: the
+pause sheet you opened, the run card, a Drift chapter's rest, and for Drop
+alone one line in a depth's banner. One move per run at most, a move offered
+in three runs at most, "Not now" twice retires it, and it is never offered
+in Steady or a lesson. Every offer has "Try it", which opens the **practice
+well**: a hidden mode with gravity held, no records, no Stones, no save, and
+the move done a few times; then back to wherever you were. Settings has a
+**Moves** page with every move for the device in hand, why it's worth
+knowing, Practise for each, the first steps again, a switch for the offers,
+and a button that forgets everything the guide noticed.
+
+## One Settings sheet
+
+Settings is one sheet: a first page that fits a phone screen — Sound on or
+off, then Controls, Moves, Look, Sound and Comfort — and a short page under
+each, with the deeper words (the repeat timer and its friends) a page further
+down where they can be named plainly. Every control says in one line what it
+does; every page can put itself back to the defaults, with an Undo for a few
+seconds and no "are you sure". The settings that belong to a mode live with
+the mode: Drift's world and hidden score on its card and its pause sheet,
+and Forty's "warm the rim when I'm ahead of my best" on Forty's card. On a phone it is a bottom sheet you can
+swipe away; on a desk, a two-column panel.
+
+## A room lit by its world
+
+The chrome takes its light from the world you are in. Each world has a key
+light and a rim light, and the room's tokens follow them (`tint()` in app.js,
+set on every world change and never animated): the primary button is a
+"pearl" filled with the key light and lettered in the room's darkest ink, the
+chosen thing in any control is the rim light softened toward white, and every
+sheet is a dark glass faintly washed with the sky's horizon. The checked
+contrast holds in all ten worlds. Steady's entry card lights the room in the
+world you pick before you begin, so its Begin is already that world's light.
+
+Behind every open sheet sits a **frost plate**: one 32-pixel-wide snapshot of
+the live picture, taken in the frame a sheet opens and scaled up, so the
+world shows through softly without `backdrop-filter` (a blur over a WebGL
+canvas costs a full-screen pass every frame). It is taken once per opening,
+never on a timer; the races show the sky alone while paused, so the board
+stays hidden; and with reduced transparency the sheets are simply solid.
+Names, titles and the large numbers are set in the system's serif (New York
+on Apple devices), everything else in the system sans, all in sentence case,
+with icons drawn as one inline sprite rather than font glyphs.
 
 ## The pieces are fused, and the look is ours
 
@@ -178,7 +268,9 @@ capped, and a set of governors sits on top that nobody can switch off:
 Steady is twenty quiet minutes: slow, even gravity, nothing sudden, no score on
 screen and no words during play, a soft timer that never interrupts a piece,
 and at the end an offer of a minute's breathing and an easy way to stop. You
-can hide the landing light (Mind's eye) or play in silence.
+can hide the landing light (Mind's eye) or play in silence. The entry card
+says when the soft chime will come, on your own clock, and none of the
+guide's captions, offers or estimates ever appear in a Steady session.
 
 What it doesn't do matters more. It makes no health claim, anywhere. It never
 asks anyone to recall anything, keeps no diary, asks no questions about how you
@@ -252,8 +344,22 @@ names or labels anywhere in what ships (the scripts are lexed, so only the
 explainer's strings may name the original, and only with the ®), the credits
 and footer wording, no health claims, every skin through the palette lint
 (its colour maths first reproducing the published figures), every world's sky
-too dark to flash, the help lines checked within the year, and an offline
-shell that loads all nineteen scripts in order and caches every one of them.
+too dark to flash, the help lines checked within the year, the estimates'
+known values, and an offline shell that loads all twenty scripts in order
+and caches every one of them. `tools/guide-check.js` holds the guide to its
+manners in node: never an offer in Steady, a lesson or practice, one move a
+run, "Not now" twice is final, and every line it can say short and plain.
+
+The scripts load in one order, the same in index.html, the service worker
+and the checks:
+
+```
+rules.js engine.js bot.js modes.js records.js worlds.js skins.js layout.js prefs.js
+sky.js gfx2d.js gfx3d.js music.js input.js learn.js coach.js steady.js sheets.js guide.js app.js
+```
+
+and the service worker's cache is `well-v5`, so an installed copy picks up the
+new files whole rather than half.
 
 `tools/open-check.js` opens the room in a real browser twice — the WebGL2
 well (through `?gl=soft`, a test hook that lets the 3D renderer accept the
@@ -277,6 +383,7 @@ python3 -m http.server 8000
 ```
 node tools/rules-check.js
 node tools/well-check.js
+node tools/guide-check.js
 node tools/room-parity.js
 node tools/open-check.js well     # opens it in a real browser and plays it
 ```

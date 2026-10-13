@@ -162,81 +162,162 @@ Steady.levels = function (sound, prefs) {
 };
 
 /* ---------- the look ----------
-   Built on look.css: its .ov, .sheet, .btn and colour tokens, with only
-   what Steady needs on top. Generous spacing and large type, because
-   these cards are read at the end of twenty quiet minutes, not skimmed. */
+   Steady's cards are made of the room's kit — the glass sheet, the
+   segmented choices, the pearl button, the world picker, the list rows
+   (index.html carries them) — and use nothing but its tokens, so every
+   colour here is the light of a world: --wk the key light (the pearl, the
+   breathing circle, the glow at the top of a card), --wr the rim, --wsky0
+   and --wsky1 the sky. The app tints those to the world being played, and
+   the entry card tints them to the world being picked, so the card you
+   read before twenty minutes in Snowfall is already lit like Snowfall.
+
+   What is left for this file is layout and type. The statements — "That's
+   twenty minutes. Nicely done.", the thank-you, the five things to notice,
+   Breathe in and out — are set in the room's serif, large, because they
+   are read slowly at the end of a session, not skimmed. Everything moves
+   in opacity only when motion is reduced (html.rm, or the system's own
+   setting), and nothing at all moves faster than a breath would.
+
+   The phone shape (the kit's bottom sheet) and the wider shapes differ
+   only in width and in the grabber; the media queries below are the
+   kit's own breakpoints, so a Steady card is never the odd one out. */
+var PHONE = "(max-width:599px), (pointer:coarse) and (max-width:699px)";
+var WIDE = "(min-width:600px) and (pointer:fine), (min-width:700px)";
+var DESK = "(min-width:900px) and (pointer:fine)";
 Steady.CSS = [
-  ".st-ov .sheet.st{width:min(520px,100%);max-height:100%;padding:22px 22px 20px;border-radius:22px;position:relative}",
-  ".st h2{font-size:1.5rem;font-weight:700;letter-spacing:-.01em;margin:0 0 .2em;padding-right:34px}",
-  ".st .lead{font-size:1rem;margin:0 0 4px}",
-  ".st .close{position:absolute;top:12px;right:12px;float:none;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center}",
-  ".st-field{margin-top:13px}",
-  ".st-label{display:flex;align-items:baseline;gap:8px;font-size:.74rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--soft);margin:0 0 6px}",
-  ".st-label b{margin-left:auto;font-size:.9rem;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink)}",
-  ".st-seg{display:flex;gap:6px}",
-  ".st-seg>button{flex:1 1 0;min-width:0;min-height:44px;padding:6px 4px;border-radius:13px;background:var(--card2);border:1px solid var(--line);font-weight:650;font-size:.95rem;line-height:1.15;color:var(--soft);transition:border-color .2s,box-shadow .2s,color .2s,background-color .2s}",
-  ".st-seg>button[aria-pressed=\"true\"]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background-image:linear-gradient(rgba(255,255,255,.06),rgba(255,255,255,.06))}",
-  ".st-line{font-size:.86rem;color:var(--soft);margin-top:6px;line-height:1.4;min-height:1.4em}",
-  ".st-worlds{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}",
-  ".st-world{position:relative;height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.09);overflow:hidden;transition:box-shadow .2s,transform .2s}",
-  ".st-world[aria-pressed=\"true\"]{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--accent)}",
-  ".st-world i{position:absolute;left:50%;bottom:7px;width:6px;height:6px;margin-left:-3px;border-radius:50%;opacity:0;transition:opacity .2s}",
-  ".st-world[aria-pressed=\"true\"] i{opacity:1}",
-  ".st-link{display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 6px;margin:2px auto 0;color:var(--glow);font-size:.98rem;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}",
-  ".st-go{margin-top:14px}",
-  ".st-go .btn{width:100%;min-height:56px;font-size:1.08rem}",
-  ".st-small{font-size:.84rem;color:var(--soft);text-align:center;margin:12px 0 0;line-height:1.45}",
-  ".st button:focus-visible,.st a:focus-visible{outline:2px solid var(--glow);outline-offset:3px}",
-  ".st-center{text-align:center;padding:12px 2px 2px}",
-  ".st-glow{width:72px;height:72px;margin:8px auto 18px;border-radius:50%}",
-  ".st h2.st-big{font-size:1.6rem;line-height:1.32;font-weight:600;letter-spacing:-.01em;margin:0 auto 24px;max-width:16em;padding:0;text-wrap:balance}",
+  /* the sheet: the kit's glass, Steady's width, and room for the ✕ */
+  ".sheet.st{position:relative;padding-top:24px}",
+  "@media " + WIDE + "{.st-ov>.sheet.st{width:min(520px,100%)}}",
+  "@media " + PHONE + "{.st-ov>.sheet.st{padding-top:0}.sheet.st>.grab{margin-bottom:12px}}",
+  ".sheet.st .st-x{position:absolute;top:10px;right:10px;z-index:4;float:none;padding:0;font-size:1rem}",
+  ".st h2{font:400 1.75rem/2.125rem var(--serif);letter-spacing:-.005em;color:var(--ink);margin:0 44px 6px 0;text-wrap:balance}",
+  ".st h2:focus,.st .st-btitle:focus{outline:none}",
+  ".sheet.st .lead{font:400 1rem/1.5 var(--sans);color:var(--ink-2);margin:0 0 4px;text-wrap:pretty}",
+  "@media " + DESK + "{.st h2{font-size:2rem;line-height:2.375rem}}",
+
+  /* the entry card: the choices scroll in the middle; Begin never leaves */
+  ".st-ov>.sheet.st.st-entry{display:flex;flex-direction:column;overflow:hidden}",
+  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -20px;padding:4px 20px 12px}",
+  ".st-foot{flex:none;position:relative;padding-top:14px;margin:0 -20px;padding-left:20px;padding-right:20px;border-top:1px solid transparent;transition:border-color .2s}",
+  ".st-entry.over .st-foot{border-top-color:var(--hair)}",
+  ".st-field{margin-top:22px}",
+  ".st-field:first-child{margin-top:14px}",
+  ".st-label{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2);margin:0 4px 8px}",
+  ".st-field .seg>button{min-height:44px}",
+  ".st-when{display:flex;align-items:center;gap:6px;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2);margin:6px 4px 0}",
+  ".st-when .ic{width:16px;height:16px}",
+  ".st-field .wpick{margin-top:2px}",
+  ".st-field .wp-sw{position:relative;overflow:hidden}",
+  ".st-field .wp-sw i{position:absolute;left:50%;bottom:7px;width:6px;height:6px;margin-left:-3px;border-radius:50%;opacity:0;transition:opacity .2s}",
+  ".st-field .wp[aria-pressed=\"true\"] .wp-sw i{opacity:1}",
+  ".st-field .wp-n{display:block;min-height:2em;padding:0 1px;overflow-wrap:break-word}",
+  /* large text: three worlds to a row, so no name breaks inside a word */
+  "html.ts-big .st-field .wpick{grid-template-columns:repeat(3,minmax(0,1fr))}",
+  ".st-go .btn,.st-foot .st-begin{width:100%}",
+  ".st-links{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0 4px;margin:6px -8px 0}",
+  ".st-links .btn.quiet{display:inline-block;font:500 .9375rem/1.2 var(--sans);flex:0 1 auto;max-width:100%;padding:12px 12px;white-space:normal;text-align:center}",
+  ".st-links .btn.quiet .ic{width:16px;height:16px;margin:0 -4px 0 2px;vertical-align:-3px}",
+
+  /* the tip, the once */
+  ".st-art{display:block;width:200px;height:190px;margin:4px auto 10px}",
+  ".st-art .w{fill:none;stroke:var(--ink-2);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;opacity:.7}",
+  ".st-art .s{fill:var(--fill-2);stroke:var(--ink-3);stroke-width:1.5;stroke-opacity:.55}",
+  ".st-art .p{fill:rgb(var(--wk) / .88)}",
+  ".st-art .d{fill:rgb(var(--wk) / .06);stroke:rgb(var(--wk));stroke-width:1.5;stroke-dasharray:3.5 2.5}",
+  ".st-art .a{fill:none;stroke:rgb(var(--wk) / .7);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}",
+  ".st-art .t{stroke:rgb(var(--wk) / .45);stroke-width:1.5;stroke-dasharray:2 4;stroke-linecap:round}",
+  ".st-tip{font:400 1.25rem/1.55 var(--serif);color:var(--ink);margin:6px auto 4px;max-width:30em;text-align:center;text-wrap:pretty}",
+  ".st-small{font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2);text-align:center;margin:14px 0 0}",
+  ".st-ctl{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;list-style:none;margin:16px 0 0;padding:0}",
+  ".st-ctl .chip{color:var(--ink)}",
+  ".st-go{margin-top:20px}",
+
+  /* a card with one statement: the time-up card, the thank-you */
+  ".st-center{text-align:center;padding:8px 0 0}",
+  ".st-glow{width:72px;height:72px;margin:20px auto 20px;border-radius:50%;",
+  "  background:radial-gradient(circle, rgb(var(--wk) / .95) 0%, rgb(var(--wk) / .55) 30%, rgb(var(--wr) / .18) 58%, rgb(var(--wr) / 0) 71%)}",
+  ".st-glow.small{width:56px;height:56px;margin-top:16px}",
+  ".st h2.st-big,.st h2.st-thanks{margin:0 auto 28px;max-width:15em}",
   ".st-stack{display:flex;flex-direction:column;gap:10px}",
-  ".st-stack .btn{flex:none;width:100%;min-height:54px;font-size:1.04rem}",
-  ".st-tip{font-size:1.18rem;line-height:1.5;margin:6px 0 4px;text-wrap:pretty}",
-  ".st-art{display:block;width:200px;height:190px;margin:10px auto 12px}",
-  ".st-ov.st-full{padding:0;align-items:stretch}",
-  ".st-ov.st-full .sheet.st{width:100%;max-width:none;height:100%;max-height:none;border:0;border-radius:0;box-shadow:none;background:none;",
-  "  display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;",
-  "  padding:calc(18px + var(--safe-top)) 20px calc(20px + var(--safe-bot))}",
-  ".st-btitle{font-size:.86rem;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);min-height:44px;display:flex;align-items:center}",
+  ".st-stack .btn{flex:none;width:100%}",
+  ".st-quietlink{display:flex;margin:12px auto 0}",
+  ".st-quietlink.btn.quiet{font:400 .875rem/1.25rem var(--sans);text-align:center}",
+
+  /* Breathe: a whole screen, the world's sky behind one circle of its light */
+  "html .ov.st-ov.st-full{padding:0;align-items:stretch;justify-content:stretch;",
+  "  background:radial-gradient(60% 46% at 50% 40%, rgb(var(--wsky1) / .5) 0%, rgb(var(--wsky1) / 0) 100%),",
+  "    linear-gradient(180deg, rgb(var(--wsky0) / .9) 0%, rgb(var(--wsky0) / .94) 46%, rgb(5 6 10 / .97) 76%)}",
+  /* over another sheet (the pause sheet a moment before the app puts it
+     away), the minute is a screen of its own: nothing shows through */
+  "html .ov.st-ov.st-full.st-stacked{background-color:var(--room)}",
+  ".st-ov.st-full>.sheet.st{width:100%;max-width:none;height:100%;max-height:none;border:0;border-radius:0;box-shadow:none;background:none;",
+  "  display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;overflow:hidden;",
+  "  padding:calc(18px + var(--safe-top)) 20px calc(20px + var(--safe-bot));animation:ovIn .6s var(--e-out)}",
+  ".st-btitle{font:400 .9375rem/1.25rem var(--sans);color:var(--ink-2);min-height:44px;display:flex;align-items:center}",
   ".st-bmid{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-height:0;width:100%}",
   ".st-orbbox{position:relative;width:min(64vw,42vh,330px);height:min(64vw,42vh,330px);flex:none}",
-  ".st-ring{position:absolute;inset:0;border-radius:50%}",
-  ".st-orb{position:absolute;inset:0;border-radius:50%;will-change:transform,opacity;transform:scale(.42) translateZ(0)}",
-  ".st-word{margin-top:30px;font-size:clamp(1.45rem,5.6vw,2.05rem);font-weight:500;letter-spacing:.01em;min-height:1.4em;transition:opacity .45s}",
-  ".st-dots{display:flex;gap:10px;margin-top:16px;min-height:10px}",
-  ".st-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16);transition:background-color .6s,box-shadow .6s}",
-  ".st-bfoot{width:min(440px,100%);display:flex;flex-direction:column;gap:10px;margin-top:18px}",
-  ".st-bfoot .st-line{text-align:center;margin:0}",
-  ".st-bfoot .btn{flex:none;width:100%;min-height:52px;font-size:1.02rem}",
-  ".st-num{font-size:4.4rem;font-weight:300;line-height:1;text-align:center;margin:10px 0 14px;font-variant-numeric:tabular-nums}",
-  ".st-sense{font-size:1.5rem;line-height:1.35;text-align:center;min-height:2.7em;margin:0 0 10px;font-weight:500;text-wrap:balance}",
+  ".st-ring{position:absolute;inset:0;border-radius:50%;border:1px solid var(--hair-2)}",
+  ".st-orb{position:absolute;inset:0;border-radius:50%;will-change:transform,opacity;transform:scale(.42) translateZ(0);",
+  "  background:radial-gradient(circle, rgb(var(--wk) / .9), rgb(var(--wk) / 0) 70%)}",
+  /* the breathing word is a statement, so it takes title-1 (§A3) rather than a size of its own */
+  ".st-word{margin-top:32px;font:400 1.75rem/2.125rem var(--serif);letter-spacing:.005em;color:var(--ink);min-height:1.4em;transition:opacity .45s}",
+  "@media (min-width:900px) and (pointer:fine){.st-word{font-size:2rem;line-height:2.375rem}}",
+  ".st-dots{display:flex;gap:10px;margin-top:18px;min-height:10px;align-items:center}",
+  ".st-dot{width:6px;height:6px;border-radius:50%;background:var(--fill-3);transition:background-color .6s,box-shadow .6s}",
+  ".st-dot.lit{background:rgb(var(--wk))}",
+  ".st-dot.now{box-shadow:0 0 0 2px rgb(var(--wk) / .45)}",
+  ".st-bfoot{width:min(440px,100%);display:flex;flex-direction:column;gap:10px;margin-top:20px}",
+  ".st-bfoot .seg-line{text-align:center;margin:0 0 4px}",
+  ".st-bfoot .btn{flex:none;width:100%}",
+
+  /* noticing: five, four, three, two, one */
+  ".st-gtitle{text-align:center;margin:4px 44px 0}",
+  ".st-num{font:400 3.5rem/1 var(--serif);letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums;text-align:center;margin:18px 0 14px;",
+  "  color:rgb(var(--wk));text-shadow:0 0 28px rgb(var(--wk) / .35)}",
+  ".st-sense{font:400 1.75rem/2.125rem var(--serif);text-align:center;min-height:4.25rem;margin:0 0 12px;color:var(--ink);text-wrap:balance}",
+  "@media " + DESK + "{.st-num{font-size:4.5rem}.st-sense{font-size:2rem;line-height:2.375rem;min-height:4.75rem}}",
   ".st-fade{transition:opacity .35s}",
-  ".st-gdots{display:flex;justify-content:center;gap:9px;margin:4px 0 20px}",
-  ".st h2.st-thanks{font-size:1.6rem;line-height:1.35;font-weight:500;letter-spacing:-.005em;margin:0 auto 6px;max-width:15em;padding:0;text-wrap:balance}",
-  ".st-help{margin-top:6px}",
-  ".st-help a{color:var(--glow)}",
-  ".st-pauseExtras{margin-top:4px}",
-  ".st-pauseExtras .row .btn{flex:1 1 45%}",
-  ".st-ctl{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;list-style:none;margin:14px 0 0;padding:0}",
-  ".st-ctl li{font-size:.86rem;line-height:1.2;color:var(--ink);background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:6px 11px}",
-  /* the entry card: choices in the middle, Begin always in reach below */
-  ".st-ov .sheet.st.st-entry{display:flex;flex-direction:column;overflow:hidden}",
-  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -8px;padding:0 8px 6px}",
-  ".st-foot{flex:none;position:relative}",
-  ".st-entry.over .st-foot:before{content:\"\";position:absolute;left:-22px;right:-22px;top:-18px;height:18px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.28));pointer-events:none}",
-  "@media (min-width:700px){.st-world{height:60px}.st-ov .sheet.st{padding:26px 28px 24px}}",
-  "@media (max-height:820px){.st-ov .sheet.st{padding-top:18px;padding-bottom:14px}.st-field{margin-top:10px}.st-seg>button{min-height:42px}.st-line{margin-top:4px}.st-world{height:44px}.st-go{margin-top:14px}}",
-  "@media (max-width:380px){.st-seg>button{font-size:.88rem;padding:6px 2px}}",
-  "@media (max-height:700px){.st-art{width:160px;height:152px}.st h2{font-size:1.35rem}.st .lead{font-size:.92rem}.st-seg>button{min-height:40px}.st-line{font-size:.82rem}.st-world{height:36px}.st-go .btn{min-height:50px}}",
+  ".st-gdots{display:flex;justify-content:center;gap:10px;margin:4px 0 22px}",
+
+  /* a card opened over another sheet (Help lines over the pause sheet or
+     the thank-you) is solid glass, so the words beneath never show through */
+  ".st-ov.st-stacked:not(.st-full)>.sheet.st{background:linear-gradient(180deg, rgb(var(--wsky1) / .28), rgb(var(--wsky1) / 0) 180px), rgb(var(--glass))}",
+  /* help lines: the list itself is learn.js's, in the kit's rows */
+  ".st-help{margin-top:16px}",
+  ".st-help + .st-stack{margin-top:20px}",
+
+  /* the pause sheet's extras (an app that still hands over one box gets
+     them as a list of their own, with Finish under it) */
+  ".st-pauseExtras .list{margin-top:4px}",
+  ".st-pauseExtras .st-fin{display:flex;margin-top:10px}",
+  ".st-pauseExtras .st-fin .btn{flex:1 1 auto}",
+
+  /* a phone on its side: the statement cards tighten and set their choices
+     in a row, and the breathing minute puts its circle beside its words, so
+     nothing has to scroll and nothing overlaps */
+  "@media (max-height:520px){" +
+    ".st-glow{width:44px;height:44px;margin:4px auto 10px}.st-glow.small{width:40px;height:40px;margin-top:4px}" +
+    ".st h2.st-big,.st h2.st-thanks{margin-bottom:16px}" +
+    ".st-stack{flex-direction:row;flex-wrap:wrap}.st-stack .btn{flex:1 1 9rem;width:auto}" +
+    ".st-num{font-size:2.75rem;margin:6px 0 8px}.st-sense{min-height:0;margin-bottom:8px}.st-gdots{margin-bottom:12px}" +
+    ".st-art{width:150px;height:142px}" +
+    ".st-ov.st-full>.sheet.st{flex-direction:row;justify-content:center;align-items:center;gap:6vw;padding-top:calc(44px + var(--safe-top))}" +
+    ".st-ov.st-full .st-btitle{position:absolute;top:calc(6px + var(--safe-top));left:0;right:0;justify-content:center}" +
+    ".st-ov.st-full .st-bmid{flex:0 1 auto}" +
+    ".st-orbbox{width:min(54vh,40vw,260px);height:min(54vh,40vw,260px)}" +
+    ".st-word{margin-top:14px}" +
+    ".st-bfoot{width:min(360px,44vw);margin-top:0}" +
+  "}",
   /* very short screens (a laptop at 300-400% zoom): the options area would
      shrink to a sliver above Begin, so the whole card scrolls as one page */
-  "@media (max-height:300px){.st-ov .sheet.st.st-entry{overflow-y:auto}.st-entry .st-body{flex:none;overflow:visible}}",
-  /* forced colours flatten the accent ring on a pressed choice, so it is
-     drawn in Highlight; the world tiles are colour swatches, so they keep
-     their own colours (and their ring and dot) */
-  "@media (forced-colors:active){.st-seg>button[aria-pressed=\"true\"]{forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}.st-world{forced-color-adjust:none}}",
-  "@media (prefers-reduced-motion:reduce){.st-ov,.st-ov *{transition:none!important;animation:none!important}}"
+  "@media (max-height:300px){.st-ov>.sheet.st.st-entry{overflow-y:auto}.st-entry .st-body{flex:none;overflow:visible}}",
+  /* forced colours: the world tiles are colour swatches, so they keep their
+     own colours, and the chosen one its ring and its dot */
+  "@media (forced-colors:active){.st-field .wp-sw{forced-color-adjust:none}.st-dot.lit{forced-color-adjust:none;background:CanvasText}}",
+  /* reduced motion: opacity only, and quickly */
+  "html.rm .st-ov *,html.rm .st-ov{transition-duration:.15s!important;animation:none!important}",
+  "html.rm .st-ov.st-full>.sheet.st{animation:ovIn .15s linear!important}",
+  "@media (prefers-reduced-motion:reduce){.st-ov *{transition-duration:.15s!important}.st-ov.st-full>.sheet.st{animation:ovIn .15s linear}}"
 ].join("\n");
 
 function injectCSS() {
@@ -251,12 +332,19 @@ function injectCSS() {
    a session
    ================================================================ */
 /* Steady.create({prefs, music, learn, onBegin(opts), onFinish(reason),
-   onKeepPlaying(), onBreathe(phase, swell), onWhy(section), onMoment(ev)}).
+   onKeepPlaying(), onBreathe(phase, swell), onWhy(section), onMoment(ev),
+   tint(worldId|null), onMoves(), firstStepsDone()}).
    onFinish's reason is "timer" (Finish once the time was up) or "pause"
    (Finish from the pause sheet). onMoment hands the app a moment that
    happened here rather than in the engine, already in the event shape
    records.js observes: {t:"breathed"} when the breathing minute runs to
-   its end, {t:"stop"} for Finish once the time is up. */
+   its end, {t:"stop"} for Finish once the time is up.
+
+   tint lights the room's chrome in a world while the entry card is up, so
+   the card previews the world being picked; tint(null) hands the light
+   back to whatever world the room is in. onMoves opens the moves, for a
+   player who hasn't been shown them yet — firstStepsDone() says whether
+   they have; without it, the link simply isn't offered. */
 Steady.create = function (o) {
   o = o || {};
   var prefs = o.prefs || null, music = o.music || null, learn = o.learn || null;
@@ -265,7 +353,10 @@ Steady.create = function (o) {
   var B = null;             /* the breathing minute, while it runs */
   var pattern = "longer";
   var esc = {};             /* overlay id -> what Escape does there */
+  var titles = {};          /* overlay id -> its title, for a pointer-opened sheet's focus */
   var returnFocus = null;
+  var tinted = false;       /* the entry card has lit the room in its world */
+  var whenTimer = 0;        /* keeps "A soft chime at about 9:42" true while the card is up */
   var IDS = ["ovSteady", "ovBreathe", "ovGround", "ovClose", "ovHelp"];
 
   injectCSS();
@@ -284,9 +375,18 @@ Steady.create = function (o) {
     if (typeof fn !== "function") return;
     try { fn(a, b); } catch (e) { setTimeout(function () { throw e; }, 0); }
   }
+  /* the room's own word on motion (html.rm, which the app sets from the
+     Motion setting), then the setting itself, then the system's */
   function reduced() {
-    try { if (prefs && prefs.motion && prefs.motion() !== "full") return true; } catch (e) { /* fall through */ }
+    try { if (document.documentElement.classList.contains("rm")) return true; } catch (e) { /* no page yet */ }
+    try { if (prefs && prefs.motion && prefs.motion() !== "full") return true; } catch (e2) { /* fall through */ }
     return !!(root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  /* the last input was a key: the default button takes the focus (and the
+     ring); after a tap or a click the sheet's title does, so a screen
+     reader starts at the top and no ring appears under a finger */
+  function keyboard() {
+    try { return document.documentElement.classList.contains("kbd"); } catch (e) { return false; }
   }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -300,6 +400,18 @@ Steady.create = function (o) {
     b.addEventListener("click", function (e) { e.preventDefault(); fn(e); });
     return b;
   }
+  /* one icon from the room's sprite (index.html), never a font glyph */
+  function icon(name, cls) {
+    return "<svg class=\"ic" + (cls ? " " + cls : "") + "\" aria-hidden=\"true\" focusable=\"false\"><use href=\"#i-" + name + "\"></use></svg>";
+  }
+  /* light the room in a world while the entry card is up; null gives the
+     light back to the room's own world */
+  function tintTo(id) {
+    if (typeof o.tint !== "function") return;
+    tinted = id !== null;
+    safe(o.tint, id);
+  }
+  function untint() { if (tinted) tintTo(null); }
   function pick(list, v, d) {
     for (var i = 0; i < list.length; i++) if (list[i].v === v) return v;
     return d;
@@ -328,7 +440,11 @@ Steady.create = function (o) {
   }
 
   /* ---------- shells and stacking ---------- */
-  function shell(id, full) {
+  /* full: Breathe's whole screen. decide: a card that asks for a choice
+     (the time-up card, the thank-you), which the room never lets a stray
+     downward swipe dismiss. Every other card is an ordinary sheet, with
+     the grabber on top that says it can be swiped away on a phone. */
+  function shell(id, full, decide) {
     var ov = document.getElementById(id);
     if (!ov) {
       ov = el("div", "ov hide");
@@ -336,22 +452,47 @@ Steady.create = function (o) {
       document.body.appendChild(ov);
     }
     ov.classList.add("st-ov");
-    if (full) ov.classList.add("st-full"); else ov.classList.remove("st-full");
+    ov.classList.toggle("st-full", !!full);
+    ov.classList.toggle("decide", !!decide);
+    ov.classList.remove("swap");
     ov.setAttribute("role", "dialog");
     ov.setAttribute("aria-modal", "true");
     if (!ov.getAttribute("data-st")) {
       ov.setAttribute("data-st", "1");
       ov.addEventListener("keydown", onKey);
+      if (id === "ovSteady") watchEntry(ov);
     }
     var sheet = ov.querySelector(".sheet");
     if (!sheet) { sheet = el("div", "sheet"); ov.appendChild(sheet); }
     /* a fresh card every time: nothing from the last one drawn in this
-       sheet (the entry card's scrolling layout, its overflow shadow) */
+       sheet (the entry card's scrolling layout, its hairline) */
     sheet.className = "sheet st";
     while (sheet.firstChild) sheet.removeChild(sheet.firstChild);
+    if (!full) {
+      var grab = el("div", "grab");
+      grab.setAttribute("aria-hidden", "true");
+      sheet.appendChild(grab);
+    }
     ov.style.background = "";
     esc[id] = null;
+    titles[id] = null;
+    if (id === "ovSteady" && whenTimer) { clearInterval(whenTimer); whenTimer = 0; }
     return sheet;
+  }
+  /* However the entry card goes away — Begin, the ✕, Escape, a swipe, or
+     the app closing every sheet to start something else — the room's light
+     goes back to the room's own world, and the chime clock stops. The
+     observer only notices; tint(null) means "whatever world the room is in
+     now", so it is right even after the app has moved on to a new one. */
+  function watchEntry(ov) {
+    if (typeof MutationObserver !== "function") return;
+    try {
+      new MutationObserver(function () {
+        if (!ov.classList.contains("hide")) return;
+        if (whenTimer) { clearInterval(whenTimer); whenTimer = 0; }
+        untint();
+      }).observe(ov, { attributes: true, attributeFilter: ["class"] });
+    } catch (e) { /* the explicit paths below still untint */ }
   }
   function isOpen(id) {
     var ov = document.getElementById(id);
@@ -373,10 +514,15 @@ Steady.create = function (o) {
        over the run card, sits above it with no z-index arithmetic */
     if (ov.parentNode !== document.body || ov !== document.body.lastElementChild) document.body.appendChild(ov);
     var was = ov.classList.contains("hide");
+    var under = false, all = document.querySelectorAll(".ov");
+    for (var i = 0; i < all.length; i++) if (all[i] !== ov && !all[i].classList.contains("hide")) under = true;
+    ov.classList.toggle("st-stacked", under);
     ov.classList.remove("hide");
     var sheet = ov.querySelector(".sheet");
     if (sheet) sheet.scrollTop = 0;
     if (was && !silent) sound("open");
+    /* keys: the default button, ringed; a tap or a click: the title */
+    if (!keyboard() && titles[id] && document.body.contains(titles[id])) focus = titles[id];
     focusOn(focus);
     /* on a screen so short that the card scrolls as a whole (see the CSS),
        the button given focus is brought into view rather than left focused
@@ -399,20 +545,28 @@ Steady.create = function (o) {
      carry it too, even though each card is drawn afresh. The app's own
      handler runs after this one and only ever hides the same sheet. */
   function closeButton(sheet, label, fn) {
-    var b = button("\u2715", null, fn);
-    b.className = "close";
+    var b = button("", null, fn);
+    b.className = "ibtn close st-x";
+    b.innerHTML = icon("close");
     b.setAttribute("aria-label", label);
     var ov = sheet.parentNode;
     if (ov && ov.id) b.setAttribute("data-close", ov.id);
     sheet.appendChild(b);
     return b;
   }
+  /* the card's title: what names the dialog, and where a tap-opened
+     card puts the focus */
+  function titleOf(id, node) {
+    node.id = id + "Title";
+    node.setAttribute("tabindex", "-1");
+    document.getElementById(id).setAttribute("aria-labelledby", node.id);
+    titles[id] = node;
+    return node;
+  }
   function heading(sheet, id, text, cls) {
     var h = el("h2", cls || "", text);
-    h.id = id + "Title";
     sheet.appendChild(h);
-    document.getElementById(id).setAttribute("aria-labelledby", h.id);
-    return h;
+    return titleOf(id, h);
   }
 
   function onKey(e) {
@@ -435,27 +589,28 @@ Steady.create = function (o) {
     }
   }
 
-  /* a small light in the world's colours, for the top of a card */
-  function glow(world, px) {
-    var g = el("div", "st-glow");
+  /* a small light in the world's key and rim, for the top of a card */
+  function glow(small) {
+    var g = el("div", "st-glow" + (small ? " small" : ""));
     g.setAttribute("aria-hidden", "true");
-    if (px) { g.style.width = px + "px"; g.style.height = px + "px"; }
-    g.style.background = "radial-gradient(circle, " + rgba(world.key, 0.95) + " 0%, " + rgba(world.key, 0.55) +
-      " 30%, " + rgba(world.rim, 0.18) + " 58%, " + rgba(world.rim, 0) + " 71%)";
     return g;
   }
-  function currentWorld() { return worldById(sess ? sess.world : pref("steadyWorld", DEFAULT_WORLD)); }
 
   /* ================================================================
      the entry card
      ================================================================ */
+  /* One choice: its name, the options as the room's segmented control, and
+     the line that says what the chosen option does. Pressed buttons rather
+     than radios, because each is a plain "this one" with nothing to move
+     between by arrow keys that a Tab wouldn't reach as well. */
   function segField(parent, label, list, value, onPick) {
     var f = el("div", "st-field");
     var lab = el("div", "st-label", label);
     lab.id = "st" + label.replace(/[^A-Za-z]/g, "") + "Label";
     f.setAttribute("role", "group");
     f.setAttribute("aria-labelledby", lab.id);
-    var seg = el("div", "st-seg"), line = el("div", "st-line");
+    var seg = el("div", "seg"), line = el("p", "seg-line");
+    line.setAttribute("aria-live", "polite");
     var buttons = [];
     function set(v) {
       for (var i = 0; i < list.length; i++) {
@@ -480,45 +635,64 @@ Steady.create = function (o) {
     return f;
   }
 
+  /* The ten worlds, each a little window of its sky with its key light low
+     on the horizon, and its name under it. Picking one lights the room in
+     it at once (o.tint), so the pearl Begin below is already that world's
+     light; the chosen world's own line sits under the picker. */
   function worldField(parent, value, onPick) {
-    var f = el("div", "st-field"), lab = el("div", "st-label", "World"), name = el("b");
+    var f = el("div", "st-field"), lab = el("div", "st-label", "World");
     lab.id = "stWorldLabel";
-    lab.appendChild(name);
     f.setAttribute("role", "group");
     f.setAttribute("aria-labelledby", lab.id);
-    /* the chosen world's name sits in the label row and its description
-       on each tile's tooltip, so the card stays one screen tall */
-    var grid = el("div", "st-worlds"), list = worldList(), tiles = [];
+    var grid = el("div", "wpick"), list = worldList(), tiles = [], line = el("p", "seg-line");
+    line.setAttribute("aria-live", "polite");
     function set(id) {
       for (var i = 0; i < list.length; i++) {
         tiles[i].setAttribute("aria-pressed", list[i].id === id ? "true" : "false");
-        if (list[i].id === id) name.textContent = list[i].name;
+        if (list[i].id === id) line.textContent = list[i].line || "";
       }
     }
     for (var i = 0; i < list.length; i++) {
       (function (w) {
         var t = button("", null, function () { set(w.id); sound("toggle"); onPick(w.id); });
-        t.className = "st-world";
-        t.setAttribute("aria-label", w.name);
-        t.title = w.name + (w.line ? ": " + w.line : "");
-        var sky = w.sky || {};
-        /* the world's sky, its key light low on the horizon, and the rim
-           light as a thin line along the bottom */
-        t.style.background =
-          "radial-gradient(70% 60% at 50% 105%, " + rgba(w.key, 0.62) + ", " + rgba(w.key, 0) + " 100%)," +
-          "linear-gradient(0deg, " + rgba(w.rim, 0.55) + " 0, " + rgba(w.rim, 0.55) + " 2px, rgba(0,0,0,0) 2px)," +
+        t.className = "wp";
+        if (w.line) t.title = w.line;
+        var sky = w.sky || {}, sw = el("span", "wp-sw"), dot = el("i");
+        sw.setAttribute("aria-hidden", "true");
+        sw.style.background =
+          "radial-gradient(70% 60% at 50% 108%, " + rgba(w.key, 0.5) + ", " + rgba(w.key, 0) + " 100%)," +
           "linear-gradient(180deg, " + (sky.top || "#111") + ", " + (sky.horizon || "#333") + ")";
-        var dot = el("i");
+        /* the chosen world also carries a small light, so it isn't marked
+           by its ring alone */
         dot.style.background = w.key;
         dot.style.boxShadow = "0 0 8px " + rgba(w.key, 0.9);
-        t.appendChild(dot);
+        sw.appendChild(dot);
+        t.appendChild(sw);
+        t.appendChild(el("span", "wp-n", w.name));
         tiles.push(t);
         grid.appendChild(t);
       })(list[i]);
     }
     set(value);
-    f.appendChild(lab); f.appendChild(grid);
+    f.appendChild(lab); f.appendChild(grid); f.appendChild(line);
     parent.appendChild(f);
+  }
+
+  /* "A soft chime at about 9:42." — the session's end as a time on the
+     device's own clock, so twenty minutes means something you can plan
+     around. Nothing for no timer. */
+  function whenText(len) {
+    if (!len) return "";
+    try {
+      return "A soft chime at about " +
+        new Date(Date.now() + len * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".";
+    } catch (e) { return ""; }
+  }
+  /* has this player been shown the moves? Without the app's answer, the
+     link to them isn't offered at all */
+  function movesShown() {
+    if (typeof o.firstStepsDone !== "function") return true;
+    try { return !!o.firstStepsDone(); } catch (e) { return true; }
   }
 
   function openEntry() {
@@ -527,36 +701,57 @@ Steady.create = function (o) {
     var c = chosen();
     var sheet = shell("ovSteady");
     sheet.classList.add("st-entry");
-    closeButton(sheet, "Close", function () { hide("ovSteady"); });
+    closeButton(sheet, "Close", function () { hide("ovSteady"); untint(); });
     heading(sheet, "ovSteady", "Steady");
     sheet.appendChild(el("p", "lead", "A quiet twenty minutes. Slow, even, nothing sudden."));
+    /* the card is lit in the world it is about to open on */
+    tintTo(c.world);
 
     /* On a short screen only the choices scroll; Begin never leaves the
        card, because everything is already chosen and Begin is the one
        thing anybody has to press. */
     var body = el("div", "st-body");
-    segField(body, "Length (minutes)", LENGTHS, c.length, function (v) { c.length = v; });
+    var when = el("p", "st-when");
+    function paintWhen() {
+      var t = whenText(c.length);
+      when.classList.toggle("hide", !t);
+      if (t) when.innerHTML = icon("clock") + "<span>" + t + "</span>";
+    }
+    var lenField = segField(body, "Length (minutes)", LENGTHS, c.length, function (v) { c.length = v; paintWhen(); });
+    lenField.appendChild(when);
+    paintWhen();
+    /* the clock moves on while the card is open; the time it promises
+       moves with it, quietly, a minute at a time */
+    whenTimer = setInterval(function () {
+      if (!isOpen("ovSteady") || !when.parentNode) { clearInterval(whenTimer); whenTimer = 0; return; }
+      if (when.textContent !== whenText(c.length)) paintWhen();
+    }, 15000);
     segField(body, "Pace", PACES, c.pace, function (v) { c.pace = v; });
     segField(body, "Landing light", LANDING, c.landing, function (v) { c.landing = v; });
     segField(body, "Sound", SOUNDS, c.sound, function (v) { c.sound = v; });
-    worldField(body, c.world, function (v) { c.world = v; });
+    worldField(body, c.world, function (v) { c.world = v; tintTo(v); });
     sheet.appendChild(body);
 
-    var foot = el("div", "st-foot"), go = el("div", "st-go");
+    var foot = el("div", "st-foot");
     var begin = button("Begin", "primary", function () { start(c); });
-    go.appendChild(begin);
-    foot.appendChild(go);
-    var whyLink = button("Why this game?", null, function () { why(); });
-    whyLink.className = "st-link";
-    foot.appendChild(whyLink);
+    begin.classList.add("st-begin");
+    foot.appendChild(begin);
+    var links = el("div", "st-links");
+    links.appendChild(button("Why this game?", "quiet", function () { why(); }));
+    if (!movesShown()) {
+      var mv = button("", "quiet", function () { safe(o.onMoves); });
+      mv.innerHTML = "<span>New to the moves? See them first</span>" + icon("chevron");
+      links.appendChild(mv);
+    }
+    foot.appendChild(links);
     sheet.appendChild(foot);
 
-    esc.ovSteady = function () { hide("ovSteady"); };
+    esc.ovSteady = function () { hide("ovSteady"); untint(); };
     show("ovSteady", begin);
     overflowHint(sheet, body);
   }
 
-  /* a soft shadow over Begin while there is more to scroll to above it */
+  /* a hairline over Begin while there is more to scroll to above it */
   function overflowHint(sheet, body) {
     function check() {
       if (!sheet.parentNode) return;
@@ -583,7 +778,11 @@ Steady.create = function (o) {
     setPref("steadySound", c.sound);
     setPref("steadyWorld", c.world);
     var seen = pref("seen", {}) || {};
-    if (!seen.steadyTip || (touchHands() && !seen.touchCards)) openTip(c);
+    /* the tip comes once. (An app from before the moves were taught on
+       the well also brought a first session on glass here to learn the
+       gestures; that app says nothing about first steps.) */
+    var legacy = typeof o.firstStepsDone !== "function";
+    if (!seen.steadyTip || (legacy && touchHands() && !seen.touchCards)) openTip(c);
     else go(c);
   }
   /* is this a touch screen in use? The app knows which hands were used
@@ -596,6 +795,9 @@ Steady.create = function (o) {
   }
 
   function go(c) {
+    /* the light goes back to the room, and the run that starts lights it
+       in its own world straight after, in the same moment */
+    untint();
     hide("ovSteady");
     sess = newSession(c, 0);
     flow = "pause";
@@ -603,45 +805,41 @@ Steady.create = function (o) {
   }
 
   /* ---------- the tip, once ---------- */
-  function tipArt(world) {
+  function tipArt() {
     /* A slice of the well: two rows of stack with a T-shaped slot in them.
        First an imagined piece — dashed, because it is only pictured —
        turns over and settles into the slot; then the real piece follows
        it down the same way. Eight slow seconds a loop. Under reduced
        motion it is a still diagram of the same idea: the piece, a turn,
-       and where it will land. */
-    var k = world.key, cell = 20, ox = 20, oy = 6, x, y, i;
+       and where it will land. The lines are the room's ink and the piece
+       is the world's key light, both by class, so the drawing is lit like
+       the card around it. */
+    var cell = 20, ox = 20, oy = 6, x, y, i;
     var slot = [[1, 5], [2, 5], [3, 5], [2, 6]];
-    function rect(cx, cy, attrs) {
-      return "<rect x=\"" + (ox + cx * cell + 1.5) + "\" y=\"" + (oy + cy * cell + 1.5) + "\" width=\"" + (cell - 3) +
-        "\" height=\"" + (cell - 3) + "\" rx=\"4\" " + attrs + "/>";
+    function rect(cx, cy, cls) {
+      return "<rect class=\"" + cls + "\" x=\"" + (ox + cx * cell + 1.5) + "\" y=\"" + (oy + cy * cell + 1.5) + "\" width=\"" + (cell - 3) +
+        "\" height=\"" + (cell - 3) + "\" rx=\"4\"/>";
     }
-    function piece(attrs) {
+    function piece(cls) {
       var out = "";
-      for (i = 0; i < 4; i++) out += rect(slot[i][0], slot[i][1], attrs);
+      for (i = 0; i < 4; i++) out += rect(slot[i][0], slot[i][1], cls);
       return out;
     }
-    var solid = "fill=\"" + rgba(k, 0.86) + "\"";
-    var dashed = "fill=\"" + rgba(k, 0.06) + "\" stroke=\"" + k + "\" stroke-width=\"1.5\" stroke-dasharray=\"3.5 2.5\"";
     var cx = ox + 2.5 * cell, cy = oy + 5.5 * cell;   /* the T turns about the middle of its bar */
-    var s = "<svg class=\"st-art\" viewBox=\"0 0 160 152\" aria-hidden=\"true\">";
+    var s = "<svg class=\"st-art\" viewBox=\"0 0 160 152\" aria-hidden=\"true\" focusable=\"false\">";
     /* the walls and floor of the well */
-    s += "<path d=\"M" + (ox - 4) + " " + oy + "V" + (oy + 7 * cell + 4) + "H" + (ox + 6 * cell + 4) + "V" + oy +
-      "\" fill=\"none\" stroke=\"rgba(255,255,255,.16)\" stroke-width=\"2\" stroke-linejoin=\"round\"/>";
+    s += "<path class=\"w\" d=\"M" + (ox - 4) + " " + oy + "V" + (oy + 7 * cell + 4) + "H" + (ox + 6 * cell + 4) + "V" + oy + "\"/>";
     for (y = 5; y <= 6; y++) for (x = 0; x < 6; x++) {
       if ((y === 5 && x >= 1 && x <= 3) || (y === 6 && x === 2)) continue;
-      s += rect(x, y, "fill=\"rgba(255,255,255,.13)\"");
+      s += rect(x, y, "s");
     }
     if (reduced()) {
       /* the piece as it arrives (pointing up), a turn, and its landing */
-      s += "<g transform=\"translate(0 -80) rotate(180 " + cx + " " + cy + ")\">" + piece(solid) + "</g>";
-      s += "<path d=\"M" + (ox + 4.6 * cell) + " " + (oy + 0.6 * cell) + "a 13 13 0 1 1 -4 22\" fill=\"none\" stroke=\"" +
-        rgba(k, 0.7) + "\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>" +
-        "<path d=\"M" + (ox + 4.6 * cell - 9) + " " + (oy + 0.6 * cell + 21) + "l5 1.6 -1.4 5\" fill=\"none\" stroke=\"" +
-        rgba(k, 0.7) + "\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>";
-      s += "<path d=\"M" + cx + " " + (oy + 2.4 * cell) + "V" + (oy + 4.6 * cell) + "\" stroke=\"" + rgba(k, 0.45) +
-        "\" stroke-width=\"1.5\" stroke-dasharray=\"2 4\" stroke-linecap=\"round\"/>";
-      s += piece(dashed);
+      s += "<g transform=\"translate(0 -80) rotate(180 " + cx + " " + cy + ")\">" + piece("p") + "</g>";
+      s += "<path class=\"a\" d=\"M" + (ox + 4.6 * cell) + " " + (oy + 0.6 * cell) + "a 13 13 0 1 1 -4 22\"/>" +
+        "<path class=\"a\" d=\"M" + (ox + 4.6 * cell - 9) + " " + (oy + 0.6 * cell + 21) + "l5 1.6 -1.4 5\"/>";
+      s += "<path class=\"t\" d=\"M" + cx + " " + (oy + 2.4 * cell) + "V" + (oy + 4.6 * cell) + "\"/>";
+      s += piece("d");
       return s + "</svg>";
     }
     var D = "dur=\"8s\" repeatCount=\"indefinite\"";
@@ -657,30 +855,32 @@ Steady.create = function (o) {
     }
     /* the real piece waits at the top while the imagined one goes first */
     s += "<g opacity=\"0\"><animate attributeName=\"opacity\" values=\"0;.95;.95;0\" keyTimes=\"0;.05;.9;1\" " + D + "/>" +
-      "<g>" + move("0;.6;.74;1") + "<g transform=\"rotate(180 " + cx + " " + cy + ")\">" + turn("0;.48;.6;1") + piece(solid) + "</g></g></g>";
+      "<g>" + move("0;.6;.74;1") + "<g transform=\"rotate(180 " + cx + " " + cy + ")\">" + turn("0;.48;.6;1") + piece("p") + "</g></g></g>";
     s += "<g opacity=\"0\"><animate attributeName=\"opacity\" values=\"0;0;1;1;.7;0;0\" keyTimes=\"0;.05;.1;.46;.7;.76;1\" " + D + "/>" +
-      "<g>" + move("0;.3;.44;1") + "<g transform=\"rotate(180 " + cx + " " + cy + ")\">" + turn("0;.12;.28;1") + piece(dashed) + "</g></g></g>";
+      "<g>" + move("0;.3;.44;1") + "<g transform=\"rotate(180 " + cx + " " + cy + ")\">" + turn("0;.12;.28;1") + piece("d") + "</g></g></g>";
     return s + "</svg>";
   }
 
   function openTip(c) {
     var seen = pref("seen", {}) || {}, next = {};
     for (var k in seen) if (Object.prototype.hasOwnProperty.call(seen, k)) next[k] = seen[k];
-    /* Steady shows no words during play, so a first session on glass
-       learns the four gestures here, between sessions, in one line — and
-       they are then taught, so no other mode repeats them as cards */
-    var teach = touchHands() && !seen.touchCards;
+    /* Steady shows no words during play, and the moves are taught on the
+       well itself only in the other modes. So a first session on glass, by
+       someone who hasn't been shown the moves, gets the four gestures here,
+       between sessions, in one line. */
+    var legacy = typeof o.firstStepsDone !== "function";
+    var teach = touchHands() && (legacy ? !seen.touchCards : !movesShown());
     next.steadyTip = true;
-    if (teach) next.touchCards = true;
+    if (teach && legacy) next.touchCards = true;
     setPref("seen", next);
 
     var sheet = shell("ovSteady");
     /* the room's ✕ always closes its sheet (app.js answers every one), so
        this one does too; the choices are already saved for next time */
-    closeButton(sheet, "Close", function () { hide("ovSteady"); });
+    closeButton(sheet, "Close", function () { hide("ovSteady"); untint(); });
     heading(sheet, "ovSteady", "A game skill to try");
     var art = el("div");
-    art.innerHTML = tipArt(worldById(c.world));
+    art.innerHTML = tipArt();
     sheet.appendChild(art.firstChild);
     sheet.appendChild(el("p", "st-tip", TIP));
     sheet.appendChild(el("p", "st-small", "It's only a suggestion. Play however feels right."));
@@ -688,14 +888,14 @@ Steady.create = function (o) {
       var ctl = el("ul", "st-ctl");
       ctl.setAttribute("aria-label", "How to play");
       var how = ["Drag to move", "Tap to turn", "Flick down to drop", "Flick up to keep"];
-      for (var h = 0; h < how.length; h++) ctl.appendChild(el("li", null, how[h]));
+      for (var h = 0; h < how.length; h++) ctl.appendChild(el("li", "chip", how[h]));
       sheet.appendChild(ctl);
     }
     var goWrap = el("div", "st-go");
     var b = button("Begin", "primary", function () { go(c); });
     goWrap.appendChild(b);
     sheet.appendChild(goWrap);
-    esc.ovSteady = function () { hide("ovSteady"); };
+    esc.ovSteady = function () { hide("ovSteady"); untint(); };
     show("ovSteady", b);
   }
 
@@ -725,11 +925,11 @@ Steady.create = function (o) {
   function renderEnd() {
     stopBreath(false);
     hideAll("ovSteady");
-    var world = currentWorld();
     var mins = sess && sess.last ? sess.last / 60000 : (sess ? sess.length : 20);
-    var sheet = shell("ovSteady");
+    /* a card that asks for a choice: a stray swipe never dismisses it */
+    var sheet = shell("ovSteady", false, true);
     var box = el("div", "st-center");
-    box.appendChild(glow(world));
+    box.appendChild(glow());
     heading(box, "ovSteady", "That's " + minutesWords(mins) + ". Nicely done.", "st-big");
     sheet.appendChild(box);
     var stack = el("div", "st-stack");
@@ -774,31 +974,20 @@ Steady.create = function (o) {
     stopBreath(false);
     if (flow === "end") hide("ovSteady");
     hide("ovGround");
-    var world = currentWorld(), sky = world.sky || {};
+    /* the world's sky behind one circle of its key light (the CSS reads
+       both from the room's tint, which is the session's world); the
+       halted well shows through faintly above, and the words and buttons
+       sit on near-black */
     var sheet = shell("ovBreathe", true);
-    /* the world's horizon glows behind the circle; the halted well shows
-       through faintly above, and the words and buttons sit on near-black */
-    document.getElementById("ovBreathe").style.background =
-      "radial-gradient(60% 46% at 50% 40%, " + rgba(sky.horizon || "#2a3142", 0.5) + " 0%, " + rgba(sky.horizon || "#2a3142", 0) + " 100%)," +
-      "linear-gradient(180deg, " + rgba(sky.top || "#10141f", 0.88) + " 0%, " + rgba(sky.top || "#10141f", 0.93) + " 46%, rgba(5,6,10,.97) 76%)";
-
-    var title = el("div", "st-btitle", "A minute of breathing");
-    title.id = "ovBreatheTitle";
-    document.getElementById("ovBreathe").setAttribute("aria-labelledby", title.id);
+    var title = titleOf("ovBreathe", el("div", "st-btitle", "A minute of breathing"));
     sheet.appendChild(title);
 
     var mid = el("div", "st-bmid");
     var box = el("div", "st-orbbox");
     box.setAttribute("aria-hidden", "true");
-    var ring = el("div", "st-ring"), orb = el("div", "st-orb");
     /* the faint ring is the full breath, so the eye knows where the circle
-       is going; the circle itself is the world's key light, warmest at
-       the centre and fading through its rim colour */
-    ring.style.border = "1.5px solid " + rgba(world.rim, 0.3);
-    ring.style.boxShadow = "inset 0 0 40px " + rgba(world.rim, 0.06);
-    orb.style.background = "radial-gradient(circle at 50% 46%, " + rgba(world.key, 0.96) + " 0%, " +
-      rgba(world.key, 0.62) + " 26%, " + rgba(world.rim, 0.26) + " 52%, " + rgba(world.rim, 0.08) + " 64%, " +
-      rgba(world.rim, 0) + " 71%)";
+       is going */
+    var ring = el("div", "st-ring"), orb = el("div", "st-orb");
     box.appendChild(ring); box.appendChild(orb);
     mid.appendChild(box);
     var word = el("div", "st-word", "Follow the circle");
@@ -810,7 +999,7 @@ Steady.create = function (o) {
     sheet.appendChild(mid);
 
     var foot = el("div", "st-bfoot");
-    var seg = el("div", "st-seg"), line = el("div", "st-line"), pb = {};
+    var seg = el("div", "seg"), line = el("p", "seg-line"), pb = {};
     seg.setAttribute("role", "group");
     seg.setAttribute("aria-label", "Breathing pattern");
     ["longer", "even"].forEach(function (id) {
@@ -836,7 +1025,7 @@ Steady.create = function (o) {
     sheet.appendChild(foot);
 
     B = { on: true, t: 0, last: 0, k: 0, c0: 0, cyc: BREATHS[pattern], raf: 0, mt: -1e9, word: "",
-          orb: orb, wordEl: word, dots: dots, foot: foot, key: world.key, still: reduced(), lastIn: null };
+          orb: orb, wordEl: word, dots: dots, foot: foot, still: reduced(), lastIn: null };
     drawDots();
     paintOrb(0, 0);
     esc.ovBreathe = skipBreath;
@@ -850,10 +1039,7 @@ Steady.create = function (o) {
     var n = BREATHS[pattern].n, d = B.dots;
     while (d.firstChild) d.removeChild(d.firstChild);
     for (var i = 0; i < n; i++) {
-      var dot = el("span", "st-dot");
-      if (i < B.k) dot.style.background = B.key;
-      else if (i === B.k && B.t > LEAD_IN) dot.style.boxShadow = "0 0 0 2px " + rgba(B.key, 0.45);
-      d.appendChild(dot);
+      d.appendChild(el("span", "st-dot" + (i < B.k ? " lit" : i === B.k && B.t > LEAD_IN ? " now" : "")));
     }
   }
 
@@ -978,18 +1164,12 @@ Steady.create = function (o) {
     stopBreath(false);
     hide("ovBreathe");
     if (flow === "end") hide("ovSteady");
-    var world = currentWorld(), i = 0;
+    var i = 0;
     var sheet = shell("ovGround");
     closeButton(sheet, "Stop here", stopHere);
-    var title = el("div", "st-label", "Noticing");
-    title.id = "ovGroundTitle";
-    title.style.justifyContent = "center";
-    title.style.margin = "8px 40px 0";
+    var title = titleOf("ovGround", el("div", "st-label st-gtitle", "Noticing"));
     sheet.appendChild(title);
-    document.getElementById("ovGround").setAttribute("aria-labelledby", title.id);
     var num = el("div", "st-num st-fade"), sense = el("p", "st-sense st-fade");
-    num.style.color = world.key;
-    num.style.textShadow = "0 0 28px " + rgba(world.key, 0.35);
     num.setAttribute("aria-hidden", "true");
     sense.setAttribute("aria-live", "polite");
     var gdots = el("div", "st-gdots");
@@ -1007,11 +1187,7 @@ Steady.create = function (o) {
         num.textContent = NOTICE[i][0];
         sense.textContent = NOTICE[i][1];
         while (gdots.firstChild) gdots.removeChild(gdots.firstChild);
-        for (var d = 0; d < NOTICE.length; d++) {
-          var dot = el("span", "st-dot");
-          if (d <= i) dot.style.background = world.key;
-          gdots.appendChild(dot);
-        }
+        for (var d = 0; d < NOTICE.length; d++) gdots.appendChild(el("span", "st-dot" + (d <= i ? " lit" : "")));
         while (actions.firstChild) actions.removeChild(actions.firstChild);
         var main;
         if (i < NOTICE.length - 1) {
@@ -1042,27 +1218,18 @@ Steady.create = function (o) {
      close, and the help lines
      ================================================================ */
   function openClose() {
-    var world = currentWorld();
-    var sheet = shell("ovClose");
+    /* a card that asks for a choice, however small: Done, or who to talk to */
+    var sheet = shell("ovClose", false, true);
     var box = el("div", "st-center");
-    box.appendChild(glow(world, 56));
-    var h = el("h2", "st-thanks", "Thank you for spending this time at the well.");
-    h.id = "ovCloseTitle";
-    box.appendChild(h);
-    document.getElementById("ovClose").setAttribute("aria-labelledby", h.id);
+    box.appendChild(glow(true));
+    heading(box, "ovClose", "Thank you for spending this time at the well.", "st-thanks");
     sheet.appendChild(box);
     var stack = el("div", "st-stack");
-    stack.style.marginTop = "22px";
     var done = button("Done", "primary", function () { hide("ovClose"); });
     stack.appendChild(done);
     sheet.appendChild(stack);
     /* small and quiet, under everything else: there if it is wanted */
-    var help = button("If things feel heavy, here's who to talk to", null, function () { openHelp(); });
-    help.className = "st-link";
-    help.style.display = "flex";
-    help.style.margin = "14px auto 0";
-    help.style.fontSize = ".88rem";
-    help.style.color = "var(--soft)";
+    var help = button("If things feel heavy, here's who to talk to", "quiet st-quietlink", function () { openHelp(); });
     sheet.appendChild(help);
     esc.ovClose = function () { hide("ovClose"); };
     show("ovClose", done);
@@ -1094,7 +1261,6 @@ Steady.create = function (o) {
       body.appendChild(el("p", "st-tip", "If you or someone else is in immediate danger, call your local emergency number."));
     }
     var stack = el("div", "st-stack");
-    stack.style.marginTop = "18px";
     stack.appendChild(button("Done", "", function () { hide("ovHelp"); }));
     sheet.appendChild(stack);
     esc.ovHelp = function () { hide("ovHelp"); };
@@ -1115,29 +1281,50 @@ Steady.create = function (o) {
     }
   }
 
-  /* ---------- the pause sheet's extra row ---------- */
-  function pauseExtras(host) {
-    if (!host) return null;
-    var old = host.querySelector(".st-pauseExtras");
-    if (old) old.parentNode.removeChild(old);
-    var box = el("div", "st-pauseExtras");
-    var r1 = el("div", "row"), r2 = el("div", "row");
-    /* ids, so the pause sheet can come back with the focus where it was */
-    var bb = button("Breathe", "", function () { openBreathe("pause"); });
-    bb.id = "stxBreathe";
-    var bw = button("Why this game?", "", function () { why(); });
-    bw.id = "stxWhy";
-    var bh = button("Help lines", "", function () { openHelp(); });
-    bh.id = "stxHelp";
-    /* Finish and the pause sheet's Leave sit near each other and mean
-       different things, so each says which in a few small words */
+  /* ---------- the pause sheet's extras ----------
+     pauseExtras(listEl, footEl): three rows at the top of the pause
+     sheet's list — Breathe, Why this game?, Help lines — and Finish in its
+     foot, beside the app's own Leave. Finish and Leave sit side by side and
+     mean different things, so each says which in a few small words.
+
+     The ids stay as they were, so the pause sheet can come back with the
+     focus where it was. Called again, it replaces what it put there. An
+     app that hands over a single box instead (the shape before the list)
+     gets the same rows as a list of their own, with Finish under it. */
+  function row(id, label, ic, fn) {
+    var b = button("", null, fn);
+    b.className = "li";
+    b.id = id;
+    b.setAttribute("data-stx", "1");
+    b.innerHTML = "<span class=\"li-ic\">" + icon(ic) + "</span><span class=\"li-t\"></span>" + icon("chevron", "chev");
+    b.querySelector(".li-t").textContent = label;
+    return b;
+  }
+  function pauseExtras(listEl, footEl) {
+    if (!listEl) return null;
+    var old = document.querySelectorAll("[data-stx]");
+    for (var i = 0; i < old.length; i++) if (old[i].parentNode) old[i].parentNode.removeChild(old[i]);
+    var rows = [
+      row("stxBreathe", "Breathe", "breath", function () { openBreathe("pause"); }),
+      row("stxWhy", "Why this game?", "learn", function () { why(); }),
+      row("stxHelp", "Help lines", "about", function () { openHelp(); })
+    ];
     var bf = button("Finish", "two", function () { finish("pause", false); });
     bf.id = "stxFinish";
-    bf.appendChild(el("small", "bsub", "end the session"));
-    r1.appendChild(bb); r1.appendChild(bw);
-    r2.appendChild(bh); r2.appendChild(bf);
-    box.appendChild(r1); box.appendChild(r2);
-    host.appendChild(box);
+    bf.setAttribute("data-stx", "1");
+    bf.appendChild(el("span", "bsub", "end the session"));
+    if (footEl) {
+      var first = listEl.firstChild;
+      for (i = 0; i < rows.length; i++) listEl.insertBefore(rows[i], first);
+      footEl.appendChild(bf);
+      return listEl;
+    }
+    var box = el("div", "st-pauseExtras"), list = el("div", "list icons"), fin = el("div", "st-fin");
+    box.setAttribute("data-stx", "1");
+    for (i = 0; i < rows.length; i++) list.appendChild(rows[i]);
+    fin.appendChild(bf);
+    box.appendChild(list); box.appendChild(fin);
+    listEl.appendChild(box);
     return box;
   }
 

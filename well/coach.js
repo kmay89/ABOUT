@@ -716,12 +716,13 @@ Coach.create = function (o) {
     target(null);
     if (!again) {
       if (kind === "finesse") say("Put each piece on its outline in as few presses as you can. A held slide counts once.", "info");
-      else if (kind === "keep") say(spell(need, true) + " pieces without covering a hole. Keep, and the pieces waiting above, are there to help.", "info");
+      else if (kind === "keep") say(spell(need, true) + " pieces without covering a hole. Keep, and the pieces waiting above, can help.", "info");
       else if (kind === "clean") say("Keep nine columns flat and the right-hand one open. " + spell(need, true) + " Quads before forty lines.", "info");
       else if (kind === "slot" && prepared()) say("Find three filled corners around one empty cell. Turn the T into it for a Twist Double.", "info");
-      /* the later two start from an empty well: the slot is yours to make */
-      else if (kind === "slot") say("Build a ledge with a gap beneath it: three filled corners around one empty cell. Then turn the T in for a Twist Double." +
-                                     (inRow() ? " Any other clear starts the count again." : ""), "info");
+      /* the later two start from an empty well: the slot is yours to make
+         (each line the coach says fits on one line of its card: 90 at most) */
+      else if (kind === "slot" && inRow()) say(spell(need, true) + " Twist Doubles in a row, in slots of your own. Other clears start the count again.", "info");
+      else if (kind === "slot") say("Build three filled corners around one empty cell, then turn the T in for a Twist Double.", "info");
       else if (kind === "silt") say("Dig through the silt. Each row has one gap; clear all " + spell(need) + ".", "info");
     }
     newPiece(g);
@@ -810,7 +811,7 @@ Coach.create = function (o) {
     if (kind === "keep" && phase === "lesson" && g) {
       var after = holes(settled(g.board));
       if (after > piece.holes) {
-        if (done > 0) say("That covered a hole, so the count starts again. Keep can save a piece that has nowhere clean to go.", "tip");
+        if (done > 0) say("That covered a hole, so the count starts again. Keep saves a piece with no clean spot.", "tip");
         done = 0;
       } else {
         done++;
@@ -911,7 +912,7 @@ Coach.create = function (o) {
       if (want && letterOf(want.type) === letterOf(a.type)) {
         var path = route(g.board, a.type, { rot: a.rot, x: a.x, y: a.y }, want, want.twist || "full", isModern(g));
         var bd = lesson.boards[board % lesson.boards.length];
-        var d = describe(g, want, path || [], (bd && bd.hint) || "Three filled corners around one empty cell: the T fits there. Slide in under the overhang, then turn it into place.");
+        var d = describe(g, want, path || [], (bd && bd.hint) || "Three filled corners around one empty cell: slide the T under, then turn it in.");
         d.twist = want.twist || "full";
         if (!path) d.text = "The T fits in the outlined slot, turned in at the last moment.";
         /* a hint shows where and why; the presses are what Watch is for */

@@ -23,33 +23,328 @@
 <style>
   /* well's own colour, over the house style in look.css.
 
-     The room is the deep blue-black of the bottom of a well at night, and
-     the accent is Dawn's rim light — the first world's colour, so the room
-     and the game it opens on agree. Nothing here is red: --bad is a muted
-     lilac, because the brief bans red-black danger anywhere in the room,
-     and a house class that happens to say "warn" is still on screen.
+     The chrome takes its light from the world. Every colour that is not a
+     neutral is a channel triplet on :root — the world's key light, its rim
+     light, its sky — and app.js rewrites those few numbers whenever the
+     world changes, so a sheet opened at Moon Pool is moonlit glass and the
+     same sheet at Lanterns is warm. The neutrals (ink, hairlines, fills)
+     never change, and they were measured against the worst sky and the
+     brightest frost of all ten worlds, so whatever the triplets say, the
+     words stay readable. Nothing is red: the brief bans red-black danger
+     anywhere in the room, and danger never tints the chrome at all.
 
-     Two rules from the platform research shape most of what follows.
-     Safari 26 tints its own toolbars by sampling the page, so html and body
-     carry an explicit dark background rather than inheriting transparent
-     white. And nothing that sits over the canvas uses backdrop-filter or
-     filter: a blur over a WebGL surface costs a full-screen pass every
-     frame, which is the one thing a 240 Hz game cannot spend.            */
+     Three rules from the platform research shape the rest. Safari tints its
+     own toolbars by sampling the page, so html and body carry an explicit
+     dark background. Nothing that sits over the canvas uses backdrop-filter
+     or filter: a blur over a WebGL surface costs a full-screen pass every
+     frame, which is the one thing a 240 Hz game cannot spend. The glass
+     behind a sheet is instead the frost plate — one 32-pixel snapshot of
+     the well, taken once when a sheet opens and stretched to fill the
+     screen, so it costs a single drawImage rather than a blur a frame. And
+     iOS 15 is the floor: no colour-mixing functions, no parent selector,
+     no dialog element, and dvh only after a vh fallback.                                            */
   :root{
-    --room:#0b0d14; --card:#121624; --card2:#1a1f31; --line:#2b3249;
-    --ink:#eef0f8; --soft:#a6afc9; --accent:#9fb4ff; --accent-dim:#7a8fe0;
-    --accent-ink:#0a0f24; --glow:#ffe2c4; --good:#8fd8c0; --bad:#cdb0e0; --blue:#9fb4ff;
-    --safe-r:env(safe-area-inset-right, 0px); --safe-l:env(safe-area-inset-left, 0px);
-    --ts:1;
+    /* fixed */
+    --room:#0b0d14;
+    --ink:#eef0f8;  --ink-2:#b4bcd4;  --ink-3:#8e97b3;
+    --hair:rgb(238 240 248 / .08);  --hair-2:rgb(238 240 248 / .14);
+    --fill-1:rgb(238 240 248 / .05); --fill-2:rgb(238 240 248 / .09); --fill-3:rgb(238 240 248 / .14);
+    --on-key:#0b0d14;  --good:#a9d6c2;  --bad:#cdb0e0;
+    --scrim:rgb(5 6 12 / .42);
+    /* world light: triplets, written by app.js tint() on every world change (Dawn shown) */
+    --wk:255 226 196;
+    --wr:159 180 255;
+    --wa:179 195 253;
+    --wsky0:20 24 51;  --wsky1:74 53 82;
+    --glass:25 29 43;  --glass2:34 39 57;
+    /* look.css names, re-pointed so house components and module CSS follow the world */
+    --card:rgb(var(--glass)); --card2:rgb(var(--glass2)); --line:var(--hair-2); --soft:var(--ink-2);
+    --accent:rgb(var(--wa)); --accent-dim:rgb(var(--wa)); --accent-ink:var(--on-key);
+    --glow:rgb(var(--wk)); --blue:rgb(var(--wa));
+    --shadow:0 30px 80px rgb(0 0 0 / .5), 0 2px 8px rgb(0 0 0 / .3);
+    /* type */
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --serif:ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    /* space, radii */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s7:32px; --s8:40px; --s9:56px;
+    --r1:8px; --r2:12px; --r3:16px; --r4:24px; --r5:28px;
+    /* motion */
+    --e-out:cubic-bezier(.22,1,.36,1); --e-in:cubic-bezier(.4,0,1,1); --e-sheet:cubic-bezier(.32,.72,0,1);
+    --whisper:0 1px 2px rgb(0 0 0 / .5), 0 0 14px rgb(0 0 0 / .4);
+    /* existing */
+    --safe-r:env(safe-area-inset-right,0px); --safe-l:env(safe-area-inset-left,0px); --ts:1;
   }
   html,body{background:#0b0d14}
   html{font-size:calc(16px * var(--ts))}
-  body{font-size:1rem}
+  body{font-family:var(--sans); font-size:1rem; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility}
   .vh{position:absolute !important; width:1px; height:1px; margin:-1px; padding:0; border:0;
       overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap}
-  :focus-visible{outline:2px solid var(--glow); outline-offset:2px}
-  button:focus:not(:focus-visible){outline:none}
+  em.wn-i,i.nm{font-style:italic}
 
+  /* ---------- focus: one ring, for the keyboard only ----------
+     app.js says which hands are in use (html.kbd from a key, gone at the
+     next touch or click), so the default button a sheet focuses for the
+     keyboard shows its ring, and the same focus after a tap shows none.
+     Inside a grouped list or a segmented control the ring is drawn inside
+     the row, where the group's rounded clip can't cut it off. */
+  :focus{outline:none}
+  html.kbd :focus{outline:2px solid rgb(var(--wk)); outline-offset:3px}
+  html.kbd .seg :focus,html.kbd .list :focus,html.kbd .oc:focus,html.kbd .ocs :focus,html.kbd .mc-h:focus{outline-offset:-3px}
+
+  /* ---------- icons: one inline sprite, drawn in the text's colour ---------- */
+  svg.ic{width:22px; height:22px; flex:none; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+  svg.ic.s16{width:16px; height:16px} svg.ic.s18{width:18px; height:18px} svg.ic.s20{width:20px; height:20px}
+
+  /* ================================================================
+     the component kit — sheets.js, steady.js, learn.js and guide.js draw
+     with these classes too, so every sheet in the room is one material
+     ================================================================ */
+  /* ---------- buttons (over look.css .btn: no lip, no gradient, no bounce) ---------- */
+  .btn{min-height:52px; border-radius:var(--r3); background:var(--fill-1); border:1px solid var(--hair-2);
+    color:var(--ink); font:500 1rem/1.2 var(--sans); letter-spacing:0; padding:6px 16px; box-shadow:none;
+    background-image:none; transition:transform .1s var(--e-out), background-color .12s, border-color .12s, opacity .15s}
+  .btn:active,.btn.down{transform:scale(.97); box-shadow:none}
+  @media (hover:hover){.btn:hover{background-color:var(--fill-2)}}
+  .btn.primary{background:rgb(var(--wk)); color:var(--on-key); border-color:transparent; font-weight:600;
+    box-shadow:inset 0 1px 0 rgb(255 255 255 / .45), 0 10px 28px -14px rgb(var(--wk) / .6)}
+  @media (hover:hover){.btn.primary:hover{background:rgb(var(--wk)); box-shadow:inset 0 1px 0 rgb(255 255 255 / .55), 0 12px 32px -12px rgb(var(--wk) / .7)}}
+  .btn.primary:active{background:rgb(var(--wk) / .9)}
+  .btn.quiet{background:none; border-color:transparent; color:var(--ink-2); min-height:44px; padding:0 12px; flex:none}
+  @media (hover:hover){.btn.quiet:hover{background:var(--fill-1); color:var(--ink)}}
+  .btn.small{min-height:44px; padding:0 16px; font-size:.9375rem; flex:none}
+  .btn.two{flex-direction:column; gap:2px}
+  .btn .bsub{display:block; font:400 .8125rem/1.1 var(--sans); color:var(--ink-2)}
+  .btn.primary .bsub{color:rgb(11 13 20 / .7)}
+  .btn[disabled]{opacity:.4}
+  .ibtn{width:44px; height:44px; flex:none; border-radius:999px; display:inline-flex; align-items:center;
+    justify-content:center; color:var(--ink-2); background:none; border:0; padding:0}
+  @media (hover:hover){.ibtn:hover{background:var(--fill-1); color:var(--ink)}}
+  .ibtn:active{background:var(--fill-2)}
+  @media (min-width:900px) and (pointer:fine){ .btn{min-height:48px} .li,.sw{font-size:1rem} }
+
+  /* ---------- sheets ---------- */
+  .ov{z-index:50; background:var(--scrim); backdrop-filter:none; -webkit-backdrop-filter:none;
+    padding:calc(var(--safe-top) + 16px) calc(var(--safe-r) + 16px) calc(var(--safe-bot) + 16px) calc(var(--safe-l) + 16px);
+    animation:ovIn .24s var(--e-out)}
+  .sheet{position:relative; background:linear-gradient(180deg, rgb(var(--wsky1) / .28), rgb(var(--wsky1) / 0) 180px), rgb(var(--glass) / .82);
+    border:1px solid var(--hair); border-radius:var(--r4); box-shadow:inset 0 1px 0 rgb(var(--wk) / .08), var(--shadow);
+    color:var(--ink); width:min(440px,100%); max-height:min(86vh,780px); padding:0 24px 24px;
+    scroll-padding-top:72px; overscroll-behavior:contain; animation:panelIn .24s var(--e-out)}
+  .ov.swap{animation:none} .ov.swap>.sheet{animation:swapIn .26s var(--e-out)}
+  .grab{display:none; width:36px; height:5px; border-radius:3px; background:rgb(238 240 248 / .28); margin:8px auto 0; position:relative}
+  .grab:after{content:""; position:absolute; left:-24px; right:-24px; top:-10px; bottom:-10px}
+  /* The title bar spans the sheet and is clear glass while the sheet is
+     at its top; once anything scrolls under it (app.js marks the sheet
+     .scrolled) it frosts over, with a short fade beneath, the way a
+     native sheet's bar does. */
+  .shead{position:sticky; top:0; z-index:3; display:flex; align-items:center; gap:4px; min-height:56px;
+    margin:0 -24px 8px; padding:8px 12px 4px 24px; background:transparent; transition:background-color .2s}
+  .shead:after{content:""; position:absolute; left:0; right:0; top:100%; height:12px; pointer-events:none; opacity:0;
+    background:linear-gradient(rgb(var(--glass)), rgb(var(--glass) / 0)); transition:opacity .2s}
+  .sheet.scrolled .shead{background:linear-gradient(rgb(var(--wsky1) / .16), rgb(var(--wsky1) / .16)), rgb(var(--glass))}
+  .sheet.scrolled .shead:after{opacity:1}
+  .shead .ibtn.back{margin-left:-14px}
+  .shead h2{flex:1 1 auto; min-width:0; margin:0; font:400 1.375rem/1.75rem var(--serif); color:var(--ink); text-wrap:balance}
+  .shead h2:focus{outline:none}
+  .sheet .lead{font:400 1rem/1.5 var(--sans); color:var(--ink-2); margin:0 0 16px}
+  .sheet h2{font-weight:400}
+  .close{position:static; float:none; font-size:inherit; padding:0}
+  @keyframes ovIn{from{opacity:0}} @keyframes panelIn{from{opacity:0;transform:translateY(8px) scale(.985)}}
+  @keyframes sheetUp{from{transform:translateY(100%)}} @keyframes swapIn{from{opacity:0;transform:translateX(16px)}}
+  @keyframes fadeIn{from{opacity:0}}
+  /* the middle shape (an iPad held upright, a small window): one width */
+  @media (min-width:600px) and (max-width:899px){ .ov>.sheet{width:min(640px,100%)} }
+  @media (max-width:599px), (pointer:coarse) and (max-width:699px){
+    .ov{align-items:flex-end; padding:calc(var(--safe-top) + 12px) 0 0}
+    .ov>.sheet{width:100%; max-width:100%; border-radius:var(--r5) var(--r5) 0 0; border-bottom:0;
+      max-height:calc(100vh - var(--safe-top) - 12px); max-height:calc(100dvh - var(--safe-top) - 12px);
+      padding:0 20px calc(var(--safe-bot) + 20px); animation:sheetUp .38s var(--e-sheet)}
+    .ov.swap>.sheet{animation:swapIn .26s var(--e-out)}
+    .grab{display:block}
+    .shead{margin:0 -20px 8px; padding:8px 8px 4px 20px}
+  }
+  /* a phone on its side: a centred panel that fits the short screen */
+  @media (max-height:520px){
+    .ov{align-items:center; padding:calc(var(--safe-top) + 8px) calc(var(--safe-r) + 12px) 8px calc(var(--safe-l) + 12px)}
+    .ov>.sheet{max-height:calc(100vh - 16px); border-radius:var(--r4); border-bottom:1px solid var(--hair)}
+    .grab{display:none}
+    .shead{min-height:48px; padding-top:4px; margin-bottom:4px}
+  }
+  .ov.decide .grab{display:none}
+  /* a sheet over another sheet (About over Settings, Moves over the
+     explainer): a deeper scrim and nearly solid glass, so the words of
+     the one beneath never read through the one on top */
+  .ov:not(.hide) ~ .ov:not(.hide){background:rgb(5 6 12 / .62)}
+  .ov:not(.hide) ~ .ov:not(.hide)>.sheet{background:linear-gradient(180deg, rgb(var(--wsky1) / .22), rgb(var(--wsky1) / 0) 180px), rgb(var(--glass) / .97)}
+  html.rm .ov,html.rm .ov>.sheet,html.rm .ov.swap>.sheet{animation:ovIn .15s linear !important}
+  @media (prefers-reduced-motion:reduce){ .ov,.ov>.sheet,.ov.swap>.sheet{animation:ovIn .15s linear !important} }
+  .sheet.dragging{transition:none !important; animation:none !important}
+  .sheet.springing{transition:transform .24s var(--e-out)}
+
+  /* ---------- the frost plate: the well itself, softened, behind every sheet ---------- */
+  #frost{position:fixed; inset:0; width:100%; height:100%; z-index:45; pointer-events:none;
+         opacity:0; transition:opacity .28s var(--e-out); image-rendering:auto}
+  html.sheets #frost{opacity:1}
+  html:not(.frosted) .ov{background:rgb(5 6 12 / .80)}
+  @media (prefers-reduced-transparency:reduce), (forced-colors:active){
+    #frost{display:none} .ov{background:rgb(5 6 12 / .86)} .sheet{background:rgb(var(--glass))}
+  }
+
+  /* ---------- grouped lists and rows ---------- */
+  .gh{font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2); margin:24px 4px 8px}
+  .gh:first-child{margin-top:4px}
+  .gf{font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:10px 16px 0}
+  .list{background:var(--fill-1); border-radius:var(--r3); overflow:hidden}
+  .li{display:flex; align-items:center; gap:12px; width:100%; min-height:52px; padding:12px 16px; position:relative;
+    text-align:left; color:var(--ink); background:none; border:0; font:500 1.0625rem/1.375rem var(--sans); text-decoration:none}
+  .li + .li:before,.li + .sw:before,.sw + .li:before,.sw + .sw:before,.sl + .sl:before,.li + .sl:before,.sl + .li:before,
+  .sw + .sl:before,.sl + .sw:before,.fld + .li:before,.li + .fld:before,.fld + .sw:before,.sw + .fld:before,.fld + .fld:before{
+    content:""; position:absolute; top:0; left:16px; right:0; height:1px; background:var(--hair)}
+  .list.icons>.li + .li:before{left:56px}
+  /* rows hidden at the top of a list (Steady's Settings, a lesson's menu)
+     leave no hairline over the first row that shows */
+  .list>.hide:first-child + :not(.hide):before,.list>.hide:first-child + .hide + :not(.hide):before,
+  .list>.hide:first-child + .hide + .hide + :not(.hide):before{display:none}
+  button.li:active,a.li:active{background:var(--fill-2)}
+  @media (hover:hover){button.li:hover,a.li:hover{background:var(--fill-1)}}
+  .li-ic{flex:none; width:28px; height:28px; border-radius:var(--r1); display:flex; align-items:center; justify-content:center;
+    background:rgb(var(--wa) / .14); color:rgb(var(--wa))}
+  .li-ic .ic{width:18px; height:18px}
+  .li-t{flex:1 1 auto; min-width:0}
+  .li-s{display:block; font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); margin-top:2px}
+  .li-v{flex:0 1 auto; max-width:48%; font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); text-align:right;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums}
+  .li .chev{width:18px; height:18px; color:var(--ink-3)}
+  .li[aria-checked="true"] .tick{color:rgb(var(--wa))} .li .tick{width:20px; height:20px; color:transparent}
+  html.ts-big .li-v{white-space:normal; max-width:40%}
+
+  /* ---------- segmented control ---------- */
+  .seg{display:flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--fill-1); border:1px solid var(--hair); border-radius:14px}
+  .seg>button{flex:1 1 0; min-width:3.6rem; min-height:44px; border-radius:11px; padding:4px 6px; border:0; background:none;
+    color:var(--ink-2); font:500 .9375rem/1.15 var(--sans); transition:background-color .2s var(--e-out), color .2s}
+  .seg>button[aria-checked="true"],.seg>button[aria-pressed="true"],.seg>button.on{background:var(--fill-3); color:var(--ink);
+    font-weight:600; box-shadow:inset 0 0 0 1px rgb(var(--wa) / .45)}
+  /* a segment's small line reads in --ink-2, and in --ink once chosen:
+     --ink-3 on the chosen segment's --fill-3 fell under 4.5:1 */
+  .seg>button small{display:block; font:400 .75rem/1.1 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums}
+  .seg>button[aria-checked="true"] small,.seg>button[aria-pressed="true"] small,.seg>button.on small{color:var(--ink)}
+  /* large text: a segment takes the width its word needs, and the row
+     wraps rather than clipping "Standard" to "Standar" */
+  html.ts-big .seg>button{flex:1 1 auto}
+  .seg-line{font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); margin:8px 4px 0; min-height:1.25rem}
+  .fld{padding:12px 16px 14px; position:relative; margin:0}
+  .fld-h{display:flex; align-items:baseline; gap:8px; font:500 1.0625rem/1.375rem var(--sans); margin:0 0 10px; color:var(--ink)}
+  .fld-h .tag{font:500 .75rem/1 var(--sans); color:var(--ink-3); letter-spacing:.04em}
+  .fld-h .li-v{margin-left:auto}
+
+  /* ---------- switch row (the whole row is the button, role="switch") ---------- */
+  .sw{display:flex; align-items:center; gap:14px; width:100%; min-height:56px; padding:10px 16px; position:relative;
+    text-align:left; color:var(--ink); background:none; border:0; font:500 1.0625rem/1.375rem var(--sans)}
+  .sw-t{flex:1 1 auto; min-width:0}
+  .sw-s{display:block; font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); margin-top:2px}
+  .sw-k{flex:none; position:relative; width:51px; height:31px; border-radius:999px; background:var(--fill-3);
+    transition:background-color .2s var(--e-out)}
+  .sw-k:after{content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
+    background:#f3f4f8; box-shadow:0 1px 3px rgb(0 0 0 / .45); transition:transform .22s var(--e-out)}
+  .sw[aria-checked="true"] .sw-k{background:rgb(var(--wa))}
+  .sw[aria-checked="true"] .sw-k:after{transform:translateX(20px)}
+
+  /* ---------- slider ---------- */
+  .sl{padding:12px 16px 6px; position:relative}
+  .sl-h{display:flex; align-items:baseline; gap:8px; font:500 1.0625rem/1.375rem var(--sans)}
+  .sl-h label{flex:1 1 auto; min-width:0} .sl-h .tag{font:500 .75rem var(--sans); color:var(--ink-3); letter-spacing:.04em}
+  .sl-v{font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap}
+  .sl-row{display:flex; align-items:center; gap:10px}
+  /* input.sl-r, not .sl-r: look.css's input[type=range] (26px) outranks a bare class */
+  input.sl-r{-webkit-appearance:none; appearance:none; display:block; flex:1 1 auto; width:100%; height:44px; margin:0;
+    background:transparent; cursor:pointer; --p:50%}
+  .sl-r::-webkit-slider-runnable-track{height:4px; border-radius:2px;
+    background:linear-gradient(90deg, rgb(var(--wa)) var(--p), var(--hair-2) var(--p))}
+  .sl-r::-webkit-slider-thumb{-webkit-appearance:none; width:24px; height:24px; margin-top:-10px; border:0; border-radius:50%;
+    background:#f3f4f8; box-shadow:0 1px 4px rgb(0 0 0 / .45)}
+  .sl-r::-moz-range-track{height:4px; border-radius:2px; background:var(--hair-2)}
+  .sl-r::-moz-range-progress{height:4px; border-radius:2px; background:rgb(var(--wa))}
+  .sl-r::-moz-range-thumb{width:24px; height:24px; border:0; border-radius:50%; background:#f3f4f8; box-shadow:0 1px 4px rgb(0 0 0 / .45)}
+  .sl-s{font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); margin:0 0 6px}
+  .sl-ends{display:flex; justify-content:space-between; font:400 .75rem var(--sans); color:var(--ink-3)}
+
+  /* ---------- option cards with previews ---------- */
+  .ocs{display:grid; grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr)); gap:10px}
+  .ocs.scroll{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:10px; margin:0 -20px; padding:2px 20px 6px;
+    scroll-padding:0 20px; -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .ocs.scroll>.oc{flex:0 0 7.5rem; scroll-snap-align:start}
+  .oc{position:relative; display:flex; flex-direction:column; gap:8px; padding:8px 8px 10px; border-radius:var(--r3);
+    background:var(--fill-1); border:1px solid var(--hair); color:var(--ink); text-align:left; font:500 .9375rem/1.2 var(--sans)}
+  .oc canvas,.oc .oc-pv{display:block; width:100%; height:auto; aspect-ratio:4/3; border-radius:10px; background:#0b0e16}
+  .oc[aria-checked="true"]{border-color:rgb(var(--wa) / .75); background:rgb(var(--wa) / .10)}
+  .oc[aria-checked="true"]:after{content:""; position:absolute; top:14px; right:14px; width:20px; height:20px; border-radius:50%;
+    background:rgb(var(--wa)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='%230b0d14' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat}
+
+  /* ---------- stepper, keycap, chip ---------- */
+  .step{display:flex; align-items:center; gap:8px}
+  .step .ibtn{background:var(--fill-1); border:1px solid var(--hair); color:var(--ink)}
+  .step output{min-width:3ch; text-align:center; font:500 1rem var(--sans); font-variant-numeric:tabular-nums}
+  kbd.kc{display:inline-flex; align-items:center; justify-content:center; min-width:1.9em; height:1.75em; padding:0 .45em;
+    border-radius:var(--r1); background:var(--fill-2); border:1px solid var(--hair-2); box-shadow:inset 0 -2px 0 rgb(0 0 0 / .35);
+    font:600 .8125rem/1 var(--sans); color:var(--ink); white-space:nowrap; vertical-align:baseline}
+  .chip{display:inline-flex; align-items:center; min-height:32px; padding:0 12px; border-radius:999px; background:var(--fill-1);
+    border:1px solid var(--hair); font:500 .8125rem var(--sans); color:var(--ink-2)}
+
+  /* ---------- the way down: ten depths, then the Surface ---------- */
+  .way{display:flex; align-items:center; width:100%; height:16px}
+  .way .wl{flex:1 1 0; height:1px; background:var(--hair-2)}
+  .way .wl.past{height:1.5px; background:rgb(var(--c) / .6)}
+  .way .wl.now{height:1.5px; background:linear-gradient(90deg, rgb(var(--wk)) calc(var(--f,0) * 100%), var(--hair-2) 0)}
+  .way .wn{flex:none; width:6px; height:6px; border-radius:50%; box-shadow:inset 0 0 0 1px rgb(238 240 248 / .28)}
+  .way .wn.past{background:rgb(var(--c) / .9); box-shadow:none}
+  .way .wn.seen{background:var(--ink-3); box-shadow:none}
+  .way .wn.now{width:10px; height:10px; background:rgb(var(--wk)); box-shadow:0 0 0 3px rgb(var(--wk) / .16)}
+  .way .ws{flex:none; width:12px; height:7px; margin-left:4px; border:1.5px solid var(--ink-3); border-bottom:0; border-radius:12px 12px 0 0}
+  .way .ws.lit{border-color:rgb(var(--wk)); box-shadow:0 -2px 8px -2px rgb(var(--wk) / .5)}
+  .way.micro{height:2px; gap:3px}
+  .way.micro .wl,.way.micro .ws{display:none}
+  .way.micro .wn{flex:1 1 0; width:auto; height:2px; border-radius:1px; box-shadow:none; background:var(--hair-2)}
+  .way.micro .wn.past{background:rgb(var(--c) / .85)}
+  .way.micro .wn.now{height:2px; background:linear-gradient(90deg, rgb(var(--wk)) calc(var(--f,0) * 100%), var(--hair-2) 0); box-shadow:none}
+  .way-ends{display:flex; justify-content:space-between; font:400 .8125rem var(--sans); color:var(--ink-3); margin-top:4px}
+
+  /* ---------- world picker ---------- */
+  .wpick{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px 8px}
+  .wp{display:flex; flex-direction:column; align-items:stretch; gap:6px; padding:0; border:0; background:none; color:var(--ink-2);
+    font:500 .75rem/1.2 var(--sans); text-align:center; min-height:44px}
+  .wp-sw{display:block; height:48px; border-radius:10px; box-shadow:inset 0 0 0 1px var(--hair)}
+  .wp[aria-checked="true"],.wp[aria-pressed="true"]{color:var(--ink)}
+  .wp[aria-checked="true"] .wp-sw,.wp[aria-pressed="true"] .wp-sw{box-shadow:0 0 0 2px rgb(var(--glass)), 0 0 0 4px rgb(var(--wa))}
+
+  /* ---------- floats ---------- */
+  .float{background:rgb(14 16 26 / .88); border:1px solid var(--hair); box-shadow:0 12px 32px rgb(0 0 0 / .4); color:var(--ink)}
+
+  /* ---------- forced colours: chosen things get a Highlight inner ring ---------- */
+  @media (forced-colors:active){
+    .seg>button[aria-checked="true"],.seg>button[aria-pressed="true"],.oc[aria-checked="true"],.wp[aria-checked="true"] .wp-sw{
+      outline:3px solid Highlight; outline-offset:-3px}
+    .sw-k{border:2px solid CanvasText} .sw-k:after{background:CanvasText; box-shadow:none}
+    .sw[aria-checked="true"] .sw-k{background:Highlight}
+  }
+
+  /* ---------- shared bits of type ---------- */
+  .eyebrow{font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2); margin:0}
+  .t1{font:400 1.75rem/2.125rem var(--serif); letter-spacing:-.005em; color:var(--ink); margin:0; text-wrap:balance}
+  .t3{font:400 1.1875rem/1.5rem var(--serif); color:var(--ink); margin:0}
+  .subl{font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); margin:0}
+  .notel{font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:0}
+  .mono{font:600 .8125rem var(--mono); letter-spacing:.14em; -webkit-user-select:text; user-select:text}
+  .facts{display:flex; align-items:center; gap:6px; font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); margin:0}
+  .facts .ic{width:16px; height:16px; color:var(--ink-2)}
+  @media (min-width:900px) and (pointer:fine){
+    .t1{font-size:2rem; line-height:2.375rem}
+    .subl,.facts{font-size:.875rem}
+  }
+
+  /* ================================================================
+     the room
+     ================================================================ */
   /* the stage fills the whole viewport, under the notch and the home
      indicator too; layout.js keeps everything that matters inside the safe
      area, and the backdrop is allowed to run to the glass */
@@ -62,187 +357,250 @@
   html.playing, html.playing body{overflow:hidden; overscroll-behavior:none}
   html.playing #stage{touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
 
-  /* ---------- the HUD: plain DOM text, so screen readers can read it ---------- */
+  /* ---------- the HUD: whispers on the sky, no boxes ----------
+     Plain DOM text, so a screen reader can read it, sized by --hs: the
+     player's text size, but never past 125%, because a HUD that grows
+     without limit grows into the well. A soft dark gradient behind the
+     phone's row (#hudScrim) keeps it readable over any sky. */
+  #hudScrim{position:absolute; left:0; right:0; top:0; height:calc(var(--safe-top) + 84px); z-index:4; pointer-events:none;
+    background:linear-gradient(rgb(8 10 16 / .55), rgb(8 10 16 / 0)); opacity:0; transition:opacity .3s}
+  #hudScrim.on{opacity:1}
+  #hudScrim.tall{height:calc(var(--safe-top) + 132px)}
   #hud{
-    position:absolute; z-index:6; display:flex; gap:5px; align-items:stretch;
+    --hs:min(var(--ts),1.25);
+    position:absolute; z-index:6; display:flex; gap:calc(14px * var(--hs)); align-items:flex-start;
     pointer-events:none; font-variant-numeric:tabular-nums; left:0; top:0;
-    opacity:1; transition:opacity .3s;
+    opacity:1; transition:opacity .3s; text-shadow:var(--whisper); color:var(--ink);
   }
   /* hidden is hidden for a screen reader too: on the splash an empty (or a
      finished run's) group of numbers was the first thing read, before the
      title. visibility follows the fade, as it does for the pause button. */
   #hud.off{opacity:0; visibility:hidden; transition:opacity .3s, visibility 0s .3s}
-  #hud .hc{
-    background:rgba(9,11,20,.62); border:1px solid rgba(160,176,230,.10); border-radius:12px;
-    padding:3px 9px 4px; min-width:0; display:flex; flex-direction:column; justify-content:center;
-    flex:0 0 auto;
-  }
-  /* when a phone's row is tight, the numbers keep every digit and only the
-     world's name gives way, to an ellipsis */
-  #hud .hc.grow{flex:1 1 auto}
-  /* two rows, when one left the world's name unreadable: the name and the
-     Breath button above, the numbers below — never a third row, which
-     would sit on the well (the break between rows is an empty flex item) */
-  #hud.wrap{flex-wrap:wrap; row-gap:4px}
-  #hud.wrap .hc.grow{flex:1 1 50%}
-  #hud.wrap #btnBreath{order:1; flex:0 0 auto}
-  #hud.wrap:after{content:""; order:1; flex:0 0 100%; height:0; margin-top:-4px}
-  #hud.wrap #hudB,#hud.wrap #hudC{order:2; flex-grow:1}
-  #hud .hc.hide{display:none}
-  #hud .hk{font-size:.68rem; letter-spacing:.06em; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
-  #hud .hv{font-size:1.04rem; font-weight:650; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25}
-  #hud .hv.pb{color:var(--glow); transition:color .6s}
+  #hud .hide{display:none !important}
+  #hud .hl{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; align-items:flex-start}
+  #hud .hcap,#hud .hk{font:500 calc(12px * var(--hs))/calc(16px * var(--hs)) var(--sans); letter-spacing:.02em; color:var(--ink-2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+  #hud .hname{font:400 calc(18px * var(--hs))/calc(22px * var(--hs)) var(--serif); color:var(--ink); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:100%}
+  #hud .hname.clock{font:600 calc(22px * var(--hs))/calc(26px * var(--hs)) var(--sans)}
+  #hud .hsub{font:400 calc(13px * var(--hs))/calc(17px * var(--hs)) var(--sans); color:var(--ink-2); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:100%}
+  #hud .way.micro{width:120px; max-width:100%; margin-top:calc(5px * var(--hs)); box-shadow:0 1px 2px rgb(0 0 0 / .4)}
+  #hud .hline{width:120px; max-width:100%; height:2px; border-radius:1px; background:var(--hair-2); margin-top:calc(5px * var(--hs));
+    overflow:hidden; position:relative}
+  #hud .hline i{position:absolute; inset:0; background:rgb(var(--wk)); transform-origin:left center; transform:scaleX(0)}
+  #hud .hf{flex:none; display:flex; flex-direction:column; align-items:flex-end; text-align:right}
+  #hud .hv{font:600 calc(20px * var(--hs))/calc(24px * var(--hs)) var(--sans); color:var(--ink); white-space:nowrap}
+  #hud .hv.pb{color:rgb(var(--wk)); transition:color .6s}
   #hud .clock .m10.z{display:none}
   /* Forty's hundredths change every frame. Each digit sits in a box of its
      own, sized and contained, so a changing digit relays out only its box
      rather than the whole page. The box is as tall as the line around it
      and as wide as this font's digit (the app measures --dw once). */
-  #hud .clock>span{display:inline-block; vertical-align:top; height:1.25em}
-  #hud.col .clock>span{height:1.18em}
+  #hud .clock>span{display:inline-block; vertical-align:top; height:1.2em}
   #hud .clock .m10,#hud .clock .m1,#hud .clock .s10,#hud .clock .s1,#hud .clock .h10,#hud .clock .h1{
     contain:strict; width:var(--dw,.62em); text-align:center}
-  #hud .learner{color:var(--glow); font-size:.66rem; letter-spacing:.04em}
+  #hud .wayv{display:none}
+  #hud:not(.col) .hsub.hs-rail{display:none}
+  /* two rows, when one left the world's name unreadable: the name and the
+     Breath ring above, the numbers below — never a third row, which would
+     sit on the well (the break between rows is an empty flex item) */
+  #hud.wrap{flex-wrap:wrap; row-gap:calc(6px * var(--hs))}
+  #hud.wrap .hl{flex:1 1 50%}
+  #hud.wrap #btnBreath{order:1}
+  #hud.wrap:after{content:""; order:1; flex:0 0 100%; height:0; margin-top:calc(-6px * var(--hs))}
+  #hud.wrap .hf{order:2; flex-direction:row-reverse; align-items:baseline; gap:6px}
+  #hud.wrap .hf:first-of-type{margin-left:0}
+
   /* beside a wide well (an iPad, a Mac, a phone on its side) the HUD is a
      column with room to spare, so its numbers are read at a glance from
      the well rather than squinted at in a corner */
-  #hud.col{gap:8px}
-  #hud.col .hc,#hud.col #btnBreath{padding:7px 13px 8px; border-radius:14px}
-  #hud.col .hk,#hud.col #btnBreath .bk{font-size:.75rem}
-  #hud.col .hv{font-size:clamp(1.4rem, 1.1vw + .9rem, 2rem); line-height:1.18}
-  #hud.col .hv.clock{font-size:clamp(1.6rem, 1.4vw + 1.1rem, 2.2rem)}
-  #hud.col #btnBreath{min-height:56px}
-  #hud.col #btnBreath .beads{font-size:clamp(1.2rem, .8vw + .85rem, 1.6rem)}
+  #hud.col{flex-direction:column; align-items:stretch; gap:calc(20px * var(--hs))}
+  #hud.col .hl{flex:none}
+  #hud.col .hname{font-size:calc(30px * var(--hs)); line-height:calc(36px * var(--hs)); white-space:normal; margin-top:2px}
+  #hud.col .hname.clock{font:500 calc(30px * var(--hs))/calc(34px * var(--hs)) var(--sans)}
+  #hud.col .hf{align-items:flex-start; text-align:left; flex-direction:column-reverse}
+  #hud.col .hv{font:500 calc(30px * var(--hs))/calc(34px * var(--hs)) var(--sans)}
+  #hud.col .way.micro{display:none}
+  #hud.col .hcway{display:block}
+  #hud .hcway{display:none; width:200px; max-width:100%; margin-top:12px}
+  #hud.col .hsub{white-space:normal; margin-top:6px}
+  #hud.col .hline{width:200px; margin-top:10px}
+  #hud.col.vrail .hcway{display:none}
+  #hud.col.vrail .wayv{display:block}
+  #hud.col.vrail .hsub.hs-rail{display:none}
+  #hud .wayv{list-style:none; margin:14px 0 0; padding:0; position:relative}
+  #hud .wayv:before{content:""; position:absolute; left:3.5px; top:11px; bottom:11px; width:1px; background:var(--hair-2)}
+  #hud .wayv li{position:relative; display:flex; align-items:center; gap:10px; min-height:22px;
+    font:400 .8125rem/1.125rem var(--sans); color:var(--ink-3)}
+  #hud .wayv li>i{flex:none; width:8px; height:8px; border-radius:50%; background:#0d1019; box-shadow:inset 0 0 0 1px rgb(238 240 248 / .32); position:relative}
+  #hud .wayv li.surf>i{width:10px; height:6px; margin-left:-1px; border-radius:6px 6px 0 0; background:#0d1019;
+    box-shadow:none; border:1.5px solid var(--ink-3); border-bottom:0}
+  #hud .wayv li.past{color:var(--ink-2)}
+  #hud .wayv li.past>i{background:rgb(var(--c)); box-shadow:none}
+  #hud .wayv li.now{color:var(--ink); font-weight:600; flex-wrap:wrap; align-content:flex-start; row-gap:0; padding-top:3px}
+  #hud .wayv li.now>i{background:rgb(var(--wk)); box-shadow:0 0 0 3px rgb(var(--wk) / .18)}
+  #hud .wayv li .wv-s{flex:0 0 100%; padding-left:18px; font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:0 0 4px}
 
   /* the pause button: 44 pt, top-trailing, inside the safe area. There is no
      gesture for pause during play, so it can never happen by accident. */
   #btnMenu{
     position:fixed; z-index:30; top:calc(var(--safe-top) + 6px); right:calc(var(--safe-r) + 6px);
-    width:44px; height:44px; border-radius:14px; background:rgba(12,14,24,.66);
-    border:1px solid var(--line); display:flex; align-items:center; justify-content:center; gap:5px;
+    width:44px; height:44px; border-radius:999px; background:rgb(12 14 24 / .5);
+    border:1px solid var(--hair); display:flex; align-items:center; justify-content:center; color:var(--ink);
     transition:opacity .3s, visibility 0s;
   }
-  #btnMenu i{display:block; width:4px; height:16px; border-radius:2px; background:var(--ink); opacity:.85}
+  #btnMenu .ic{opacity:.9}
   /* what is faded out is also out of the tab order: visibility follows the
      fade, so a keyboard never lands on a button nobody can see */
   #btnMenu.off{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .3s, visibility 0s .3s}
+  html.calm #btnMenu:not(.off){opacity:.45}
 
-  /* the Breath button lives at the end of the HUD row, the one place on a
-     phone that is never over the well */
-  /* a card like the others, word over number, so a phone's HUD row has
-     room for the world's name beside it; the ring says it can be pressed */
-  #btnBreath{
-    flex:0 0 auto; pointer-events:auto; min-width:64px; min-height:44px; border-radius:12px;
-    background:rgba(18,22,38,.78); border:1px solid rgba(159,180,255,.42); color:var(--ink);
-    padding:3px 11px 4px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center;
-    font-variant-numeric:tabular-nums; transition:opacity .4s, border-color .4s; text-align:left;
-  }
-  #btnBreath .bk{font-size:.68rem; letter-spacing:.06em; color:var(--accent); line-height:1.25; font-weight:600}
-  #btnBreath .beads{color:var(--ink); font-weight:650; font-size:1.04rem; line-height:1.25}
-  #btnBreath.active{border-color:var(--glow); opacity:.7}
+  /* ---------- Breath: a ring that fills as lines clear ----------
+     Shown from the first piece in every mode that has it, dimmed until ten
+     beads have filled the first half, so the filling teaches itself
+     without a word; full colour once a Breath can be taken. */
+  #btnBreath{flex:none; pointer-events:auto; width:44px; height:44px; padding:0; border-radius:999px; position:relative;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-2); background:rgb(12 14 24 / .35);
+    opacity:.45; transition:opacity .4s}
+  #btnBreath .ring{width:44px; height:44px; flex:none; display:block}
+  #btnBreath .bt{fill:none; stroke:var(--hair-2); stroke-width:2.5}
+  #btnBreath .bf{fill:none; stroke:rgb(var(--wa)); stroke-width:2.5; stroke-linecap:round}
+  #btnBreath .btk{stroke:var(--ink-3); stroke-width:2; stroke-linecap:round}
+  #btnBreath .bgl{fill:none; stroke:currentColor; stroke-width:1.5}
+  #btnBreath .bk,#btnBreath kbd{display:none}
+  #btnBreath.ready{opacity:1; color:rgb(var(--wk))}
+  #btnBreath.active{opacity:1}
+  #btnBreath.active .bgl{opacity:.7}
+  #btnBreath.glow{animation:breathGlow 10s ease-in-out 2}
+  @keyframes breathGlow{0%,100%{box-shadow:0 0 0 0 rgb(var(--wk) / 0)}50%{box-shadow:0 0 0 6px rgb(var(--wk) / .18)}}
+  html.rm #btnBreath.glow{animation:none}
+  #hud.col #btnBreath{width:auto; height:auto; justify-content:flex-start; gap:12px; background:none; border-radius:14px; padding:0}
+  #hud.col #btnBreath .ring{width:56px; height:56px}
+  #hud.col #btnBreath .bk{display:block; font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2)}
+  #hud.col #btnBreath kbd.on{display:inline-flex; text-shadow:none}
 
   /* ---------- labels beside the well ----------
-     Short words, in and out in under 300 ms, never over the active piece:
-     the app moves them to the side the piece is not on, and fades one to a
-     whisper if a falling piece ever passes under it anyway. */
+     A word in the world's key light, in and out in under 300 ms, never
+     over the active piece: the app moves them to the side the piece is
+     not on, and fades one to a whisper if a falling piece ever passes
+     under it anyway. The rise uses the translate property, so a Ripple's
+     own scale (set inline by the app) is never overwritten. */
   #labels{position:absolute; z-index:5; pointer-events:none; display:flex; flex-direction:column; gap:2px; left:0; top:0}
   #labels.r{align-items:flex-end; text-align:right}
   #labels.l{align-items:flex-start; text-align:left}
   .lbl{
-    font-size:1.12rem; font-weight:650; letter-spacing:.01em; color:var(--glow); white-space:nowrap;
-    text-shadow:0 1px 10px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.7);
-    opacity:0; transform-origin:inherit; transition:opacity .24s ease-out;
-    min-height:0; line-height:1.3;
+    font:400 1.375rem/1.4 var(--serif); letter-spacing:.005em; color:rgb(var(--wk)); white-space:nowrap;
+    text-shadow:0 1px 2px rgb(0 0 0 / .6), 0 0 14px rgb(0 0 0 / .5);
+    opacity:0; translate:0 4px; transform-origin:inherit; transition:opacity .26s ease-out, translate .26s ease-out;
+    min-height:0;
   }
   #labels.r .lbl{transform-origin:right center}
   #labels.l .lbl{transform-origin:left center}
-  .lbl.on{opacity:1; transition:opacity .14s ease-in}
-  .lbl.small{font-size:.9rem; font-weight:600; color:var(--ink)}
-  .lbl.big{font-size:1.32rem}
+  .lbl.on{opacity:1; translate:0 0; transition:opacity .16s var(--e-out), translate .16s var(--e-out)}
+  .lbl.small{font:600 .875rem/1.4 var(--sans); letter-spacing:.02em; color:var(--ink-2)}
+  .lbl.big{font-size:1.75rem}
   #labels.dodge .lbl.on{opacity:.16}
+  html.rm .lbl{translate:none}
+  @media (min-width:900px) and (pointer:fine){ .lbl{font-size:1.5rem} .lbl.big{font-size:1.875rem} .lbl.small{font-size:.875rem} }
 
   /* ---------- the Glass Well: the workings, on the live game ---------- */
   #glass{
     position:absolute; z-index:6; pointer-events:none; left:0; top:0;
-    background:rgba(9,11,20,.78); border:1px solid rgba(159,180,255,.16); border-radius:14px;
-    padding:8px 10px; font-size:.74rem; color:var(--soft); font-variant-numeric:tabular-nums;
-    width:220px; line-height:1.35;
+    background:rgb(14 16 26 / .88); border:1px solid var(--hair); border-radius:var(--r3);
+    box-shadow:0 12px 32px rgb(0 0 0 / .4);
+    padding:10px 12px; font:400 .75rem/1.35 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums;
+    width:220px; transition:opacity .2s;
   }
-  #glass .gh{font-size:.7rem; letter-spacing:.08em; color:var(--accent); margin-bottom:4px}
-  #glass{transition:opacity .2s}
+  #glass .gh{font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2); margin:0 0 6px}
   #glass.dodge{opacity:.14}
   #glass .gr{display:flex; align-items:center; gap:8px; min-height:18px; margin:2px 0}
-  #glass .gk{flex:0 0 58px; color:var(--soft)}
+  #glass .gk{flex:0 0 58px; color:var(--ink-2)}
   #glass b{color:var(--ink); font-weight:600}
   #gBag{display:flex; gap:3px}
   #gBag span{width:15px; height:15px; border-radius:4px; display:flex; align-items:center; justify-content:center;
-             font-size:.62rem; font-weight:700; color:#0b0d14; transition:opacity .2s}
+             font-size:.62rem; font-weight:600; color:#0b0d14; transition:opacity .2s}
   #gBag span.used{opacity:.18}
-  .gbar{flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; position:relative}
-  .gbar i{position:absolute; left:0; top:0; bottom:0; width:100%; background:var(--accent); transform-origin:left center; transform:scaleX(0)}
-  #gLock{background:var(--glow)}
+  .gbar{flex:1; height:6px; border-radius:3px; background:var(--fill-2); overflow:hidden; position:relative}
+  .gbar i{position:absolute; left:0; top:0; bottom:0; width:100%; background:rgb(var(--wa)); transform-origin:left center; transform:scaleX(0)}
+  #gLock{background:rgb(var(--wk))}
   .pips{display:flex; gap:2px; flex-wrap:wrap}
-  .pips i{width:5px; height:5px; border-radius:50%; background:var(--glow)}
+  .pips i{width:5px; height:5px; border-radius:50%; background:rgb(var(--wk))}
   .pips i.used{opacity:.16}
-  #gBeads i{width:6px; height:6px; background:var(--accent)}
+  #gBeads i{width:6px; height:6px; background:rgb(var(--wa))}
   #gFormula{color:var(--ink); white-space:normal}
 
   /* ---------- paused, and resting ---------- */
   #veil{
     position:absolute; inset:0; z-index:12; display:flex; align-items:center; justify-content:center;
-    background:rgba(5,6,12,.56); color:var(--ink); font-size:1.05rem; letter-spacing:.02em;
-    text-align:center; padding:24px; cursor:pointer;
+    background:rgb(5 6 12 / .5); color:var(--ink); text-align:center; padding:24px; cursor:pointer;
   }
   #veil.full{background:var(--room)}
-  html.breathing #veil span,html.breathing #btnMenu{visibility:hidden}
-  #veil span{background:rgba(12,14,24,.78); border:1px solid var(--line); border-radius:999px; padding:10px 20px}
+  html.breathing #veil>span,html.breathing #btnMenu{visibility:hidden}
+  #veil>span{display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:10px 18px 10px 14px;
+    font:400 .9375rem/1.25rem var(--sans); background:rgb(14 16 26 / .88); border:1px solid var(--hair);
+    box-shadow:0 12px 32px rgb(0 0 0 / .4)}
+  #veil>span .ic{width:18px; height:18px; color:var(--ink-2)}
 
-  /* the banner names a depth, calmly: no slam, no scale, a fade */
-  #banner{top:30%; z-index:8}
-  #banner .big{font-size:clamp(1.5rem,6.4vw,2.4rem); font-weight:500; letter-spacing:.01em;
-               text-shadow:0 2px 24px rgba(0,0,0,.85); color:var(--glow)}
-  #banner .sub{font-size:.95rem; color:var(--soft)}
-  #banner{transition:opacity .45s}
+  /* ---------- a depth's name: a fade, never a slam ---------- */
+  #banner{top:30%; z-index:8; transition:opacity .7s ease-in; display:flex; flex-direction:column; align-items:center;
+    padding:0 16px}
+  #banner.on{transition:opacity .6s var(--e-out)}
+  #banner .big{font:400 2.25rem/2.75rem var(--serif); letter-spacing:-.005em; color:rgb(var(--wk));
+               text-shadow:0 2px 24px rgb(0 0 0 / .7), 0 1px 2px rgb(0 0 0 / .5); animation:none}
+  #banner .sub{font:500 .9375rem/1.25rem var(--sans); color:var(--ink-2); opacity:1; margin-top:4px; text-shadow:var(--whisper)}
+  #bannerWay{width:140px; margin-top:12px}
+  #bannerWay:empty{display:none}
+  #bannerWh{font:italic 400 1rem/1.4 var(--serif); color:var(--ink-2); max-width:32ch; margin:12px 0 0; text-align:center;
+    text-shadow:var(--whisper); text-wrap:balance}
+  #bannerWh:empty{display:none}
   #banner.on.dodge{opacity:.22; transition:opacity .2s}
+  @media (min-width:900px) and (pointer:fine){ #banner .big{font-size:2.75rem; line-height:3.25rem} }
 
-  /* the coach for lessons: placed by the app, never at the bottom edge */
+  /* ---------- the coach, for lessons: placed by the app, never at the bottom edge ---------- */
+  #coach{background:rgb(14 16 26 / .88); border:1px solid var(--hair); border-radius:var(--r3);
+         box-shadow:0 12px 32px rgb(0 0 0 / .4); backdrop-filter:none; -webkit-backdrop-filter:none;
+         bottom:auto; z-index:7; max-width:420px; padding:12px 14px; color:var(--ink); font:400 1rem/1.5 var(--sans)}
   #coach.off{visibility:hidden; transition:opacity .25s, transform .25s, visibility 0s .25s}
-  #coach{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(14,17,30,.92);
-         border-left-color:var(--accent); bottom:auto; z-index:7; max-width:420px}
-  #coach .head{color:var(--accent); flex-wrap:wrap; justify-content:space-between; row-gap:2px}
-  #coach .head .x{margin-left:0; padding:0}
-  #coach .row{margin-top:6px}
-  #coach .row .btn{min-height:44px; font-size:.84rem}
-  #coach .x{font-variant-numeric:tabular-nums}
+  #coach .head{font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2); flex-wrap:wrap; justify-content:space-between; row-gap:2px}
+  #coach .head .x{margin-left:0; padding:0; color:var(--ink-2); font-variant-numeric:tabular-nums}
+  #coach p{margin:4px 0 0}
+  #coach .row{margin-top:10px; gap:8px}
   /* on a phone the coach is a passing line in the empty upper well, not a
      panel; Hint and Show me live in the pause sheet instead */
-  #coach.compact{pointer-events:none; padding:7px 11px; transition:opacity .4s}
-  #coach.compact .row,#coach.compact .head .x{display:none}
+  #coach.compact{pointer-events:none; padding:7px 12px; border-radius:14px; background:rgb(14 16 26 / .72);
+    transition:opacity .4s; font-size:.9375rem; line-height:1.3}
+  #coach.compact p{margin:0}
+  #coach.compact .row,#coach.compact .head{display:none}
   #coach.compact.quiet{opacity:0}
   #coach.compact.dodge{opacity:.14}
   #coach.compact.dodge.quiet{opacity:0}
 
-  /* the gentle reminder: a chip, never a dialog */
+  /* ---------- the gentle reminder: a chip, never a dialog ---------- */
   #chip{
     position:absolute; z-index:9; left:50%; transform:translateX(-50%);
-    background:var(--card); border:1px solid var(--line); border-radius:16px;
-    padding:10px 12px; width:min(420px, calc(100% - 24px)); font-size:.88rem; box-shadow:var(--shadow);
+    background:rgb(14 16 26 / .88); border:1px solid var(--hair); border-radius:var(--r3);
+    box-shadow:0 12px 32px rgb(0 0 0 / .4); color:var(--ink);
+    padding:12px 14px; width:min(420px, calc(100% - 24px)); font:400 .9375rem/1.35 var(--sans);
   }
-  #chip p{margin:0 0 8px}
-  #chip .row{margin-top:0}
-  #chip .btn{min-height:44px}
+  #chip p{margin:0 0 10px; display:flex; gap:10px; align-items:flex-start}
+  #chip p .ic{width:18px; height:18px; color:var(--ink-2); margin-top:1px}
+  #chip .row{margin-top:0; gap:4px; justify-content:flex-end}
   /* on a phone it is one solid line over the HUD, stopping short of the
      Keep niche: the words, then the two buttons beside them */
-  #chip.compact{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:6px 6px 6px 11px; border-radius:14px}
+  #chip.compact{display:flex; flex-wrap:wrap; align-items:center; gap:4px 4px; padding:4px 4px 4px 12px; border-radius:14px;
+    background:rgb(14 16 26 / .97)}
   /* with large text the words take their own line and the buttons follow */
-  #chip.compact p{flex:1 1 7.5rem; min-width:0; margin:0; font-size:.78rem; line-height:1.3}
-  #chip.compact .row{flex:0 0 auto; flex-wrap:nowrap; gap:6px; margin-left:auto}
-  #chip.compact .btn{flex:none; min-height:44px; padding:4px 10px; font-size:.82rem; border-radius:12px}
+  #chip.compact p{flex:1 1 8rem; min-width:0; margin:0; font-size:.8125rem; line-height:1.3}
+  #chip.compact p .ic{display:none}
+  #chip.compact .row{flex:0 0 auto; flex-wrap:nowrap; margin-left:auto; gap:2px}
+  #chip.compact .btn{padding:0 10px; font-size:.875rem}
   #chip .cs,#chip.compact .cl{display:none}
   #chip.compact .cs{display:inline}
 
   /* the PB pace tint: a faint warm rim, luminance change well under 0.03 */
   #pace{position:absolute; z-index:2; pointer-events:none; border-radius:6px; opacity:0;
-        box-shadow:0 0 0 1px rgba(255,226,196,.10), 0 0 18px rgba(255,226,196,.06); transition:opacity 1.2s}
+        box-shadow:0 0 0 1px rgb(var(--wk) / .10), 0 0 18px rgb(var(--wk) / .06); transition:opacity 1.2s}
   #pace.on{opacity:1}
 
   /* the Buttons scheme's tray; input.js fills and owns it. Only its keys
@@ -252,12 +610,18 @@
        padding:0 calc(var(--safe-r) + 10px) calc(var(--safe-bot) + 24px) calc(var(--safe-l) + 10px)}
   #pad:not(.on){display:none}
 
-  /* the toast arrives under the HUD, never at the bottom where the stack
-     is; the app places it from the layout */
-  #toast{z-index:56; top:calc(var(--safe-top) + 58px); bottom:auto; position:fixed; width:max-content}
+  /* ---------- the toast: a float, arriving under the HUD ----------
+     never at the bottom where the stack is; the app places it from the
+     layout. In 220 ms with a small fall, out in 260. */
+  #toast{z-index:56; top:calc(var(--safe-top) + 58px); bottom:auto; position:fixed; width:max-content;
+    background:rgb(14 16 26 / .88); border:1px solid var(--hair); box-shadow:0 12px 32px rgb(0 0 0 / .4);
+    border-radius:999px; padding:10px 18px; font:400 .9375rem/1.3 var(--sans); color:var(--ink);
+    max-width:min(92vw,420px); transform:translateX(-50%) translateY(-6px); transition:opacity .26s, transform .26s}
+  #toast.on{transform:translateX(-50%); transition:opacity .22s var(--e-out), transform .22s var(--e-out)}
+  #toast.two{border-radius:18px}
+  html.rm #toast,html.rm #toast.on{transform:translateX(-50%)}
   /* a note passing through the empty upper well (a phone): it fades to a
      whisper while a falling piece goes behind it */
-  #toast.inwell{background:rgba(14,17,30,.9); line-height:1.4}
   #toast.on.dodge{opacity:.14}
   /* Steady shows no text during play: a note that arrives then waits,
      unseen, and the update bar comes back by itself at the next pause */
@@ -267,40 +631,60 @@
      Everything to read and press sits in the empty upper reach of the
      well, and the bottom is left open: that is where the bot's stack
      lives, and a demo hidden behind the buttons is a dark rectangle, not
-     a well playing itself. The scrim darkens only behind the words. */
+     a well playing itself. The scrim darkens only behind the words. On a
+     wide screen the words leave the well altogether and stand in the sky
+     beside it, so the well plays unobstructed. */
   #splash{
-    background:transparent; justify-content:flex-start; padding:0;
-    padding:calc(var(--safe-top) + 7vh) 18px calc(var(--safe-bot) + 18px);
+    background:transparent; justify-content:flex-start; padding:0; text-align:center;
+    padding:calc(var(--safe-top) + 7vh) 16px calc(var(--safe-bot) + 16px);
     /* at 400% zoom the doors run past the bottom: let them be scrolled to */
     overflow-y:auto; overscroll-behavior:contain;
   }
   #splash .scrim{
     position:absolute; inset:0; pointer-events:none; z-index:-1;
     background:
-      radial-gradient(ellipse 78% 40% at 50% 30%, rgba(11,13,20,.84), rgba(11,13,20,.42) 62%, rgba(11,13,20,0) 88%),
-      linear-gradient(180deg, rgba(11,13,20,.22), rgba(11,13,20,0) 72%, rgba(11,13,20,.26));
+      radial-gradient(ellipse 80% 44% at 50% 34%, rgb(11 13 20 / .84), rgb(11 13 20 / .72) 46%, rgb(11 13 20 / .3) 72%, rgb(11 13 20 / 0) 90%),
+      linear-gradient(180deg, rgb(11 13 20 / .22), rgb(11 13 20 / 0) 72%, rgb(11 13 20 / .26));
   }
+  #splash .sp-col{width:min(360px,100%); display:flex; flex-direction:column; align-items:center}
   #splash .sp-top{display:flex; flex-direction:column; align-items:center}
-  #splash .title{font-size:clamp(2.6rem,13vw,4.6rem); font-weight:300; letter-spacing:.04em; color:var(--glow);
-                 text-shadow:0 2px 30px rgba(0,0,0,.6); margin:0; line-height:1.05}
-  #splash .sub{color:var(--soft); font-size:1rem; margin:.4em 0 0; letter-spacing:.06em; max-width:none}
-  #splash .sp-bottom{width:min(400px,100%); display:flex; flex-direction:column; align-items:stretch;
-                     margin-top:clamp(14px,4.5vh,44px)}
-  #splash .line{color:var(--ink); opacity:.86; font-size:.94rem; margin:0 0 10px; text-align:center}
-  #splash .row{width:100%}
-  #splash .links{display:flex; justify-content:center; flex-wrap:wrap; gap:2px 4px; margin-top:12px}
-  #splash .links button{color:var(--soft); font-size:.88rem; padding:10px 10px; min-height:44px}
-  #splash .note{text-align:center; margin-top:6px}
+  #splash .title{font:400 clamp(3.5rem,15vw,4.5rem)/1 var(--serif); letter-spacing:-.01em; color:rgb(var(--wk));
+                 text-shadow:0 2px 30px rgb(0 0 0 / .55); margin:0}
+  #splash .sub{font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); letter-spacing:.04em; margin:10px 0 0; max-width:none}
+  #splash .sp-bottom{width:100%; display:flex; flex-direction:column; align-items:center; margin-top:clamp(16px,3.4vh,28px)}
+  #spGoal{font:400 1rem/1.5rem var(--sans); color:var(--ink); max-width:30ch; margin:0; text-wrap:balance}
+  #spFacts{display:block; text-align:center; margin:8px 0 0; text-wrap:balance}
+  #spFacts .ic{display:inline-block; vertical-align:-3px; margin-right:6px}
+  #spStop{font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:6px 0 0}
+  #spWay{width:240px; max-width:100%; margin:16px auto 0}
+  #splash .sp-doors{width:100%; display:flex; flex-direction:column; gap:10px; margin-top:20px}
+  #splash .sp-doors .btn{width:100%; flex:none}
+  #goContinue{min-height:60px}
+  #goContinue+#spWay{margin-top:14px}
+  #splash .sp-links{display:flex; justify-content:center; flex-wrap:wrap; gap:0 2px; margin-top:12px}
+  #splash .sp-links .btn{gap:6px; font-size:.9375rem; padding:0 8px}
+  #splash .sp-links .ic{width:18px; height:18px}
+  #splash .note{text-align:center; margin-top:8px; color:var(--ink-2); font-size:.8125rem; max-width:34ch}
+  #splash .note:empty{display:none}
+  /* a column in the sky beside a wide well */
+  #splash.plaque{padding:0; text-align:left}
+  #splash.plaque .scrim{background:linear-gradient(90deg, rgb(11 13 20 / .62), rgb(11 13 20 / .38) 34%, rgb(11 13 20 / 0) 58%)}
+  #splash.plaque .sp-col{position:absolute; align-items:stretch}
+  #splash.plaque .sp-top,#splash.plaque .sp-bottom{align-items:flex-start}
+  #splash.plaque .title{font-size:5.5rem}
+  #splash.plaque #spFacts{text-align:left}
+  #splash.plaque #spWay{margin-left:0}
+  #splash.plaque .sp-links{justify-content:flex-start; margin-left:-12px}
+  #splash.plaque .note{text-align:left}
   /* a phone on its side: the title smaller, the two doors side by side,
      so the bottom of the well still shows beneath them */
   @media (max-height:520px){
-    #splash .title{font-size:clamp(2rem,10vh,2.9rem)}
-    #splash .sub{font-size:.9rem}
-    #splash .line{display:none}
-    #splash .sp-bottom{flex-direction:row; flex-wrap:wrap; column-gap:8px; width:min(560px,100%); margin-top:10px}
-    #splash .sp-bottom .row{flex:1 1 200px; width:auto; margin-top:6px}
-    #splash .links,#splash .note{flex:1 1 100%}
-    #splash .links{margin-top:2px}
+    #splash .title{font-size:clamp(2.4rem,11vh,3rem)}
+    #splash .sub{margin-top:4px}
+    #spGoal,#spStop{display:none}
+    #splash .sp-col{width:min(560px,100%)}
+    #splash .sp-doors{flex-direction:row; flex-wrap:wrap; gap:8px; margin-top:12px}
+    #splash .sp-doors .btn{flex:1 1 200px; width:auto}
   }
   /* quick to go, so a run's first moments (Ready, a depth's name) never
      show through the title; the app waits out the same 0.18 s */
@@ -308,207 +692,345 @@
   #splash.gone{opacity:0; pointer-events:none; visibility:hidden; transition:opacity .18s, visibility 0s .18s}
   /* a sheet over the splash: the title and the doors step back, and the
      card floats over the well playing itself */
-  #splash .sp-top,#splash .sp-bottom{transition:opacity .2s, visibility 0s}
-  #splash.covered .sp-top,#splash.covered .sp-bottom{opacity:0; visibility:hidden; transition:opacity .2s, visibility 0s .2s}
+  #splash .sp-col{transition:opacity .2s, visibility 0s}
+  #splash.covered .sp-col{opacity:0; visibility:hidden; transition:opacity .2s, visibility 0s .2s}
 
-  /* ---------- sheets ----------
-     Above the splash, because the splash opens them too. No blur behind
-     them, for the same reason as everywhere else in this room. */
-  .ov{z-index:50; background:rgba(4,5,10,.86); backdrop-filter:none; -webkit-backdrop-filter:none;
-      padding:calc(var(--safe-top) + 12px) calc(var(--safe-r) + 12px) calc(var(--safe-bot) + 12px) calc(var(--safe-l) + 12px)}
-  /* scrolling a control into view (by Tab, or by the page) stops short of
-     the header bar, so nothing focused ends up underneath it */
-  .sheet{max-height:min(90vh,820px); border-color:rgba(159,180,255,.14); scroll-padding-top:64px}
-  .sheet.wide{width:min(720px,100%)}
-  .sheet h3{font-size:1.02rem; margin:18px 0 6px; color:var(--ink)}
-  .close{min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center}
-  /* A sheet's title and its ✕ ride along as one solid bar at the top while
-     a long sheet scrolls, so the words pass under the bar instead of under
-     a floating ✕ (which covered a Begin, or a value, as they went by). A
-     short fade beneath the bar lets the words go under softly. The first
-     cards keep look.css's floating ✕; Steady's cards place their own. */
-  /* (a sticky box keeps clear of its scroller's padding, hence the -18px:
-     the bar rides at the very top edge of the sheet, not 18px below it) */
-  .shead{position:sticky; top:-18px; z-index:3; display:flex; align-items:center; gap:10px; min-height:44px;
-         margin:-18px -18px 8px; padding:12px 10px 4px 18px; background:var(--card)}
-  .shead h2{flex:1 1 auto; min-width:0; margin:0}
-  .shead .close{position:static; float:none; flex:none; width:44px; height:44px; padding:0; border-radius:50%}
-  .shead:after{content:""; position:absolute; left:0; right:0; top:100%; height:8px; pointer-events:none;
-               background:linear-gradient(var(--card), rgba(18,22,36,0))}
-  .sheet:not(.st) > .close{width:44px; height:44px; margin:0 -10px 0 8px; padding:0; border-radius:50%; background:var(--card)}
-  .link{color:var(--glow); text-decoration:underline; text-underline-offset:3px; padding:6px 2px; font-size:inherit}
-  /* the About sheet's way out: a row of links, each a 24 px target */
-  #ovAbout .note a{display:inline-block; padding:4px 2px; line-height:16px}
+  /* ================================================================
+     the sheets this file owns
+     ================================================================ */
+  .link{color:rgb(var(--wk)); text-decoration:underline; text-underline-offset:3px; padding:6px 2px; font-size:inherit}
 
-  /* eight doors: two columns on a phone, four where the sheet is wide —
-     never three, which would leave one door standing on its own */
-  #ovMenu .mgrid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px}
-  #ovMenu .mgrid .btn{min-height:48px}
-  @media (min-width:600px){ #ovMenu .mgrid{grid-template-columns:repeat(4,1fr)} }
-  /* a phone on its side: everything in one screen, nothing to scroll for */
-  @media (max-height:520px){
-    .shead{padding-top:6px; padding-bottom:0; margin-bottom:4px}
-    #ovMenu .lead{display:none}
-    #ovMenu #menuRun{clear:right}
-    #ovMenu .mgrid{gap:6px; margin-top:8px}
-    #ovMenu .mgrid .btn,#ovMenu .row .btn{min-height:44px}
-    #ovMenu .row{margin-top:8px}
-  }
-  #ovMenu .mfoot{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; margin:6px 0 -8px}
-  #ovMenu .mfoot .link{color:var(--soft); margin-left:auto; min-height:44px}
-  /* a button with a few small words under its name (Finish, Leave) */
-  .btn.two{flex-direction:column; gap:1px}
-  .btn .bsub{display:block; font-size:.74rem; font-weight:500; color:var(--soft); letter-spacing:.01em}
+  /* ---------- the pause sheet ---------- */
+  #menuWhere{margin:4px 0 0}
+  #menuWhere:empty{display:none}
+  #menuWhere .t1{margin-top:2px}
+  #menuWhere .way{margin-top:16px}
+  #menuWhere .subl{margin-top:12px}
+  #menuWhere .notel{margin-top:6px}
+  #menuWhere .mw-line{width:100%; height:2px; border-radius:1px; background:var(--hair-2); margin-top:14px; overflow:hidden; position:relative}
+  #menuWhere .mw-line i{position:absolute; inset:0 auto 0 0; background:rgb(var(--wk))}
+  #menuWhere .mw-skip{margin:6px 0 0 -12px}
+  #menuRun{margin-top:20px}
+  #menuRun .btn{width:100%}
+  #menuTip{margin-top:16px}
+  #menuTip:empty{display:none}
+  #menuExtras{margin-top:20px}
   #menuExtras:empty{display:none}
-  #menuExtras{margin-top:10px}
-  #menuExtras .fld{margin:8px 0}
-  .stepper{display:flex; align-items:center; gap:8px}
-  .stepper .btn{flex:0 0 48px; min-height:44px}
-  .stepper output{flex:1; text-align:center; font-variant-numeric:tabular-nums}
-  .chips{display:flex; flex-wrap:wrap; gap:6px}
-  .chips button{border:1px solid var(--line); background:var(--card2); border-radius:999px; padding:6px 12px; min-height:36px; font-size:.86rem}
-  .chips button.on{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); color:var(--ink)}
+  #menuExtras .xrow{display:flex; gap:8px}
+  #menuExtras .xrow .btn{flex:1 1 0}
+  #menuList{margin-top:20px}
+  #menuList .li-v{max-width:42%}
+  #menuFoot{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 12px; margin:12px 0 -8px}
+  #menuFoot .lv{gap:10px; margin-left:-12px; text-align:left}
+  #menuFoot .lv .ic{width:20px; height:20px}
+  #menuFoot .lv-t{display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; gap:2px}
+  #menuFoot .mcode{font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:0 0 0 auto; text-align:right}
+  #menuFoot .mcode .mono{color:var(--ink-2); font-weight:500}
+  /* Steady: Finish and Leave, the same weight, side by side */
+  #menuFoot.steady{flex-wrap:nowrap; gap:8px; margin:20px 0 0}
+  #menuFoot.steady .btn{flex:1 1 0; margin:0; min-height:60px}
+  #menuFoot.steady .lv{order:2; background:var(--fill-1); border:1px solid var(--hair-2); color:var(--ink); justify-content:center}
+  #menuFoot.steady .lv .ic{display:none}
+  #menuFoot.steady .lv-t{align-items:center}
+  #menuFoot.steady .mcode{display:none}
+  .wpick-wrap{padding:4px 16px 16px}
+  .wpick-wrap + .sw:before{content:""; position:absolute; top:0; left:16px; right:0; height:1px; background:var(--hair)}
+  /* a phone on its side: two columns, everything on one screen */
+  @media (max-height:520px){
+    #ovMenu .sheet{width:min(760px,100%)}
+    #ovMenu .mcols{display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start}
+    #menuList,#menuExtras{margin-top:4px}
+    #menuWhere .t1{font-size:1.375rem; line-height:1.75rem}
+  }
 
-  .tabs{display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px}
-  .tabs button{border:1px solid var(--line); background:var(--card2); border-radius:999px; padding:7px 13px; min-height:40px; font-size:.86rem}
-  .tabs button[aria-selected="true"]{border-color:var(--accent); color:var(--ink); box-shadow:inset 0 0 0 1px var(--accent)}
-  .tog{display:flex; align-items:center; gap:10px; margin-top:16px; font-size:.9rem; color:var(--soft); min-height:44px}
-  .tog input{width:20px; height:20px; accent-color:var(--accent)}
-
-  /* the Modes sheet */
-  .mcard{border:1px solid var(--line); background:var(--card2); border-radius:16px; padding:14px; margin-top:10px}
-  .mcard .mh{display:flex; align-items:baseline; gap:10px}
-  .mcard .mh b,.mcard .mh h3{font-size:1.08rem}
-  .mcard .mh h3{margin:0; font-weight:700; color:var(--ink)}
-  .mcard .mh .medal{margin-left:auto; font-size:.8rem; color:var(--glow)}
-  .mcard .ml{color:var(--soft); font-size:.88rem; margin:2px 0 8px}
-  .mcard .mo{margin:6px 0}
-  .mcard .mo .ok{font-size:.76rem; color:var(--soft); display:block; margin-bottom:4px}
-  .mcard .ms{display:flex; align-items:center; gap:10px; font-size:.84rem; color:var(--soft); margin-top:8px; min-height:24px}
-  .mcard .ms b{color:var(--ink); font-variant-numeric:tabular-nums}
-  .mcard .ms svg{flex:none}
-  .mcard .row{margin-top:10px}
-  .mcard.calm{border-color:rgba(184,204,255,.32)}
-  .chal{display:flex; align-items:center; gap:10px; border-top:1px solid var(--line); padding:10px 0}
-  .chal:first-child{border-top:none}
-  .chal .ct{flex:1; min-width:0}
-  .chal .ct b,.chal .ct h4{display:block}
-  .chal .ct h4{margin:0; font-size:1rem; font-weight:700}
-  .chal .ct small{color:var(--soft); font-size:.8rem; display:block; line-height:1.35}
-  .chal .ct .done{color:var(--good)}
-  .chal .btn{flex:0 0 auto; min-height:44px; padding:6px 16px}
+  /* ---------- Ways to play ---------- */
+  .mc{border-radius:var(--r3); background:var(--fill-1); border:1px solid var(--hair); margin-top:10px; overflow:hidden;
+    transition:background-color .2s var(--e-out)}
+  .mc.open{background:rgb(var(--wa) / .06)}
+  .mc-h{display:flex; align-items:center; gap:14px; width:100%; min-height:64px; padding:12px 16px; text-align:left;
+    background:none; border:0; color:var(--ink)}
+  .mc-h>.ic{width:22px; height:22px; color:var(--ink-2)}
+  .mc-t{flex:1 1 auto; min-width:0}
+  .mc-t .t3{display:block}
+  .mc-t .subl{display:block; margin-top:2px}
+  .mc-v{flex:0 1 auto; max-width:40%; font:400 .9375rem/1.25rem var(--sans); color:var(--ink); text-align:right; font-variant-numeric:tabular-nums}
+  .mc-h .chev{width:18px; height:18px; color:var(--ink-3); transition:transform .2s var(--e-out)}
+  .mc-h[aria-expanded="true"] .chev{transform:rotate(90deg)}
+  .mc-b{padding:0 16px 16px; animation:fadeIn .2s .06s both}
+  html.rm .mc-b{animation:fadeIn .15s both}
+  .mc-b>*+*{margin-top:14px}
+  .mc-b .way{margin-top:4px}
+  .mc-b .seg-line{margin-top:8px}
+  .mc-b .mopt-h{font:500 .9375rem/1.25rem var(--sans); color:var(--ink); margin:0 0 8px}
+  .mc-b .mopt>.seg-line{margin-top:8px}
+  .mc-b .list{background:var(--fill-1)}
+  .mc-acts{display:flex; gap:8px; align-items:center}
+  .mc-acts .btn.primary{flex:1 1 auto}
+  .mc-best{display:flex; align-items:center; gap:12px; font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2)}
+  .mc-best b{color:var(--ink); font-weight:500; font-variant-numeric:tabular-nums}
+  .mc-best svg{flex:none}
+  .mc-deep{font:400 .875rem/1.25rem var(--sans); color:var(--ink-2); display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px}
+  .mc-deep .surf{display:inline-flex; align-items:center; gap:4px; color:rgb(var(--wk))}
+  .mc-deep .ic{width:14px; height:14px}
+  .mc-tide{display:flex; align-items:center; gap:12px}
+  .mc-tide .tt{flex:1 1 auto; font:500 1rem/1.3 var(--sans)}
+  .mc-tide .tt small{display:block; font:400 .875rem/1.25rem var(--sans); color:var(--ink-2)}
+  .lesson .li-v{flex:none; max-width:none}
+  .lesson .mins{display:none}
+  @media (max-width:599px){ .lesson .li-v.m{display:none} .lesson .mins{display:block; color:var(--ink-3)} }
+  .lesson .num{flex:none; width:24px; height:24px; border-radius:50%; background:var(--fill-2); color:var(--ink-2);
+    display:flex; align-items:center; justify-content:center; font:600 .75rem var(--sans)}
+  .lesson .num .ic{width:16px; height:16px; color:rgb(var(--wa))}
+  .medals{display:flex; flex-direction:column; gap:6px}
+  .medals .pebs{display:flex; justify-content:space-between; gap:6px}
+  .medals .peb{flex:1 1 0; display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0}
+  .medals .peb i{width:14px; height:11px; border-radius:50%; box-shadow:inset 0 0 0 1px var(--hair-2)}
+  .medals .peb.got i{box-shadow:none; background:radial-gradient(circle at 35% 35%, #fffaf2, rgb(var(--wk)) 60%, rgb(var(--wk) / .6))}
+  .medals .peb b{font:400 .8125rem/1.1 var(--sans); color:var(--ink-2)}
+  .medals .peb.got b{color:var(--ink)}
+  .medals .peb small{font:400 .75rem/1.1 var(--sans); color:var(--ink-3); font-variant-numeric:tabular-nums}
+  .medals .medal-new{font:400 .9375rem/1.25rem var(--sans); color:rgb(var(--wk)); text-align:center; margin:4px 0 0}
+  #codeBox{padding:0 4px}
+  #codeBox .note{margin:4px 0 0}
   #codeNote.ok{color:var(--good)}
-  input.codeIn{font-size:clamp(1.4em,8vw,2em); letter-spacing:.24em; text-indent:.24em}
+  input.codeIn{font-size:clamp(1.4em,8vw,2em); letter-spacing:.24em; text-indent:.24em; background:var(--fill-1);
+    border:1px solid var(--hair-2); border-radius:var(--r2); color:var(--ink)}
+  input.codeIn:focus{border-color:rgb(var(--wa))}
+  .modes-foot{margin-top:16px}
+  .modes-foot .btn{gap:8px; margin-left:-12px}
 
-  /* the run card: a few numbers, large */
-  .rcard{display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:8px; margin:6px 0 4px}
-  .rcard div{background:var(--card2); border:1px solid var(--line); border-radius:13px; padding:9px 11px}
-  .rcard small{display:block; color:var(--soft); font-size:.74rem}
-  .rcard b{display:block; font-size:1.36rem; font-weight:650; font-variant-numeric:tabular-nums; line-height:1.2}
-  .rcard div.main{grid-column:1 / -1}
-  .rcard div.main b{font-size:2.1rem; color:var(--glow)}
-  /* a phone on its side: the numbers in one row, so Done, Again and the
-     rest are on screen without scrolling */
-  @media (max-height:520px){
-    .rcard{grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:6px}
-    .rcard div{padding:6px 10px}
-    .rcard b{font-size:1.12rem}
-    .rcard div.main{grid-column:auto}
-    .rcard div.main b{font-size:1.4rem}
-    #ovEnd .lead{margin-bottom:8px}
+  /* ---------- the run card and the chapter card: decisions, not menus ---------- */
+  .sheet.end{padding-top:28px}
+  .sheet.end h2{font:400 1.75rem/2.125rem var(--serif); letter-spacing:-.005em; margin:6px 48px 0 0; text-wrap:balance}
+  .sheet.end h2:focus{outline:none}
+  .end-x{position:absolute !important; top:12px; right:12px}
+  .end-lead{font:400 .9375rem/1.4 var(--sans); color:var(--ink-2); margin:8px 0 0}
+  .end-lead:empty{display:none}
+  #endWay{margin-top:18px}
+  #endWay .subl{margin-top:8px}
+  .end-hero{display:flex; flex-direction:column; margin-top:20px}
+  .end-hero-v{font:400 3.5rem/1 var(--serif); letter-spacing:-.02em; color:rgb(var(--wk)); font-variant-numeric:lining-nums tabular-nums; margin-top:6px}
+  .end-delta{font:400 .9375rem/1.25rem var(--sans); color:var(--ink-2); margin:8px 0 0}
+  .end-delta.pb{color:rgb(var(--wk))}
+  .end-delta:empty{display:none}
+  .end-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:18px; row-gap:14px}
+  .end-grid>div{padding:0 12px; position:relative; min-width:0; display:flex; flex-direction:column; justify-content:space-between}
+  .end-grid>div:not(:nth-child(3n+1)):before{content:""; position:absolute; left:0; top:2px; bottom:2px; width:1px; background:var(--hair)}
+  .end-grid>div:nth-child(3n+1){padding-left:0}
+  .end-grid small{display:block; font:500 .75rem/1rem var(--sans); letter-spacing:.02em; color:var(--ink-2)}
+  .end-grid b{display:block; font:500 1.375rem/1.6rem var(--sans); font-variant-numeric:tabular-nums; color:var(--ink); margin-top:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .end-grid:empty{display:none}
+  details.defs{margin-top:10px}
+  details.defs summary{display:inline-flex; align-items:center; min-height:44px; font:500 .875rem var(--sans); color:var(--ink-2); cursor:pointer; list-style:none}
+  details.defs summary::-webkit-details-marker{display:none}
+  details.defs summary:after{content:""; width:7px; height:7px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
+    transform:rotate(45deg); margin:-4px 0 0 10px; transition:transform .2s}
+  details.defs[open] summary:after{transform:rotate(-135deg); margin-top:4px}
+  details.defs dl{margin:4px 0 0; font:400 .875rem/1.35 var(--sans); color:var(--ink-2)}
+  details.defs dt{color:var(--ink); font-weight:500; margin-top:8px}
+  details.defs dd{margin:2px 0 0}
+  .end-strip{font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2); margin:12px 0 0}
+  .end-strip:empty{display:none}
+  #endMedals{margin-top:18px}
+  .end-stones{display:flex; align-items:center; gap:8px; margin-top:16px; font:400 .9375rem/1.3 var(--sans); color:var(--ink-2)}
+  .end-stones .ic{width:16px; height:16px; color:rgb(var(--wk))}
+  .end-stones b{color:var(--ink); font-weight:500}
+  .end-remind{display:flex; gap:10px; align-items:flex-start; margin-top:16px; padding:12px 14px; border-radius:var(--r3);
+    background:rgb(14 16 26 / .6); border:1px solid var(--hair); font:400 .9375rem/1.35 var(--sans); color:var(--ink)}
+  .end-remind .ic{width:18px; height:18px; color:var(--ink-2); margin-top:1px}
+  .end-acts{display:flex; flex-direction:column; margin-top:20px}
+  .end-acts .end-btns{order:2; margin:0; gap:10px; flex-wrap:nowrap}
+  .end-acts .end-btns .btn{flex:1 1 0}
+  .end-acts>.tipwrap{order:1; margin-bottom:16px}
+  .end-acts>.tipwrap:empty{display:none}
+  #endDepthRow{margin-top:6px}
+  #endDepthRow .btn{width:100%}
+  .end-note{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0 8px; margin:10px 0 -10px;
+    font:400 .8125rem/1.125rem var(--sans); color:var(--ink-2)}
+  .end-note .mono{color:var(--ink-2); font-weight:500}
+  .end-note .btn{gap:6px; margin-right:-12px; font-size:.875rem}
+  .end-note .btn .ic{width:16px; height:16px}
+  @media (max-width:599px), (pointer:coarse) and (max-width:699px){
+    .ov.decide>.sheet{max-height:72vh}
+    .sheet.end{padding-top:24px}
   }
-  .strip{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 2px}
-  .strip span{font-size:.78rem; color:var(--soft); border:1px solid var(--line); border-radius:999px; padding:2px 9px}
-  .strip span b{color:var(--ink); font-weight:650}
-  .pbLine{color:var(--glow); font-weight:650; margin:0 0 6px}
-  .stonesNew{margin-top:10px; font-size:.88rem; color:var(--soft)}
-  .stonesNew b{color:var(--glow)}
+  @media (min-width:900px) and (pointer:fine){
+    .sheet.end h2{font-size:2rem; line-height:2.375rem}
+    .end-hero-v{font-size:4.5rem}
+    .end-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .end-grid>div:nth-child(n){padding-left:12px}
+    .end-grid>div:nth-child(4n+1){padding-left:0}
+    .end-grid>div:before{display:block}
+    .end-grid>div:nth-child(4n+1):before{display:none}
+    .end-grid>div:nth-child(3n+1):not(:nth-child(4n+1)):before{content:""; position:absolute; left:0; top:2px; bottom:2px; width:1px; background:var(--hair)}
+  }
+  @media (max-height:520px){
+    .end-hero-v{font-size:2.5rem}
+    .end-hero{margin-top:12px}
+    .end-grid{grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:12px}
+  }
 
-  /* the Logbook: stones set into the rim of a well */
-  #logRim{display:flex; justify-content:center; margin:4px 0 6px}
+  /* ---------- the Logbook ---------- */
+  .log-way{display:grid; grid-template-columns:5.5rem 1fr; align-items:center; gap:4px 14px; padding:12px 16px}
+  .log-way+.log-way{border-top:1px solid var(--hair)}
+  .log-way .lw-t{font:500 1rem/1.3 var(--sans); color:var(--ink)}
+  .log-way .lw-s{grid-column:2; font:400 .875rem/1.25rem var(--sans); color:var(--ink-2)}
+  .log-life{font:400 .9375rem/1.4 var(--sans); color:var(--ink); margin:0 4px}
+  .log-life+.log-life{margin-top:6px; color:var(--ink-2)}
+  #logRim{display:flex; justify-content:center; margin:8px 0 12px}
   #logRim svg{width:min(300px,78vw); height:auto}
-  .stones{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:4px 14px; margin-top:6px;
-          list-style:none; padding:0; margin-bottom:0}
-  .stone{display:flex; gap:9px; align-items:flex-start; padding:5px 0; font-size:.86rem}
-  .stone i{flex:none; width:12px; height:10px; border-radius:50%; margin-top:5px; background:#2a3046; border:1px solid #3a4260}
-  .stone.got i{background:radial-gradient(circle at 35% 35%, #fff4e6, var(--glow) 55%, #c9a27a); border-color:#ffe2c4;
-               box-shadow:0 0 8px rgba(255,226,196,.45)}
-  .stone b{display:block; font-weight:650}
-  .stone small{color:var(--soft); display:block; line-height:1.35}
-  .stone:not(.got) b{color:var(--soft)}
-  .stone:not(.got) small{opacity:.78}
+  .stones{display:grid; grid-template-columns:1fr; gap:2px 20px; list-style:none; padding:0; margin:0}
+  @media (min-width:600px){ .stones{grid-template-columns:1fr 1fr} }
+  .stone{display:flex; gap:12px; align-items:flex-start; padding:8px 4px}
+  .stone>i{flex:none; width:12px; height:10px; border-radius:50%; margin-top:6px; box-shadow:inset 0 0 0 1px var(--hair-2)}
+  .stone.got>i{box-shadow:0 0 8px rgb(var(--wk) / .45); background:radial-gradient(circle at 35% 35%, #fffaf2, rgb(var(--wk)) 55%, rgb(var(--wk) / .7))}
+  .stone b{display:block; font:500 1rem/1.3 var(--sans); color:var(--ink)}
+  .stone small{display:block; font:400 .875rem/1.3 var(--sans); color:var(--ink-2); margin-top:1px}
+  .stone:not(.got) b{color:var(--ink-2)}
+  .stone:not(.got) small{color:var(--ink-3)}
+  .best .li-v{color:var(--ink); max-width:55%}
+  .best .peb{display:inline-block; width:12px; height:9px; border-radius:50%; margin-left:8px; vertical-align:baseline;
+    background:radial-gradient(circle at 35% 35%, #fffaf2, rgb(var(--wk)) 60%, rgb(var(--wk) / .6))}
 
-  /* the first-touch cards: one idea each */
-  .tcard{text-align:center; padding:4px 4px 0}
-  .tcard svg{width:132px; height:132px; display:block; margin:6px auto 10px}
-  .tcard .tl{font-size:1.4rem; font-weight:600; color:var(--glow); margin:0}
-  .tcard .ts{color:var(--soft); font-size:.92rem; margin:.4em auto 0; max-width:30ch}
-  .tdots{display:flex; justify-content:center; gap:7px; margin:14px 0 4px}
-  .tdots i{width:7px; height:7px; border-radius:50%; background:var(--line)}
-  .tdots i.on{background:var(--accent)}
-  /* a phone on its side: the picture beside the words, so Next is always
-     on screen without scrolling */
-  @media (max-height:520px){
-    .tcard{display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto 1fr; column-gap:18px;
-           align-items:start; text-align:left; padding:2px 40px 0 0}
-    .tcard svg{width:104px; height:104px; margin:0; grid-row:1 / span 3}
-    .tcard .tl{margin-top:14px}
-    .tcard .ts{margin:.35em 0 0}
-    .tcard .note{text-align:left !important; grid-column:2}
-    .tdots{margin:8px 0 0}
+  /* ---------- the explainer: an index, then a page ---------- */
+  #ovLearn .sheet{width:min(760px,100%)}
+  .lrn-wrap{display:block}
+  .lrn-index .list+.list{margin-top:16px}
+  .lrn-page{display:none}
+  .lrn-wrap.reading .lrn-index{display:none}
+  .lrn-wrap.reading .lrn-page{display:block}
+  #learnGlass{margin-top:24px}
+  #learnBody{font-size:1.0625rem}
+  @media (min-width:900px) and (pointer:fine){
+    #ovLearn .shead .back{display:none}
+    .lrn-wrap,.lrn-wrap.reading{display:grid; grid-template-columns:200px minmax(0,1fr); gap:28px; align-items:start}
+    .lrn-wrap .lrn-index,.lrn-wrap.reading .lrn-index{display:block; position:sticky; top:64px}
+    .lrn-wrap .lrn-page{display:block; max-width:62ch}
+    .lrn-index .li{min-height:44px; padding:10px 12px; font-size:.9375rem}
+    .lrn-index .li .li-s{display:none}
+    .lrn-index .li .li-ic{display:none}
+    .lrn-index .li.cur{background:rgb(var(--wa) / .12)}
+    .lrn-index .list.icons>.li + .li:before{left:12px}
   }
-  .kc{fill:#1a1f31; stroke:#3a4466; stroke-width:1.5}
-  .kt{fill:#eef0f8; font:600 13px system-ui,-apple-system,sans-serif; text-anchor:middle}
-  .fing{fill:rgba(255,226,196,.9)}
-  .anim-drag{animation:tdrag 2.2s ease-in-out infinite}
-  .anim-tap{animation:ttap 1.6s ease-in-out infinite; transform-origin:center; transform-box:fill-box}
-  .anim-down{animation:tdown 1.8s cubic-bezier(.5,0,.2,1) infinite}
-  .anim-up{animation:tup 1.8s cubic-bezier(.5,0,.2,1) infinite}
-  @keyframes tdrag{0%,100%{transform:translateX(-22px)}50%{transform:translateX(22px)}}
-  @keyframes ttap{0%,60%,100%{transform:scale(1); opacity:.9}30%{transform:scale(.72); opacity:1}}
-  @keyframes tdown{0%{transform:translateY(-24px); opacity:0}20%{opacity:1}70%{transform:translateY(26px); opacity:1}100%{transform:translateY(26px); opacity:0}}
-  @keyframes tup{0%{transform:translateY(24px); opacity:0}20%{opacity:1}70%{transform:translateY(-26px); opacity:1}100%{transform:translateY(-26px); opacity:0}}
 
+  /* ---------- About ---------- */
+  #ovAbout .sheet{width:min(480px,100%)}
+  #aboutBody p{font:400 .8125rem/1.45 var(--sans); color:var(--ink-2); margin:0 0 12px}
+  .about-made{font:400 .9375rem/1.45 var(--sans); color:var(--ink-2); margin:0 0 20px}
+  .about-links .li .ic{width:18px; height:18px; color:var(--ink-3)}
+
+  /* ---------- sheet widths beside a mouse (§B11) ---------- */
+  @media (min-width:900px){
+    #ovMenu .sheet,#ovChapter .sheet{width:min(440px,100%)}
+    #ovEnd .sheet{width:min(480px,100%)}
+    #ovLog .sheet,#ovModes .sheet{width:min(640px,100%)}
+    #ovSettings .sheet{width:min(760px,100%)}
+  }
+
+  /* ---------- the note that a new version is ready ---------- */
   #updateBar{
     position:fixed; top:calc(var(--safe-top) + 8px); left:50%; transform:translateX(-50%);
-    background:var(--accent); color:var(--accent-ink); font-weight:650; border-radius:999px;
-    padding:10px 18px; z-index:60; box-shadow:var(--shadow); font-size:.9rem; max-width:calc(100% - 24px);
-    width:max-content;
+    display:flex; align-items:center; gap:10px; min-height:44px; padding:8px 18px 8px 14px; border-radius:999px; z-index:60;
+    background:rgb(14 16 26 / .88); border:1px solid var(--hair); box-shadow:0 12px 32px rgb(0 0 0 / .4);
+    color:var(--ink); font:400 .9375rem/1.25rem var(--sans); max-width:calc(100% - 24px); width:max-content; text-align:left;
   }
+  #updateBar .dot{flex:none; width:6px; height:6px; border-radius:50%; background:rgb(var(--wa))}
+  #updateBar b{color:rgb(var(--wa)); font-weight:600; white-space:nowrap}
   /* never over a run: it would cover the HUD, and a tap on it mid-Forty
      threw the run away. It waits for the splash or the end of the run. */
   html.playing #updateBar{display:none}
 
+  /* ---------- reduced motion: fades only, and short ---------- */
+  html.rm .btn,html.rm .btn:active{transition:opacity .15s, background-color .15s; transform:none}
+  html.rm .sw-k,html.rm .sw-k:after,html.rm .seg>button,html.rm .mc-h .chev{transition:none}
+  html.rm .lbl,html.rm .lbl.on,html.rm #banner,html.rm #hud,html.rm #hud.off,html.rm #pace,html.rm #splash{transition-duration:.15s}
   @media (prefers-reduced-motion: reduce){
-    .anim-drag,.anim-tap,.anim-down,.anim-up{animation:none}
-    .lbl,.lbl.on,#banner,#hud,#hud.off,#pace,#splash{transition:none}
+    .btn,.btn:active{transition:opacity .15s, background-color .15s; transform:none}
+    .lbl,.lbl.on,#banner,#hud,#hud.off,#pace,#splash{transition-duration:.15s}
+    .lbl{translate:none}
+    #btnBreath.glow{animation:none}
   }
 
-  /* Forced colours (Windows High Contrast) flatten the accent borders and
-     tints that say which choice is on. The choice gets an inner ring in
-     Highlight instead — never an outline, which is the focus ring's, and
-     the focused choice is usually the chosen one. (The settings sheets'
-     cards and switches do the same in sheets.js.) */
+  /* Forced colours (Windows High Contrast) flatten the tints that say which
+     choice is on. The choice gets an inner ring in Highlight instead —
+     never an outline, which is the focus ring's. */
   @media (forced-colors: active){
-    .chips button.on,.tabs button[aria-selected="true"]{position:relative}
-    .chips button.on::after,.tabs button[aria-selected="true"]::after{
-      content:""; position:absolute; inset:2px; border:3px solid Highlight; border-radius:inherit; pointer-events:none}
+    .mc.open{outline:2px solid Highlight; outline-offset:-2px}
+    .lrn-index .li.cur{outline:3px solid Highlight; outline-offset:-3px}
   }
 </style>
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" stroke-width="2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/></symbol>
+  <symbol id="i-moves" viewBox="0 0 24 24"><circle cx="12" cy="15.5" r="3"/><path d="M7.6 9.6a6.2 6.2 0 0 1 8.8 0M5 7a9.9 9.9 0 0 1 14 0"/></symbol>
+  <symbol id="i-modes" viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="7" ry="2.5"/><path d="M5 8v8c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V8"/></symbol>
+  <symbol id="i-logbook" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="5"/><circle cx="12" cy="7" r="1"/><circle cx="19.2" cy="10" r="1"/><circle cx="4.8" cy="10" r="1"/><circle cx="12" cy="17" r="1"/></symbol>
+  <symbol id="i-learn" viewBox="0 0 24 24"><path d="M4 6.5c2.6-1 5.2-1 8 .5v11c-2.8-1.5-5.4-1.5-8-.5zM20 6.5c-2.6-1-5.2-1-8 .5v11c2.8-1.5 5.4-1.5 8-.5z"/></symbol>
+  <symbol id="i-about" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".6" fill="currentColor"/></symbol>
+  <symbol id="i-look" viewBox="0 0 24 24"><path d="M5 10h5V5h4v5h5v5H5z"/></symbol>
+  <symbol id="i-controls" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16M9 7l3-3 3 3M9 17l3 3 3-3M7 9l-3 3 3 3M17 9l3 3-3 3"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3zM15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.4 7.4 0 0 1 0 10.4"/></symbol>
+  <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3zM16 9.5l5 5M21 9.5l-5 5"/></symbol>
+  <symbol id="i-comfort" viewBox="0 0 24 24"><path d="M19.5 14.5A7.5 7.5 0 1 1 9.5 4.5a6 6 0 0 0 10 10z"/></symbol>
+  <symbol id="i-breath" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-keep" viewBox="0 0 24 24"><path d="M5 15V9a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v6M4 15h16M9 11h6"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-ease" viewBox="0 0 24 24"><path d="M12 5v9M8.5 10.5L12 14l3.5-3.5"/><circle cx="12" cy="18" r=".6"/><circle cx="12" cy="20.5" r=".6"/></symbol>
+  <symbol id="i-turn" viewBox="0 0 24 24"><path d="M18.5 12a6.5 6.5 0 1 1-1.9-4.6M18.5 4.5v4h-4"/></symbol>
+  <symbol id="i-turn-back" viewBox="0 0 24 24"><g transform="matrix(-1 0 0 1 24 0)"><path d="M18.5 12a6.5 6.5 0 1 1-1.9-4.6M18.5 4.5v4h-4"/></g></symbol>
+  <symbol id="i-drag" viewBox="0 0 24 24"><path d="M5 12h14M8 9l-3 3 3 3M16 9l3 3-3 3"/></symbol>
+  <symbol id="i-flick-up" viewBox="0 0 24 24"><path d="M12 19V6M7.5 10.5L12 6l4.5 4.5M9 21h6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.2l2.8 1.8"/></symbol>
+  <symbol id="i-leave" viewBox="0 0 24 24"><path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3M14 8.5l3.5 3.5-3.5 3.5M17.5 12H9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4 4 9-9.5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="10" height="10" rx="2"/><path d="M15.5 8.5V7a1.5 1.5 0 0 0-1.5-1.5H7A1.5 1.5 0 0 0 5.5 7v7A1.5 1.5 0 0 0 7 15.5h1.5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M13.5 5.5h5v5M18.5 5.5L11 13M16.5 14v3.5a1.5 1.5 0 0 1-1.5 1.5H7a1.5 1.5 0 0 1-1.5-1.5V9.5A1.5 1.5 0 0 1 7 8h3.5"/></symbol>
+  <symbol id="i-surface" viewBox="0 0 24 24"><path d="M4 16h16M8 16a4 4 0 0 1 8 0"/></symbol>
+  <symbol id="i-stone" viewBox="0 0 24 24"><path d="M5.5 13.2c0-3 2.9-5.4 6.6-5.4 3.6 0 6.4 2.2 6.4 5 0 2.7-2.8 4.4-6.5 4.4-3.8 0-6.5-1.4-6.5-4z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-m-descent" viewBox="0 0 24 24"><circle cx="12" cy="4" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="17.5" r="1" fill="currentColor" stroke="none"/><path d="M8 21h8"/></symbol>
+  <symbol id="i-m-steady" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></symbol>
+  <symbol id="i-m-drift" viewBox="0 0 24 24"><path d="M3 12c3-3 6-3 9 0s6 3 9 0"/></symbol>
+  <symbol id="i-m-forty" viewBox="0 0 24 24"><path d="M6 6v12M10 6v12M14 6v12M18 6v12M4 15.5L20 8.5"/></symbol>
+  <symbol id="i-m-three" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 12V7.5M12 12h3.5"/></symbol>
+  <symbol id="i-keys" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 10.5h.01M10 10.5h.01M13 10.5h.01M16 10.5h.01M8 14h8"/></symbol>
+  <symbol id="i-pad" viewBox="0 0 24 24"><path d="M7.5 8h9a4 4 0 0 1 3.9 4.9l-.9 3.6a2.2 2.2 0 0 1-3.8.9L14 15h-4l-1.7 2.4a2.2 2.2 0 0 1-3.8-.9l-.9-3.6A4 4 0 0 1 7.5 8z"/><path d="M8 11v3M6.5 12.5h3"/><circle cx="16" cy="11.5" r=".6"/><circle cx="17.5" cy="13" r=".6"/></symbol>
+</svg>
+
 <div id="app">
   <div id="stage">
     <canvas id="cv3" class="surface" aria-hidden="true"></canvas>
     <canvas id="cv2" class="surface hide" aria-hidden="true"></canvas>
+    <div id="hudScrim" aria-hidden="true"></div>
     <div id="pace" aria-hidden="true"></div>
 
     <div id="hud" class="off" role="group" aria-label="The well, in numbers">
-      <div class="hc grow hide" id="hudA"><span class="hk" id="hudAk"></span><span class="hv" id="hudAv"></span></div>
-      <div class="hc hide" id="hudB"><span class="hk" id="hudBk"></span><span class="hv" id="hudBv"></span></div>
-      <div class="hc hide" id="hudC"><span class="hk" id="hudCk"></span><span class="hv" id="hudCv"></span></div>
-      <button id="btnBreath" class="hide" aria-label="Take a Breath" title="Breath: gravity rests for one long breath (B). Each line you clear adds a bead."><span class="bk">Breath</span><span class="beads" id="breathBeads"></span></button>
+      <div class="hl" id="hudL">
+        <span class="hcap" id="hudCap"></span>
+        <span class="hname" id="hudName"></span>
+        <span class="hsub hide" id="hudSub"></span>
+        <div class="way micro hide" id="hudRail" aria-hidden="true"><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i><i class="wn"></i></div>
+        <div class="hcway hide" id="hudWay" aria-hidden="true"></div>
+        <div class="hline hide" id="hudLine" aria-hidden="true"><i id="hudLineFill"></i></div>
+        <ol class="wayv" id="hudWayV" aria-hidden="true"></ol>
+      </div>
+      <div class="hf hide" id="hudF1"><span class="hv" id="hudF1v"></span><span class="hk" id="hudF1k"></span></div>
+      <div class="hf hide" id="hudF2"><span class="hv" id="hudF2v"></span><span class="hk" id="hudF2k"></span></div>
+      <button id="btnBreath" class="hide" type="button" aria-label="Take a Breath" aria-disabled="true">
+        <svg class="ring" viewBox="0 0 44 44" aria-hidden="true" focusable="false">
+          <circle class="bt" cx="22" cy="22" r="15"/>
+          <circle class="bf" id="breathArc" cx="22" cy="22" r="15" pathLength="20" stroke-dasharray="0 20" transform="rotate(-90 22 22)"/>
+          <path class="btk" d="M22 35.4v3.2"/>
+          <g class="bgl"><circle cx="22" cy="22" r="5.3"/><circle cx="22" cy="22" r="2"/></g>
+        </svg>
+        <span class="bk">Breath</span><kbd class="kc" id="breathKey"></kbd>
+      </button>
     </div>
 
     <div id="labels" class="r" aria-hidden="true">
@@ -516,7 +1038,7 @@
     </div>
 
     <div id="glass" class="hide" role="group" aria-label="The Glass Well">
-      <div class="gh">THE GLASS WELL</div>
+      <p class="gh">The Glass Well</p>
       <div class="gr"><span class="gk">bag</span><span id="gBag"></span></div>
       <div class="gr"><span class="gk">lock</span><span class="gbar"><i id="gLock"></i></span></div>
       <div class="gr"><span class="gk">resets</span><span class="pips" id="gPips"></span></div>
@@ -530,24 +1052,24 @@
       <div class="head"><span id="coachName">Lesson</span><span class="x" id="coachProg"></span></div>
       <p id="coachText"></p>
       <div class="row">
-        <button class="btn" id="coachHint">Hint</button>
-        <button class="btn" id="coachWatch">Show me</button>
+        <button class="btn small" id="coachHint" type="button">Hint</button>
+        <button class="btn small" id="coachWatch" type="button">Show me</button>
       </div>
     </div>
 
-    <div id="banner" aria-hidden="true"><div class="big" id="bannerBig"></div><div class="sub" id="bannerSub"></div></div>
+    <div id="banner" aria-hidden="true"><div class="big" id="bannerBig"></div><div class="sub" id="bannerSub"></div><div class="way" id="bannerWay"></div><p id="bannerWh"></p></div>
 
     <div id="chip" class="hide" role="status">
-      <p id="chipText"></p>
-      <div class="row"><button class="btn" id="chipRest">Rest</button><button class="btn" id="chipKeep">Keep playing</button></div>
+      <p><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-comfort"></use></svg><span id="chipText"></span></p>
+      <div class="row"><button class="btn small" id="chipRest" type="button">Rest</button><button class="btn quiet" id="chipKeep" type="button">Keep playing</button></div>
     </div>
 
     <div id="pad"></div>
 
-    <div id="veil" class="hide" role="button" tabindex="-1" aria-label="Paused. Tap to return."><span id="veilText">Paused · tap to return</span></div>
+    <div id="veil" class="hide" role="button" tabindex="-1" aria-label="Paused. Tap to return."><span><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg><span id="veilText">Paused · tap to return</span></span></div>
   </div>
 
-  <button id="btnMenu" class="off" aria-label="Pause" title="Pause"><i></i><i></i></button>
+  <button id="btnMenu" class="off" type="button" aria-label="Pause" title="Pause"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg></button>
 </div>
 
 <div id="say" class="vh" aria-live="polite" aria-atomic="true"></div>
@@ -556,156 +1078,199 @@
 <!-- the splash: the real well plays itself behind the title, silent until the first tap -->
 <div id="splash">
   <div class="scrim"></div>
-  <div class="sp-top">
-    <h1 class="title">well</h1>
-    <p class="sub">a falling-blocks game</p>
-  </div>
-  <div class="sp-bottom">
-    <p class="line" id="spLine">Music that answers every move. Ten worlds down, and back up to the surface.</p>
-    <div class="row">
-      <button class="btn primary wide hide" id="goContinue">Continue</button>
-      <button class="btn primary wide" id="goPlay">Enter the well</button>
+  <div class="sp-col" id="spCol">
+    <div class="sp-top">
+      <h1 class="title">well</h1>
+      <p class="sub">a falling-blocks game</p>
     </div>
-    <div class="row"><button class="btn wide" id="goModes">Modes</button></div>
-    <div class="links">
-      <button id="goLearn">How it works</button>
-      <button id="goLog">Logbook</button>
-      <button id="goMenu">Settings</button>
-      <button id="goAbout">About</button>
+    <div class="sp-bottom">
+      <p id="spGoal">Ten worlds, down to the stars and back up to the surface.</p>
+      <div class="sp-doors">
+        <button class="btn primary two hide" id="goContinue" type="button"><span id="goContT">Continue</span><span class="bsub" id="goContSub"></span></button>
+      </div>
+      <div class="way hide" id="spWay" role="img" aria-label=""></div>
+      <p class="facts" id="spFacts"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-clock"></use></svg><span id="spFactsT">Descent · 250 lines</span></p>
+      <p id="spStop">Stop whenever you like. It keeps your place.</p>
+      <div class="sp-doors">
+        <button class="btn primary" id="goPlay" type="button">Enter the well</button>
+        <button class="btn" id="goModes" type="button">Other ways to play</button>
+      </div>
+      <div class="sp-links">
+        <button class="btn quiet" id="goLearn" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-learn"></use></svg>How it works</button>
+        <button class="btn quiet" id="goLog" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-logbook"></use></svg>Logbook</button>
+        <button class="btn quiet" id="goMenu" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-settings"></use></svg>Settings</button>
+      </div>
+      <p class="note" id="spNote"></p>
     </div>
-    <p class="note" id="spNote"></p>
   </div>
 </div>
 
+<!-- the glass behind every sheet: a softened snapshot of the well -->
+<canvas id="frost" aria-hidden="true"></canvas>
+
 <!-- ======== sheets ======== -->
 
-<div class="ov hide" id="ovMenu" role="dialog" aria-modal="true" aria-labelledby="menuTitle"><div class="sheet">
-  <div class="shead"><h2 id="menuTitle">Paused</h2><button class="close" data-close="ovMenu" aria-label="Close">✕</button></div>
-  <p class="lead" id="menuLead">Nothing moves while this is open.</p>
-  <div class="row" id="menuRun"><button class="btn primary wide" id="mResume">Resume</button></div>
-  <div id="menuExtras"></div>
-  <div class="mgrid">
-    <button class="btn" id="mModes">Modes</button>
-    <button class="btn" id="mSteady">Steady</button>
-    <button class="btn" id="mLook">Look</button>
-    <button class="btn" id="mHandling">Handling</button>
-    <button class="btn" id="mSound">Sound</button>
-    <button class="btn" id="mComfort">Comfort</button>
-    <button class="btn" id="mLearn">How it works</button>
-    <button class="btn" id="mLog">Logbook</button>
+<div class="ov hide" id="ovMenu" role="dialog" aria-modal="true" aria-labelledby="menuTitle"><div class="sheet menu">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead"><h2 id="menuTitle" tabindex="-1">Paused</h2><button class="ibtn close" type="button" data-close="ovMenu" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
+  <div class="mcols">
+    <div class="mcol">
+      <div id="menuWhere"></div>
+      <div id="menuRun"><button class="btn primary" id="mResume" type="button">Resume</button></div>
+      <div id="menuTip" class="tipwrap"></div>
+    </div>
+    <div class="mcol">
+      <div id="menuExtras"></div>
+      <div class="list icons" id="menuList">
+        <button class="li" id="mMoves" type="button"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-moves"></use></svg></span><span class="li-t">Moves</span><span class="li-v" id="mMovesV"></span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+        <button class="li" id="mSettings" type="button"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-settings"></use></svg></span><span class="li-t">Settings</span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+        <button class="li" id="mModes" type="button"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-modes"></use></svg></span><span class="li-t">Other ways to play</span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+        <button class="li" id="mLog" type="button"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-logbook"></use></svg></span><span class="li-t">Logbook</span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+        <button class="li" id="mLearn" type="button"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-learn"></use></svg></span><span class="li-t">How it works</span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+      </div>
+      <div id="menuFoot">
+        <button class="btn quiet lv" id="mLeave" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-leave"></use></svg><span class="lv-t"><span id="mLeaveT">Leave</span><span class="bsub" id="mLeaveS">it's saved</span></span></button>
+        <p class="mcode" id="menuNote"></p>
+      </div>
+    </div>
   </div>
-  <div class="row" id="menuLeaveRow"><button class="btn wide" id="mLeave">Leave</button></div>
-  <p class="note mfoot"><span id="menuNote"></span><button class="link" id="mAbout">About well</button></p>
 </div></div>
 
-<div class="ov hide" id="ovModes" role="dialog" aria-modal="true" aria-labelledby="modesTitle"><div class="sheet wide">
-  <div class="shead"><h2 id="modesTitle">Modes</h2><button class="close" data-close="ovModes" aria-label="Close">✕</button></div>
-  <p class="lead">Every mode, world and skin is open from the start. Nothing unlocks anything.</p>
+<div class="ov hide" id="ovModes" role="dialog" aria-modal="true" aria-labelledby="modesTitle"><div class="sheet modes">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead"><h2 id="modesTitle" tabindex="-1">Ways to play</h2><button class="ibtn close" type="button" data-close="ovModes" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
+  <p class="lead">Every mode, world and skin is open. Nothing unlocks anything.</p>
   <div id="modesBody"></div>
-  <h3>Play a well code</h3>
-  <p class="note" style="margin-top:0">Six letters deal the same pieces to anyone, on any day. Type one in, then pick a mode.</p>
-  <input type="text" id="codeIn" class="codeIn" maxlength="8" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Well code" aria-describedby="codeNote" placeholder="······">
-  <p class="note" id="codeNote" role="status"></p>
-  <h3>Challenges</h3>
-  <p class="note" style="margin-top:0">Lessons and silt, in a suggested order — take them in any order you like. Retrying is unlimited.</p>
-  <div id="chalBody"></div>
+  <div class="modes-foot">
+    <button class="btn quiet" id="codeToggle" type="button" aria-expanded="false" aria-controls="codeBox"><svg class="ic s18" aria-hidden="true" focusable="false"><use href="#i-copy"></use></svg>Have a well code?</button>
+    <div id="codeBox" class="hide">
+      <p class="note">Six letters deal the same pieces to anyone, on any day. Type one in, then pick a mode.</p>
+      <input type="text" id="codeIn" class="codeIn" maxlength="8" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="Well code" aria-describedby="codeNote" placeholder="······">
+      <p class="note" id="codeNote" role="status"></p>
+    </div>
+  </div>
 </div></div>
 
-<div class="ov hide" id="ovLog" role="dialog" aria-modal="true" aria-labelledby="logTitle"><div class="sheet wide">
-  <div class="shead"><h2 id="logTitle">Logbook</h2><button class="close" data-close="ovLog" aria-label="Close">✕</button></div>
-  <p class="lead">Stones set into the rim, one for each moment worth keeping. They only ever add up: nothing here decays, expires or counts days.</p>
+<div class="ov hide" id="ovLog" role="dialog" aria-modal="true" aria-labelledby="logTitle"><div class="sheet log">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead"><h2 id="logTitle" tabindex="-1">Logbook</h2><button class="ibtn close" type="button" data-close="ovLog" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
+  <h3 class="gh">The way down</h3>
+  <div class="list" id="logWay"></div>
+  <p class="gf" id="logPace"></p>
+  <h3 class="gh">At the well, so far</h3>
+  <div id="logLife"></div>
+  <h3 class="gh" id="logStonesH">Stones</h3>
   <div id="logRim" aria-hidden="true"></div>
   <p class="vh" id="logSum"></p>
   <ul class="stones" id="logStones" role="list"></ul>
-  <h3>At the well, so far</h3>
-  <div class="rcard" id="logLife"></div>
-  <h3>Personal bests</h3>
-  <div id="logBests"></div>
+  <p class="gf">One for each moment worth keeping. Nothing here decays, expires or counts days.</p>
+  <h3 class="gh">Personal bests</h3>
+  <div class="list" id="logBests"></div>
+  <p class="gf" id="logNot"></p>
 </div></div>
 
-<div class="ov hide" id="ovEnd" role="dialog" aria-modal="true" aria-labelledby="endTitle"><div class="sheet">
-  <div class="shead"><h2 id="endTitle">The well rests.</h2><button class="close" data-close="ovEnd" aria-label="Close">✕</button></div>
-  <p class="lead" id="endLead"></p>
-  <p class="pbLine hide" id="endPb">New personal best</p>
-  <div class="rcard" id="endCard"></div>
-  <div class="strip" id="endStrip"></div>
-  <div class="stonesNew" id="endStones"></div>
-  <div class="row"><button class="btn wide" id="endDone">Done</button><button class="btn wide" id="endAgain">Again</button></div>
-  <div class="row hide" id="endDepthRow"><button class="btn wide" id="endDepth">Begin again from this depth</button></div>
-  <p class="note" id="endNote"><span id="endCode"></span> <button class="link" id="endShare">Copy a line to share</button></p>
+<div class="ov hide decide" id="ovEnd" role="dialog" aria-modal="true" aria-labelledby="endTitle"><div class="sheet end">
+  <div class="grab" aria-hidden="true"></div>
+  <p class="eyebrow" id="endEyebrow"></p>
+  <h2 id="endTitle" tabindex="-1">The well rests.</h2>
+  <p class="end-lead" id="endLead"></p>
+  <div id="endWay" class="hide"></div>
+  <div class="end-hero hide" id="endHero"><span class="eyebrow" id="endHeroK"></span><span class="end-hero-v" id="endHeroV"></span></div>
+  <p class="end-delta" id="endDelta"></p>
+  <div class="end-grid" id="endCard"></div>
+  <details class="defs hide" id="endDefs"><summary>What these mean</summary><dl id="endDefsList"></dl></details>
+  <p class="end-strip" id="endStrip"></p>
+  <div id="endMedals" class="hide"></div>
+  <div id="endStones" class="end-stones hide"></div>
+  <div id="endRemind" class="end-remind hide"></div>
+  <div class="end-acts">
+    <div class="row end-btns"><button class="btn" id="endDone" type="button">Done</button><button class="btn" id="endAgain" type="button">Again</button></div>
+    <div id="endTip" class="tipwrap"></div>
+  </div>
+  <div class="hide" id="endDepthRow"><button class="btn quiet" id="endDepth" type="button">Begin again from this depth</button></div>
+  <p class="end-note" id="endNote"><span id="endCode"></span><button class="btn quiet" id="endShare" type="button"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-copy"></use></svg>Copy a line</button></p>
+  <button class="ibtn close end-x" type="button" data-close="ovEnd" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
 </div></div>
 
-<div class="ov hide" id="ovChapter" role="dialog" aria-modal="true" aria-labelledby="chapterTitle"><div class="sheet">
-  <div class="shead"><h2 id="chapterTitle">Chapter complete</h2><button class="close" data-close="ovChapter" aria-label="Close">✕</button></div>
-  <p class="lead" id="chapterLead">The well is still. Rest here, or carry on with the board just as it is.</p>
-  <div class="row"><button class="btn wide" id="chapterRest">Rest</button><button class="btn wide" id="chapterGo">Continue</button></div>
+<div class="ov hide decide" id="ovChapter" role="dialog" aria-modal="true" aria-labelledby="chapterTitle"><div class="sheet end chapter">
+  <div class="grab" aria-hidden="true"></div>
+  <p class="eyebrow" id="chapterEyebrow"></p>
+  <h2 id="chapterTitle" tabindex="-1">Chapter complete.</h2>
+  <p class="end-lead" id="chapterLead">The well is still. Rest here, or carry on with the board just as it is.</p>
+  <div id="chapterRemind" class="end-remind hide"></div>
+  <div class="end-acts">
+    <div class="row end-btns"><button class="btn" id="chapterRest" type="button">Rest</button><button class="btn" id="chapterGo" type="button">Continue</button></div>
+    <div id="chapterTip" class="tipwrap"></div>
+  </div>
+  <button class="ibtn close end-x" type="button" data-close="ovChapter" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
 </div></div>
 
-<div class="ov hide" id="ovCards" role="dialog" aria-modal="true" aria-labelledby="cardsTitle"><div class="sheet">
-  <button class="close" data-close="ovCards" aria-label="Skip">✕</button>
-  <h2 id="cardsTitle" class="vh">How to play</h2>
-  <div id="cardsBody"></div>
-  <div class="tdots" id="cardsDots" aria-hidden="true"></div>
-  <div class="row"><button class="btn primary wide" id="cardsNext">Next</button></div>
+<div class="ov hide" id="ovLearn" role="dialog" aria-modal="true" aria-labelledby="learnTitle"><div class="sheet learn">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead"><button class="ibtn back hide" id="learnBack" type="button" aria-label="Back to the sections"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-back"></use></svg></button><h2 id="learnTitle" tabindex="-1">The well, explained</h2><button class="ibtn close" type="button" data-close="ovLearn" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
+  <div class="lrn-wrap" id="learnWrap">
+    <nav class="lrn-index" id="learnIndex" aria-label="Sections">
+      <div class="list icons" id="learnNav"></div>
+      <div class="list icons" id="learnMore">
+        <button class="li" type="button" data-go="moves"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-moves"></use></svg></span><span class="li-t">Moves<span class="li-s">Practise any move, on the device in hand.</span></span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+        <button class="li" type="button" id="learnAbout"><span class="li-ic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-about"></use></svg></span><span class="li-t">About <i>well</i><span class="li-s">Who made it, and the small print.</span></span><svg class="ic chev" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+      </div>
+    </nav>
+    <div class="lrn-page" id="learnPage">
+      <div id="learnBody"></div>
+      <div class="list hide" id="learnGlass">
+        <button class="sw" id="glassToggle" type="button" role="switch" aria-checked="false" aria-labelledby="glassT" aria-describedby="glassS"><span class="sw-t"><span id="glassT">Glass Well while playing</span><span class="sw-s" id="glassS">The rules at work beside the well.</span></span><span class="sw-k" aria-hidden="true"></span></button>
+      </div>
+    </div>
+  </div>
 </div></div>
 
-<div class="ov hide" id="ovLearn" role="dialog" aria-modal="true" aria-labelledby="learnTitle"><div class="sheet wide">
-  <div class="shead"><h2 id="learnTitle">The well, explained</h2><button class="close" data-close="ovLearn" aria-label="Close">✕</button></div>
-  <div class="tabs" id="learnTabs" role="tablist" aria-label="Sections"></div>
-  <div id="learnBody" role="tabpanel"></div>
-  <label class="tog"><input type="checkbox" id="glassToggle"> Show the Glass Well while playing (or press G)</label>
-</div></div>
-
-<div class="ov hide" id="ovLook" role="dialog" aria-modal="true" aria-labelledby="lookTitle"><div class="sheet">
-  <div class="shead"><h2 id="lookTitle">Look</h2><button class="close" data-close="ovLook" aria-label="Close">✕</button></div>
-  <div id="lookBody"></div>
-</div></div>
-
-<div class="ov hide" id="ovHandling" role="dialog" aria-modal="true" aria-labelledby="handlingTitle"><div class="sheet">
-  <div class="shead"><h2 id="handlingTitle">Handling</h2><button class="close" data-close="ovHandling" aria-label="Close">✕</button></div>
-  <div id="handlingBody"></div>
-</div></div>
-
-<div class="ov hide" id="ovSound" role="dialog" aria-modal="true" aria-labelledby="soundTitle"><div class="sheet">
-  <div class="shead"><h2 id="soundTitle">Sound</h2><button class="close" data-close="ovSound" aria-label="Close">✕</button></div>
-  <div id="soundBody"></div>
-</div></div>
-
-<div class="ov hide" id="ovComfort" role="dialog" aria-modal="true" aria-labelledby="comfortTitle"><div class="sheet">
-  <div class="shead"><h2 id="comfortTitle">Comfort</h2><button class="close" data-close="ovComfort" aria-label="Close">✕</button></div>
-  <div id="comfortBody"></div>
+<div class="ov hide" id="ovSettings" role="dialog" aria-modal="true" aria-labelledby="setTitle"><div class="sheet set">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead">
+    <button class="ibtn back hide" type="button" data-back aria-label="Back"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-back"></use></svg></button>
+    <h2 id="setTitle" tabindex="-1">Settings</h2>
+    <button class="ibtn close" type="button" data-close="ovSettings" aria-label="Close settings"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
+  </div>
+  <div id="setBody" class="set-body"></div>
 </div></div>
 
 <div class="ov hide" id="ovSteady" role="dialog" aria-modal="true" aria-label="Steady"><div class="sheet">
-  <button class="close" data-close="ovSteady" aria-label="Close">✕</button>
+  <button class="ibtn close" type="button" data-close="ovSteady" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   <div id="steadyBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovBreathe" role="dialog" aria-modal="true" aria-label="Breathe"><div class="sheet">
-  <button class="close" data-close="ovBreathe" aria-label="Close">✕</button>
+  <button class="ibtn close" type="button" data-close="ovBreathe" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   <div id="breatheBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovGround" role="dialog" aria-modal="true" aria-label="Grounding"><div class="sheet">
-  <button class="close" data-close="ovGround" aria-label="Close">✕</button>
+  <button class="ibtn close" type="button" data-close="ovGround" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   <div id="groundBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovClose" role="dialog" aria-modal="true" aria-label="Thank you"><div class="sheet">
-  <button class="close" data-close="ovClose" aria-label="Close">✕</button>
+  <button class="ibtn close" type="button" data-close="ovClose" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   <div id="closeBody"></div>
 </div></div>
 
 <div class="ov hide" id="ovHelp" role="dialog" aria-modal="true" aria-label="Help lines"><div class="sheet">
-  <button class="close" data-close="ovHelp" aria-label="Close">✕</button>
+  <button class="ibtn close" type="button" data-close="ovHelp" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button>
   <div id="helpBody"></div>
 </div></div>
 
-<div class="ov hide" id="ovAbout" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"><div class="sheet">
-  <div class="shead"><h2 id="aboutTitle">About well</h2><button class="close" data-close="ovAbout" aria-label="Close">✕</button></div>
+<div class="ov hide" id="ovAbout" role="dialog" aria-modal="true" aria-labelledby="aboutTitle"><div class="sheet about">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="shead"><h2 id="aboutTitle" tabindex="-1">About <i>well</i></h2><button class="ibtn close" type="button" data-close="ovAbout" aria-label="Close"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
   <div id="aboutBody"></div>
-  <p class="note">Made by hand for kmay89.com: raw HTML, CSS and JavaScript, every sound synthesized and every picture drawn in code. No accounts, no ads, nothing tracked — your bests and settings live only on this device.</p>
-  <p class="note"><a href="/games/">The Games Room</a> · <a href="/">Back to the desk</a> · <a href="/legal/">Legal</a> · <a href="/privacy/">Privacy</a></p>
+  <p class="about-made">Made by hand for kmay89.com: raw HTML, CSS and JavaScript, every sound synthesized and every picture drawn in code. No accounts, no ads, nothing tracked — your bests and settings live only on this device. The well notices which moves you use, on this device only, so it can offer a lesson. Nothing leaves the device.</p>
+  <div class="list about-links">
+    <a class="li" href="/games/"><span class="li-t">The Games Room</span><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-out"></use></svg></a>
+    <a class="li" href="/"><span class="li-t">Back to the desk</span><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-out"></use></svg></a>
+    <a class="li" href="/legal/"><span class="li-t">Legal</span><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-out"></use></svg></a>
+    <a class="li" href="/privacy/"><span class="li-t">Privacy</span><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-out"></use></svg></a>
+  </div>
 </div></div>
 
 <script src="rules.js"></script>
@@ -726,6 +1291,7 @@
 <script src="coach.js"></script>
 <script src="steady.js"></script>
 <script src="sheets.js"></script>
+<script src="guide.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

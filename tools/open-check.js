@@ -63,7 +63,7 @@ const TYPES = {
 };
 
 /* every sheet the well's menu reaches */
-const WELL_MENU = ["#mModes", "#mLook", "#mHandling", "#mSound", "#mComfort", "#mLearn", "#mLog", "#mSteady"];
+const WELL_MENU = ["#mModes", "#mSettings", "#mMoves", "#mLearn", "#mLog"];
 
 /* the rooms, and what to do once each one is open. Every step is a thing a
    finger could do; nothing reaches into the game's internals. */
