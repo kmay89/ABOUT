@@ -702,7 +702,10 @@ Coach.create = function (o) {
       if (kind === "finesse") say("Put each piece on its outline in as few presses as you can. A held slide counts once.", "info");
       else if (kind === "keep") say(spell(need, true) + " pieces without covering a hole. Keep, and the pieces waiting above, are there to help.", "info");
       else if (kind === "clean") say("Keep nine columns flat and the right-hand one open. " + spell(need, true) + " Quads before forty lines.", "info");
-      else if (kind === "slot") say("Find three filled corners around one empty cell. Turn the T into it for a Twist Double.", "info");
+      else if (kind === "slot" && prepared()) say("Find three filled corners around one empty cell. Turn the T into it for a Twist Double.", "info");
+      /* the later two start from an empty well: the slot is yours to make */
+      else if (kind === "slot") say("Build a ledge with a gap beneath it: three filled corners around one empty cell. Then turn the T in for a Twist Double." +
+                                     (inRow() ? " Any other clear starts the count again." : ""), "info");
       else if (kind === "silt") say("Dig through the silt. Each row has one gap; clear all " + spell(need) + ".", "info");
     }
     newPiece(g);

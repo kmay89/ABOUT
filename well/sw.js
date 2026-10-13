@@ -9,7 +9,7 @@
    under somebody mid-run would lose the run, so the new version waits
    until the player taps the bar that says it is ready — and the page saves
    the well before it lets the new one in. */
-var VERSION = "well-v1";
+var VERSION = "well-v2";
 var SHELL = [
   "./", "./index.html", "./look.css",
   "./rules.js", "./engine.js", "./bot.js", "./modes.js", "./records.js",

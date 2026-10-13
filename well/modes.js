@@ -153,11 +153,16 @@ Modes.medalFor = function (modeId, value) {
    lessons, and the silt challenges
    ================================================================
    Lessons 1–4 are v1. Lessons 5 and 6 have no prepared wells yet
-   (later:true): they run as free play that counts Twist Doubles, so they
-   are open like everything else. The two silt challenges are kept in
-   their own list, SILT, and appear nowhere else — every consumer (the
-   Challenges sheet, the coach, the records) reads lessons from LESSONS
-   and silt from SILT, and Modes.lesson(id) finds either.
+   (later:true): they run as free play from an empty well that counts
+   Twist Doubles, so they are open like everything else, and their pass
+   lines say only what the coach can actually judge — every slot in an
+   empty well is one you built, but how many pieces it took is not
+   counted, so the pass line doesn't claim it.
+
+   The two silt challenges are kept in their own list, SILT, and appear
+   nowhere else — every consumer (the Challenges sheet, the coach, the
+   records) reads lessons from LESSONS and silt from SILT, and
+   Modes.lesson(id) finds either.
 
    Each entry's `engine` block is the one truth about how that challenge
    plays. The coach asks for it through challenges.engine() rather than
@@ -236,7 +241,7 @@ Modes.LESSONS = [
     engine: { gravity: 0, keep: false, lockDelay: 1000, topOut: "end", queueThen: "end" } },
   { id: "build", n: 5, kind: "slot", name: "Build a Slot", later: true,
     teaches: "Making the overhang yourself.",
-    pass: "Five Twist Doubles with two setup pieces, then three.", need: 5, world: "lanterns",
+    pass: "Five Twist Doubles, each in a slot you built yourself.", need: 5, world: "lanterns",
     engine: { gravity: Rules.gravityMs(1), keep: true, lockDelay: 1000, topOut: "end" } },
   { id: "freestyle", n: 6, kind: "slot", name: "Freestyle Twists", later: true,
     teaches: "Twists without a fixed setup.",

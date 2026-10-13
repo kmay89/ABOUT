@@ -705,7 +705,7 @@ function card(run, info, prev, value) {
     var parts = [], strip = [];
     for (var i = 0; i < STRIP.length; i++) {
       var k = num(st[STRIP[i][0]]);
-      if (k > 0) { parts.push(k + " " + (k === 1 ? STRIP[i][1] : STRIP[i][2])); strip.push({ label: STRIP[i][1], n: k }); }
+      if (k > 0) { parts.push(k + " " + (k === 1 ? STRIP[i][1] : STRIP[i][2])); strip.push({ label: STRIP[i][1], plural: STRIP[i][2], n: k }); }
     }
     if (parts.length) { add("Clears", parts.join(" \u00b7 "), TIP.clears, strip.length, "strip"); items[items.length - 1].strip = strip; }
   }

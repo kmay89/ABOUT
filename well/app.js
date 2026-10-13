@@ -101,9 +101,11 @@ function fmtInt(n) {
   while (s.length > 3) { out = "," + s.slice(-3) + out; s = s.slice(0, -3); }
   return (neg ? "−" : "") + s + out;
 }
-/* 58.31 s, or 1:02.45 once a minute has gone by */
+/* 58.31 s, or 1:02.45 once a minute has gone by — to the nearest
+   hundredth, the same rounding the run card and the end card use, so the
+   share line can never disagree with them by one */
 function fmtStopwatch(ms) {
-  var cs = Math.floor(Math.max(0, ms) / 10), s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
+  var cs = Math.round(Math.max(0, ms) / 10), s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
   s = s % 60;
   var hh = (h < 10 ? "0" : "") + h;
   return m ? m + ":" + (s < 10 ? "0" : "") + s + "." + hh : s + "." + hh + " s";
@@ -483,18 +485,88 @@ function doResize() {
   lopt.buttons = padOn;
   lopt.trayH = padOn ? (padEl.offsetHeight - safe.b - 24) : 0;
   if (lopt.trayH < 0) lopt.trayH = 0;
+  lopt.trayW = padOn ? trayClusterW() : 0;
   lopt.dpr = dpr;
   /* the HUD's band grows with the text size, so big text never runs into
      the Keep niche below it */
   lopt.hudTop = Math.max(44, Math.ceil(42 * (+pref("textSize") || 1)) + 2);
   var nl = null;
   if (Layout) { try { nl = Layout.compute(vw, vh, lopt); } catch (e) { fault("Layout.compute", e); nl = null; } }
+  /* a two-row HUD (hudWrapWanted) only ever applies to the tall shape */
+  if (nl && hudWrap && run && nl.shape === "tall") {
+    lopt.hudTop = 2 * lopt.hudTop + 4;
+    try { nl = Layout.compute(vw, vh, lopt); } catch (e) { fault("Layout.compute", e); }
+  }
+  trayBeside = false;
+  if (nl && padOn && vw > vh) {
+    var alt = besideTray(nl);
+    if (alt) { nl = alt; trayBeside = true; }
+  }
   L = nl || fallbackLayout(vw, vh);
   if (R) { try { R.resize(vw, vh, dpr, L); } catch (e) { fault("R.resize", e); } }
   placeChrome();
 }
 
+/* A phone on its side with the Buttons scheme: the tray's two clusters sit
+   at the far left and right, and reserving the tray's whole height under
+   the well would leave cells of nine pixels. If the well laid out as if
+   there were no tray fits between the clusters — the well, Keep, the
+   previews and the HUD all clear of every button — that layout is used,
+   and the side panel is given up (the Glass Well and the coach go over
+   the well, as on a phone held upright). */
+var trayBeside = false, altOpt = {};
+/* the wider of the tray's two clusters, measured from its screen edge, for
+   a layout that can seat the well between them */
+function trayClusterW() {
+  var bs = padEl.querySelectorAll("[role=button]"), l = 0, r = 0;
+  for (var i = 0; i < bs.length; i++) {
+    var b = bs[i].getBoundingClientRect();
+    if (!(b.width > 0)) return 0;
+    if (b.left + b.width / 2 < vw / 2) l = Math.max(l, b.right); else r = Math.max(r, vw - b.left);
+  }
+  return Math.ceil(Math.max(l, r));
+}
+function besideTray(reserved) {
+  var bs = padEl.querySelectorAll("[role=button]");
+  if (!bs.length) return null;
+  var left = 0, right = vw, top = vh, i, k;
+  for (i = 0; i < bs.length; i++) {
+    var b = bs[i].getBoundingClientRect();
+    if (!(b.width > 0)) return null;
+    if (b.left + b.width / 2 < vw / 2) left = Math.max(left, b.right); else right = Math.min(right, b.left);
+    top = Math.min(top, b.top);
+  }
+  for (k in lopt) altOpt[k] = lopt[k];
+  altOpt.buttons = false; altOpt.trayH = 0;
+  var alt = null;
+  try { alt = Layout.compute(vw, vh, altOpt); } catch (e) { fault("Layout.compute", e); return null; }
+  if (!alt || !(alt.cell > reserved.cell)) return null;
+  function clear(r) {
+    return !r || r.y + r.h <= top || (r.x >= left + 6 && r.x + r.w <= right - 6);
+  }
+  var wall = alt.wall || 0, w = alt.well;
+  if (!clear({ x: w.x - wall, y: w.y, w: w.w + 2 * wall, h: w.h + (alt.floor || 0) })) return null;
+  if (!clear(alt.keep) || !clear(alt.hud)) return null;
+  for (i = 0; alt.next && i < alt.next.length; i++) if (!clear(alt.next[i])) return null;
+  return alt;
+}
+
 function px(el, prop, v) { el.style[prop] = Math.round(v) + "px"; }
+
+/* the room right of the well and its previews, below the pause button,
+   when a wide screen has some (a phone on its side) */
+var rpBox = { x: 0, y: 0, w: 0, h: 0 };
+function rightPanel(bottom) {
+  if (L.shape !== "wide") return null;
+  var x = L.well.x + L.well.w + (L.wall || 0) + 10, y = (L.pause ? L.pause.y + L.pause.h : safe.t + 50) + 10;
+  for (var i = 0; L.next && i < L.next.length; i++) {
+    x = Math.max(x, L.next[i].x + L.next[i].w + 10);
+  }
+  var w = Math.min(340, vw - safe.r - 8 - x), h = bottom - y;
+  if (w < 170 || h < 150) return null;
+  rpBox.x = x; rpBox.y = y; rpBox.w = w; rpBox.h = h;
+  return rpBox;
+}
 
 /* Everything in the DOM that sits on the well is placed from the same
    rectangles the renderers draw from. */
@@ -506,21 +578,59 @@ function placeChrome() {
   px(btnMenu, "left", pz.x); px(btnMenu, "top", pz.y);
   btnMenu.style.right = "auto";
 
-  /* layout.js already stops the HUD short of the pause button */
-  px(hudEl, "left", hud.x); px(hudEl, "top", hud.y);
-  px(hudEl, "width", Math.max(120, hud.w > 0 ? hud.w : vw - safe.l - safe.r - 70));
-  hudEl.style.minHeight = Math.round(Math.max(36, Math.min(hud.h, 48))) + "px";
-  hudEl.style.flexDirection = hud.stack ? "column" : "row";
+  /* the side panel beside a wide well, when nothing else has it */
+  var side = L.side && L.side.w >= 170 && !trayBeside ? L.side : null;
+  var sideTop = side ? side.y : 0;
 
-  /* labels: beside the well when there is room beside it, otherwise just
-     inside it, on whichever side the piece is not */
+  /* layout.js already stops the HUD short of the pause button. Where its
+     strip beside the Keep niche is too narrow for a world's name, a score
+     and the Breath button side by side (an iPad, a Mac, a phone on its
+     side), the HUD becomes a column at the top of the side panel instead,
+     and everything else in the panel moves down below it. */
+  var colW = side ? Math.min(side.w, 240) : 0;
+  var colY = side ? (L.keep && side.x + colW > L.keep.x - 8 ? side.y : hud.y) : 0;
+  var hudCol = !!side && hud.w < 480 && colY + 210 <= vh - safe.b - 8;
+  if (hudCol) {
+    /* up in the corner when the column clears the Keep niche, else just
+       under it */
+    px(hudEl, "left", side.x); px(hudEl, "top", colY);
+    px(hudEl, "width", colW);
+    hudEl.style.minHeight = "0px";
+    hudEl.style.flexDirection = "column";
+    sideTop = Math.max(side.y, colY + (hudEl.offsetHeight || 104) +
+      (run && run.mode && run.mode.hasBreath && hudEl.offsetHeight && btnBreath.classList.contains("hide") ? 50 : 0) + 12);
+  } else {
+    px(hudEl, "left", hud.x); px(hudEl, "top", hud.y);
+    px(hudEl, "width", Math.max(120, hud.w > 0 ? hud.w : vw - safe.l - safe.r - 70));
+    hudEl.style.minHeight = hudWrap ? "0px" : Math.round(Math.max(36, Math.min(hud.h, 48))) + "px";
+    hudEl.style.flexDirection = hud.stack ? "column" : "row";
+  }
+  hudEl.classList.toggle("wrap", hudWrap && L.shape === "tall" && !hudCol);
+  hudRow = !hudCol && !hud.stack;
+  var bottom = vh - safe.b - 8;
+  var glassShown = glassOn && !glassEl.classList.contains("hide");
+  var glassH = glassEl.offsetHeight || 260;
+
+  /* the Glass Well: in the side panel when it fits there below the HUD,
+     else in the free strip right of the previews (a phone on its side),
+     else a compact card under the Keep niche that steps out of the way */
+  var rp = rightPanel(bottom);
+  var glassSide = !!side && sideTop + Math.min(glassH, 200) <= bottom;
+  var glassRight = !glassSide && !!rp;
+  glassBand.over = !glassSide && !glassRight;
+  var belowGlass = sideTop + (glassShown && glassSide ? glassH + 12 : 0);
+
+  /* labels: beside the well when there is room beside it (below anything
+     already in the panel), otherwise just inside it, on whichever side the
+     piece is not */
   var room = w.x - safe.l - 16;
-  lblBand.wide = room >= 130;
+  var lblTop = Math.max(w.y + w.h * 0.48, side ? belowGlass : 0);
+  lblBand.wide = room >= 130 && lblTop + 100 <= bottom;
   if (lblBand.wide) {
     labelsEl.className = "r";
     px(labelsEl, "left", safe.l + 8);
     px(labelsEl, "width", room - 4);
-    px(labelsEl, "top", w.y + w.h * 0.48);
+    px(labelsEl, "top", lblTop);
   } else {
     px(labelsEl, "left", w.x + 8);
     px(labelsEl, "width", w.w - 16);
@@ -531,11 +641,10 @@ function placeChrome() {
   lblBand.top = 22 - (lt - w.y) / c;
   lblBand.bottom = lblBand.top - (4 * 1.3 * 18 * (+pref("textSize") || 1)) / c;
 
-  /* the Glass Well: the side panel on a wide screen, a compact card under
-     the Keep niche on a phone */
-  glassBand.over = !(L.side && L.side.w >= 170);
-  if (!glassBand.over) {
-    px(glassEl, "left", L.side.x); px(glassEl, "top", L.side.y); px(glassEl, "width", Math.min(L.side.w, 250));
+  if (glassSide) {
+    px(glassEl, "left", side.x); px(glassEl, "top", sideTop); px(glassEl, "width", Math.min(side.w, 250));
+  } else if (glassRight) {
+    px(glassEl, "left", rp.x); px(glassEl, "top", rp.y); px(glassEl, "width", Math.min(rp.w, 250));
   } else {
     var gy = L.keep ? L.keep.y + L.keep.h + 6 : w.y + 6, gw = Math.min(214, w.w * 0.66);
     px(glassEl, "left", w.x + 4); px(glassEl, "top", gy); px(glassEl, "width", gw);
@@ -543,26 +652,77 @@ function placeChrome() {
        do; its rectangle in board cells is worked out once here */
     glassBand.x1 = (gw + 4) / c;
     glassBand.top = 22 - (gy - w.y) / c;
-    glassBand.bottom = glassBand.top - (glassEl.offsetHeight || 260) / c;
+    glassBand.bottom = glassBand.top - glassH / c;
   }
 
-  /* the coach: in the side panel when there is one, under the HUD when not */
-  if (L.side && L.side.w >= 170) {
+  /* the coach: in the side panel below whatever is already there, or in
+     the strip right of the previews, or — on a phone — inside the well */
+  coachBand.on = false;
+  coachSpot.side = false;
+  /* measured at the width it would have, since the words wrap */
+  function coachFits(box, top) {
     coachEl.classList.remove("compact");
-    px(coachEl, "left", L.side.x); px(coachEl, "width", Math.min(L.side.w, 320));
-    px(coachEl, "top", Math.max(L.side.y + (glassOn ? 250 : 0), w.y + w.h * 0.58));
+    px(coachEl, "width", Math.min(box.w, 320));
+    return top + (coachEl.offsetHeight || 180) <= bottom;
+  }
+  var cbox = side && coachFits(side, belowGlass) ? side
+           : rp && !(glassRight && glassShown) && coachFits(rp, rp.y) ? rp : null;
+  if (cbox) {
+    px(coachEl, "left", cbox.x); px(coachEl, "width", Math.min(cbox.w, 320));
+    /* low in the panel, but never past the bottom of the screen: on a
+       phone held sideways the panel is short */
+    coachSpot.want = cbox === rp ? rp.y : Math.max(belowGlass, w.y + w.h * 0.58);
+    coachSpot.min = cbox === rp ? rp.y : belowGlass;
+    coachSpot.side = true;
+    coachFit();
     coachEl.style.right = "auto";
   } else {
+    /* a phone: a passing line inside the well, a third of the way down —
+       below the mouth, where a lesson's piece waits to be moved, and above
+       the stack — and it fades to a whisper whenever a piece passes under
+       it, the way the labels do */
     coachEl.classList.add("compact");
-    px(coachEl, "left", safe.l + 8); px(coachEl, "width", vw - safe.l - safe.r - 16);
-    px(coachEl, "top", hud.y + Math.max(40, Math.min(hud.h, 48)) + 4);
+    px(coachEl, "left", w.x + 6); px(coachEl, "width", w.w - 12);
+    var cy = w.y + w.h * 0.3;
+    px(coachEl, "top", cy);
     coachEl.style.right = "auto";
+    coachBand.on = true;
+    coachBand.top = 22 - (cy - w.y) / c;
+    coachBand.bottom = coachBand.top - Math.max(coachEl.offsetHeight || 0, 3.2 * c) / c;
   }
 
   px(paceEl, "left", w.x - 2); px(paceEl, "top", w.y - (L.lip || 0) - 2);
   px(paceEl, "width", w.w + 4); px(paceEl, "height", w.h + (L.lip || 0) + 4);
 
-  px(chip, "top", hud.y + Math.max(40, Math.min(hud.h, 48)) + 8);
+  /* The reminder chip and the toast never sit on the well: the mouth is
+     where a piece appears and the bottom is where the stack lives. Beside
+     a wide well they take the foot of the side panel (the toast just above
+     the chip's place), or on a phone held sideways the strip right of the
+     previews; on a phone held upright they sit over the HUD, whose
+     numbers can wait a few seconds, clear of the pause button. */
+  chip.style.transform = "none";
+  toastEl.style.maxWidth = "";
+  var chipH = chip.offsetHeight || 116;
+  if (side && belowGlass + chipH + 60 <= bottom) {
+    /* at the foot of the panel, clear of the labels and the coach above */
+    px(chip, "left", side.x); px(chip, "width", Math.min(side.w, 340));
+    px(chip, "top", bottom - chipH);
+    px(toastEl, "left", side.x + Math.min(side.w, 340) / 2);
+    px(toastEl, "top", bottom - chipH - 52);
+    px(toastEl, "maxWidth", Math.min(side.w, 340));
+  } else if (rp) {
+    /* a phone on its side: the free strip right of the previews */
+    px(chip, "left", rp.x); px(chip, "width", rp.w); px(chip, "top", rp.y);
+    px(toastEl, "left", rp.x + rp.w / 2); px(toastEl, "top", rp.y);
+    px(toastEl, "maxWidth", rp.w);
+  } else {
+    var pzw = (L.pause ? L.pause.w : 44) + 14;
+    px(chip, "left", safe.l + 8); px(chip, "width", vw - safe.l - safe.r - 16 - pzw);
+    px(chip, "top", safe.t + 4);
+    px(toastEl, "left", vw / 2);
+    px(toastEl, "top", safe.t + 10);
+    px(toastEl, "maxWidth", vw - 2 * (pzw + 8));
+  }
 
   /* the splash title floats in the empty upper reach of the well, below
      the mouth, the Keep niche and the drifting previews, where the demo's
@@ -570,13 +730,28 @@ function placeChrome() {
   var mouth = w.y + c * 0.9;
   if (L.keep) mouth = Math.max(mouth, L.keep.y + L.keep.h + c * 0.4);
   splash.style.paddingTop = Math.round(Math.max(safe.t + 12, Math.min(mouth, vh * 0.3))) + "px";
-  px(bannerEl, "top", w.y + w.h * 0.24);
+  /* a depth's name arrives with the clear that reached it: when the
+     labels sit inside the well (a phone) the banner goes below their band
+     rather than on top of the words */
+  px(bannerEl, "top", w.y + w.h * (lblBand.wide ? 0.24 : 0.42));
 }
 
 /* ================================================================
    the HUD — DOM text, written only when a number changes
    ================================================================ */
 var hc = { a: -1, b: -1, c: -1, s: "", breathVis: false, breath: -1, breathOn: false, clock: -1, ahead: false };
+/* A phone's HUD is one row: when space runs short the world's name gives
+   way to an ellipsis and every number stays whole. At a large text size
+   that row cannot hold three cards and the Breath button at all, so for a
+   mode with three cards the HUD takes two rows from the start of the run
+   — the name on a line of its own — and the layout gives it the height.
+   It is decided when a run begins, never during one: a well that changes
+   size mid-run is worse than a shortened name. */
+var hudWrap = false, hudRow = true;
+function hudWrapWanted(r) {
+  return !!r && !r.steady && (+pref("textSize") || 1) >= 1.25 &&
+         (r.modeId === "descent" || r.modeId === "drift" || r.modeId === "three");
+}
 var clockNodes = null, clockDig = [-1, -1, -1, -1, -1, -1], clockM10 = null, clockHund = true;
 
 function setText(el, s) {
@@ -617,7 +792,7 @@ function digit(i, d) {
 function clockSet(ms, countdown) {
   if (!clockNodes) return;
   if (ms < 0) ms = 0;
-  var cs = countdown ? Math.ceil(ms / 1000) * 100 : Math.floor(ms / 10);
+  var cs = countdown ? Math.ceil(ms / 1000) * 100 : Math.round(ms / 10);
   if (cs === hc.clock) return;
   hc.clock = cs;
   var s = Math.floor(cs / 100), h = cs % 100, m = Math.floor(s / 60);
@@ -629,6 +804,8 @@ function clockSet(ms, countdown) {
 
 function hudSetup() {
   var r = run;
+  var wrapNow = hudWrapWanted(r);
+  if (wrapNow !== hudWrap) { hudWrap = wrapNow; needResize = true; }
   hc.a = hc.b = hc.c = hc.clock = hc.breath = -1;
   hc.s = ""; hc.breathVis = false; hc.breathOn = false; hc.ahead = false;
   clockNodes = null;
@@ -819,6 +996,26 @@ var gBag = [], gPip = [], gBead = [], gLock = $("gLock"), gDas = $("gDas"), gGra
     gFormula = $("gFormula"), gBreathRow = $("gBreathRow");
 var gc = { bag: -1, lock: -1, das: -1, pips: -1, beads: -1, grav: -2, breathRow: null, dodge: false };
 var glassBand = { over: false, x1: 0, top: 0, bottom: 0 };
+var coachBand = { on: false, top: 0, bottom: 0, dodge: false };
+var coachSpot = { side: false, want: 0, min: 0 };
+/* the side panel's coach sits low, but never past the bottom of the
+   screen, however many lines the coach has to say */
+function coachFit() {
+  if (!coachSpot.side) return;
+  var h = coachEl.offsetHeight || 150;
+  px(coachEl, "top", Math.max(coachSpot.min, Math.min(coachSpot.want, vh - safe.b - h - 10)));
+}
+/* the phone's coach line steps out of the active piece's way */
+function coachDodge() {
+  var d = false;
+  if (coachBand.on && run && run.coach && view && view.active) {
+    var cs = view.active.cells;
+    for (var i = 0; i < 4; i++) {
+      if (cs[i][1] <= coachBand.top + 0.5 && cs[i][1] >= coachBand.bottom - 0.5) { d = true; break; }
+    }
+  }
+  if (d !== coachBand.dodge) { coachBand.dodge = d; coachEl.classList.toggle("dodge", d); }
+}
 function buildGlass() {
   var bagEl = $("gBag"), pipEl = $("gPips"), beadEl = $("gBeads"), i, s;
   for (i = 1; i <= 7; i++) { s = doc.createElement("span"); s.textContent = NAMES[i]; bagEl.appendChild(s); gBag.push(s); }
@@ -1173,6 +1370,7 @@ function present() {
     }
   }
   labelsTick();
+  coachDodge();
   sayTick();
   bannerTick();
 }
@@ -1308,7 +1506,7 @@ function toSplash() {
   showGlass();
   setPad(false);
   freeScreen();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   if (was) { music("stop"); music("calm", false); }
   splashMusic = false;
   applyAudio();
@@ -1371,11 +1569,17 @@ function challengeKey(id) {
   try { return m && m.pbKey ? m.pbKey({ id: id }) : null; } catch (e) { fault("Modes.pbKey", e); return null; }
 }
 function levelAtDepth(pace, d) { return pace === "swift" ? d + 5 : d; }
-function tideMs(level) {
-  level = level | 0;
-  if (level <= 0) return 0;
-  var k = level - 1;
-  return Math.round(1000 * Math.pow(0.8 - k * 0.007, k));
+/* Drift's tide is Modes' table, the same one its engine options come
+   from, so the slider, the sheet and the falling piece always agree */
+function tideMs(n) {
+  var t = null;
+  if (Modes && Modes.tide) { try { t = Modes.tide(n); } catch (e) { fault("Modes.tide", e); } }
+  return t ? t.ms : 0;
+}
+function tideLevel(n) {
+  var t = null;
+  if (Modes && Modes.tide) { try { t = Modes.tide(n); } catch (e) { t = null; } }
+  return t ? t.level : Math.max(1, n | 0);
 }
 
 /* The engine's options: the player's handling, then the mode's (which for
@@ -1430,7 +1634,9 @@ function startRun(modeId, opts, from) {
   hideChip();
   var o = optsFor(modeId, opts);
   var seed = from.seed != null ? from.seed : (pendingSeed != null ? pendingSeed : newSeed());
-  pendingSeed = null;
+  /* a typed code deals one run; the field is emptied so the next visit to
+     Modes doesn't seem to promise the same pieces again */
+  clearCode();
   var lesson = null, coach = null;
   if (modeId === "challenges") {
     lesson = findChallenge(o.id || o.lesson);
@@ -1476,6 +1682,10 @@ function startRun(modeId, opts, from) {
 
   if (run.scoreBase && g.score >= run.scoreBase) run.scoreBase = 0;
   rctx.modeId = modeId; rctx.opts = o; rctx.g = g; rctx.view = view;
+  /* the view still carries the splash's demo flag until the next frame, and
+     Records ignores anything the demo does: this run's first moments (its
+     world, the Glass Well already open) are the player's */
+  if (view) { view.demo = false; view.paused = false; }
   fctx.opts = o; fctx.elapsedMs = run.elapsedMs;
 
   if (coach) {
@@ -1507,7 +1717,7 @@ function startRun(modeId, opts, from) {
   showGlass();
   needResize = true;
   replaceHistory();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
 
   /* the first time, four cards: one idea each. Never in Steady, whose own
      tip card has just been read and which shows no text during play; the
@@ -1526,6 +1736,9 @@ function beginPlay(resumed) {
   else if (resumed) grace();
   holdScreen();
   showGlass();
+  /* the Glass Well switched on before the run counts as looking inside
+     the moment the run is played with it */
+  if (glassOn && !run.steady) observe(EV_GLASS);
   lastToggle = now();
   /* a few things worth saying exactly once */
   if (IOS && HAS_AUDIO && !seen("silentChip")) {
@@ -1555,7 +1768,7 @@ function pause(how) {
   if (state !== "play" || !run) return false;
   state = "paused";
   lastToggle = now();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   music("pause", true);
   appFx(EV_PAUSE, false);
   freeScreen();
@@ -1680,7 +1893,9 @@ function depthChanged(d) {
   r.world = wid;
   setWorld(wid, false, false);
   var name = worldName(wid);
-  banner("Depth " + d + " · " + name, "", BANNER_MS);
+  /* the world's name large and the depth beneath it: two short lines
+     always fit over the well, where one long one ran into the previews */
+  banner(name, "Depth " + d, BANNER_MS);
   say("Depth " + d + ", " + name + ".");
   EV_WORLD.world = wid;
   appFx(EV_WORLD, false);
@@ -1697,7 +1912,7 @@ function restCard() {
   r.restShown = true;
   state = "rest";
   freeScreen();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   labelsOff();
   if (r.steady) {
     if (S) { try { S.timeUp(); } catch (e) { fault("Steady.timeUp", e); } }
@@ -1736,6 +1951,7 @@ var coachHideT = 0;
 function coachSay(text, kind) {
   if (!text) return;
   $("coachText").textContent = text;
+  coachFit();
   say(text);
   if (coachEl.classList.contains("compact")) {
     coachEl.classList.remove("quiet");
@@ -1831,7 +2047,7 @@ function endRun(fin, t) {
   r.surface = r.modeId === "descent" && r.why === "surface";
   state = "ending";
   lastRun = r;
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   r.watching = false;
   freeScreen();
   labelsOff();
@@ -1891,9 +2107,11 @@ function showEndCard() {
     if (!lead) lead = r.modeId === "three" && r.why === "time" ? "Three minutes, gone by." : "";
   }
   $("endTitle").textContent = title;
+  /* Records' plain notes ("with 1 rest", "learner speed") read as plain
+     sentences after the lead: facts, never a judgement */
   var notes = [], i;
-  if (res.notes) for (i = 0; i < res.notes.length; i++) if (res.notes[i] !== "New personal best") notes.push(res.notes[i]);
-  $("endLead").textContent = lead + (notes.length ? (lead ? " " : "") + notes.join(" · ") : "") + remindLine("end");
+  if (res.notes) for (i = 0; i < res.notes.length; i++) if (res.notes[i] !== "New personal best") notes.push(sentence(res.notes[i]));
+  $("endLead").textContent = lead + (notes.length ? (lead ? " " : "") + notes.join(" ") : "") + remindLine("end");
 
   var pbEl = $("endPb");
   var pbText = res.pb ? "New personal best" : "";
@@ -1909,7 +2127,9 @@ function showEndCard() {
     var it = card[i];
     if (it.kind === "strip") {
       var parts = it.strip || [];
-      for (var j = 0; j < parts.length; j++) strip += "<span><b>" + esc(parts[j].n) + "</b> " + esc(parts[j].label) + "</span>";
+      for (var j = 0; j < parts.length; j++) {
+        strip += "<span><b>" + esc(parts[j].n) + "</b> " + esc(parts[j].n !== 1 && parts[j].plural ? parts[j].plural : parts[j].label) + "</span>";
+      }
       if (!parts.length) strip += "<span>" + esc(it.value) + "</span>";
       continue;
     }
@@ -1931,7 +2151,8 @@ function showEndCard() {
   $("endStones").innerHTML = !stones.length ? "" : (last ? "New stones for the rim: <b>" + esc(stones.join(", ")) +
     "</b> and <b>" + esc(last) + "</b>." : "A new stone for the rim: <b>" + esc(stones[0]) + "</b>.");
 
-  var depthRow = r.modeId === "descent" && filled && r.opts.pace !== "gentle";
+  /* at Depth 1, beginning again from this depth is simply Again */
+  var depthRow = r.modeId === "descent" && filled && r.opts.pace !== "gentle" && r.depth > 1;
   $("endDepthRow").classList.toggle("hide", !depthRow);
   if (depthRow) $("endDepth").textContent = "Begin again from Depth " + r.depth;
   $("endCode").textContent = r.code ? "well code " + r.code : "";
@@ -1939,6 +2160,12 @@ function showEndCard() {
   openSheet("ovEnd", "endDone");
   music("stop");
   remindBoundary("end");
+}
+function sentence(t) {
+  t = String(t || "");
+  if (!t) return t;
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(t) ? t : t + ".";
 }
 function paceName(p) { return p === "swift" ? "Swift" : p === "standard" ? "Standard" : "Gentle"; }
 function doneRun() {
@@ -2049,8 +2276,16 @@ function remindBoundary(where) {
   remindSpent();
   $("chipText").textContent = remindText(m);
   chip.classList.remove("hide");
+  needResize = true;
+  /* non-modal, and it doesn't linger: left alone, it goes by itself */
+  if (chipT) clearTimeout(chipT);
+  chipT = setTimeout(function () { chipT = 0; hideChip(); }, CHIP_MS);
 }
-function hideChip() { chip.classList.add("hide"); }
+var chipT = 0, CHIP_MS = 15000;
+function hideChip() {
+  if (chipT) { clearTimeout(chipT); chipT = 0; }
+  chip.classList.add("hide");
+}
 
 /* ================================================================
    sheets
@@ -2081,7 +2316,7 @@ function openSheet(id, focusId) {
   var body = el.querySelector(".sheet");
   if (body) body.scrollTop = 0;
   countSheets();
-  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  resetInput();
   focusIn(el, focusId);
 }
 function closeSheet(id) {
@@ -2110,15 +2345,11 @@ function closeTopSheet() {
 function sheetsChanged() {
   var was = sheetsOpen, n = countSheets(), open = doc.querySelectorAll(".ov:not(.hide)");
   var top = open.length ? open[open.length - 1] : null;
-  if (n > was && I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  if (n > was) resetInput();
   if (top && !top.contains(doc.activeElement)) focusIn(top, null);
   /* a well code belongs to the Modes sheet it was typed into: closing the
      sheet without starting a run lets it go */
-  if (pendingSeed !== null && !isOpen("ovModes")) {
-    pendingSeed = null;
-    $("codeIn").value = "";
-    $("codeNote").textContent = "";
-  }
+  if (!isOpen("ovModes") && (pendingSeed !== null || $("codeIn").value)) clearCode();
   if (state === "over" && !isOpen("ovEnd")) { doneRun(); return; }
   if (state === "intro" && !isOpen("ovCards")) { beginPlay(false); return; }
   if (n === 0) {
@@ -2170,7 +2401,7 @@ function driftExtras(ex) {
     '<div class="stepper"><button class="btn" id="xTideDn" aria-label="Slower tide">−</button>' +
     '<output id="xTideOut" aria-live="polite"></output>' +
     '<button class="btn" id="xTideUp" aria-label="Faster tide">+</button></div></div>' +
-    '<div class="fld"><label><b>World</b></label><div class="chips" id="xWorlds"></div></div>';
+    '<div class="fld"><label><b>World</b></label><div class="chips" id="xWorlds" role="group" aria-label="World"></div></div>';
   function paint() {
     var t = run ? run.tide : 0;
     $("xTideOut").textContent = t ? "Tide " + t : "Off";
@@ -2183,7 +2414,9 @@ function driftExtras(ex) {
     var b = doc.createElement("button");
     b.textContent = list[i].name;
     b.setAttribute("data-world", list[i].id);
-    b.className = run && run.world === list[i].id ? "on" : "";
+    var cur = !!run && run.world === list[i].id;
+    b.className = cur ? "on" : "";
+    b.setAttribute("aria-pressed", String(cur));
     wl.appendChild(b);
   }
   on(wl, "click", function (e) {
@@ -2191,7 +2424,10 @@ function driftExtras(ex) {
     if (!b || !run) return;
     setPref("driftWorld", b.getAttribute("data-world"));
     var all = wl.querySelectorAll("button");
-    for (var j = 0; j < all.length; j++) all[j].className = all[j] === b ? "on" : "";
+    for (var j = 0; j < all.length; j++) {
+      all[j].className = all[j] === b ? "on" : "";
+      all[j].setAttribute("aria-pressed", String(all[j] === b));
+    }
   });
   paint();
 }
@@ -2367,7 +2603,7 @@ function renderModes() {
       stats = life && life.steadySessions ? "Steady sessions: <b>" + life.steadySessions + "</b> · " + esc(fmtDuration(life.steadyMs)) + " in all" : "";
     } else if (best && best.value > 0) {
       stats = "Best <b>" + esc(fmtBest(m, best.value)) + "</b>" + sparkline(hist, m.pbBetter === "low");
-    } else if (m.scoreShown !== false) stats = "No best yet — the first run sets it, quietly.";
+    } else if (key && m.scoreShown !== false) stats = "No best yet — the first run sets it, quietly.";
     var save = saves && saves.runs[m.id];
     html += '<div class="mcard' + (m.group === "calm" ? " calm" : "") + '"><div class="mh"><b>' + esc(m.name) + "</b>" +
       (medal ? '<span class="medal">' + esc(medal) + "</span>" : "") + "</div>" +
@@ -2421,6 +2657,12 @@ function modesClick(e) {
   if (begin) { closeAllSheets(); startRun(begin, null); return; }
   if (cont) { closeAllSheets(); if (run) leaveQuietly(); run = null; continueRun(cont); return; }
   if (lesson) { closeAllSheets(); startRun("challenges", { id: lesson }); }
+}
+function clearCode() {
+  pendingSeed = null;
+  var el = $("codeIn"), note = $("codeNote");
+  if (el) el.value = "";
+  if (note) { note.textContent = ""; note.className = "note"; }
 }
 function codeInput() {
   var el = $("codeIn"), note = $("codeNote");
@@ -2675,6 +2917,15 @@ function makeInput() {
     });
   } catch (e) { fault("Input.create", e); I = null; }
 }
+/* Let go of everything. The input layer forgets what it was holding, and
+   the engine's soft drop is released here too: input.js reports a release
+   through onAction, which only listens during play, so a soft drop held
+   into a pause, a sheet or a chapter's end would otherwise come back on
+   its own when play resumed, with no finger on the glass. */
+function resetInput() {
+  if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+  if (run && run.g && run.g.soft && Well) { try { Well.act(run.g, "softOff"); } catch (e) { fault("Well.act (release)", e); } }
+}
 function setPad(onOff) {
   var want = !!onOff && TOUCH && pref("scheme") === "buttons" && !!run && !run.steady;
   if (want === padOn) return;
@@ -2717,7 +2968,7 @@ function wirePlatform() {
   doc.addEventListener("visibilitychange", function () {
     if (doc.hidden) {
       pause("quiet");
-      if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+      resetInput();
       music("suspend");
       saveAll();
     } else {
@@ -2729,7 +2980,7 @@ function wirePlatform() {
   on(root, "pagehide", function () { pause("quiet"); saveAll(); });
   on(root, "blur", function () {
     pause("quiet");
-    if (I) { try { I.reset(); } catch (e) { fault("Input.reset", e); } }
+    resetInput();
     if (pref("muteOnBlur")) music("suspend");
   });
   on(root, "focus", function () { if (!doc.hidden && pref("muteOnBlur")) music("resume"); });
@@ -2908,7 +3159,7 @@ function onPref(key, value) {
     case "driftTide":
       if (run && run.modeId === "drift") {
         run.tide = +value || 0;
-        try { Well.setGravity(run.g, tideMs(run.tide), Math.max(1, run.tide)); } catch (e) { fault("Well.setGravity", e); }
+        try { Well.setGravity(run.g, tideMs(run.tide), tideLevel(run.tide)); } catch (e) { fault("Well.setGravity", e); }
       }
       break;
     case "driftWorld":
@@ -3018,6 +3269,9 @@ root.WELL = {
   records: function () { return records; },
   saves: function () { return saves; },
   faults: function () { return faults; },
+  /* the gentle reminder's clock, so a tool can stand at the thirty-minute
+     mark without playing for thirty minutes */
+  reminder: function () { return remind; },
   start: function (modeId, opts) { closeAllSheets(); startRun(modeId, opts || null); },
   pause: function () { return pause("menu"); },
   resume: function () { resume(); }

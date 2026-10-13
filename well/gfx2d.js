@@ -1154,10 +1154,15 @@ function create(canvas, opts) {
     return { c: c, id: wd.id };
   }
 
-  /* the Keep niche: an alcove cut into a block of the same stone */
+  /* the Keep niche: an alcove cut into a block of the same stone. Beside
+     a wide well the block reaches across to the wall, as the 3D well's
+     does, so the niche is part of the stone rather than a box beside it;
+     the alcove stays where the layout put the niche. */
   function buildNiche(wd) {
     if (!L || !L.keep || !wd) return null;
-    var k = L.keep, w = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.5);
+    var k = L.keep, w0 = k.w * dpr, h = k.h * dpr, o = Math.round(C * 0.5);
+    var reach = L.shape === "wide" && L.well ? Math.max(0, (L.well.x - (L.wall || 0)) - (k.x + k.w)) * dpr : 0;
+    var w = w0 + reach;
     var c = canvasOf(w + 2 * o, h + 2 * o), x = ctxOf(c);
     var base = hexRgb(wd.wall), key = hexRgb(wd.key), hor = hexRgb(wd.sky.horizon);
     var r = Math.min(w, h) * 0.2;
@@ -1175,7 +1180,7 @@ function create(canvas, opts) {
     x.fillRect(o, o, w, Math.max(1, Math.round(C * 0.1)));
     x.restore();
     /* the recess */
-    var inset = Math.max(2, Math.round(Math.min(w, h) * 0.12)), rw = w - 2 * inset, rh = h - 2 * inset, rr = r * 0.7;
+    var inset = Math.max(2, Math.round(Math.min(w0, h) * 0.12)), rw = w0 - 2 * inset, rh = h - 2 * inset, rr = r * 0.7;
     var back = mix(darken(base, 0.76), hor, 0.2);
     x.fillStyle = css(back);
     x.beginPath(); roundRect(x, o + inset, o + inset, rw, rh, rr, rr, rr, rr); x.fill();

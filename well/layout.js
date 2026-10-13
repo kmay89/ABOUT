@@ -80,7 +80,7 @@ var COLS = 10, ROWS = 22, LIP = 0.5;
 var BAND = 1.15;
 /* preview mini-cell scales, nearest first. Tall previews after the first
    are capped by the gutter instead, so only their ratios matter there. */
-var TALL_S = [0.6, 0.45, 0.4, 0.36, 0.33, 0.3];
+var TALL_S = [0.58, 0.42, 0.38, 0.35, 0.32, 0.3];
 var WIDE_S = [0.6, 0.5, 0.45, 0.41, 0.38, 0.35];
 /* in the wide shape, width of each side column in cells: a Keep niche or
    a preview of 4 × 0.6 cells, its padding, and the gap to the wall */
@@ -90,6 +90,10 @@ var SIDE = 3.2;
    to look up and down; the board-size setting can push past it */
 var WIDE_CAP = 48;
 var PAUSE = 44, PAUSE_INSET = 6;
+/* the coping stone along the mouth stands this many cells above the lip
+   and overhangs the frame by this much: the 3D well draws it, and nothing
+   that floats (a preview) may sit on it */
+var COPE = 0.3, COPE_OVER = 0.15;
 
 function num(v, d) { return (typeof v === "number" && isFinite(v)) ? v : d; }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -97,7 +101,7 @@ function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function rect(x, y, w, h) { return { x: x, y: y, w: w, h: h }; }
 
 var Layout = {
-  COLS: COLS, ROWS: ROWS, LIP: LIP,
+  COLS: COLS, ROWS: ROWS, LIP: LIP, COPE: COPE,
 
   compute: function (w, h, o) {
     o = o || {};
@@ -116,13 +120,14 @@ var Layout = {
 
     w = Math.max(1, num(w, 1)); h = Math.max(1, num(h, 1));
     var x0 = sl, x1 = w - sr, y0 = st;
-    var yLimit = h - sb - 24 - trayH;       /* the face of the well ends above this */
-    var W = Math.max(1, x1 - x0), H = Math.max(1, yLimit - y0);
+    var floorY = h - sb - 24;               /* nothing interactive below this */
+    var yLimit = floorY - trayH;            /* the face of the well ends above this */
+    var W = Math.max(1, x1 - x0), H = Math.max(1, yLimit - y0), Hfull = Math.max(1, floorY - y0);
 
     /* The biggest cell each shape allows. Tall needs gutters either side
        of the well: wide enough for the walls, and on the right for the
        previews that run down the outside of the wall (a wall, a preview
-       of four cells at about 0.27 of a cell each, and a little air). */
+       of four cells at about a third of a cell each, and a little air). */
     var gutterK = previews > 1 ? 1.3 : 0.5;
     /* with the Buttons tray the floor slab must clear the tray too; without
        it the slab is scenery and may sit in the gesture-free band */
@@ -135,17 +140,38 @@ var Layout = {
     /* wide also needs a left column the HUD can live in */
     var wideCol = (W - cWide * (COLS + 0.44)) / 2 - cWide * 0.3 - 12;
     var wideOk = wideCol >= 110;
-    var wide = o.wide === true ? true : o.wide === false ? false
+
+    /* The Buttons tray on a screen held sideways. Along the bottom it
+       takes a third of a short screen's height, and a phone at 667 × 375
+       is left with cells of 9 px. Its two clusters (input.js puts them at
+       the two ends of the tray) fit either side of a well that keeps the
+       full height instead, so when that gives the bigger well the tray's
+       height is not taken from the well at all. "o.trayW" is the wider
+       cluster's width with its outer padding; without it the width is
+       worked out from the tray's height, the way input.js sizes its keys
+       (two rows of keys plus a gap and a 6 px top, three keys and two
+       gaps across the d-pad). */
+    var sides = false, cSide = 0, clusterW = 0;
+    if (buttons && w > h && o.wide !== false) {
+      var key = Math.max(40, (trayH - 6) / 2.16);
+      clusterW = num(o.trayW, 0) > 0 ? o.trayW : Math.ceil(3.32 * key + 10);
+      var airS = clamp((Hfull - 760) / Hfull * 0.6, 0, 0.05);
+      cSide = Math.min(Hfull * (1 - airS) / (ROWS + LIP), (W - 2 * (clusterW + 12)) / (COLS + 0.44 + 0.6));
+      var sideCol = (W - cSide * (COLS + 0.44)) / 2 - cSide * 0.3 - 12;
+      sides = sideCol >= 110 && cSide > Math.max(cTall, wideOk ? cWide : 0);
+    }
+    var wide = sides ? true : o.wide === true ? true : o.wide === false ? false
              : (wideOk && (cWide > cTall || (cWide === cTall && w > h)));
-    var cMax = wide ? cWide : cTall;
+    var cMax = sides ? cSide : (wide ? cWide : cTall);
     var cPref = wide ? Math.min(cMax, WIDE_CAP) : cMax;
     var c = floorQ(Math.max(6, Math.min(cMax, cPref * scale)));
     if (c > cMax) c = floorQ(cMax);
     if (c < 6) c = 6;
+    if (sides) { below = 0; H = Hfull; }
 
-    var wall = snap(Math.max(3, c * 0.22));
+    var wall = snap(Math.max(3, c * (wide ? 0.3 : 0.22)));
     var lip = snap(c * LIP);
-    var floor = snap(c * 0.3);
+    var floor = snap(c * 0.4);
     var pause = rect(snap(w - sr - PAUSE_INSET - PAUSE), snap(st + PAUSE_INSET), PAUSE, PAUSE);
 
     var L = {
@@ -154,7 +180,20 @@ var Layout = {
       well: null, keep: null, next: [], side: null, hud: null, pause: pause, tray: null,
       band: null, safe: { t: st, r: sr, b: sb, l: sl }, w: w, h: h
     };
-    if (buttons) L.tray = rect(x0, snap(h - sb - 24 - trayH), W, trayH);
+    /* the tray strip, as #pad lays it out; beside a wide well, also the
+       two clusters at its ends, which are all of it that is solid */
+    var trayTop = snap(floorY - trayH);
+    if (buttons) {
+      L.tray = rect(x0, trayTop, W, trayH);
+      L.tray.sides = sides;
+      if (sides) {
+        L.tray.left = rect(x0, trayTop, snap(clusterW), trayH);
+        L.tray.right = rect(snap(x1 - clusterW), trayTop, snap(clusterW), trayH);
+      }
+    }
+    /* everything that floats beside a well with the tray at its sides
+       stops above the clusters */
+    var floatLimit = sides ? trayTop - 6 : yLimit;
 
     var i, m, pad, r, y, n, ratio;
     if (!wide) {
@@ -167,7 +206,19 @@ var Layout = {
       var topM = snap(slack * 0.35);
       var bandTop = snap(y0 + hudTop + topM);
       var lipTop = snap(bandTop + band);
-      L.well = rect(snap(x0 + (W - c * COLS) / 2), snap(lipTop + lip), c * COLS, c * ROWS);
+      /* The previews after the first run down the outside of the right
+         wall, so that gutter must hold a third of a cell's mini-piece. On
+         a narrow phone it is a few pixels short; the left gutter is empty
+         (the Keep niche sits above the mouth, not beside it), so the well
+         gives up a little of its centring rather than the previews their
+         size. Never more than a third of a cell. */
+      var lg = (W - c * COLS) / 2, shift = 0;
+      if (previews > 1) {
+        var need = wall + c * COPE_OVER + 2 + (4 * c * 0.36 + 4) + 3;
+        shift = clamp(need - lg, 0, Math.min(c * 0.35, lg - wall - 8));
+        if (shift < 0) shift = 0;
+      }
+      L.well = rect(snap(x0 + lg - shift), snap(lipTop + lip), c * COLS, c * ROWS);
       L.band = rect(x0, bandTop, W, lipTop - bandTop);
       L.hud = rect(snap(x0 + 8), snap(y0 + 2), 0, hudTop - 4);
       L.hud.w = snap(pause.x - 6 - L.hud.x);
@@ -186,44 +237,36 @@ var Layout = {
       }
 
       if (previews > 0) {
-        /* the next piece, above the right of the mouth: right of the spawn
-           columns, left of the pause button, sitting on the rim */
-        var px0 = snap(L.well.x + c * 6.5);
-        var px1 = Math.min(pause.x - 4, L.well.x + L.well.w + wall);
-        pad = snap(Math.max(2, c * 0.1));
-        m = Math.min(c * TALL_S[0], (px1 - px0 - 2 * pad) / 4, (band - 2 * pad) / 2);
+        /* An arc: the next piece sits on the rim above the right of the
+           mouth, right of the spawn columns and short of the coping over
+           the right wall; the rest go over the rim and drift down the
+           outside of that wall, each a little smaller and further away. */
+        var frameR = L.well.x + L.well.w + wall;
+        var copeTop = lipTop - c * COPE;
+        var underPause = pause.y + pause.h + 4;
+        var ax0 = snap(L.well.x + c * 6.6), ax1 = L.well.x + L.well.w - c * COPE_OVER;
+        var aTop = Math.max(bandTop, ax1 > pause.x - 4 ? Math.min(underPause, lipTop - 12) : bandTop);
+        m = Math.min(c * TALL_S[0], (ax1 - ax0) / 4.4, (lipTop - aTop) / 2.4);
         if (m >= 5) {
-          r = { x: px0, y: 0, w: snap(4 * m + 2 * pad), h: snap(2 * m + 2 * pad), s: m / c };
-          r.y = snap(lipTop - r.h);
-          L.next.push(r);
+          pad = snap(Math.max(2, m * 0.2));
+          var w0 = snap(4 * m + 2 * pad), h0 = snap(2 * m + 2 * pad);
+          L.next.push({ x: snap(ax0 + Math.max(0, (ax1 - ax0 - w0) * 0.35)), y: snap(lipTop - h0), w: w0, h: h0, s: m / c });
         }
-        /* the second sits on the rim further right, under the pause button,
-           and the rest continue the arc over the right rim and down the
-           outside of the wall, shrinking with distance */
-        var pad2 = 2;
-        if (L.next.length === 1 && previews > 1) {
-          var bx0 = L.next[0].x + L.next[0].w + 4, bx1 = x1 - 3;
-          var by0 = Math.max(bandTop, pause.y + pause.h + 4);
-          m = Math.min(c * TALL_S[1], (bx1 - bx0 - 2 * pad2) / 4, (lipTop - by0 - 2 * pad2) / 2);
-          if (m >= c * 0.3) {
-            r = { x: snap(bx0 + (bx1 - bx0 - (4 * m + 2 * pad2)) / 2), y: 0, w: snap(4 * m + 2 * pad2), h: snap(2 * m + 2 * pad2), s: m / c };
-            r.y = snap(lipTop - r.h);
-            L.next.push(r);
-          }
-        }
-        var first = L.next.length;
-        var gx0 = L.well.x + L.well.w + wall + 3, gx1 = x1 - 3, gw = gx1 - gx0;
-        var mFit = (gw - 2 * pad2) / 4;
-        y = Math.max(first > 1 ? lipTop + 4 : lipTop - c * 0.2, pause.y + pause.h + 6);
+        var gx0 = frameR + c * COPE_OVER + 2, gx1 = x1 - 2, gw = gx1 - gx0;
+        var mFit = (gw - 4) / 4;
+        /* beside the frame, the column starts level with the next piece */
+        y = Math.max(underPause, bandTop, L.next.length ? L.next[0].y + L.next[0].h * 0.5 - c * 0.45 : copeTop);
         var gyMax = L.well.y + L.well.h * 0.62;
+        var first = L.next.length;
         for (i = first; i < previews && L.next.length === i && i > 0; i++) {
-          ratio = TALL_S[i] / TALL_S[first];
-          m = Math.min(c * TALL_S[i], mFit * ratio, L.next[i - 1].s * c);
+          ratio = TALL_S[i] / TALL_S[1];
+          m = Math.min(c * TALL_S[i], mFit * Math.min(1, ratio), L.next[i - 1].s * c);
           if (m < 5) break;
-          var rw = snap(4 * m + 2 * pad2), rh = snap(2 * m + 2 * pad2);
-          if (y + rh > gyMax) break;
+          pad = 2;
+          var rw = snap(4 * m + 2 * pad), rh = snap(2 * m + 2 * pad);
+          if (y + rh > Math.min(gyMax, floatLimit)) break;
           L.next.push({ x: snap(gx0 + (gw - rw) / 2), y: snap(y), w: rw, h: rh, s: m / c });
-          y += rh + Math.max(4, c * 0.22);
+          y += rh + Math.max(4, c * 0.2);
         }
       }
     } else {
@@ -257,7 +300,7 @@ var Layout = {
         if (hw < 200) L.hud.stack = true;
       }
       var sideY = Math.max(L.hud.y + L.hud.h, L.keep ? L.keep.y + L.keep.h : 0) + 12;
-      var sideW = leftEdge - colX, sideH = yLimit - sideY;
+      var sideW = leftEdge - colX, sideH = floatLimit - sideY;
       if (sideW >= 120 && sideH >= 80) L.side = rect(colX, snap(sideY), snap(sideW), snap(sideH));
 
       if (previews > 0) {
@@ -276,7 +319,7 @@ var Layout = {
           var ry = y;
           /* step under the pause button rather than through it */
           if (sx + ww > pause.x - 4 && ry < pause.y + pause.h + 6) ry = pause.y + pause.h + 6;
-          if (ry + hh > yLimit) break;
+          if (ry + hh > floatLimit) break;
           L.next.push({ x: snap(sx), y: snap(ry), w: ww, h: hh, s: m / c });
           y = ry + hh + Math.max(6, c * 0.28);
         }

@@ -655,6 +655,11 @@ guarded("® where the name is used", () => {
        /The Well is an independent, non-commercial falling-blocks game/.test(page.replace(/\s+/g, " ")) &&
        /has not been tested in any study/.test(page.replace(/\s+/g, " ")));
   }
+  /* the trademark notice and the research are written down on the legal
+     page; the room has to be able to reach it, not just the games page */
+  if (has("index.html")) {
+    ok("the room links to the legal page", /href=["'](\/legal\/|\.\.\/legal\/)/.test(read("index.html")));
+  }
 });
 
 /* ================================================================
