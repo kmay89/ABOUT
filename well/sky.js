@@ -72,8 +72,10 @@
    travelling thing's worth of light to reveal, already in motion. The
    envelope it was designed for is Sky.react(age): a 0.6 s rise and a 2.4 s
    fall, about one slow breath. Snowfall's pause is the one response that
-   leans on the rise: the snow's clock is held back by the envelope, so a
-   rise that takes about a beat holds the snow for about a beat.
+   leans on its exact shape: the snow's clock is held back by the rise read
+   backwards, so under this envelope the snow stands still for the whole
+   0.6 s rise and then catches up, a quarter faster, over the fall. Under
+   another envelope it still slows and recovers; it never runs backwards.
 
    This file has to load in node (tools/well-check.js reads Sky.luma), so it
    touches the document only inside paint2D, which only runs in the page. */
@@ -759,8 +761,8 @@ var GLSL_LANTERNS = [
    a few near flakes large and soft, almost out of focus. Every flake sways
    on its own slow sine. A treeline stands in haze at the bottom. For a
    Quad the snow pauses in the air: its clock is held back by the response
-   envelope (half a second at the top of it), so the flakes stop, hang,
-   and then drift on — and catch a little more light while they hang. */
+   envelope, so the flakes stop dead for the length of the rise, hang there
+   catching a little more light, and then drift on. */
 var GLSL_SNOW = [
   /* one layer of snow, one flake per cell at most, the grid falling on the
      clock and every flake swaying on its own slow sine */
@@ -951,6 +953,11 @@ var GLSL_STARS = [
    The dither is static on purpose — it breaks up banding in skies this
    smooth and this dark, and a dither that moved would be a shimmer. */
 var GLSL_MAIN = [
+  /* the inverse of smoothstep. Snowfall holds its clock back by the
+     envelope's own rise, read backwards: while Sky.react climbs, the snow's
+     clock stands exactly still, and while it falls the snow drifts a quarter
+     faster until it has caught up. Nothing ever moves backwards. */
+  "float invSmooth(float y){ return 0.5 - sin(asin(1.0 - 2.0 * clamp(y, 0.0, 1.0)) / 3.0); }",
   "vec3 scene(int id, vec2 q, float asp, float px, float calm, vec2 wq, vec3 top, vec3 hor){",
   "  float tm = uTime * uMotion;",
   "  if (id == 0) return dawn(q, asp, px, calm, wq.x, tm * MOT0, uReact, top, hor);",
@@ -960,7 +967,7 @@ var GLSL_MAIN = [
   "  if (id == 4) return aurora(q, asp, px, calm, tm * MOT4, uReact, top, hor);",
   "  if (id == 5) return moonpool(q, asp, px, calm, wq.x, tm * MOT5, uReact, top, hor);",
   "  if (id == 6) return lanterns(q, asp, px, calm, tm * MOT6, uReact, top, hor);",
-  "  if (id == 7) return snowfall(q, asp, px, calm, tm * MOT7, (uTime - 0.5 * uReact) * uMotion * MOT7, uReact, top, hor);",
+  "  if (id == 7) return snowfall(q, asp, px, calm, tm * MOT7, (uTime - 0.6 * invSmooth(uReact)) * uMotion * MOT7, uReact, top, hor);",
   "  if (id == 8) return bells(q, asp, px, calm, tm * MOT8, uReact, top, hor);",
   "  return starfield(q, asp, px, calm, tm * MOT9, uReact, top, hor);",
   "}",
@@ -1046,6 +1053,8 @@ function vn1(x) {
 function fbm(x) { return (0.5 * vn1(x) + 0.25 * vn1(x * 2.07 + 7.1) + 0.125 * vn1(x * 4.13 + 3.3)) / 0.875; }
 function sstep(a, b, x) { var t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
 function fract(x) { return x - Math.floor(x); }
+/* the inverse of smoothstep, for Snowfall's pause (see the shader's) */
+function invSmooth(y) { y = y < 0 ? 0 : y > 1 ? 1 : y; return 0.5 - Math.sin(Math.asin(1 - 2 * y) / 3); }
 function win(ph) { var s = Math.sin(Math.PI * ph); return s * s; }
 /* mulberry32: the layouts are the same every visit, like everything else here */
 function rng(seed) {
@@ -2062,7 +2071,7 @@ function paintWorld(ctx, world, w, h, time, react, motion, al) {
   var m = typeof world.motion === "number" ? world.motion : 0.7;
   var t = time * motion * m;
   /* Snowfall's clock, held back by the response envelope, as in the shader */
-  var ts = (time - 0.5 * react) * motion * m;
+  var ts = (time - 0.6 * invSmooth(react)) * motion * m;
   ctx.globalAlpha = al;
   ctx.globalCompositeOperation = "source-over";
   ctx.drawImage(E.base, 0, 0, w, h);
