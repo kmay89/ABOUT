@@ -61,12 +61,14 @@ var Steady = {};
 
 /* ---------- the entry card's choices (brief §5.3, §5.4) ----------
    Each option says in one line what it does, so the card can show the
-   line for whichever is chosen and nothing has to be guessed. */
+   line for whichever is chosen and nothing has to be guessed. A length's
+   line is only the length: the line under it says when the chime will
+   come, on the device's own clock, so the chime is named once. */
 var LENGTHS = [
-  { v: 10, name: "10", line: "Ten minutes, then a soft chime." },
-  { v: 15, name: "15", line: "Fifteen minutes, then a soft chime." },
-  { v: 20, name: "20", line: "Twenty minutes, then a soft chime." },
-  { v: 25, name: "25", line: "Twenty-five minutes, then a soft chime." },
+  { v: 10, name: "10", line: "Ten minutes." },
+  { v: 15, name: "15", line: "Fifteen minutes." },
+  { v: 20, name: "20", line: "Twenty minutes." },
+  { v: 25, name: "25", line: "Twenty-five minutes." },
   { v: 0,  name: "Off", line: "No timer. Finish from the pause menu any time." }
 ];
 var PACES = [
@@ -185,24 +187,51 @@ var PHONE = "(max-width:599px), (pointer:coarse) and (max-width:699px)";
 var WIDE = "(min-width:600px) and (pointer:fine), (min-width:700px)";
 var DESK = "(min-width:900px) and (pointer:fine)";
 Steady.CSS = [
-  /* the sheet: the kit's glass, Steady's width, and room for the ✕ */
+  /* the sheet: the kit's glass at Steady's width. A card with a title
+     bar (.st-hd: the entry, the tip, the help lines) uses the kit's own
+     bar — the sheet-sized serif title with its ✕ beside it, exactly as
+     every other sheet in the room — so only the statements below are set
+     large. A statement card has no bar and gets its top room here. */
   ".sheet.st{position:relative;padding-top:24px}",
+  ".sheet.st.st-hd{padding-top:0}",
   "@media " + WIDE + "{.st-ov>.sheet.st{width:min(520px,100%)}}",
-  "@media " + PHONE + "{.st-ov>.sheet.st{padding-top:0}.sheet.st>.grab{margin-bottom:12px}}",
+  "@media " + PHONE + "{.st-ov>.sheet.st{padding-top:0}.sheet.st:not(.st-hd)>.grab{margin-bottom:12px}}",
   ".sheet.st .st-x{position:absolute;top:10px;right:10px;z-index:4;float:none;padding:0;font-size:1rem}",
-  ".st h2{font:400 1.75rem/2.125rem var(--serif);letter-spacing:-.005em;color:var(--ink);margin:0 44px 6px 0;text-wrap:balance}",
+  ".st h2.st-big,.st h2.st-thanks{font:400 1.75rem/2.125rem var(--serif);letter-spacing:-.005em;color:var(--ink);text-wrap:balance}",
   ".st h2:focus,.st .st-btitle:focus{outline:none}",
   ".sheet.st .lead{font:400 1rem/1.5 var(--sans);color:var(--ink-2);margin:0 0 4px;text-wrap:pretty}",
-  "@media " + DESK + "{.st h2{font-size:2rem;line-height:2.375rem}}",
+  "@media " + DESK + "{.st h2.st-big,.st h2.st-thanks{font-size:2rem;line-height:2.375rem}}",
 
-  /* the entry card: the choices scroll in the middle; Begin never leaves */
+  /* the entry card: the choices scroll in the middle; Begin never leaves.
+     Where there is more to scroll to, the choices fade into the glass at
+     that edge — a cue that needs no scrollbar (a Mac hides them) and
+     never draws a line across a control the way a hairline did. */
   ".st-ov>.sheet.st.st-entry{display:flex;flex-direction:column;overflow:hidden}",
-  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -20px;padding:4px 20px 12px}",
-  ".st-foot{flex:none;position:relative;padding-top:14px;margin:0 -20px;padding-left:20px;padding-right:20px;border-top:1px solid transparent;transition:border-color .2s}",
-  ".st-entry.over .st-foot{border-top-color:var(--hair)}",
-  ".st-field{margin-top:22px}",
-  ".st-field:first-child{margin-top:14px}",
+  ".st-entry>.shead{flex:none}",
+  ".st-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;margin:0 -20px;padding:0 20px 16px}",
+  ".st-body.fade-b{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 32px),transparent)}",
+  ".st-body.fade-t{-webkit-mask-image:linear-gradient(180deg,transparent,#000 20px);mask-image:linear-gradient(180deg,transparent,#000 20px)}",
+  ".st-body.fade-t.fade-b{-webkit-mask-image:linear-gradient(180deg,transparent,#000 20px,#000 calc(100% - 32px),transparent);" +
+    "mask-image:linear-gradient(180deg,transparent,#000 20px,#000 calc(100% - 32px),transparent)}",
+  ".st-body>.lead{margin:0}",
+  ".st-foot{flex:none;position:relative;padding:12px 20px 0;margin:0 -20px}",
+  ".st-field{margin-top:20px}",
   ".st-label{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2);margin:0 4px 8px}",
+  /* wide enough (a desk, an iPad, a phone on its side): the four choices
+     two by two, so the worlds — the loveliest part of the card — are in
+     view without a scroll. The length takes the narrower column, its
+     five choices being the shortest words; large text keeps one column. */
+  "@media (min-width:700px){.st-ov>.sheet.st.st-entry{width:min(640px,100%)}" +
+    ".st-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);column-gap:24px;align-items:start}" +
+    ".st-grid .seg>button{min-width:0}" +
+    /* every world's name fits on one line at this width */
+    "html:not(.ts-big) .st-field .wp-n{min-height:0}}",
+  /* a laptop's screen: the card may stand as tall as the window allows,
+     so at 1280 by 800 everything, Begin included, is in view at once */
+  "@media (min-width:700px) and (min-height:521px){.st-ov>.sheet.st.st-entry{max-height:min(calc(100vh - 32px),800px)}}",
+  "html.ts-big .st-grid{display:block}",
+  /* no word left alone on a line where the browser can help it */
+  ".st-ov .seg-line{text-wrap:pretty}",
   ".st-field .seg>button{min-height:44px}",
   ".st-when{display:flex;align-items:center;gap:6px;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2);margin:6px 4px 0}",
   ".st-when .ic{width:16px;height:16px}",
@@ -269,6 +298,16 @@ Steady.CSS = [
   ".st-bfoot{width:min(440px,100%);display:flex;flex-direction:column;gap:10px;margin-top:20px}",
   ".st-bfoot .seg-line{text-align:center;margin:0 0 4px}",
   ".st-bfoot .btn{flex:none;width:100%}",
+  /* on a desk there is no thumb to reach the bottom of the screen, so the
+     choices sit a short way under the circle, all of it one group in the
+     middle, and Skip is a button's width rather than a bar across it */
+  "@media " + DESK + "{" +
+    ".st-ov.st-full>.sheet.st{justify-content:center}" +
+    ".st-ov.st-full .st-btitle{position:absolute;top:calc(18px + var(--safe-top));left:0;right:0;justify-content:center}" +
+    ".st-ov.st-full .st-bmid{flex:none}" +
+    ".st-bfoot{width:min(360px,100%);margin-top:48px}" +
+    ".st-bfoot .st-skip{align-self:center;width:auto;min-width:160px}" +
+  "}",
 
   /* noticing: five, four, three, two, one */
   ".st-gtitle{text-align:center;margin:4px 44px 0}",
@@ -291,6 +330,10 @@ Steady.CSS = [
   ".st-pauseExtras .list{margin-top:4px}",
   ".st-pauseExtras .st-fin{display:flex;margin-top:10px}",
   ".st-pauseExtras .st-fin .btn{flex:1 1 auto}",
+  /* Finish beside the app's Leave: the foot shares its width out after
+     each button's padding, so the two take the same padding and come out
+     the same width */
+  "#menuFoot.steady>.btn{padding-left:12px;padding-right:12px}",
 
   /* a phone on its side: the statement cards tighten and set their choices
      in a row, and the breathing minute puts its circle beside its words, so
@@ -298,7 +341,7 @@ Steady.CSS = [
   "@media (max-height:520px){" +
     ".st-glow{width:44px;height:44px;margin:4px auto 10px}.st-glow.small{width:40px;height:40px;margin-top:4px}" +
     ".st h2.st-big,.st h2.st-thanks{margin-bottom:16px}" +
-    ".st-stack{flex-direction:row;flex-wrap:wrap}.st-stack .btn{flex:1 1 9rem;width:auto}" +
+    ".st-stack{flex-direction:row;flex-wrap:wrap}.st-stack .btn{flex:1 1 auto;width:auto;white-space:nowrap}" +
     ".st-num{font-size:2.75rem;margin:6px 0 8px}.st-sense{min-height:0;margin-bottom:8px}.st-gdots{margin-bottom:12px}" +
     ".st-art{width:150px;height:142px}" +
     ".st-ov.st-full>.sheet.st{flex-direction:row;justify-content:center;align-items:center;gap:6vw;padding-top:calc(44px + var(--safe-top))}" +
@@ -550,6 +593,7 @@ Steady.create = function (o) {
     b.innerHTML = icon("close");
     b.setAttribute("aria-label", label);
     var ov = sheet.parentNode;
+    while (ov && !(ov.classList && ov.classList.contains("ov"))) ov = ov.parentNode;
     if (ov && ov.id) b.setAttribute("data-close", ov.id);
     sheet.appendChild(b);
     return b;
@@ -567,6 +611,20 @@ Steady.create = function (o) {
     var h = el("h2", cls || "", text);
     sheet.appendChild(h);
     return titleOf(id, h);
+  }
+  /* the kit's title bar (index.html .shead): the card's name at the size
+     every sheet's name is, and its ✕ in the same row, so a Steady card
+     reads as one of the room's sheets rather than a poster of its own.
+     The bar is also the handle a phone pulls the sheet down by. */
+  function titleBar(sheet, id, text, closeLabel, onClose) {
+    sheet.classList.add("st-hd");
+    var bar = el("div", "shead");
+    sheet.appendChild(bar);
+    var h = el("h2", "", text);
+    bar.appendChild(h);
+    titleOf(id, h);
+    closeButton(bar, closeLabel, onClose).className = "ibtn close";
+    return h;
   }
 
   function onKey(e) {
@@ -680,13 +738,14 @@ Steady.create = function (o) {
 
   /* "A soft chime at about 9:42." — the session's end as a time on the
      device's own clock, so twenty minutes means something you can plan
-     around. Nothing for no timer. */
+     around. Nothing for no timer; a browser that can't tell the time
+     still says there will be a chime. */
   function whenText(len) {
     if (!len) return "";
     try {
       return "A soft chime at about " +
         new Date(Date.now() + len * 60000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".";
-    } catch (e) { return ""; }
+    } catch (e) { return "Then a soft chime."; }
   }
   /* has this player been shown the moves? Without the app's answer, the
      link to them isn't offered at all */
@@ -701,23 +760,25 @@ Steady.create = function (o) {
     var c = chosen();
     var sheet = shell("ovSteady");
     sheet.classList.add("st-entry");
-    closeButton(sheet, "Close", function () { hide("ovSteady"); untint(); });
-    heading(sheet, "ovSteady", "Steady");
-    sheet.appendChild(el("p", "lead", "A quiet twenty minutes. Slow, even, nothing sudden."));
+    titleBar(sheet, "ovSteady", "Steady", "Close", function () { hide("ovSteady"); untint(); });
     /* the card is lit in the world it is about to open on */
     tintTo(c.world);
 
     /* On a short screen only the choices scroll; Begin never leaves the
        card, because everything is already chosen and Begin is the one
-       thing anybody has to press. */
+       thing anybody has to press. The four choices sit in one box, which
+       a wide card lays out two by two; the worlds run full width under it. */
     var body = el("div", "st-body");
+    body.appendChild(el("p", "lead", "A quiet twenty minutes. Slow, even, nothing sudden."));
+    var grid = el("div", "st-grid");
+    body.appendChild(grid);
     var when = el("p", "st-when");
     function paintWhen() {
       var t = whenText(c.length);
       when.classList.toggle("hide", !t);
       if (t) when.innerHTML = icon("clock") + "<span>" + t + "</span>";
     }
-    var lenField = segField(body, "Length (minutes)", LENGTHS, c.length, function (v) { c.length = v; paintWhen(); });
+    var lenField = segField(grid, "Length (minutes)", LENGTHS, c.length, function (v) { c.length = v; paintWhen(); });
     lenField.appendChild(when);
     paintWhen();
     /* the clock moves on while the card is open; the time it promises
@@ -726,9 +787,9 @@ Steady.create = function (o) {
       if (!isOpen("ovSteady") || !when.parentNode) { clearInterval(whenTimer); whenTimer = 0; return; }
       if (when.textContent !== whenText(c.length)) paintWhen();
     }, 15000);
-    segField(body, "Pace", PACES, c.pace, function (v) { c.pace = v; });
-    segField(body, "Landing light", LANDING, c.landing, function (v) { c.landing = v; });
-    segField(body, "Sound", SOUNDS, c.sound, function (v) { c.sound = v; });
+    segField(grid, "Pace", PACES, c.pace, function (v) { c.pace = v; });
+    segField(grid, "Landing light", LANDING, c.landing, function (v) { c.landing = v; });
+    segField(grid, "Sound", SOUNDS, c.sound, function (v) { c.sound = v; });
     worldField(body, c.world, function (v) { c.world = v; tintTo(v); });
     sheet.appendChild(body);
 
@@ -749,22 +810,27 @@ Steady.create = function (o) {
     esc.ovSteady = function () { hide("ovSteady"); untint(); };
     show("ovSteady", begin);
     overflowHint(sheet, body);
+    /* a choice can change how tall the card is (no timer, no chime line;
+       a world's line on two rows), and so where the fades belong */
+    body.addEventListener("click", function () { setTimeout(function () { if (sheet.parentNode) fadeEdges(body); }, 0); });
   }
 
-  /* a hairline over Begin while there is more to scroll to above it */
+  /* the choices fade at whichever edge has more beyond it (the CSS), so
+     a desk with no scrollbar in sight still says there is more below.
+     A class is touched only when it changes. */
+  function fadeEdges(body) {
+    var down = body.scrollHeight - body.clientHeight - body.scrollTop > 2, up = body.scrollTop > 2;
+    if (body.classList.contains("fade-b") !== down) body.classList.toggle("fade-b", down);
+    if (body.classList.contains("fade-t") !== up) body.classList.toggle("fade-t", up);
+  }
   function overflowHint(sheet, body) {
-    function check() {
-      if (!sheet.parentNode) return;
-      var more = body.scrollHeight - body.clientHeight - body.scrollTop > 2;
-      sheet.classList.toggle("over", more);
-    }
-    body.addEventListener("scroll", check);
-    check();
+    body.addEventListener("scroll", function () { if (sheet.parentNode) fadeEdges(body); });
+    fadeEdges(body);
     if (!overflowHint.bound) {
       overflowHint.bound = true;
       root.addEventListener("resize", function () {
-        var s = document.querySelector("#ovSteady .st-entry"), b = s && s.querySelector(".st-body");
-        if (s && b) s.classList.toggle("over", b.scrollHeight - b.clientHeight - b.scrollTop > 2);
+        var b = document.querySelector("#ovSteady .st-entry .st-body");
+        if (b) fadeEdges(b);
       });
     }
   }
@@ -877,8 +943,7 @@ Steady.create = function (o) {
     var sheet = shell("ovSteady");
     /* the room's ✕ always closes its sheet (app.js answers every one), so
        this one does too; the choices are already saved for next time */
-    closeButton(sheet, "Close", function () { hide("ovSteady"); untint(); });
-    heading(sheet, "ovSteady", "A game skill to try");
+    titleBar(sheet, "ovSteady", "A game skill to try", "Close", function () { hide("ovSteady"); untint(); });
     var art = el("div");
     art.innerHTML = tipArt();
     sheet.appendChild(art.firstChild);
@@ -1020,7 +1085,7 @@ Steady.create = function (o) {
     setPattern();
     foot.appendChild(seg);
     foot.appendChild(line);
-    var skip = button("Skip", "", skipBreath);
+    var skip = button("Skip", "st-skip", skipBreath);
     foot.appendChild(skip);
     sheet.appendChild(foot);
 
@@ -1237,8 +1302,8 @@ Steady.create = function (o) {
 
   function openHelp() {
     var sheet = shell("ovHelp");
-    var close = closeButton(sheet, "Close", function () { hide("ovHelp"); });
-    heading(sheet, "ovHelp", "Help lines");
+    titleBar(sheet, "ovHelp", "Help lines", "Close", function () { hide("ovHelp"); });
+    var close = sheet.querySelector(".shead .close");
     sheet.appendChild(el("p", "lead", "If things feel heavy, here's who to talk to."));
     var body = el("div", "st-help");
     sheet.appendChild(body);

@@ -1,7 +1,7 @@
 /* sw.js — the well works on a train.
 
    Cache-first over a fixed shell, because nothing in it changes between
-   releases: nineteen scripts, a stylesheet, a page and the icons, all of
+   releases: twenty scripts, a stylesheet, a page and the icons, all of
    it a few hundred kilobytes. Bump VERSION on every release or installed
    players keep the old room forever.
 
@@ -28,7 +28,7 @@
    · On activate only this room's old caches go. The cache store belongs
      to the whole site, and deleting every name but ours took the chess and
      sudoku rooms' offline copies with it. */
-var VERSION = "well-v5";
+var VERSION = "well-v6";
 var SHELL = [
   "./", "./index.html", "./look.css",
   "./rules.js", "./engine.js", "./bot.js", "./modes.js", "./records.js",

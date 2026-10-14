@@ -207,19 +207,25 @@ Guide.decide = function (state, ctx, env) {
   } else if (where === "banner") {
     if (mode !== "descent" || !((ctx.depth | 0) >= 2)) return null;
   } else return null;
-  /* nothing until some hands have had their first steps (or skipped them):
-     a player that new is about to be shown the moves anyway */
+  /* Nothing until some hands have had their first steps (or skipped
+     them): a player that new is about to be shown the moves anyway. Unless
+     the first game was one that has no first steps in it — a Forty, Three
+     Minutes, a silt well — when the run card may ask, once a run and at
+     most three times, whether a half-minute look would help. */
   var taught = false;
   for (var i = 0; i < NH; i++) if (st.first[HANDS[i]] >= 1) taught = true;
-  if (st.first[h] === 0 && !taught) return null;
+  var fresh = st.first[h] === 0 && !taught;
+  if (fresh && where !== "run") return null;
   /* one move a run: once offered, only that move, and only while it is
      still waiting to be found */
   var offered = typeof ctx.offered === "string" ? ctx.offered : "";
   if (offered) {
     if (where === "banner" && offered !== "drop") return null;
+    if (fresh) return offered === "hands" && st.later.hands < 2 ? "hands" : null;
     return eligible(st, offered, h, ctx, env, true) ? offered : null;
   }
   if (!(st.since >= SPACING && st.sinceRuns >= 1)) return null;
+  if (fresh) return st.offers.hands < 3 && st.later.hands < 2 ? "hands" : null;
   if (where === "banner") return eligible(st, "drop", h, ctx, env, false) ? "drop" : null;
   for (var p = 0; p < PRIORITY.length; p++) if (eligible(st, PRIORITY[p], h, ctx, env, false)) return PRIORITY[p];
   return null;
@@ -268,7 +274,9 @@ var WORDS = {
     gestures: ["Flick up to keep", "It waits in the niche by the mouth of the well. Tapping the niche works too.", "Flick up, or tap the niche"],
     buttons: ["{tkeep} sets it aside", "It waits in the niche until you want it back.", "{tkeep}"],
     keys: ["{hold} to keep", "It waits in the niche until you want it back.", "{hold}"],
-    pad: ["{LB} to keep", "Either shoulder button. It waits in the niche until you want it back.", "{LB}"] },
+    /* a controller we can't place already says "a shoulder button" */
+    pad: ["{LB} to keep", { words: "It waits in the niche until you want it back.",
+                            other: "Either shoulder button. It waits in the niche until you want it back." }, "{LB}"] },
   breath: { name: "Breath", why: "Gravity and the lock rest for one long breath.",
     gestures: ["Tap Breath", "When the ring is full, gravity rests for one long breath.", "Tap the ring when it is full"],
     buttons: "gestures",
@@ -325,7 +333,12 @@ var HANDS_TIP = {
   keys: ["Playing with keys now?", "A half-minute look at the keys."],
   pad: ["Playing with a controller?", "A half-minute look at the buttons."]
 };
+/* a first game with no first steps in it (a Forty, Three Minutes, a silt
+   well): the run card's question is about the moves, not new hands */
+var HANDS_FRESH = "New to the moves?";
 var HANDS_NAME = { gestures: "Gestures", buttons: "Button tray", keys: "Keyboard", pad: "Controller" };
+/* the same, short enough to sit four abreast in the Moves page's switch */
+var HANDS_SEG = { gestures: "Gestures", buttons: "Buttons", keys: "Keys", pad: "Controller" };
 /* One line under a depth's name, so it has to be short. The second form
    is for a binding whose name is long enough to push the first past it. */
 var SHORT = {
@@ -335,8 +348,8 @@ var SHORT = {
     keys: ["{hard} drops a piece at once.", "{hard} drops it at once."],
     pad: ["D-pad up drops a piece at once."] },
   breath: {
-    gestures: ["Breath is ready: tap it and gravity rests."],
-    buttons: ["Breath is ready: tap it and gravity rests."],
+    gestures: ["Breath is ready: tap the ring to rest."],
+    buttons: ["Breath is ready: tap the ring to rest."],
     keys: ["Breath is ready: {breath} rests gravity.", "Breath is ready: press {breath}."],
     pad: ["Breath is ready: press {LT}."] }
 };
@@ -439,16 +452,29 @@ function token(name, env, mode) {
 function fill(tpl, env, mode) {
   if (!tpl) return "";
   if (mode === 2) tpl = tpl.replace(/\} \{/g, "} and {");
-  var s = tpl.replace(/\{([A-Za-z]+)\}/g, function (all, name) { return token(name, env, mode); });
+  var s;
+  /* on the page a keycap keeps the word after it on its line, so "↓"
+     never ends one line with "eases it down" starting the next */
+  if (mode === 1) {
+    s = tpl.replace(/\{([A-Za-z]+)\}( [^\s{]+)?/g, function (all, name, next) {
+      var t = token(name, env, 1);
+      return next ? '<span class="gd-nw">' + t + next + "</span>" : t;
+    });
+  } else s = tpl.replace(/\{([A-Za-z]+)\}/g, function (all, name) { return token(name, env, mode); });
   if (env.landing === false) {
     s = s.replace("where the light is", "where it would land").replace("straight to its light", "straight to where it would land");
   }
-  var c = s.charAt(0);
-  if (c >= "a" && c <= "z") s = c.toUpperCase() + s.slice(1);
-  return s;
+  /* a sentence that begins with a key's or a button's name begins with a
+     capital: "The left arrow…", "…instead. Down arrow eases it…" */
+  return s.replace(/(^|\. )((?:<[^>]*>)*)([a-z])/g, function (all, a, tags, c) { return a + tags + c.toUpperCase(); });
 }
+/* a line that depends on a setting: how taps turn, or whether we know the
+   controller's family */
 function byTap(v, env) {
-  if (v && typeof v === "object") return env.tap === "anywhere" ? v.anywhere : v.sides;
+  if (v && typeof v === "object") {
+    if (v.words !== undefined) return padFamily(env.pad) === "words" ? v.words : v.other;
+    return env.tap === "anywhere" ? v.anywhere : v.sides;
+  }
   return v;
 }
 /* Whether a move exists on these hands with these settings: the half-turn
@@ -472,7 +498,7 @@ Guide.text = function (move, hands, form, env) {
     var ht = HANDS_TIP[hands];
     if (form === "name") return "First steps";
     if (form === "line" || form === "tip" || form === "how" || form === "why") return ht[1];
-    return ht[0];
+    return env.fresh ? HANDS_FRESH : ht[0];
   }
   if (move === "first") {
     if (form === "line" || form === "tip" || form === "why") return "Move, turn, drop and keep, one at a time.";
@@ -501,6 +527,14 @@ Guide.text = function (move, hands, form, env) {
   return fill(byTap(tpl, env), env, mode);
 };
 Guide.handsName = function (h) { return HANDS_NAME[h] || HANDS_NAME.keys; };
+/* what a Descent or a Drift is for, said once at the end of first steps:
+   the moves are how, this is why */
+Guide.goal = function (modeId) {
+  var M = root.Modes, n = M && +M.LINES_PER_DEPTH > 0 ? Math.round(+M.LINES_PER_DEPTH) : 25;
+  var row = "Fill a row from wall to wall and it clears.";
+  if (modeId === "drift") return row + " No end here, just a rest between chapters.";
+  return row + " " + (n === 25 ? "Twenty-five" : String(n)) + " lines take you one depth down.";
+};
 Guide.MOVES = MOVES.slice();
 Guide.HANDS = HANDS.slice();
 
@@ -511,7 +545,10 @@ Guide.HANDS = HANDS.slice();
    hands that move it: a fingertip on the glass, a keycap, a tray key or a
    controller's face. They loop three times and rest; with reduced motion
    they are still, with an arrow for what would have moved. */
-var ART_WELL = '<rect class="gd-aw" x="10" y="4" width="44" height="56" rx="6"/>' +
+/* open at the top, with the coping either side of the mouth: a well, not
+   a phone */
+var ART_WELL = '<rect class="gd-awf" x="10" y="4" width="44" height="56" rx="6"/>' +
+  '<path class="gd-aw" d="M10 4v50a6 6 0 0 0 6 6h32a6 6 0 0 0 6-6V4M6 4h7.5M50.5 4h7.5"/>' +
   '<rect class="gd-as" x="13" y="51" width="38" height="6.5" rx="1.8"/>' +
   '<rect class="gd-as" x="13" y="44" width="17" height="6.5" rx="1.8"/>' +
   '<rect class="gd-as" x="37" y="44" width="14" height="6.5" rx="1.8"/>';
@@ -582,6 +619,31 @@ function keyLabels(move, env) {
   for (var i = 0; i < names.length; i++) { var k = first(names[i]); if (k) out.push(k); }
   return out;
 }
+/* ================================================================
+   where things go on a phone's well (pure)
+   ================================================================
+   Guide.capSpot(L, w, h) -> {x, y}: the caption, w by h, centred on the
+   well just under the piece that waits at the mouth — three rows down,
+   clear of a piece turned upright — so it sits next to what it is about,
+   and high above the half of the well where thumbs tap and flick: Skip
+   and "Prefer buttons?" are never where a move is made. The taps the
+   demonstration shows are low, at TAP_Y of the well's height, on its two
+   halves — lower still when large text makes the caption tall (tapY).
+   Pure, so tools/guide-check.js can measure one against the other. */
+var TAP_Y = 0.74;
+Guide.TAP_Y = TAP_Y;
+Guide.tapY = function (L, capBottom) {
+  var wl = L.well, y = wl.y + wl.h * TAP_Y;
+  if (capBottom > 0 && y < capBottom + 56) y = Math.min(capBottom + 56, wl.y + wl.h - 30);
+  return y;
+};
+Guide.capSpot = function (L, w, h) {
+  var wl = L.well, c = +L.cell > 0 ? +L.cell : wl.w / 10;
+  var y = wl.y + c * 3 + 8, most = wl.y + wl.h - h - 8;
+  if (y > most) y = Math.max(wl.y + 4, most);
+  return { x: wl.x + (wl.w - w) / 2, y: y };
+};
+
 /* Guide.art(move, hands, size, env) -> an <svg> string. "scheme-gestures"
    and "scheme-buttons" are the two touch schemes, drawn for Settings. */
 Guide.art = function (move, hands, size, env) {
@@ -619,8 +681,9 @@ Guide.art = function (move, hands, size, env) {
       if (hands === "gestures") hand = artFinger(32, 31, "gd-afe");
       break;
     case "keep":
-      s += '<rect class="gd-an" x="1.5" y="1.5" width="13" height="11" rx="3"/>' + piece +
-        artArrow("M19 9h-3.5M18 6.5L15.5 9l2.5 2.5");
+      /* the niche sits over the mouth's left edge, as it does on the well */
+      s += '<rect class="gd-an" x="1.5" y="0.5" width="20" height="12.5" rx="3.5"/>' + piece +
+        artArrow("M23 17.5 18 13M18 17v-4h4");
       if (hands === "gestures") hand = artFinger(32, 34, "gd-afk");
       break;
     case "breath":
@@ -632,8 +695,10 @@ Guide.art = function (move, hands, size, env) {
       s += '<path class="gd-apz" d="M28.5 25v14M35.5 25v14"/>';
       break;
   }
+  /* keycaps only where their letters can be read; smaller, the words
+     beside the drawing name the key */
   if (hands === "keys") {
-    var labels = keyLabels(move, env);
+    var labels = size >= 72 ? keyLabels(move, env) : [];
     if (labels.length) s += keycapArt(labels, Math.min(36, 61 - keycapsWidth(labels)));
   } else if (hands === "pad") {
     if (move !== "pause") s += padArt(PAD_LIT[move] || "", 37, 40, 0.62);
@@ -684,7 +749,12 @@ var CSS = [
   "#guide .gd-l{margin:4px 0 0;font:400 .9375rem/1.25rem var(--sans);color:var(--ink-2)}",
   "#guide .gd-n{margin:6px 0 0;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2)}",
   "#guide .gd-n:empty{display:none}",
-  "#guide .gd-ft{display:flex;align-items:center;gap:2px;min-height:20px;margin:10px -10px -8px 0}",
+  /* Skip sits at the card's top right, the usual place to put a card away:
+     high on the well, far from where thumbs tap and flick */
+  "#guide .gd-hd{display:flex;align-items:flex-start;gap:8px}",
+  "#guide .gd-hd .gd-eb{flex:1 1 auto;min-width:0;padding-top:1px}",
+  "#guide .gd-hd .gd-skip{margin:-13px -10px -13px auto}",
+  "#guide .gd-ft{display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:20px;margin:10px -10px -8px 0}",
   "#guide .gd-dots{flex:1 1 auto;display:flex;align-items:center;gap:8px;min-height:20px}",
   "#guide .btn{pointer-events:auto;flex:none}",
   "#guide .btn.quiet{min-height:44px;padding:0 10px;font-size:.9375rem}",
@@ -702,7 +772,7 @@ var CSS = [
   ".gd-dot.ok .gd-ck{display:block;width:12px;height:12px;fill:none;stroke:rgb(var(--wk));stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
   "@keyframes gdIn{from{opacity:0}}",
   /* the art column for keys and controllers */
-  "#guide .gd-col{flex:none;width:76px;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:6px;min-height:72px;padding-top:2px}",
+  "#guide .gd-col{flex:none;width:76px;display:flex;flex-wrap:wrap;justify-content:flex-start;align-content:center;gap:6px;min-height:72px;padding-top:2px}",
   "#guide .gd-col:empty{display:none}",
   ".gd-kc{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-width:34px;height:34px;padding:0 8px;",
   "border-radius:8px;background:var(--fill-2);border:1px solid var(--hair-2);box-shadow:inset 0 -3px 0 rgb(0 0 0 / .35);",
@@ -722,14 +792,15 @@ var CSS = [
   "#guideFx{position:absolute;left:0;top:0;width:0;height:0;z-index:7;pointer-events:none;--c:30px;--ww:300px}",
   "#guideFx .gd-f,#guideFx .gd-ring{position:absolute;left:0;top:0;width:0;height:0;display:none}",
   "#guideFx .gd-in{position:absolute;left:-22px;top:-22px;width:44px;height:44px;opacity:0}",
-  "#guideFx .gd-halo{position:absolute;inset:0;border-radius:50%;background:rgb(var(--wk) / .10);box-shadow:inset 0 0 0 1.5px rgb(var(--wk) / .28)}",
-  "#guideFx .gd-tip{position:absolute;left:9px;top:9px;width:26px;height:26px;border-radius:50%;background:rgb(var(--wk) / .85);",
-  "box-shadow:0 0 0 1px rgb(255 255 255 / .18) inset}",
+  /* a fingertip, not a moon: a small bright core in a wide soft ring */
+  "#guideFx .gd-halo{position:absolute;inset:0;border-radius:50%;background:rgb(var(--wk) / .12);box-shadow:inset 0 0 0 1.5px rgb(var(--wk) / .34)}",
+  "#guideFx .gd-fp{position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:rgb(var(--wk) / .92);",
+  "box-shadow:0 0 10px rgb(var(--wk) / .35)}",
   "#guideFx .gd-tr{position:absolute;left:20px;bottom:46px;display:none;flex-direction:column;align-items:center;gap:5px;opacity:0}",
   "#guideFx .gd-tr i{display:block;width:3px;height:8px;border-radius:2px;background:rgb(var(--wk) / .55)}",
   "#guideFx .gd-arw{position:absolute;left:-22px;top:-22px;width:88px;height:88px;display:none;fill:none;stroke:rgb(var(--wk));",
   "stroke-width:2;stroke-linecap:round;stroke-linejoin:round;overflow:visible}",
-  "#guideFx .gd-ring{box-sizing:border-box;border-radius:16px;box-shadow:0 0 0 2px rgb(var(--wk) / .55),0 0 18px rgb(var(--wk) / .3)}",
+  "#guideFx .gd-ring{box-sizing:border-box;border-radius:16px;box-shadow:0 0 0 2px rgb(var(--wk) / .55),0 0 12px rgb(var(--wk) / .3)}",
   "#guideFx.on .gd-f.on,#guideFx.on .gd-ring.on{display:block}",
   "#guideFx.k-move .gd-f1 .gd-in{animation:gdMove 2.4s 3 both}",
   "#guideFx.k-turn .gd-f1 .gd-in,#guideFx.k-tapA .gd-f1 .gd-in{animation:gdTapA 2.4s 3 both}",
@@ -748,6 +819,7 @@ var CSS = [
   "#guideFx.k-keep .gd-f2 .gd-in{animation:gdNiche 4.8s 2 both}",
   "#guideFx.k-keep .gd-ring{animation:gdRingK 4.8s 2 both}",
   "#guideFx.k-breath .gd-ring{border-radius:50%;animation:gdRingB 2.4s ease-in-out 3 both}",
+  "#guideFx.k-niche .gd-ring{animation:gdRingB 2.4s ease-in-out 3 both}",
   "@keyframes gdMove{0%{opacity:0;transform:translateX(0)}8%{opacity:1;transform:translateX(0);animation-timing-function:ease-in-out}",
   "36%{transform:translateX(calc(var(--c) * 1.5));animation-timing-function:ease-in-out}",
   "70%{transform:translateX(calc(var(--c) * -1.5));animation-timing-function:ease-in-out}",
@@ -784,7 +856,8 @@ var CSS = [
   ".gd-teach{box-shadow:0 0 0 2px rgb(var(--wk)),0 0 18px rgb(var(--wk) / .35) !important;transition:box-shadow .6s var(--e-out) !important}",
   /* the drawings */
   ".gd-art{display:block;overflow:visible}",
-  ".gd-art .gd-aw{fill:rgb(238 240 248 / .03);stroke:var(--ink-3);stroke-width:1.5}",
+  ".gd-art .gd-awf{fill:rgb(238 240 248 / .035)}",
+  ".gd-art .gd-aw{fill:none;stroke:var(--ink-3);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}",
   ".gd-art .gd-as{fill:var(--ink-3);opacity:.32}",
   ".gd-art .gd-ap{fill:rgb(var(--wk));stroke:rgb(var(--wk));stroke-width:1.2;stroke-linejoin:round}",
   ".gd-art .gd-apg,.gd-art .gd-afg,.gd-art .gd-sp,.gd-art .gd-sf{transform-box:view-box;transform-origin:32px 15.5px}",
@@ -793,7 +866,7 @@ var CSS = [
   ".gd-art .gd-aar{fill:none;stroke:rgb(var(--wk));stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:0}",
   ".gd-art .gd-atr{fill:none;stroke:rgb(var(--wk) / .6);stroke-width:1.4;stroke-linecap:round;opacity:0}",
   ".gd-art .gd-atd{fill:none;stroke:rgb(var(--wk) / .55);stroke-width:1.4;stroke-linecap:round;stroke-dasharray:.1 3;opacity:0}",
-  ".gd-art .gd-an{fill:none;stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:2 1.6}",
+  ".gd-art .gd-an{fill:rgb(238 240 248 / .05);stroke:var(--ink-3);stroke-width:1.3}",
   ".gd-art .gd-abt{fill:none;stroke:var(--hair-2);stroke-width:1.6}",
   ".gd-art .gd-abf{fill:none;stroke:rgb(var(--wa));stroke-width:1.6;stroke-dasharray:20 20}",
   ".gd-art .gd-abc{fill:rgb(var(--wk))}",
@@ -840,8 +913,8 @@ var CSS = [
   "@keyframes gdAEase{0%,10%{transform:translateY(0);opacity:1}70%,82%{transform:translateY(19px);opacity:1}",
   "90%{transform:translateY(19px);opacity:0}96%{transform:translateY(0);opacity:0}100%{opacity:1}}",
   "@keyframes gdATrailE{0%,14%{opacity:0}40%,74%{opacity:1}90%,100%{opacity:0}}",
-  "@keyframes gdAKeep{0%,40%{transform:translate(0,0) scale(1);opacity:1}46%,78%{transform:translate(-24px,-8px) scale(.45);opacity:1}",
-  "88%{transform:translate(-24px,-8px) scale(.45);opacity:0}94%{transform:translate(0,0) scale(1);opacity:0}100%{opacity:1}}",
+  "@keyframes gdAKeep{0%,40%{transform:translate(0,0) scale(1);opacity:1}46%,78%{transform:translate(-20.5px,-8.5px) scale(.45);opacity:1}",
+  "88%{transform:translate(-20.5px,-8.5px) scale(.45);opacity:0}94%{transform:translate(0,0) scale(1);opacity:0}100%{opacity:1}}",
   "@keyframes gdAFlickU{0%,100%{opacity:0;transform:translateY(0)}10%,38%{opacity:1;transform:translateY(0)}",
   "44%{transform:translateY(-9px);opacity:1}60%{opacity:0;transform:translateY(-9px)}}",
   "@keyframes gdAFill{0%{stroke-dasharray:4 20}50%,80%{stroke-dasharray:20 20}100%{stroke-dasharray:4 20}}",
@@ -879,17 +952,24 @@ var CSS = [
   "html.rm #guide{transform:none;transition:opacity .15s linear,visibility 0s linear .15s}",
   "html.rm #guide.on{transition:opacity .15s linear}",
   /* the card that offers a move */
-  ".gd-tip{display:grid;grid-template-columns:56px 1fr;gap:12px 14px;align-items:start;box-sizing:border-box;padding:14px 16px;",
+  ".gd-card{display:grid;grid-template-columns:56px 1fr;gap:12px 14px;align-items:start;box-sizing:border-box;padding:14px 16px;",
   "border-radius:16px;background:var(--fill-1);border:1px solid var(--hair);color:var(--ink);text-align:left;overflow:hidden;",
   "max-height:40rem;transition:opacity .2s var(--e-out),max-height .2s var(--e-out),padding .2s var(--e-out),margin .2s var(--e-out)}",
-  ".gd-tip.gone{opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;border-width:0}",
-  "html.rm .gd-tip{transition:opacity .15s linear}",
+  ".gd-card.gone{opacity:0;max-height:0;padding-top:0;padding-bottom:0;margin:0;border-width:0}",
+  "html.rm .gd-card{transition:opacity .15s linear}",
   ".gd-tip-art svg{width:56px;height:56px}",
-  ".gd-tip .gd-eb{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2)}",
+  ".gd-card .gd-eb{font:500 .75rem/1rem var(--sans);letter-spacing:.02em;color:var(--ink-2)}",
   ".gd-tip-t{margin:2px 0 0;font:600 1.0625rem/1.375rem var(--sans);color:var(--ink)}",
   ".gd-tip-s{margin:4px 0 0;font:400 .9375rem/1.25rem var(--sans);color:var(--ink-2)}",
   ".gd-tip-a{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin:12px 0 0 -2px}",
   ".gd-tip-a .btn.quiet{padding:0 12px}",
+  /* the small card, where a sheet has a lot to hold (the pause sheet, a
+     phone's run card): the drawing at 40, no eyebrow (a reader still hears it) */
+  ".gd-card.sm{grid-template-columns:40px 1fr;gap:8px 12px;padding:12px 14px}",
+  ".gd-card.sm .gd-tip-art svg{width:40px;height:40px}",
+  ".gd-card.sm .gd-tip-t{margin:0}",
+  ".gd-card.sm .gd-tip-a{margin-top:6px}",
+  ".gd-nw{white-space:nowrap}",
   /* the Moves page */
   ".gd-mv .gd-mv-lead{margin:0 4px 16px;font:400 1rem/1.5 var(--sans);color:var(--ink-2)}",
   ".gd-mv .gd-mv-for{margin:0 0 16px}",
@@ -903,6 +983,8 @@ var CSS = [
   /* the why line in --ink-2: --ink-3 on a row's fill fell to 4.4:1 over the brightest frost */
   ".gd-mv .gd-mv-why{display:block;margin-top:2px;font:400 .8125rem/1.125rem var(--sans);color:var(--ink-2)}",
   ".gd-mv .gd-mv-r{flex:none;display:flex;align-items:center;justify-content:flex-end;min-width:44px}",
+  /* Practise is a word in the accent, not a column of boxes */
+  ".gd-mv .gd-mv-p{color:rgb(var(--wa));font-weight:500;padding:0 10px;margin-right:-6px}",
   ".gd-mv .gd-mv-ok{display:inline-flex;align-items:center;gap:3px;margin-left:2px;font:500 .8125rem/1 var(--sans);color:rgb(var(--wk))}",
   ".gd-mv .gd-stone{flex:none;width:18px;height:18px;fill:rgb(var(--wk));display:block}",
   /* large text: Practise moves under the words, which get the row's width */
@@ -920,8 +1002,8 @@ var CSS = [
   "kbd.kc.gd-tk svg{width:1.15em;height:1.15em;display:block;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}",
   ".gd-vh{position:absolute !important;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}",
   "@media (min-width:900px) and (pointer:fine){#guide .gd-l,.gd-tip-s{font-size:.875rem}}",
-  "@media (forced-colors:active){#guide,.gd-tip{border:1px solid CanvasText}.gd-teach{outline:3px solid Highlight !important}",
-  ".gd-dot.now{background:Highlight}#guideFx .gd-tip{background:Highlight}}"
+  "@media (forced-colors:active){#guide,.gd-card{border:1px solid CanvasText}.gd-teach{outline:3px solid Highlight !important}",
+  ".gd-dot.now{background:Highlight}#guideFx .gd-fp{background:Highlight}}"
 ].join("\n");
 
 var STONE = '<svg class="gd-stone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
@@ -940,7 +1022,7 @@ var STILL_ARROW = {
   keep: '<path d="M44 19V5M38 11l6-6 6 6"/>'
 };
 var FX_HTML = (function () {
-  var f = '<div class="gd-in"><span class="gd-halo"></span><span class="gd-tip"></span>' +
+  var f = '<div class="gd-in"><span class="gd-halo"></span><span class="gd-fp"></span>' +
     '<span class="gd-tr"><i></i><i></i><i></i></span><svg class="gd-arw" viewBox="0 0 88 88"></svg></div>';
   return '<div class="gd-f gd-f1">' + f + '</div><div class="gd-f gd-f2">' + f + '</div><div class="gd-f gd-f3">' + f +
     '</div><div class="gd-ring"></div>';
@@ -1020,7 +1102,8 @@ Guide.create = function (o) {
       try { if (prefs.has("guide")) return; } catch (e) {}
     }
     var seen = pget("seen", null) || {};
-    if (seen.touchCards) st.first.gestures = 1;
+    /* the old cards were shown to every touch player, tray or not */
+    if (seen.touchCards) { st.first.gestures = 1; st.first.buttons = 1; }
     else if (seen.intro) st.first[detect()] = 1;
     else return;
     persist();
@@ -1028,9 +1111,14 @@ Guide.create = function (o) {
 
   /* ---------- this run ---------- */
   var used = new Uint8Array(NH * NM);
+  /* offered: this run's move to try; offeredIx, its index; offerUsed, once
+     the player has made that move since it was offered (a drop made in
+     first steps, before any offer, doesn't silence it); counted, once the
+     offer has been seen and written down */
   var R = { live: false, ended: true, inert: false, practice: false, modeId: "", hasBreath: false,
             hands0: "", cwPiece: 0, ccwPiece: 0, cw3: 0, breathReady: false, breathUsed: false,
-            offered: "", declined: false, softPiece: 0, softCounted: false };
+            offered: "", offeredIx: -1, offerUsed: false, counted: false, declined: false,
+            softPiece: 0, softCounted: false, keepNoted: false };
   /* An offer appears at most once at each kind of boundary. The epoch
      moves on whenever play resumes after one was shown, so the same pause
      sheet drawn twice shows the same card, and the next pause shows none. */
@@ -1046,8 +1134,10 @@ Guide.create = function (o) {
   /* ---------- the page ---------- */
   var cap = null, capEb = null, capT = null, capL = null, capN = null, capDots = null, capFt = null,
       capCol = null, capFin = null, btnSkip = null, btnAlt = null, fx = null, fxF = [], fxRing = null,
-      bannerEl = null, styled = false;
-  var spot = { L: null, x: 0, y: 0, w: 300, compact: true, side: false, have: false };
+      bannerEl = null, styled = false, quietPrefs = false;
+  /* capBottom: where the caption ends, on a phone's well, so the fingertips
+     that follow the piece are drawn below it, never under it */
+  var spot = { L: null, x: 0, y: 0, w: 300, compact: true, side: false, have: false, alt: null, capBottom: -1 };
   var band = { on: false, top: 0, bottom: 0, dodge: false };
   var teachEls = [];
   var fxPos = { kind: "", rel: false, x: -1, y: -1 };
@@ -1068,16 +1158,17 @@ Guide.create = function (o) {
     cap.id = "guide";
     cap.setAttribute("role", "group");
     cap.setAttribute("aria-label", "First steps");
-    cap.innerHTML = '<div class="gd-col" aria-hidden="true"></div><div class="gd-b"><div class="gd-eb"></div>' +
+    cap.innerHTML = '<div class="gd-col" aria-hidden="true"></div><div class="gd-b"><div class="gd-hd"><div class="gd-eb"></div>' +
+      '<button class="btn quiet gd-skip" type="button" tabindex="-1">Skip</button></div>' +
       '<div class="gd-t"></div><div class="gd-l"></div><div class="gd-n"></div><div class="gd-fin"></div>' +
       '<div class="gd-ft"><span class="gd-dots" aria-hidden="true"></span>' +
-      '<button class="btn quiet gd-alt" type="button" tabindex="-1">Prefer buttons?</button>' +
-      '<button class="btn quiet gd-skip" type="button" tabindex="-1">Skip</button></div></div>';
+      '<button class="btn quiet gd-alt" type="button" tabindex="-1">Prefer buttons?</button></div></div>';
     capCol = cap.firstChild;
-    var b = cap.lastChild;
-    capEb = b.childNodes[0]; capT = b.childNodes[1]; capL = b.childNodes[2]; capN = b.childNodes[3];
+    var b = cap.lastChild, hd = b.childNodes[0];
+    capEb = hd.childNodes[0]; btnSkip = hd.childNodes[1];
+    capT = b.childNodes[1]; capL = b.childNodes[2]; capN = b.childNodes[3];
     capFin = b.childNodes[4]; capFt = b.childNodes[5];
-    capDots = capFt.childNodes[0]; btnAlt = capFt.childNodes[1]; btnSkip = capFt.childNodes[2];
+    capDots = capFt.childNodes[0]; btnAlt = capFt.childNodes[1];
     btnSkip.addEventListener("click", function (e) { e.preventDefault(); G.skip(); });
     btnAlt.addEventListener("click", function (e) { e.preventDefault(); preferButtons(); });
     capFin.addEventListener("click", function (e) {
@@ -1110,10 +1201,11 @@ Guide.create = function (o) {
      first steps and the practice well
      ================================================================ */
   var W_WAIT = 1, W_STEP = 2, W_GOOD = 3, W_END = 4, W_FIN = 5;
-  var GOOD_MS = 1100, END_MS = 2400, LOOP_MS = 2400, LOOPS = 3, IDLE_MS = 10000, REPLAYS = 2;
+  /* the last card stays long enough to read what the game is for */
+  var GOOD_MS = 1100, END_MS = 5000, LOOP_MS = 2400, LOOPS = 3, IDLE_MS = 10000, REPLAYS = 2;
   var A = { kind: "", move: "", firstLike: false, steps: null, step: 0, sm: -1, n: 0, need: 1, phase: 0,
             until: 0, t0: -1, delay: 300, banner: false, bannerSeen: 0, lastAct: 0, demoEnd: 0,
-            replays: 0, hands: "", ebs: null };
+            replays: 0, hands: "", ebs: null, good: false };
 
   function stepsFor(firstLike, move) {
     if (!firstLike) return [move];
@@ -1137,6 +1229,7 @@ Guide.create = function (o) {
     TM[T_ACT] = 0;
     TM[T_DEMO] = 0;
     A.replays = 0;
+    A.good = false;
     A.hands = handsNow();
     if (kind === "first") persist();
     ensureDom();
@@ -1181,10 +1274,13 @@ Guide.create = function (o) {
       markDots(A.firstLike ? A.step + 1 : A.need);
       if (A.ebs && !A.firstLike) capEb.textContent = A.ebs[A.need - 1];
       btnAlt.style.display = "none";
+      footSync();
       placeCaption();
     }
     call(o.music, "tap");
-    call(o.say, "Done.");
+    /* said with the next step ("That's it. Tap to turn…"), so a quick
+       player's next instruction is never pushed out by a word of praise */
+    A.good = true;
   }
   function nextStep() {
     if (A.step + 1 < A.steps.length) {
@@ -1215,24 +1311,29 @@ Guide.create = function (o) {
   function finishFirst() {
     if (A.kind !== "first") return;
     var h = A.hands;
+    /* first steps are not an offer: the spacing between offers is untouched */
     st.first[h] = 1;
-    st.since = 0;
     persist();
     endActive();
     call(o.hold, false);
   }
+  /* the hands change before the setting is written, so the caption (and
+     the voice) go straight to the tray's words, once */
   function preferButtons() {
     if (!prefs || !prefs.set) return;
-    try { prefs.set("scheme", "buttons"); } catch (e) { tell(e); }
     scheme = "buttons";
     curHands = "buttons";
     A.hands = "buttons";
-    if (A.kind && A.phase === W_STEP) { A.step = 0; A.n = 0; A.sm = moveIx(A.steps[0]); A.need = needOf(A.steps[0]); paintStep(true); }
+    var restart = !!A.kind && A.phase === W_STEP;
+    if (restart) { A.step = 0; A.n = 0; A.sm = moveIx(A.steps[0]); A.need = needOf(A.steps[0]); A.good = false; }
+    quietPrefs = true;
+    try { prefs.set("scheme", "buttons"); } catch (e) { tell(e); }
+    quietPrefs = false;
+    if (restart) paintStep(true);
   }
   G.skip = function () {
     if (A.kind !== "first") return;
     st.first[A.hands || handsNow()] = 2;
-    st.since = 0;
     persist();
     endActive();
     call(o.hold, false);
@@ -1258,17 +1359,29 @@ Guide.create = function (o) {
     if (!l) return;
     for (var i = 0; i < l.length; i++) l[i].className = i < doneUpTo ? "gd-dot ok" : i === doneUpTo ? "gd-dot now" : "gd-dot";
   }
+  /* the footer goes when it holds nothing: no dots, no button */
+  function footSync() {
+    if (!capFt) return;
+    var any = capDots.childNodes.length > 0 || btnAlt.style.display !== "none";
+    capFt.style.display = any ? "" : "none";
+  }
   function eyebrows() {
     var out = [], name = A.firstLike ? "First steps" : "Practice", i;
     if (A.firstLike) out.push(name + " · " + (A.step + 1) + " of " + A.steps.length);
+    else if (A.need <= 1) out.push(name);
     else for (i = 0; i < A.need; i++) out.push(name + " · " + (i + 1) + " of " + A.need);
     return out;
   }
   function artColumn(s, h) {
     if (h === "keys") {
       var e = env(), labels = keyLabels(s, e), out = "";
-      /* turning: the key that turns, and the one that turns it back */
-      if (s === "turn") { var back = keyLabels("turnBack", e); if (back.length) labels.push(back[0]); }
+      /* turning: the same keys the title names ("↑ or X"); the one that
+         turns it back is in the line below, beside its own words */
+      if (s === "turn") {
+        var l = e.keys && Array.isArray(e.keys.cw) ? e.keys.cw : DEF_KEYS.cw;
+        labels = [];
+        for (var k = 0; k < l.length && labels.length < 2; k++) if (typeof l[k] === "string" && l[k]) labels.push(keyName(l[k]));
+      }
       for (var i = 0; i < labels.length; i++) out += '<span class="gd-kc' + (labels[i].length > 3 ? " wide" : "") + '">' + esc(labels[i]) + "</span>";
       return out;
     }
@@ -1283,10 +1396,9 @@ Guide.create = function (o) {
     var h = A.hands = handsNow(), s = A.steps[A.step];
     cap.setAttribute("aria-label", A.firstLike ? "First steps" : "Practice");
     A.ebs = eyebrows();
-    capEb.textContent = A.firstLike ? A.ebs[0] : A.ebs[Math.min(A.n, A.need - 1)];
-    /* keys and controllers have the keycaps (or the controller) drawn
-       large beside the words, so the title says them as plain text */
-    capT.innerHTML = h === "keys" || h === "pad" ? esc(words(s, "title", h, 0)) : words(s, "title", h, 1);
+    capEb.textContent = A.firstLike ? A.ebs[0] : A.ebs[Math.min(A.n, A.ebs.length - 1)];
+    /* keys are keycaps wherever they are named, the title too */
+    capT.innerHTML = words(s, "title", h, 1);
     capL.innerHTML = words(s, "line", h, 1);
     capN.textContent = "";
     capFin.innerHTML = "";
@@ -1297,7 +1409,7 @@ Guide.create = function (o) {
     paintDots(A.firstLike ? A.step : A.n);
     btnSkip.style.display = A.kind === "first" ? "" : "none";
     btnAlt.style.display = A.kind === "first" && A.step === 0 && h === "gestures" && o.touch ? "" : "none";
-    capFt.style.display = "";
+    footSync();
     if (swap) { swapIn(capT); swapIn(capL); }
     placeCaption();
     startDemo(s, h);
@@ -1305,42 +1417,52 @@ Guide.create = function (o) {
   }
   function sayStep() {
     var h = handsNow(), s = A.steps[A.step];
-    var pre = A.phase === W_STEP && A.step === 0 && A.n === 0 ? (A.firstLike ? "First steps. " : "Practice. ") : "";
+    var pre = A.good ? "That's it. "
+            : A.phase === W_STEP && A.step === 0 && A.n === 0 ? (A.firstLike ? "First steps. " : "Practice. ") : "";
+    A.good = false;
     call(o.say, pre + words(s, "title", h, 2) + ". " + words(s, "line", h, 2));
   }
+  /* The last card: the moves are enough, and now what they are for — a
+     full row clears, and the lines take you down — which no step showed. */
   function paintEnd() {
-    if (!ensureDom()) return;
-    var h = A.hands;
+    var h = A.hands, goal = Guide.goal(R.modeId);
+    A.good = false;
+    var said = "That's all you need. " + goal +
+      (h === "keys" ? " " + words("pause", "line", h, 2) + " Every key can be changed." : h === "pad" ? " " + words("pause", "line", h, 2) : "");
+    if (!ensureDom()) { call(o.say, said); return; }
     capEb.textContent = "First steps";
     capT.textContent = "That's all you need.";
-    capL.textContent = "The rest comes when it's useful.";
+    capL.textContent = goal;
     capN.innerHTML = h === "keys" ? words("pause", "line", h, 1) + " Every key can be changed." : h === "pad" ? words("pause", "line", h, 1) : "";
     capCol.innerHTML = "";
     cap.style.minHeight = "";
     markDots(A.steps.length);
     btnSkip.style.display = "none";
     btnAlt.style.display = "none";
+    footSync();
     swapIn(capT); swapIn(capL);
     stopDemo();
     placeCaption();
-    call(o.say, "That's all you need. The rest comes when it's useful." +
-      (h === "keys" ? " " + words("pause", "line", h, 2) + " Every key can be changed." : h === "pad" ? " " + words("pause", "line", h, 2) : ""));
+    call(o.say, said);
   }
   function paintFin() {
-    if (!ensureDom()) return;
+    A.good = false;
+    var said = (A.firstLike ? "That's all you need." : "That's it. It's yours now.") + " Done, or practise another.";
+    if (!ensureDom()) { call(o.say, said); return; }
     capEb.textContent = A.firstLike ? "First steps" : "Practice";
     capT.textContent = A.firstLike ? "That's all you need." : "That's it.";
     capL.textContent = A.firstLike ? "The rest comes when it's useful." : "It's yours now.";
     capN.textContent = "";
     capCol.innerHTML = "";
     cap.style.minHeight = "";
+    btnSkip.style.display = "none";
     capFt.style.display = "none";
     capFin.innerHTML = '<button class="btn small primary" type="button" data-gd="done">Done</button>' +
       '<button class="btn quiet" type="button" data-gd="another">Practise another</button>';
     swapIn(capT); swapIn(capL);
     stopDemo();
     placeCaption();
-    call(o.say, (A.firstLike ? "That's all you need." : "That's it. It's yours now.") + " Done, or practise another.");
+    call(o.say, said);
     /* keys: Enter finishes (the game's own keys never press a button) */
     if (A.hands === "keys" && capFin.firstChild && capFin.firstChild.focus) {
       try { capFin.firstChild.focus({ preventScroll: true }); } catch (e) { capFin.firstChild.focus(); }
@@ -1363,6 +1485,7 @@ Guide.create = function (o) {
     spot.L = s.L || spot.L;
     spot.x = +s.x || 0; spot.y = +s.y || 0; spot.w = +s.w || 300;
     spot.compact = !!s.compact; spot.side = !!s.side; spot.have = true;
+    spot.alt = s.alt && +s.alt.w > 0 ? s.alt : null;
     if (fx && spot.L && spot.L.cell) {
       fx.style.setProperty("--c", Math.round(spot.L.cell) + "px");
     }
@@ -1371,25 +1494,35 @@ Guide.create = function (o) {
   };
   function placeCaption() {
     if (!cap || !spot.have) return;
-    var L = spot.L, w, x, y;
+    var L = spot.L, w, x, y, hh;
     cap.classList.toggle("compact", spot.compact);
+    spot.capBottom = -1;
     if (spot.compact && L && L.well) {
       w = Math.max(200, Math.min(L.well.w - 12, 340));
-      x = L.well.x + (L.well.w - w) / 2;
       cap.style.width = Math.round(w) + "px";
-      y = spot.y || (L.well.y + L.well.h * 0.3);
+      hh = cap.offsetHeight || 150;
+      var c = Guide.capSpot(L, w, hh);
+      x = c.x; y = c.y;
+      spot.capBottom = y + hh;
     } else {
       w = Math.min(spot.w, 340);
       x = spot.x;
       cap.style.width = Math.round(w) + "px";
       y = spot.y;
-      var vh = stage.clientHeight || (root.innerHeight || 800), hh = cap.offsetHeight || 150;
-      /* never over the numbers (or the Breath ring) in a side column */
-      var hud = doc.getElementById("hud");
-      if (hud && !hud.classList.contains("off") && hud.offsetHeight) {
-        var hr = hud.getBoundingClientRect(), sr = stage.getBoundingClientRect();
-        var hl = hr.left - sr.left, ht = hr.top - sr.top, hb = hr.bottom - sr.top;
-        if (hl < x + w && hl + hr.width > x && ht < y + hh && hb > y) y = hb + 16;
+      var vh = stage.clientHeight || (root.innerHeight || 800);
+      hh = cap.offsetHeight || 150;
+      /* never over the numbers or the Breath ring in a side column: below
+         them if it fits, else above them, else in the sky beside the well
+         (the app's alternative), and only then wherever the screen allows */
+      var hr = hudRect();
+      if (hr && hr.l < x + w && hr.r > x && hr.t < y + hh && hr.b > y) {
+        if (hr.b + 16 + hh <= vh - 10) y = hr.b + 16;
+        else if (hr.t - 16 - hh >= 8) y = hr.t - 16 - hh;
+        else if (spot.alt) {
+          x = spot.alt.x; y = spot.alt.y; w = Math.min(spot.alt.w, 340);
+          cap.style.width = Math.round(w) + "px";
+          hh = cap.offsetHeight || hh;
+        }
       }
       if (y + hh > vh - 10) y = Math.max(8, vh - 10 - hh);
     }
@@ -1400,6 +1533,20 @@ Guide.create = function (o) {
       band.top = 22 - (y - L.well.y) / L.cell;
       band.bottom = band.top - (cap.offsetHeight || 150) / L.cell;
     }
+  }
+  /* the HUD's box, with the Breath ring, in the stage's own coordinates */
+  function hudRect() {
+    var hud = doc ? doc.getElementById("hud") : null;
+    if (!hud || hud.classList.contains("off") || !hud.offsetHeight) return null;
+    var sr = stage.getBoundingClientRect(), hr = hud.getBoundingClientRect();
+    var r = { l: hr.left - sr.left, t: hr.top - sr.top, r: hr.right - sr.left, b: hr.bottom - sr.top };
+    var br = doc.getElementById("btnBreath");
+    if (br && br.offsetWidth) {
+      var q = br.getBoundingClientRect();
+      r.l = Math.min(r.l, q.left - sr.left); r.t = Math.min(r.t, q.top - sr.top);
+      r.r = Math.max(r.r, q.right - sr.left); r.b = Math.max(r.b, q.bottom - sr.top);
+    }
+    return r;
   }
   function dodge(view) {
     if (!band.on || !cap) return;
@@ -1439,7 +1586,13 @@ Guide.create = function (o) {
     TM[T_DEMO] = TM[T_NOW] + LOOPS * LOOP_MS;
     A.replays = 0;
     /* Breath is the ring in the HUD, whatever the hands */
-    if (s === "breath") { ringOn(breathRect()); return; }
+    if (s === "breath") { ringOn(breathRect(), "k-breath"); return; }
+    /* Keep: the niche is lit whatever the hands, so the eye knows where
+       the piece will wait */
+    if (s === "keep" && h !== "gestures" && spot.L && spot.L.keep) {
+      var kr = spot.L.keep;
+      ringOn({ x: kr.x, y: kr.y, w: kr.w, h: kr.h, box: true }, "k-niche");
+    }
     if (h === "buttons") { if (TEACH[s]) setTeach(true, TEACH[s]); return; }
     if (h !== "gestures" || !fx) return;
     var any = pget("tap", "sides") === "anywhere", kind = s, rel = false;
@@ -1473,21 +1626,23 @@ Guide.create = function (o) {
     if (!(r.width > 0)) return null;
     return { x: r.left - sr.left, y: r.top - sr.top, w: r.width, h: r.height };
   }
-  function ringOn(r) {
+  /* a ring of light round something real: the Breath ring (a circle,
+     close, so its glow stays on a phone's screen), or the niche (its box) */
+  function ringOn(r, kind) {
     if (!r || !fx) return;
-    var pad = 5, size = Math.max(r.w, r.h) + pad * 2;
-    fxRing.style.width = Math.round(size) + "px";
-    fxRing.style.height = Math.round(size) + "px";
-    fxRing.style.transform = "translate3d(" + Math.round(r.x + r.w / 2 - size / 2) + "px," + Math.round(r.y + r.h / 2 - size / 2) + "px,0)";
+    var pad = r.box ? 5 : 3, rw = r.box ? r.w + pad * 2 : Math.max(r.w, r.h) + pad * 2, rh = r.box ? r.h + pad * 2 : rw;
+    fxRing.style.width = Math.round(rw) + "px";
+    fxRing.style.height = Math.round(rh) + "px";
+    fxRing.style.transform = "translate3d(" + Math.round(r.x + r.w / 2 - rw / 2) + "px," + Math.round(r.y + r.h / 2 - rh / 2) + "px,0)";
     fxRing.classList.add("on");
-    fx.className = "gd-fx on k-breath" + (still() ? " still" : "");
+    fx.className = "gd-fx on " + kind + (still() ? " still" : "");
   }
   function at(el, x, y) { el.style.transform = "translate3d(" + Math.round(x) + "px," + Math.round(y) + "px,0)"; }
   /* the fingertips that don't follow the piece: taps on the halves of the
      well (low, below the caption and above an early stack), the niche */
   function placeStatic() {
     if (!fx || !fxPos.kind || !spot.L || !spot.L.well) return;
-    var L = spot.L, w = L.well, c = L.cell || 30, ty = w.y + w.h * 0.74, k = fxPos.kind;
+    var L = spot.L, w = L.well, c = L.cell || 30, ty = Guide.tapY(L, spot.capBottom), k = fxPos.kind;
     fx.style.setProperty("--c", Math.round(c) + "px");
     for (var i = 0; i < 3; i++) fxF[i].classList.remove("on");
     if (k === "turn") {
@@ -1520,6 +1675,11 @@ Guide.create = function (o) {
     var x = Math.round(L.well.x + (sx / 4 + 0.5) * c);
     var bottom = L.well.y + (22 - lo) * c;
     var y = Math.round(bottom + (fxPos.kind === "move" ? c * 2 + 22 : c * 0.55 + 22));
+    /* below the caption, and a flick up ends below it too */
+    if (spot.capBottom > 0) {
+      var under = Math.round(spot.capBottom + 34 + (fxPos.kind === "keep" ? c * 2 : 0));
+      if (y < under) y = under;
+    }
     if (x === fxPos.x && y === fxPos.y) return;
     fxPos.x = x; fxPos.y = y;
     fxF[0].style.transform = "translate3d(" + x + "px," + y + "px,0)";
@@ -1561,6 +1721,18 @@ Guide.create = function (o) {
              of: A.firstLike ? A.steps.length : A.need };
   };
   G.firstDone = function (h) { var x = h && handsIx(h) >= 0 ? h : handsNow(); return st.first[x] !== 0; };
+  /* Will a run of this kind begin with first steps? The app asks a moment
+     before the run exists (so it can deal a first piece that visibly
+     turns); runStart answers the same question from the same notebook. */
+  function firstDue(ctx, book) {
+    var m = String(ctx.modeId || "");
+    if ((m !== "descent" && m !== "drift") || ctx.restored || ctx.timed || ctx.lesson || ctx.steady || ctx.practice) return false;
+    for (var h = 0; h < NH; h++) if (book.first[HANDS[h]] !== 0) return false;
+    return true;
+  }
+  G.wantsFirst = function (ctx) {
+    return firstDue(ctx || {}, prefs ? Guide.repair(pget("guide", null)) : st);
+  };
 
   G.runStart = function (ctx) {
     ctx = ctx || {};
@@ -1576,7 +1748,8 @@ Guide.create = function (o) {
     R.hasBreath = !!ctx.hasBreath;
     R.hands0 = detect();
     R.cwPiece = 0; R.ccwPiece = 0; R.cw3 = 0; R.breathReady = false; R.breathUsed = false;
-    R.offered = ""; R.declined = false; R.softPiece = 0; R.softCounted = false;
+    R.offered = ""; R.offeredIx = -1; R.offerUsed = false; R.counted = false; R.declined = false;
+    R.softPiece = 0; R.softCounted = false; R.keepNoted = false;
     epoch++; bump = false; bannerAt = -1; cardAt = -1; paused = false;
     if (R.inert) return "";
     if (R.practice) {
@@ -1584,8 +1757,7 @@ Guide.create = function (o) {
       startActive("practice", mv, ctx.t, false);
       return "practice";
     }
-    if ((R.modeId === "descent" || R.modeId === "drift") && !ctx.restored && !ctx.timed && !ctx.lesson) {
-      for (var h = 0; h < NH; h++) if (st.first[HANDS[h]] !== 0) return "";
+    if (firstDue(ctx, st)) {
       startActive("first", "first", ctx.t, R.modeId === "descent");
       return "first";
     }
@@ -1600,7 +1772,6 @@ Guide.create = function (o) {
     if (A.kind === "first") {
       /* left part-way: the Moves page has them whenever they're wanted */
       st.first[A.hands || h] = 2;
-      st.since = 0;
     }
     if (A.kind) endActive();
     if (!R.practice) {
@@ -1619,7 +1790,13 @@ Guide.create = function (o) {
     persist();
   };
   G.action = function (a, meta, ok) {
-    if (!ok || !R.live || R.inert) return;
+    if (!R.live || R.inert) return;
+    if (!ok) {
+      /* a second Keep for the same piece does nothing; a step waiting for
+         one says why, once a piece, rather than seeming not to hear */
+      if (a === "hold" && A.kind && A.phase === W_STEP && A.sm === M_KEEP && !R.keepNoted) keepRefused();
+      return;
+    }
     var src = meta ? meta.source : null;
     if (src) {
       var nh = src === "touch" ? (scheme === "buttons" ? "buttons" : "gestures") : src === "button" ? "buttons"
@@ -1638,6 +1815,7 @@ Guide.create = function (o) {
     if (hi < 0) hi = 2;
     used[hi * NM + m] = 1;
     st.dry[HANDS[hi]][MOVES[m]] = 0;
+    if (m === R.offeredIx) R.offerUsed = true;
     if (m === M_TURN) R.cwPiece++;
     else if (m === M_BACK) R.ccwPiece++;
     else if (m === M_BREATH) R.breathUsed = true;
@@ -1659,9 +1837,10 @@ Guide.create = function (o) {
         if (st.since < 999) st.since++;
       }
       if (R.cwPiece === 3 && R.ccwPiece === 0) R.cw3++;
-      R.cwPiece = 0; R.ccwPiece = 0; R.softPiece = 0; R.softCounted = false;
+      R.cwPiece = 0; R.ccwPiece = 0; R.softPiece = 0; R.softCounted = false; R.keepNoted = false;
     } else if (t === "spawn" || t === "hold") {
       R.softPiece = 0; R.softCounted = false;
+      if (t === "spawn") R.keepNoted = false;
     } else if (t === "soft") {
       R.softPiece += ev.rows | 0;
       if (!R.softCounted && R.softPiece >= 3) {
@@ -1670,6 +1849,14 @@ Guide.create = function (o) {
       }
     }
   };
+  var KEEP_ONCE = "One keep per piece. Set this one down, then keep the next.";
+  function keepRefused() {
+    R.keepNoted = true;
+    TM[T_ACT] = TM[T_NOW];
+    if (capN) capN.textContent = KEEP_ONCE;
+    if (cap && cap.classList.contains("on")) placeCaption();
+    call(o.say, KEEP_ONCE);
+  }
   G.note = function (name) {
     if (name === "breathReady" && R.live && !R.inert) R.breathReady = true;
   };
@@ -1702,13 +1889,15 @@ Guide.create = function (o) {
     if (TM[T_START] < 0) TM[T_START] = TM[T_NOW];
     if (A.phase === W_WAIT) {
       if (TM[T_NOW] < TM[T_START] + A.delay) return;
-      /* on a phone the caption shares the well with a depth's name: it
-         waits for the name to have faded (700 ms), and a moment more */
-      if (spot.compact && bannerEl && bannerEl.classList.contains("on") && TM[T_NOW] < TM[T_START] + 9000) {
+      /* the caption waits for a depth's name (and its line) to have faded
+         (700 ms), and a moment more: one thing to read at a time */
+      if (bannerEl && bannerEl.classList.contains("on") && TM[T_NOW] < TM[T_START] + 9000) {
         TM[T_BANNER] = TM[T_NOW];
         return;
       }
-      if (TM[T_BANNER] > 0 && TM[T_NOW] < TM[T_BANNER] + 900) return;
+      /* on the well itself (a phone) the name fades first; beside it (a
+         wide screen) the caption may come in as the name goes */
+      if (TM[T_BANNER] > 0 && TM[T_NOW] < TM[T_BANNER] + (spot.compact ? 900 : 150)) return;
       A.phase = W_STEP;
       paintStep(false);
       showCaption();
@@ -1732,10 +1921,8 @@ Guide.create = function (o) {
     var card = where === "pause" || where === "run" || where === "chapter";
     if (where === "banner" && bannerAt >= 0 && bannerAt !== epoch) return null;
     if (card && cardAt >= 0 && cardAt !== epoch) return null;
-    if (R.offered && R.offered !== "hands") {
-      var mi = moveIx(R.offered);
-      for (var hi = 0; mi >= 0 && hi < NH; hi++) if (used[hi * NM + mi]) return null;
-    }
+    /* once the move offered this run has been made, it needs no more words */
+    if (R.offered && R.offerUsed) return null;
     var h = handsNow();
     var dctx = {
       where: where, modeId: ctx.modeId || R.modeId, steady: !!ctx.steady, timed: !!ctx.timed,
@@ -1748,44 +1935,87 @@ Guide.create = function (o) {
     var m = Guide.decide(st, dctx, e);
     if (!m) return null;
     if (!R.offered) {
-      if (st.offers[m] < 9) st.offers[m]++;
-      st.since = 0;
-      st.sinceRuns = 0;
       R.offered = m;
-      persist();
+      R.offeredIx = moveIx(m);
+      R.offerUsed = false;
     }
+    /* a line under a depth's name is seen as it is shown; a card is
+       counted once it has been in view (renderTip), so one left below the
+       fold of a run card doesn't use up one of a move's three offers */
+    if (where === "banner") counted(m);
     if (where === "banner") bannerAt = epoch; else cardAt = epoch;
     bump = true;
+    e.fresh = m === "hands" && !anyFirst();
     return { move: m, where: where, title: Guide.text(m, h, "tipTitle", e), text: Guide.text(m, h, "tip", e),
              short: m === "drop" ? Guide.text(m, h, "short", e) : "" };
   };
+  function anyFirst() {
+    for (var i = 0; i < NH; i++) if (st.first[HANDS[i]] !== 0) return true;
+    return false;
+  }
+  /* the offer was seen: once a run it counts toward the move's three, and
+     the spacing to the next offer of anything starts again */
+  function counted(m) {
+    if (R.counted || !m || R.offered !== m) return;
+    R.counted = true;
+    if (st.offers[m] < 9) st.offers[m]++;
+    st.since = 0;
+    st.sinceRuns = 0;
+    persist();
+  }
   /* "Not now": remembered (twice and the move is never offered again),
      and nothing else is offered for the rest of this run */
   G.notNow = function (m) {
     if (OFFER_IDS.indexOf(m) < 0) return;
+    counted(m);
     if (st.later[m] < 2) st.later[m]++;
     R.declined = true;
     persist();
   };
+  /* cards waiting to be seen */
+  var seenIO = null;
+  function watchSeen(card, m) {
+    var IO = root.IntersectionObserver;
+    if (typeof IO !== "function") { counted(m); return; }
+    if (!seenIO) {
+      try {
+        seenIO = new IO(function (list) {
+          for (var i = 0; i < list.length; i++) {
+            var en = list[i];
+            if (!en.isIntersecting || en.intersectionRatio < 0.5) continue;
+            seenIO.unobserve(en.target);
+            if (en.target.parentNode) counted(en.target.getAttribute("data-gd-m"));
+          }
+        }, { threshold: [0, 0.5, 1] });
+      } catch (x) { seenIO = null; counted(m); return; }
+    }
+    seenIO.observe(card);
+  }
   G.renderTip = function (el, offer) {
     if (!el) return;
+    if (seenIO && el.firstChild && el.firstChild.nodeType === 1) { try { seenIO.unobserve(el.firstChild); } catch (x) {} }
     if (!offer || !doc) { el.innerHTML = ""; return; }
     ensureStyle();
     var h = handsNow(), e = env(), m = offer.move, id = "gdTip" + (++uid);
     e.html = true;
-    el.innerHTML = '<div class="gd-tip" role="group" aria-labelledby="' + id + '">' +
-      '<div class="gd-tip-art" aria-hidden="true">' + Guide.art(m === "hands" ? "move" : m, h, 56, e) + "</div>" +
-      '<div class="gd-tip-b"><div class="gd-eb">A move to try</div>' +
-      '<div class="gd-tip-t" id="' + id + '">' + esc(offer.title) + "</div>" +
+    /* the small card where the sheet has most to hold: the pause sheet,
+       and anything on a phone */
+    var sm = offer.where === "pause" || (root.innerWidth || 1024) < 600;
+    var label = m === "hands" ? "First steps" : "A move to try";
+    el.innerHTML = '<div class="gd-card' + (sm ? " sm" : "") + '" role="group" aria-labelledby="' + id + '" data-gd-m="' + esc(m) + '">' +
+      '<div class="gd-tip-art" aria-hidden="true">' + Guide.art(m === "hands" ? "move" : m, h, sm ? 40 : 56, e) + "</div>" +
+      '<div class="gd-tip-b">' + (sm ? "" : '<div class="gd-eb">' + label + "</div>") +
+      '<div class="gd-tip-t" id="' + id + '">' + (sm ? '<span class="gd-vh">' + label + ". </span>" : "") + esc(offer.title) + "</div>" +
       '<p class="gd-tip-s">' + Guide.text(m, h, "tip", e) + "</p>" +
       '<div class="gd-tip-a"><button class="btn small" type="button" data-gd="try">Try it</button>' +
       '<button class="btn quiet" type="button" data-gd="later">Not now</button></div></div></div>';
     var card = el.firstChild, where = offer.where;
+    watchSeen(card, m);
     card.addEventListener("click", function (ev) {
       var b = ev.target && ev.target.closest ? ev.target.closest("[data-gd]") : null;
       if (!b) return;
       ev.preventDefault();
-      if (b.getAttribute("data-gd") === "try") { call(o.practice, m === "hands" ? "first" : m, where); return; }
+      if (b.getAttribute("data-gd") === "try") { counted(m); call(o.practice, m === "hands" ? "first" : m, where); return; }
       G.notNow(m);
       /* the card folds away; focus goes to whatever comes next */
       var had = doc.activeElement && card.contains(doc.activeElement);
@@ -1802,7 +2032,7 @@ Guide.create = function (o) {
     });
     var sp = env();
     sp.spoken = true;
-    call(o.say, "A move to try. " + offer.title + ". " + Guide.text(m, h, "tip", sp));
+    call(o.say, label + ". " + offer.title + (/[?.]$/.test(offer.title) ? " " : ". ") + Guide.text(m, h, "tip", sp));
   };
 
   /* ================================================================
@@ -1840,7 +2070,7 @@ Guide.create = function (o) {
       for (i = 0; i < kinds.length; i++) {
         var on = kinds[i] === h;
         s += '<button type="button" role="radio" aria-checked="' + on + '" tabindex="' + (on ? 0 : -1) +
-          '" data-gd-h="' + kinds[i] + '">' + HANDS_NAME[kinds[i]] + "</button>";
+          '" data-gd-h="' + kinds[i] + '">' + HANDS_SEG[kinds[i]] + "</button>";
       }
       s += "</div>" + (mine ? "" : '<p class="gd-mv-ro">For reference. Practice is for the hands in use: ' +
         esc(HANDS_NAME[cur].toLowerCase()) + ".</p>") + "</div>";
@@ -1852,21 +2082,24 @@ Guide.create = function (o) {
       if (mv === "half" && !available("half", h, e)) continue;
       var how = Guide.text(mv, h, "how", e);
       if (!how) continue;
-      var nid = "gdMv" + (++uid);
+      /* read as "Drop. Flick down. Learned." then the why; the stone is
+         for the eye, the word after the how is for the ear */
+      var known = mv !== "pause" && learned(st, mv, h);
       s += '<div class="li gd-mv-row"><span class="gd-mv-art" aria-hidden="true">' + Guide.art(mv, h, 48, e) + "</span>" +
-        '<span class="li-t"><span class="gd-mv-n" id="' + nid + '">' + esc(WORDS[mv].name) + VH_STOP +
-        (mv !== "pause" && learned(st, mv, h) ? '<span class="gd-mv-ok">' + STONE + "Learned" + VH_STOP + "</span>" : "") + "</span>" +
-        '<span class="gd-mv-how">' + how + VH_STOP + "</span>" +
+        '<span class="li-t"><span class="gd-mv-n">' + esc(WORDS[mv].name) + VH_STOP +
+        (known ? '<span class="gd-mv-ok" aria-hidden="true">' + STONE + "Learned</span>" : "") + "</span>" +
+        '<span class="gd-mv-how">' + how + VH_STOP + (known ? '<span class="gd-vh"> Learned.</span>' : "") + "</span>" +
         '<span class="gd-mv-why">' + esc(WORDS[mv].why) + "</span></span><span class=\"gd-mv-r\">";
       if (mv !== "pause" && mine) {
-        s += '<button class="btn small" type="button" data-gd-p="' + mv + '" aria-describedby="' + nid + '">Practise</button>';
+        s += '<button class="btn quiet gd-mv-p" type="button" data-gd-p="' + mv + '" aria-label="Practise ' +
+          esc(WORDS[mv].name.toLowerCase()) + '">Practise</button>';
       }
       s += "</span></div>";
     }
     s += "</div>";
     if (mine) s += '<button class="btn gd-mv-again" type="button" data-gd-p="first">Take the first steps again</button>';
     s += '<div class="list gd-mv-tips"><button class="sw" type="button" role="switch" aria-checked="' + !!st.tips +
-      '" data-gd="tips" aria-labelledby="gdTipsT" aria-describedby="gdTipsD"><span class="sw-t"><span id="gdTipsT">Suggest moves I haven’t tried</span>' +
+      '" data-gd="tips" aria-labelledby="gdTipsT" aria-describedby="gdTipsD"><span class="sw-t"><span id="gdTipsT">Suggest moves I haven\'t tried</span>' +
       '<span class="sw-s" id="gdTipsD">Now and then, between runs. Never in Steady.</span></span>' +
       '<span class="sw-k" aria-hidden="true"></span></button></div>' +
       '<div class="gd-mv-forget"><button class="btn quiet" type="button" data-gd="forget">Forget what the well noticed</button>' +
@@ -1935,7 +2168,7 @@ Guide.create = function (o) {
     prefs.on(function (k) {
       if (k === "guide") { if (!writing && !R.live) reload(); return; }
       if (k === "scheme") scheme = pget("scheme", scheme);
-      if ((k === "keys" || k === "tap" || k === "landing" || k === "scheme") && A.kind && A.phase === W_STEP && !paused) paintStep(false);
+      if ((k === "keys" || k === "tap" || k === "landing" || k === "scheme") && A.kind && A.phase === W_STEP && !paused && !quietPrefs) paintStep(false);
     });
   }
   return G;

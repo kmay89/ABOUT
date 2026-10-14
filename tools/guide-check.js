@@ -14,17 +14,26 @@
        pause sheet needs to have been opened by the player after half a
        minute of play; the drop waits for exactly thirty pieces; the order
        of the moves; the spacing between offers.
+       A first game with no first steps in it (a Forty, say) may be asked,
+       on its run card only, whether a look at the moves would help.
      · Guide.text — every move, for every kind of hands and every form,
        under every setting that changes the words: no borrowed label, no
        "!", no "you haven't", nothing unresolved in braces, and every line
        meant for a depth's banner short enough to sit under it.
+     · where the caption sits on a phone's well — below the piece waiting
+       at the mouth, above the taps the demonstration shows, its buttons in
+       the well's upper part, away from the thumbs — on the wells layout.js
+       draws, at every text size.
      · Guide.repair — anything at all becomes a notebook of the right shape,
        and prefs.js accepts what the guide writes back.
      · an instance, with no page — first steps hold gravity and let it go,
-       Skip is remembered, Steady counts nothing, an offer comes after
-       thirty pieces without a drop and "Not now" holds across a reload;
-       and the paths that run for every press and every frame allocate
-       nothing a garbage collector would have to come for.
+       end by saying what the game is for, and never count as an offer;
+       Skip is remembered; a second Keep for one piece is explained; Steady
+       counts nothing; an offer comes after thirty pieces without a drop,
+       counts once it is seen, outlives a drop made before it, and "Not
+       now" holds across a reload; and the paths that run for every press
+       and every frame allocate nothing a garbage collector would have to
+       come for.
 
    Run: node tools/guide-check.js                                          */
 "use strict";
@@ -104,6 +113,16 @@ guarded("Guide.decide: when, and when never", () => {
   ok("a place nobody asked for gets nothing", Guide.decide(b, ctx({ where: "hud" }), ENV) === null);
   ok("a brand-new player gets nothing: their first steps are coming",
      Guide.decide(Object.assign(Guide.blank(), { dry: dryDrop(30).dry }), ctx(), ENV) === null);
+  const fresh = (over) => { const b = Guide.blank(); if (over) over(b); return b; };
+  ok("…unless the first game had no first steps in it: a Forty's run card asks about the moves",
+     Guide.decide(fresh(), ctx({ where: "run", modeId: "forty" }), ENV) === "hands" &&
+     Guide.decide(fresh(), ctx({ where: "run", modeId: "three" }), ENV) === "hands" &&
+     ["pause", "banner", "chapter"].every((w) => Guide.decide(fresh(), ctx({ where: w, modeId: w === "chapter" ? "drift" : "descent" }), ENV) === null));
+  ok("…at most three times, and never after Not now twice, or with the offers off",
+     Guide.decide(fresh((b) => { b.offers.hands = 3; }), ctx({ where: "run", modeId: "forty" }), ENV) === null &&
+     Guide.decide(fresh((b) => { b.later.hands = 2; }), ctx({ where: "run", modeId: "forty" }), ENV) === null &&
+     Guide.decide(fresh((b) => { b.tips = false; }), ctx({ where: "run", modeId: "forty" }), ENV) === null &&
+     Guide.decide(fresh(), ctx({ where: "run", modeId: "forty", steady: true }), ENV) === null);
 });
 
 guarded("Guide.decide: the line under a depth's name", () => {
@@ -266,7 +285,15 @@ guarded("Guide.text: the words themselves", () => {
     [T("breath", "pad", "short", { pad: "words" }), "Breath is ready: press the left trigger."],
     [T("hands", "pad", "tipTitle"), "Playing with a controller?"],
     [T("move", "keys", "title", { spoken: true }), "Left arrow and right arrow to move"],
-    [T("drop", "keys", "title", { html: true }), '<kbd class="kc">Space</kbd> to drop'],
+    [T("drop", "keys", "title", { html: true }), '<span class="gd-nw"><kbd class="kc">Space</kbd> to</span> drop'],
+    [T("drop", "keys", "line", { spoken: true }), "It lands where the light is. Down arrow eases it down instead."],
+    [T("drop", "keys", "line", { keys: { soft: [] } }), "It lands where the light is. The ease key eases it down instead."],
+    [T("keep", "pad", "line", { pad: "words" }), "It waits in the niche until you want it back."],
+    [T("keep", "pad", "line", { pad: "letters" }), "Either shoulder button. It waits in the niche until you want it back."],
+    [T("breath", "gestures", "short"), "Breath is ready: tap the ring to rest."],
+    [T("hands", "keys", "tipTitle", { fresh: true }), "New to the moves?"],
+    [Guide.goal("descent"), "Fill a row from wall to wall and it clears. Twenty-five lines take you one depth down."],
+    [Guide.goal("drift"), "Fill a row from wall to wall and it clears. No end here, just a rest between chapters."],
     [T("drop", "keys", "title", { keys: { hard: ["Enter"] } }), "Enter to drop"],
     [T("drop", "keys", "title", { keys: { hard: [] } }), "The drop key to drop"]
   ];
@@ -292,6 +319,35 @@ guarded("the drawings", () => {
   ok("every move draws, for every kind of hands, hidden from screen readers", fine, which.join(", "));
   ok("a drawing has no words of its own a reader would miss",
      !/<text[^>]*>[^<]{4,}/.test(Guide.art("drop", "gestures", 56)) && /Space/.test(Guide.art("drop", "keys", 96)));
+});
+
+/* Where the caption sits on a phone's well, against where the moves are
+   made. The wells are the ones layout.js draws (iPhone 390×844 and
+   430×932 with their safe areas, a 375×667, the tray's smaller well, an
+   iPad), and the caption's height runs from a one-line step to the
+   tallest at 150% text. A fingertip is taken as 44 px across. */
+guarded("the caption is never where a move is made", () => {
+  const wells = [
+    { name: "390×844", L: { cell: 29, well: { x: 30, y: 148, w: 290, h: 638 } } },
+    { name: "430×932", L: { cell: 32.5, well: { x: 30, y: 159, w: 325, h: 715 } } },
+    { name: "375×667", L: { cell: 21.5, well: { x: 80, y: 136, w: 215, h: 473 } } },
+    { name: "tray", L: { cell: 26.5, well: { x: 59.5, y: 88, w: 265, h: 583 } } },
+    { name: "iPad", L: { cell: 46.5, well: { x: 177.5, y: 90, w: 465, h: 1023 } } }
+  ];
+  const bad = [], high = [];
+  for (const { name, L } of wells) {
+    const w = Math.max(200, Math.min(L.well.w - 12, 340));
+    for (const h of [120, 160, 200, 240]) {
+      const c = Guide.capSpot(L, w, h), wl = L.well, tapY = Guide.tapY(L, c.y + h);
+      if (c.y < wl.y + 3 * L.cell) bad.push(name + "/" + h + ": over a piece turned upright at the mouth (top " + c.y + ")");
+      if (c.y + h + 22 > tapY - 22) bad.push(name + "/" + h + ": reaches the taps it shows (bottom " + (c.y + h) + ", taps at " + tapY + ")");
+      if (c.x < wl.x || c.x + w > wl.x + wl.w || c.y + h > wl.y + wl.h) bad.push(name + "/" + h + ": outside the well");
+      /* Skip (its top row) and Prefer buttons? (its foot) in the well's upper part, away from the thumbs */
+      if (c.y + h > wl.y + wl.h * (h > 200 ? 0.7 : 0.6)) high.push(name + "/" + h + ": foot at " + Math.round((c.y + h - wl.y) / wl.h * 100) + "%");
+    }
+  }
+  ok("below the waiting piece, above the demonstrated taps and a fingertip's width, inside the well", bad.length === 0, bad.slice(0, 3).join("; "));
+  ok("its buttons sit in the upper part of the well (the upper 60%; 70% at 150% text), away from the thumbs", high.length === 0, high.slice(0, 3).join("; "));
 });
 
 /* ================================================================
@@ -385,9 +441,10 @@ guarded("first steps, on a phone, with no page", () => {
   ok("a drop during the move step doesn't count for it", g.active().step === 1);
   g.action("left", META.touch, true); g.action("right", META.touch, true);
   g.frame(null, t0 + 3100);
-  ok("two moves: “That's it.”, a tap of sound", log.music.includes("tap") && log.say.includes("Done."));
+  ok("two moves: “That's it.”, a tap of sound", log.music.includes("tap") && g.active().step === 1);
   g.frame(null, t0 + 4300);
-  ok("then the turn", g.active().step === 2 && /Tap to turn/.test(log.say[log.say.length - 1]));
+  ok("then the turn, said with the praise so a quick player hears the step: “" + log.say[log.say.length - 1] + "”",
+     g.active().step === 2 && /^That's it\. Tap to turn/.test(log.say[log.say.length - 1]) && !log.say.includes("Done."));
   g.action("cw", META.touch, true); g.action("ccw", META.touch, true);
   g.frame(null, t0 + 4400); g.frame(null, t0 + 5600);
   g.action("hard", META.touch, true); g.event(LOCK); g.event(SPAWN);
@@ -396,9 +453,14 @@ guarded("first steps, on a phone, with no page", () => {
   g.action("hold", META.touch, true);
   g.frame(null, t0 + 7000); g.frame(null, t0 + 8200);
   ok("then the last word, still holding gravity", g.active() && log.hold.length === 1);
-  g.frame(null, t0 + 8200 + 2500);
+  ok("the last word says what the game is for: “" + log.say[log.say.length - 1] + "”",
+     /^That's all you need\. Fill a row from wall to wall and it clears\. Twenty-five lines take you one depth down\./.test(log.say[log.say.length - 1]));
+  g.frame(null, t0 + 8200 + 4000);
+  ok("…and stays long enough to read", g.active() !== null);
+  g.frame(null, t0 + 8200 + 5100);
   ok("…and gravity is let go", g.active() === null && log.hold[log.hold.length - 1] === false);
   ok("gestures are marked done, in Prefs", p.data.guide.first.gestures === 1);
+  ok("first steps are not an offer: the spacing to the first offer is untouched", p.data.guide.since === 999);
   g.runEnd("leave");
   ok("the next Descent goes straight in", g.runStart({ modeId: "descent", t: 1 }) === "");
   g.runEnd("leave");
@@ -435,6 +497,31 @@ guarded("Skip, leaving part-way, and the other hands", () => {
   m.g.frame(null, 4000);
   m.g.action("left", META.pad, true);
   ok("a pad's press switches the words to the pad's, live", m.g.hands() === "pad" && /D-pad/.test(m.log.say[m.log.say.length - 1] || ""));
+});
+
+guarded("first steps, asked about ahead of time; old players; a second Keep", () => {
+  let p = fakePrefs(), m = make(p);
+  ok("a new player's Descent or Drift will begin with them, a Forty or a restored run won't",
+     m.g.wantsFirst({ modeId: "descent" }) && m.g.wantsFirst({ modeId: "drift" }) &&
+     !m.g.wantsFirst({ modeId: "forty" }) && !m.g.wantsFirst({ modeId: "descent", restored: true }));
+  m.g.runStart({ modeId: "descent", t: 1 }); m.g.frame(null, 4000); m.g.skip(); m.g.runEnd("leave");
+  ok("…and once skipped, no longer", !m.g.wantsFirst({ modeId: "descent" }) && p.data.guide.since === 999);
+  p = fakePrefs({ seen: { touchCards: true, intro: true } }); m = make(p);
+  ok("a player from the old touch cards knows the glass and the tray alike", m.g.firstDone("gestures") && m.g.firstDone("buttons"));
+  p = fakePrefs({ guide: book() }); m = make(p);
+  m.g.runStart({ modeId: "practice", practice: true, move: "keep", t: 1 });
+  m.g.frame(null, 500);
+  m.g.action("hold", META.touch, true);
+  m.g.action("hold", META.touch, false);
+  ok("a second Keep for the same piece is explained, not ignored: “" + m.log.say[m.log.say.length - 1] + "”",
+     /^One keep per piece\./.test(m.log.say[m.log.say.length - 1]) && m.g.active().step === 2);
+  m.g.action("hold", META.touch, false);
+  ok("…once a piece", m.log.say.filter((x) => /^One keep/.test(x)).length === 1);
+  m.g.action("hard", META.touch, true); m.g.event(LOCK); m.g.event(SPAWN);
+  m.g.action("hold", META.touch, true);
+  m.g.frame(null, 2000);
+  ok("…and the next piece's Keep finishes it", m.g.state().done.gestures.keep === 1);
+  m.g.runEnd("practice");
 });
 
 guarded("Steady counts nothing; the practice well", () => {
@@ -507,6 +594,37 @@ guarded("a move to try, in a real sequence", () => {
      (later ? later.move : "nothing") + ")", !later || later.move !== "drop");
   g.runEnd("leave");
   ok("“Not now” is remembered in Prefs, not just in memory", p.data.guide.later.drop === 2);
+  /* a card counts once it is seen (on a page, once it has been in view;
+     Not now and Try it are seen by definition), not merely decided */
+  {
+    const r = fakePrefs({ guide: book((x) => { x.dry.gestures.drop = 50; }) });
+    const { g: g2 } = make(r);
+    g2.runStart({ modeId: "descent", hasBreath: true, t: 1 });
+    g2.pause();
+    const o = g2.offer("pause", c);
+    ok("a card decided but not yet seen hasn't used up an offer", !!o && o.move === "drop" && g2.state().offers.drop === 0 && g2.state().since === 999);
+    g2.notNow("drop");
+    ok("…and once answered, it has", g2.state().offers.drop === 1 && g2.state().since === 0 && g2.state().later.drop === 1);
+    g2.runEnd("leave");
+  }
+  /* a drop made before the offer (in first steps, say) doesn't silence it */
+  {
+    const r = fakePrefs({ guide: book() });
+    const { g: g3 } = make(r);
+    g3.runStart({ modeId: "descent", hasBreath: true, t: 1 });
+    g3.action("hard", META.touch, true); g3.event(LOCK);
+    for (let i = 0; i < 30; i++) { g3.action("left", META.touch, true); g3.event(LOCK); }
+    const b1 = g3.offer("banner", c);
+    g3.frame(null, 100); g3.pause();
+    const p1 = g3.offer("pause", c);
+    ok("a drop early in the run, then thirty pieces without: the line under the depth and the pause card both say it",
+       b1 && b1.move === "drop" && p1 && p1.move === "drop");
+    g3.resume(); g3.frame(null, 200);
+    g3.action("hard", META.touch, true);
+    g3.pause();
+    ok("…and once it's made after the offer, nothing more is said", g3.offer("pause", c) === null);
+    g3.runEnd("leave");
+  }
   const q = fakePrefs({ guide: book() });
   ({ g } = make(q));
   g.runStart({ modeId: "descent", hasBreath: true, t: 1 });

@@ -150,7 +150,10 @@ var WORLD_IDS = ["dawn", "tide", "rain", "bamboo", "aurora", "moonpool", "lanter
    nearest honest reading of that. The settings this file's sheets own get
    their exact sets of values; the ones other parts of the room own (the
    Descent pace, the Steady card) are checked for kind only, so this file
-   can never quietly undo a value a sibling is entitled to choose. */
+   can never quietly undo a value a sibling is entitled to choose. A count
+   a mode's card chooses (Forty's lines, a Drift chapter) must at least be
+   a count somebody could mean, a whole number from 1 to 999: a hand-edited
+   -5 or a billion falls back to the default instead of reaching a HUD. */
 function oneOf(list) {
   return function (v) { return list.indexOf(v) >= 0 ? v : undefined; };
 }
@@ -164,6 +167,9 @@ function num(lo, hi, whole) {
 function bool(v) { return typeof v === "boolean" ? v : undefined; }
 function str(v) { return typeof v === "string" && v.length ? v : undefined; }
 function anyNum(v) { return typeof v === "number" && isFinite(v) ? v : undefined; }
+function count(v) {
+  return typeof v === "number" && isFinite(v) && Math.round(v) === v && v >= 1 && v <= 999 ? v : undefined;
+}
 
 function soft(v) {                       /* 5..40, or Infinity for "sonic" */
   if (v === Infinity || v === "inf") return Infinity;
@@ -284,8 +290,8 @@ var CHECK = {
   reminder: oneOf([0, 15, 30, 45, 60]),            /* minutes; 0 = off */
   learner: oneOf([0.5, 0.75, 1]),
   pbPace: bool, scoreHidden: bool,
-  descentPace: str, driftTide: num(0, 8, true), driftChapter: anyNum,
-  driftWorld: oneOf(WORLD_IDS), fortyLines: anyNum,
+  descentPace: str, driftTide: num(0, 8, true), driftChapter: count,
+  driftWorld: oneOf(WORLD_IDS), fortyLines: count,
   steadyLength: anyNum, steadyPace: str, steadyLanding: bool, steadySound: str,
   steadyWorld: oneOf(WORLD_IDS),
   seen: flags,
