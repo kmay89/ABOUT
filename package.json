@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) \u2014 never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
   "scripts": {
-    "check": "npm run check:parity && npm run check:well && npm run check:room && npm run check:chess",
+    "check": "npm run check:parity && npm run check:well && npm run check:guide && npm run check:room && npm run check:chess",
     "check:parity": "node tools/room-parity.js",
     "check:rules": "node tools/rules-check.js",
     "check:ai": "node tools/ai-check.js",

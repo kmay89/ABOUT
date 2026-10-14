@@ -1085,7 +1085,12 @@ function wayDown() {
     var a = M && M.about && M.estimate ? M.about(M.estimate(null, "descent.gentle", 1, per)) : null;
     if (a && a.text) about = a.text;
   } catch (e) { /* the range above is the same estimate, written down */ }
+  /* a range or a time never breaks across two lines ("15–" alone at the
+     end of one): word joiners hold the range together, and a no-break
+     space holds each number to its unit */
+  about = about.replace(/(\d)\s*–\s*(\d)/g, "$1\u2060–\u2060$2").replace(/(\d) (minutes?|hours?)/g, "$1\u00a0$2");
   return h3("The way down") +
+    p("Fill a row from wall to wall and it clears. Clear " + per + " and you go one depth down, into a new world; after the last, you come back up to the Surface.") +
     "<ol class=\"lrn-way\" aria-label=\"" + esc("The way down: " + n + " depths, then the Surface") + "\">" + rowsH + "</ol>" +
     p(fmt(n * per) + " lines in all. A relaxed run takes " + about + ", and it saves whenever you stop.");
 }

@@ -358,8 +358,8 @@ rules.js engine.js bot.js modes.js records.js worlds.js skins.js layout.js prefs
 sky.js gfx2d.js gfx3d.js music.js input.js learn.js coach.js steady.js sheets.js guide.js app.js
 ```
 
-and the service worker's cache is `well-v5`, so an installed copy picks up the
-new files whole rather than half.
+and the service worker's cache is `well-v6` (the name changes with every
+release), so an installed copy picks up the new files whole rather than half.
 
 `tools/open-check.js` opens the room in a real browser twice — the WebGL2
 well (through `?gl=soft`, a test hook that lets the 3D renderer accept the

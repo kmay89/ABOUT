@@ -247,12 +247,20 @@ function padGlyphs() {
    from the room's tokens, so the sheet takes its light from the world.
    ====================================================================== */
 var CSS = [
-  /* a fixed height, so a page pushed in never makes the sheet jump */
-  "#ovSettings>.sheet.set{width:min(640px,100%);height:min(86vh,780px)}",
+  /* The panel (an iPad held upright, a small window) is as tall as the
+     page it shows, up to the usual limit, and hangs from where a full
+     panel's top would be: a short page leaves no empty glass below it,
+     and a longer one pushed in grows downward, so the title never moves */
+  "#ovSettings>.sheet.set{width:min(640px,100%);height:auto;min-height:min(480px,86vh);max-height:min(86vh,780px);",
+  "  align-self:flex-start;margin-top:max(0px,calc((100vh - min(86vh,780px)) / 2 - var(--safe-top,0px) - 16px))}",
+  /* the phone's bottom sheet and the wide sheet keep a fixed height, so a
+     page pushed in never makes them jump */
+  "#ovSettings>.sheet.set.split{height:min(86vh,780px);min-height:0;max-height:none;align-self:center;margin-top:0}",
   "@media (max-width:599px),(pointer:coarse) and (max-width:699px){",
-  "  #ovSettings>.sheet.set{width:100%;height:calc(100vh - var(--safe-top) - 40px);height:calc(100dvh - var(--safe-top) - 40px)}",
+  "  #ovSettings>.sheet.set{width:100%;min-height:0;max-height:none;align-self:auto;margin-top:0;",
+  "    height:calc(100vh - var(--safe-top) - 40px);height:calc(100dvh - var(--safe-top) - 40px)}",
   "}",
-  "@media (max-height:520px){#ovSettings>.sheet.set{height:calc(100vh - 16px)}}",
+  "@media (max-height:520px){#ovSettings>.sheet.set{height:calc(100vh - 16px);min-height:0;max-height:none;align-self:auto;margin-top:0}}",
   /* the header bar runs edge to edge, so nothing scrolls past beside it */
   "#ovSettings>.sheet.set:not(.split)>.shead{margin:0 -24px 8px;padding:8px 16px 4px 24px}",
   "@media (max-width:599px),(pointer:coarse) and (max-width:699px){",
@@ -275,15 +283,17 @@ var CSS = [
   ".set-flow>.list,.set-flow>.ocs,.set-flow>.set-hero{margin-top:24px}",
   ".set-flow>.gh+.list,.set-flow>.gh+.ocs,.set-flow>.gh+.set-hero{margin-top:0}",
   ".set-flow>:first-child,.set-flow>.set-side-h+.list{margin-top:4px}",
-  ".set-page:not(.nofor)>.set-view>.gh:first-child{margin-top:24px}",
+  ".set-page:not(.nofor)>.set-view>:first-child{margin-top:24px}",
   ".set-flow>.seg-line{margin:10px 4px 0}",
-  /* a choice that is its group's only control sits on the glass, no card */
-  ".set-flow>.fld{padding:0}",
-  ".set-flow>.fld .seg-line{margin:8px 4px 0}",
-  ".set-flow>.gh+.fld{margin-top:0}",
-  ".set-flow>.fld+.list{margin-top:24px}",
-  ".set-flow>.fld+.gf,.set-flow>.seg-line+.gf{margin-left:4px;margin-right:4px}",
+  ".set-flow>.seg-line+.gf{margin-left:4px;margin-right:4px}",
   ".set-flow>.gf+.gf{margin-top:6px}",
+  /* every labelled choice is one shape: its name, the segments and the
+     chosen one's line, inside a card, all three on one left edge */
+  ".set .fld .seg-line{margin-left:0;margin-right:0}",
+  /* a slider's end labels never touch the line under them */
+  ".set .sl-ends+.sl-s{margin-top:6px}",
+  /* no word left alone on the last line of a caption, where the browser can help */
+  ".set .li-s,.set .sw-s,.set .sl-s,.set .seg-line,.set .gf,.set-keys .kr-n small{text-wrap:pretty}",
   ".set-side-h{display:none}",
   ".sw-t .tag{font:500 .75rem/1 var(--sans);letter-spacing:.04em;margin-left:8px}",
   /* the root's rows say where things stand on a second line, in full */
@@ -304,6 +314,10 @@ var CSS = [
   ".set .seg>button small,.set .sl-ends,.set .sl-h .tag,.set .sw-t .tag{color:var(--ink-2)}",
   ".set .seg>button[aria-checked=true] small{color:var(--ink)}",
   ".seg.five>button{min-width:-webkit-min-content;min-width:min-content;padding:4px 2px;font-size:.875rem}",
+  /* large text: a row of four or five that has to wrap wraps evenly, two
+     and two or three and two, never three and one left alone on a row */
+  "html.ts-big .set .seg.n4>button{flex:1 1 40%}",
+  "html.ts-big .set .seg.n5>button{flex:1 1 30%}",
   /* the hero: seven pieces over the world's sky */
   ".set-hero{display:block;width:100%;height:160px;border-radius:var(--r3,16px);",
   "  background:linear-gradient(180deg,rgb(var(--wsky0)),rgb(var(--wsky1)));box-shadow:inset 0 0 0 1px var(--hair)}",
@@ -327,18 +341,26 @@ var CSS = [
   ".set-pad .li-v{max-width:58%;overflow:visible}",
   ".set-pad .li-v kbd.kc{margin-left:2px}",
   /* the key map */
-  ".set-keys .kr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-height:56px;",
+  /* the name on the left, its keycaps on the right; three caps that don't
+     fit on one line wrap inside their own column, never under the name */
+  ".set-keys .kr{display:flex;align-items:flex-start;gap:12px;min-height:56px;",
   "  padding:6px 12px 6px 16px;position:relative}",
   ".set-keys .kr+.kr:before{content:\"\";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--hair)}",
-  ".set-keys .kr-n{flex:1 1 7rem;min-width:0;font:500 1.0625rem/1.375rem var(--sans)}",
+  /* the name sits level with the first row of keycaps (44 px high) */
+  ".set-keys .kr-n{flex:1 1 auto;min-width:0;padding-top:11px;font:500 1.0625rem/1.375rem var(--sans)}",
   ".set-keys .kr-n small{display:block;font:400 .875rem/1.25rem var(--sans);color:var(--ink-2);margin-top:2px}",
   ".set-keys .kr.off .kr-n>span{color:var(--ink-2)}",
-  ".set-keys .kr-k{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-left:auto}",
+  ".set-keys .kr-k{flex:0 0 auto;max-width:62%;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-left:auto}",
+  /* large text leaves the name too little room beside them: the keycaps
+     move under the name instead, still to the right */
+  "html.ts-big .set-keys .kr{flex-wrap:wrap;row-gap:4px}",
+  "html.ts-big .set-keys .kr-k{max-width:100%}",
   ".set-keys .nokey{font:400 .875rem/44px var(--sans);color:var(--ink-2)}",
   ".kcb{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 12px;",
   "  border-radius:var(--r1,8px);background:var(--fill-2);border:1px solid var(--hair-2);",
   "  box-shadow:inset 0 -2px 0 rgb(0 0 0 / .35);font:600 .9375rem/1 var(--sans);color:var(--ink);white-space:nowrap}",
   ".kcb.add{background:none;border-style:dashed;box-shadow:none;color:var(--ink-2);font-weight:500}",
+  "@media (hover:hover){.kcb:hover{background:var(--fill-3)}.kcb.add:hover{background:var(--fill-1);color:var(--ink)}}",
   ".kcb.cap{border-color:rgb(var(--wa));color:rgb(var(--wa));box-shadow:0 0 0 3px rgb(var(--wa) / .18);font-weight:500}",
   ".kcb.cap:after{content:\"\";display:inline-block;width:2px;height:1em;margin-left:6px;background:currentColor;",
   "  animation:setCaret 1s steps(2) infinite}",
@@ -391,6 +413,14 @@ var CSS = [
   ".set.split [data-page=root] .li.cur{background:rgb(var(--wa) / .12)}",
   ".set.split [data-page=root] .gf{margin:16px 10px 0}",
   ".set.split .set-reset{margin-left:-12px}",
+  /* beside the page there is no need for the quick Sound switch: the Sound
+     row is one step away and its page starts with the same switch */
+  ".set.split .set-quick{display:none}",
+  /* About, in the pane beside the column (the wide sheet only) */
+  ".set-about .ab{margin-top:20px}",
+  ".set-about .ab p{font:400 .8125rem/1.45 var(--sans);color:var(--ink-2);margin:0 4px 12px}",
+  ".set-about .about-made{margin-top:4px}",
+  ".set-about .about-links .li .ic{width:18px;height:18px;color:var(--ink-3)}",
 
   /* reduced motion: the room's own switch (html.rm) and the device's */
   "html.rm .set-page.in-r,html.rm .set-page.in-l,html.rm .set-page.in-f,html.rm .kcb.cap:after{animation:none}",
@@ -491,7 +521,7 @@ function choice(parent, k, list, o) {
     h.id = uid("fh");
     labelId = h.id;
   }
-  var row = put(f, el("div", "seg" + (o.cls ? " " + o.cls : "")));
+  var row = put(f, el("div", "seg n" + list.length + (o.cls ? " " + o.cls : "")));
   row.setAttribute("data-k", k);
   var items = [];
   list.forEach(function (it) {
@@ -1251,8 +1281,7 @@ function schemeArt(node, kind) {
 var KEYNAME = {
   ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓",
   Space: "Space", Escape: "Esc", Enter: "Return", NumpadEnter: "Num Enter",
-  ShiftLeft: "Shift L", ShiftRight: "Shift R", ControlLeft: "Ctrl L", ControlRight: "Ctrl R",
-  AltLeft: "Alt L", AltRight: "Alt R", Backquote: String.fromCharCode(96), Minus: "-", Equal: "=",
+  Backquote: String.fromCharCode(96), Minus: "-", Equal: "=",
   BracketLeft: "[", BracketRight: "]", Backslash: "\\", Semicolon: ";", Quote: "'",
   Comma: ",", Period: ".", Slash: "/", IntlBackslash: "§", Home: "Home", End: "End",
   PageUp: "Page Up", PageDown: "Page Down", Insert: "Ins", Pause: "Pause",
@@ -1261,9 +1290,18 @@ var KEYNAME = {
 };
 var KEYSPEAK = {
   ArrowLeft: "Left arrow", ArrowRight: "Right arrow", ArrowUp: "Up arrow", ArrowDown: "Down arrow",
-  ShiftLeft: "Left Shift", ShiftRight: "Right Shift", ControlLeft: "Left Control",
-  ControlRight: "Right Control", AltLeft: "Left Alt", AltRight: "Right Alt", Escape: "Escape"
+  Escape: "Escape"
 };
+/* Shift, Control and Alt come in pairs, and are named the way the
+   keyboard in front of you prints them: "Left Shift", and on an Apple
+   keyboard "Left Control" and "Left Option" rather than Ctrl and Alt */
+var APPLE_KEYS = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.platform || "");
+var MODS = { Shift: ["Shift", "Shift", "Shift"], Control: ["Ctrl", "Control", "Control"], Alt: ["Alt", "Option", "Alt"] };
+function modName(code, full) {
+  var m = /^(Shift|Control|Alt)(Left|Right)$/.exec(code || "");
+  if (!m) return "";
+  return m[2] + " " + MODS[m[1]][APPLE_KEYS ? 1 : full ? 2 : 0];
+}
 /* keys the browser or the system owns; capturing them would trap someone */
 var REFUSE = {
   CapsLock: "Caps Lock doesn't always say when it is released, so it can't steer a piece.",
@@ -1277,6 +1315,8 @@ var REFUSE = {
   Fn: "That key belongs to the system. Try another."
 };
 function keyLabel(code) {
+  var mod = modName(code, false);
+  if (mod) return mod;
   if (KEYNAME[code]) return KEYNAME[code];
   var n = names[code];
   if (n) return n.length === 1 ? n.toUpperCase() : n;
@@ -1287,12 +1327,13 @@ function keyLabel(code) {
 }
 /* the short form, for a row's value: one word per key, no left and right */
 function keyShort(code) {
-  if (/^Shift/.test(code)) return "Shift";
-  if (/^Control/.test(code)) return "Ctrl";
-  if (/^Alt/.test(code)) return "Alt";
+  var mod = modName(code, false);
+  if (mod) return mod.replace(/^(Left|Right) /, "");
   return keyLabel(code);
 }
 function keySpeak(code) {
+  var mod = modName(code, true);
+  if (mod) return mod;
   if (KEYSPEAK[code]) return KEYSPEAK[code];
   if (code === "Space") return "Space bar";
   return keyLabel(code);
@@ -1346,7 +1387,9 @@ function buildRoot(sec) {
   var side = put(sec, el("div", "set-side-h", "Settings"));
   side.setAttribute("role", "heading");
   side.setAttribute("aria-level", "2");
-  toggle(group(sec, null), "quiet", "Sound", "Off silences everything. Your levels are kept.",
+  /* the one switch worth having at the top: everything quiet, at once
+     (the wide sheet leaves it to the Sound page beside it) */
+  toggle(group(sec, null, "set-quick"), "quiet", "Sound", "Off silences everything.",
          { invert: true, id: "setQuiet" });
   var l = put(sec, el("div", "list icons"));
   l.id = "setNav";
@@ -1356,8 +1399,13 @@ function buildRoot(sec) {
                        value: function () { return "Practise any move"; }, go: function (e) { rootGo("moves", e); } });
   navRow(l, { id: "setLook", icon: "look", below: true, title: "Look", to: "look", go: function (e) { rootGo("look", e); },
               value: function () { var sk = skinById(P.get("skin")); return sk ? sk.name : ""; } });
+  /* the switch above already says on or off; the row says how loud */
   navRow(l, { id: "setSound", icon: "sound", below: true, title: "Sound", to: "sound", go: function (e) { rootGo("sound", e); },
-              value: function () { return P.get("quiet") ? "Off" : P.get("soften") ? "Soft" : "On"; } });
+              value: function () {
+                var m = +P.get("master") || 0;
+                if (P.get("quiet") || m <= 0) return "Off";
+                return "Volume " + pct(m) + (P.get("soften") ? " · softened" : "");
+              } });
   navRow(l, { id: "setComfort", icon: "comfort", below: true, title: "Comfort", to: "comfort", go: function (e) { rootGo("comfort", e); },
               value: function () {
                 var m = P.get("motion");
@@ -1369,8 +1417,11 @@ function buildRoot(sec) {
   var nm = el("span");
   nm.appendChild(doc.createTextNode("About "));
   put(nm, el("em", "nm", "well"));
-  navRow(a, { id: "setAbout", icon: "about", titleNode: nm, go: function () {
-    if (aboutFn) { try { aboutFn(); } catch (e) { later(e); } }
+  /* About: its own sheet on a phone; on the wide sheet it takes the pane
+     beside the column like every other row, rather than a sheet on top */
+  navRow(a, { id: "setAbout", icon: "about", titleNode: nm, to: "about", go: function (e) {
+    if (split) { rootGo("about", e); return; }
+    if (aboutFn) { try { aboutFn(); } catch (x) { later(x); } }
   } });
   gf(sec, "Everything here stays on this device.");
 
@@ -1486,9 +1537,8 @@ function buildControls(sec) {
 
   /* keyboard */
   var vk = views.keys = put(sec, el("div", "set-view set-flow"));
-  var fk = gh(vk, "Feel");
-  var kl = group(vk, fk);
-  feel(kl, fk);
+  var kl = group(vk, null);
+  feel(kl);
   navRow(kl, { title: "Keys", to: "keys", value: keysValue });
 
   /* controller */
@@ -1518,8 +1568,7 @@ function buildControls(sec) {
       else v.textContent = r[1];
     });
   }
-  var fp = gh(vp, "Feel");
-  feel(group(vp, fp), fp);
+  feel(group(vp, null));
 
   /* for every kind */
   var ph = gh(sec, "Pieces");
@@ -1540,10 +1589,10 @@ function buildControls(sec) {
 }
 
 /* the five named feels of a held key, and what the chosen one does */
-function feel(parent, labelId) {
+function feel(parent) {
   choice(parent, "das", DAS_PRESETS.map(function (p) {
     return { v: p.v, name: p.name, sub: String(p.v), speak: p.name + ", " + p.v + " milliseconds" };
-  }), { labelledBy: labelId, cls: "five", line: function () {
+  }), { name: "Feel", cls: "five", line: function () {
     var d = P.get("das"), a = P.get("arr");
     return "Waits " + d + " ms, then " + (a === 0 ? "goes straight to the wall." : "slides a column every " + a + " ms.");
   } });
@@ -1632,10 +1681,17 @@ function buildFine(sec) {
     from: function (v) { return v === Infinity ? 41 : v; },
     fmt: function (v) { return v === Infinity ? "∞ · straight down" : v + "×"; },
     speak: function (v) { return v === Infinity ? "infinite, straight down" : v + " times"; } }, "SDF");
-  slider(dl, "hdTouch", "Drop guard for touch", "A flick this soon after a piece appears is ignored.",
+  /* the touch guard only where there is touch: a computer without a
+     touch screen has no flick to guard */
+  var gt = slider(dl, "hdTouch", "Drop guard for touch", "A flick this soon after a piece appears is ignored.",
     extend(whole(0, 333), { fmt: msOff, speak: msOffSpeak, ends: ["Off", "333 ms"] }));
-  slider(dl, "hdKeys", "Drop guard for keys and controllers", "The same guard for the drop key and button.",
+  showIf(gt.node, hasTouch);
+  var gk = slider(dl, "hdKeys", "Drop guard for keys and controllers", "The same guard for the drop key and button.",
     extend(whole(0, 333), { fmt: msOff, speak: msOffSpeak, ends: ["Off", "333 ms"] }));
+  live(function () {
+    var t = hasTouch() ? "The same guard for the drop key and button." : "A drop this soon after a piece appears is ignored.";
+    if (gk.line.textContent !== t) gk.line.textContent = t;
+  });
 
   var th = gh(sec, "Turning");
   var tl = group(sec, th);
@@ -1650,10 +1706,10 @@ var ACTIONS = [
   { a: "left", name: "Move left" }, { a: "right", name: "Move right" },
   { a: "soft", name: "Ease down" }, { a: "hard", name: "Drop" },
   { a: "cw", name: "Turn" }, { a: "ccw", name: "Turn back" },
-  { a: "flip", name: "Half-turn", note: "with Modern turning" },
+  { a: "flip", name: "Half-turn", note: "With Modern turning" },
   { a: "hold", name: "Keep" },
   { a: "breath", name: "Breath", note: "Descent and Drift" },
-  { a: "glass", name: "Glass Well", note: "the rules at work, beside the well" },
+  { a: "glass", name: "Glass Well", note: "The rules at work, beside the well" },
   { a: "pause", name: "Pause" }
 ];
 var SLOTS = 3;
@@ -1916,12 +1972,14 @@ function buildLook(sec) {
   ], { name: "Grid" });
 
   var nl = group(sec, null);
-  navRow(nl, { title: "Colour help", to: "colour", value: function () {
+  /* these two say where things stand on a second line, as the root's rows
+     do: "Colour-safe · strong marks" doesn't fit beside its name on a phone */
+  navRow(nl, { title: "Colour help", to: "colour", below: true, value: function () {
     var sk = skinById(P.get("skin")), g = sk ? glyphsFor(sk) : P.get("glyphs");
     return (P.get("palette") === "safe" ? "Colour-safe" : "Skin colours") + " · " +
       (g === "strong" ? "strong marks" : g === "subtle" ? "subtle marks" : "no marks");
   } });
-  navRow(nl, { title: "Graphics", to: "graphics", value: function () { return GFX_NAME[P.get("graphics")] || ""; } });
+  navRow(nl, { title: "Graphics", to: "graphics", below: true, value: function () { return GFX_NAME[P.get("graphics")] || ""; } });
   resetRow(sec, "look");
   pages.look.onShow = function () { frame(scrollSkin); };
 }
@@ -2019,21 +2077,20 @@ function buildQuality(sec) {
    Comfort
    ====================================================================== */
 function buildComfort(sec) {
-  var mh = gh(sec, "Motion");
-  choice(sec, "motion", [
+  var ml = group(sec, null);
+  choice(ml, "motion", [
     { v: "system", name: "System", line: function () {
       return "Follows your device. Right now: " + (sys().reducedMotion ? "Gentle." : "Full.");
     } },
     { v: "full", name: "Full", line: "Every glide and drift of light." },
     { v: "gentle", name: "Gentle", line: "Pieces snap; the camera holds still." },
     { v: "still", name: "Still", line: "No camera motion, no nudge, no particles." }
-  ], { labelledBy: mh });
-  var ch = gh(sec, "Celebration");
-  choice(sec, "juice", [
+  ], { name: "Motion" });
+  choice(ml, "juice", [
     { v: "calm", name: "Calm", line: "Clears glow and settle quietly." },
     { v: "medium", name: "Medium", line: "Enough light to feel every clear." },
     { v: "vivid", name: "Vivid", line: "More sparkle, always inside the flash guard." }
-  ], { labelledBy: ch });
+  ], { name: "Celebration" });
   gf(sec, "The flash guard is always on. Steady is always Calm.");
   var nl = group(sec, null);
   choice(nl, "nudge", [
@@ -2052,8 +2109,9 @@ function buildComfort(sec) {
   slider(sl, "boardSize", "Board size", "Bigger or smaller than the screen would choose.", extend(plain(0.9, 1.3, 0.05), {
     fmt: pct, speak: function (v) { return Math.round(v * 100) + " percent"; }, ends: ["90%", "130%"] }));
 
-  gh(sec, "Rest");
-  var rl = group(sec, null);
+  /* two single choices about time share one card, under one name */
+  var th = gh(sec, "Rest and pace");
+  var rl = group(sec, th);
   choice(rl, "reminder", [
     { v: 15, name: "15", speak: "15 minutes" }, { v: 30, name: "30", speak: "30 minutes" },
     { v: 45, name: "45", speak: "45 minutes" }, { v: 60, name: "60", speak: "60 minutes" },
@@ -2062,10 +2120,7 @@ function buildComfort(sec) {
     return v ? "A quiet note after " + v + " minutes without a five-minute break."
              : "No reminders. Stopping is always one tap away.";
   } });
-
-  gh(sec, "Pace");
-  var pl = group(sec, null);
-  choice(pl, "learner", [
+  choice(rl, "learner", [
     { v: 0.5, name: "½×", speak: "half speed" },
     { v: 0.75, name: "¾×", speak: "three-quarter speed" },
     { v: 1, name: "1×", speak: "full speed" }
@@ -2106,6 +2161,41 @@ function buildComfort(sec) {
 }
 
 /* ======================================================================
+   About, beside the column on the wide sheet
+   The words are the app's own About sheet (index.html), copied in each
+   time the page shows, so there is one text to keep and the two never
+   drift apart. A phone opens that sheet itself instead.
+   ====================================================================== */
+function buildAbout(sec) {
+  var box = put(sec, el("div", "set-about"));
+  pages.about.onShow = function () {
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var src = $("ovAbout"), sh = src && src.querySelector(".sheet");
+    var kids = sh ? sh.children : [], i;
+    for (i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.classList.contains("grab") || k.classList.contains("shead") || k.hasAttribute("data-close")) continue;
+      var c = k.cloneNode(true);
+      /* the copy carries no ids, so nothing on the page is named twice */
+      if (c.id === "aboutBody") { c.removeAttribute("id"); c.className = "ab"; }
+      var ided = c.querySelectorAll("[id]");
+      for (var j = 0; j < ided.length; j++) ided[j].removeAttribute("id");
+      if (c.className === "ab" && !c.firstChild && root.Learn && typeof root.Learn.ABOUT === "string") {
+        /* the app fills its own copy only when its sheet first opens */
+        c.innerHTML = "<p>" + root.Learn.ABOUT + "</p>";
+      }
+      box.appendChild(c);
+    }
+    if (!box.firstChild && root.Learn && typeof root.Learn.ABOUT === "string") {
+      put(box, el("div", "ab")).innerHTML = "<p>" + root.Learn.ABOUT + "</p>";
+    }
+    /* the small print goes last, under the links, as small print does */
+    var ab = box.querySelector(".ab");
+    if (ab && ab !== box.lastChild) box.appendChild(ab);
+  };
+}
+
+/* ======================================================================
    the pages, and moving between them
    ====================================================================== */
 var PAGE_LIST = [
@@ -2123,7 +2213,8 @@ var PAGE_LIST = [
     keys: ["quiet", "master", "music", "sfx", "ambience", "soften", "playOnSilent", "muteOnBlur"] },
   { id: "quality", title: "Sound quality", parent: "sound", build: buildQuality, keys: ["audioQuality"] },
   { id: "comfort", title: "Comfort", parent: "root", build: buildComfort,
-    keys: ["motion", "juice", "nudge", "labels", "textSize", "boardSize", "reminder", "learner"] }
+    keys: ["motion", "juice", "nudge", "labels", "textSize", "boardSize", "reminder", "learner"] },
+  { id: "about", title: "About well", parent: "root", build: buildAbout }
 ];
 /* the old sheet names still open the right page */
 var ALIAS = { settings: "root", handling: "controls" };
@@ -2165,8 +2256,17 @@ function render(dir, fresh) {
       p.el.classList.add(dir === "l" ? "in-l" : dir === "f" ? "in-f" : "in-r");
     }
   }
-  if (split) lastTop = stack[1];
-  if (titleEl) titleEl.textContent = pages[cur].title;
+  if (split && TOPS.indexOf(stack[1]) >= 0) lastTop = stack[1];
+  if (titleEl) {
+    if (cur === "about") {
+      /* the name is set in italics, as it is everywhere */
+      while (titleEl.firstChild) titleEl.removeChild(titleEl.firstChild);
+      titleEl.appendChild(doc.createTextNode("About "));
+      put(titleEl, el("i", "nm", "well"));
+    } else if (titleEl.textContent !== pages[cur].title || titleEl.children.length) {
+      titleEl.textContent = pages[cur].title;
+    }
+  }
   if (backEl) backEl.classList.toggle("hide", stack.length <= (split ? 2 : 1));
   /* the wide sheet marks the root row whose page is showing */
   var rows = pages.root.el.querySelectorAll("[data-go]");
@@ -2187,13 +2287,21 @@ function endAnim(e) {
 function go(id, from) {
   if (!allowed(id)) return;
   stopCapture(false);
-  if (split && pages[id].parent === "root") { rootGo(id, null); focusNode(titleEl); return; }
+  if (split && pages[id].parent === "root") { rootGo(id, null); landIn(); return; }
   scrolls[stack.length - 1] = scroller().scrollTop;
   stack.push(id);
   render("r", true);
   scroller().scrollTop = 0;
   if (from) from.blur();
-  focusNode(titleEl);
+  landIn();
+}
+/* Where a pushed page takes the focus: its title for a finger and a
+   screen reader, which then read the page from the top; its first
+   control for a keyboard, which would otherwise Tab back through the
+   header and the whole column to get there. */
+function landIn() {
+  if (kbdMode()) intoPage();
+  else focusNode(titleEl);
 }
 function back() {
   if (stack.length <= (split ? 2 : 1)) return false;
@@ -2271,6 +2379,11 @@ function shell() {
     put(sh, el("div", "set-body")).id = "setBody";
     doc.body.appendChild(ovEl);
   }
+  /* The dialog is Settings whichever page it shows. Named by its title
+     bar it would be announced as "Controls" or "Comfort" on the wide
+     sheet, where the bar names the page beside the column. */
+  ovEl.removeAttribute("aria-labelledby");
+  ovEl.setAttribute("aria-label", "Settings");
   sheetEl = ovEl.querySelector(".sheet");
   sheetEl.classList.add("set");
   bodyEl = $("setBody") || put(sheetEl, el("div", "set-body"));

@@ -473,8 +473,8 @@ var forty = {
     if (!g.over) return null;
     if (g.overWhy === "goal") {
       var lines = (ctx && ctx.opts && ctx.opts.lines) || g.opts.goalLines || 40;
-      var t = ctx && typeof ctx.elapsedMs === "number" ? ctx.elapsedMs : g.time;
-      return { why: "goal", title: "The well rests.", lead: lines + " lines in " + Modes.formatTime(t) + "." };
+      /* the time is the card's large figure; the lead doesn't say it twice */
+      return { why: "goal", title: "The well rests.", lead: "All " + lines + " lines, cleared." };
     }
     return { why: "filled", title: "The well filled.", lead: "Rest, or begin again." };
   }

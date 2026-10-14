@@ -973,6 +973,25 @@ guarded("an offline shell that lists the page", () => {
      "not in the shell: " + absent.join(", "));
   const v = (sw.match(/VERSION\s*=\s*["']([^"']+)["']/) || [])[1] || "";
   ok("its cache is named for the room (" + (v || "no VERSION") + ")", /^well-/.test(v));
+  /* Every glyph a file asks the sprite for is drawn in it. A <use> whose
+     symbol is missing draws nothing at all, without an error anywhere, so
+     a renamed icon would leave an empty square in a row of the pause
+     sheet. Asked for: the page's own <use> tags, every literal ic("…") or
+     icon("…") in the scripts that draw sheets, and the *_ICON tables. */
+  const symbols = new Set([...html.matchAll(/<symbol\b[^>]*\bid="i-([a-z0-9-]+)"/g)].map((m) => m[1]));
+  const asked = new Map();
+  const askFor = (name, where) => { if (!asked.has(name)) asked.set(name, where); };
+  for (const m of html.matchAll(/href="#i-([a-z0-9-]+)"/g)) askFor(m[1], "index.html");
+  for (const f of ["app.js", "sheets.js", "steady.js", "learn.js", "guide.js"].filter(has)) {
+    const src = read(f);
+    for (const m of src.matchAll(/\b(?:ic|icon)\(\s*"([a-z0-9-]+)"/g)) askFor(m[1], f);
+    for (const m of src.matchAll(/\b[A-Z_]+_ICON\s*=\s*\{([^}]*)\}/g)) {
+      for (const v of m[1].matchAll(/:\s*"([a-z0-9-]+)"/g)) askFor(v[1], f);
+    }
+  }
+  const blank = [...asked].filter(([n]) => !symbols.has(n)).map(([n, f]) => n + " (" + f + ")");
+  ok("every icon asked of the sprite is drawn in it (" + asked.size + " asked, " + symbols.size + " drawn)",
+     asked.size > 0 && blank.length === 0, "missing: " + blank.join(", "));
   const title = ((html.match(/<title>([^<]*)<\/title>/) || [])[1] || "").trim();
   ok("the page is called “well — a falling-blocks game”", decodeEntities(title) === "well — a falling-blocks game",
      "title: " + JSON.stringify(title));
