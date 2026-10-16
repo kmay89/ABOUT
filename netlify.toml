@@ -146,3 +146,10 @@
   for = "/vantage/demo/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Aurora Park at Geauga Lake: a real story built by the same engine, copied in
+# whole from its release build (see vantage/README.md), with its own worker.
+[[headers]]
+  for = "/vantage/aurora-park/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
