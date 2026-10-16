@@ -23,6 +23,7 @@ then.
 | `index.html` | the front door: what Vantage is, the curtain, how it works, how to get it | by hand |
 | `stills/before.jpg`, `stills/after.jpg` | the first and last flight the curtain compares | `sync-demo.sh` |
 | `demo/` | the demo story, exactly as the engine built it | `sync-demo.sh` — **never edit** |
+| `aurora-park/` | Aurora Park at Geauga Lake: the first real story, for MKSK and the City of Aurora | copied from the private project's `vantage build --release`; only `share.jpg` (the link card) is swapped, with its entry in `sw.js` updated to match |
 | `film/` | the 16:9 film and its poster, once a build makes one under 12 MB | `sync-demo.sh` |
 | `og.png` | the 1200 × 630 card a link to this page unfurls into | `node vantage/make-og.js` |
 | `make-og.js` | draws `og.png` from nothing, the way `tools/make-game-icons.js` draws the game icons | by hand |
@@ -31,6 +32,16 @@ then.
 There is no film in the room yet: the current build doesn't make one, so the
 front door's film block is a comment in `index.html`, under the curtain,
 ready to paste back in when `film/` has something in it.
+
+## Aurora Park at Geauga Lake
+
+`aurora-park/` is a real site, published with the client's go-ahead: aerial
+photographs of the new park from March to October 2026, lined up and turned
+into curtains and scrubs. It lives in a private project repo; to refresh it,
+rebuild there with `vantage build --release` and copy `dist/aurora-park/site/`
+over this folder, then put back `share.jpg` (March | October split with the
+curtain handle and the MKSK logo, 1200 × 630) and update its size and hash in
+`sw.js` (`["share.jpg", <bytes>, "<first 16 hex of sha256>"]`).
 
 ## The demo is simulated
 
