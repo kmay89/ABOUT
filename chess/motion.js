@@ -88,7 +88,9 @@ var EASE = {
     return 0.10 + easeOutQuart((t - 0.16) / 0.84) * 0.90;
   },
   /* weight: slow to start, slow to stop, and nothing in between is fast */
-  heavy: easeInOutQuart
+  heavy: easeInOutQuart,
+  /* set down: let go, he is already moving, and he slows onto the square */
+  set: function (t) { return 1 - Math.pow(1 - t, 3); }
 };
 function ease(name, t) { return (EASE[name] || easeInOutCubic)(clamp(t, 0, 1)); }
 
@@ -162,6 +164,37 @@ function plan(m, opts) {
        finished arriving */
     toppleFor: 0.78
   };
+}
+
+/* ---------- a man let go of by hand ----------
+   A move made by dragging has already travelled: when the finger lets
+   go, the man is in the air over his new square (or near it — a finger
+   is not a peg). Replaying the whole journey from his old square would
+   snap him home and slide him across again, which reads as the board
+   refusing the move and then changing its mind. So this plan is only the
+   end of it: from wherever the hand left him onto the middle of the
+   square, quickly, with the same landing as any move of his. What else
+   the move does — the man taken pushed over, the rook of a castle, a
+   pawn becoming a queen — plays out as it always does, on this clock
+   (a castle's rook and a promotion keep enough of it to be seen).
+   `reach` is how far, in squares, he was let go from the square's
+   middle; the renderer supplies where he starts and how high. */
+var SETDOWN_MS = 150, SETDOWN_PER = 60, SETDOWN_MAX = 240;
+function setDown(m, opts) {
+  opts = opts || {};
+  var pl = plan(m, opts);
+  if (opts.reduced) return pl;
+  var dur = clamp(SETDOWN_MS + SETDOWN_PER * clamp(opts.reach || 0, 0, 1.5), SETDOWN_MS, SETDOWN_MAX);
+  if (m.rookFrom != null) dur = Math.max(dur, 300);
+  if (m.promo) dur = pl.dur;
+  if (opts.scale) dur = clamp(dur * opts.scale, 60, 4000);
+  pl.dur = dur;
+  pl.lift = 0;              /* the hand has already lifted him */
+  pl.bank = 0;
+  pl.spin = 0;
+  pl.ease = "set";
+  pl.dropped = true;
+  return pl;
 }
 
 /* ---------- reading a plan at a moment ----------
@@ -443,7 +476,7 @@ function impactAt(ms, power) {
 var Motion = {
   CHARACTER: CHARACTER, MIN_DUR: MIN_DUR, MAX_DUR: MAX_DUR, PULSE_MS: PULSE_MS,
   FALL_MS: FALL_MS, FALL_IMPACT: FALL_IMPACT, DROP: DROP, DROP_MS: DROP_MS,
-  plan: plan, at: at, rookAt: rookAt, toppleAt: toppleAt, promoteAt: promoteAt,
+  plan: plan, setDown: setDown, at: at, rookAt: rookAt, toppleAt: toppleAt, promoteAt: promoteAt,
   checkPulse: checkPulse, character: character, ease: ease, hump: hump, span: span,
   kingFall: kingFall, lieOf: lieOf, lieLift: lieLift,
   cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,

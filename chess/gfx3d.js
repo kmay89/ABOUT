@@ -1563,6 +1563,7 @@ function create(canvas, opts) {
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
+    settling = null;
     R.toppled = null;
     R.cascade = null;
     if (o && o.flourish) {
@@ -1639,16 +1640,28 @@ function create(canvas, opts) {
   };
   R.animateMove = function (m, after, o, done) {
     o = o || {};
+    /* A move played by letting go of a carried man starts where he is —
+       over his new square, or on his way back from it — and is only the
+       setting down; any other move travels the whole way from its square. */
+    var drop = null;
+    if (settling && settling.sq === m.from) {
+      var at = settleAt(performance.now());
+      drop = { x: at.x, z: at.z, y: at.y };
+    }
+    settling = null;
+    if (drag && drag.sq === m.from) drag = null;
     /* the character of the move is worked out once, here, rather than
        sampled out of a table every frame */
-    var pl = Move.plan(m, { reduced: REDUCED, scale: o.scale });
+    var pl = drop ? Move.setDown(m, { reduced: REDUCED, scale: o.scale,
+                                      reach: Math.hypot(sqX(m.to) - drop.x, sqZ(m.to) - drop.z) })
+                  : Move.plan(m, { reduced: REDUCED, scale: o.scale });
     if (o.dur) pl.dur = REDUCED ? 1 : o.dur;   /* a caller that insists */
     /* a move means the game goes on, so a king lying down gets up; the
        men still arriving keep arriving round it, rather than thirty of
        them popping into place because an engine was quick off the mark */
     R.toppled = null;
     R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-               dur: pl.dur, glow: !!o.glow, done: done || null };
+               dur: pl.dur, glow: !!o.glow, done: done || null, drop: drop };
     R.dirty = true;
     /* handed back so the caller can put a sound on the same plan: both
        are measured from this moment, on clocks that do not drift apart */
@@ -1851,19 +1864,42 @@ function create(canvas, opts) {
     drag.wx = Math.max(-4, Math.min(4, x));
     drag.wz = Math.max(-4, Math.min(4, z));
   }
+  /* Let go of, he is never simply teleported. If the app plays the move
+     there and then, the move sets him down from where the hand left him
+     (see animateMove) instead of snapping him home and sliding him all
+     the way across again; if it does not — a drop on a square he cannot
+     go to — he glides back to his own square. `settling` is that glide:
+     where he was let go, and when. */
+  var SETTLE_MS = 170;
+  var settling = null;
+  function settleAt(now) {
+    var u = REDUCED ? 1 : Math.min(1, (now - settling.t0) / SETTLE_MS);
+    var e = 1 - (1 - u) * (1 - u) * (1 - u);
+    var hx = sqX(settling.sq), hz = sqZ(settling.sq);
+    return { x: settling.x + (hx - settling.x) * e, z: settling.z + (hz - settling.z) * e,
+             y: settling.y * (1 - e), done: u >= 1 };
+  }
   /* setDrag(sq, x, y): the man on sq is in the hand, the pointer at (x, y)
      css px from the canvas's top-left; call it again as the pointer
      moves. Hands back the square he is over (-1 off the board), which is
      the square a drop lands on. setDrag(null) puts the hand away — the
-     app then either plays the move, which animates from the square as
-     every move does, or simply leaves him home. */
+     app then either plays the move, which sets him down from where he
+     was let go, or leaves him be, and he glides home. */
   R.setDrag = function (sq, x, y) {
+    var now = performance.now();
     if (sq == null || sq < 0 || !onSq(sq)) {
-      if (drag) { drag = null; R.dirty = true; }
+      if (drag) {
+        settling = REDUCED ? null : { sq: drag.sq, x: drag.wx, z: drag.wz, y: drag.lift, t0: now };
+        drag = null; R.dirty = true;
+      }
       return -1;
     }
-    var now = performance.now();
-    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: now, wx: sqX(sq), wz: sqZ(sq), lift: 0, off: false };
+    if (!drag || drag.sq !== sq) {
+      /* picked up again on his way home: from where he is now */
+      var from = settling && settling.sq === sq ? settleAt(now) : null;
+      drag = { sq: sq, t0: now, wx: from ? from.x : sqX(sq), wz: from ? from.z : sqZ(sq), lift: 0, off: false };
+    }
+    settling = null;
     drag.x = +x || 0; drag.y = +y || 0;
     carry(now);
     R.dirty = true;
@@ -2216,8 +2252,12 @@ function create(canvas, opts) {
     placeCamera();
     /* the man in the hand follows the camera as well as the finger: if
        the view is still settling, so is the point under the finger */
-    var lifting = false;
+    var lifting = false, home = null;
     if (drag) { carry(nowMs); lifting = drag.lift < DRAG_LIFT; }
+    if (settling) {
+      home = settleAt(nowMs);
+      if (home.done) { settling = null; home = null; } else lifting = true;
+    }
 
     /* ---- who is standing where, once, for all the passes ---- */
     instances.length = 0;
@@ -2229,6 +2269,7 @@ function create(canvas, opts) {
     }
     /* his own square is empty while he is in the hand */
     if (drag) skip[drag.sq] = true;
+    if (home) skip[settling.sq] = true;
     for (var sq = 0; sq < 128; sq++) {
       if (!onSq(sq) || skip[sq]) continue;
       var piece = a ? (a.after[sq] || 0) : R.board[sq];
@@ -2292,7 +2333,10 @@ function create(canvas, opts) {
           rk.y, 1, 1);
       }
 
-      var mx = fx + (tx - fx) * st.p, mz = fz + (tz - fz) * st.p;
+      /* a move let go of by hand sets down from where the hand left him */
+      var sx = a.drop ? a.drop.x : fx, sz = a.drop ? a.drop.z : fz;
+      var mx = sx + (tx - sx) * st.p, mz = sz + (tz - sz) * st.p;
+      if (a.drop) st.y += a.drop.y * (1 - st.p);
       /* the lean is about the axis across the travel — a long diagonal
          gets a little roll into it, a one-square step gets none */
       var pose = { squash: st.squash, lean: st.bank, ax: vz, az: -vx };
@@ -2316,7 +2360,7 @@ function create(canvas, opts) {
         }
         promoFlash = pr.flash;
         promoAt = [tx, tz];
-      } else if (!drag || drag.sq !== a.m.to) {
+      } else if ((!drag || drag.sq !== a.m.to) && !(home && settling.sq === a.m.to)) {
         /* (a man picked up while he is still landing is in the hand
            already, and is drawn there rather than twice) */
         pushPiece(a.m.piece, mx, mz, st.y, 1, 1, pose);
@@ -2327,6 +2371,10 @@ function create(canvas, opts) {
     if (drag) {
       var held = (a ? a.after : R.board)[drag.sq];
       if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1, null);
+    }
+    if (home) {
+      var going = (a ? a.after : R.board)[settling.sq];
+      if (going) pushPiece(going, home.x, home.z, home.y, 1, 1, null);
     }
 
     /* ---- pass one: what the light can see ---- */

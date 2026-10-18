@@ -194,6 +194,40 @@ const SOME = ALL.filter((_, i) => i % 97 === 0);
   ok("…but never over somebody who asked for stillness", reducedSlow.dur === 1);
 })();
 
+/* ---------- a man let go of by hand ----------
+   A drag-to-move has already travelled; what is left is setting him down
+   from where the hand let go. It has to be quick, never climb, never go
+   backwards, land with his own landing, and still give a castle's rook
+   and a promotion the time they need. */
+(function () {
+  let bad = "", climb = "", back = "";
+  for (const k of [1, 2, 3, 4, 5, 6]) {
+    for (const reach of [0, 0.3, 1, 3]) {
+      const m = { piece: k, from: 0x14, to: 0x34 };
+      const pl = Motion.setDown(m, { reach });
+      if (!(pl.dur >= 150 && pl.dur <= 240) || !pl.dropped) bad += KIND[k] + "@" + reach + ":" + pl.dur + " ";
+      let lastP = 0;
+      for (let i = 0; i <= 200; i++) {
+        const a = Motion.at(pl, i / 200);
+        if (a.y > 1e-9) climb = KIND[k];
+        if (a.p < lastP - 1e-9) back = KIND[k];
+        lastP = a.p;
+      }
+      const end = Motion.at(pl, 1);
+      if (!near(end.p, 1) || !near(end.y, 0) || !near(end.squash, 1)) bad += KIND[k] + " does not land ";
+    }
+  }
+  ok("a man let go of by hand is set down quickly, and lands", !bad, bad);
+  ok("…without climbing or going backwards on the way", !climb && !back, climb + " " + back);
+  const castle = Motion.setDown({ piece: 6, from: 0x04, to: 0x06, rookFrom: 0x07, rookTo: 0x05 }, { reach: 0.2 });
+  const promo = Motion.setDown({ piece: 1, from: 0x64, to: 0x74, promo: 5 }, { reach: 0.2 });
+  ok("…while a castle's rook and a promotion keep the time they need",
+     castle.dur >= 300 && promo.dur === Motion.plan({ piece: 1, from: 0x64, to: 0x74, promo: 5 }).dur,
+     castle.dur + " / " + promo.dur);
+  ok("…and under reduced motion it is as still as any other move",
+     Motion.setDown({ piece: 2, from: 0x01, to: 0x22 }, { reach: 1, reduced: true }).dur === 1);
+})();
+
 /* ---------- the check pulse ---------- */
 (function () {
   const a = Motion.checkPulse(0), b = Motion.checkPulse(Motion.PULSE_MS + 10);

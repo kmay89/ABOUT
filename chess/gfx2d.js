@@ -707,6 +707,7 @@ function create(canvas) {
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
+    settling = null;
     R.toppled = null;
     R.cascade = null;
     if (o && o.flourish) {
@@ -805,7 +806,18 @@ function create(canvas) {
      `after` is the position once the move lands. done() fires at the end. */
   R.animateMove = function (m, after, opts, done) {
     opts = opts || {};
-    var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
+    /* a move played by letting go of a carried man is only the setting
+       down, from where he is; any other move travels from its square */
+    var drop = null;
+    if (settling && settling.sq === m.from) drop = settleAt(performance.now());
+    settling = null;
+    if (drag && drag.sq === m.from) drag = null;
+    var pl;
+    if (drop) {
+      var to = sqXY(m.to);
+      pl = Move.setDown(m, { reduced: REDUCED, scale: opts.scale,
+                             reach: Math.hypot(to.x - drop.x, to.y - drop.y) / (R.cell || 1) });
+    } else pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
     /* a move means the game goes on, so a king lying down gets up; the
        men still arriving keep arriving round it, rather than thirty of
@@ -813,7 +825,7 @@ function create(canvas) {
     R.toppled = null;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-      dur: pl.dur, glow: !!opts.glow, done: done || null
+      dur: pl.dur, glow: !!opts.glow, done: done || null, drop: drop
     };
     R.dirty = true;
     return pl;
@@ -829,12 +841,34 @@ function create(canvas) {
      back the square under the finger (-1 off the board), which is where a
      drop lands. */
   var drag = null, hover = -1;
+  /* Let go of, he is never simply teleported: a move played there and
+     then sets him down from under the finger (see animateMove), and a
+     drop the app refuses glides him home. `settling` is that glide —
+     where he was let go (board coordinates, before any lean-in), how big
+     he was, and when. */
+  var SETTLE_MS = 170, settling = null;
+  function settleAt(now) {
+    var u = REDUCED ? 1 : Math.min(1, (now - settling.t0) / SETTLE_MS);
+    var e = 1 - (1 - u) * (1 - u) * (1 - u), h = sqXY(settling.sq);
+    return { x: settling.x + (h.x - settling.x) * e, y: settling.y + (h.y - settling.y) * e,
+             grow: settling.grow + (1 - settling.grow) * e, done: u >= 1 };
+  }
+  function dragGrow(now) {
+    var up = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 120);
+    return { up: up, grow: 1 + 0.16 * (1 - (1 - up) * (1 - up)) };
+  }
   R.setDrag = function (sq, x, y) {
+    var now = performance.now();
     if (sq == null || sq < 0 || !onBoard(sq)) {
-      if (drag) { drag = null; R.dirty = true; }
+      if (drag) {
+        var at = dragAt();
+        settling = REDUCED ? null : { sq: drag.sq, x: at.x, y: at.y, grow: dragGrow(now).grow, t0: now };
+        drag = null; R.dirty = true;
+      }
       return -1;
     }
-    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: performance.now() };
+    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: now };
+    settling = null;
     drag.x = +x || 0; drag.y = +y || 0;
     R.dirty = true;
     return R.screenToSquare(drag.x, drag.y);
@@ -947,13 +981,22 @@ function create(canvas) {
     var skip = {}, a = R.anim, prog = 0;
     if (a) {
       prog = Math.min(1, (now - a.t0) / a.dur);
-      animating = prog < 1;
+      /* (or-ed in, not assigned: the last frame of a move must not
+         switch off a lean-in or a capture's flash that is still going) */
+      if (prog < 1) animating = true;
       skip[a.m.from] = true; skip[a.m.to] = true;
       if (a.m.rookFrom != null) { skip[a.m.rookFrom] = true; skip[a.m.rookTo] = true; }
       if (a.m.epSq != null) skip[a.m.epSq] = true;
     }
-    /* a man in the hand has left his square */
+    /* a man in the hand has left his square, and so has one on his way
+       back to it */
     if (drag) skip[drag.sq] = true;
+    var home = null;
+    if (settling) {
+      home = settleAt(now);
+      if (home.done) { settling = null; home = null; }
+      else { animating = true; skip[settling.sq] = true; }
+    }
     /* the men arriving at the start of a game */
     var casc = R.cascade, cascMs = 0;
     if (casc) {
@@ -1018,8 +1061,11 @@ function create(canvas) {
         paintPiece(ctx, a.after[a.m.rookTo],
           rf.x + (rt.x - rf.x) * rk.p, rf.y + (rt.y - rf.y) * rk.p - rk.y * R.cell * 0.6, R.cell, th);
       }
-      var mx = f0.x + (f1.x - f0.x) * stt.p;
-      var my = f0.y + (f1.y - f0.y) * stt.p - stt.y * R.cell * 0.6;
+      /* a move let go of by hand sets down from under the finger,
+         shrinking back from the size he was carried at */
+      var s0 = a.drop || f0, grown = a.drop ? 1 + (a.drop.grow - 1) * (1 - stt.p) : 1;
+      var mx = s0.x + (f1.x - s0.x) * stt.p;
+      var my = s0.y + (f1.y - s0.y) * stt.p - stt.y * R.cell * 0.6;
       if (a.m.promo) {
         var pr = Move.promoteAt(pl, prog);
         if (pr.pawnAlpha > 0.004) {
@@ -1038,18 +1084,18 @@ function create(canvas) {
           ctx.stroke();
           ctx.restore();
         }
-      } else if (drag && drag.sq === a.m.to) {
+      } else if ((drag && drag.sq === a.m.to) || (home && settling.sq === a.m.to)) {
         /* picked up again while still landing: he is in the hand, and
            is drawn there rather than twice */
       } else if (a.glow) {
         ctx.save();
         ctx.shadowColor = th.hint; ctx.shadowBlur = R.cell * 0.5;
-        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, grown, stt.bank * 0.5, stt.squash);
         ctx.restore();
       } else {
-        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, grown, stt.bank * 0.5, stt.squash);
       }
-      if (!animating) {
+      if (prog >= 1) {
         R.board.set(a.after);
         R.anim = null;
         if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
@@ -1103,10 +1149,16 @@ function create(canvas) {
       if (held) {
         var up = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 120);
         if (up < 1) animating = true;
-        var grow = 1 + 0.16 * (1 - (1 - up) * (1 - up)), at = dragAt();
+        var grow = dragGrow(now).grow, at = dragAt();
         liftedShadow(ctx, held, at.x, at.y, R.cell, grow * up, dpr * v.z);
         paintPiece(ctx, held, at.x, at.y, R.cell, th, 1, grow, 0, 1, { noShadow: true });
       }
+    }
+
+    /* and one let go of, on his way home */
+    if (home) {
+      var going = (a ? a.after : R.board)[settling.sq];
+      if (going) paintPiece(ctx, going, home.x, home.y, R.cell, th, 1, home.grow, 0, 1);
     }
 
     R.dirty = animating;
