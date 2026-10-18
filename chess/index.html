@@ -875,6 +875,19 @@
      the fork before you choose the knight */
   #ovPromo{background:rgba(10,8,6,.38); backdrop-filter:none}
   #promoCancel{display:block; margin:12px auto 0}
+  /* On a phone the end card rises as a sheet from the bottom over an
+     unblurred board, so the final position — the king lying on its side
+     — stays in view above it. */
+  @media (max-width:760px), (orientation:portrait) and (max-width:1100px){
+    #ovEnd{align-items:flex-end; padding:0; backdrop-filter:none;
+      background:linear-gradient(rgba(10,8,6,0) 0%, rgba(10,8,6,.25) 28%, rgba(10,8,6,.8) 62%)}
+    #ovEnd .card{max-width:640px; border-radius:22px 22px 0 0; max-height:66dvh;
+      padding:14px 18px calc(14px + var(--safe-bot)); animation:sheetUp .5s cubic-bezier(.2,.9,.3,1.04) both}
+    #endEmoji{font-size:2.2em !important; line-height:1.1}
+    #ovEnd h2{margin:.1em 0 .1em}
+  }
+  @keyframes sheetUp{from{transform:translateY(105%)} to{transform:none}}
+
   /* ---------- whose turn, worn on the tag ----------
      On a phone the turn strip and the opponent's name were fighting for
      the same strip of glass. The tag of whoever is to move lights up
@@ -1218,7 +1231,6 @@
     <div style="font-size:3em" id="endEmoji">🏁</div>
     <h2 id="endTitle">Game over</h2>
     <p id="endSub"></p>
-    <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.92em"></p>
     <div class="endRate hide" id="endRate">
       <div class="erTop">
         <span class="erNum" id="endRateNum">—</span>
@@ -1235,6 +1247,7 @@
     </div>
     <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
     <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
+    <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em"></p>
     <p id="endReview2" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em;color:var(--soft)"></p>
     <button class="bigbtn hide" id="endPractise"><span class="em">🎓</span><span><b>Practise what this game showed you</b><small id="endPractiseSub"></small></span></button>
     <button class="bigbtn" id="endReview"><span class="em">🔍</span><span><b>Look back at the game</b><small>Step through the moves on the board.</small></span></button>
@@ -1401,6 +1414,7 @@
 <script src="eco.js"></script>
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>
+<script src="fx.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
 <script src="app.js"></script>

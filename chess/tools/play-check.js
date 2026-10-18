@@ -143,7 +143,8 @@ const PLAY = `([san, src]) => {
       ok("  " + san + " is playable", await play(san, i % 2 ? "coach" : "local"));
       await page.waitForTimeout(i % 2 ? 450 : 80);
     }
-    await page.waitForTimeout(1500);
+    /* a mate has its moment on the board before the card comes up */
+    await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 8000 }).catch(() => {});
     ok("the mate ends the game with a card", await page.isVisible("#ovEnd"));
     ok("…which shows a rating", await page.isVisible("#endRate"));
     st = await state();
@@ -151,9 +152,12 @@ const PLAY = `([san, src]) => {
        JSON.stringify(st.rating && st.rating.history));
     const rung = st.ladder && st.ladder.rungs && Object.values(st.ladder.rungs)[0];
     ok("…and earns the first two stars", rung && rung.stars[0] === 1 && rung.stars[1] === 1, JSON.stringify(rung));
-    await page.waitForFunction(() => /%/.test(document.getElementById("endAccNum").textContent), null, { timeout: 20000 }).catch(() => {});
-    const acc = await page.evaluate(() => document.getElementById("endAccNum").textContent);
-    ok("the look-back gives an accuracy", /\d+%/.test(acc), acc);
+    /* four moves is too few to measure, and the card says so rather than
+       pretending — or hanging on "looking back…" */
+    await page.waitForFunction(() => /too short|%/i.test(document.getElementById("endAccTx").textContent + document.getElementById("endAccNum").textContent), null, { timeout: 20000 }).catch(() => {});
+    const acc = await page.evaluate(() => document.getElementById("endAccTx").textContent);
+    ok("the look-back finishes, and says a four-move win is too short to measure", /too short/i.test(acc), acc);
+    ok("…and still counts the slips", await page.evaluate(() => document.getElementById("endCounts").children.length > 0));
     ok("…and offers the next coach up", await page.isVisible("#endNext"));
 
     await page.click("#endMenu");
@@ -235,6 +239,29 @@ const PLAY = `([san, src]) => {
     await page.click("#askRow button >> nth=-1");
     await page.waitForTimeout(300);
     ok("…and 'Keep playing' goes back to the game", (await state()).mode === "coach" && !(await page.isVisible("#ovMenu")));
+
+    /* ---- a real game's look-back: ten moves, then resign ---- */
+    await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
+    for (let k = 0; k < 10; k++) {
+      const alive = await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 }).then(() => true, () => false);
+      if (!alive || await page.isVisible("#ovEnd")) break;
+      await page.waitForTimeout(120);
+      await page.evaluate(() => { const g = __cr.game, ms = Chess.moves(g).filter((m) => !m.capt); __cr.commitMove(ms.find((m) => Math.abs(m.piece) <= 2) || ms[0] || Chess.moves(g)[0], "local"); });
+      await page.waitForTimeout(200);
+    }
+    await page.waitForFunction(() => !__cr.renderer.isAnimating(), null, { timeout: 9000 }).catch(() => {});
+    if (!(await page.isVisible("#ovEnd"))) {
+      await page.click("#btnMenu"); await page.waitForTimeout(300);
+      await page.click("#gameOps .chip >> text=Resign"); await page.waitForTimeout(200);
+      await page.click("#askRow button >> nth=0");
+    }
+    await page.waitForFunction(() => /%/.test(document.getElementById("endAccNum").textContent), null, { timeout: 40000 }).catch(() => {});
+    const acc2 = await page.evaluate(() => [document.getElementById("endAccTx").textContent, document.getElementById("endAccNum").textContent]);
+    ok("a real game's look-back gives an accuracy", /\d+%/.test(acc2[1]), acc2.join(" "));
+    ok("…and a performance estimate held within reach of the coach", (() => {
+      const m = acc2[0].match(/~(\d+)/); return !m || +m[1] <= 400 + 400;
+    })(), acc2[0]);
+    await page.click("#endMenu"); await page.waitForTimeout(300);
 
     /* ---- Undo as Black before you have moved ---- */
     await fresh();

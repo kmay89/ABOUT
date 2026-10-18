@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion */
 (function () {
 "use strict";
 
@@ -99,6 +99,91 @@ function sndPickUp(piece) {
 function sndMove(desc, plan, captured) {
   if (!prefs.sound || typeof Sound === "undefined" || !plan) return;
   Sound.move(desc, plan, { captured: captured || 0 });
+}
+
+/* ===== the big moments (fx.js) =====
+   The board's half (a struck square, a king laid down, a camera that
+   leans in) and the light's half (sparks, rings, a sweep, confetti) are
+   fired together at the instant each thing happens — which is when the
+   piece lands, not when the move is decided. All of it is optional: a
+   room without fx.js, or with reduced motion, simply has none of it. */
+var FX = typeof Fx !== "undefined";
+function fxInit() {
+  if (!FX) return;
+  Fx.attach($("stage"), { reduced: REDUCED });
+  Fx.setProjector(function (sq, lift) {
+    if (!R || !R.squareToScreen) return null;
+    var p = R.squareToScreen(sq, lift);
+    if (!p) return null;
+    var cv = R === R3 ? $("cv3") : $("cv2");
+    return { x: p.x + cv.offsetLeft, y: p.y + cv.offsetTop, s: p.s, sy: p.sy };
+  });
+}
+/* a capture lands when the taker does — the same instant the synth sets
+   it down, louder for a capture */
+function fxCapture(desc, took, plan) {
+  if (!took) return;
+  var power = FX ? Fx.powerOf(took) : 0.5, sq = desc.to, at = gameTicket;
+  setTimeout(function () {
+    if (!R || at !== gameTicket) return;
+    if (R.impact) { R.impact(sq, power); needFrame(); }
+    if (!FX) return;
+    Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
+    if (prefs.sound) Fx.haptic("capture");
+  }, plan ? plan.dur * plan.travel : 0);
+}
+function fxPromote(desc, plan) {
+  if (!FX || !desc.promo) return;
+  var at = gameTicket;
+  /* the pillar rises with the renderer's own promotion flash */
+  setTimeout(function () { if (at === gameTicket) Fx.promote(desc.to, { color: desc.piece > 0 ? 1 : -1 }); },
+             plan ? plan.dur * 0.3 : 0);
+}
+function fxCheck(kingSq) {
+  if (!FX || kingSq == null || kingSq < 0) return;
+  Fx.check(kingSq, { color: skin.marks.check });
+  if (prefs.sound) Fx.haptic("check");
+}
+/* win: true (you delivered it), false (it was delivered to you), null
+   (two people on one board — a mate is everyone's moment) */
+function fxMate(kingSq, attackerSq, win) {
+  if (!R) return;
+  if (R.topple) R.topple(kingSq, { from: attackerSq });
+  /* a narrow phone is already framed wide; lean in less */
+  if (R.focus) R.focus(kingSq, { amount: innerWidth < 600 ? 0.6 : 1 });
+  needFrame();
+  if (!FX) return;
+  Fx.mate(kingSq, { win: win });
+  if (prefs.sound) Fx.haptic(win === false ? "loss" : "mate");
+}
+/* leaving a finished game behind: a take-back, the look-back, the menu */
+function fxCalm() {
+  if (R && R.untopple) R.untopple();
+  if (R && R.focus) R.focus(null);
+  if (FX) Fx.clear();
+  needFrame();
+}
+function mateMood(result) {
+  var me = mode === "coach" ? humanSide : (mode === "lan" ? lanSide : 0);
+  if (!me) return null;
+  return (result === "white") === (me === 1);
+}
+/* the men arriving: one soft knock per rank as it lands, and the game's
+   opening motif once the last of them is still */
+function sndArrival(fresh) {
+  var landings = R && R.flourishPlan ? R.flourishPlan() : [];
+  if (!fresh) return;
+  if (!landings.length) { snd("start"); return; }
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  var seen = {}, at = gameTicket;
+  landings.forEach(function (l) {
+    if (seen[l.wave]) return;
+    seen[l.wave] = true;
+    setTimeout(function () { if (at === gameTicket && Sound.tap) Sound.tap(Math.abs(l.piece), 0.4); }, l.t);
+  });
+  var still = landings[landings.length - 1].t +
+    (typeof Motion !== "undefined" && Motion.DROP_MS ? Motion.DROP_MS - Motion.DROP.fall : 300);
+  setTimeout(function () { if (at === gameTicket) snd("start"); }, still);
 }
 
 /* ===== toast — the one funnel for every message ===== */
@@ -655,7 +740,12 @@ function commitMove(m, source, animOpts) {
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
   var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+  var hurtKing = (st.reason === "check" || st.reason === "checkmate") ? G.kings[G.turn === 1 ? 0 : 1] : -1;
+  var landTicket = gameTicket;
   var plan = R.animateMove(desc, G.board, animOpts || {}, function () {
+    /* the mate waits for the mating move to land, so the king does not
+       start to fall under a piece still in the air */
+    if (landTicket === gameTicket && st.reason === "checkmate") fxMate(hurtKing, desc.to, mateMood(st.result));
     /* two people sharing one screen: the board turns to whoever is next,
        once the piece has landed rather than under it */
     if (mode === "pass" && prefs.autoFlip && !over && orientation !== G.turn) {
@@ -665,13 +755,16 @@ function commitMove(m, source, animOpts) {
     syncButtons();     /* the hint's price depends on whose move it now is */
     /* giving check rises; being in check falls — the same two notes
        never mean both */
-    if (!over && st.reason === "check") {
+    if (!over && st.reason === "check" && landTicket === gameTicket) {
       var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide :
                  (mode === "lesson" && lesson) ? lesson.side : G.turn;
       snd("check", { against: G.turn === mine });
+      fxCheck(hurtKing);
     }
   });
   sndMove(desc, plan, took);
+  fxCapture(desc, took, plan);
+  fxPromote(desc, plan);
   needFrame();
   syncMoveList();
   syncBars();
@@ -1335,7 +1428,7 @@ function undoPly(n) {
   teachSeen = {};
   taughtAt.forEach(function (t) { teachSeen[t.concept] = (teachSeen[t.concept] || 0) + 1; });
   closePromo();
-  hideToast(); clearLines(); hintShown = null;
+  hideToast(); clearLines(); hintShown = null; fxCalm();
   clearSel(); hintArrow = null; viewPly = -1;
   showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
@@ -1617,9 +1710,9 @@ function popStar(i, live) {
   if (!el || (live && !live())) return;
   el.classList.add("on", "pop");
   sting("lesson-right");                 /* each star lands with the ding of a right answer */
-  if (typeof Fx !== "undefined" && Fx.sparkle) Fx.sparkle(el);
+  if (FX) Fx.sparkle(el, { count: 18 });
 }
-function renderEndRating(rs) {
+function renderEndRating(rs, cardAt) {
   var box = $("endRate"), myGame = gameTicket;
   /* what is earned is kept whatever happens; what is shown and heard
      only happens while this game's card is the one on screen */
@@ -1662,7 +1755,7 @@ function renderEndRating(rs) {
   }
 
   /* the choreography, once the card is up */
-  var startAt = REDUCED ? 120 : 1500;
+  var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
   setTimeout(function () {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
@@ -1682,7 +1775,7 @@ function renderEndRating(rs) {
                                : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
           m.classList.remove("hide");
           sting(mile ? "milestone" : "levelup");
-          if (typeof Fx !== "undefined" && Fx.confetti) Fx.confetti({ ms: 3200 });
+          if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
         }, 500 + rs.newStars.length * 420);
       }
     });
@@ -1695,23 +1788,26 @@ function renderEndRating(rs) {
   }).then(function (moves) {
     if (!moves || myGame !== gameTicket) return;
     if (!moves.length) { $("endAccTx").textContent = "No moves of yours to look back on."; $("endAccBar").style.width = "0%"; return; }
-    var acc = Rating.gameAccuracy(moves), perf = Rating.perfFromAccuracy(acc);
-    if (acc == null) return;
-    rememberAccuracy(acc, perf);
+    var acc = Rating.gameAccuracy(moves);
     var c = qualityCounts(moves);
+    if (acc == null) {
+      /* a handful of moves is not a game's worth of evidence: say so,
+         and still say what the moves were */
+      $("endAccTx").textContent = "Too short to measure — accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own.";
+      $("endAccBar").style.width = "0%";
+      $("endCounts").innerHTML = countChips(c);
+      return;
+    }
+    /* taking what is handed to you is the best move and an easy one, so a
+       game's estimate is held within reach of the coach it was against */
+    var perf = Math.min(Rating.perfFromAccuracy(acc), SKILLS[rs.level].elo + (Rating.PERF_ABOVE || 400));
+    rememberAccuracy(acc, perf);
     setTimeout(function () {
       /* a performance read off four moves is a guess, so it waits for a game */
       $("endAccTx").innerHTML = moves.length >= 10 ? "Accuracy · you played like <b>~" + Math.round(perf) + "</b>" : "Accuracy";
       countUp($("endAccNum"), 0, Math.round(acc), REDUCED ? 0 : 900).then(function () { $("endAccNum").textContent = Math.round(acc) + "%"; });
       $("endAccBar").style.width = Math.round(acc) + "%";
-      var chips = [];
-      if (c.brilliant) chips.push('<span><b class="k" style="color:var(--blue)">!!</b>' + c.brilliant + " brilliant</span>");
-      if (c.good) chips.push('<span><b class="k" style="color:var(--good)">!</b>' + c.good + " great</span>");
-      if (c.inaccuracy) chips.push('<span><b class="k">?!</b>' + c.inaccuracy + " inaccurac" + (c.inaccuracy > 1 ? "ies" : "y") + "</span>");
-      if (c.mistake) chips.push('<span><b class="k" style="color:var(--amber)">?</b>' + c.mistake + " mistake" + (c.mistake > 1 ? "s" : "") + "</span>");
-      if (c.blunder) chips.push('<span><b class="k" style="color:var(--bad)">??</b>' + c.blunder + " blunder" + (c.blunder > 1 ? "s" : "") + "</span>");
-      if (!chips.length) chips.push("<span>✨ not a single slip</span>");
-      $("endCounts").innerHTML = chips.join("");
+      $("endCounts").innerHTML = countChips(c);
       /* the third star is the hard one: a win, on your own, played well */
       var rung = rungOf(rs.level);
       if (rs.s === 1 && rs.clean && acc >= 80 && !rung.stars[2]) {
@@ -1720,6 +1816,16 @@ function renderEndRating(rs) {
       }
     }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
   });
+}
+function countChips(c) {
+  var chips = [];
+  if (c.brilliant) chips.push('<span><b class="k" style="color:var(--blue)">!!</b>' + c.brilliant + " brilliant</span>");
+  if (c.good) chips.push('<span><b class="k" style="color:var(--good)">!</b>' + c.good + " great</span>");
+  if (c.inaccuracy) chips.push('<span><b class="k">?!</b>' + c.inaccuracy + " inaccurac" + (c.inaccuracy > 1 ? "ies" : "y") + "</span>");
+  if (c.mistake) chips.push('<span><b class="k" style="color:var(--amber)">?</b>' + c.mistake + " mistake" + (c.mistake > 1 ? "s" : "") + "</span>");
+  if (c.blunder) chips.push('<span><b class="k" style="color:var(--bad)">??</b>' + c.blunder + " blunder" + (c.blunder > 1 ? "s" : "") + "</span>");
+  if (!chips.length) chips.push("<span>✨ not a single slip</span>");
+  return chips.join("");
 }
 /* the look-back finishes after the game has been counted, so its
    accuracy is written onto the record afterwards */
@@ -1865,15 +1971,14 @@ function startGame(newMode, opts) {
   clockConfig(opts.clockStr || "none");
   orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
   R.setOrientation(orientation);
+  if (FX) Fx.clear();
   R.setPosition(G.board, { flourish: true });
+  sndArrival(!!opts.fresh);
   syncAll();
   hideAllOverlays();
   saveGame();
   watchNetChip(mode === "lan" && Net.everLinked);
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
-  /* only for a game somebody just started — never at boot, where a
-     resumed game would leave the sting waiting for the first tap */
-  if (opts.fresh) snd("start");
   needFrame();
 }
 /* the engine names an ending in a word; a person deserves a sentence */
@@ -1930,7 +2035,10 @@ function endGame(result, reason, taught) {
     $("endRematchTx").textContent = "Play again";
     $("endRematchSub").textContent = "Same coach — you'll have " + (humanSide === 1 ? "Black" : "White") + " this time.";
   }
-  renderEndRating(mode === "coach" ? settleRating(result) : null);
+  /* a mate gets a moment on the board — the king laid down, the camera
+     leaning in — before the card comes up over it */
+  var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
+  renderEndRating(mode === "coach" ? settleRating(result) : null, cardAt);
   renderOddsReview();
   /* the card waits its turn: if something else was opened in the
      meantime, the Result chip offers it instead of stacking on top */
@@ -1939,7 +2047,13 @@ function endGame(result, reason, taught) {
     if (document.querySelector(".ov:not(.hide)") || studioOpen) { syncTurnStrip(); return; }
     $("ovEnd").classList.remove("hide");
     syncTurnStrip();
-  }, REDUCED ? 100 : 1100);
+    /* the room celebrates with you — and for two people on one board, a
+       decisive result is everyone's */
+    if (FX && result !== "draw" && (iWon || mySide === 0)) {
+      Fx.confetti({ ms: iWon ? 2800 : 1800, layer: "page" });
+      if (iWon) Fx.fireworks({ count: reason === "checkmate" ? 3 : 2, layer: "page" });
+    }
+  }, cardAt);
   lsDel(SAVE_KEY);
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -3738,6 +3852,7 @@ function hideAllOverlays() {
 function showMenu() {
   stopTour();
   closeStudio();
+  if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   hideAllOverlays();
@@ -4128,6 +4243,7 @@ function wireUI() {
   $("endRematch").addEventListener("click", rematch);
   $("endReview").addEventListener("click", function () {
     $("ovEnd").classList.add("hide");
+    fxCalm();
     if (G && G.played.length) viewAt(0);
     syncTurnStrip();
     toast("Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
@@ -4345,6 +4461,7 @@ function boot() {
   wireUI();
   lanHandlers();
   initRenderers();
+  fxInit();
   applySkin(skin, false);
   wireInput();
   syncSettingsUI();
