@@ -273,9 +273,36 @@ function ctx() {
   }
   /* a context somebody else lent us (the checker's offline one) is
      theirs to start and stop; resuming it from in here would let it
-     race ahead of whatever is still being scheduled */
-  if (AC.state === "suspended" && !borrowed) AC.resume().catch(function () {});
+     race ahead of whatever is still being scheduled. iOS calls a clock
+     that a phone call or another app took the speaker from
+     "interrupted" rather than "suspended", and it wants the same nudge.
+     (A very old Safari's resume hands back no promise at all, so the
+     catch is only hung on one that does.) */
+  if ((AC.state === "suspended" || AC.state === "interrupted") && !borrowed) {
+    try { var p = AC.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  }
   return AC;
+}
+/* A sound belongs to the moment it was asked for. A browser will not
+   start the audio clock until somebody has touched the page, and
+   whatever is asked of a clock that is not running yet is saved up and
+   played the instant it starts. Inside a tap that is exactly right: the
+   tap that starts the clock is the tap that asked. Outside one it is
+   not. A finished game restored at boot would greet your first tap, a
+   minute later, with its ending, and a coach's reply made while the
+   clock was stopped would set down a piece nobody moved. So anything
+   asked for while the clock is stopped waits only as long as a tap
+   takes to start it (a few milliseconds, inside the gesture), and is
+   let go after that. */
+var STALE_MS = 500;
+function running(c) { return borrowed || c.state === "running"; }
+function whenRunning(c, play) {
+  var asked = Date.now(), p = null;
+  try { p = c.resume(); } catch (e) { p = null; }
+  if (!p || typeof p.then !== "function") return;
+  p.then(function () {
+    if (AC === c && c.state === "running" && Date.now() - asked < STALE_MS) play();
+  }, function () {});
 }
 function noise(c) {
   if (noiseBuf && noiseBuf.sampleRate === c.sampleRate) return noiseBuf;
@@ -878,6 +905,12 @@ var STING_KINDS = Object.keys(STINGS);
    number counting down walks down. Quantised to the scale rather than
    gliding, because a glide is a siren and a scale is a tune. */
 var COUNT_STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+/* The closest two ticks of a count may come. Closer than about a
+   twentieth of a second apart, clicks stop being heard as clicks and
+   fuse into a buzz: at one a frame, a count is a 30 Hz rasp rather
+   than a ratchet. So a count shown at sixty frames a second is heard at
+   twenty, which is about as fast as a roulette wheel sounds. */
+var COUNT_GAP = 0.05;
 function countTickPitch(i, n, up) {
   n = +n || 0;
   var f = n > 0 ? clamp((+i || 0) / n, 0, 1) : 1;
@@ -905,6 +938,37 @@ function dryEnd(sc) {
   return end;
 }
 
+/* What a busy room gives up. Every voice of a score is planned before
+   anything is built, so when the room cannot afford all of them it can
+   choose, in this order and only as far as it has to:
+
+     the sparkles, which the moment does not need;
+     then the overtones, note by note — a note played plainer, its
+       fundamental only, is still that note;
+     and only then whole notes.
+
+   Each of those starts from the earliest note and works forward. The
+   end of a sting is the part anybody remembers: a fanfare that lands on
+   top of a promotion that took a queen keeps its last chord whole, and
+   gives up the colour of its opening instead. Pure, so the checker can
+   ask what a sting would keep without an audio context anywhere near
+   it. Returns a plan per event, empty for an event left out. */
+function allot(sc, budget) {
+  var plans = [], n = 0, i, j;
+  for (i = 0; i < sc.events.length; i++) { plans.push(voicePlan(sc.events[i])); n += plans[i].length; }
+  for (i = 0; i < plans.length && n > budget; i++) {
+    if (sc.events[i].fl) { n -= plans[i].length; plans[i] = []; }
+  }
+  for (i = 0; i < plans.length && n > budget; i++) {
+    var core = [];
+    for (j = 0; j < plans[i].length; j++) if (plans[i][j].core) core.push(plans[i][j]);
+    n -= plans[i].length - core.length;
+    plans[i] = core;
+  }
+  for (i = 0; i < plans.length && n > budget; i++) { n -= plans[i].length; plans[i] = []; }
+  return plans;
+}
+
 /* ---------- playing it ----------
    Everything below here needs an audio context; everything above it
    is arithmetic. */
@@ -926,7 +990,7 @@ var WIDTH = 0.55, LANE_TRIM = 1.3;
    context and never again. */
 function verb(c) {
   if (room && room.ctx === c) return room.node;
-  room = { ctx: c, node: null };
+  room = { ctx: c, node: null, wet: null };
   try {
     var ir = impulseResponse(c.sampleRate);
     var buf = c.createBuffer(2, ir[0].length, c.sampleRate);
@@ -940,9 +1004,20 @@ function verb(c) {
     var wet = c.createGain();
     wet.gain.value = REVERB.wet;
     conv.connect(wet); wet.connect(master);
-    room.node = conv;
+    room.node = conv; room.wet = wet;
   } catch (e) { room.node = null; /* a room without an echo is still a room */ }
   return room.node;
+}
+/* The room's echo, turned up or down over a breath rather than at
+   once: a gain that jumps mid-tail is a click. */
+function echoTo(c, v) {
+  if (!c || !room || room.ctx !== c || !room.wet) return;
+  var p = room.wet.gain, now = c.currentTime;
+  try {
+    p.cancelScheduledValues(now);
+    p.setValueAtTime(p.value, now);
+    p.linearRampToValueAtTime(v, now + 0.08);
+  } catch (e) {}
 }
 
 function applyPts(param, pts, t0, scale) {
@@ -1026,29 +1101,9 @@ function perform(c, sc, t0) {
     return trim;
   }
 
-  /* Plan everything first, so a busy room can choose what to give up.
-     The order matters: the sparkles go first; then every note is
-     played plainer — its fundamental only, no overtones, no mallet —
-     rather than any note going missing; and only a room that is still
-     over budget after that starts leaving notes out. A fanfare that
-     arrives on top of a promotion that took a queen keeps its last
-     chord, which is the part anybody remembers. */
-  var plans = [], i2, budget = MAX_LIVE - live.length;
-  var count = function () { var n = 0; for (var q = 0; q < plans.length; q++) n += plans[q].length; return n; };
-  for (i = 0; i < sc.events.length; i++) plans.push(voicePlan(sc.events[i]));
-  if (count() > budget) {
-    for (i = 0; i < plans.length; i++) if (sc.events[i].fl) plans[i] = [];
-  }
-  if (count() > budget) {
-    for (i = 0; i < plans.length; i++) {
-      var core = [];
-      for (i2 = 0; i2 < plans[i].length; i2++) if (plans[i][i2].core) core.push(plans[i][i2]);
-      plans[i] = core;
-    }
-  }
+  var plans = allot(sc, MAX_LIVE - live.length);
   for (i = 0; i < plans.length; i++) {
-    if (!plans[i].length || plans[i].length > budget) continue;
-    budget -= plans[i].length;
+    if (!plans[i].length) continue;
     /* a hair of difference every time — two cents and a few percent of
        velocity — so the same sting twice sounds played rather than
        pasted */
@@ -1061,7 +1116,9 @@ function perform(c, sc, t0) {
   return sc.len;
 }
 /* a mute fades what is already playing rather than letting a fanfare
-   finish over somebody who has just asked for quiet */
+   finish over somebody who has just asked for quiet — and the room's
+   echo of it too, which would otherwise ring on for two seconds after
+   the notes had been told to stop */
 function hush(c) {
   if (!c) return;
   var now = c.currentTime;
@@ -1074,6 +1131,7 @@ function hush(c) {
       p.linearRampToValueAtTime(0, now + 0.08);
     } catch (e) {}
   }
+  echoTo(c, 0);
   outs = []; live = [];
 }
 
@@ -1089,10 +1147,16 @@ function reducedNow() {
    silent: there is a low wash of air and, here, a slow two-note pad
    that breathes about once every twenty seconds. Turned up, it sits
    just above the threshold of noticing; turned off, every node is
-   stopped and let go, so it costs nothing at all. */
+   stopped and let go, so it costs nothing at all. And it is a sound for
+   a room somebody is in: a tab you have left stops humming to nobody,
+   and picks up again when you come back. */
 var amb = null, ambLevel = 0, AMB_GAIN = 0.06;
+/* every room tone not yet fallen silent, the one playing and any still
+   fading out, so "is anything left running" is answered by the nodes
+   themselves rather than by a flag */
+var ambAll = [], ambWatched = false;
 function ambStart(c) {
-  var now = c.currentTime, a = { ctx: c, srcs: [] };
+  var now = c.currentTime, a = { ctx: c, srcs: [], alive: 0 };
   a.g = c.createGain();
   a.g.gain.setValueAtTime(0, now);
   a.g.connect(master);
@@ -1111,10 +1175,27 @@ function ambStart(c) {
   var o1 = c.createOscillator(); o1.type = "triangle"; o1.frequency.setValueAtTime(noteHz(-24), now);
   var o2 = c.createOscillator(); o2.type = "sine"; o2.frequency.setValueAtTime(noteHz(-17) + 0.13, now);
   o1.connect(pg); o2.connect(pg); pg.connect(a.g);
-  [n, lfo, o1, o2].forEach(function (s) { s.start(now); a.srcs.push(s); });
-  /* when the last source stops, let go of the output too */
-  o2.onended = function () { try { a.g.disconnect(); } catch (e) {} };
+  /* when the last source has stopped, let go of the output too */
+  var ended = function () {
+    if (--a.alive > 0) return;
+    try { a.g.disconnect(); } catch (e) {}
+    var k = ambAll.indexOf(a);
+    if (k >= 0) ambAll.splice(k, 1);
+  };
+  [n, lfo, o1, o2].forEach(function (s) { s.onended = ended; s.start(now); a.srcs.push(s); a.alive++; });
+  ambAll.push(a);
   return a;
+}
+/* Once, the first time the room tone is turned on: follow the page out
+   of sight and back. Going, it fades like any other stop; coming back,
+   it comes back at the level it was left at, if sound is still on. */
+function watchPage() {
+  if (ambWatched || typeof document === "undefined" || !document.addEventListener) return;
+  ambWatched = true;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) ambStop();
+    else if (on && ambLevel > 0 && !amb) Sound.ambience(ambLevel);
+  });
 }
 function ambStop() {
   if (!amb) return;
@@ -1137,7 +1218,7 @@ var Sound = {
      node before it ever renders one */
   HOME: HOME, QUALITY: QUALITY, TIMBRES: TIMBRES, STINGS: STINGS, STING_KINDS: STING_KINDS,
   REVERB: REVERB, MAX_VOICES: MAX_LIVE, noteHz: noteHz, chord: chord, score: score, voicePlan: voicePlan,
-  eventEnd: eventEnd, dryEnd: dryEnd, impulseResponse: impulseResponse,
+  eventEnd: eventEnd, dryEnd: dryEnd, allot: allot, impulseResponse: impulseResponse,
   countTickPitch: countTickPitch,
 
   /* Point the whole synth at a context somebody else made. The only
@@ -1148,18 +1229,22 @@ var Sound = {
   useContext: function (c) {
     AC = c; noiseBuf = null; borrowed = true; rand = seeded(20261018);
     master = buildChain(c);
-    room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null;
+    room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null; ambAll = [];
     return master;
   },
 
   /* Off means off for everything: the pieces, the music already
-     playing (faded, not cut), and the room tone. Back on, the room tone
-     comes back at the level it was left at. */
+     playing and its echo (faded, not cut), and the room tone. Back on,
+     the room has its echo again and the room tone comes back at the
+     level it was left at. */
   enable: function (v) {
     var was = on;
     on = !!v;
     if (was && !on) { hush(AC); ambStop(); }
-    if (!was && on && ambLevel > 0) Sound.ambience(ambLevel);
+    if (!was && on) {
+      echoTo(AC, REVERB.wet);
+      if (ambLevel > 0) Sound.ambience(ambLevel);
+    }
   },
   enabled: function () { return on; },
   /* Less motion asked for means fewer sparkles and no sweeps; the
@@ -1193,6 +1278,12 @@ var Sound = {
   move: function (m, plan, o) {
     if (!on || !m || !plan) return;
     var c = ctx(); if (!c) return;
+    /* A move made while the clock is stopped (the coach answering a
+       game restored at boot, or a reply landing after iOS took the
+       speaker for a call) is held for the tap that starts the clock,
+       like a sting, and let go if that tap is not soon. Otherwise the
+       first tap of the session would set down a piece nobody moved. */
+    if (!running(c)) { whenRunning(c, function () { Sound.move(m, plan, o); }); return; }
     o = o || {};
     /* a move that brings music with it grows the room first, so the
        clock below is read after the work rather than before it */
@@ -1273,10 +1364,18 @@ var Sound = {
      Scheduled on the audio clock, `opts.delay` seconds from now; the
      same kind asked for twice inside a twentieth of a second plays once.
      Returns how long it will ring, reverb and all, in seconds (0 if it
-     did not play). */
+     will not play). Asked for before the audio clock has started, it
+     plays if a tap starts the clock within half a second, and is let go
+     if not (see whenRunning). */
   sting: function (kind, opts) {
     if (!on || !STINGS[kind]) return 0;
     var c = ctx(); if (!c) return 0;
+    /* the clock is not running yet: play this the moment it starts, if
+       that is soon enough to still be the same moment (see whenRunning) */
+    if (!running(c)) {
+      whenRunning(c, function () { Sound.sting(kind, opts); });
+      return STINGS[kind].len;
+    }
     var o = {}, k;
     if (opts) for (k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
     if (o.reduced == null) o.reduced = reducedNow();
@@ -1295,13 +1394,13 @@ var Sound = {
   /* One tick of a number counting — a rating being revealed, say:
      `i` of `n`, rising up the scale if `up`, falling if not. Light
      enough to call on every step; if the steps come faster than the ear
-     can separate them, the in-between ones are skipped, but the last
-     one always sounds. */
+     can separate them (see COUNT_GAP), the in-between ones are skipped,
+     but the last one always sounds. */
   countTick: function (i, n, up) {
     if (!on) return;
-    var c = ctx(); if (!c) return;
+    var c = ctx(); if (!c || !running(c)) return;   /* a count nobody can hear yet is not saved up */
     var now = c.currentTime;
-    if (lastCount >= 0 && now >= lastCount && now - lastCount < 0.028 && i !== n) return;
+    if (lastCount >= 0 && now >= lastCount && now - lastCount < COUNT_GAP && i !== n) return;
     lastCount = now;
     perform(c, score("count", { i: i, n: n, up: up !== false }), now + 0.004);
   },
@@ -1312,15 +1411,21 @@ var Sound = {
     if (level === undefined) return ambLevel;
     ambLevel = clamp(+level || 0, 0, 1);
     if (!on || ambLevel <= 0) { ambStop(); return ambLevel; }
+    /* asked for from a tab nobody is looking at: remembered, and
+       started when somebody does */
+    watchPage();
+    if (typeof document !== "undefined" && document.hidden) { ambStop(); return ambLevel; }
     var c = ctx(); if (!c) return ambLevel;
     if (amb && amb.ctx !== c) ambStop();
     if (!amb) amb = ambStart(c);
     amb.g.gain.setTargetAtTime(ambLevel * AMB_GAIN, c.currentTime, 0.6);
     return ambLevel;
   },
-  /* whether any room tone is actually playing — the checker asks this
-     to prove "off" means nothing is left running */
-  ambienceLive: function () { return !!amb; },
+  /* whether any room tone is actually playing, or still fading — the
+     checker asks this to prove "off" means nothing is left running. It
+     is counted off the sources' own ended events, so a source that was
+     never told to stop keeps it true. */
+  ambienceLive: function () { return !!amb || ambAll.length > 0; },
   /* how many synth voices are still sounding — the checker asks, to
      prove a pile-up of moments stays inside the budget */
   busy: function () {
@@ -1334,6 +1439,7 @@ var Sound = {
   pickUp: function (piece) {
     if (!on) return;
     var c = ctx(); if (!c) return;
+    if (!running(c)) { whenRunning(c, function () { Sound.pickUp(piece); }); return; }
     var v = voiceFor(materialNow, kindName(piece), surfaceNow);
     var s = c.createBufferSource(); s.buffer = noise(c); s.loop = true;
     var f = c.createBiquadFilter(); f.type = "bandpass";
@@ -1347,6 +1453,7 @@ var Sound = {
   tap: function (piece, force) {
     if (!on) return;
     var c = ctx(); if (!c) return;
+    if (!running(c)) { whenRunning(c, function () { Sound.tap(piece, force); }); return; }
     strike(c, c.currentTime + 0.003, voiceFor(materialNow, kindName(piece), surfaceNow), force);
   }
 };

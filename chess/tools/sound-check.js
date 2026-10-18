@@ -25,10 +25,18 @@
      - is a mate a bigger, longer thing than a plain win, and is the
        check you are in a different figure from the check you give;
      - does the reverb really leave a tail, and is the room wide;
-     - does a count climb when it counts up;
+     - does a count climb when it counts up, and skip the steps the ear
+       could not separate anyway;
+     - does a busy room give up the sparkles first, then the colour of
+       the opening, and keep the last chord whole;
+     - is the same moment asked for twice heard once, and does asking
+       the room for less motion take the sparkles out of every moment;
      - and is off really off: a muted room renders silence, a mute
-       fades what is already playing, and the room tone, switched off,
-       leaves nothing running.
+       fades what is already playing and its echo, the room tone,
+       switched off, leaves nothing running, and a tab nobody is
+       looking at does not hum;
+     - and is a moment asked for before anybody has touched the page
+       let go, rather than saved up for the first tap.
 
    Needs `playwright-core` for the second half; the first half runs
    anywhere. A missing browser skips the render and still checks the
@@ -398,6 +406,40 @@ const meanHz = (sc) => {
   ok("nothing in the music throws without an audio context", !threw, threw);
 })();
 
+/* a busy room: what it gives up, and in what order */
+(function () {
+  const sc = Sound.score("mate-win", {});
+  const full = sc.events.map((e) => Sound.voicePlan(e));
+  const size = (plans) => plans.reduce((n, p) => n + p.length, 0);
+  const total = size(full);
+  let over = null;
+  for (let b = -2; b <= total + 2; b++) {
+    const n = size(Sound.allot(sc, b));
+    if (n > Math.max(0, b)) over = over || "budget " + b + " built " + n;
+  }
+  ok("a busy room never builds more voices than it can afford", !over, over);
+  ok("…and a quiet one builds every one", Sound.allot(sc, total).every((p, i) => p.length === full[i].length));
+  const glitter = sc.events.reduce((n, e, i) => n + (e.fl ? full[i].length : 0), 0);
+  ok("the sparkles are the first thing to go",
+     Sound.allot(sc, total - glitter).every((p, i) => p.length === (sc.events[i].fl ? 0 : full[i].length)));
+  /* the crowd the render below piles up: a pawn that takes a queen and
+     promotes, then a queen that takes a rook */
+  const crowd = ["promote", "capture-big", "capture-big"].map((k, i) =>
+    size(Sound.allot(Sound.score(k, { piece: i === 2 ? 4 : 5 }), 1e9)));
+  const left = Sound.MAX_VOICES - crowd.reduce((a, b) => a + b, 0);
+  const busy = Sound.allot(sc, left);
+  const lastAt = Math.max(...sc.events.filter((e) => !e.fl).map((e) => e.t));
+  const bloom = sc.events.map((e, i) => i).filter((i) => !sc.events[i].fl && sc.events[i].t > lastAt - 0.2);
+  ok("…then the opening is played plainer, and the last chord keeps every voice",
+     size(busy) < total - glitter && busy.every((p, i) => sc.events[i].fl || p.length > 0) &&
+     bloom.every((i) => busy[i].length === full[i].length),
+     left + " voices to spare of " + total);
+  const starved = Sound.allot(sc, 12);
+  ok("…and when whole notes must go, the opening goes and the ending stays",
+     starved[0].length === 0 && bloom.some((i) => starved[i].length > 0),
+     starved.map((p) => p.length).join(""));
+})();
+
 /* the room, grown rather than recorded */
 (function () {
   const SR = 22050;
@@ -464,8 +506,28 @@ if (!CHROME || !pw) {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml",
   ".css": "text/css", ".ico": "image/x-icon" };
+/* A bare page with just the two modules and one big button: no game,
+   no canvas, nothing to go wrong but the synth. The button wakes the
+   synth on pointerdown, the way the board does in the room. Opened as
+   #over, it does what the room does when it restores a game: the coach
+   answers (a queen takes a rook) and the game turns out to be finished,
+   so the ending is asked for, all as the page loads and before anybody
+   has touched anything. (That has to happen in the page's own script:
+   the checker's evaluate() counts as a tap.) */
+const COACH = { piece: 5, from: 0x03, to: 0x63 };
+const BARE = "/chess/tools/__sound-check.html";
+const BARE_HTML = '<!doctype html><meta charset="utf-8"><title>sound-check</title>' +
+  '<button id="tap" style="position:fixed;left:0;top:0;width:100%;height:100%">tap</button>' +
+  '<script src="/chess/motion.js"></script><script src="/chess/sound.js"></script>' +
+  '<script>document.getElementById("tap").addEventListener("pointerdown", function () {' +
+  ' Sound.wake(); if (window.onTap) window.onTap(); });' +
+  ' window.coach = function () { var m = ' + JSON.stringify(COACH) + ';' +
+  ' Sound.move(m, Motion.plan(m, {}), { captured: -4 }); };' +
+  ' if (location.hash === "#over") { Sound.enable(true); window.coach();' +
+  ' window.said = Sound.sting("mate-win"); Sound.countTick(1, 2, true); }</script>';
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
+  if (p === BARE) { res.writeHead(200, { "Content-Type": "text/html" }); res.end(BARE_HTML); return; }
   if (p.endsWith("/")) p += "index.html";
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -562,14 +624,21 @@ const MUSIC = `async (spec) => {
   Sound.enable(true);
   Sound.setReduced(!!spec.reduced);
   let returned = 0;
+  const rets = [];
   const run = (calls) => {
     for (const c of calls) {
-      if (c[0] === "sting") returned = Math.max(returned, Sound.sting(c[1], c[2] || {}) || 0);
-      else if (c[0] === "ui") Sound.ui(c[1]);
+      if (c[0] === "sting") { const r = Sound.sting(c[1], c[2] || {}); rets.push(r); returned = Math.max(returned, r || 0); }
+      else if (c[0] === "ui") rets.push(Sound.ui(c[1], c[2]));
       else if (c[0] === "count") Sound.countTick(c[1], c[2], c[3]);
       else if (c[0] === "ambience") Sound.ambience(c[1]);
       else if (c[0] === "enable") Sound.enable(c[1]);
       else if (c[0] === "move") Sound.move(c[1], Motion.plan(c[1], {}), c[2] || {});
+      else if (c[0] === "hidden") {
+        /* the page going out of sight and coming back, as far as a
+           listener can tell */
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => c[1] });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }
     }
   };
   run(spec.calls || []);
@@ -578,7 +647,11 @@ const MUSIC = `async (spec) => {
     oc.suspend(at).then(() => { run(calls); oc.resume().catch(() => {}); });
   }
   const buf = await oc.startRendering();
+  /* the sources' ended events are tasks of their own; give them their
+     turn before asking whether anything is still running */
+  await new Promise((r) => setTimeout(r, 0));
   const ambienceLive = Sound.ambienceLive();
+  delete document.hidden;
   Sound.ambience(0); Sound.enable(true); Sound.setReduced(null);
 
   const chans = [];
@@ -624,7 +697,7 @@ const MUSIC = `async (spec) => {
     width = s ? Math.sqrt(df / s) : 0;
   }
   return {
-    returned, busy, ambienceLive, peak, energy, rms: Math.sqrt(energy / (d.length * chans.length)),
+    returned, rets, busy, ambienceLive, peak, energy, rms: Math.sqrt(energy / (d.length * chans.length)),
     tail, lastAbs, loud, loudAt, bloom: rmsOf(loudAt, loudAt + 0.6),
     windows: (spec.windows || []).map((w) => rmsOf(w[0], w[1])),
     zc: (spec.zc || []).map((w) => zcOf(w[0], w[1])),
@@ -721,9 +794,15 @@ async function musicChecks(render) {
      wet.windows[0] > dry.windows[0] * 2, dB(wet.windows[0]) + " with the room vs " + dB(dry.windows[0]) + " without");
   ok("…and goes on after they have stopped",
      wet.windows[1] > 1e-5 && dry.windows[1] === 0, dB(wet.windows[1]) + " vs " + dB(dry.windows[1]));
-  const wide = await sting("hint", {}, { channels: 2, width: [WARM + 0.3, WARM + 2] });
+  /* Width, measured where only the room can be making it: after the
+     last note of a sting whose notes are all in the middle. (The hint
+     pans its chimes, which would be wide with a mono room too.) */
+  const ding = Sound.dryEnd(Sound.score("lesson-right", {}));
+  ok("…the moment heard here has every note in the middle",
+     Sound.score("lesson-right", {}).events.every((e) => e.pan === "c"));
+  const wide = await sting("lesson-right", {}, { channels: 2, width: [WARM + ding + 0.05, WARM + ding + 1.2] });
   const narrow = await sting("tap", {}, { channels: 2, width: [WARM, WARM + 0.1] });
-  ok("the room is wide: the two ears hear different things", wide.width > 0.3, wide.width.toFixed(2));
+  ok("the room is wide: the two ears hear different echoes of a centred note", wide.width > 0.3, wide.width.toFixed(2));
   ok("…while a dry, centred tap is the same in both", narrow.width < 0.01, narrow.width.toFixed(3));
 
   /* a count, climbing */
@@ -738,6 +817,41 @@ async function musicChecks(render) {
      down.map((r) => r.zc[0].toFixed(0)).join(" → "));
   ok("…and is very light", Math.max(...up.map((r) => r.peak)) < R("lesson-right").peak * 0.15,
      Math.max(...up.map((r) => r.peak)).toFixed(3) + " vs a lesson's " + R("lesson-right").peak.toFixed(3));
+  /* a count shown every frame: every step asked for at once, against
+     just the first and the last */
+  const steps = [];
+  for (let i = 0; i <= 10; i++) steps.push(["count", i, 10, true]);
+  const burst = await render({ seconds: WARM + 0.4, later: [[WARM, steps]] });
+  const ends = await render({ seconds: WARM + 0.4, later: [[WARM, [steps[0], steps[10]]]] });
+  ok("…and a count faster than the ear can follow skips the steps between, never the last",
+     burst.energy > 0 && Math.abs(burst.energy - ends.energy) <= ends.energy * 1e-6,
+     (burst.energy / ends.energy).toFixed(4) + "× the first and last alone");
+
+  /* asked for twice at once is one sound; the old way in passes its
+     options through; and the room's own reduced-motion setting is the
+     same as asking each sting for less */
+  const once = await sting("check", {});
+  const twice = await render({ seconds: WARM + Sound.STINGS.check.len + 0.3,
+    calls: [["sting", "check", { delay: WARM }], ["sting", "check", { delay: WARM }]] });
+  ok("the same moment asked for twice at once is heard once",
+     Math.abs(twice.energy - once.energy) <= once.energy * 1e-6 && twice.rets[1] === 0,
+     (twice.energy / once.energy).toFixed(4) + "×, second call said " + twice.rets[1]);
+  const oldWay = await render({ seconds: WARM + Sound.STINGS.check.len + 0.3,
+    calls: [["ui", "check", { against: true, delay: WARM }]] });
+  const against = await sting("check", { against: true });
+  ok("Sound.ui passes its options on: the old way in can still say whose king it is",
+     Math.abs(oldWay.energy - against.energy) <= against.energy * 1e-6 && oldWay.rets[0] === Sound.STINGS.check.len,
+     (oldWay.energy / against.energy).toFixed(4) + "×");
+  const calmPref = await sting("mate-win", {}, { reduced: true });
+  const calmAsked = R("mate-win", { reduced: true });
+  ok("asking the room for less motion is the same as asking each moment for it",
+     Math.abs(calmPref.energy - calmAsked.energy) <= calmAsked.energy * 1e-6 && calmPref.energy !== mate.energy,
+     (calmPref.energy / calmAsked.energy).toFixed(4) + "× vs " + (mate.energy / calmAsked.energy).toFixed(4) + "× with it");
+  const crown = { piece: 1, from: 0x60, to: 0x70, promo: 5 };
+  const crownFull = await render({ seconds: WARM + 2, calls: [["move", crown, {}]] });
+  const crownCalm = await render({ seconds: WARM + 2, reduced: true, calls: [["move", crown, {}]] });
+  ok("…and a promotion under less motion keeps its figure and drops its sparkle",
+     crownCalm.busy > 0 && crownCalm.busy < crownFull.busy, crownCalm.busy + " voices vs " + crownFull.busy);
 
   /* off is off */
   const muted = await render({ seconds: WARM + 3, calls: [["enable", false],
@@ -745,12 +859,21 @@ async function musicChecks(render) {
     ["move", { piece: 5, from: 0x03, to: 0x77 }, { captured: -4 }]] });
   ok("a muted room renders silence — stings, counts, room tone, pieces", muted.peak === 0 && !muted.ambienceLive,
      muted.peak);
-  const fadeWin = { windows: [[WARM + 1.0, WARM + 1.6]] };
-  const playing = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]] }, fadeWin));
-  const hushed = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]],
+  const fadeWin = { windows: [[WARM + 1.0, WARM + 1.6], [WARM + 0.7, WARM + 3]] };
+  const playing = await render(Object.assign({ seconds: WARM + 3, calls: [["sting", "mate-win", { delay: WARM }]] }, fadeWin));
+  const hushed = await render(Object.assign({ seconds: WARM + 3, calls: [["sting", "mate-win", { delay: WARM }]],
                                               later: [[WARM + 0.6, [["enable", false]]]] }, fadeWin));
   ok("a mute fades a fanfare that is already playing", hushed.windows[0] < playing.windows[0] * 0.2,
      dB(hushed.windows[0]) + " vs " + dB(playing.windows[0]));
+  ok("…and a tenth of a second later it is silence, echo and all", hushed.windows[1] === 0,
+     dB(hushed.windows[1]) + " after the mute, against " + dB(playing.windows[1]) + " left playing");
+  /* and back on, the room has its echo again */
+  const tailAt = (t) => [[t + ding + 0.1, t + ding + 1.0]];
+  const back = await render({ seconds: 3.4, calls: [["sting", "hint", { delay: 0.1 }]],
+    later: [[0.4, [["enable", false]]], [0.6, [["enable", true], ["sting", "lesson-right", {}]]]], windows: tailAt(0.6) });
+  const plainly = await render({ seconds: 3.4, later: [[0.6, [["sting", "lesson-right", {}]]]], windows: tailAt(0.6) });
+  ok("…and with the sound back on, so is the room's echo",
+     back.windows[0] > plainly.windows[0] * 0.5, dB(back.windows[0]) + " vs " + dB(plainly.windows[0]) + " never muted");
 
   /* the room tone */
   const none = await render({ seconds: 2, calls: [["ambience", 0]] });
@@ -766,6 +889,13 @@ async function musicChecks(render) {
      dB(toneOff.windows[0]) + " then " + dB(toneOff.windows[1]));
   ok("…without a click", toneOff.steps[1] <= toneOff.steps[0] * 1.5,
      toneOff.steps[1].toExponential(2) + " vs " + toneOff.steps[0].toExponential(2) + " while steady");
+  const away = await render({ seconds: 4.4, calls: [["ambience", 0.6]],
+    later: [[1.4, [["hidden", true]]], [2.6, [["hidden", false]]]],
+    windows: [[1.1, 1.4], [2.35, 2.6], [3.9, 4.4]] });
+  ok("…stops in a tab nobody is looking at", away.windows[0] > 1e-5 && away.windows[1] === 0,
+     dB(away.windows[0]) + " then " + dB(away.windows[1]));
+  ok("…and comes back when somebody does", away.windows[2] > away.windows[0] * 0.5,
+     dB(away.windows[2]));
 
   /* everything at once */
   const pile = await render({ seconds: WARM + 6,
@@ -797,6 +927,77 @@ async function musicChecks(render) {
      (crowned.energy / plain.energy).toFixed(2) + "×");
 }
 
+/* ---------- before anybody has touched the page ----------
+   A browser will not start an audio clock until somebody touches the
+   page, and the checker's browser is let off that rule. So this page
+   puts it back: an AudioContext that stays stopped until it is resumed
+   inside a real tap, and whose earlier resume() calls wait until then,
+   the way the specification says they do. */
+const STOPPED_UNTIL_TAPPED = `(() => {
+  const Real = window.AudioContext;
+  const stateOf = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "state").get;
+  let open = false;
+  const waiting = [];
+  window.AudioContext = function (o) {
+    const c = new Real(o), resume = c.resume.bind(c);
+    c.suspend();
+    Object.defineProperty(c, "state", { get: () => (open ? stateOf.call(c) : "suspended") });
+    c.resume = function () {
+      if (navigator.userActivation && navigator.userActivation.isActive) {
+        open = true;
+        return resume().then(() => { waiting.splice(0).forEach((f) => f()); });
+      }
+      return new Promise((res) => waiting.push(res));
+    };
+    window.__ac = c;
+    return c;
+  };
+  window.AudioContext.prototype = Real.prototype;
+})();`;
+
+async function wakeChecks(browser, base, errs) {
+  const page = await browser.newPage();
+  page.on("pageerror", (e) => errs.push("" + e.message));
+  await page.addInitScript(STOPPED_UNTIL_TAPPED);
+  const open = async (hash) => {
+    await page.goto(base + BARE + (hash || ""), { waitUntil: "load" });
+    await page.waitForFunction("typeof Sound !== 'undefined'");
+  };
+  const state = () => page.evaluate(() => ({ busy: Sound.busy(), clock: window.__ac ? window.__ac.state : "none" }));
+
+  /* a game restored at boot: the coach answers and the game is over,
+     before anybody has touched anything. (A queen taking a rook lays
+     music under the capture, which is what lets busy() see the move.) */
+  await open("#over");
+  const atBoot = await state();
+  await page.waitForTimeout(900);
+  await page.click("#tap");
+  await page.waitForTimeout(400);
+  const firstTap = await state();
+  ok("a move and a fanfare from before anybody touched the page are not saved up for the first tap",
+     atBoot.busy === 0 && firstTap.clock === "running" && firstTap.busy === 0,
+     "at boot " + JSON.stringify(atBoot) + ", after the first tap " + JSON.stringify(firstTap));
+
+  /* and the ones that matter: the very first sound of the session, asked
+     for inside the tap that starts the clock */
+  const inTap = async (what) => {
+    await open();
+    await page.evaluate((w) => {
+      Sound.enable(true);
+      window.onTap = () => { window.said = w === "move" ? window.coach() : Sound.sting("check"); };
+    }, what);
+    await page.click("#tap");
+    await page.waitForTimeout(300);
+    return Object.assign(await state(), { said: await page.evaluate(() => window.said) });
+  };
+  const check = await inTap("check"), move = await inTap("move");
+  ok("…while a sting or a move asked for inside the tap that starts the clock is heard",
+     check.clock === "running" && check.busy > 0 && check.said === Sound.STINGS.check.len &&
+     move.clock === "running" && move.busy > 0,
+     JSON.stringify(check) + ", " + JSON.stringify(move));
+  await page.close();
+}
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -811,9 +1012,7 @@ async function musicChecks(render) {
                  king: { piece: 6, from: 0x04, to: 0x05 } };
 
   try {
-    /* a bare page with just the two modules: no game, no canvas, nothing
-       to go wrong but the synth */
-    await page.goto(base + "/chess/", { waitUntil: "domcontentloaded" });
+    await page.goto(base + BARE, { waitUntil: "domcontentloaded" });
     await page.waitForFunction("typeof Sound !== 'undefined' && typeof Motion !== 'undefined'");
 
     const base0 = { seconds: 3, gloss: 0.22, grain: 0.55 };
@@ -880,6 +1079,7 @@ async function musicChecks(render) {
     ok("a promotion rings in the new piece", promo.rms > 1e-5 && promo.peak < 1, JSON.stringify(promo));
 
     await musicChecks((spec) => page.evaluate(`(${MUSIC})(${JSON.stringify(spec)})`), page);
+    await wakeChecks(browser, base, errs);
 
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
