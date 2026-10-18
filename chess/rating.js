@@ -200,8 +200,9 @@ function stdev(xs) {
   for (i = 0; i < n; i++) v += (xs[i] - m) * (xs[i] - m);
   return Math.sqrt(v / n);
 }
-/* moves: [{ best, played }] in centipawns, the player's moves only, in
-   order. Returns 0..100 to one decimal, or null with too little to judge.
+/* moves: [{ best, played[, ply] }] in centipawns, the player's moves
+   only, in order. Returns 0..100 to one decimal, or null with too little
+   to judge.
 
    Two means, averaged, the way lichess does it. The weighted mean counts
    a move by how turbulent the game was around it — the standard
@@ -214,14 +215,23 @@ function stdev(xs) {
    resignation would read as 100%, and the table below would turn that
    into a grandmaster; eight moves of your own is the least this will put
    a number on. (Lichess shows accuracy for any length; it does not then
-   tell you what rating you played at.) */
-var ACCURACY_MIN_MOVES = 8;
+   tell you what rating you played at.)
+
+   The opening is left out when a move says which ply it was. The table
+   below was fitted with the first six or eight plies handed to both
+   sides from a book, so they were nobody's accuracy; measuring a person
+   with their opening moves in would be measuring with a different
+   ruler, and an opening most people play from memory is a few easy
+   points that would read as a few hundred rating points on the steep
+   parts of the table. */
+var ACCURACY_MIN_MOVES = 8, ACCURACY_FROM_PLY = 8;
 function gameAccuracy(moves) {
   if (!moves || typeof moves.length !== "number") return null;
   var accs = [], wins = [], i, m, a;
   for (i = 0; i < moves.length && i < 2000; i++) {
     m = moves[i];
     if (!m || typeof m !== "object") continue;
+    if (typeof m.ply === "number" && m.ply < ACCURACY_FROM_PLY) continue;
     a = moveAccuracy(m.best, m.played);
     if (a === null) continue;
     accs.push(a); wins.push(winPct(m.best));
@@ -631,7 +641,8 @@ function summary(state) {
 var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
-  REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, PERF_ABOVE: PERF_ABOVE,
+  REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, ACCURACY_FROM_PLY: ACCURACY_FROM_PLY,
+  PERF_ABOVE: PERF_ABOVE,
   levelById: levelById, searchOpts: searchOpts,
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,

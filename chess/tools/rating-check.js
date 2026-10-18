@@ -289,6 +289,16 @@ function sane(s) {
   const few = perfect.slice(0, Rating.ACCURACY_MIN_MOVES - 1);
   ok(`fewer than ${Rating.ACCURACY_MIN_MOVES} moves of your own is too few to judge`,
      Rating.gameAccuracy(few) === null && Rating.gameAccuracy(perfect.slice(0, Rating.ACCURACY_MIN_MOVES)) === 100);
+  /* the opening is nobody's accuracy, as it was nobody's in the
+     calibration: a howler on move two, marked with its ply, is left out,
+     and the same howler later in the game is not */
+  const withPly = (moves, from) => moves.map((m, i) => Object.assign({ ply: from + 2 * i }, m));
+  const early = withPly([{ best: 30, played: -600 }].concat(perfect.slice(0, 12)), 2);
+  const late = withPly(perfect.slice(0, 12).concat([{ best: 30, played: -600 }]), 2);
+  ok("moves played before the calibration's opening ended are left out of accuracy",
+     Rating.gameAccuracy(early) === 100 && Rating.gameAccuracy(late) < 100 &&
+     Rating.gameAccuracy(early.map((m) => ({ best: m.best, played: m.played }))) < 100,
+     `${Rating.gameAccuracy(early)} / ${Rating.gameAccuracy(late)}`);
 
   /* The blend, written out again from lichess's description rather than
      from rating.js: per-move accuracy from the win-chance drop, a window
