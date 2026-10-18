@@ -264,10 +264,11 @@ function checkPulse(sinceMs) {
    meets the board, a smaller rebound, and stillness. Three acts, and
    the middle one is a quadratic because that is what gravity draws.
 
-   `rest` is the angle it comes to rest at, which the renderer knows and
-   this file does not: a king lies on its base rim and its crown, so it
-   rests a little short of flat, and how far short depends on the set.
-   The angle never goes past `rest` — past it is through the board. */
+   `rest` is the angle it comes to rest at, which lieOf() below measures
+   from the man's own shape: he lies on the rim of his base and on his
+   crown, and because a king's crown is narrower than his base that is a
+   little *past* flat, head lower than foot. The angle never goes past
+   `rest` — past it is through the board. */
 var FALL = { teeter: 170, drop: 430, settle: 420, back: 0.055, bounce: 0.11 };
 var FALL_MS = FALL.teeter + FALL.drop + FALL.settle;
 /* the moment the crown meets the wood, for anything that wants to make
@@ -295,6 +296,47 @@ function kingFall(ms, rest) {
     tilt: rest - FALL.bounce * rest * Math.abs(Math.sin(w * Math.PI * 2)) * Math.exp(-3.2 * w),
     landed: true, done: false
   };
+}
+
+/* How a man lies once he has been laid down. He turns on the rim of his
+   base, `pivot` out from his middle, and keeps turning until something
+   further up him meets the board. For a king that is the crown; for a
+   set whose crown is wider than its foot it is short of flat; and it is
+   never the rest angle somebody guessed, because a guess that is short
+   of the truth leaves him leaning on nothing with his head in the air,
+   which is exactly what the first version of this did.
+
+   `pos` is his shape as flat x, y, z triples (y up, standing on y = 0):
+   the carved board hands over its mesh, the drawn board a few points
+   off its outline. Every point is treated as though it were on the side
+   he falls towards, which can only ever stop him a hair early, never
+   let him sink. Whatever lower down would still dip under the board at
+   that angle — the top edge of a deep base, once he is past flat — is
+   returned as `lift`, how far he is raised by the time he lies still. */
+function lieOf(pos, pivot) {
+  var i, y, rho, best = Infinity, top = 0;
+  for (i = 1; i < pos.length; i += 3) if (pos[i] > top) top = pos[i];
+  for (i = 0; i + 2 < pos.length; i += 3) {
+    y = pos[i + 1];
+    /* the base and the lower body are what he pivots over, not what he
+       lands on */
+    if (!(y > top * 0.3)) continue;
+    rho = Math.sqrt(pos[i] * pos[i] + pos[i + 2] * pos[i + 2]);
+    best = Math.min(best, Math.atan2(pivot - rho, y));
+  }
+  var rest = isFinite(best) ? clamp(Math.PI / 2 + best, 1.15, 2.1) : 1.45;
+  var s = Math.sin(rest), c = Math.cos(rest), low = 0;
+  for (i = 0; i + 2 < pos.length; i += 3) {
+    rho = Math.sqrt(pos[i] * pos[i] + pos[i + 2] * pos[i + 2]);
+    low = Math.min(low, (pivot - rho) * s + pos[i + 1] * c);
+  }
+  return { rest: rest, lift: -low };
+}
+/* the lift to apply at a given tilt: none while he is short of flat,
+   all of it once he is lying at rest */
+function lieLift(tilt, lie) {
+  if (!lie || !(lie.lift > 0) || !(lie.rest > Math.PI / 2)) return 0;
+  return lie.lift * clamp((tilt - Math.PI / 2) / (lie.rest - Math.PI / 2), 0, 1);
 }
 
 /* ---------- the men arriving ----------
@@ -403,7 +445,8 @@ var Motion = {
   FALL_MS: FALL_MS, FALL_IMPACT: FALL_IMPACT, DROP: DROP, DROP_MS: DROP_MS,
   plan: plan, at: at, rookAt: rookAt, toppleAt: toppleAt, promoteAt: promoteAt,
   checkPulse: checkPulse, character: character, ease: ease, hump: hump, span: span,
-  kingFall: kingFall, cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
+  kingFall: kingFall, lieOf: lieOf, lieLift: lieLift,
+  cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
   spring: spring, springAtRest: springAtRest, impactAt: impactAt
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Motion;

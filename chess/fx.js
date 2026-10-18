@@ -203,6 +203,8 @@ function styleLayer(cv, fixed) {
   /* the end card is z-index 20; the update banner 40 and the splash 50
      stay above a celebration */
   if (fixed) st.zIndex = "30";
+  /* a layer nobody has drawn on yet holds no memory either */
+  cv.width = cv.height = 1;
   cv.setAttribute("aria-hidden", "true");
   cv.className = fixed ? "fx-page" : "fx-stage";
 }
@@ -223,12 +225,19 @@ function layerFor(name) {
 /* sized to its box at the device's pixel density — capped at 2 over
    the board, 1.5 over the whole page (a tablet's full screen at 2x is
    sixteen megabytes of canvas for paper that does not need to be
-   sharp), and dropped to 1 when the device has shown it is struggling */
+   sharp), and dropped to 1 when the device has shown it is struggling.
+   The page layer is measured by its own box rather than innerWidth:
+   pinch-zoomed, or on a phone whose toolbar is half-collapsed, the
+   window's inner size is the visual viewport, while a fixed canvas and
+   getBoundingClientRect both live in the layout one — and paper drawn
+   at one size and shown at another lands in the wrong place. */
 function sizeLayer(L) {
   if (!L || !L.cv) return false;
   var w, h;
-  if (L.fixed) { w = root.innerWidth || 0; h = root.innerHeight || 0; }
-  else { w = L.host ? L.host.clientWidth : 0; h = L.host ? L.host.clientHeight : 0; }
+  if (L.fixed) {
+    w = L.cv.clientWidth || root.innerWidth || 0;
+    h = L.cv.clientHeight || root.innerHeight || 0;
+  } else { w = L.host ? L.host.clientWidth : 0; h = L.host ? L.host.clientHeight : 0; }
   var dpr = Math.min(quality < 0.6 ? 1 : L.fixed ? 1.5 : 2, root.devicePixelRatio || 1);
   if (w !== L.w || h !== L.h || dpr !== L.dpr) {
     L.w = w; L.h = h; L.dpr = dpr;
@@ -320,7 +329,10 @@ function make(L, kind, an) {
 /* ---------- where things are ----------
    An effect that belongs to a square is anchored to it: the projector
    is asked once a frame where the square is now, and the whole effect
-   is moved by however far it has gone since it began. */
+   is moved by however far the square has gone since it began, and grown
+   by however much nearer it has come — so when the camera leans in on a
+   mated king, the sparks round him lean in with it rather than shrinking
+   against a board that is getting bigger. */
 function project(sq, lift) {
   if (!projector) return null;
   var p;
@@ -342,7 +354,7 @@ function where(target, lift) {
   /* the middle of the man standing there, as well as the square under
      him: a burst comes out of the king, a ring runs out across the wood */
   var b = project(target, lift == null ? 0.45 : lift) || g;
-  g.an = { sq: target, x0: g.x, y0: g.y, dx: 0, dy: 0, f: -1 };
+  g.an = { sq: target, x0: g.x, y0: g.y, s0: g.s, dx: 0, dy: 0, sc: 1, f: -1 };
   g.up = { x: b.x - g.x, y: b.y - g.y };
   return g;
 }
@@ -715,7 +727,17 @@ function shake(el, amount) {
   if (!el || !el.style || reduced || !HAS_DOM) return false;
   amount = amount == null ? 6 : clamp(+amount || 0, 0, 40);
   for (var i = shaking.length - 1; i >= 0; i--) if (shaking[i].el === el) finishTween(shaking[i].t, true);
-  var base = el.style.transform || "";
+  /* the shake rides on top of whatever transform the element already
+     has — a toast centred with translateX(-50%) in the stylesheet would
+     otherwise jump half its width sideways for the length of it — and
+     what was written inline before is exactly what is put back */
+  var inline = el.style.transform || "", base = inline;
+  if (!base && typeof root.getComputedStyle === "function") {
+    try {
+      var cs = root.getComputedStyle(el).transform;
+      if (cs && cs !== "none") base = cs;
+    } catch (e) { /* no styles to read: shake from where it stands */ }
+  }
   var rec = { el: el, t: null };
   rec.t = tween({
     dur: 460,
@@ -728,7 +750,7 @@ function shake(el, amount) {
         "translate(" + x.toFixed(2) + "px," + y.toFixed(2) + "px) rotate(" + r.toFixed(2) + "deg)";
     },
     done: function () {
-      el.style.transform = base;
+      el.style.transform = inline;
       var j = shaking.indexOf(rec);
       if (j >= 0) shaking.splice(j, 1);
     }
@@ -824,8 +846,13 @@ function frame(t, id) {
   lastT = t;
   frames++; frameNo++;
   adapt(dtms);
-  step(dtms, t);
+  step(dtms);
+  /* Everything that reads the page (the layers' sizes, where the squares
+     are) happens in draw(); everything that writes to it (a number
+     counting, a card shaking) happens after. The other way round, every
+     frame of a count-up would make the browser lay the page out twice. */
   draw();
+  stepTweens();
   if (P.length || tweens.length) raf(function (tt) { frame(tt, id); });
   else stop();
 }
@@ -834,11 +861,15 @@ function stop() {
   loopId++;
   wipe(stageL); wipe(pageL);
 }
+/* An idle layer gives its memory back as well as its frames: shrunk to
+   a single pixel, which clears it too. A phone's browser has one budget
+   for every canvas on the page, and the board's own are already big;
+   the next effect sizes the layer again before it draws. */
 function wipe(L) {
   if (!L.cv || !L.ctx) return;
-  if (L.used) {
-    L.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    L.ctx.clearRect(0, 0, L.cv.width, L.cv.height);
+  if (L.used || L.cv.width > 1 || L.cv.height > 1) {
+    L.cv.width = 1; L.cv.height = 1;
+    L.w = L.h = 0;
     L.used = false;
   }
   showLayer(L, false);
@@ -860,18 +891,20 @@ function adapt(dtms) {
   }
 }
 
-function step(dtms, t) {
+/* rockets that reached their apex this frame, opened once the step is
+   over: a shell spawned mid-step could steal a slot the loop has not
+   reached yet and move another particle into it, which would then be
+   stepped twice */
+var booms = [];
+function step(dtms) {
   var dt = dtms / 1000, i, p;
   for (i = P.length - 1; i >= 0; i--) {
     p = P[i];
     p.age += dtms;
     if (p.age < 0) continue;
     if (p.age >= p.life) {
-      /* a rocket at its apex opens into its shell — retired first, so
-         the shell's sparks can never be handed its slot mid-burst */
-      var boom = p.kind === ROCKET && p.layer ? { L: p.layer, x: p.x, y: p.y, c: p.col2 } : null;
+      if (p.kind === ROCKET && p.layer) booms.push(p.layer, p.x, p.y, p.col2);
       retire(i);
-      if (boom) burst(boom.L, boom.x, boom.y, boom.c);
       continue;
     }
     var kd = p.kind;
@@ -906,15 +939,19 @@ function step(dtms, t) {
       if (kd === SPARK && p.twinkle) p.ph += p.vph * dt;
     }
   }
-  /* tweens on the same clock */
-  for (i = tweens.length - 1; i >= 0; i--) {
+  for (i = 0; i < booms.length; i += 4) burst(booms[i], booms[i + 1], booms[i + 2], booms[i + 3]);
+  booms.length = 0;
+}
+/* tweens on the same clock, after the drawing */
+function stepTweens() {
+  var t = now();
+  for (var i = tweens.length - 1; i >= 0; i--) {
     var tw = tweens[i];
     if (!tw) continue;
-    var u = clamp((now() - tw.t0) / tw.dur, 0, 1);
+    var u = clamp((t - tw.t0) / tw.dur, 0, 1);
     try { if (tw.step) tw.step(u); } catch (e) { /* keep going */ }
     if (u >= 1) finishTween(tw);
   }
-  void t;
 }
 
 /* ---------- drawing ---------- */
@@ -930,7 +967,7 @@ function draw() {
       if (!an || an.f === frameNo) continue;
       an.f = frameNo;
       var p = project(an.sq, 0);
-      if (p) { an.dx = p.x - an.x0; an.dy = p.y - an.y0; }
+      if (p) { an.dx = p.x - an.x0; an.dy = p.y - an.y0; an.sc = clamp(p.s / an.s0, 0.25, 4); }
     }
   }
   drawLayer(stageL);
@@ -949,19 +986,36 @@ function drawLayer(L) {
   showLayer(L, true);
   L.used = true;
   BLEND.cur = ""; blend(ctx, "source-over");
+  placed = MOVED;
   /* matter first, then light over it */
-  for (i = 0; i < P.length; i++) { var p = P[i]; if (p.layer === L && p.age >= 0 && !LIGHT[p.kind]) paint(ctx, p, L); }
+  for (i = 0; i < P.length; i++) {
+    var p = P[i];
+    if (p.layer === L && p.age >= 0 && !LIGHT[p.kind]) { place(ctx, p.an, dpr); paint(ctx, p, L); }
+  }
   blend(ctx, "lighter");
-  for (i = 0; i < P.length; i++) { var q = P[i]; if (q.layer === L && q.age >= 0 && LIGHT[q.kind]) paint(ctx, q, L); }
+  for (i = 0; i < P.length; i++) {
+    var q = P[i];
+    if (q.layer === L && q.age >= 0 && LIGHT[q.kind]) { place(ctx, q.an, dpr); paint(ctx, q, L); }
+  }
   blend(ctx, "source-over");
   ctx.globalAlpha = 1;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+/* An anchored effect is drawn through its anchor's transform — moved
+   with its square and grown with it — so every particle in it keeps
+   its own simple numbers and a ring's line thickens as it comes nearer
+   like everything else. Set only when the anchor changes. */
+var MOVED = {}, placed = MOVED;
+function place(ctx, an, dpr) {
+  if (an === placed) return;
+  placed = an;
+  if (!an) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return; }
+  var k = dpr * an.sc;
+  ctx.setTransform(k, 0, 0, k, dpr * (an.x0 + an.dx - an.x0 * an.sc), dpr * (an.y0 + an.dy - an.y0 * an.sc));
+}
 
 function paint(ctx, p, L) {
-  var u = p.age / p.life, ox = 0, oy = 0, a, sz;
-  if (p.an) { ox = p.an.dx; oy = p.an.dy; }
-  var x = p.x + ox, y = p.y + oy, dpr = L.dpr;
+  var u = p.age / p.life, a, sz, x = p.x, y = p.y;
   switch (p.kind) {
   case GLOW: {
     sz = p.size + (p.size1 - p.size) * easeOutCubic(u);
@@ -1012,10 +1066,12 @@ function paint(ctx, p, L) {
     sz = p.size * Math.pow(Math.sin(Math.PI * u), 0.7);
     if (sz <= 0.3) return;
     ctx.globalAlpha = Math.min(1, 1.6 * Math.sin(Math.PI * u));
-    var c = Math.cos(p.rot), s = Math.sin(p.rot);
-    ctx.setTransform(dpr * c, dpr * s, -dpr * s, dpr * c, dpr * x, dpr * y);
+    ctx.translate(x, y);
+    ctx.rotate(p.rot);
     ctx.drawImage(p.spr, -sz / 2, -sz / 2, sz, sz);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    /* the next particle sets its transform afresh rather than unwinding
+       this one */
+    placed = MOVED;
     return;
   }
   case EMBER: {

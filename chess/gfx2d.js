@@ -183,6 +183,41 @@ function drawKing(ctx) {
 }
 var PAINTERS = [null, drawPawn, drawKnight, drawBishop, drawRook, drawQueen, drawKing];
 
+/* How each drawn man lies when he is laid down — the mated king, mostly.
+   He turns on the rim of his base (0.34 out, where base() ends) until
+   his upper body meets the board, and Motion.lieOf measures when that
+   is from a few points off his outline: x out from his middle, h up
+   from the board, in the painters' unit box. Only the widest and the
+   highest of him matter. The knight's muzzle juts out past his base, so
+   he alone stops short of flat. */
+var PIVOT_2D = 0.34;
+function arcPts(cy, r) {
+  var out = [];
+  for (var i = 0; i < 12; i++) {
+    var a = (i / 12) * Math.PI * 2;
+    out.push([Math.abs(Math.cos(a)) * r, cy + Math.sin(a) * r]);
+  }
+  return out;
+}
+var OUTLINE = [null,
+  arcPts(0.60, 0.155),                                                      /* pawn: the head */
+  [[0.14, 0.86], [0.235, 0.66], [0.235, 0.52], [0.36, 0.56], [0.31, 0.66]], /* knight: ears, mane, muzzle */
+  [[0.155, 0.38], [0.045, 0.72]].concat(arcPts(0.845, 0.055)),              /* bishop: shoulders, mitre, ball */
+  [[0.16, 0.52], [0.24, 0.56], [0.24, 0.74], [0.13, 0.74]],                 /* rook: the battlements */
+  [[0.21, 0.58], [0.26, 0.62], [0.20, 0.80], [0.055, 0.83]],                /* queen: the crown's points */
+  [[0.2085, 0.595], [0.215, 0.62], [0.209, 0.642], [0.197, 0.681],          /* king: the dome… */
+   [0.085, 0.875], [0.028, 0.94]]                                           /* …and the cross */
+];
+var LIE = [];
+function lieOf2D(kind, Move) {
+  if (!LIE[kind] && Move && Move.lieOf) {
+    var pts = OUTLINE[kind] || OUTLINE[6], flat = [];
+    for (var i = 0; i < pts.length; i++) flat.push(pts[i][0], pts[i][1], 0);
+    LIE[kind] = Move.lieOf(flat, PIVOT_2D);
+  }
+  return LIE[kind] || { rest: 1.7, lift: 0 };
+}
+
 function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, extra) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
@@ -267,7 +302,7 @@ function create(canvas) {
        capture, the men arriving at the start of a game, and a slight
        lean in toward a square when something is worth leaning in for */
     toppled: null, impacts: [], cascade: null,
-    view: { z: 1, v: 0, target: 1, px: 0, py: 0, last: 0 }
+    view: { z: 1, v: 0, target: 1, px: 0, py: 0, sq: null, last: 0 }
   };
 
   function onBoard(sq) { return (sq & 0x88) === 0; }
@@ -318,6 +353,7 @@ function create(canvas) {
     R.ox = Math.round((w - R.size) / 2);
     R.oy = Math.round((h - R.size) / 2);
     boardKey = "";                       /* the cached board is now the wrong size */
+    leanAbout();
     R.dirty = true;
   };
 
@@ -451,7 +487,7 @@ function create(canvas) {
     boardKey = "";
     R.dirty = true;
   };
-  R.setOrientation = function (color) { R.orientation = color; R.dirty = true; };
+  R.setOrientation = function (color) { R.orientation = color; leanAbout(); R.dirty = true; };
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
@@ -481,7 +517,9 @@ function create(canvas) {
 
   /* The mated king, laid down. It falls away from whatever mated it —
      on a drawn board that means left or right, so the side the attacker
-     stands on decides — and stays down until the position changes. */
+     stands on decides — and stays down until the position changes.
+     `still: true` lays him down without the fall, for a finished game
+     shown again after the board was reset under it. */
   R.topple = function (sq, opts) {
     opts = opts || {};
     if (sq == null || sq < 0 || !onBoard(sq)) return;
@@ -493,9 +531,10 @@ function create(canvas) {
     /* straight above or below it: toward the nearer edge, off the board
        rather than across it */
     if (!dir) dir = sqXY(sq).x >= R.ox + R.size / 2 ? 1 : -1;
-    /* the drawn king lies on its base rim and its crown — a little
-       short of flat */
-    R.toppled = { sq: sq, dir: dir, t0: performance.now(), rest: 1.32, done: false };
+    /* on the rim of his base and on his crown: a little past flat */
+    var kind = Math.abs(R.board[sq]) || 6;
+    R.toppled = { sq: sq, kind: kind, dir: dir, t0: opts.still ? -Infinity : performance.now(),
+                  rest: lieOf2D(kind, Move).rest };
     R.dirty = true;
   };
   R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
@@ -512,11 +551,21 @@ function create(canvas) {
     }
     /* the pivot only moves while the board is at rest, or the picture
        would jump */
-    if (Math.abs(v.z - 1) < 1e-4) { var p = sqXY(sq); v.px = p.x; v.py = p.y; }
-    v.target = 1 + ((opts && opts.amount) || 0.045);
+    if (Math.abs(v.z - 1) < 1e-4) { v.sq = sq; leanAbout(); }
+    var amount = opts && opts.amount != null ? +opts.amount || 0 : 0.045;
+    v.target = 1 + Math.max(0, Math.min(0.2, amount));
     v.last = 0;
     R.dirty = true;
   };
+  /* the square the lean is about, wherever it is on screen now: a
+     resize or a flip moves the board under it, and a lean about where
+     the square used to be would drift the picture off-centre */
+  function leanAbout() {
+    var v = R.view;
+    if (v.sq == null || !R.cell) return;
+    var p = sqXY(v.sq);
+    v.px = p.x; v.py = p.y;
+  }
 
   /* light under a capture: a radial flash on the square, held longer for
      a bigger capture */
@@ -542,8 +591,10 @@ function create(canvas) {
     opts = opts || {};
     var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
+    /* a move means the game goes on, so a king lying down gets up; the
+       men still arriving keep arriving round it, rather than thirty of
+       them popping into place because an engine was quick off the mark */
     R.toppled = null;
-    R.cascade = null;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
       dur: pl.dur, glow: !!opts.glow, done: done || null
@@ -664,10 +715,12 @@ function create(canvas) {
         continue;
       }
       if (tp && sq2 === tp.sq && !a) {
+        /* the shadow runs out under the length of him: he lies from his
+           base rim, a third of a square out, to his crown well past it */
         var lie = Math.sin(Math.max(0, fall.tilt));
-        groundShadow(q.x + tp.dir * R.cell * 0.36 * lie, q.y, R.cell, 1, 1 + lie * 1.1);
+        groundShadow(q.x + tp.dir * R.cell * 0.68 * lie, q.y, R.cell, 1, 1 + lie * 0.95);
         paintPiece(ctx, piece, q.x, q.y, R.cell, th, 1, 1, tp.dir * fall.tilt, 1,
-                   { pivot: (fall.tilt >= 0 ? tp.dir : -tp.dir) * 0.33, noShadow: true });
+                   { pivot: (fall.tilt >= 0 ? tp.dir : -tp.dir) * PIVOT_2D, noShadow: true });
         continue;
       }
       paintPiece(ctx, piece, q.x, q.y, R.cell, th);

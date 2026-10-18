@@ -21,7 +21,11 @@
        simply arrives, and the board's own moments are instant;
      - topple, focus and impact leave the board drawable (empty GL error
        queue) and idle, and untopple / focus(null) put back exactly the
-       picture that was there before;
+       picture that was there before; the king lies past flat, crown on
+       the wood, on both boards;
+     - an effect anchored to a square moves and grows with the square;
+     - a shake rides on a transform the stylesheet already gave;
+     - the men keep arriving through a move made while they land;
      - a new game's arrival hands back a landing for every man, in order;
      - a storm of confetti, fireworks, captures and a mate together never
        has more than four hundred particles alive.
@@ -238,6 +242,13 @@ let base = "";
       const kingOut = await page.evaluate(() => window.__fx.R.squareToScreen(0x76));
       ok("the push-in really is closer (" + dim + ")", kingIn.s > kingOut.s * 1.02,
          "square " + kingOut.s.toFixed(1) + "px → " + kingIn.s.toFixed(1) + "px");
+      await page.evaluate(() => window.__fx.R.focus(0x76, { amount: 0 }));
+      await settle(page);
+      const kingNone = await page.evaluate(() => window.__fx.R.squareToScreen(0x76));
+      await page.evaluate(() => window.__fx.R.focus(null));
+      await settle(page);
+      ok("a push-in of nothing moves nothing (" + dim + ")", Math.abs(kingNone.s - kingOut.s) < 0.01 &&
+         Math.abs(kingNone.x - kingOut.x) < 0.01, JSON.stringify({ kingNone, kingOut }));
       if (dim === "3d") {
         await page.evaluate(() => window.__fx.R.orbit(70, -25));
         await settle(page);
@@ -274,6 +285,22 @@ let base = "";
       ok("the mated king goes over and the " + dim + " board goes idle", fell && !idleDown && down.hash !== before.hash,
          "settled " + fell + ", still drawing " + idleDown);
       ok("…with an empty GL error queue and a real picture", down.err === 0 && down.spread > 24, JSON.stringify(down));
+      const lies = await page.evaluate(() => { const t = window.__fx.R.toppled; return t ? t.rest : -1; });
+      ok("…lying a little past flat, his crown on the board (" + dim + ")",
+         lies > Math.PI / 2 && lies < 2.1, "rest " + (+lies).toFixed(3) + " rad");
+      /* a finished game shown again — after a 2D/3D switch, say — lays
+         him down without the fall, in exactly the same place */
+      const stillN = await page.evaluate(() => {
+        const R = window.__fx.R;
+        R.untopple();
+        R.topple(0x76, { from: 0x74, still: true });
+        let n = 0;
+        while (R.frame() && n < 50) n++;
+        return n;
+      });
+      const laid = await page.evaluate(BOARD_SIG);
+      ok("…and laid down still, he lies exactly where the fall left him (" + dim + ")",
+         stillN <= 2 && laid.hash === down.hash, "frames " + stillN + ", " + laid.hash + " vs " + down.hash);
       await page.evaluate(() => window.__fx.R.untopple());
       await settle(page);
       const up = await page.evaluate(BOARD_SIG);
@@ -310,6 +337,22 @@ let base = "";
       const arrived = await settle(page, 15000);
       const set = await page.evaluate(BOARD_SIG);
       ok("…and the board rests once they have landed (" + dim + ")", arrived && set.err === 0 && set.spread > 24);
+
+      /* an engine quick off the mark moves while the men are still in the
+         air: the rest of them keep arriving rather than popping in */
+      const quick = await page.evaluate(() => {
+        const F = window.__fx, R = F.R;
+        F.setScene(F.START, true);
+        const after = new Int8Array(R.board); after[0x34] = after[0x14]; after[0x14] = 0;
+        R.animateMove({ piece: 1, from: 0x14, to: 0x34 }, after, {}, null);
+        return { arriving: !!R.cascade, moving: R.isAnimating() };
+      });
+      const quickRest = await settle(page, 15000);
+      const landed = await page.evaluate(() => ({ e4: window.__fx.R.board[0x34], e2: window.__fx.R.board[0x14],
+                                                  arriving: !!window.__fx.R.cascade }));
+      ok("the men keep arriving through a move made while they land (" + dim + ")",
+         quick.arriving && quick.moving && quickRest && landed.e4 === 1 && landed.e2 === 0 && !landed.arriving,
+         JSON.stringify({ quick, landed }));
       await page.evaluate(() => { if (window.__fx.R.setFx) window.__fx.R.setFx(window.__fx.R.autoFx()); });
     }
 
@@ -354,6 +397,65 @@ let base = "";
     });
     ok("a shake moves the element and gives it back as it was",
        /translate/.test(shook.mid) && shook.after === shook.before, JSON.stringify(shook));
+    const centred = await page.evaluate(async () => {
+      /* centred the way the toast and the turn strip are: by the stylesheet */
+      const st = document.createElement("style");
+      st.textContent = "#shakeMe{position:fixed;left:50%;top:40%;width:180px;height:30px;transform:translateX(-50%)}";
+      document.head.appendChild(st);
+      const el = document.createElement("div");
+      el.id = "shakeMe";
+      document.body.appendChild(el);
+      const x0 = el.getBoundingClientRect().left;
+      window.__fx.Fx.shake(el, 6);
+      let worst = 0;
+      while (window.__fx.Fx.busy()) {
+        await new Promise((r) => requestAnimationFrame(r));
+        worst = Math.max(worst, Math.abs(el.getBoundingClientRect().left - x0));
+      }
+      const out = { worst, after: el.getBoundingClientRect().left - x0, inline: el.style.transform };
+      el.remove(); st.remove();
+      return out;
+    });
+    ok("a shake rides on the stylesheet's own transform rather than throwing it away",
+       centred.worst > 0.5 && centred.worst < 9 && Math.abs(centred.after) < 0.01 && centred.inline === "",
+       JSON.stringify(centred));
+
+    /* An effect belongs to its square: handed a projector that moves the
+       square and brings it twice as near, the light moves and grows with
+       it. Measured one frame of the layer's apart, so the rings' own
+       growth is a small part of the difference. */
+    const anchored = await page.evaluate(async () => {
+      const F = window.__fx.Fx;
+      F.clear();
+      let at = { x: 200, y: 240, s: 36, sy: 36 };
+      F.setProjector(() => at);
+      function look() {
+        const cv = document.querySelector("canvas.fx-stage"), k = cv.width / cv.clientWidth;
+        const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+        let n = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1;
+        for (let y = 0; y < cv.height; y += 2) for (let x = 0; x < cv.width; x += 2) {
+          const a = d[(y * cv.width + x) * 4 + 3];
+          if (a > 24) { n += a; sx += a * x; sy += a * y; x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+        }
+        return { x: sx / n / k, y: sy / n / k, w: (x1 - x0) / k };
+      }
+      const frames = async (m) => {
+        const f0 = F.stats().frames;
+        while (F.stats().frames < f0 + m) await new Promise((r) => requestAnimationFrame(r));
+      };
+      F.check(0x44);
+      await frames(4);
+      const a = look();
+      at = { x: 430, y: 300, s: 72, sy: 72 };
+      await frames(1);
+      const b = look();
+      F.clear();
+      F.setProjector(window.__fx.projector);
+      return { a, b };
+    });
+    ok("an effect follows its square: moved with it and grown as it nears",
+       Math.hypot(anchored.a.x - 200, anchored.a.y - 240) < 8 && Math.hypot(anchored.b.x - 430, anchored.b.y - 300) < 10 &&
+       anchored.b.w > anchored.a.w * 1.6, JSON.stringify(anchored));
     const counted = await page.evaluate(async () => {
       const el = document.getElementById("rating"), ticks = [];
       /* what the number read when the first tick was heard: on its way,
@@ -411,10 +513,11 @@ let base = "";
       await new Promise((r) => setTimeout(r, 600));
       window.requestAnimationFrame = orig;
       const s = window.__fx.Fx.stats();
-      const vis = Array.prototype.map.call(document.querySelectorAll("canvas.fx-stage, canvas.fx-page"),
-        (c) => c.style.visibility);
+      const cvs = document.querySelectorAll("canvas.fx-stage, canvas.fx-page");
+      const vis = Array.prototype.map.call(cvs, (c) => c.style.visibility);
+      const px = Array.prototype.reduce.call(cvs, (n, c) => n + c.width * c.height, 0);
       return { asked, frames: s.frames - f0, looping: s.looping, alive: s.alive,
-               stageInk: ink("fx-stage"), pageInk: ink("fx-page"), vis };
+               stageInk: ink("fx-stage"), pageInk: ink("fx-page"), vis, px, layers: cvs.length };
     }, INK);
     ok("when the last effect ends, the loop stops asking for frames",
        wentQuiet && asleep.asked === 0 && asleep.frames === 0 && !asleep.looping && asleep.alive === 0,
@@ -422,6 +525,7 @@ let base = "";
     ok("…and leaves both layers clear and hidden",
        asleep.stageInk === 0 && asleep.pageInk === 0 && asleep.vis.every((v) => v === "hidden"),
        JSON.stringify(asleep));
+    ok("…and gives their memory back: a pixel each", asleep.layers === 2 && asleep.px === 2, JSON.stringify(asleep));
 
     /* ---------- a storm stays inside its budget ---------- */
     const storm = await page.evaluate(async () => {
