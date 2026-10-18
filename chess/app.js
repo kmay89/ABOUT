@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes */
 (function () {
 "use strict";
 
@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park" };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -44,6 +44,7 @@ var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, 
      renderer has never heard of */
   if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
   if (["plain", "brief"].indexOf(prefs.coachVoice) < 0) prefs.coachVoice = "plain";
+  if (typeof Scenes === "undefined" || !Scenes.has(prefs.scene)) prefs.scene = "park";
   if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
   Object.keys(prefs.lastClock).forEach(function (k) {
     if (["none", "3+2", "5+0", "10+5", "15+10", "30+0"].indexOf(String(prefs.lastClock[k])) < 0) delete prefs.lastClock[k];
@@ -266,8 +267,48 @@ var FX_LEVELS = [
 function gfxOpts() {
   return {
     onContextLost: function () { retire3D(); switchDim(false, true); },
-    fx: prefs.fx && prefs.fx !== "auto" ? prefs.fx : undefined
+    fx: prefs.fx && prefs.fx !== "auto" ? prefs.fx : undefined,
+    scene: prefs.scene
   };
+}
+/* ===== where the board is =====
+   A place from scenes.js. The 3D board stands on its table with the
+   place all round it; the flat board lies on the same table, seen from
+   straight above. It is a choice about the room rather than about the
+   board, so it rides in prefs and never in a shared skin code. */
+var tableLooks = {};
+function setScene(id) {
+  if (!Scenes.has(id)) id = Scenes.DEFAULT;
+  prefs.scene = id; savePrefs();
+  if (R3) R3.setScene(id);
+  syncStageBackdrop();
+  needFrame();
+}
+function syncStageBackdrop() {
+  var st = $("stage");
+  if (!st) return;
+  var url = "";
+  /* only the flat board shows it: the 3D one brings its own table, and
+     the strip a drawer leaves under the 3D canvas should stay the room
+     colour rather than show a second table from above */
+  if (prefs.scene !== "studio" && R && R === R2) {
+    if (!(prefs.scene in tableLooks)) {
+      var b = null;
+      try { b = Scenes.build(prefs.scene); } catch (e) { b = null; }
+      tableLooks[prefs.scene] = b && b.table ? tableFromAbove(b.table.color) : "";
+    }
+    url = tableLooks[prefs.scene];
+  }
+  st.style.backgroundImage = url ? 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.35)), url("' + url + '")' : "";
+}
+/* the table top, smaller and as a picture the page can wear */
+function tableFromAbove(src) {
+  try {
+    var cv = document.createElement("canvas");
+    cv.width = cv.height = 512;
+    cv.getContext("2d").drawImage(src, 0, 0, 512, 512);
+    return cv.toDataURL("image/jpeg", 0.82);
+  } catch (e) { return ""; }
 }
 function initRenderers() {
   R2 = Gfx2D.create($("cv2"));
@@ -279,6 +320,7 @@ function initRenderers() {
   if (!R3 && prefs.use3d) prefs.use3d = false;
   useRenderer(prefs.use3d && R3 ? R3 : R2);
   syncDimButton();
+  syncStageBackdrop();
 }
 function useRenderer(r) {
   R = r;
@@ -288,6 +330,7 @@ function useRenderer(r) {
   R.setOrientation(orientation);
   R.resize();
   if (G) { R.setPosition(currentViewBoard()); syncBoard(); fxRelay(); }
+  syncStageBackdrop();
   needFrame();
 }
 /* A canvas whose context has been lost keeps handing the same dead
@@ -3709,6 +3752,19 @@ function swatchOf(s) {
     '<i style="background:' + s.pieces.black + '"></i><i style="background:' + s.pieces.white + '"></i></span>';
 }
 function renderStudio() {
+  /* where the board is: a park, a café, a grand room, a library, or the
+     studio's plain backdrop */
+  var scBox = $("stScenes");
+  scBox.innerHTML = "";
+  Scenes.LIST.forEach(function (sc) {
+    var b = document.createElement("button");
+    b.className = "stPick" + (prefs.scene === sc.id ? " sel" : "");
+    b.textContent = sc.label;
+    b.addEventListener("click", function () { setScene(sc.id); renderStudio(); });
+    scBox.appendChild(b);
+  });
+  $("stSceneNote").textContent = Scenes.get(prefs.scene).note;
+
   /* gallery: the house set, then anything you saved or a friend sent */
   var box = $("stPresets");
   box.innerHTML = "";

@@ -43,7 +43,7 @@
 
   /* ---------- layout ---------- */
   #app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
-  #stage{position:relative; flex:1; min-height:0}
+  #stage{position:relative; flex:1; min-height:0; background-size:cover; background-position:center}
   canvas.board{position:absolute; inset:0; width:100%; height:100%; display:block}
   #wrap{display:flex; flex-direction:row; flex:1; min-height:0}
   #panel{
@@ -1351,6 +1351,10 @@
     <button class="lchip" id="stClose">Done</button>
   </header>
   <div id="studioBody">
+    <div class="stSec">Where you play</div>
+    <div class="stGrid" id="stScenes"></div>
+    <div id="stSceneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
+
     <div class="stSec">Gallery</div>
     <div id="stPresets"></div>
 
@@ -1412,6 +1416,7 @@
 <script src="sound.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>
+<script src="scenes.js"></script>
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>
 <script src="fx.js"></script>

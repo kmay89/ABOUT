@@ -106,6 +106,11 @@ learn.js            the Academy: an 18-lesson course built on retrieval
 skins.js            the look, as data: board colours + pattern, piece
                     colour + material, markings, plus share codes so a
                     skin can travel to a friend
+scenes.js           where the board is: a park, a café, a grand room, a
+                    library (or the plain studio). Each is a table, a
+                    light rig and a panorama painted on a canvas from a
+                    seeded stream, already out of focus — nothing to
+                    download, and the same seed paints the same park
 lines.js            the racing line: pure geometry that turns a chess
                     idea into one tapered curve with a travelling spark —
                     a plan, a threat, a promotion lane — drawn identically
@@ -162,7 +167,10 @@ gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
                     set down at the start of a game, light on a struck
                     square, the mated king laid on his side with his crown
                     on the wood, a camera that springs in toward a square,
-                    and squareToScreen for the effects layer. The camera
+                    and squareToScreen for the effects layer. It stands
+                    the board on the chosen place's table, throws the
+                    board's shadow across it, draws the place behind it
+                    and lets the men reflect it. The camera
                     is fitted to the canvas every frame (steeper, through
                     a longer lens, on a phone held upright); a tap answers
                     for the man in front before the wood; a man can be
@@ -368,8 +376,9 @@ tools/              dev-only, never shipped:
                     in it, turning the shadow pass off changes what the
                     board looks like, all three effects tiers draw, the
                     big moments draw cleanly and put the board back
-                    exactly, and the eight house skins all light up and
-                    all differ
+                    exactly, the eight house skins all light up and all
+                    differ, and every place draws cleanly with something
+                    of its own behind the table
   fx-check.js       the big moments in a real browser: all 64 squares
                     round-trip between squareToScreen and screenToSquare
                     on both boards, both sides, mid-push-in and after an
@@ -807,6 +816,51 @@ frame rate: if the frames come slowly the room steps down a tier for the
 rest of the session, and the Studio says why.
 
 `board-check.js` measures every one of those claims on a real canvas.
+
+## Where you play
+
+A board drawn against a plain colour reads as a diagram hanging in
+space: nothing under it, nothing behind it, light from nowhere in
+particular. So the board is somewhere. Under *Where you play* in the
+Studio there are four places — a weathered **picnic table in a sunny
+park**, a **marble bistro table in a café** with the counter and its
+lamps behind it, **mahogany in a grand room** with a fire lit and a
+chandelier overhead, and **green leather in a library** — and the
+**Studio** backdrop for anyone who liked the board on its own.
+
+Each place is three things, all in `scenes.js`:
+
+- **A table.** The board stands on it, with a soft contact shade
+  hugging its foot and its own shadow lying across the wood or the
+  marble on the side away from the light. The top is painted on a canvas
+  with a height field beside it — the picnic table's planks have gaps,
+  the grand room's mahogany has its stringing inlaid — and the renderer
+  cuts a normal map from that, so the light catches them.
+- **The world around it**, painted once as an equirectangular panorama
+  (every direction, sky to floor) and blurred the way a wide aperture
+  blurs a background, with points of light — sun through leaves, café
+  bulbs, chandelier crystals — dabbed on afterwards as bokeh and pushed
+  past white so the bloom finds them. The renderer looks it up by
+  direction from the camera's own inverse, so orbiting the board walks
+  you round the park. One cheat, on purpose: the camera looks steeply
+  down at a board, which in honest perspective would show nothing but
+  lawn or floor beyond the table, so the backdrop's elevation is lifted
+  until the top of the picture finds the treetops or the lamps.
+- **Its light.** The key light hangs where the sun or the lamp really
+  is in the panorama, in its colour; the fill is the other side of the
+  room; the ambient is the panorama's own average above the horizon. In
+  the park the sun comes through leaves and in the café through the
+  window bars — a cookie texture the key light is thrown through — so
+  dappled light falls across the table and the men alike. A polished
+  piece reflects the place itself (its upper half the sky or the
+  ceiling, its skirt the table it stands on).
+
+The flat board lies on the same table, seen from straight above.
+
+Nothing is downloaded: every place is painted from a seeded random
+stream the first time it is chosen, in about a fifth of a second, and
+kept. A place is a choice about the room rather than about the board,
+so it rides in your preferences and never in a shared skin code.
 
 ## How the pieces move
 
@@ -1469,7 +1523,7 @@ node chess/tools/rating-check.js   # the score is honest, and every rung plays i
 node chess/tools/brain-check.js    # the coach's thread: in order, cancellable, options intact
 node chess/tools/offline-check.js  # the room survives the train tunnel, and a release
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
-node chess/tools/gfx-check.js      # the room lights up, every tier and every skin
+node chess/tools/gfx-check.js      # the room lights up, every tier, every skin and every place
 node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
