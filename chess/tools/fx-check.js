@@ -288,6 +288,19 @@ let base = "";
       const lies = await page.evaluate(() => { const t = window.__fx.R.toppled; return t ? t.rest : -1; });
       ok("…lying a little past flat, his crown on the board (" + dim + ")",
          lies > Math.PI / 2 && lies < 2.1, "rest " + (+lies).toFixed(3) + " rad");
+      /* a finished game shown again — after a 2D/3D switch, say — lays
+         him down without the fall, in exactly the same place */
+      const stillN = await page.evaluate(() => {
+        const R = window.__fx.R;
+        R.untopple();
+        R.topple(0x76, { from: 0x74, still: true });
+        let n = 0;
+        while (R.frame() && n < 50) n++;
+        return n;
+      });
+      const laid = await page.evaluate(BOARD_SIG);
+      ok("…and laid down still, he lies exactly where the fall left him (" + dim + ")",
+         stillN <= 2 && laid.hash === down.hash, "frames " + stillN + ", " + laid.hash + " vs " + down.hash);
       await page.evaluate(() => window.__fx.R.untopple());
       await settle(page);
       const up = await page.evaluate(BOARD_SIG);
