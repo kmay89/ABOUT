@@ -247,6 +247,62 @@ const SOME = ALL.filter((_, i) => i % 97 === 0);
      "early " + early.toFixed(3) + ", late " + late.toFixed(3));
 })();
 
+/* ---------- how he lies ----------
+   The fall above is only as honest as the angle it falls to. Guess it
+   short and he is left leaning on nothing with his crown in the air;
+   guess it long and his head goes through the wood. So the angle is
+   measured off the man's own shape, and here it is measured against
+   shapes whose answer is known, then turned every way he could fall to
+   prove no part of him ends up under the board. */
+(function () {
+  /* a turned man: a profile of [radius, height] spun round, eight ways */
+  function turned(profile) {
+    const pts = [];
+    for (const [r, y] of profile) for (let a = 0; a < 16; a++) {
+      pts.push(r * Math.cos(a * Math.PI / 8), y, r * Math.sin(a * Math.PI / 8));
+    }
+    return pts;
+  }
+  /* where every point of him is, laid down at `tilt` toward `dir`,
+     turning on the rim of his base `pivot` out, then raised by `lift` */
+  function lowest(pts, pivot, tilt, dir, lift, above) {
+    const s = Math.sin(tilt), c = Math.cos(tilt);
+    let lo = Infinity;
+    for (let i = 0; i < pts.length; i += 3) {
+      if (pts[i + 1] < (above || 0)) continue;
+      const u = pts[i] * Math.cos(dir) + pts[i + 2] * Math.sin(dir);
+      lo = Math.min(lo, (pivot - u) * s + pts[i + 1] * c + lift);
+    }
+    return lo;
+  }
+  /* a king: a deep foot, a waist, a crown narrower than the foot */
+  const king = turned([[0.36, 0], [0.36, 0.08], [0.24, 0.16], [0.14, 0.55], [0.22, 0.86], [0.12, 0.98], [0.03, 1.1]]);
+  const k = Motion.lieOf(king, 0.36);
+  const exact = Math.PI / 2 + Math.atan2(0.36 - 0.22, 0.86);
+  ok("a king whose crown is narrower than his foot lies a little past flat, crown on the wood",
+     Math.abs(k.rest - exact) < 1e-9 && k.rest > Math.PI / 2, k.rest.toFixed(4) + " vs " + exact.toFixed(4));
+  let sunk = null, floats = Infinity;
+  for (let d = 0; d < 32; d++) {
+    const dir = d * Math.PI / 16, lo = lowest(king, 0.36, k.rest, dir, k.lift);
+    if (lo < -1e-9) sunk = sunk || "dips " + lo.toFixed(4) + " falling at " + dir.toFixed(2);
+    /* his head, not the rim he turned on, which touches by definition */
+    floats = Math.min(floats, lowest(king, 0.36, k.rest, dir, k.lift, 0.5));
+  }
+  ok("…and whichever way he falls, no part of him is under the board", !sunk, sunk);
+  ok("…nor is his head hovering over it", floats < 0.03, "his head is " + floats.toFixed(4) + " above the board");
+  ok("…with the deep foot's top edge lifting him a hair, not a square",
+     k.lift > 0 && k.lift < 0.03, "lift " + k.lift.toFixed(4));
+  /* a man wider at the top than at the foot comes to rest short of flat */
+  const heavy = turned([[0.2, 0], [0.12, 0.4], [0.32, 0.9], [0.2, 1.0]]);
+  const h = Motion.lieOf(heavy, 0.2);
+  ok("a man wider at the head than the foot rests short of flat",
+     h.rest < Math.PI / 2 && lowest(heavy, 0.2, h.rest, 0, h.lift) > -1e-9, h.rest.toFixed(3));
+  ok("the lift is nothing short of flat and all of it at rest",
+     Motion.lieLift(1.2, k) === 0 && Math.abs(Motion.lieLift(k.rest, k) - k.lift) < 1e-12 &&
+     Motion.lieLift(1.0, h) === 0);
+  ok("a shape with nothing above its foot still gets an answer", Motion.lieOf([0.3, 0, 0], 0.3).rest > 1);
+})();
+
 /* ---------- the men arriving ---------- */
 (function () {
   const start = new Int8Array(128);

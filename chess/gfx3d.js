@@ -1041,7 +1041,10 @@ function create(canvas, opts) {
     for (var k = 1; k <= 6; k++) {
       var m = built.pieces[k];
       PIECES[k] = { mesh: uploadRaw(m.pos, m.nrm, m.shade, m.idx),
-                    radius: m.radius, height: m.height };
+                    radius: m.radius, height: m.height,
+                    /* how this set's man lies when he is laid down, measured
+                       once off the mesh rather than guessed per frame */
+                    lie: Move.lieOf(m.pos, m.radius) };
     }
     setId = built.id;
     setFaces = built.faces || "";
@@ -1292,7 +1295,9 @@ function create(canvas, opts) {
   /* The mated king, laid down: it rocks, tips over the rim of its own
      base away from whatever mated it, knocks on the board and lies
      there until the position changes. With no attacker given it falls
-     outward, off the board rather than across it. */
+     outward, off the board rather than across it. `still: true` lays
+     him down without the fall — for showing a finished game again
+     after the board has been reset under it. */
   R.topple = function (sq, opts) {
     opts = opts || {};
     if (sq == null || sq < 0 || !onSq(sq)) return;
@@ -1304,13 +1309,12 @@ function create(canvas, opts) {
       if (Math.hypot(dx, dz) < 0.1) { dx = 1; dz = 0; }
     }
     var l = Math.hypot(dx, dz);
-    var P = PIECES && PIECES[Math.abs(R.board[sq]) || 6];
-    var r = P ? P.radius : 0.36, H = P ? P.height : 1.1;
-    /* it lies on its base rim and its crown, so it comes to rest a
-       little short of flat — and how far short is the set's own
-       proportion, the crown taken as about half the base */
-    var rest = Math.min(1.5, Math.PI / 2 - Math.atan((r * 0.5) / Math.max(0.3, H)));
-    R.toppled = { sq: sq, dx: dx / l, dz: dz / l, r: r, h: H, rest: rest, t0: performance.now() };
+    /* what is lying there is read off the set every frame, so a set
+       changed in the Studio lies down in its own shape */
+    var kind = Math.abs(R.board[sq]) || 6, P = PIECES && PIECES[kind];
+    R.toppled = { sq: sq, kind: kind, dx: dx / l, dz: dz / l,
+                  rest: P && P.lie ? P.lie.rest : 1.7,
+                  t0: opts.still ? -Infinity : performance.now() };
     R.dirty = true;
   };
   R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
@@ -1499,9 +1503,10 @@ function create(canvas, opts) {
         var tilt = pose.lean, sg = tilt >= 0 ? 1 : -1, lie = Math.abs(Math.sin(tilt));
         var out = pose.pivot * (1 - Math.cos(tilt)) * sg;
         q.x += pose.dirx * out; q.z += pose.dirz * out;
-        q.y += pose.pivot * lie;
-        /* and its contact shadow slides out under the length of it */
-        var reach = (pose.reach || P.height) * 0.42 * Math.sin(tilt);
+        q.y += pose.pivot * lie + (pose.lift || 0);
+        /* and its contact shadow slides out under the length of it: from
+           the rim it turns on to the crown, a body's height further on */
+        var reach = (pose.pivot + P.height * 0.42) * lie;
         q.shx = x + pose.dirx * reach; q.shz = z + pose.dirz * reach; q.shr = 1 + lie * 0.9;
       }
     }
@@ -1725,8 +1730,10 @@ function create(canvas, opts) {
       if (cascMs >= casc.end) R.cascade = casc = null; else dropping = true;
     }
     /* the mated king, going over or lying down */
-    var down = a ? null : R.toppled, fall = null, falling = false;
+    var down = a ? null : R.toppled, fall = null, falling = false, downP = null;
     if (down) {
+      downP = PIECES && PIECES[down.kind];
+      if (downP && downP.lie) down.rest = downP.lie.rest;
       fall = Move.kingFall(REDUCED ? Infinity : nowMs - down.t0, down.rest);
       falling = !fall.done;
     }
@@ -1758,11 +1765,13 @@ function create(canvas, opts) {
         var dp = Move.dropAt(cascMs - casc.delay[sq]);
         if (dp.alpha <= 0.004) continue;
         lift = dp.y; alph = dp.alpha; still = { squash: dp.squash };
-      } else if (down && sq === down.sq) {
+      } else if (down && sq === down.sq && downP) {
         /* across the push, in the board plane: positive tips the crown
-           toward (dx, dz), away from whatever mated it */
+           toward (dx, dz), away from whatever mated it — turning on the
+           very rim the rest angle was measured from */
         still = { lean: fall.tilt, ax: down.dz, az: -down.dx,
-                  pivot: down.r * 0.96, dirx: down.dx, dirz: down.dz, reach: down.h };
+                  pivot: downP.radius, dirx: down.dx, dirz: down.dz,
+                  lift: Move.lieLift(fall.tilt, downP.lie) };
       }
       pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1, still);
     }
