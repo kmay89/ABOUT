@@ -140,15 +140,19 @@ function leastAttacker(pos, sq, color) {
    piece and either may stop when going on would lose. Each capture is
    made on the scratch board, so a rook behind a rook joins in by
    itself (an x-ray needs no special case), and pinned pieces sit out. */
-function see(g, from, to, epSq) {
+function see(g, from, to, epSq, promo) {
   var pos = scratch(g), b = pos.board, piece = b[from];
   if (!piece) return 0;
   var gain = [b[to] ? VAL[kindOf(b[to])] : 0], d = 0;
   if (epSq != null && epSq >= 0) { gain[0] = VAL[P]; b[epSq] = 0; }
   var standing = VAL[kindOf(piece)];
-  /* a pawn that arrives on the last rank arrives as a queen */
-  if (kindOf(piece) === P && (rankOf(to) === 0 || rankOf(to) === 7)) {
-    gain[0] += VAL[Q] - VAL[P]; standing = VAL[Q]; piece = Q * colorOf(piece);
+  var last = rankOf(to) === 0 || rankOf(to) === 7;
+  /* a pawn that arrives on the last rank arrives as whatever it chose —
+     a queen unless told otherwise, because a knight that is about to be
+     taken is worth a knight, not a queen */
+  if (kindOf(piece) === P && last) {
+    var pk = promo ? kindOf(promo) : Q;
+    gain[0] += VAL[pk] - VAL[P]; standing = VAL[pk]; piece = pk * colorOf(piece);
   }
   b[to] = piece; b[from] = 0;
   var side = -colorOf(piece);
@@ -156,19 +160,23 @@ function see(g, from, to, epSq) {
     var s = leastAttacker(pos, to, side);
     if (s < 0 || d > 30) break;
     d++;
-    gain[d] = standing - gain[d - 1];
-    standing = VAL[kindOf(b[s])];
-    b[to] = b[s]; b[s] = 0;
+    var mover = b[s];
+    /* a pawn that takes back on the last rank promotes as it does */
+    var crowned = kindOf(mover) === P && last;
+    gain[d] = standing + (crowned ? VAL[Q] - VAL[P] : 0) - gain[d - 1];
+    standing = crowned ? VAL[Q] : VAL[kindOf(mover)];
+    b[to] = crowned ? Q * colorOf(mover) : mover; b[s] = 0;
     side = -side;
   }
   while (d > 0) { gain[d - 1] = -Math.max(-gain[d - 1], gain[d]); d--; }
   return gain[0];
 }
 
-/* the same count for an actual move object (handles en passant) */
+/* the same count for an actual move object (handles en passant and
+   the piece a pawn actually promotes to) */
 function seeMove(g, m) {
   var ep = (m.flags & Chess.F_EP) ? m.to - 16 * colorOf(m.piece) : -1;
-  return see(g, m.from, m.to, ep);
+  return see(g, m.from, m.to, ep, m.promo);
 }
 
 /* The most `by` can win with one capture on `sq`, and with what.
@@ -222,6 +230,64 @@ function looseFor(g, side) {          /* `side`'s pieces that can be won */
   }
   out.sort(function (a, b) { return b.value - a.value; });
   return out;
+}
+
+/* ---------- is a loose piece really lost? ----------
+   The exchange count looks at one square. A piece can be loose on that
+   square and still be bait: taking it lets the owner mate, or win back
+   as much somewhere else — the capturer was the only guard of something,
+   or the capture walks into a fork. "Careful, that hangs your knight"
+   about a knight that is really a trap is a false lesson, so the
+   capture is played out once and the owner's best answer is counted.
+   Asked with the capturing side to move. `credit` is whatever the
+   owner's own last move already took: a queen that took a bishop and is
+   taken by a knight, before the owner's knight takes their queen, has
+   traded, not blundered. Shallow by design: one capture, one answer —
+   anything deeper is the engine's job. */
+function reallyLost(g, info, credit) {
+  var r = answer(g, info);
+  return !!r && r.taken - r.back - (credit || 0) >= GAIN;
+}
+/* The capture played out: what they take, and the owner's best answer —
+   a mate, or the capture that wins the most (by the exchange count),
+   with its SAN so a hint can name it. Null when it can't legally be
+   taken at all. Leaves g as it found it. */
+function answer(g, info) {
+  var owner = colorOf(info.piece), ms = Chess.moves(g), cap = null, i;
+  for (i = 0; i < ms.length; i++) {
+    var c = ms[i];
+    if (c.from === info.from && c.to === info.sq && (!c.promo || kindOf(c.promo) === Q)) { cap = c; break; }
+  }
+  if (!cap) return null;
+  Chess.make(g, cap);
+  var res = { taken: VAL[kindOf(cap.capt)], back: 0, san: null, won: 0, mate: false };
+  var mate = mateInOne(g);
+  if (mate) { res.back = Infinity; res.mate = true; res.san = Chess.toSAN(g, mate); }
+  else {
+    var theirs = looseFor(g, -owner), best = null;
+    for (i = 0; i < theirs.length; i++) if (!best || theirs[i].gain > best.gain) best = theirs[i];
+    if (best) {
+      res.back = best.gain; res.won = best.piece;
+      var ours = Chess.moves(g);
+      for (i = 0; i < ours.length; i++) {
+        if (ours[i].from === best.from && ours[i].to === best.sq && (!ours[i].promo || kindOf(ours[i].promo) === Q)) {
+          res.san = Chess.toSAN(g, ours[i]); break;
+        }
+      }
+    }
+  }
+  Chess.unmake(g);
+  return res;
+}
+/* the same question when the owner is the one to move: hand the turn
+   over on a copy (not while the owner is in check — that position would
+   let them take a king) */
+function reallyLostIfTheyMoved(g, info) {
+  var owner = colorOf(info.piece);
+  if (Chess.inCheck(g, owner)) return true;
+  var t = Chess.create(Chess.fen(g));
+  t.turn = -owner; t.ep = -1;
+  return reallyLost(t, info);
 }
 
 /* ---------- does a threat survive every reply? ----------
@@ -461,6 +527,17 @@ function backRank(g, side) {
     if (p && colorOf(p) === -side && (kindOf(p) === R || kindOf(p) === Q)) { heavy = true; break; }
   }
   if (!heavy) return null;
+  /* "can't get off its back row" has to be true before anything lands:
+     every square in front of the king is its own piece's, or watched.
+     (A rook dropped in the corner beside the king also guards the square
+     above it — that is a corner mate, not a back rank with no air.) */
+  var up = side === 1 ? 16 : -16;
+  for (var df = -1; df <= 1; df++) {
+    var a = ks + up + df;
+    if (!on(a)) continue;
+    if (b[a] && colorOf(b[a]) === side) continue;
+    if (!Chess.attacked(g, a, -side)) return null;
+  }
   var t = null, squares = [];
   for (var f = 0; f < 8; f++) {
     var x = home * 16 + f;
@@ -488,6 +565,22 @@ function mateInOne(g) {
     if (mated) return ms[i];
   }
   return null;
+}
+
+/* Is `mv` (same from, to and promotion) a legal mate for the side to
+   move right now? Used to tell a threat a move created from one that
+   was already standing on the board. */
+function matesNow(g, mv) {
+  var ms = Chess.moves(g);
+  for (var i = 0; i < ms.length; i++) {
+    var c = ms[i];
+    if (c.from !== mv.from || c.to !== mv.to || (c.promo || 0) !== (mv.promo || 0)) continue;
+    Chess.make(g, c);
+    var mated = Chess.inCheck(g) && Chess.moves(g).length === 0;
+    Chess.unmake(g);
+    return mated;
+  }
+  return false;
 }
 
 /* If `side` could move again right now, would it have mate in one?
@@ -599,7 +692,9 @@ function checkOptions(g, side, replies) {
   var move = false, take = false, block = false;
   for (var i = 0; i < replies.length; i++) {
     var r = replies[i];
-    if (checkers.length === 1 && r.to === checkers[0]) take = true;
+    /* en passant takes a checking pawn without landing on its square */
+    var hits = (r.flags & Chess.F_EP) ? r.to - 16 * colorOf(r.piece) : r.to;
+    if (checkers.length === 1 && hits === checkers[0]) take = true;
     else if (r.from === ks) move = true;
     else block = true;
   }
@@ -641,9 +736,18 @@ function afterMove(g, m) {
   Chess.make(g, m);
   var after = { forks: forks(g, side), lines: lines(g, side), ownLoose: looseFor(g, side) };
   /* pins of OUR pieces this move walked into (not forced interpositions
-     while in check — blocking a check often has to pin something) */
+     while in check — blocking a check often has to pin something). Not
+     a pin by a piece we are about to win either — it will have to run,
+     and the pin goes with it — and not a pawn that isn't about to fall,
+     because a pawn that never wanted to move has lost nothing. */
   var walkedInto = inCheck0 ? [] : lines(g, -side).pins.filter(function (p) {
-    return !theirPinned[p.by + ":" + p.front];
+    if (theirPinned[p.by + ":" + p.front]) return false;
+    if (looseInfo(g, p.by)) return false;
+    if (kindOf(p.frontPiece) === P) {
+      var hit = bestCapture(g, p.front, -side);
+      if (!hit || hit.gain < GAIN) return false;
+    }
+    return true;
   });
   var replies = Chess.moves(g);
   var gaveCheck = Chess.inCheck(g, -side);
@@ -652,14 +756,30 @@ function afterMove(g, m) {
   var options = gaveCheck && !mated ? checkOptions(g, side, replies) : [];
   var threat = !gaveCheck && replies.length ? mateThreat(g, side) : null;
   /* a pinned piece that can still slide along its line deserves to be
-     told so — "it can't move" would be untrue */
+     told so — "it can't move" would be untrue. And a pin by a piece
+     they can simply win is no pin to boast about: it is a piece en prise
+     that happens to stand on a line. */
   for (i = 0; i < after.lines.pins.length; i++) {
     var pn0 = after.lines.pins[i];
     pn0.slides = replies.some(function (r) { return r.from === pn0.front; });
+    pn0.lost = !!looseInfo(g, pn0.by);
+  }
+  /* what the move leaves loose — new, worth a piece, not a fair trade of
+     its own, and still a loss once the capture is played out, counting
+     whatever this move took on the way (Kxh2 that wins a rook and leaves
+     a bishop behind has gained, not hung) */
+  var hung = null, took = m.capt ? VAL[kindOf(m.capt)] : 0;
+  for (i = 0; i < after.ownLoose.length && !hung; i++) {
+    var l0 = after.ownLoose[i];
+    if (wasLoose[l0.sq] || l0.value < 300) continue;                 /* pawns: don't nag */
+    if (l0.sq === m.to && moveSee > -GAIN) continue;                /* a trade or a win, not a gift */
+    if (reallyLost(g, l0, took)) hung = l0;
   }
   var landed = g.board[m.to], reach = attacksFrom(g, m.to).length;
   var castledShelter = (m.flags & Chess.F_CASTLE) ? shelter(g, side, m.to) : 0;
   Chess.unmake(g);
+  /* "that threatens mate" is news only if this move made the threat */
+  if (threat && matesNow(g, threat.move)) threat = null;
 
   if (mated) {
     out.push({ concept: "checkmate", weight: 100,
@@ -706,7 +826,7 @@ function afterMove(g, m) {
   /* new pins */
   for (i = 0; i < after.lines.pins.length; i++) {
     var pn = after.lines.pins[i];
-    if (wasLine(st, pn)) continue;
+    if (wasLine(st, pn) || pn.lost) continue;
     var front = name(pn.frontPiece);
     out.push({
       concept: "pin", weight: 84, squares: [pn.by, pn.front, pn.back],
@@ -754,25 +874,31 @@ function afterMove(g, m) {
     break;
   }
 
-  /* the move hung something (only worth saying if it wasn't already hanging) */
-  for (i = 0; i < after.ownLoose.length; i++) {
-    var l = after.ownLoose[i];
-    if (wasLoose[l.sq]) continue;
-    if (l.value < 300) continue;                       /* pawns: don't nag */
-    if (l.sq === m.to && moveSee > -GAIN) continue;    /* a trade or a win, not a gift */
-    var where = "your " + name(l.piece) + " on " + sqName(l.sq);
+  /* the move hung something (only worth saying if it wasn't already
+     hanging, and if taking it really wins — see reallyLost). A capture
+     that loses its piece is told as a capture that doesn't pay: "taken
+     for free" would be untrue of a piece that took something first. */
+  if (hung) {
+    var l = hung, where = "your " + name(l.piece) + " on " + sqName(l.sq);
+    var paidFor = l.sq === m.to && !!m.capt;
     out.push({
       concept: "hanging", weight: 95, squares: [l.from, l.sq],
       text: "Careful — " +
-        (l.why === "undefended"
-          ? "that leaves " + where + " where it can be taken for free."
-          : l.why === "cheaper"
-            ? "their " + name(l.attacker) + " can take " + where + ", and a " + name(l.attacker) +
-              " for a " + name(l.piece) + " is a bad trade even if you take back."
-            : where + " is now attacked more times than it is defended, so they can win it in the exchanges.") +
+        (paidFor
+          ? "that capture costs material: their " + name(l.attacker) + " can take back on " + sqName(l.sq) +
+            (l.why === "undefended"
+              ? ", and you've given a " + name(l.piece) + " for a " + name(m.capt) + "."
+              : l.why === "outnumbered"
+                ? ", and they have more pieces aimed at that square than you do, so the exchange comes out against you."
+                : ", and the exchange comes out against you.")
+          : l.why === "undefended"
+            ? "that leaves " + where + " where it can be taken for free."
+            : l.why === "cheaper"
+              ? "their " + name(l.attacker) + " can take " + where + ", and a " + name(l.attacker) +
+                " for a " + name(l.piece) + " is a bad trade even if you take back."
+              : where + " is now attacked more times than it is defended, so they can win it in the exchanges.") +
         " Before every move, it's worth one glance: <i>what can they take?</i>"
     });
-    break;
   }
 
   /* structural praise, in plain terms */
@@ -834,22 +960,29 @@ function opportunities(g, side) {
   for (i = 0; i < loose.length; i++) {
     var l = loose[i];
     if (l.value < 300) continue;
+    /* "free" has to survive their answer: bait is not material */
+    if (g.turn === side ? !reallyLost(g, l) : !reallyLostIfTheyMoved(g, l)) continue;
     out.push({ concept: "hanging", weight: 80, squares: [l.from, l.sq],
       text: looseSentence(l, "their") +
         " Free material is the cheapest way to win a game; always scan for it before anything clever." });
     break;
   }
+  /* With us to move nobody has to "save" anything: these are simply two
+     targets, either of which the exchange count says can be won. With
+     them to move it is a real fork, already proved against every reply. */
   var fs = forks(g, side);
   for (i = 0; i < fs.length; i++) {
     out.push({ concept: "fork", weight: 70, squares: [fs[i].by],
-      text: "Your " + name(fs[i].piece) + " on " + sqName(fs[i].by) + " already hits two things at once — they can't both be saved." });
+      text: "Your " + name(fs[i].piece) + " on " + sqName(fs[i].by) +
+        (g.turn === side ? " is attacking two things at once, and either one can be won."
+                         : " already hits two things at once — they can't both be saved.") });
     break;
   }
   var br = backRank(g, -side);
   if (br) {
     out.push({ concept: "backRank", weight: 65, squares: [br.squares[0], br.king].concat(br.squares.slice(1)),
       text: "Their king can't get off its back row: a rook or queen landing on " + sqName(br.squares[0]) +
-        " would be checkmate. This is the most common way club games end." });
+        " would be checkmate. Back-rank mates finish a great many club games." });
   }
   out.sort(function (a, b) { return b.weight - a.weight; });
   return out;
@@ -861,6 +994,7 @@ function warnings(g, side) {
   for (i = 0; i < own.length; i++) {
     var l = own[i];
     if (l.value < 300) continue;
+    if (g.turn === side ? !reallyLostIfTheyMoved(g, l) : !reallyLost(g, l)) continue;
     out.push({ concept: "hanging", weight: 90, squares: [l.from, l.sq],
       text: looseSentence(l, "your") });
     break;
@@ -904,14 +1038,24 @@ function explainMove(g, m) {
       recapture: bestCapture(g, m.to, -side),
       hits: attacksFrom(g, m.to),
       reach: attacksFrom(g, m.to).length,
-      passed: kind === P && !m.promo ? passed(g, m.to, side) : false
+      /* a push, not a capture: "pushes the passed pawn" about a pawn that
+         just took something (and is often taken straight back) is untrue */
+      passed: kind === P && !m.promo && !m.capt ? passed(g, m.to, side) : false
     };
     for (i = 0; i < A.lines.pins.length; i++) {
       var p0 = A.lines.pins[i];
       p0.slides = replies.some(function (r) { return r.from === p0.front; });
+      p0.lost = !!looseInfo(g, p0.by);
+    }
+    /* a capture that loses on its own square may still be a trade across
+       two: play their recapture and find our answer */
+    if (gain !== null && gain <= -GAIN && A.recapture) {
+      A.answer = answer(g, { piece: g.board[m.to], from: A.recapture.from, sq: m.to });
     }
   }
   Chess.unmake(g);
+  /* a mate threat this move didn't create isn't what the move does */
+  if (A && A.threat && matesNow(g, A.threat.move)) A.threat = null;
 
   var at = sqName(m.to);
   if (mate) return { text: "It's checkmate — the king is attacked and has nowhere to go.",
@@ -926,14 +1070,24 @@ function explainMove(g, m) {
      exchange, not as a gift: "takes the bishop for free" is true of the
      square and false of the game when they took your knight a moment ago. */
   var last = g.hist && g.hist.length ? g.hist[g.hist.length - 1].m : null;
-  var recap = !!(last && last.capt && last.to === m.to);
+  /* a promotion is the first half of an exchange too: the queen on that
+     square cost them a pawn, not nothing */
+  var recap = !!(last && last.to === m.to && (last.capt || last.promo));
   if (gain !== null) {
     var taken = name(m.capt);
     if (recap) {
-      var net = gain - VAL[kindOf(last.capt)];
-      fact(10, "trade", net >= GAIN ? "Takes back on " + at + " and comes out ahead in the exchange."
-        : net > -GAIN ? "Takes back on " + at + ", so the exchange comes out even."
-        : "Takes back on " + at + " — that gets some of it back, though the exchange still costs material.", [m.to]);
+      var spent = (last.capt ? VAL[kindOf(last.capt)] : 0) + (last.promo ? VAL[kindOf(last.promo)] - VAL[P] : 0);
+      var net = gain - spent;
+      if (last.promo) {
+        var crown = "Takes the new " + name(last.promo) + " on " + at;
+        fact(10, "trade", net >= GAIN ? crown + ", and even counting the pawn it came from, you come out ahead."
+          : net > -GAIN ? crown + " — counting the pawn it came from, material comes out level."
+          : crown + " — though counting the pawn it came from, the exchange still costs material.", [m.to]);
+      } else {
+        fact(10, "trade", net >= GAIN ? "Takes back on " + at + " and comes out ahead in the exchange."
+          : net > -GAIN ? "Takes back on " + at + ", so the exchange comes out even."
+          : "Takes back on " + at + " — that gets some of it back, though the exchange still costs material.", [m.to]);
+      }
     } else if (gain >= GAIN) {
       fact(10, "hanging", A.recapture
         ? "Wins material: it takes the " + taken + " on " + at + ", and even after they take back you come out ahead."
@@ -941,14 +1095,28 @@ function explainMove(g, m) {
     } else if (gain > -GAIN) {
       fact(15, "trade", "An even trade: it takes the " + taken + " on " + at + ", and after they take back, material is level.", [m.to]);
     } else {
-      fact(58, "sacrifice", "A sacrifice: it gives up more than it takes, so the point is in what follows — look at what it opens up.", [m.to]);
+      var ans = A.answer, back = ans && !ans.mate ? VAL[kindOf(m.capt)] - ans.taken + ans.back : null;
+      if (ans && ans.san && (ans.mate || back > -GAIN)) {
+        /* not a sacrifice at all once their recapture is answered: name
+           the answer, because that is the whole idea of the move */
+        fact(10, "trade", "Takes the " + taken + " on " + at + ": if they take back, " + ans.san.replace(/[+#]$/, "") +
+          (ans.mate ? " is checkmate."
+            : " takes their " + name(ans.won) + (back >= GAIN ? ", and you come out ahead." : ", and material comes out level.")),
+          [m.to]);
+      } else {
+        /* said first: whatever the move threatens, the learner should know
+           it costs material before reading why it might be worth it */
+        fact(18, "sacrifice", "A sacrifice: it gives up more than it takes, so the point is in what follows — look at what it opens up.", [m.to]);
+      }
     }
     spoken[m.to] = true;
   }
   if (m.promo) {
+    /* "you take back" isn't promised: after a capture-promotion the count
+       can come out ahead with nothing left to recapture with */
     fact(12, "promotion", "Promotes the pawn to a " + name(m.promo) +
       (!A.recapture ? "."
-        : promoGain >= GAIN ? " — and if they take it, you take back and still come out ahead."
+        : promoGain >= GAIN ? " — and even if they take it, you still come out ahead."
         : ", though they can take the new piece."), [m.to]);
   }
   /* A piece they can take back without losing anything is about to
@@ -971,7 +1139,7 @@ function explainMove(g, m) {
     break;
   }
   if (A.threat && !(exposed && A.threat.move.from === m.to)) {
-    fact(25, "checkmate", "Threatens mate: " + A.threat.san.replace(/#$/, "") + " next move would be checkmate unless they stop it.",
+    fact(25, "mateThreat", "Threatens mate: " + A.threat.san.replace(/#$/, "") + " next move would be checkmate unless they stop it.",
       [A.threat.move.from, A.threat.move.to]);
   }
   for (i = 0; i < A.lines.skewers.length; i++) {
@@ -985,7 +1153,7 @@ function explainMove(g, m) {
   }
   for (i = 0; i < A.lines.pins.length; i++) {
     var pn = A.lines.pins[i];
-    if (wasLine(st, pn) || (exposed && pn.by === m.to)) continue;
+    if (wasLine(st, pn) || pn.lost || (exposed && pn.by === m.to)) continue;
     fact(35, "pin", "Pins the " + name(pn.frontPiece) + " on " + sqName(pn.front) + " to the " + name(pn.backPiece) +
       (pn.absolute
         ? (pn.slides ? ": it can only move along that line." : ": it can't move at all.")
@@ -1004,14 +1172,16 @@ function explainMove(g, m) {
     var direct = A.hits.indexOf(l.sq) >= 0;
     if (direct && exposed) continue;
     if (inCheck0 && !direct) continue;
-    /* if nothing new is aiming at it, what changed is the defence, and
-       "opens up an attack" would be untrue */
+    /* if the same piece was already aiming at it, "opens up an attack"
+       would be untrue — but so might any story about why: the move may
+       have cut a defender off, added a piece behind the attacker, or
+       unpinned it. So it says what is now true and no more. */
     var hadAim = !direct && st.hits[l.from] && st.hits[l.from].targets[l.sq] === l.piece;
     var what = name(l.piece) + " on " + sqName(l.sq);
     fact(40, "hanging", hadAim
-      ? (l.why === "undefended" ? "Leaves the " + what + " with no defender."
-         : l.why === "outnumbered" ? "Leaves the " + what + " attacked more times than it is defended."
-         : "Leaves the " + what + " open to a cheaper attacker.")
+      ? (l.why === "undefended" ? "Now the " + what + " is attacked and nothing defends it."
+         : l.why === "outnumbered" ? "Now the " + what + " is attacked more times than it is defended."
+         : "Now the " + what + " can be won: a cheaper piece attacks it.")
       : direct && l.why === "outnumbered"
         ? "Piles onto the " + what + ": it is now attacked more times than it is defended."
         : (direct ? "Attacks the " : "Opens up an attack on the ") + what +
@@ -1022,7 +1192,8 @@ function explainMove(g, m) {
     break;
   }
   if (check && !facts.some(function (x) { return x.concept === "fork" || x.concept === "skewer"; })) {
-    fact(50, "check", "Gives check, so their reply is forced.", [m.to]);
+    /* not "forced": a check can often be met three different ways */
+    fact(50, "check", "Gives check, so they have to deal with that before anything else.", [m.to]);
   }
   /* saving something of ours — not asked when either side is in check,
      because then one side's captures all look illegal for exactly one
@@ -1047,14 +1218,17 @@ function explainMove(g, m) {
   if (m.flags & Chess.F_CASTLE) {
     fact(70, "castling", "Castles: the king steps away from the centre and the rook comes toward the middle.", [m.from, m.to]);
   }
-  if (A.passed) {
+  /* a passed pawn they can simply take is not marching anywhere */
+  if (A.passed && !exposed) {
     var togo = side === 1 ? 7 - rankOf(m.to) : rankOf(m.to);
     fact(55, "promotion", "Pushes the passed pawn — no pawn of theirs can stop it — to " + togo +
       " step" + (togo === 1 ? "" : "s") + " from queening.", [m.to]);
   }
   if ((kind === N || kind === B) && rankOf(m.from) === homeRank(side) && early &&
       fileOf(m.to) > 0 && fileOf(m.to) < 7) {
-    fact(80, "development", "Develops the " + name(m.piece) + " toward the centre — from " + at +
+    /* "toward the centre" only when it is: c3 is, b7 and g5 are not */
+    var central = fileOf(m.to) >= 2 && fileOf(m.to) <= 5 && rankOf(m.to) >= 2 && rankOf(m.to) <= 5;
+    fact(80, "development", "Develops the " + name(m.piece) + (central ? " toward the centre" : "") + " — from " + at +
       " it " + (kind === N ? "watches " : "reaches ") + A.reach + " squares.", [m.from, m.to]);
   }
   if (early && kind === P && !m.capt && (fileOf(m.to) === 3 || fileOf(m.to) === 4) &&
@@ -1065,7 +1239,10 @@ function explainMove(g, m) {
   if (kind === R && !m.capt && fileOf(m.from) !== fileOf(m.to)) {
     var open = true;
     for (var r = 0; r < 8; r++) if (kindOf(g.board[r * 16 + fileOf(m.to)]) === P) { open = false; break; }
-    if (open) fact(75, "rook", "Puts the rook on the open " + "abcdefgh"[fileOf(m.to)] + "-file, where nothing blocks it.", [m.to]);
+    /* open means no pawns — pieces may still stand on it, so no promise
+       that "nothing blocks it" */
+    if (open) fact(75, "rook", "Puts the rook on the open " + "abcdefgh"[fileOf(m.to)] +
+      "-file — no pawns stand on it, which is where a rook does its best work.", [m.to]);
   }
 
   if (!facts.length) return null;
