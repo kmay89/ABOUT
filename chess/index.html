@@ -61,7 +61,7 @@
   @media (min-width:1024px){
     #stage{flex:0 1 auto; width:100%; min-width:0; max-width:calc(100dvh * 1.45); margin-left:auto}
   }
-  @media (max-width:760px){
+  @media (max-width:760px), (orientation:portrait) and (max-width:1100px){
     #wrap{flex-direction:column}
     #panel{
       width:auto; height:clamp(146px, 23dvh, 208px); border-left:none;
@@ -169,7 +169,7 @@
   .matRow .dot{width:11px; height:11px; border-radius:50%; flex:none; border:1px solid var(--line)}
   .matRow .dot.w{background:#efe6d6} .matRow .dot.b{background:#241d17; border-color:#6b5947}
   .matRow .who{
-    width:4.6em; flex:none; font-size:.72em; letter-spacing:.05em; color:var(--soft);
+    width:auto; max-width:8em; flex:none; font-size:.72em; letter-spacing:.05em; color:var(--soft);
     text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .matRow .taken{
@@ -280,7 +280,7 @@
   .note.t-bad{border-left-color:#b4503f}
   .note.t-note{border-left-color:#5b7fb0}
   .nlEmpty{color:var(--soft); font-size:.82em; line-height:1.45; padding:10px 8px; text-align:center}
-  @media (max-width:760px){
+  @media (max-width:760px), (orientation:portrait) and (max-width:1100px){
     /* a phone's panel is a shelf, not a column: the block keeps its own
        scroll so a five-word opening name can't push the score off it */
     #pInfo{width:min(46%, 250px); flex:none; max-height:none; gap:8px; overflow-y:auto; overscroll-behavior:contain}
@@ -620,7 +620,9 @@
      the empty move list gives its room to the board */
   body.lesson-on canvas.board{height:calc(100% - var(--lesson-h, 176px))}
   body.lesson-on #panel{display:none}
-  @media (max-width:760px){
+  /* a lesson or a story says whose move it is in its own words */
+  body.lesson-on .pbar{display:none}
+  @media (max-width:760px), (orientation:portrait) and (max-width:1100px){
     #studio{
       top:auto; left:0; width:auto; max-height:52vh; border-left:none; border-top:1px solid var(--line);
       border-radius:18px 18px 0 0; transform:translateY(104%);
@@ -648,7 +650,8 @@
   .oline{padding:9px 4px; border-bottom:1px solid var(--line); cursor:pointer; border-radius:8px}
   .oline:hover{background:rgba(255,209,102,.07)}
   .oline b{display:block}
-  .oline small{color:var(--soft)}
+  .oline .seq{display:block; margin:2px 0 3px}
+  .oline small{color:var(--soft); display:block}
   .oline .seq{font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--amber); font-size:.78em}
 
   /* update banner (from the service worker) */
@@ -835,6 +838,35 @@
   .askRow{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px}
   .askRow button{min-height:44px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--card2); color:var(--soft); font-weight:600}
   .askRow button.go{background:var(--amber); border-color:var(--amber); color:#241a08; font-weight:800}
+  /* fingers are wider than cursors: on a touch screen everything you can
+     press is at least the size of a fingertip */
+  @media (pointer:coarse){
+    .chip{min-height:44px} .ghostbtn{min-height:44px; padding:10px 12px}
+    .ptab{min-height:40px} #toast .tact{min-height:40px; padding:8px 16px} .lchip{min-height:40px; padding:8px 14px}
+    #moveList .m{min-height:34px; display:flex; align-items:center}
+  }
+  /* a phone's move list: room for the move and its mark, not the padding */
+  @media (max-width:520px){
+    .mrow{grid-template-columns:1.6em minmax(0,1fr) minmax(0,1fr)}
+    #moveList .m{padding:3px 4px; text-overflow:clip}
+  }
+  /* beside the board, the move list scrolls rather than squeezing the
+     opening card down to its code */
+  @media (min-width:761px){
+    #pInfo{flex:0 0 auto}
+    #panelMain{flex:1 1 0; min-height:120px}
+  }
+  /* a phone on its side: the buttons become a rail at the edge, and the
+     board gets the whole height */
+  @media (orientation:landscape) and (max-height:500px){
+    #app{flex-direction:row}
+    #actions{flex-direction:column; flex-wrap:nowrap; justify-content:flex-start; overflow-y:auto;
+      border-top:none; border-left:1px solid var(--line); padding:6px calc(6px + env(safe-area-inset-right, 0px)) 6px 6px; gap:4px}
+    .abtn{min-width:58px; padding:3px 4px; font-size:.6em; flex:none}
+    .abtn .ic{font-size:1.4em}
+    .abtn .lbl-long{display:none} .abtn .lbl-short{display:inline}
+    #panel{width:220px}
+  }
   /* a finished game you are looking over keeps a way back to its result */
   #resultChip{position:absolute; top:46px; left:50%; transform:translateX(-50%); z-index:4;
     background:var(--amber); color:#241a08; font-weight:800; border-radius:999px; padding:5px 14px;
@@ -860,7 +892,7 @@
   /* On a phone the board fills the width and a toast laid over its lower
      edge hides the very pieces you are about to move. There, a remark
      floats over the move list instead, just above the buttons. */
-  @media (max-width:760px){
+  @media (max-width:760px), (orientation:portrait) and (max-width:1100px){
     #toast{position:fixed; bottom:calc(76px + var(--safe-bot)); max-width:calc(100vw - 24px); font-size:.9em; z-index:12}
     body.lesson-on #toast{bottom:calc(190px + var(--safe-bot))}
     .ptag{max-width:62vw}
@@ -1222,11 +1254,11 @@
         <button class="chip" id="vcBrief">Notation</button>
         <button class="chip" id="vcOff">Off</button>
       </div></div>
-    <div class="settingRow"><span class="lbl"><b>Sound</b><small>Every piece has its own voice: the material decides how it rings, the weight decides how low, and a piece that slides is heard sliding. All synthesized here \u2014 nothing to download.</small></span>
+    <div class="settingRow"><span class="lbl"><b>Sound</b><small>Every piece has its own voice: the material decides how it rings, the weight decides how low, and a piece that slides is heard sliding. All synthesized here — nothing to download.</small></span>
       <button class="chip sel" id="setSound">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Clock skin</b><small>Simple digits, or the classic tournament look.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
-    <div class="settingRow"><span class="lbl"><b>Show coordinates &amp; helpers</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
+    <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
       <button class="chip sel" id="setHelpers">On</button></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>

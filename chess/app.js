@@ -212,9 +212,11 @@ function switchDim(to3d, becauseLost) {
   syncDimButton();
   if (becauseLost) toast("The 3D view stumbled, so the game moved to the 2D board — nothing was lost. You can try 3D again from the button below.");
 }
+/* the button names what it will do, not what is already on screen */
 function syncDimButton() {
-  $("dimLbl").textContent = prefs.use3d ? "3D" : "2D";
-  $("dimIc").textContent = prefs.use3d ? "③" : "②";
+  $("dimLbl").textContent = prefs.use3d ? "2D" : "3D";
+  $("dimIc").textContent = prefs.use3d ? "②" : "③";
+  $("btnDim").title = prefs.use3d ? "Switch to the flat board" : "Switch to the 3D board";
 }
 
 /* ===== game state ===== */
@@ -473,6 +475,8 @@ function syncTurnStrip() {
   if (!G) { el.textContent = "…"; return; }
   syncTagState();
   if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + Math.floor(viewPly / 2 + 1); return; }
+  if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
+  if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
   var who = sideName(G.turn);
@@ -1972,6 +1976,19 @@ function renderOddsReview() {
      a nearer name — checkmate is met through the back rank, and so on */
   var ALIAS = { checkmate: "backRank", check: "mate-support", stalemate: "promotion",
                 centre: "development" };
+  /* not the first idea named, which was nearly always the opening's: the
+     most important one the game turned on, and of those the one you know
+     least */
+  var WEIGHT = ["hanging", "backRank", "checkmate", "fork", "pin", "skewer", "overload", "discovered",
+                "promotion", "stalemate", "castling", "trade", "tempo", "development", "centre", "check"];
+  var prog = null;
+  try { prog = Learn.load(); } catch (e) { prog = null; }
+  seen.sort(function (a, b) {
+    var wa = WEIGHT.indexOf(a), wb = WEIGHT.indexOf(b);
+    wa = wa < 0 ? 99 : wa; wb = wb < 0 ? 99 : wb;
+    if (wa !== wb) return wa - wb;
+    try { return Learn.mastery(prog, a) - Learn.mastery(prog, b); } catch (e) { return 0; }
+  });
   var target = null;
   for (var i = 0; i < seen.length && !target; i++) {
     var want = seen[i];
@@ -2838,8 +2855,10 @@ function buildOpeningList() {
   Book.LINES.filter(function (l) { return l.seq.split(" ").length >= 2; }).forEach(function (l) {
     var d = document.createElement("div");
     d.className = "oline";
+    d.setAttribute("role", "button"); d.tabIndex = 0;
     d.innerHTML = "<b>" + l.name + "</b><span class='seq'>" + l.seq + "</span><small>" + l.idea + "</small>";
     d.addEventListener("click", function () { startTour(l); });
+    d.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startTour(l); } });
     box.appendChild(d);
   });
 }
@@ -2864,27 +2883,68 @@ function startTour(line) {
   R.setPosition(G.board, { flourish: true });
   hideAllOverlays();
   syncAll();
-  tourLine = line; tourStep = 0;
+  tourLine = line; tourStep = 0; tourPaused = false;
   showOpeningCard(line.name, "", line.idea);
-  toast("📖 <b>" + line.name + "</b> — watch; each move explains itself.", null, 3000);
-  tourTimer = setTimeout(tourNext, REDUCED ? 600 : 1700);
+  tourBar();
+  tourTimer = setTimeout(tourNext, REDUCED ? 600 : 2200);
+}
+/* A story used to flash each move's reason in a toast for under three
+   seconds, with no way to stop it, go back, or read it again. Now it
+   sits in a bar of its own — paused, stepped, rewound — stays on screen
+   for as long as it takes to read, and is kept in the notebook. */
+var tourPaused = false;
+function tourSans() { return tourLine ? tourLine.seq.split(" ") : []; }
+function tourBar() {
+  if (mode !== "tour" || !tourLine) return;
+  var n = tourSans().length, i = tourStep;
+  var why = i > 0 && tourLine.why ? tourLine.why[i - 1] : null;
+  var said = i === 0 ? (tourLine.idea || "Watch — each move explains itself.")
+                     : "<b>" + esc(G.played[i - 1].san) + "</b>" + (why ? " — " + why : "");
+  lessonUI('<div class="lkick">📖 ' + esc(tourLine.name) + " · " + (i >= n ? "the end of the story" : "move " + (i + 1) + " of " + n) + "</div>" +
+           '<div class="lsay">' + said + "</div>");
+  var row = [
+    lessonChip("◀", tourBack),
+    i < n ? lessonChip(tourPaused ? "▶ Play" : "⏸ Pause", function () {
+      tourPaused = !tourPaused; clearTimeout(tourTimer);
+      if (!tourPaused) tourTimer = setTimeout(tourNext, 400);
+      tourBar();
+    }, !tourPaused ? false : true) : null,
+    i < n ? lessonChip("Next ▶", function () { clearTimeout(tourTimer); tourNext(); }) : null,
+    i >= n ? lessonChip("▶ Play on from here", tourPlayOn, true) : null,
+    lessonChip(i >= n ? "📖 Another story" : "Leave", function () { stopTour(); showOpenings(); })
+  ];
+  lessonRow(row);
+}
+function tourBack() {
+  if (mode !== "tour" || !tourLine || !tourStep) return;
+  clearTimeout(tourTimer); tourPaused = true;
+  if (viewPly >= 0) exitView();
+  Chess.takeBack(G); tourStep--;
+  forgetNotesAfter(G.played.length - 1);
+  R.setPosition(G.board);
+  syncMoveList(); syncBars(); syncTurnStrip(); syncBoard();
+  tourBar(); needFrame();
+}
+function tourPlayOn() {
+  if (viewPly >= 0) exitView();
+  var side = G.turn;
+  stopTour();
+  $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
+  /* the book's moves were nobody's: a fresh, rated game from here, against
+     the coach that gives you a fair fight */
+  mode = "coach"; humanSide = side; skill = nextLevel();
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  orientation = side; R.setOrientation(side);
+  syncAll(); saveGame();
+  toast("You're " + (side === 1 ? "White" : "Black") + ", picking up where the book ends, against " + SKILLS[skill].label + ".");
 }
 function tourNext() {
-  if (mode !== "tour" || !tourLine) return;
-  var sans = tourLine.seq.split(" ");
-  if (tourStep >= sans.length) {
-    toast("That's the " + tourLine.name + ". Want to play on from here against the coach?",
-      [{ label: "▶ Play on", fn: function () {
-          var side = G.turn;
-          mode = "coach"; humanSide = side; skill = "club";
-          orientation = side; R.setOrientation(side);
-          syncAll(); saveGame();
-          toast("You're " + (side === 1 ? "white" : "black") + ", picking up right where the book ends. The coach is listening.");
-        } },
-       { label: "📖 Another story", fn: function () { showOpenings(); }, ghost: true },
-       { label: "Menu", fn: function () { showMenu(); }, ghost: true }], 30000);
-    return;
-  }
+  if (mode !== "tour" || !tourLine || tourPaused) return;
+  /* browsing the move list pauses the story rather than moving the board
+     underneath the position being looked at */
+  if (viewPly >= 0) { tourTimer = setTimeout(tourNext, 600); return; }
+  var sans = tourSans();
+  if (tourStep >= sans.length) { tourBar(); return; }
   var m = Chess.fromSAN(G, sans[tourStep]);
   if (!m) { toast("(This story lost its page — that's a bug worth reporting.)"); return; }
   var why = tourLine.why && tourLine.why[tourStep];
@@ -2892,12 +2952,20 @@ function tourNext() {
   var san = Chess.play(G, m);
   sndMove(desc, R.animateMove(desc, G.board, { scale: 1.7 }, null), m.capt);
   syncMoveList(); syncBars(); syncTurnStrip();
-  if (why) toast("<b>" + san + "</b> — " + why, null, 2600);
+  if (why) note({ ply: G.played.length - 1, icon: "📖", tone: "note", key: "story", head: tourLine.name,
+                  text: "<b>" + esc(san) + "</b> — " + why, brief: san + " · " + stripTags(why).slice(0, 60) });
   tourStep++;
-  tourTimer = setTimeout(tourNext, REDUCED ? 500 : (why ? 2900 : 1500));
+  tourBar();
+  /* long enough to read what was said, at an unhurried pace */
+  var words = why ? stripTags(why).split(/\s+/).length : 0;
+  if (tourStep >= sans.length) { snd("lesson-done"); return; }
+  tourTimer = setTimeout(tourNext, REDUCED ? 500 : Math.max(2200, Math.min(8000, 1400 + words * 260)));
   needFrame();
 }
-function stopTour() { clearTimeout(tourTimer); tourLine = null; }
+function stopTour() {
+  clearTimeout(tourTimer); tourLine = null; tourPaused = false;
+  if (mode === "tour") { $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow(); }
+}
 
 /* ===== learn (the rules, gently) ===== */
 var LEARN = [
@@ -2921,7 +2989,7 @@ function showLearn(n) {
   $("learnBody").innerHTML = "<h2 style='margin-top:0'>" + LEARN[learnAt][0] + "</h2><p>" + LEARN[learnAt][1] + "</p>" +
     "<p style='text-align:center;color:var(--soft)'>" + (learnAt + 1) + " / " + LEARN.length + "</p>";
   $("learnPrev").style.visibility = learnAt === 0 ? "hidden" : "visible";
-  $("learnNext").textContent = learnAt === LEARN.length - 1 ? "Play! →" : "Next →";
+  $("learnNext").textContent = learnAt === LEARN.length - 1 ? "Play your first game →" : "Next →";
   $("ovLearn").classList.remove("hide");
 }
 
@@ -4017,6 +4085,17 @@ function wireUI() {
   });
   $("newBack").addEventListener("click", showMenu);
 
+  /* a tap on the dimmed room around a card closes it, the way Escape does:
+     the side cards go back to the lobby, and the lobby itself goes back
+     to a game that is waiting */
+  ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) { if (e.target === this) showMenu(); });
+  });
+  $("ovMenu").addEventListener("click", function (e) {
+    if (e.target === this && G && mode && mode !== "tour" && mode !== "lesson" && (!over || G.played.length)) hideAllOverlays();
+  });
+  $("ovEnd").addEventListener("click", function (e) { if (e.target === this) { this.classList.add("hide"); syncTurnStrip(); } });
+
   /* promotion: a way back out */
   $("promoCancel").addEventListener("click", cancelPromo);
   $("ovAsk").addEventListener("click", function (e) { if (e.target === this && askCancel) { var c = askCancel; closeAsk(); c(); } });
@@ -4082,7 +4161,8 @@ function wireUI() {
   /* learn */
   $("learnPrev").addEventListener("click", function () { showLearn(learnAt - 1); });
   $("learnNext").addEventListener("click", function () {
-    if (learnAt === LEARN.length - 1) { hideAllOverlays(); showMenu(); }
+    /* the rules end where they are for: a first game, against the gentlest coach */
+    if (learnAt === LEARN.length - 1) { hideAllOverlays(); quickPlay(Rating.LEVELS[0].id); }
     else showLearn(learnAt + 1);
   });
   $("learnClose").addEventListener("click", showMenu);
