@@ -27,6 +27,24 @@
        slow, remembers it, never steps up by itself, and leaves an
        explicit choice alone.
 
+   And what a second look found:
+
+     - A padded can round each man was the right size for a fingertip
+       and the wrong shape for the eye: tilted low, half of a pawn peeping
+       out beside the king in front of him answered as the king. So every
+       visible pixel of every man, found by painting the men in colours of
+       their own, has to pick that man.
+     - A man let go of was simply put back, or replayed from his own
+       square all the way to where the hand had already carried him. Now
+       a move played from the hand is only the setting down, and a man
+       let go of without a move glides home.
+     - The coordinates were inked against a model of the square, and a
+       wood grain, a marble vein or an inlay line through the corner took
+       them under 4.5:1 (as low as 1.6:1 on Neon Café). They are held to
+       it now against the pixels really under them.
+     - On the drawn board the last frame of a move switched off a
+       capture's flash that was still burning, and it froze half-lit.
+
    Needs `playwright-core`; the browser is already on the machine. If
    either is missing it says so and exits 0, after the checks that need
    no browser.
@@ -280,6 +298,9 @@ let base = "";
     await dragCheck(g.page, "3d");
     await g.ctx.close();
 
+    /* ================= every pixel of every man, by colour ================= */
+    await pickTruth(browser);
+
     /* ================= the carved board on a laptop and a phone on its side ================= */
     for (const [w, h, label] of [[1280, 800, "laptop"], [844, 390, "phone on its side"]]) {
       g = await openGame(browser, w, h, "3d");
@@ -321,7 +342,28 @@ let base = "";
       ok(w + "x" + h + ": the drawn board and its frame stay out of the player bars and inside the glass",
          lay.frameTop >= BAR && lay.frameBottom <= lay.h - BAR && lay.frameLeft >= 0 && lay.frameRight <= lay.w,
          JSON.stringify(lay));
-      if (w === 390) await dragCheck(g.page, "2d");
+      if (w === 390) {
+        await dragCheck(g.page, "2d");
+        await coordInk(g.page);
+        /* the last frame of a move must not switch off a capture's flash
+           (or a lean-in) that is still going: it used to, and the flash
+           froze half-lit until something else asked for a frame */
+        const flash = await g.page.evaluate(async () => {
+          const R = __cr.renderer, before = new Int8Array(R.board), after = new Int8Array(R.board);
+          after[0x34] = after[0x14]; after[0x14] = 0;
+          R.animateMove({ piece: 1, from: 0x14, to: 0x34 }, after, { dur: 40 }, null);
+          R.impact(0x34, 1);
+          R.frame();
+          await new Promise((r) => setTimeout(r, 60));
+          const more = R.frame();
+          const res = { more, landed: !R.anim, live: R.impacts.length > 0 };
+          R.setPosition(before);
+          return res;
+        });
+        ok("2d: a capture's flash keeps going after the move under it has landed",
+           flash.landed && flash.live && flash.more === true, JSON.stringify(flash));
+        await settle(g.page);
+      }
       ok("nothing shouted at the console (2d " + w + "x" + h + ")", g.errs.length === 0, g.errs.slice(0, 3).join(" | "));
       if (SHOTS) await g.page.screenshot({ path: path.join(SHOTS, "board-2d-" + w + "x" + h + ".png"), timeout: 90000 });
       await g.ctx.close();
@@ -396,14 +438,29 @@ async function dragCheck(page, dim) {
     after[0x34] = after[0x14]; after[0x14] = 0;
     let done = false;
     R.animateMove({ piece: 1, from: 0x14, to: 0x34 }, after, {}, () => { done = true; });
+    const fromHand = !!(R.anim && R.anim.drop && R.anim.pl.dropped), dur = R.anim && R.anim.dur;
     const t0 = Date.now();
     while (!done && Date.now() - t0 < 5000) { R.frame(); await new Promise((r) => setTimeout(r, 16)); }
-    const res = { done, e4: R.board[0x34], e2: R.board[0x14] };
+    const res = { done, e4: R.board[0x34], e2: R.board[0x14], fromHand, dur };
     R.setPosition(before);
     return res;
   });
-  ok(dim + ": a move played from the hand still animates and lands", played.done && played.e4 === 1 && played.e2 === 0,
+  ok(dim + ": a move played from the hand is set down from where he was let go, and lands",
+     played.done && played.e4 === 1 && played.e2 === 0 && played.fromHand && played.dur <= 240,
      JSON.stringify(played));
+  /* let go over a square the app will not play: he glides home rather
+     than vanishing from under the finger (and then the board idles, and
+     the picture is exactly the one before — checked above) */
+  const glide = await page.evaluate(() => {
+    const R = __cr.renderer, e5 = R.squareToScreen(0x44);
+    R.setDrag(0x14, e5.x, e5.y); R.frame();
+    R.setDrag(null);
+    return R.frame();
+  });
+  const home = await settle(page);
+  ok(dim + ": a man let go of without a move glides home, then the board idles",
+     (glide === true || (await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches))) && home &&
+     (await page.evaluate(SIG)) === before, JSON.stringify({ glide, home }));
   await settle(page);
 }
 
@@ -483,4 +540,133 @@ async function fxCheck(browser) {
      JSON.stringify(backToAuto));
   ok("nothing shouted at the console (effects tier)", errs.length === 0, errs.slice(0, 3).join(" | "));
   await ctx.close();
+}
+
+/* Every pixel of every man, found by colour, tapped. The board is painted
+   blue and the men red and green, all flat, on the lowest effects tier;
+   each man is taken off in turn and the pixels that change are his. Then
+   every one of those pixels is put through screenToSquare and has to come
+   back as his square — from the home view and tilted as low as the orbit
+   goes, from both sides, with the back ranks full and with a forest of
+   kings and queens in the middle. The padded outlines alone gave half of
+   a pawn peeping out beside a king to the king. */
+async function pickTruth(browser) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push("" + e.message));
+  await page.goto(base + "/chess/", { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  await page.click("#mPass"); await page.waitForTimeout(250);
+  await page.click("#newStart"); await page.waitForTimeout(400);
+  await settle(page);
+  const start = {}, forest = {}, back = [4, 2, 3, 5, 6, 3, 2, 4], tall = [6, 5, 3, 6, 5, 3, 6, 5];
+  for (let f = 0; f < 8; f++) {
+    start[f] = back[f]; start[0x10 + f] = 1; start[0x60 + f] = -1; start[0x70 + f] = -back[f];
+    forest[f] = back[f]; forest[0x30 + f] = tall[f]; forest[0x40 + f] = -tall[7 - f];
+  }
+  forest[0x14] = 1; forest[0x23] = 5; forest[0x24] = 6;
+  const PROBE = async (cfg) => {
+    const R = __cr.renderer;
+    const skin = JSON.parse(JSON.stringify(Skins.PRESETS[0]));
+    Object.assign(skin.board, { light: "#2030ff", dark: "#1020c0", rim: "#1020c0", edge: "#2030ff", pattern: "plain", grain: 0, gloss: 0 });
+    Object.assign(skin.pieces, { white: "#ff2020", black: "#20ff20", material: "ink", shine: 0, rim: 0 });
+    R.setFx("low"); R.setSkin(skin);
+    R.resetView(); R.setOrientation(cfg.side);
+    if (cfg.low) R.orbit(0, -5000);
+    if (cfg.yaw) { R.orbit(cfg.yaw, 0); R.zoom(0.8); }
+    R.setHighlights({});
+    const board = new Int8Array(128);
+    for (const k in cfg.pos) board[+k] = cfg.pos[k];
+    R.setPosition(board);
+    for (let i = 0; i < 300 && R.frame(); i++) await new Promise((r) => setTimeout(r, 0));
+    const cv = document.getElementById("cv3"), gl = cv.getContext("webgl") || cv.getContext("experimental-webgl");
+    const W = cv.width, H = cv.height, dpr = W / cv.clientWidth;
+    const grab = () => { R.dirty = true; R.frame(); const px = new Uint8Array(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; };
+    const A = grab(), owner = new Int16Array(W * H).fill(-1);
+    const isMan = (i) => A[i] > A[i + 2] + 40 || A[i + 1] > A[i + 2] + 40;
+    for (let sq = 0; sq < 128; sq++) {
+      if ((sq & 0x88) || !board[sq]) continue;
+      const b2 = new Int8Array(board); b2[sq] = 0; R.setPosition(b2);
+      const B = grab();
+      for (let p = 0, i = 0; p < W * H; p++, i += 4) {
+        if (isMan(i) && Math.max(Math.abs(A[i] - B[i]), Math.abs(A[i + 1] - B[i + 1]), Math.abs(A[i + 2] - B[i + 2])) > 30) owner[p] = sq;
+      }
+    }
+    R.setPosition(board); R.dirty = true; R.frame();
+    let n = 0, bad = 0, ms = 0; const eg = [];
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      const p = y * W + x;
+      if (owner[p] < 0) continue;
+      const cx = (x + 0.5) / dpr, cy = (H - 1 - y + 0.5) / dpr;
+      const t0 = performance.now(), got = R.screenToSquare(cx, cy);
+      ms += performance.now() - t0; n++;
+      if (got !== owner[p]) { bad++; if (eg.length < 3) eg.push(owner[p].toString(16) + "→" + got.toString(16)); }
+    }
+    return { n, bad, eg, msPerTap: ms / Math.max(1, n) };
+  };
+  let slowest = 0;
+  for (const [pos, label] of [[start, "the starting position"], [forest, "a forest of kings and queens"]]) {
+    for (const side of [1, -1]) {
+      for (const view of ["home", "low"]) {
+        const r = await page.evaluate(PROBE, { pos, side, low: view === "low", yaw: view === "low" && pos === forest ? 60 : 0 });
+        slowest = Math.max(slowest, r.msPerTap);
+        ok("every visible pixel of every man picks that man: " + label + ", " + (side === 1 ? "white" : "black") +
+           " side, " + (view === "low" ? "tilted low" : "home view") + " (" + r.n + " pixels)",
+           r.n > 1000 && r.bad / r.n < 0.003, r.bad + " wrong, e.g. " + r.eg.join(" "));
+      }
+    }
+  }
+  ok("a tap is worked out in a few milliseconds even through the carved set (" + slowest.toFixed(2) + " ms at worst)", slowest < 8);
+  ok("nothing shouted at the console (picking by colour)", errs.length === 0, errs.slice(0, 3).join(" | "));
+  await ctx.close();
+}
+
+/* The coordinates of the drawn board, against the pixels really under
+   them: every house skin, both ways round. The ink each label is drawn in
+   is caught as it is drawn, and held against the board as drawn with the
+   label's keyline plate on it — a grain line, a vein or an inlay stripe
+   crossing a corner counts against it. */
+async function coordInk(page) {
+  const res = await page.evaluate(() => {
+    const R = __cr.renderer, cv = document.getElementById("cv2"), ctx = cv.getContext("2d");
+    const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+    const cr = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    const rgb = (s) => s[0] === "#" ? [1, 3, 5].map((k) => parseInt(s.slice(k, k + 2), 16)) : s.match(/\d+/g).slice(0, 3).map(Number);
+    const P = CanvasRenderingContext2D.prototype, fT = P.fillText, out = [];
+    const keep = { skin: R.skin, o: R.orientation, board: new Int8Array(R.board) };
+    for (const skin of Skins.PRESETS) for (const o of [1, -1]) {
+      R.setSkin(skin); R.setOrientation(o); R.setPosition(new Int8Array(128));
+      const calls = [];
+      /* the plate goes down, the ink is written down instead of drawn */
+      P.fillText = function (t, x, y) {
+        if (this === ctx) calls.push({ t, x, y, ink: this.fillStyle, fs: parseFloat(this.font.match(/(\d+(\.\d+)?)px/)[1]),
+                                       al: this.textAlign, bl: this.textBaseline, w: this.measureText(t).width });
+      };
+      R.dirty = true; R.frame();
+      P.fillText = fT;
+      const dpr = cv.width / cv.clientWidth, px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+      let worst = 99, what = "", fs = 99;
+      for (const c of calls) {
+        fs = Math.min(fs, c.fs);
+        const li = lum(rgb(c.ink)), x0 = c.al === "left" ? c.x : c.x - c.w, y0 = c.bl === "top" ? c.y : c.y - c.fs, rs = [];
+        for (let y = Math.floor(y0 * dpr); y < Math.ceil((y0 + c.fs) * dpr); y++)
+          for (let x = Math.floor(x0 * dpr); x < Math.ceil((x0 + c.w) * dpr); x++) {
+            const i = (y * cv.width + x) * 4; rs.push(cr(li, lum([px[i], px[i + 1], px[i + 2]])));
+          }
+        rs.sort((a, b) => a - b);
+        const p10 = rs[Math.floor(rs.length * 0.1)];
+        if (p10 < worst) { worst = p10; what = c.t; }
+      }
+      out.push({ skin: skin.id, o, n: calls.length, worst: +worst.toFixed(2), what, fs, cell: R.cell });
+    }
+    R.setSkin(keep.skin); R.setOrientation(keep.o); R.setPosition(keep.board); R.dirty = true; R.frame();
+    return out;
+  });
+  const low = res.filter((r) => r.n !== 16 || r.worst < 4.5);
+  ok("2d: every coordinate on every house skin clears 4.5:1 against the pixels really under it (" +
+     res.length + " boards, worst " + Math.min.apply(null, res.map((r) => r.worst)).toFixed(2) + ")",
+     low.length === 0, JSON.stringify(low));
+  ok("2d: …in letters at least max(11, a quarter of a square) px", res.every((r) => r.fs >= Math.max(11, Math.round(r.cell * 0.24))),
+     JSON.stringify(res[0]));
 }
