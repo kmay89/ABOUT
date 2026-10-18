@@ -218,7 +218,7 @@ const PLAY = `([san, src]) => {
     ok("the promotion picker opens", await page.isVisible("#ovPromo"));
     /* run White's clock out while the picker is up */
     await page.evaluate(() => __cr.flagForTest(1));
-    await page.waitForTimeout(1400);
+    await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
     ok("the flag falls with the picker open and the game ends", await page.isVisible("#ovEnd"));
     ok("…and the picker is gone with it", !(await page.isVisible("#ovPromo")));
     await page.click("#endRematch");
