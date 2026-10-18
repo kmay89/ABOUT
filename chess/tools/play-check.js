@@ -105,7 +105,11 @@ const PLAY = `([san, src]) => {
   let visit = 0;
   const fresh = async (hash) => {
     await page.goto(base + "/chess/?v=" + (++visit) + (hash || "#force2d"), { waitUntil: "networkidle" });
-    await page.waitForTimeout(1300);
+    /* the lobby arrives when the room has finished building itself, which
+       in 3D on a busy machine can be well after the network goes quiet */
+    await page.waitForFunction(() => document.getElementById("splash").classList.contains("gone") &&
+      !document.getElementById("ovMenu").classList.contains("hide"), null, { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(300);
   };
   const state = () => page.evaluate(() => ({
     mode: __cr.mode, sans: __cr.game.played.map((r) => r.san),
@@ -361,10 +365,35 @@ const PLAY = `([san, src]) => {
     ok("a save that lies is not offered", !offered);
     ok("…and is retired", await page.evaluate(() => localStorage.getItem("chessroom_save") === null));
 
+    /* ---- a lost 3D context, and trying 3D again ---- */
+    await page.evaluate(() => { const p = JSON.parse(localStorage.getItem("chessroom_prefs") || "{}"); p.use3d = true; localStorage.setItem("chessroom_prefs", JSON.stringify(p)); });
+    await fresh("#");
+    await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
+    await page.waitForTimeout(800);
+    const was3d = await page.evaluate(() => __cr.renderer.kind === "3d");
+    if (was3d) {
+      await page.evaluate(() => { const gl = document.getElementById("cv3").getContext("webgl"); gl.getExtension("WEBGL_lose_context").loseContext(); });
+      await page.waitForTimeout(800);
+      ok("a lost 3D context moves the game to the 2D board", await page.evaluate(() => __cr.renderer.kind !== "3d"));
+      await page.click("#btnDim");
+      await page.waitForTimeout(1500);
+      const back = await page.evaluate(() => {
+        const R = __cr.renderer; if (R.kind !== "3d") return "still " + R.kind;
+        const cv = document.getElementById("cv3"), gl = cv.getContext("webgl");
+        return gl && !gl.isContextLost() ? "3d" : "dead context";
+      });
+      ok("…and trying 3D again really builds a new 3D board", back === "3d", back);
+      await play("e4"); await settle();
+      ok("…which plays on", (await state()).sans.join(" ") === "e4");
+    } else console.log("skip  this browser drew no 3D board, so its loss can't be tested");
+
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     failed++;
     console.log("FAIL  the check itself fell over  → " + (e && e.stack || e));
+    /* what the page looked like when it did, for whoever is reading */
+    const shot = path.join(require("os").tmpdir(), "play-check-fail.png");
+    try { await page.screenshot({ path: shot }); console.log("      the page at that moment: " + shot); } catch (err) {}
   }
   await browser.close();
   server.close();

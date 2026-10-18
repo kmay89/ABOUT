@@ -165,7 +165,7 @@ var FX_LEVELS = [
 ];
 function gfxOpts() {
   return {
-    onContextLost: function () { switchDim(false, true); },
+    onContextLost: function () { retire3D(); switchDim(false, true); },
     fx: prefs.fx && prefs.fx !== "auto" ? prefs.fx : undefined
   };
 }
@@ -189,6 +189,18 @@ function useRenderer(r) {
   R.resize();
   if (G) { R.setPosition(currentViewBoard()); syncBoard(); }
   needFrame();
+}
+/* A canvas whose context has been lost keeps handing the same dead
+   context back, so trying 3D again on it drew a blank board for ever.
+   The renderer is let go and its canvas replaced, and the next try
+   builds both from scratch. */
+function retire3D() {
+  if (!R3) return;
+  try { R3.destroy(); } catch (e) {}
+  R3 = null;
+  var old = $("cv3"), cv = document.createElement("canvas");
+  cv.id = "cv3"; cv.className = old.className;
+  old.parentNode.replaceChild(cv, old);
 }
 function switchDim(to3d, becauseLost) {
   if (to3d && !R3) {
@@ -503,9 +515,12 @@ function syncBoard() {
 }
 function clearSel() { sel = -1; legalMoves = []; }
 
-function canActNow() {
+/* A piece still landing is not a reason to ignore the next player's
+   finger: you may pick a piece up while the last move settles, and the
+   move you make waits for it to land. */
+function canActNow(evenWhileMoving) {
   if (!G || over || viewPly >= 0 || pendingPromo) return false;
-  if (R.isAnimating && R.isAnimating()) return false;
+  if (!evenWhileMoving && R.isAnimating && R.isAnimating()) return false;
   if (mode === "pass") return true;
   if (mode === "coach") return G.turn === humanSide && !thinking;
   if (mode === "lan") return G.turn === lanSide && Net.linked();
@@ -513,10 +528,20 @@ function canActNow() {
   return false; /* tour or menu */
 }
 
+function whenLanded(fn) {
+  if (R.isAnimating && R.isAnimating()) { setTimeout(function () { whenLanded(fn); }, 40); return; }
+  fn();
+}
 function tapSquare(sq) {
   if (!G) return;
   if (viewPly >= 0) { exitView(); return; }
-  if (!canActNow()) { clearSel(); syncBoard(); return; }
+  if (!canActNow(true)) { clearSel(); syncBoard(); return; }
+  if (R.isAnimating && R.isAnimating() && sel >= 0) {
+    /* the second tap of a move made while the last one is landing */
+    var at = gameTicket, n = G.played.length;
+    whenLanded(function () { if (gameTicket === at && G.played.length === n && canActNow()) tapSquare(sq); });
+    return;
+  }
   hintArrow = null;
   var p = G.board[sq];
   if (sel >= 0) {
@@ -3561,20 +3586,32 @@ function wireStudio() {
            ["cBg", "room", "bg"], ["cSelect", "marks", "select"], ["cLegal", "marks", "legal"],
            ["cCapture", "marks", "capture"], ["cLast", "marks", "last"], ["cCheck", "marks", "check"],
            ["cHint", "marks", "hint"]];
+  /* A colour well or a slider fires dozens of times a second while it is
+     being dragged, and every apply used to repaint the board's texture,
+     recut its relief and write the preferences. Now a drag applies once a
+     frame without saving, and letting go saves once. */
+  var dragApply = 0;
+  function applySoon() {
+    if (dragApply) return;
+    dragApply = requestAnimationFrame(function () { dragApply = 0; applySkin(skin, false); });
+  }
+  function applyNow() { if (dragApply) { cancelAnimationFrame(dragApply); dragApply = 0; } applySkin(skin); }
   C.forEach(function (row) {
     $(row[0]).addEventListener("input", function () {
       skin[row[1]][row[2]] = this.value;
       skin.name = skin.name.indexOf("(edited)") >= 0 ? skin.name : skin.name + " (edited)";
-      applySkin(skin);
+      applySoon();
     });
+    $(row[0]).addEventListener("change", applyNow);
   });
   var S = [["sGrain", "board", "grain"], ["sGloss", "board", "gloss"],
            ["sShine", "pieces", "shine"], ["sRim", "pieces", "rim"]];
   S.forEach(function (row) {
     $(row[0]).addEventListener("input", function () {
       skin[row[1]][row[2]] = (+this.value) / 100;
-      applySkin(skin);
+      applySoon();
     });
+    $(row[0]).addEventListener("change", applyNow);
   });
   $("stRandom").addEventListener("click", function () {
     applySkin(Skins.random()); renderStudio();
@@ -4115,7 +4152,15 @@ function wireUI() {
   /* recovery */
   $("recReload").addEventListener("click", function () { location.reload(); });
   $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
-  $("recFresh").addEventListener("click", function () { lsDel(SAVE_KEY); lsDel(PREF_KEY); location.hash = ""; location.reload(); });
+  /* a fresh start forgets everything the room ever wrote — the game, the
+     settings, the Academy, the score — because any one of them, damaged,
+     is enough to strand it, and a recovery card that cannot recover is
+     worse than none */
+  $("recFresh").addEventListener("click", function () {
+    try { Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k)) lsDel(k); }); } catch (e) {}
+    lsDel(SAVE_KEY); lsDel(PREF_KEY);
+    location.hash = ""; location.reload();
+  });
 
   window.addEventListener("resize", function () {
     if (R2) R2.resize();
