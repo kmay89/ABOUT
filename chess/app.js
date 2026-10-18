@@ -1126,14 +1126,14 @@ function explainMove(m, res) {
   if (m.promo) return "the pawn becomes a queen — the biggest promotion in board games.";
   if (m.capt) {
     var vc = Chess.VAL[Math.abs(m.capt)], vm = Chess.VAL[kind];
-    if (vc > vm) bits.push("it wins material — a " + pieceName(m.capt) + " for a " + pieceName(m.piece));
+    if (vc > vm) bits.push("it takes a " + pieceName(m.capt) + " with a " + pieceName(m.piece));
     else if (Chess.attacked(G, m.from, -G.turn) && vc >= vm) bits.push("a fair trade that relieves the pressure");
     else bits.push("it captures the " + pieceName(m.capt));
   }
   if (Chess.attacked(G, m.from, -G.turn) && !Chess.attacked(G, m.to, -G.turn) && !m.capt) {
     bits.push("it slips the " + pieceName(m.piece) + " out of danger");
   }
-  if (givesCheck) bits.push("it gives check, so the reply is forced");
+  if (givesCheck) bits.push("it gives check, so they must deal with that first");
   var toF = m.to & 7, toR = m.to >> 4, fromR = m.from >> 4;
   if (!bits.length) {
     if (kind === Chess.P && (toF === 3 || toF === 4) && (toR === 3 || toR === 4)) bits.push("it claims a share of the centre");
@@ -3346,7 +3346,7 @@ var CONCEPT_LABEL = {
   backRank: "back rank", checkmate: "mate", stalemate: "stalemate",
   discovered: "discovered attack", trade: "trade", development: "development",
   centre: "the centre", castling: "king safety", promotion: "promotion",
-  tempo: "tempo", overload: "overloaded defender", mateThreat: "mate threat"
+  tempo: "tempo", overload: "overloaded defender", mateThreat: "mate threat", sacrifice: "sacrifice"
 };
 function conceptLabel(c) {
   return CONCEPT_LABEL[c] || String(c || "note").replace(/([A-Z])/g, " $1").toLowerCase();
@@ -3489,12 +3489,13 @@ function lessonRow(chips) {
 function showWorkedExample() {
   lessonWorked = true;
   lessonPaused = true;
-  var m = Chess.fromSAN(G, lesson.best);
+  var m = Chess.fromSAN(G, lesson.best), L0 = lesson;
   lessonUI('<div class="lkick">Watch first</div>' +
     '<div class="lask">' + esc(lesson.title) + '</div>' +
     '<div class="lsay">Here it is once, so you know what you\'re looking for. Then it\'s yours.</div>');
   setTimeout(function () {
-    if (mode !== "lesson" || !m) return;
+    /* a different lesson started in the meantime: this one's answer is not its demonstration */
+    if (mode !== "lesson" || lesson !== L0 || !m) return;
     var desc = animDescriptor(m);
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
