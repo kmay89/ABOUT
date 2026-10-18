@@ -23,7 +23,11 @@
         the page never runs one build's HTML with the other's scripts,
         that the waiting version is noticed (the update bar), that a tap
         swaps the whole room over, and that the README or a 404 can't
-        write themselves over the offline shell on the way.
+        write themselves over the offline shell on the way;
+     6. ships the release that brings this worker in, too: a room still
+        run by the old network-first worker is handed the new page with
+        its old scripts one last time (that worker's doing, not ours) —
+        and must come back whole by itself, without waiting for a tap.
 
    Needs `playwright-core`; the browser is already on the machine. If it
    is missing this says so and exits 0, so it is a bonus rather than a
@@ -84,6 +88,47 @@ try {
   ok("the manifest's icons are cached", uncached.length === 0, uncached.join(", "));
 } catch (e) { ok("the manifest parses", false, e.message); }
 
+/* ---------- who waits for the tap ----------
+   A new worker normally waits for the update bar. The one exception is
+   taking over from a worker of the old network-first kind, which has
+   already served the new page with the old scripts by the time this one
+   installs. Run sw.js's own install in a sandbox against a store that
+   holds a given set of caches, and see whether it waits. Pretending its
+   VERSION is far in the future keeps this true whatever today's is. The
+   sandbox has no location, just as tools/room-parity.js runs it: the
+   worker must be able to load and install without one. */
+const vm = require("vm");
+async function takesOverFrom(keys) {
+  let skipped = false, wait = null;
+  const on = {};
+  const box = {
+    self: { addEventListener: (t, fn) => { on[t] = fn; }, skipWaiting: () => { skipped = true; return Promise.resolve(); },
+            clients: { claim: () => Promise.resolve() } },
+    caches: { open: () => Promise.resolve({ addAll: () => Promise.resolve() }), keys: () => Promise.resolve(keys.slice()) },
+    Request: function (u, o) { this.url = u; this.cache = o && o.cache; }, URL, Promise, console
+  };
+  vm.runInNewContext(sw.replace(/const VERSION = '[^']*'/, "const VERSION = '2099.1.1.1'"), box);
+  on.install({ waitUntil: (p) => { wait = p; } });
+  await wait;
+  return skipped;
+}
+const whoWaits = (async () => {
+  const cases = [
+    ["a network-first worker (2026.10.07.4)", ["chessroom-2026.10.07.4"], true],
+    ["the last network-first worker (2026.10.18.1)", ["chessroom-2026.10.18.1"], true],
+    ["the room's very first worker (2026.07.25.3)", ["chessroom-2026.07.25.3"], true],
+    ["a worker that already serves whole releases (2026.10.18.2)", ["chessroom-2026.10.18.2"], false],
+    ["a later whole-release worker (2026.11.2.1)", ["chessroom-2026.11.2.1"], false],
+    ["nothing but other rooms' caches", ["sudokuroom-2026.07.26.1", "domino-v2", "well-v6"], false]
+  ];
+  for (const [who, keys, want] of cases) {
+    let got;
+    try { got = await takesOverFrom(keys); } catch (e) { got = "threw: " + e.message; }
+    ok((want ? "a new worker takes over at once from " : "a new worker waits for the tap after ") + who,
+       got === want, String(got));
+  }
+})();
+
 /* ---------- and now for real ---------- */
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml",
@@ -125,7 +170,67 @@ const scriptTags = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) 
   .filter((u) => !/^(https?:|data:)/.test(u));
 const README = fs.readFileSync(path.join(ROOT, "chess/README.md"));
 const VERSION_RE = /const VERSION = '([^']*)'/;
-function build(tag) {
+
+/* The worker every release up to 2026.10.18.1 shipped — its logic as it
+   was, only its comments gone, and today's SHELL so it caches today's
+   files. Pages come from the network and are written into its cache
+   whatever they turn out to be; everything else is cache-first; it
+   installs from the HTTP cache. It is here so the release that replaces
+   it can be tested against the thing it really replaces. */
+const NETWORK_FIRST = `const VERSION = '2026.10.18.1-L';
+const CACHE = 'chessroom-' + VERSION;
+${(sw.match(/const SHELL = \[[\s\S]*?\];/) || ["const SHELL = [];"])[0]}
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k.startsWith('chessroom-') && k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
+});
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (e.data && e.data.type === 'GET_VERSION' && e.ports && e.ports[0]) e.ports[0].postMessage({ version: VERSION });
+});
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(req);
+        const cache = await caches.open(CACHE);
+        cache.put('./index.html', res.clone()).catch(() => {});
+        return res;
+      } catch (err) {
+        const cache = await caches.open(CACHE);
+        return (await cache.match('./index.html')) || (await cache.match('./')) || Response.error();
+      }
+    })());
+    return;
+  }
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const hit = await cache.match(req);
+    if (hit) return hit;
+    try {
+      const res = await fetch(req);
+      if (res.ok) await cache.put(req, res.clone()).catch(() => {});
+      return res;
+    } catch (err) {
+      return Response.error();
+    }
+  })());
+});
+`;
+
+/* one build of the room, every shell file marked with its letter; the
+   worker is today's sw.js under a lettered VERSION unless one is given */
+function build(tag, worker) {
   const site = new Map();
   for (const f of shellFiles) {
     if (!fs.existsSync(path.join(ROOT, "chess", f))) continue;   /* already reported above */
@@ -139,11 +244,14 @@ function build(tag) {
     }
     site.set("/chess/" + f, body);
   }
-  site.set("/chess/sw.js", Buffer.from(sw.replace(VERSION_RE, (m, v) => "const VERSION = '" + v + "-" + tag + "'")));
+  site.set("/chess/sw.js", Buffer.from(worker || sw.replace(VERSION_RE, (m, v) => "const VERSION = '" + v + "-" + tag + "'")));
   site.set("/chess/README.md", README);
   return site;
 }
 let live = null;
+/* how long the server sits on sw.js — the handover leg uses it to hold
+   the new worker back long enough to look at the page it is replacing */
+let swDelay = 0;
 const releaseServer = http.createServer((req, res) => {
   const p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/api/room") {   /* a mailbox that answers, as the real site's does */
@@ -153,13 +261,17 @@ const releaseServer = http.createServer((req, res) => {
   }
   if (p === "/chess/index.html") { res.writeHead(301, { Location: "/chess/" }); res.end(); return; }
   const key = p.endsWith("/") ? p + "index.html" : p;
-  const body = live.get(key);
+  const site = live;   /* the build that was live when the request arrived */
+  const body = site.get(key);
   if (!body) { res.writeHead(404, { "Content-Type": "text/html" }); res.end("<!doctype html><title>404</title>not here"); return; }
-  res.writeHead(200, {
-    "Content-Type": key.endsWith(".md") ? "text/plain; charset=utf-8" : TYPES[path.extname(key)] || "application/octet-stream",
-    "Cache-Control": /(\/sw\.js|\.html)$/.test(key) ? "no-cache" : "max-age=3600"
-  });
-  res.end(body);
+  const send = () => {
+    res.writeHead(200, {
+      "Content-Type": key.endsWith(".md") ? "text/plain; charset=utf-8" : TYPES[path.extname(key)] || "application/octet-stream",
+      "Cache-Control": /(\/sw\.js|\.html)$/.test(key) ? "no-cache" : "max-age=3600"
+    });
+    res.end(body);
+  };
+  if (key === "/chess/sw.js" && swDelay) setTimeout(send, swDelay); else send();
 });
 
 /* which build is this page, and which build is each script it ran? */
@@ -177,46 +289,54 @@ async function waitForControl(page) {
     return !!navigator.serviceWorker.controller;
   });
 }
+const builds = (page) => page.evaluate(() => {
+  const m = document.querySelector('meta[name="room-build"]');
+  return { html: m ? m.content : null, scripts: self.__builds || {} };
+});
+/* what each cache holds for the given paths: a build letter, "missing",
+   or "not the room" when something else has been filed under its name */
+const cacheMarks = (page, paths, only) => page.evaluate(async ([paths, only]) => {
+  const out = {};
+  for (const k of await caches.keys()) {
+    if (only && !k.endsWith(only)) continue;
+    const c = await caches.open(k);
+    for (const p of paths) {
+      const r = await c.match(p);
+      const t = r ? await r.text() : "";
+      const m = t.match(/name="room-build" content="(\w+)"/) || t.match(/\] = "(\w+)";\s*$/);
+      out[k + " " + p] = !r ? "missing" : m ? m[1] : "not the room";
+    }
+  }
+  return out;
+}, [paths, only || null]);
+const notAll = (marks, tag) => Object.keys(marks).filter((k) => marks[k] !== tag).map((k) => k + " → " + marks[k]);
+/* which worker is in charge, and which caches are left */
+const swState = (page) => page.evaluate(async () => {
+  const c = navigator.serviceWorker.controller;
+  const version = !c ? null : await new Promise((res) => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => res(e.data && e.data.version);
+    c.postMessage({ type: "GET_VERSION" }, [ch.port2]);
+    setTimeout(() => res(null), 3000);
+  });
+  return { version: version, caches: await caches.keys() };
+});
+const freshContext = (browser) => browser.newContext({ viewport: { width: 1000, height: 760 }, serviceWorkers: "allow" });
 
-async function releaseCheck(browser) {
-  if (!VERSION_RE.test(sw)) { ok("release: sw.js declares its VERSION where this can find it", false); return; }
+async function releaseCheck(browser, base) {
   live = build("A");
-  await new Promise((r) => releaseServer.listen(0, r));
-  const base = "http://127.0.0.1:" + releaseServer.address().port;
-  const ctx = await browser.newContext({ viewport: { width: 1000, height: 760 }, serviceWorkers: "allow" });
+  const ctx = await freshContext(browser);
   const page = await ctx.newPage();
   const crashes = [];
   page.on("pageerror", (e) => crashes.push(e.message));
   /* the flat board throughout: this is a test of releases, not of a
      software-rendered 3D board on a shared machine, and a reload keeps
      the #force2d it was opened with */
-  const builds = () => page.evaluate(() => {
-    const m = document.querySelector('meta[name="room-build"]');
-    return { html: m ? m.content : null, scripts: self.__builds || {} };
-  });
-  /* what each cache holds for the given paths: a build letter, "missing",
-     or "not the room" when something else has been filed under its name */
-  const cacheMarks = (paths, only) => page.evaluate(async ([paths, only]) => {
-    const out = {};
-    for (const k of await caches.keys()) {
-      if (only && !k.endsWith(only)) continue;
-      const c = await caches.open(k);
-      for (const p of paths) {
-        const r = await c.match(p);
-        const t = r ? await r.text() : "";
-        const m = t.match(/name="room-build" content="(\w+)"/) || t.match(/\] = "(\w+)";\s*$/);
-        out[k + " " + p] = !r ? "missing" : m ? m[1] : "not the room";
-      }
-    }
-    return out;
-  }, [paths, only || null]);
-  const notAll = (marks, tag) => Object.keys(marks).filter((k) => marks[k] !== tag).map((k) => k + " → " + marks[k]);
-
   try {
     /* 1 · a first visit to A: straight from the network, then the worker settles in */
     await page.goto(base + "/chess/#force2d", { waitUntil: "load" });
     ok("release: version A installs and takes control", await waitForControl(page));
-    let b = await builds();
+    let b = await builds(page);
     if (VERBOSE) console.log("      watching " + scriptTags.length + " scripts: " + scriptTags.join(" "));
     ok("release: version A runs whole — page and every script", b.html === "A" && !mixOf(b), mixOf(b) || "page is " + b.html);
 
@@ -227,7 +347,7 @@ async function releaseCheck(browser) {
        readme && readme.status() === 200 && readmeType === "text/plain", (readme && readme.status()) + " " + readmeType);
     const lost = await page.goto(base + "/chess/no-such-page.html", { waitUntil: "load" });
     ok("release: a missing page is still a 404", lost && lost.status() === 404, lost && String(lost.status()));
-    const shellNow = await cacheMarks(["/chess/", "/chess/index.html"]);
+    const shellNow = await cacheMarks(page, ["/chess/", "/chess/index.html"]);
     const spoiled = notAll(shellNow, "A");
     ok("release: neither of them is written over the cached shell",
        Object.keys(shellNow).length > 0 && spoiled.length === 0, spoiled.join("; ") || "no shell cached at all");
@@ -236,7 +356,7 @@ async function releaseCheck(browser) {
     live = build("B");
     await page.goto(base + "/chess/#force2d", { waitUntil: "load" });
     await page.waitForTimeout(400);
-    b = await builds();
+    b = await builds(page);
     ok("release: after a deploy the room runs one version, never a mix", !!b.html && !mixOf(b), mixOf(b));
     ok("release: …the one it was installed with, until the player says so", b.html === "A", "page is " + b.html);
 
@@ -244,7 +364,7 @@ async function releaseCheck(browser) {
     const bar = await page.waitForSelector("#updateBar", { state: "visible", timeout: 30000 }).then(() => true, () => false);
     ok("release: the waiting version is noticed — the update bar appears", bar);
     const shellPaths = ["/chess/"].concat(shellFiles.filter((f) => f === "index.html" || f.endsWith(".js")).map((f) => "/chess/" + f));
-    const waiting = await cacheMarks(shellPaths, "-B");
+    const waiting = await cacheMarks(page, shellPaths, "-B");
     const stale = notAll(waiting, "B");
     ok("release: the new worker's cache holds B in every file, fresh from the server",
        Object.keys(waiting).length === shellPaths.length && stale.length === 0,
@@ -260,18 +380,9 @@ async function releaseCheck(browser) {
     }
     ok("release: tapping the bar reloads the room", swapped);
     await page.waitForTimeout(400);
-    b = await builds();
+    b = await builds(page);
     ok("release: …into B, wholesale", b.html === "B" && !mixOf(b), mixOf(b) || "page is " + b.html);
-    const after = await page.evaluate(async () => {
-      const c = navigator.serviceWorker.controller;
-      const version = !c ? null : await new Promise((res) => {
-        const ch = new MessageChannel();
-        ch.port1.onmessage = (e) => res(e.data && e.data.version);
-        c.postMessage({ type: "GET_VERSION" }, [ch.port2]);
-        setTimeout(() => res(null), 3000);
-      });
-      return { version: version, caches: await caches.keys() };
-    });
+    const after = await swState(page);
     ok("release: B's worker is in charge and A's cache is gone",
        /-B$/.test(after.version || "") && after.caches.length > 0 && after.caches.every((k) => /-B$/.test(k)), JSON.stringify(after));
 
@@ -290,7 +401,7 @@ async function releaseCheck(browser) {
     await ctx.setOffline(true);
     await page.reload({ waitUntil: "load" });
     await page.waitForTimeout(800);
-    b = await builds();
+    b = await builds(page);
     ok("release: offline afterwards, the room is B, whole", b.html === "B" && !mixOf(b), mixOf(b) || "page is " + b.html);
     ok("release: no page errors from start to finish", crashes.length === 0, crashes.slice(0, 3).join(" | "));
   } catch (e) {
@@ -299,11 +410,70 @@ async function releaseCheck(browser) {
     ok("release: the walk-through reaches the end", false, e.message.split("\n")[0]);
   } finally {
     await ctx.close();
-    releaseServer.close();
+  }
+}
+
+/* ---------- the release that brings this worker in ----------
+
+   Every player arrives at this worker from the old network-first one,
+   and that worker has one last mixed room to hand out: it fetches the
+   new page and answers the old scripts before the new worker exists.
+   Nothing can stop that one load. What matters is what happens next —
+   the new worker must not sit waiting for a tap on a room that may be
+   too confused to draw the bar. It takes charge as soon as its shell is
+   down, and the page's own controllerchange handler reloads it, whole. */
+async function handoverCheck(browser, base) {
+  live = build("L", NETWORK_FIRST);
+  const ctx = await freshContext(browser);
+  const page = await ctx.newPage();
+  const crashes = [];
+  page.on("pageerror", (e) => crashes.push(e.message));
+  try {
+    await page.goto(base + "/chess/#force2d", { waitUntil: "load" });
+    const ctl = await waitForControl(page);
+    let b = await builds(page);
+    ok("handover: a room run by the old network-first worker", ctl && b.html === "L" && !mixOf(b), mixOf(b) || "page is " + b.html);
+
+    /* the deploy; the server sits on sw.js for a moment so the page the
+       old worker hands out can be looked at before anything replaces it */
+    live = build("A");
+    swDelay = 1500;
+    await page.reload({ waitUntil: "load" });
+    const first = await page.evaluate(() => {
+      window.__handedOut = true;
+      const m = document.querySelector('meta[name="room-build"]');
+      return { html: m ? m.content : null, scripts: self.__builds || {} };
+    }).catch(() => null);
+    ok("handover: the old worker hands out one mixed room, as it always did (the case to heal)",
+       !!first && first.html === "A" && !!mixOf(first), first ? mixOf(first) || "page is " + first.html + ", whole" : "page gone");
+
+    /* nobody taps anything */
+    let healed = null, last = null;
+    for (let i = 0; i < 160 && !healed; i++) {
+      await page.waitForTimeout(250);
+      const s = await page.evaluate(() => {
+        const m = document.querySelector('meta[name="room-build"]');
+        return { again: !window.__handedOut, html: m ? m.content : null, scripts: self.__builds || {} };
+      }).catch(() => null);
+      if (s) last = s;
+      if (s && s.again && s.html === "A" && !mixOf(s)) healed = s;
+    }
+    ok("handover: with no tap at all, the room reloads itself into the new release, whole", !!healed,
+       !last ? "no page" : !last.again ? "still the mixed page after 40s" : mixOf(last) || "page is " + last.html);
+    const after = await swState(page);
+    ok("handover: the new worker is in charge and the old cache is gone",
+       /-A$/.test(after.version || "") && after.caches.length > 0 && after.caches.every((k) => /-A$/.test(k)), JSON.stringify(after));
+    ok("handover: no page errors", crashes.length === 0, crashes.slice(0, 3).join(" | "));
+  } catch (e) {
+    ok("handover: the walk-through reaches the end", false, e.message.split("\n")[0]);
+  } finally {
+    swDelay = 0;
+    await ctx.close();
   }
 }
 
 (async () => {
+  await whoWaits;   /* the sandbox cases above, settled before the browser starts */
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
   const browser = await pw.chromium.launch({ executablePath: CHROME,
@@ -378,10 +548,17 @@ async function releaseCheck(browser) {
 
     /* one browser context at a time — the machine is shared */
     await ctx.close();
-    await releaseCheck(browser);
+    if (!VERSION_RE.test(sw)) ok("release: sw.js declares its VERSION where this can find it", false);
+    else {
+      await new Promise((r) => releaseServer.listen(0, r));
+      const releaseBase = "http://127.0.0.1:" + releaseServer.address().port;
+      await releaseCheck(browser, releaseBase);
+      await handoverCheck(browser, releaseBase);
+    }
   } finally {
     await browser.close();
     server.close();
+    releaseServer.close();
   }
   console.log(failed ? `\n${failed} check(s) failed` : "\nthe room survives the train tunnel");
   process.exit(failed ? 1 : 0);

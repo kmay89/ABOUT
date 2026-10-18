@@ -33,9 +33,12 @@
    The trade-off, chosen on purpose: a deploy reaches a player one
    visit late (or one tap late) instead of at once, and a release that
    forgets to bump VERSION reaches nobody at all, because nothing tells
-   the browser there is anything to fetch. In exchange the room is
-   never half one version and half another — and it opens instantly,
-   on a train or not, because the page never waits on the network.
+   the browser there is anything to fetch. (One that edits this file
+   but not VERSION is worse: its worker fills the very cache the old
+   one is still serving from. Bump it, every time.) In exchange the
+   room is never half one version and half another — and it opens
+   instantly, on a train or not, because the page never waits on the
+   network.
 
    A first-ever visit has no worker in charge yet, so the browser
    fetches everything straight from the network as usual; this worker
@@ -69,6 +72,38 @@ function isShellPage(url) {
   return url.origin === r.origin && (url.pathname === r.pathname || url.pathname === r.pathname + 'index.html');
 }
 
+/* The one release this worker can't protect is the one that brings it.
+   Every worker up to and including LAST_NETWORK_FIRST fetched the page
+   from the network and the scripts from its own cache — so the visit
+   that discovers this worker has already been handed the new page with
+   the old scripts, by the old worker, before this one existed. Waiting
+   politely for a tap would leave that half-and-half room running until
+   somebody tapped, and if the old scripts trip over the new page before
+   they get as far as drawing the update bar, nobody can.
+
+   So when the worker being replaced is one of those, this one doesn't
+   wait: it takes charge as soon as its shell is safely down, and the
+   page's own controllerchange handler (app.js wireSW — every old
+   version has it) reloads into this release, whole. A page that never
+   got that far is whole on its next load instead. From then on, every
+   release waits for its tap like the comment at the top says. */
+const LAST_NETWORK_FIRST = '2026.10.18.1';
+/* '2026.10.07.4' → [2026, 10, 7, 4]; anything after a number (a test
+   build's '-B') is ignored */
+const versionParts = (v) => String(v).split('.').map((n) => parseInt(n, 10) || 0);
+function atOrBefore(v, w) {
+  const a = versionParts(v), b = versionParts(w);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  }
+  return true;
+}
+async function replacingNetworkFirst() {
+  const keys = await caches.keys();
+  return keys.some((k) => k.startsWith('chessroom-') && k !== CACHE &&
+                          atOrBefore(k.slice('chessroom-'.length), LAST_NETWORK_FIRST));
+}
+
 self.addEventListener('install', (e) => {
   /* cache: 'reload' sends every request to the server, past the
      browser's HTTP cache. Without it a new worker can fill its brand-new
@@ -78,8 +113,11 @@ self.addEventListener('install', (e) => {
      addAll is all-or-nothing: if one file fails, the install fails, the
      old version carries on serving, and the browser tries again on the
      next visit. A half-filled shell is never put in charge. */
-  e.waitUntil(caches.open(CACHE).then((c) =>
-    c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))));
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })));
+    if (await replacingNetworkFirst()) await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
