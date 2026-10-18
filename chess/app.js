@@ -3009,6 +3009,7 @@ function buildOpeningList() {
    thinking or waiting to speak about the last game may follow it in */
 function quietBoard() {
   brainTicket++; gameTicket++;
+  Brain.cancel();
   clearTimeout(coachTimer); thinking = false; hintPending = false;
   closePromo(); hideToast(); clearLines();
   clearNotes(); showPanelTab("moves");
