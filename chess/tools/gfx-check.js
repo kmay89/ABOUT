@@ -12,7 +12,8 @@
    code: every program links, the GL error queue stays empty, the frame
    has a range of colours in it rather than one, the shadow pass changes
    what the board looks like, every effects tier draws something, and
-   every house skin draws something different from the others.
+   every house skin draws something different from the others, and every
+   place in scenes.js puts something of its own behind the table.
 
    It needs `playwright-core`; the browser is already on the machine. If
    either is missing it says so and exits 0, so it stays a bonus rather
@@ -63,7 +64,7 @@ const server = http.createServer((req, res) => {
    readPixels has to happen in the same task as the draw — the drawing
    buffer belongs to the compositor the moment the task ends — so the
    frame and the measurement are one evaluate(). */
-const PROBE = `(() => {
+const probeAt = (fx, fy) => `(() => {
   const cv = document.getElementById('cv3');
   const gl = cv.getContext('webgl') || cv.getContext('experimental-webgl');
   const r = __cr.renderer;
@@ -76,8 +77,8 @@ const PROBE = `(() => {
      whole thing: enough to tell a picture from a flat fill, cheap
      enough to do once a skin */
   const px = new Uint8Array(W * H * 4);
-  const x0 = Math.max(0, (cv.width >> 1) - (W >> 1));
-  const y0 = Math.max(0, (cv.height >> 1) - (H >> 1));
+  const x0 = Math.max(0, Math.round(cv.width * ${fx}) - (W >> 1));
+  const y0 = Math.max(0, Math.round(cv.height * ${fy}) - (H >> 1));
   gl.readPixels(x0, y0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
   let sum = 0, n = W * H, lo = 255, hi = 0, hash = 0;
   for (let i = 0; i < n; i++) {
@@ -87,6 +88,10 @@ const PROBE = `(() => {
   }
   return { err: gl.getError() || err, mean: sum / n, lo, hi, hash, fx: r.fx(), auto: r.autoFx() };
 })()`;
+const PROBE = probeAt(0.5, 0.5);
+/* the top left corner of the canvas: past the board and, in a place,
+   past the table too — what is there is the place itself */
+const CORNER = probeAt(0.06, 0.94);
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
@@ -222,6 +227,29 @@ const PROBE = `(() => {
     }
     ok("the eight house skins all look different", seen.size === ids.length,
        seen.size + " distinct of " + ids.length);
+
+    /* every place: it draws cleanly, the board is still the board, and
+       what is behind it is that place and no other */
+    const places = await page.evaluate(() => Scenes.LIST.map((s) => s.id));
+    const behind = new Map();
+    for (const id of places) {
+      await page.evaluate((i) => __cr.renderer.setScene(i), id);
+      await page.waitForTimeout(220);
+      const now = await page.evaluate(() => __cr.renderer.scene());
+      const mid = await page.evaluate(PROBE);
+      const corner = await page.evaluate(CORNER);
+      if (VERBOSE) console.log("      ", id, JSON.stringify({ mid, corner }));
+      ok("the " + id + " place is where the board is, and draws cleanly",
+         now === id && mid.err === 0 && corner.err === 0 && mid.hi - mid.lo > 14 && corner.mean > 4,
+         JSON.stringify({ now, mid, corner }));
+      if (behind.has(corner.hash)) ok("…and does not look like " + behind.get(corner.hash), false);
+      behind.set(corner.hash, id);
+    }
+    ok("every place looks like itself behind the board", behind.size === places.length,
+       behind.size + " distinct of " + places.length);
+    await page.evaluate(() => __cr.renderer.setScene("bogus"));
+    ok("a place nobody has heard of falls back to the park, not to a blank",
+       (await page.evaluate(() => __cr.renderer.scene())) === "park");
 
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {

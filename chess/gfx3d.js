@@ -82,13 +82,13 @@ var FILL_DIR = norm3([0.58, 0.30, -0.64]);
 var KEY_COL  = [1.00, 0.945, 0.872];     /* tungsten, just off white */
 var FILL_COL = [0.68, 0.71, 0.80];       /* daylight through a window */
 
-function derive(skin) {
+function derive(skin, place) {
   var b = skin.board, p = skin.pieces, m = skin.marks;
   var surf = (root.Skins && root.Skins.surface) ? root.Skins.surface(skin)
            : { spec: 0.5, power: 34, rim: 0.1, alpha: 1, translucent: false };
   var bgHex = b.light === b.dark ? "#101010" : skin.room.bg;
   var room = vec3(bgHex);
-  return {
+  var th = {
     /* hex, for painting the board texture on a 2D canvas */
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
     pattern: b.pattern, grain: b.grain, gloss: b.gloss,
@@ -130,8 +130,40 @@ function derive(skin) {
     aberration: 0.006,
     /* how deep to cut the relief, and how much of the board to mirror */
     bump: 0.30 + b.grain * 0.55,
-    mirror: Math.max(0, b.gloss - 0.08) * 0.46
+    mirror: Math.max(0, b.gloss - 0.08) * 0.46,
+    keyDir: KEY_DIR, fillDir: FILL_DIR, table: null
   };
+  return place && place.def && place.def.table ? inPlace(th, place, b) : th;
+}
+
+/* The same skin, standing somewhere. The place brings its own light —
+   the sun or the lamp, from where it really hangs, in its own colour —
+   and the shade under everything takes the colour of the place: the
+   ambient sky is the panorama's own average above the horizon, and what
+   bounces up from below is the board mixed with the table it stands
+   on. The board keeps its colours and its finish; only the light it is
+   seen by changes, which is what moving a real board from a café to a
+   park does. */
+function inPlace(th, place, b) {
+  var d = place.def, t = d.table;
+  th.keyDir = d.key.dir;
+  th.fillDir = d.fill.dir;
+  th.keyCol = scale3(lin3(d.key.col), d.key.power);
+  th.fillCol = scale3(lin3(d.fill.col), d.fill.power);
+  th.sky = scale3(place.sky, 1.15);
+  th.ground = mix3(scale3(lin3(vec3(b.light)), 0.06), scale3(lin3(vec3(t.edge)), 0.10), 0.5);
+  th.exposure = d.exposure;
+  /* the table as a reflection sees it: its average colour, under the
+     place's own light */
+  var tl = place.tableAvg || lin3(vec3(t.edge)), lit = [0, 0, 0];
+  for (var c = 0; c < 3; c++) lit[c] = tl[c] * (th.keyCol[c] * Math.max(0, d.key.dir[1]) / Math.PI * 0.85 + th.sky[c]);
+  th.tableLit = lit;
+  th.table = t;
+  th.cookie = d.cookie;
+  th.hot = d.hot;
+  th.bgGain = d.bgGain;
+  th.lift = d.lift;
+  return th;
 }
 
 /* ---------- tiny mat4 (column-major, like GL wants) ---------- */
@@ -330,7 +362,17 @@ var GLSL_COMMON = [
   "  e -= e.yzww * vec4(1.0/255.0, 1.0/255.0, 1.0/255.0, 0.0);",
   "  return e;",
   "}",
-  "float unpackDepth(vec4 c){ return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)); }"
+  "float unpackDepth(vec4 c){ return dot(c, vec4(1.0, 1.0/255.0, 1.0/65025.0, 1.0/16581375.0)); }",
+  /* a direction as a place in a panorama: round the horizon for u,
+     straight up to straight down for v (scenes.js paints them that way) */
+  "vec2 equirect(vec3 d){ return vec2(atan(d.z, d.x) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989); }",
+  /* a panorama is stored as 8-bit paint, so the sun and the bulbs in it
+     are pushed past white on the way in — how far is the place's own
+     say — or they would sit in a reflection like dabs of cream */
+  "vec3 fromPano(vec3 s, float gain, float hot){",
+  "  float m = max(s.r, max(s.g, s.b));",
+  "  return toLinear(s) * gain * (1.0 + hot * smoothstep(0.80, 1.0, m));",
+  "}"
 ].join("\n");
 
 /* the lighting every lit surface shares, so the board and the men are
@@ -345,6 +387,36 @@ var GLSL_LIGHT = [
   "uniform vec3 uEye, uKeyDir, uKeyCol, uFillDir, uFillCol, uSky, uGround;",
   "uniform float uExposure, uDirect;",
   "uniform sampler2D uShadow; uniform mat4 uLightVP; uniform float uShadowOn, uShadowTexel;",
+  /* the place: what it looks like in every direction (sharp, and a
+     blurred copy for rough surfaces), and what the key light comes
+     through on its way in */
+  "uniform sampler2D uPano, uEnvTex, uCookie;",
+  "uniform float uEnvOn, uEnvGain, uHot, uCookieAmt, uCookieScale;",
+  "uniform vec3 uTableLit;",
+  /* Leaves or window bars between the light and the world. The tile is
+     laid on the ground as the light sees it, so a point is pushed back
+     along the light to the board's height before it is looked up: a
+     king's crown and the square he stands on, both in the same fleck of
+     sun, agree about where that fleck is. */
+  "float cookieAt(vec3 world){",
+  "  if (uCookieAmt <= 0.0) return 1.0;",
+  "  vec2 p = world.xz - uKeyDir.xz / max(uKeyDir.y, 0.2) * world.y;",
+  "  return mix(1.0 - uCookieAmt, 1.0, texture2D(uCookie, p * uCookieScale).r);",
+  "}",
+  /* What a surface reflects: in a place, the place itself — sharp for a
+     polish, its blurred copy for anything rougher — and in the studio,
+     the two-colour room it always had. */
+  "vec3 envLook(vec3 d, float rough){",
+  "  if (uEnvOn < 0.5) return envSample(d, rough, uSky, uGround, uKeyCol);",
+  "  vec2 uv = equirect(d);",
+  "  vec3 soft = fromPano(texture2D(uEnvTex, uv).rgb, uEnvGain, uHot * 0.5);",
+  "  vec3 sharp = fromPano(texture2D(uPano, uv).rgb, uEnvGain, uHot);",
+  "  vec3 c = mix(sharp, soft, smoothstep(0.08, 0.55, rough));",
+  /* a man's skirt looks down at the table he stands on, not past it at
+     the lawn: below the horizon the reflection turns to the table's own
+     lit colour */
+  "  return mix(c, uTableLit, smoothstep(-0.02, -0.30, d.y));",
+  "}",
   "float shadowAt(vec3 world, float NoL){",
   "  if (uShadowOn < 0.5) return 1.0;",
   "  vec4 lp = uLightVP * vec4(world, 1.0);",
@@ -388,7 +460,7 @@ var GLSL_LIGHT = [
   "    /* a shadow is never quite black: some of the key light arrives",
   "       anyway, off the table and the walls, and a hard zero is the",
   "       thing that makes a rendered shadow look like a sticker */",
-  "    float sh = mix(0.18, 1.0, shadowAt(world, NoL));",
+  "    float sh = mix(0.18, 1.0, shadowAt(world, NoL)) * cookieAt(world);",
   "    col += (diffCol * (1.0/3.14159265) + spec) * uKeyCol * NoL * sh;",
   "  }",
   /* fill: no shadow, no highlight to speak of, just the other side of
@@ -400,7 +472,7 @@ var GLSL_LIGHT = [
   "  vec3 irr = mix(uGround, uSky, N.y*0.5+0.5);",
   "  col += diffCol * irr * ao;",
   "  vec3 Rv = reflect(-V, N);",
-  "  vec3 envc = envSample(Rv, rough, uSky, uGround, uKeyCol);",
+  "  vec3 envc = envLook(Rv, rough);",
   "  vec3 Fr = F_Schlick(f0, NoV);",
   "  col += envc * Fr * mix(ao, 1.0, 0.5);",
   /* the edge of the room caught on a silhouette */
@@ -468,7 +540,7 @@ var FSH_TEX = [
   GLSL_COMMON,
   GLSL_LIGHT,
   "uniform sampler2D uTex, uNrmTex;",
-  "uniform float uGloss, uBumpAmt;",
+  "uniform float uGloss, uBumpAmt, uContact;",
   "varying vec2 vUV; varying vec3 vWorld;",
   "void main(){",
   "  vec3 albedo = toLinear(texture2D(uTex, vUV).rgb);",
@@ -482,7 +554,17 @@ var FSH_TEX = [
   "  vec3 nm = texture2D(uNrmTex, vUV).rgb * 2.0 - 1.0;",
   "  vec3 N = normalize(vec3(nm.x * uBumpAmt, 1.0, nm.y * uBumpAmt));",
   "  float rough = mix(0.74, 0.14, uGloss);",
-  "  vec3 c = shade(albedo, N, vWorld, rough, 0.0, 1.0, 0.03);",
+  /* On a table, the board's foot: a soft dark band hugging its edge,
+     where the light from the room cannot get under it. This, more than
+     the shadow, is what tells the eye the board is resting there rather
+     than hovering a hair above. */
+  "  float ao = 1.0;",
+  "  if (uContact > 0.0){",
+  "    vec2 q = max(abs(vWorld.xz) - vec2(uContact), 0.0);",
+  "    float dd = length(q);",
+  "    ao = 1.0 - 0.62 * exp(-dd * 5.0) - 0.22 * exp(-dd * 1.1);",
+  "  }",
+  "  vec3 c = shade(albedo, N, vWorld, rough, 0.0, ao, 0.03) * mix(1.0, ao, 0.7);",
   "  gl_FragColor = emit(c, 1.0);",
   "}"].join("\n");
 
@@ -689,6 +771,34 @@ var FSH_SKY = [
   "  gl_FragColor = vec4(c, 1.0);",
   "}"].join("\n");
 
+/* ---- the place around the board ----
+   Every pixel of the background is a direction, worked out from the
+   camera's own inverse, and the panorama is looked up there: orbit the
+   board and the park turns behind it. One cheat, on purpose: the camera
+   looks down at the board from well above it, which in honest
+   perspective would show nothing behind the table but grass or floor.
+   So the backdrop's elevation is lifted by uLift — roughly, the camera
+   is told it is looking at the horizon while the table is drawn from
+   where it really is. It is what a photographer does with a long lens
+   and a low shot, and it is the difference between a lawn and a park. */
+var FSH_PANO = [
+  "precision highp float;",
+  GLSL_COMMON,
+  "uniform sampler2D uPano;",
+  "uniform mat4 uInvVP;",
+  "uniform vec3 uEye;",
+  "uniform float uLift, uGain, uHot, uDirect;",
+  "varying vec2 vUV;",
+  "void main(){",
+  "  vec4 p = uInvVP * vec4(vUV * 2.0 - 1.0, 1.0, 1.0);",
+  "  vec3 d = normalize(p.xyz / p.w - uEye);",
+  "  float el = clamp(asin(clamp(d.y, -1.0, 1.0)) + uLift, -1.5707, 1.5707);",
+  "  vec2 uv = vec2(atan(d.z, d.x) * 0.15915494 + 0.5, 0.5 - el * 0.31830989);",
+  "  vec3 c = fromPano(texture2D(uPano, uv).rgb, uGain, uHot);",
+  "  if (uDirect > 0.5) c = pow(aces(c), vec3(1.0/2.2));",
+  "  gl_FragColor = vec4(c, 1.0);",
+  "}"].join("\n");
+
 /* ---------- the board's relief ----------
    The same board painted again, in grey, as a height field: 128 is the
    surface, lighter is proud of it and darker is cut into it. The
@@ -826,7 +936,12 @@ function create(canvas, opts) {
       exposure: gl.getUniformLocation(pr, "uExposure"), direct: gl.getUniformLocation(pr, "uDirect"),
       shadow: gl.getUniformLocation(pr, "uShadow"), lightVP: gl.getUniformLocation(pr, "uLightVP"),
       shadowOn: gl.getUniformLocation(pr, "uShadowOn"),
-      shadowTexel: gl.getUniformLocation(pr, "uShadowTexel")
+      shadowTexel: gl.getUniformLocation(pr, "uShadowTexel"),
+      pano: gl.getUniformLocation(pr, "uPano"), envTex: gl.getUniformLocation(pr, "uEnvTex"),
+      cookie: gl.getUniformLocation(pr, "uCookie"),
+      envOn: gl.getUniformLocation(pr, "uEnvOn"), envGain: gl.getUniformLocation(pr, "uEnvGain"),
+      hot: gl.getUniformLocation(pr, "uHot"), tableLit: gl.getUniformLocation(pr, "uTableLit"),
+      cookieAmt: gl.getUniformLocation(pr, "uCookieAmt"), cookieScale: gl.getUniformLocation(pr, "uCookieScale")
     };
   }
 
@@ -849,6 +964,7 @@ function create(canvas, opts) {
     model: gl.getUniformLocation(progTex, "uModel"), tex: gl.getUniformLocation(progTex, "uTex"),
     nrmTex: gl.getUniformLocation(progTex, "uNrmTex"),
     gloss: gl.getUniformLocation(progTex, "uGloss"), bump: gl.getUniformLocation(progTex, "uBumpAmt"),
+    contact: gl.getUniformLocation(progTex, "uContact"),
     L: lightLocs(progTex),
     aPos: gl.getAttribLocation(progTex, "aPos"), aUV: gl.getAttribLocation(progTex, "aUV")
   };
@@ -897,7 +1013,23 @@ function create(canvas, opts) {
              glowAmt: gl.getUniformLocation(progSky, "uGlowAmt"),
              direct: gl.getUniformLocation(progSky, "uDirect"),
              aPos: gl.getAttribLocation(progSky, "aPos") };
+  var progPano = program(VSH_POST, FSH_PANO);
+  var UP = { pano: gl.getUniformLocation(progPano, "uPano"),
+             invVP: gl.getUniformLocation(progPano, "uInvVP"),
+             eye: gl.getUniformLocation(progPano, "uEye"),
+             lift: gl.getUniformLocation(progPano, "uLift"),
+             gain: gl.getUniformLocation(progPano, "uGain"),
+             hot: gl.getUniformLocation(progPano, "uHot"),
+             direct: gl.getUniformLocation(progPano, "uDirect"),
+             aPos: gl.getAttribLocation(progPano, "aPos") };
 
+  /* the board and the table are seen at a slant, and a slanted texture
+     sampled the plain way smears its grain into streaks; anisotropic
+     filtering is the fix, where the card has it */
+  var extAniso = gl.getExtension("EXT_texture_filter_anisotropic") ||
+                 gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
+  var ANISO = extAniso ? Math.min(8, gl.getParameter(extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1) : 0;
+  function aniso() { if (ANISO > 1) gl.texParameterf(gl.TEXTURE_2D, extAniso.TEXTURE_MAX_ANISOTROPY_EXT, ANISO); }
   var extHalf = gl.getExtension("OES_texture_half_float");
   var halfLinear = !!gl.getExtension("OES_texture_half_float_linear");
   var HDR_TYPE = (extHalf && halfLinear) ? extHalf.HALF_FLOAT_OES : gl.UNSIGNED_BYTE;
@@ -1086,11 +1218,14 @@ function create(canvas, opts) {
   /* the light's own camera: far enough away that a box sees the board
      as well as a cone would, and sized to hold the whole frame plus the
      tallest king's worth of shadow leaning off the edge */
-  var lightVP = (function () {
+  function lightFrom(dir) {
     var at = [0, 0.15, 0];
-    var eye = [KEY_DIR[0]*18, KEY_DIR[1]*18, KEY_DIR[2]*18];
+    var eye = [dir[0]*18, dir[1]*18, dir[2]*18];
     return mMul(mOrtho(7.2, 1, 40), mLookAt(eye, at, [0, 1, 0]));
-  })();
+  }
+  /* it moves when the place does: the sun in the park and the lamp in
+     the library hang in different parts of the sky */
+  var lightVP = lightFrom(KEY_DIR);
 
   /* mesh upload: interleave pos + normal + baked shade (7 floats, 28
      bytes). Board furniture has no baked shade, so it uploads as 1. */
@@ -1223,6 +1358,7 @@ function create(canvas, opts) {
     if (!R.pal) return;          /* nothing to paint until a skin arrives */
     gl.bindTexture(gl.TEXTURE_2D, boardTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, boardTexture(R.pal));
+    aniso();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -1241,6 +1377,118 @@ function create(canvas, opts) {
     gl.generateMipmap(gl.TEXTURE_2D);
   }
   loadBoardTex();
+
+  /* ---------- the place ----------
+     A scene from scenes.js, made into what the card needs: the panorama
+     and its blurred copy (repeating round the horizon, so the seam
+     behind Black's chair is not a seam), the leaf or window cookie, the
+     table's paint and its relief, and the table itself as two meshes —
+     the top the board stands on, and the edge you see round it. The
+     Studio is the absence of all of this, and draws as it always did. */
+  var place = { id: "studio", built: null, ready: false, cookie: false, top: null, edge: null, half: 0 };
+  var panoTex = gl.createTexture(), envTex = gl.createTexture(), cookieTex = gl.createTexture();
+  var tableTex = gl.createTexture(), tableNrm = gl.createTexture();
+  function fill(t, src, repeatS, repeatT, mip) {
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    if (src.data) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, src.size, src.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, src.data);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, repeatS ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeatT ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+    if (mip) { aniso(); gl.generateMipmap(gl.TEXTURE_2D); }
+  }
+  function freeMesh(m) { if (m) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); } }
+  /* the outline of the table top, anticlockwise from above: a circle, or
+     a square with its corners rounded off the way a joiner would */
+  function tableOutline(t) {
+    var pts = [], i;
+    if (t.shape === "round") {
+      for (i = 0; i < 96; i++) {
+        var a = -i / 96 * Math.PI * 2;
+        pts.push([Math.cos(a) * t.half, Math.sin(a) * t.half]);
+      }
+      return pts;
+    }
+    var rc = Math.min(0.9, t.half * 0.12), h = t.half - rc;
+    /* each corner's arc runs from the edge before it to the edge after
+       it, the same way round as the outline */
+    var corners = [[h, -h, 0], [-h, -h, -Math.PI / 2], [-h, h, Math.PI], [h, h, Math.PI / 2]];
+    for (var c = 0; c < 4; c++) {
+      for (i = 0; i <= 8; i++) {
+        var b = corners[c][2] - i / 8 * Math.PI / 2;
+        pts.push([corners[c][0] + Math.cos(b) * rc, corners[c][1] + Math.sin(b) * rc]);
+      }
+    }
+    return pts;
+  }
+  function buildTable(t) {
+    var y = -RIM_DEPTH, pts = tableOutline(t), n = pts.length, i;
+    /* the top: a fan from the middle, as position + texture coordinate,
+       the same layout the board's own quad uses so the same program
+       draws both */
+    var top = [0, y, 0, 0.5, 0.5], idx = [];
+    for (i = 0; i < n; i++) {
+      top.push(pts[i][0], y, pts[i][1], pts[i][0] / t.half * 0.5 + 0.5, pts[i][1] / t.half * 0.5 + 0.5);
+      idx.push(0, 1 + i, 1 + (i + 1) % n);
+    }
+    var vb = gl.createBuffer(), ib = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(top), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+    place.top = { vb: vb, ib: ib, n: idx.length };
+    /* the edge: a band round the outline, each column's normal pointing
+       straight out from the middle of its two neighbours, so a round
+       table's edge is smooth and a square one's corners are */
+    var pos = [], nrm = [], eidx = [];
+    for (i = 0; i <= n; i++) {
+      var p = pts[i % n], pr = pts[(i + n - 1) % n], nx = pts[(i + 1) % n];
+      var tx = nx[0] - pr[0], tz = nx[1] - pr[1], l = Math.hypot(tx, tz) || 1;
+      var ox = tz / l, oz = -tx / l;
+      if (ox * p[0] + oz * p[1] < 0) { ox = -ox; oz = -oz; }
+      pos.push(p[0], y, p[1], p[0], y - t.thick, p[1]);
+      nrm.push(ox, 0.25, oz, ox, -0.2, oz);
+      if (i) { var b = (i - 1) * 2; eidx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+    }
+    place.edge = uploadRaw(pos, nrm, null, eidx);
+    place.half = t.half;
+  }
+  function loadPlace(id) {
+    var S = root.Scenes, b = null;
+    try { b = S ? S.build(id) : null; } catch (e) { b = null; }
+    freeMesh(place.top); freeMesh(place.edge);
+    place.top = place.edge = null;
+    place.ready = false; place.cookie = false;
+    place.built = b;
+    place.id = b && b.def ? b.def.id : "studio";
+    if (!b || !b.def.table || !b.pano) return;
+    fill(panoTex, b.pano, true, false, false);
+    fill(envTex, b.env, true, false, false);
+    if (b.cookie) { fill(cookieTex, b.cookie, true, true, false); place.cookie = true; }
+    if (b.table) {
+      fill(tableTex, b.table.color, false, false, true);
+      /* the relief at the same size the board's is cut at, so a phone
+         that gets a lighter board gets a lighter table too */
+      var hc = b.table.height, size = FX.bump;
+      if (hc.width !== size && typeof document !== "undefined") {
+        var small = document.createElement("canvas");
+        small.width = small.height = size;
+        small.getContext("2d").drawImage(hc, 0, 0, size, size);
+        hc = small;
+      }
+      fill(tableNrm, normalMapFrom(hc, 1.6), false, false, true);
+    }
+    buildTable(b.def.table);
+    place.ready = true;
+  }
+  /* until a place is chosen, the slots hold something valid */
+  [panoTex, envTex, cookieTex].forEach(function (t) {
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([128, 128, 128, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  });
+  loadPlace(opts.scene || "studio");
 
   /* ---------- camera: an orbit on springs ----------
      The player owns a yaw, a pitch and a zoom; the canvas owns the rest.
@@ -1374,6 +1622,7 @@ function create(canvas, opts) {
     cam.eye = [ex + sx, ey + sy, ez + sz];
     cam.look = [sx, sy, sz];
     cam.fov = fov;
+    cam.lookPitch = pitch;
     /* The near plane follows the camera out. A long lens stands well
        back, and a near plane left at half a unit would spend nearly all
        of a 16-bit depth buffer on empty air in front of the board — the
@@ -1387,6 +1636,22 @@ function create(canvas, opts) {
     vp = mMul(proj, view);
     invVP = mInvert(vp) || invVP;
     camPlaced = true;
+  }
+  /* Whatever the camera's tilt and lens shift, the top edge of the
+     picture is made to land a little above the horizon — the treetops,
+     the top of the café window — so every screen gets the same strip of
+     place above the table rather than a phone getting the clouds and a
+     laptop the lawn. */
+  function backdropLift() {
+    var LIFT_TOP = (R.pal && R.pal.lift) || 0.13;
+    var a = mul4(invVP, [0, 1, -1, 1]), b = mul4(invVP, [0, 1, 1, 1]);
+    var dx = b[0] / b[3] - a[0] / a[3], dy = b[1] / b[3] - a[1] / a[3], dz = b[2] / b[3] - a[2] / a[3];
+    var el = Math.asin(Math.max(-1, Math.min(1, dy / (Math.hypot(dx, dy, dz) || 1))));
+    return Math.max(0, LIFT_TOP - el);
+  }
+  function mul4(m, v) {
+    return [m[0]*v[0] + m[4]*v[1] + m[8]*v[2] + m[12]*v[3], m[1]*v[0] + m[5]*v[1] + m[9]*v[2] + m[13]*v[3],
+            m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3], m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]];
   }
   R.orbit = function (dx, dy) {
     cam.tYaw -= dx * 0.008;
@@ -1542,13 +1807,28 @@ function create(canvas, opts) {
 
   R.setSkin = function (skin) {
     R.skin = skin;
-    R.pal = derive(skin);
+    R.pal = derive(skin, place.ready ? place.built : null);
+    lightVP = lightFrom(R.pal.keyDir);
     /* the carved set travels with the skin, so a look someone sent you
        arrives with its men as well as its colours */
     loadPieces((skin.pieces && skin.pieces.set) || Kit.DEFAULT_ID);
     loadBoardTex();
     R.dirty = true;
   };
+  /* where the board is: a scene id from scenes.js ("park", "cafe", …)
+     or "studio" for the board on its own. Painting a place the first
+     time takes a moment, so it is a thing you choose rather than
+     something that changes under a move. */
+  R.setScene = function (id) {
+    if (id === place.id && (place.ready || id === "studio")) return;
+    loadPlace(id);
+    if (R.skin) {
+      R.pal = derive(R.skin, place.ready ? place.built : null);
+      lightVP = lightFrom(R.pal.keyDir);
+    }
+    R.dirty = true;
+  };
+  R.scene = function () { return place.ready ? place.id : "studio"; };
   /* which set is actually on the board — not always the one the skin
      asked for, if that skin named a set this browser doesn't have */
   R.pieceSet = function () { return { id: setId, name: setName }; };
@@ -1940,9 +2220,9 @@ function create(canvas, opts) {
   }
   function sendLights(L, th) {
     gl.uniform3fv(L.eye, cam.eye);
-    gl.uniform3fv(L.keyDir, KEY_DIR);
+    gl.uniform3fv(L.keyDir, th.keyDir);
     gl.uniform3fv(L.keyCol, th.keyCol);
-    gl.uniform3fv(L.fillDir, FILL_DIR);
+    gl.uniform3fv(L.fillDir, th.fillDir);
     gl.uniform3fv(L.fillCol, th.fillCol);
     gl.uniform3fv(L.sky, th.sky);
     gl.uniform3fv(L.ground, th.ground);
@@ -1952,6 +2232,14 @@ function create(canvas, opts) {
     gl.uniform1f(L.shadowOn, shadowSize ? 1 : 0);
     gl.uniform1f(L.shadowTexel, shadowSize ? 1 / shadowSize : 0);
     gl.uniform1i(L.shadow, 1);
+    var on = !!(th.table && place.ready);
+    gl.uniform1i(L.pano, 3); gl.uniform1i(L.envTex, 4); gl.uniform1i(L.cookie, 5);
+    gl.uniform1f(L.envOn, on ? 1 : 0);
+    gl.uniform1f(L.envGain, on ? th.bgGain : 1);
+    gl.uniform1f(L.hot, on ? th.hot : 0);
+    gl.uniform1f(L.cookieAmt, on && th.cookie && place.cookie ? th.cookie.amount : 0);
+    gl.uniform1f(L.cookieScale, on && th.cookie ? th.cookie.scale : 1);
+    gl.uniform3fv(L.tableLit, on ? th.tableLit : th.ground);
   }
 
   function hexToVec(h) {
@@ -2075,7 +2363,8 @@ function create(canvas, opts) {
      self-shadowing acne, which works here because every carved piece is
      a closed solid with its winding already checked. */
   function shadowPass() {
-    if (!shadowSize || !instances.length) return;
+    var onTable = !!(place.ready && R.pal && R.pal.table);
+    if (!shadowSize || (!instances.length && !onTable)) return;
     gl.bindFramebuffer(gl.FRAMEBUFFER, shadowT.fb);
     gl.viewport(0, 0, shadowSize, shadowSize);
     gl.clearColor(1, 1, 1, 1);
@@ -2085,6 +2374,18 @@ function create(canvas, opts) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(progShadow);
     gl.uniformMatrix4fv(US.lightVP, false, lightVP);
+    /* on a table, the board itself is in the light's way: its box goes
+       in first, both faces, so its shadow lies across the table on the
+       side away from the lamp. Its top is left out — that is the
+       surface the men's shadows land on, and it cannot shade itself. */
+    if (onTable) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, MESH_RIM.vb);
+      onlyAttrib(US.aPos);
+      gl.vertexAttribPointer(US.aPos, 3, gl.FLOAT, false, STRIDE, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, MESH_RIM.ib);
+      gl.uniformMatrix4fv(US.model, false, mModel(0, -0.002, 0, 1, 0));
+      gl.drawElements(gl.TRIANGLES, MESH_RIM.n, gl.UNSIGNED_SHORT, 0);
+    }
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.FRONT);
     for (var i = 0; i < instances.length; i++) {
@@ -2395,21 +2696,80 @@ function create(canvas, opts) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    /* the room, before anything in it */
+    /* the room, before anything in it: the place, if the board is
+       somewhere, or the studio's backdrop if it is not */
+    var there = !!(place.ready && th.table);
     gl.disable(gl.BLEND);
     gl.depthMask(false);
-    gl.useProgram(progSky);
-    gl.uniform3fv(UK.top, th.skyTop);
-    gl.uniform3fv(UK.bottom, th.skyFloor);
-    gl.uniform3fv(UK.glowCol, th.lampGlow);
-    gl.uniform1f(UK.glowAmt, 0.55);
-    gl.uniform1f(UK.direct, postOk ? 0 : 1);
-    fullscreen(UK.aPos);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, panoTex);
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, envTex);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, cookieTex);
+    if (there) {
+      gl.useProgram(progPano);
+      gl.uniform1i(UP.pano, 3);
+      gl.uniformMatrix4fv(UP.invVP, false, invVP);
+      gl.uniform3fv(UP.eye, cam.eye);
+      /* how far the backdrop is lifted toward the horizon: most of the
+         way the camera is tipped down, so a steep phone view and a low
+         laptop one both find the trees above the table's far edge */
+      gl.uniform1f(UP.lift, backdropLift());
+      gl.uniform1f(UP.gain, th.bgGain);
+      gl.uniform1f(UP.hot, th.hot);
+      gl.uniform1f(UP.direct, postOk ? 0 : 1);
+      fullscreen(UP.aPos);
+    } else {
+      gl.useProgram(progSky);
+      gl.uniform3fv(UK.top, th.skyTop);
+      gl.uniform3fv(UK.bottom, th.skyFloor);
+      gl.uniform3fv(UK.glowCol, th.lampGlow);
+      gl.uniform1f(UK.glowAmt, 0.55);
+      gl.uniform1f(UK.direct, postOk ? 0 : 1);
+      fullscreen(UK.aPos);
+    }
     gl.depthMask(true);
     gl.enable(gl.BLEND);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, shadowSize ? shadowT.tex : blankTex);
+
+    if (there) {
+      /* the table: its top with the board's own program (paint, relief,
+         and the contact shade round the board's foot), then its edge */
+      gl.disable(gl.BLEND);
+      gl.useProgram(progTex);
+      gl.uniformMatrix4fv(UT.proj, false, proj);
+      gl.uniformMatrix4fv(UT.view, false, view);
+      gl.uniformMatrix4fv(UT.model, false, mIdent());
+      gl.uniform1f(UT.gloss, th.table.gloss);
+      gl.uniform1f(UT.bump, th.table.bump);
+      gl.uniform1f(UT.contact, HALF);
+      sendLights(UT.L, th);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tableTex);
+      gl.uniform1i(UT.tex, 0);
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, tableNrm);
+      gl.uniform1i(UT.nrmTex, 2);
+      gl.bindBuffer(gl.ARRAY_BUFFER, place.top.vb);
+      onlyAttrib(UT.aPos);
+      gl.vertexAttribPointer(UT.aPos, 3, gl.FLOAT, false, 20, 0);
+      gl.enableVertexAttribArray(UT.aUV);
+      gl.vertexAttribPointer(UT.aUV, 2, gl.FLOAT, false, 20, 12);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, place.top.ib);
+      gl.drawElements(gl.TRIANGLES, place.top.n, gl.UNSIGNED_SHORT, 0);
+      gl.useProgram(prog);
+      gl.uniformMatrix4fv(U.proj, false, proj);
+      gl.uniformMatrix4fv(U.view, false, view);
+      gl.uniform1f(U.mirror, 0);
+      gl.uniform1f(U.rimAmt, 0.2);
+      sendLights(U.L, th);
+      bindMesh(place.edge);
+      drawMesh(place.edge, mIdent(), hexToVec(th.table.edge), 1, false, Math.max(0.2, 0.8 - th.table.gloss), 0);
+      gl.enable(gl.BLEND);
+    }
 
     /* the rim under the board: a lacquered edge, so a wide highlight
        and no metal in it */
@@ -2429,6 +2789,7 @@ function create(canvas, opts) {
     gl.uniformMatrix4fv(UT.model, false, mIdent());
     gl.uniform1f(UT.gloss, th.gloss);
     gl.uniform1f(UT.bump, th.bump);
+    gl.uniform1f(UT.contact, 0);
     sendLights(UT.L, th);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, boardTex);
