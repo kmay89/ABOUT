@@ -102,6 +102,7 @@ var toastTimer = 0;
 function toast(html, actions, ms) {
   var el = $("toast");
   el.innerHTML = html;
+  el.classList.toggle("acts", !!actions);
   if (actions) {
     var row = document.createElement("div");
     actions.forEach(function (a) {
@@ -2968,7 +2969,13 @@ function wireInput() {
   var pts = new Map(), downSq = -1, downXY = null, dragging = false, pinchD = 0;
   stage.addEventListener("pointerdown", function (e) {
     if (e.target.closest(".clock") || e.target.closest("#toast")) return;
-    ac(); /* unlock audio on first gesture */
+    /* a remark lying over the board goes as soon as the board is
+       touched; the notebook has kept it */
+    if (!$("toast").classList.contains("acts")) hideToast();
+    /* the first touch is the gesture a browser wants before it will
+       start an audio clock at all. A synth that cannot start is a
+       silent board, never a board that ignores the tap. */
+    if (prefs.sound && typeof Sound !== "undefined") { try { Sound.wake(); } catch (err) {} }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) {
       downXY = { x: e.clientX, y: e.clientY };
