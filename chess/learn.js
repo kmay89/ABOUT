@@ -244,7 +244,7 @@ var LESSONS = [
     ask: "Your pieces are out and the centre is open. Make your king safe.",
     rule: "explicit", best: "O-O",
     hint: "One move puts the king in the corner behind its pawns and brings a rook toward the middle.",
-    why: "Castling is the only move where two pieces move at once, and it fixes two problems together: a king standing on an open centre file, and a rook doing nothing in the corner. This is the main line of the Giuoco Piano, and castling here is what strong players play.",
+    why: "Castling is the only move where two pieces move at once, and it fixes two problems together: a king standing on an open centre file, and a rook doing nothing in the corner. This exact position is a well-known line of the Giuoco Piano, and castling is the standard move in it.",
     misses: {
       "Kf1": "The king does step off the open e-file — but walking it by hand leaves your rook stuck on h1 behind it. Castling does both jobs in one move.",
       "O-O-O": "Castling, at least — but the long way puts your king on c1 with only the a- and b-pawns nearby, while the kingside still has its full wall of f-, g- and h-pawns. Castle where the shelter is.",
