@@ -25,10 +25,17 @@
    looks like itself. Three tiers (full, balanced, simple) are picked
    automatically and can be overridden in the Studio.
 
-   Moves slide, knights hop a little arc, captured pieces sink through
-   the board and fade, promotions crossfade at the far rank. If WebGL is
-   missing or the context is lost, the app is told at once and the same
-   game continues in 2D — nothing is allowed to strand the player. */
+   Moves slide, knights hop a little arc, captured pieces are pushed
+   over the way they were taken, promotions crossfade at the far rank —
+   all of it read from motion.js. And the big moments have hooks of
+   their own, the same on both boards: the men set down rank by rank at
+   the start of a game (with the landings handed back for the sound),
+   light pooled on a struck square, the mated king laid down on its
+   side, a camera that springs in toward a square and back out, and
+   squareToScreen so the effects layer (fx.js) can put light exactly on
+   a square. If WebGL is missing or the context is lost, the app is told
+   at once and the same game continues in 2D — nothing is allowed to
+   strand the player. */
 (function (root) {
 "use strict";
 
@@ -737,7 +744,10 @@ function create(canvas, opts) {
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     checkAt: -1,
     lines: [], net: [],
-    anim: null, drops: null, lost: false, dirty: true
+    anim: null, lost: false, dirty: true,
+    /* the big moments: the men arriving at the start of a game, a king
+       lying where it was mated, and light under a capture */
+    cascade: null, toppled: null, impacts: []
   };
 
   canvas.addEventListener("webglcontextlost", function (e) {
@@ -1103,12 +1113,44 @@ function create(canvas, opts) {
   var cam = {
     yaw: Math.PI / 2, pitch: 0.98, dist: 12.6,
     tYaw: Math.PI / 2, tPitch: 0.98, tDist: 12.6,
-    eye: [0, 0, 0]
+    eye: [0, 0, 0], look: [0, -0.4, 0],
+    /* The cinematic push-in, kept as a layer on top of the player's own
+       orbit rather than written into it: `amt` springs between 0 (the
+       view they chose) and 1 (closer, a little lower, the square in the
+       middle of the frame). Because it never touches yaw, pitch or
+       distance, orbit and pinch keep working through it, and easing it
+       back to 0 returns them to exactly the view they left. */
+    focus: { amt: 0, vel: 0, target: 0, x: 0, z: 0, vx: 0, vz: 0, tx: 0, tz: 0, last: 0 }
   };
-  /* the look-target leans a touch toward the camera so the near rank
-     never falls off the bottom of the screen, whatever the yaw */
-  function camTarget() {
-    return [cam.eye[0] * 0.055, -0.4, cam.eye[2] * 0.055];
+  var camPlaced = false;
+  /* where the camera stands and what it looks at, from the orbit and the
+     push-in together. The look-target leans a touch toward the camera so
+     the near rank never falls off the bottom of the screen, whatever the
+     yaw. Called once a frame, and by squareToScreen if it is asked
+     before the first frame has drawn. */
+  function placeCamera() {
+    /* A narrow canvas (phone, or the Studio drawer taking a slice) has a
+       small horizontal field of view, so the camera steps back far
+       enough to keep all eight files on screen. The player's own zoom is
+       left alone — this only ever adds distance, never removes it. */
+    var aspect = canvas.width / Math.max(1, canvas.height);
+    var fit = aspect < 1.25 ? Math.min(2.4, 1.25 / Math.max(0.35, aspect)) : 1;
+    var fo = cam.focus, f = fo.amt;
+    var dist = cam.dist * fit * (1 - 0.27 * f);
+    var pitch = Math.max(0.30, cam.pitch - 0.09 * f);
+    var ex = Math.cos(cam.yaw) * Math.cos(pitch) * dist;
+    var ey = Math.sin(pitch) * dist;
+    var ez = Math.sin(cam.yaw) * Math.cos(pitch) * dist;
+    var tx = ex * 0.055, ty = -0.4, tz = ez * 0.055;
+    /* eye and target travel together toward the square, so the camera
+       trucks in rather than swinging round to stare at it */
+    var k = 0.94 * f;
+    var sx = (fo.x - tx) * k, sy = (0.30 - ty) * k, sz = (fo.z - tz) * k;
+    cam.eye = [ex + sx, ey + sy, ez + sz];
+    cam.look = [tx + sx, ty + sy, tz + sz];
+    proj = mPersp(0.72, aspect, 0.5, 80);
+    view = mLookAt(cam.eye, cam.look, [0, 1, 0]);
+    camPlaced = true;
   }
   R.orbit = function (dx, dy) {
     cam.tYaw -= dx * 0.008;
@@ -1127,8 +1169,48 @@ function create(canvas, opts) {
   R.resetView = function () {
     cam.tPitch = 0.98; cam.tDist = 12.6;
     cam.tYaw = R.orientation === 1 ? Math.PI / 2 : -Math.PI / 2;
+    R.focus(null);
     R.dirty = true;
   };
+  /* Lean the camera in toward a square — the push-in on a mate — or,
+     with null, ease back out to the player's own view. Springs, never
+     snaps; under reduced motion it does nothing at all, because a
+     camera that moves on its own is exactly what that setting is for. */
+  R.focus = function (sq, opts) {
+    var fo = cam.focus;
+    if (sq == null || sq < 0 || !onSq(sq) || REDUCED) {
+      if (fo.target !== 0) { fo.target = 0; fo.last = 0; R.dirty = true; }
+      return;
+    }
+    fo.tx = sqX(sq); fo.tz = sqZ(sq);
+    /* from rest the square is simply where it is; mid-push it is
+       sprung toward, like everything else the camera does */
+    if (fo.amt < 1e-3) { fo.x = fo.tx; fo.z = fo.tz; fo.vx = fo.vz = 0; }
+    var amount = opts && opts.amount != null ? opts.amount : 1;
+    fo.target = Math.max(0, Math.min(1, amount));
+    fo.last = 0;
+    R.dirty = true;
+  };
+  /* one step of the push-in's springs; true while it is still moving */
+  function stepFocus(nowMs) {
+    var fo = cam.focus;
+    if (fo.amt === fo.target && fo.vel === 0 && fo.x === fo.tx && fo.z === fo.tz) return false;
+    /* the spring is stepped exactly, so a long frame is safe to take whole:
+       a slow device still arrives in the same wall-clock time */
+    var ts = nowMs / 1000, dt = fo.last ? Math.min(0.25, ts - fo.last) : 1 / 60;
+    fo.last = ts;
+    var a = Move.spring(fo.amt, fo.vel, fo.target, dt, 4.2);
+    var x = Move.spring(fo.x, fo.vx, fo.tx, dt, 4.2);
+    var z = Move.spring(fo.z, fo.vz, fo.tz, dt, 4.2);
+    fo.amt = a.x; fo.vel = a.v; fo.x = x.x; fo.vx = x.v; fo.z = z.x; fo.vz = z.v;
+    if (Move.springAtRest(fo.amt, fo.vel, fo.target) && Move.springAtRest(fo.x, fo.vx, fo.tx) &&
+        Move.springAtRest(fo.z, fo.vz, fo.tz)) {
+      fo.amt = fo.target; fo.vel = 0; fo.x = fo.tx; fo.z = fo.tz; fo.vx = fo.vz = 0; fo.last = 0;
+      R.dirty = true;                    /* one more frame, at exactly where it came to rest */
+      return false;
+    }
+    return true;
+  }
 
   function fileOf(sq) { return sq & 7; }
   function rankOf(sq) { return sq >> 4; }
@@ -1146,6 +1228,9 @@ function create(canvas, opts) {
     canvas.height = Math.round(h * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
     sizeTargets();
+    /* the old projection is for the old shape: anything that asks where
+       a square is before the next frame gets the new answer */
+    camPlaced = false;
     R.dirty = true;
   };
   /* the effects tier, for a settings switch or a weak-looking frame
@@ -1180,9 +1265,62 @@ function create(canvas, opts) {
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
-    if (o && o.flourish && !REDUCED) {
-      R.drops = { t0: performance.now(), dur: 900 };
+    R.toppled = null;
+    R.cascade = null;
+    if (o && o.flourish) {
+      /* a new game starts from the player's own view, whatever the last
+         one ended on */
+      R.focus(null);
+      if (!REDUCED) {
+        var plan = Move.cascade(R.board, { orientation: R.orientation });
+        var delay = {};
+        for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
+        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+      }
     }
+    R.dirty = true;
+  };
+  /* the landings of the arrival just started, as [{sq, t, piece, wave}]
+     with t in ms from the setPosition call — so a sound can be put on
+     each one. Empty when there is no arrival (reduced motion, or a
+     position set without a flourish). */
+  R.flourishPlan = function () {
+    if (!R.cascade) return [];
+    return R.cascade.plan.map(function (p) { return { sq: p.sq, t: p.t, piece: p.piece, wave: p.wave }; });
+  };
+
+  /* The mated king, laid down: it rocks, tips over the rim of its own
+     base away from whatever mated it, knocks on the board and lies
+     there until the position changes. With no attacker given it falls
+     outward, off the board rather than across it. */
+  R.topple = function (sq, opts) {
+    opts = opts || {};
+    if (sq == null || sq < 0 || !onSq(sq)) return;
+    var dx, dz;
+    if (opts.from != null && opts.from >= 0 && onSq(opts.from) && opts.from !== sq) {
+      dx = sqX(sq) - sqX(opts.from); dz = sqZ(sq) - sqZ(opts.from);
+    } else {
+      dx = sqX(sq); dz = sqZ(sq);
+      if (Math.hypot(dx, dz) < 0.1) { dx = 1; dz = 0; }
+    }
+    var l = Math.hypot(dx, dz);
+    var P = PIECES && PIECES[Math.abs(R.board[sq]) || 6];
+    var r = P ? P.radius : 0.36, H = P ? P.height : 1.1;
+    /* it lies on its base rim and its crown, so it comes to rest a
+       little short of flat — and how far short is the set's own
+       proportion, the crown taken as about half the base */
+    var rest = Math.min(1.5, Math.PI / 2 - Math.atan((r * 0.5) / Math.max(0.3, H)));
+    R.toppled = { sq: sq, dx: dx / l, dz: dz / l, r: r, h: H, rest: rest, t0: performance.now() };
+    R.dirty = true;
+  };
+  R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
+
+  /* light under a capture: the square flashes like a struck surface and
+     a ring of light runs out of it, bright enough for the bloom to find */
+  R.impact = function (sq, power) {
+    if (REDUCED || sq == null || sq < 0 || !onSq(sq)) return;
+    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : Math.max(0, Math.min(1, power)) });
+    if (R.impacts.length > 6) R.impacts.shift();
     R.dirty = true;
   };
   R.setHighlights = function (hi) {
@@ -1206,6 +1344,8 @@ function create(canvas, opts) {
        sampled out of a table every frame */
     var pl = Move.plan(m, { reduced: REDUCED, scale: o.scale });
     if (o.dur) pl.dur = REDUCED ? 1 : o.dur;   /* a caller that insists */
+    R.toppled = null;
+    R.cascade = null;
     R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
                dur: pl.dur, glow: !!o.glow, done: done || null };
     R.dirty = true;
@@ -1214,6 +1354,34 @@ function create(canvas, opts) {
     return pl;
   };
   R.isAnimating = function () { return !!R.anim; };
+
+  /* The other direction: a square's centre, through the camera as it
+     was last drawn, in css pixels from the canvas's top-left — what an
+     effects layer over the board needs to put a spark on the right
+     square while the camera orbits or pushes in. `s` is how long one
+     edge of that square is on screen along the files, `sy` along the
+     ranks, so sy/s is how much a ring on the board is foreshortened.
+     `lift` (in squares, optional) asks for a point that far above the
+     square instead: the middle of a piece rather than its feet. */
+  R.squareToScreen = function (sq, lift) {
+    if (sq == null || sq < 0 || !onSq(sq)) return null;
+    if (!camPlaced) placeCamera();
+    var m = mMul(proj, view), w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return null;
+    function at(x, y, z) {
+      var cw = m[3]*x + m[7]*y + m[11]*z + m[15];
+      if (cw <= 1e-6) return null;
+      return { x: ((m[0]*x + m[4]*y + m[8]*z + m[12]) / cw * 0.5 + 0.5) * w,
+               y: (0.5 - (m[1]*x + m[5]*y + m[9]*z + m[13]) / cw * 0.5) * h };
+    }
+    var x = sqX(sq), z = sqZ(sq), y = lift || 0;
+    var c = at(x, y, z);
+    if (!c) return null;
+    var a = at(x - 0.5, y, z), b = at(x + 0.5, y, z), n = at(x, y, z - 0.5), f = at(x, y, z + 0.5);
+    var s = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0;
+    var sy = n && f ? Math.hypot(f.x - n.x, f.y - n.y) : s;
+    return { x: c.x, y: c.y, s: s, sy: sy };
+  };
 
   /* unproject a click to the y=0 plane */
   R.screenToSquare = function (px, py) {
@@ -1323,6 +1491,19 @@ function create(canvas, opts) {
       }
       if (pose.lean) { q.lean = pose.lean; q.ax = pose.ax || 0; q.az = pose.az || 0; }
       if (pose.ry != null) q.ry += pose.ry;
+      if (pose.pivot && pose.lean) {
+        /* Going over the rim of its base rather than about its middle:
+           the base centre rises and swings out as the piece tips, which
+           is the whole difference between falling and sinking into the
+           board. A lean backwards turns on the back rim instead. */
+        var tilt = pose.lean, sg = tilt >= 0 ? 1 : -1, lie = Math.abs(Math.sin(tilt));
+        var out = pose.pivot * (1 - Math.cos(tilt)) * sg;
+        q.x += pose.dirx * out; q.z += pose.dirz * out;
+        q.y += pose.pivot * lie;
+        /* and its contact shadow slides out under the length of it */
+        var reach = (pose.reach || P.height) * 0.42 * Math.sin(tilt);
+        q.shx = x + pose.dirx * reach; q.shz = z + pose.dirz * reach; q.shr = 1 + lie * 0.9;
+      }
     }
     instances.push(q);
     return q;
@@ -1345,7 +1526,8 @@ function create(canvas, opts) {
     bindMesh(MESH_DISC);
     /* the contact darkening tightens and fades as the piece lifts, which
        is the cheapest cue there is that something is off the board */
-    drawMesh(MESH_DISC, mModel(q.x, 0.012, q.z, q.P.radius * (shadowSize ? 0.86 : 1.12) * q.s, 0),
+    drawMesh(MESH_DISC, mModel(q.shx != null ? q.shx : q.x, 0.012, q.shz != null ? q.shz : q.z,
+      q.P.radius * (shadowSize ? 0.86 : 1.12) * q.s * (q.shr || 1), 0),
       [0, 0, 0], contact * al / (1 + Math.max(0, q.y) * 1.6), true, 0, 0, 1);
     if (al >= 1) { gl.depthMask(true); gl.disable(gl.BLEND); }
     bindMesh(q.P.mesh);
@@ -1512,7 +1694,8 @@ function create(canvas, opts) {
     gl.drawElements(gl.TRIANGLES, 9, gl.UNSIGNED_SHORT, 0);
   }
 
-  function ease(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; }
+  /* the colour of a struck square: warm lamplight, hotter at the core */
+  var IMPACT_CORE = [1.0, 0.93, 0.80], IMPACT_COL = [1.0, 0.80, 0.52], IMPACT_EDGE = [0.95, 0.62, 0.34];
 
   R.frame = function () {
     if (R.lost) return false;
@@ -1527,34 +1710,33 @@ function create(canvas, opts) {
       moving = true;
     } else { cam.yaw = cam.tYaw; cam.pitch = cam.tPitch; cam.dist = cam.tDist; }
 
+    var nowMs = performance.now();
+    if (stepFocus(nowMs)) moving = true;
+
     var a = R.anim, aprog = 0, animating = false;
     if (a) {
-      aprog = Math.min(1, (performance.now() - a.t0) / a.dur);
+      aprog = Math.min(1, (nowMs - a.t0) / a.dur);
       animating = aprog < 1;
     }
-    var dropping = false, dropT = 0;
-    if (R.drops) {
-      dropT = (performance.now() - R.drops.t0) / R.drops.dur;
-      if (dropT >= 1) R.drops = null; else dropping = true;
+    /* the men arriving at the start of a game */
+    var casc = R.cascade, cascMs = 0, dropping = false;
+    if (casc) {
+      cascMs = nowMs - casc.t0;
+      if (cascMs >= casc.end) R.cascade = casc = null; else dropping = true;
     }
+    /* the mated king, going over or lying down */
+    var down = a ? null : R.toppled, fall = null, falling = false;
+    if (down) {
+      fall = Move.kingFall(REDUCED ? Infinity : nowMs - down.t0, down.rest);
+      falling = !fall.done;
+    }
+    var flashing = R.impacts.length > 0;
     /* film grain moves, so a still frame is never quite still — but
        only while something else is already asking for frames. It is
        never a reason on its own to keep the loop awake. */
-    if (!R.dirty && !moving && !animating && !dropping) return false;
+    if (!R.dirty && !moving && !animating && !dropping && !falling && !flashing) return false;
 
-    /* A narrow canvas (phone, or the Studio drawer taking a slice) has a
-       small horizontal field of view, so the camera steps back far enough
-       to keep all eight files on screen. The player's own zoom is left
-       alone — this only ever adds distance, never removes it. */
-    var aspect = canvas.width / canvas.height;
-    var fit = aspect < 1.25 ? Math.min(2.4, 1.25 / Math.max(0.35, aspect)) : 1;
-    var dist = cam.dist * fit;
-    var ex = Math.cos(cam.yaw) * Math.cos(cam.pitch) * dist;
-    var ey = Math.sin(cam.pitch) * dist;
-    var ez = Math.sin(cam.yaw) * Math.cos(cam.pitch) * dist;
-    cam.eye = [ex, ey, ez];
-    proj = mPersp(0.72, canvas.width / canvas.height, 0.5, 80);
-    view = mLookAt(cam.eye, camTarget(), [0, 1, 0]);
+    placeCamera();
 
     /* ---- who is standing where, once, for all the passes ---- */
     instances.length = 0;
@@ -1568,17 +1750,21 @@ function create(canvas, opts) {
       if (!onSq(sq) || skip[sq]) continue;
       var piece = a ? (a.after[sq] || 0) : R.board[sq];
       if (!piece) continue;
-      var lift = 0, alph = 1;
-      if (dropping) {
-        /* pieces drift down in a wave from white's side; every square's
-           wave finishes strictly before dropT reaches 1, so nothing pops */
-        var order = (rankOf(sq) + fileOf(sq) * 0.15) / 12;
-        var t = Math.min(1, Math.max(0, (dropT - order * 0.6) / 0.4));
-        if (t <= 0) continue;
-        lift = (1 - ease(t)) * 2.2;
-        alph = Math.min(1, t * 2);
+      var lift = 0, alph = 1, still = null;
+      if (casc && casc.delay[sq] != null) {
+        /* set down rank by rank from the player's side, with a hop as
+           each one lands — the schedule is the one flourishPlan() hands
+           to the sound, so every knock is under the man that made it */
+        var dp = Move.dropAt(cascMs - casc.delay[sq]);
+        if (dp.alpha <= 0.004) continue;
+        lift = dp.y; alph = dp.alpha; still = { squash: dp.squash };
+      } else if (down && sq === down.sq) {
+        /* across the push, in the board plane: positive tips the crown
+           toward (dx, dz), away from whatever mated it */
+        still = { lean: fall.tilt, ax: down.dz, az: -down.dx,
+                  pivot: down.r * 0.96, dirx: down.dx, dirz: down.dz, reach: down.h };
       }
-      pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1);
+      pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1, still);
     }
     var promoFlash = 0, promoAt = null;
     if (a) {
@@ -1601,9 +1787,13 @@ function create(canvas, opts) {
         var cz = a.m.epSq != null ? sqZ(a.m.epSq) : tz;
         var tp = Move.toppleAt(pl, aprog);
         if (tp.alpha > 0.004) {
-          /* the axis it turns about is across the push, in the board plane */
+          /* the axis it turns about is across the push, in the board
+             plane, and points the way that sends the crown along the
+             push: (vz, -vx). The other sign tipped it back into the
+             piece that took it while it skidded away — a piece falling
+             upstream of its own slide. */
           pushPiece(captPiece, cx + vx * tp.slide, cz + vz * tp.slide, tp.y,
-            tp.alpha, 1, { lean: tp.tilt, ax: -vz, az: vx });
+            tp.alpha, 1, { lean: tp.tilt, ax: vz, az: -vx });
         }
       }
 
@@ -1620,7 +1810,7 @@ function create(canvas, opts) {
       var mx = fx + (tx - fx) * st.p, mz = fz + (tz - fz) * st.p;
       /* the lean is about the axis across the travel — a long diagonal
          gets a little roll into it, a one-square step gets none */
-      var pose = { squash: st.squash, lean: st.bank, ax: -vz, az: vx };
+      var pose = { squash: st.squash, lean: st.bank, ax: vz, az: -vx };
       if (pl.spin) {
         /* the knight turns toward where it is going and back again, so
            the one piece with a face uses it */
@@ -1766,6 +1956,29 @@ function create(canvas, opts) {
       drawMesh(MESH_DISC, mModel(promoAt[0], 0.026, promoAt[1], 0.30 + promoFlash * 0.46, 0),
         th.selected, 0.34 * promoFlash, true, 0, 0, 2.2);
     }
+    /* light under a capture. Added rather than laid over, because it is
+       light arriving on the wood: three discs stacked into a soft pool,
+       well over white at the core so the bloom spreads it, and a ring
+       running out across the square like the ripple of the blow. */
+    if (R.impacts.length) {
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
+        var im = R.impacts[ii], ia = Move.impactAt(nowMs - im.t0, im.power);
+        if (!ia.live) { R.impacts.splice(ii, 1); continue; }
+        var ix = sqX(im.sq), iz = sqZ(im.sq), ip = im.power, amt = ia.amount;
+        bindMesh(MESH_DISC);
+        drawMesh(MESH_DISC, mModel(ix, 0.024, iz, 0.62 + 0.30 * ip, 0), IMPACT_EDGE, 0.16 * amt, true, 0, 0, 1.4);
+        drawMesh(MESH_DISC, mModel(ix, 0.026, iz, 0.40 + 0.18 * ip, 0), IMPACT_COL, 0.24 * amt, true, 0, 0, 2.0 + 1.6 * ip);
+        drawMesh(MESH_DISC, mModel(ix, 0.028, iz, 0.20 + 0.08 * ip, 0), IMPACT_CORE, 0.45 * amt, true, 0, 0, 3.0 + 4.0 * ip);
+        var ringFade = (1 - ia.ring) * Math.min(1, amt * 3);
+        if (ringFade > 0.01) {
+          bindMesh(MESH_RING);
+          drawMesh(MESH_RING, mModel(ix, 0.03, iz, 0.28 + ia.ring * (0.50 + 0.62 * ip), 0),
+            IMPACT_COL, 0.55 * ringFade, true, 0, 0, 2.6 + 2.0 * ip);
+        }
+      }
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
     if (R.lines.length && root.Lines) {
       var lnow = performance.now();
       for (var ll = 0; ll < R.lines.length; ll++) drawLine(R.lines[ll], lnow, th);
@@ -1786,7 +1999,8 @@ function create(canvas, opts) {
     /* ---- pass three: the lens ---- */
     if (postOk) post(th);
 
-    R.dirty = animating || moving || dropping || R.lines.length > 0 || pulse.live;
+    R.dirty = animating || moving || dropping || falling || R.impacts.length > 0 ||
+              R.lines.length > 0 || pulse.live;
     return R.dirty;
   };
 

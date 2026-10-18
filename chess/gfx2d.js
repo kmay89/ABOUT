@@ -3,8 +3,12 @@
    (no borrowed artwork), soft colours, and the same animation
    language as the 3D room: sliding moves, fading captures, a
    replayable last-move glow, dots for quiet moves and rings for
-   captures. It is also the safety net — if WebGL ever fails or the
-   context is lost, the game lands here and keeps playing. */
+   captures. The big moments are drawn here too, with the same hooks
+   as the carved board: the men set down at the start of a game, light
+   on a struck square, the mated king laid on its side, a slight lean
+   in toward a square, and squareToScreen for the effects layer. It is
+   also the safety net — if WebGL ever fails or the context is lost,
+   the game lands here and keeps playing. */
 (function (root) {
 "use strict";
 
@@ -179,7 +183,7 @@ function drawKing(ctx) {
 }
 var PAINTERS = [null, drawPawn, drawKnight, drawBishop, drawRook, drawQueen, drawKing];
 
-function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
+function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, extra) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
   /* the origin is the point the piece stands on, which is what lets a
@@ -187,17 +191,25 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
      middle, and a landing one compress into the board rather than
      through it */
   ctx.translate(x, y + size * 0.38);
-  if (lean) ctx.rotate(lean);
   var s = size * 0.92 * (scale || 1);
+  /* a mated king goes over on the rim of its base, not about its
+     middle: `pivot` is where on the base it turns, in the unit box */
+  var pivot = extra && extra.pivot ? extra.pivot * s : 0;
+  if (pivot) ctx.translate(pivot, 0);
+  if (lean) ctx.rotate(lean);
+  if (pivot) ctx.translate(-pivot, 0);
   var sq = squash == null ? 1 : squash;
   ctx.scale(s * (1 + (1 - sq) * 0.42), s * sq);
   var baseAlpha = (alpha == null ? 1 : alpha);
   ctx.globalAlpha = baseAlpha;
-  /* soft ground shadow */
-  ctx.beginPath();
-  ctx.ellipse(0, -0.02, 0.30, 0.075, 0, 0, Math.PI * 2);
-  ctx.fillStyle = pal.shadow;
-  ctx.fill();
+  /* soft ground shadow — unless the piece is lying down, when a shadow
+     drawn in its own frame would stand up on end with it */
+  if (!(extra && extra.noShadow)) {
+    ctx.beginPath();
+    ctx.ellipse(0, -0.02, 0.30, 0.075, 0, 0, Math.PI * 2);
+    ctx.fillStyle = pal.shadow;
+    ctx.fill();
+  }
 
   /* the body — translucent materials (glass) let the board through */
   ctx.globalAlpha = baseAlpha * pal.alpha;
@@ -250,21 +262,42 @@ function create(canvas) {
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     lines: [], net: [],
     anim: null,                 /* the move in flight */
-    size: 0, cell: 0, ox: 0, oy: 0, dirty: true
+    size: 0, cell: 0, ox: 0, oy: 0, dirty: true,
+    /* the big moments: a king lying where it was mated, light under a
+       capture, the men arriving at the start of a game, and a slight
+       lean in toward a square when something is worth leaning in for */
+    toppled: null, impacts: [], cascade: null,
+    view: { z: 1, v: 0, target: 1, px: 0, py: 0, last: 0 }
   };
 
   function onBoard(sq) { return (sq & 0x88) === 0; }
   function fileOf(sq) { return sq & 7; }
   function rankOf(sq) { return sq >> 4; }
 
-  /* square → centre in css pixels */
+  /* square → centre in css pixels, on the board as it is drawn before
+     any lean-in; everything that paints works in these */
   function sqXY(sq) {
     var f = fileOf(sq), r = rankOf(sq);
     if (R.orientation === 1) return { x: R.ox + (f + 0.5) * R.cell, y: R.oy + (7 - r + 0.5) * R.cell };
     return { x: R.ox + (7 - f + 0.5) * R.cell, y: R.oy + (r + 0.5) * R.cell };
   }
 
+  /* Where a square's centre actually is on the screen, lean-in and all,
+     in css pixels from the canvas's top-left: what an effects layer over
+     the board needs to put a spark on the right square. `s` is the
+     on-screen size of a square; the drawn board is square-on, so the
+     vertical size `sy` is the same. */
+  R.squareToScreen = function (sq) {
+    if (sq == null || sq < 0 || !onBoard(sq) || !R.cell) return null;
+    var p = sqXY(sq), v = R.view;
+    return { x: v.px + (p.x - v.px) * v.z, y: v.py + (p.y - v.py) * v.z,
+             s: R.cell * v.z, sy: R.cell * v.z };
+  };
+
   R.screenToSquare = function (px, py) {
+    /* undo the lean-in first, so a tap lands where the eye says it did */
+    var v = R.view;
+    if (v.z !== 1) { px = v.px + (px - v.px) / v.z; py = v.py + (py - v.py) / v.z; }
     var f = Math.floor((px - R.ox) / R.cell), r = Math.floor((py - R.oy) / R.cell);
     if (f < 0 || f > 7 || r < 0 || r > 7) return -1;
     if (R.orientation === 1) return (7 - r) * 16 + f;
@@ -278,6 +311,7 @@ function create(canvas) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    R.dpr = dpr;
     var m = Math.min(w, h);
     R.cell = Math.floor((m * 0.94) / 8);
     R.size = R.cell * 8;
@@ -418,7 +452,80 @@ function create(canvas) {
     R.dirty = true;
   };
   R.setOrientation = function (color) { R.orientation = color; R.dirty = true; };
-  R.setPosition = function (board) { R.board.set(board); R.anim = null; R.dirty = true; };
+  R.setPosition = function (board, o) {
+    R.board.set(board);
+    R.anim = null;
+    R.toppled = null;
+    R.cascade = null;
+    if (o && o.flourish) {
+      /* a new game starts from the player's own view, whatever the last
+         one ended on */
+      R.focus(null);
+      if (!REDUCED && Move && Move.cascade) {
+        var plan = Move.cascade(R.board, { orientation: R.orientation });
+        var delay = {};
+        for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
+        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+      }
+    }
+    R.dirty = true;
+  };
+  /* the landings of the arrival just started, as [{sq, t, piece, wave}]
+     with t in ms from the setPosition call — so a sound can be put on
+     each one. Empty when there is no arrival (reduced motion, or a
+     position set without a flourish). */
+  R.flourishPlan = function () {
+    if (!R.cascade) return [];
+    return R.cascade.plan.map(function (p) { return { sq: p.sq, t: p.t, piece: p.piece, wave: p.wave }; });
+  };
+
+  /* The mated king, laid down. It falls away from whatever mated it —
+     on a drawn board that means left or right, so the side the attacker
+     stands on decides — and stays down until the position changes. */
+  R.topple = function (sq, opts) {
+    opts = opts || {};
+    if (sq == null || sq < 0 || !onBoard(sq)) return;
+    var dir = 0;
+    if (opts.from != null && opts.from >= 0 && onBoard(opts.from)) {
+      var k = sqXY(sq), a = sqXY(opts.from);
+      dir = k.x > a.x + 0.5 ? 1 : k.x < a.x - 0.5 ? -1 : 0;
+    }
+    /* straight above or below it: toward the nearer edge, off the board
+       rather than across it */
+    if (!dir) dir = sqXY(sq).x >= R.ox + R.size / 2 ? 1 : -1;
+    /* the drawn king lies on its base rim and its crown — a little
+       short of flat */
+    R.toppled = { sq: sq, dir: dir, t0: performance.now(), rest: 1.32, done: false };
+    R.dirty = true;
+  };
+  R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
+
+  /* The faintest lean in toward a square, and back out with null. The
+     drawn board fills its canvas, so this is a few percent rather than a
+     camera move, about the square itself so nothing slides — and taps
+     are mapped back through it, so the board never stops listening. */
+  R.focus = function (sq, opts) {
+    var v = R.view;
+    if (sq == null || sq < 0 || !onBoard(sq) || REDUCED) {
+      if (v.target !== 1) { v.target = 1; v.last = 0; R.dirty = true; }
+      return;
+    }
+    /* the pivot only moves while the board is at rest, or the picture
+       would jump */
+    if (Math.abs(v.z - 1) < 1e-4) { var p = sqXY(sq); v.px = p.x; v.py = p.y; }
+    v.target = 1 + ((opts && opts.amount) || 0.045);
+    v.last = 0;
+    R.dirty = true;
+  };
+
+  /* light under a capture: a radial flash on the square, held longer for
+     a bigger capture */
+  R.impact = function (sq, power) {
+    if (REDUCED || sq == null || sq < 0 || !onBoard(sq)) return;
+    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : power });
+    if (R.impacts.length > 6) R.impacts.shift();
+    R.dirty = true;
+  };
   R.setHighlights = function (hi) {
     R.hi.selected = hi.selected != null ? hi.selected : -1;
     R.hi.legal = hi.legal || [];
@@ -435,6 +542,8 @@ function create(canvas) {
     opts = opts || {};
     var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
+    R.toppled = null;
+    R.cascade = null;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
       dur: pl.dur, glow: !!opts.glow, done: done || null
@@ -471,8 +580,24 @@ function create(canvas) {
     var th = R.pal, animating = false;
     if (!th) return false;
     if (!R.dirty && !R.anim) return false;
+    var now = performance.now();
     var w = canvas.clientWidth, h = canvas.clientHeight;
+    var dpr = R.dpr || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+
+    /* the lean-in: a spring toward its target, and everything below
+       drawn through it. At rest at 1 it costs nothing at all. */
+    var v = R.view;
+    if (v.z !== 1 || v.target !== 1) {
+      var ts = now / 1000, dts = v.last ? Math.min(0.25, ts - v.last) : 1 / 60;
+      v.last = ts;
+      var spr = Move.spring(v.z, v.v, v.target, dts, 5.5);
+      v.z = spr.x; v.v = spr.v;
+      if (Move.springAtRest(v.z, v.v, v.target)) { v.z = v.target; v.v = 0; v.last = 0; }
+      else animating = true;
+      ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * v.px * (1 - v.z), dpr * v.py * (1 - v.z));
+    }
 
     /* the board itself, straight off the cache */
     if (boardKey !== key()) buildBoard();
@@ -493,20 +618,58 @@ function create(canvas) {
       ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
     }
 
+    /* light under a capture, under the men so the one who took stands
+       in it rather than in front of it */
+    for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
+      var im = R.impacts[ii], ia = Move.impactAt(now - im.t0, im.power);
+      if (!ia.live) { R.impacts.splice(ii, 1); continue; }
+      animating = true;
+      drawImpact(sqXY(im.sq), im.power, ia);
+    }
+
     /* pieces (skipping any square involved in the animation) */
     var skip = {}, a = R.anim, prog = 0;
     if (a) {
-      prog = Math.min(1, (performance.now() - a.t0) / a.dur);
+      prog = Math.min(1, (now - a.t0) / a.dur);
       animating = prog < 1;
       skip[a.m.from] = true; skip[a.m.to] = true;
       if (a.m.rookFrom != null) { skip[a.m.rookFrom] = true; skip[a.m.rookTo] = true; }
       if (a.m.epSq != null) skip[a.m.epSq] = true;
+    }
+    /* the men arriving at the start of a game */
+    var casc = R.cascade, cascMs = 0;
+    if (casc) {
+      cascMs = now - casc.t0;
+      if (cascMs >= casc.end) R.cascade = casc = null; else animating = true;
+    }
+    /* the mated king, going over or lying down */
+    var tp = R.toppled, fall = null;
+    if (tp) {
+      fall = Move.kingFall(REDUCED ? Infinity : now - tp.t0, tp.rest);
+      if (!fall.done) animating = true;
     }
     for (var sq2 = 0; sq2 < 128; sq2++) {
       if (!onBoard(sq2) || skip[sq2]) continue;
       var piece = a ? (a.after[sq2] || 0) : R.board[sq2];
       if (!piece) continue;
       var q = sqXY(sq2);
+      if (casc && casc.delay[sq2] != null) {
+        var dp = Move.dropAt(cascMs - casc.delay[sq2]);
+        if (dp.alpha <= 0.004) continue;
+        /* the shadow waits on the square and darkens as the man comes
+           down to meet it */
+        groundShadow(q.x, q.y, R.cell, dp.alpha * (1 - dp.y / Move.DROP.height * 0.75), 1);
+        paintPiece(ctx, piece, q.x, q.y - dp.y * R.cell * 0.6, R.cell, th, dp.alpha, 1, 0, dp.squash,
+                   { noShadow: true });
+        continue;
+      }
+      if (tp && sq2 === tp.sq && !a) {
+        var lie = Math.sin(Math.max(0, fall.tilt));
+        groundShadow(q.x + tp.dir * R.cell * 0.36 * lie, q.y, R.cell, 1, 1 + lie * 1.1);
+        paintPiece(ctx, piece, q.x, q.y, R.cell, th, 1, 1, tp.dir * fall.tilt, 1,
+                   { pivot: (fall.tilt >= 0 ? tp.dir : -tp.dir) * 0.33, noShadow: true });
+        continue;
+      }
       paintPiece(ctx, piece, q.x, q.y, R.cell, th);
     }
 
@@ -601,7 +764,6 @@ function create(canvas) {
 
     /* the lines themselves */
     if (R.lines.length && root.Lines) {
-      var now = performance.now();
       for (var li2 = 0; li2 < R.lines.length; li2++) {
         drawLine(R.lines[li2], now, th);
       }
@@ -657,6 +819,43 @@ function create(canvas) {
     var p = sqXY(sq);
     ctx.fillStyle = color;
     ctx.fillRect(p.x - R.cell / 2, p.y - R.cell / 2, R.cell, R.cell);
+  }
+
+  /* a shadow on the board itself, for a man that is not standing on it
+     the ordinary way: in the air above it, or lying across it */
+  function groundShadow(x, y, size, amount, stretch) {
+    if (amount <= 0.01) return;
+    var s = size * 0.92, by = y + size * 0.38 - 0.02 * s;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, amount);
+    ctx.fillStyle = R.pal.shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, by, 0.30 * s * (stretch || 1), 0.075 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* the struck square: warm light pooled on the wood, and a ring of it
+     running outward — the drawn twin of the carved board's glow */
+  function drawImpact(c, power, ia) {
+    var rad = R.cell * (0.58 + 0.42 * power);
+    var g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, rad);
+    g.addColorStop(0, "rgba(255,244,222," + (0.66 * ia.amount).toFixed(3) + ")");
+    g.addColorStop(0.42, "rgba(255,206,138," + (0.34 * ia.amount).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,190,120,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(c.x - rad, c.y - rad, rad * 2, rad * 2);
+    var fade = (1 - ia.ring) * Math.min(1, ia.amount * 3);
+    if (fade > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = 0.6 * fade;
+      ctx.strokeStyle = "#ffe2b4";
+      ctx.lineWidth = Math.max(1, R.cell * 0.05 * (1 - ia.ring));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R.cell * (0.22 + 0.62 * ia.ring * (0.7 + 0.5 * power)), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function rr(c, x, y, w, h, r) {
