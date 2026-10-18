@@ -423,6 +423,13 @@ const concepts = (list) => list.map((s) => s.concept).join(",") || "(nothing)";
   ok("the check-skewer Ra1+ is found", said(g, "Ra1+").some((x) => x.concept === "skewer"));
 }
 {
+  /* the same skewer when a knight can block: "has to step aside" would be
+     untrue, though the rook still wins material on the a-file (Na3 Rxa3+) */
+  const s = said(G("q7/8/8/k7/2n5/8/7K/7R w - - 0 1"), "Ra1+").find((x) => x.concept === "skewer");
+  ok("a check-skewer that can be blocked doesn't claim the king 'has to step aside'",
+     s && /whether the king steps aside or they block/.test(plain(s.text)) && !/has to step aside/.test(plain(s.text)), s && plain(s.text));
+}
+{
   const g = G("4k3/8/2n1n3/8/3P4/8/8/4K3 w - - 0 1");
   ok("a pawn fork of two knights is found", said(g, "d5").some((x) => x.concept === "fork"));
 }

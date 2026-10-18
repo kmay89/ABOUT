@@ -472,6 +472,12 @@ function lines(g, side) {
         if (winsBehind(g, sq, front, back) < GAIN) continue;
         if (!holds(g, sq, side, lane)) continue;
         rec.kind = "skewer"; rec.concept = "skewer"; rec.absolute = false; rec.check = true;
+        /* can they put something in the way? Then "the king has to step
+           aside" isn't the whole story, though something is still won */
+        rec.blockable = Chess.moves(g).some(function (r) {
+          for (var s = sq + step; s !== front; s += step) if (r.to === s && r.from !== front) return true;
+          return false;
+        });
         skewers.push(rec);
       } else if (bk === K) {
         /* absolute: moving off the line would be illegal */
@@ -868,8 +874,10 @@ function afterMove(g, m) {
       concept: "skewer", weight: 82, squares: [sk.by, sk.front, sk.back],
       text: "That's a <b>skewer</b> — a pin turned around. The valuable piece is in <i>front</i>: their " +
         name(sk.frontPiece) + " on " + sqName(sk.front) +
-        (sk.check ? " is in check and has to step aside" : " is attacked and has to move") +
-        ", and then your " + name(sk.piece) + " takes the " + name(sk.backPiece) + " behind it."
+        (sk.check && sk.blockable
+          ? " is in check, and whether the king steps aside or they block, your " + name(sk.piece) + " wins material on that line."
+          : (sk.check ? " is in check and has to step aside" : " is attacked and has to move") +
+            ", and then your " + name(sk.piece) + " takes the " + name(sk.backPiece) + " behind it.")
     });
     break;
   }
@@ -904,7 +912,8 @@ function afterMove(g, m) {
   /* structural praise, in plain terms */
   if (m.flags & Chess.F_CASTLE) {
     out.push({ concept: "castling", weight: 70,
-      text: "Castled — two jobs in one move: the king steps away from the open centre" +
+      /* not "the open centre": in plenty of games it isn't open yet */
+      text: "Castled — two jobs in one move: the king steps away from the centre" +
         (castledShelter >= 2 ? " to stand behind its pawns" : "") +
         ", and the rook comes off the corner toward the middle." });
   } else if (m.promo) {
@@ -1145,8 +1154,11 @@ function explainMove(g, m) {
   for (i = 0; i < A.lines.skewers.length; i++) {
     var sk = A.lines.skewers[i];
     if (wasLine(st, sk)) continue;
-    fact(30, "skewer", "Skewers the " + name(sk.frontPiece) + " on " + sqName(sk.front) + ": once it " +
-      (sk.check ? "steps out of check" : "moves") + ", the " + name(sk.backPiece) + " on " + sqName(sk.back) + " behind it falls.",
+    fact(30, "skewer", "Skewers the " + name(sk.frontPiece) + " on " + sqName(sk.front) +
+      (sk.check && sk.blockable
+        ? ": whether the king steps aside or they block the check, material is won on that line."
+        : ": once it " + (sk.check ? "steps out of check" : "moves") + ", the " + name(sk.backPiece) + " on " +
+          sqName(sk.back) + " behind it falls."),
       [sk.by, sk.front, sk.back]);
     spoken[sk.front] = spoken[sk.back] = true;
     break;
