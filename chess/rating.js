@@ -76,7 +76,11 @@
    sound six- and eight-ply lines out of the lichess opening table, each
    opening twice with the colours swapped, the clock frozen and the dice
    seeded, adjudicated once both searches agree for ten plies that one
-   side is ten pawns up.
+   side is ten pawns up. (These games shared one search table across
+   each game; rungs now start every move from an empty one, which
+   replayed on the same positions changed no move of the five weakest
+   rungs and one to three in twenty-four of the others', and the
+   neighbour matches in engine-check --slow still go the stronger way.)
 
      pair              games  score         self-play gap   on the ladder
      Sprout – Acorn       32   28      88%   +338 ±87      +176
@@ -151,11 +155,19 @@ function levelIndex(id) {
   return -1;
 }
 /* exactly what to hand Brain.search for a rung — nothing the engine
-   does not read, so a level and its calibration cannot drift apart */
+   does not read, so a level and its calibration cannot drift apart.
+   `fresh` empties the engine's table first. The worker shares one table
+   between the coach, the hints and the reviews, and a shallow rung that
+   inherits a hint's six-ply leftovers plays far above its rating: along
+   one Italian game, a depth-5 review run just before the reply changed
+   between a quarter and two-thirds of the moves of every rung below
+   Pine. Starting from an empty table instead of the rung's own last
+   search — which is how the calibration ran — changed none of the five
+   weakest rungs' moves, and one to three in twenty-four of the others'. */
 function searchOpts(idOrLevel) {
   var L = typeof idOrLevel === "string" ? levelById(idOrLevel) : idOrLevel;
   if (!L) return null;
-  var o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, nodes: L.nodes };
+  var o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, nodes: L.nodes, fresh: true };
   if (L.rankDepth) o.rankDepth = L.rankDepth;
   return o;
 }

@@ -228,6 +228,26 @@ function forcedMate(g, n) {
   }
   ok("a node budget is kept, ranking and all", !over, over);
   ok("the same position and the same node budget give the same answer", !differ, differ);
+
+  /* …and the same answer whatever was searched before. The worker keeps
+     one table for the coach, the hints and the reviews; a level that
+     asks for a fresh table must rank its moves exactly as it would on a
+     newly started engine, even straight after a deep look at the
+     position one move earlier (which is what a hint is). */
+  const line = ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5", "c3", "Nf6", "d3", "d6", "O-O", "O-O", "Re1"];
+  const before = C.create();
+  for (const san of line.slice(0, -1)) C.play(before, C.fromSAN(before, san));
+  const after = C.create(C.fen(before));
+  C.play(after, C.fromSAN(after, line[line.length - 1]));
+  const level = { ms: 4000, maxDepth: 2, nodes: 30000, rank: true, fresh: true };
+  const ranking = (r) => r.ranked.map((x) => x.move.from + "-" + x.move.to + ":" + x.score + (x.shallow ? "s" : "")).join(" ");
+  C.setHashBits(16);
+  const clean = C.search(C.create(C.fen(after)), level);
+  C.search(C.create(C.fen(before)), { ms: 4000, maxDepth: 6, nodes: 150000, rank: true, rankDepth: 6 });
+  const afterHint = C.search(C.create(C.fen(after)), level);
+  ok("a level that asks for a fresh table ranks its moves as if nothing had been searched before",
+     ranking(clean) === ranking(afterHint) && clean.nodes === afterHint.nodes,
+     `${clean.nodes} vs ${afterHint.nodes} nodes`);
 }
 
 /* ---- the ranked list agrees with the move chosen ---- */

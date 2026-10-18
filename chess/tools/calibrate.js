@@ -157,9 +157,14 @@ function openings(count) {
   return out;
 }
 
-/* exactly the options the app hands the engine for a rung */
+/* exactly the options the app hands the engine for a rung, an empty
+   table included — each move depends on its position alone, as it does
+   in the room. (The published table was measured before rungs asked for
+   `fresh`, with one table shared across each game; replaying the same
+   positions both ways changed no move of the five weakest rungs and one
+   to three in twenty-four of the others'.) */
 function optsOf(L) {
-  const o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise };
+  const o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, fresh: true };
   if (L.nodes) o.nodes = L.nodes;
   if (L.rankDepth) o.rankDepth = L.rankDepth;
   return o;
