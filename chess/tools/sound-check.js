@@ -27,8 +27,9 @@
      - does the reverb really leave a tail, and is the room wide;
      - does a count climb when it counts up;
      - and is off really off: a muted room renders silence, a mute
-       fades what is already playing and its echo, and the room tone,
-       switched off, leaves nothing running;
+       fades what is already playing and its echo, the room tone,
+       switched off, leaves nothing running, and a tab nobody is
+       looking at does not hum;
      - and is a moment asked for before anybody has touched the page
        let go, rather than saved up for the first tap.
 
@@ -588,6 +589,12 @@ const MUSIC = `async (spec) => {
       else if (c[0] === "ambience") Sound.ambience(c[1]);
       else if (c[0] === "enable") Sound.enable(c[1]);
       else if (c[0] === "move") Sound.move(c[1], Motion.plan(c[1], {}), c[2] || {});
+      else if (c[0] === "hidden") {
+        /* the page going out of sight and coming back, as far as a
+           listener can tell */
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => c[1] });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }
     }
   };
   run(spec.calls || []);
@@ -596,7 +603,11 @@ const MUSIC = `async (spec) => {
     oc.suspend(at).then(() => { run(calls); oc.resume().catch(() => {}); });
   }
   const buf = await oc.startRendering();
+  /* the sources' ended events are tasks of their own; give them their
+     turn before asking whether anything is still running */
+  await new Promise((r) => setTimeout(r, 0));
   const ambienceLive = Sound.ambienceLive();
+  delete document.hidden;
   Sound.ambience(0); Sound.enable(true); Sound.setReduced(null);
 
   const chans = [];
@@ -799,6 +810,13 @@ async function musicChecks(render) {
      dB(toneOff.windows[0]) + " then " + dB(toneOff.windows[1]));
   ok("…without a click", toneOff.steps[1] <= toneOff.steps[0] * 1.5,
      toneOff.steps[1].toExponential(2) + " vs " + toneOff.steps[0].toExponential(2) + " while steady");
+  const away = await render({ seconds: 4.4, calls: [["ambience", 0.6]],
+    later: [[1.4, [["hidden", true]]], [2.6, [["hidden", false]]]],
+    windows: [[1.1, 1.4], [2.35, 2.6], [3.9, 4.4]] });
+  ok("…stops in a tab nobody is looking at", away.windows[0] > 1e-5 && away.windows[1] === 0,
+     dB(away.windows[0]) + " then " + dB(away.windows[1]));
+  ok("…and comes back when somebody does", away.windows[2] > away.windows[0] * 0.5,
+     dB(away.windows[2]));
 
   /* everything at once */
   const pile = await render({ seconds: WARM + 6,

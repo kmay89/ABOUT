@@ -1129,10 +1129,16 @@ function reducedNow() {
    silent: there is a low wash of air and, here, a slow two-note pad
    that breathes about once every twenty seconds. Turned up, it sits
    just above the threshold of noticing; turned off, every node is
-   stopped and let go, so it costs nothing at all. */
+   stopped and let go, so it costs nothing at all. And it is a sound for
+   a room somebody is in: a tab you have left stops humming to nobody,
+   and picks up again when you come back. */
 var amb = null, ambLevel = 0, AMB_GAIN = 0.06;
+/* every room tone not yet fallen silent, the one playing and any still
+   fading out, so "is anything left running" is answered by the nodes
+   themselves rather than by a flag */
+var ambAll = [], ambWatched = false;
 function ambStart(c) {
-  var now = c.currentTime, a = { ctx: c, srcs: [] };
+  var now = c.currentTime, a = { ctx: c, srcs: [], alive: 0 };
   a.g = c.createGain();
   a.g.gain.setValueAtTime(0, now);
   a.g.connect(master);
@@ -1151,10 +1157,27 @@ function ambStart(c) {
   var o1 = c.createOscillator(); o1.type = "triangle"; o1.frequency.setValueAtTime(noteHz(-24), now);
   var o2 = c.createOscillator(); o2.type = "sine"; o2.frequency.setValueAtTime(noteHz(-17) + 0.13, now);
   o1.connect(pg); o2.connect(pg); pg.connect(a.g);
-  [n, lfo, o1, o2].forEach(function (s) { s.start(now); a.srcs.push(s); });
-  /* when the last source stops, let go of the output too */
-  o2.onended = function () { try { a.g.disconnect(); } catch (e) {} };
+  /* when the last source has stopped, let go of the output too */
+  var ended = function () {
+    if (--a.alive > 0) return;
+    try { a.g.disconnect(); } catch (e) {}
+    var k = ambAll.indexOf(a);
+    if (k >= 0) ambAll.splice(k, 1);
+  };
+  [n, lfo, o1, o2].forEach(function (s) { s.onended = ended; s.start(now); a.srcs.push(s); a.alive++; });
+  ambAll.push(a);
   return a;
+}
+/* Once, the first time the room tone is turned on: follow the page out
+   of sight and back. Going, it fades like any other stop; coming back,
+   it comes back at the level it was left at, if sound is still on. */
+function watchPage() {
+  if (ambWatched || typeof document === "undefined" || !document.addEventListener) return;
+  ambWatched = true;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) ambStop();
+    else if (on && ambLevel > 0 && !amb) Sound.ambience(ambLevel);
+  });
 }
 function ambStop() {
   if (!amb) return;
@@ -1188,7 +1211,7 @@ var Sound = {
   useContext: function (c) {
     AC = c; noiseBuf = null; borrowed = true; rand = seeded(20261018);
     master = buildChain(c);
-    room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null;
+    room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null; ambAll = [];
     return master;
   },
 
@@ -1364,15 +1387,21 @@ var Sound = {
     if (level === undefined) return ambLevel;
     ambLevel = clamp(+level || 0, 0, 1);
     if (!on || ambLevel <= 0) { ambStop(); return ambLevel; }
+    /* asked for from a tab nobody is looking at: remembered, and
+       started when somebody does */
+    watchPage();
+    if (typeof document !== "undefined" && document.hidden) { ambStop(); return ambLevel; }
     var c = ctx(); if (!c) return ambLevel;
     if (amb && amb.ctx !== c) ambStop();
     if (!amb) amb = ambStart(c);
     amb.g.gain.setTargetAtTime(ambLevel * AMB_GAIN, c.currentTime, 0.6);
     return ambLevel;
   },
-  /* whether any room tone is actually playing — the checker asks this
-     to prove "off" means nothing is left running */
-  ambienceLive: function () { return !!amb; },
+  /* whether any room tone is actually playing, or still fading — the
+     checker asks this to prove "off" means nothing is left running. It
+     is counted off the sources' own ended events, so a source that was
+     never told to stop keeps it true. */
+  ambienceLive: function () { return !!amb || ambAll.length > 0; },
   /* how many synth voices are still sounding — the checker asks, to
      prove a pile-up of moments stays inside the budget */
   busy: function () {
