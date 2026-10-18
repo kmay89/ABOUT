@@ -16,6 +16,20 @@
        slides make a noise all the way across the board, while a knight
        — which is carried — makes none.
 
+   And of the room's music — the stings that replaced the beeps:
+     - is every moment written down, in one key, with every voice
+       starting and ending at silence inside the length its sting
+       promises (read off the scores in node, then heard in the browser);
+     - does every sting actually sound, never clip, and stop when it
+       said it would;
+     - is a mate a bigger, longer thing than a plain win, and is the
+       check you are in a different figure from the check you give;
+     - does the reverb really leave a tail, and is the room wide;
+     - does a count climb when it counts up;
+     - and is off really off: a muted room renders silence, a mute
+       fades what is already playing, and the room tone, switched off,
+       leaves nothing running.
+
    Needs `playwright-core` for the second half; the first half runs
    anywhere. A missing browser skips the render and still checks the
    model.
@@ -30,7 +44,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const VERBOSE = process.argv.indexOf("--verbose") >= 0;
 let failed = 0;
 const ok = (what, cond, detail) => {
-  if (cond) console.log("ok    " + what);
+  if (cond) console.log("ok    " + what + (VERBOSE && detail != null && detail !== "" ? "  (" + detail + ")" : ""));
   else { failed++; console.log("FAIL  " + what + (detail ? "  → " + detail : "")); }
 };
 
@@ -183,6 +197,256 @@ const SURF = Sound.surfaceOf(SKIN);
   ok("a move with no plan asks for no drag", Sound.frictionLevel(Sound.voiceFor("ivory", "king", SURF), null) === 0);
 })();
 
+/* ================= the music, as data ================= */
+
+/* the options each sting can be asked with, so every shape it can
+   take is checked rather than only its default */
+const VARIANTS = {
+  check: [{}, { against: true }],
+  "capture-big": [{ piece: 5 }, { piece: -4 }, { piece: "q" }, { piece: "rook" }],
+  promote: [{ piece: 5 }, { piece: 4 }, { piece: 3 }, { piece: -2 }, {}],
+  "low-time": [{}, { left: 0 }, { left: 5 }, { left: 10 }, { left: 99 }],
+  tick: [{}, { tock: true }],
+  count: [{ i: 0, n: 10, up: true }, { i: 10, n: 10, up: true }, { i: 3, n: 10, up: false }, { i: 0, n: 0 }]
+};
+const variantsOf = (k) => VARIANTS[k] || [{}];
+const tailOf = (sc) => (sc.send > 0 ? Sound.REVERB.seconds + Sound.REVERB.predelay : 0);
+const everyScore = (fn) => {
+  for (const k of Sound.STING_KINDS) for (const o of variantsOf(k)) for (const reduced of [false, true]) {
+    fn(k, Object.assign({}, o, { reduced }), Sound.score(k, Object.assign({}, o, { reduced })));
+  }
+};
+const pitched = (e) => e.hz == null && Sound.TIMBRES[e.w] && Sound.TIMBRES[e.w].type !== "air";
+const meanHz = (sc) => {
+  const p = sc.events.filter(pitched);
+  return p.reduce((a, e) => a + Sound.noteHz(e.n), 0) / p.length;
+};
+
+(function () {
+  const OLD = ["check", "win", "lose", "draw", "tick", "link", "hint"];
+  ok("every signal the room used to beep still has a voice",
+     OLD.every((k) => Sound.STINGS[k]), OLD.filter((k) => !Sound.STINGS[k]).join(", "));
+  const ASKED = ["start", "check", "capture-big", "promote", "mate-win", "mate-lose", "win", "lose",
+                 "draw", "hint", "lesson-right", "lesson-wrong", "lesson-done", "levelup", "rating-up",
+                 "rating-down", "milestone", "tap", "open", "close", "low-time", "tick", "link"];
+  ok("every moment the room asks for is written down",
+     ASKED.every((k) => Sound.STINGS[k]), ASKED.filter((k) => !Sound.STINGS[k]).join(", "));
+  ok("an unknown moment scores as nothing rather than throwing", Sound.score("fireworks") === null);
+
+  /* the arithmetic underneath */
+  ok("the room's key note is D, and A is 440",
+     Math.abs(Sound.noteHz(0) - 293.665) < 0.01 && Math.abs(Sound.noteHz(7) - 440) < 1e-9 &&
+     Math.abs(Sound.noteHz(19) - 880) < 1e-9);
+  ok("chords are spelled the way a musician would say them",
+     JSON.stringify(Sound.chord(0, "maj")) === "[0,4,7]" &&
+     JSON.stringify(Sound.chord(-3, "min")) === "[-3,0,4]" &&
+     JSON.stringify(Sound.chord(5, "maj7")) === "[5,9,12,16]" &&
+     JSON.stringify(Sound.chord(0, "nonsense")) === "[0,4,7]");
+
+  /* every note is a real note on a real instrument */
+  let bad = null;
+  everyScore((k, o, sc) => {
+    if (!sc || !sc.events.length) { bad = bad || k + " " + JSON.stringify(o) + " is empty"; return; }
+    for (const e of sc.events) {
+      const where = k + " " + JSON.stringify(o) + " " + JSON.stringify(e);
+      if (!Sound.TIMBRES[e.w]) bad = bad || where + ": no such instrument";
+      if (!(e.t >= 0) || !isFinite(e.t)) bad = bad || where + ": time";
+      if (!(e.v > 0 && e.v <= 1.2)) bad = bad || where + ": velocity";
+      const atoms = Sound.voicePlan(e);
+      if (!atoms.length) bad = bad || where + ": plays nothing";
+      for (const a of atoms) {
+        const nums = [a.f, a.end].concat(a.f2 ? [a.f2] : []).concat(a.pts.map((p) => p[0])).concat(a.pts.map((p) => p[1]));
+        if (nums.some((x) => !isFinite(x) || x < 0)) bad = bad || where + ": " + JSON.stringify(a);
+        if (a.f < 20 || a.f > 16000) bad = bad || where + ": " + a.f.toFixed(0) + " Hz";
+      }
+    }
+  });
+  ok("every note in every sting names a real instrument and an audible pitch", !bad, bad);
+
+  /* the two places a synth clicks are the first sample and the last */
+  let clicky = null;
+  everyScore((k, o, sc) => {
+    for (const e of sc.events) for (const a of Sound.voicePlan(e)) {
+      const first = a.pts[0], last = a.pts[a.pts.length - 1];
+      let order = true;
+      for (let i = 1; i < a.pts.length; i++) if (a.pts[i][0] < a.pts[i - 1][0]) order = false;
+      if (first[1] !== 0 || first[2] !== "set" || last[1] !== 0 || !order)
+        clicky = clicky || k + " " + e.w + " " + JSON.stringify(a.pts);
+    }
+  });
+  ok("every voice starts from silence and comes back to it", !clicky, clicky);
+
+  /* the promise each sting makes about its own length */
+  let over = null, slack = null;
+  const most = {};
+  everyScore((k, o, sc) => {
+    const need = Sound.dryEnd(sc) + tailOf(sc);
+    if (need > sc.len + 1e-9) over = over || k + " " + JSON.stringify(o) + " needs " + need.toFixed(2) + "s, promises " + sc.len;
+    most[k] = Math.max(most[k] || 0, need);
+  });
+  for (const k of Sound.STING_KINDS) if (Sound.STINGS[k].len - most[k] > 0.4)
+    slack = slack || k + " promises " + Sound.STINGS[k].len + "s and needs at most " + most[k].toFixed(2) + "s";
+  ok("every sting is over, reverb and all, inside the length it promises", !over, over);
+  ok("…and promises no more than it needs", !slack, slack);
+
+  /* less motion: the harmony stays, the glitter and the sweeps go */
+  let glitter = null, sweep = null, longer = null;
+  for (const k of Sound.STING_KINDS) for (const o of variantsOf(k)) {
+    const full = Sound.score(k, o), calm = Sound.score(k, Object.assign({}, o, { reduced: true }));
+    if (calm.events.some((e) => e.fl)) glitter = glitter || k;
+    if (calm.events.some((e) => e.w === "air" && e.to != null && e.to !== e.from)) sweep = sweep || k;
+    if (Sound.dryEnd(calm) > Sound.dryEnd(full) + 1e-9) longer = longer || k;
+  }
+  ok("asking for less motion drops every sparkle", !glitter, glitter);
+  ok("…and every sweep", !sweep, sweep);
+  ok("…and never makes a sting longer", !longer, longer);
+  ok("…but still says something every time",
+     Sound.STING_KINDS.every((k) => Sound.score(k, { reduced: true }).events.length > 0));
+  ok("the celebrations do have sparkles to drop",
+     ["mate-win", "milestone", "levelup", "lesson-done"].every((k) =>
+       Sound.score(k, {}).events.some((e) => e.fl)));
+
+  /* One key for the whole room. The single exception is the check you
+     are in, which borrows its B-flat from the minor on purpose. */
+  const D_MAJOR = new Set([0, 2, 4, 5, 7, 9, 11]);
+  let stray = null;
+  for (const k of Sound.STING_KINDS) for (const o of variantsOf(k)) {
+    if (k === "check" && o.against) continue;
+    for (const e of Sound.score(k, o).events) {
+      if (!pitched(e)) continue;
+      if (!D_MAJOR.has(((e.n % 12) + 12) % 12)) stray = stray || k + " " + JSON.stringify(o) + " note " + e.n;
+    }
+  }
+  ok("every written note is in D major", !stray, stray);
+  ok("…except the check you are in, which really is borrowed from the minor",
+     Sound.score("check", { against: true }).events.some((e) => pitched(e) && !D_MAJOR.has(((e.n % 12) + 12) % 12)));
+
+  /* the moments that have to mean something particular */
+  const given = Sound.score("check", {}), received = Sound.score("check", { against: true });
+  ok("the check you give and the check you are in are different figures",
+     JSON.stringify(given.events.map((e) => [e.w, e.n])) !== JSON.stringify(received.events.map((e) => [e.w, e.n])));
+  ok("…and the one you are in sits lower", meanHz(received) < meanHz(given) * 0.8,
+     meanHz(received).toFixed(0) + " Hz vs " + meanHz(given).toFixed(0) + " Hz");
+  ok("…and falls where the other rises",
+     (() => {
+       const top = (sc, t) => Math.max(...sc.events.filter((e) => pitched(e) && Math.abs(e.t - t) < 1e-6).map((e) => e.n));
+       return top(given, 0.1) > top(given, 0) && top(received, 0.15) < top(received, 0);
+     })());
+
+  const bloomVoices = (sc) => {
+    let best = 0;
+    for (const e of sc.events) best = Math.max(best, sc.events.filter((x) => x.t >= e.t && x.t < e.t + 0.12).length);
+    return best;
+  };
+  const mate = Sound.score("mate-win", {}), win = Sound.score("win", {});
+  ok("a mate is a fanfare: longer than a plain win",
+     Sound.dryEnd(mate) > Sound.dryEnd(win) + 0.8 && mate.events[mate.events.length - 1].t > 1,
+     Sound.dryEnd(mate).toFixed(2) + "s vs " + Sound.dryEnd(win).toFixed(2) + "s");
+  ok("…with more voices in its bloom", bloomVoices(mate) > bloomVoices(win),
+     bloomVoices(mate) + " vs " + bloomVoices(win));
+
+  /* being mated: minor chord first, a major chord on the home note last */
+  const lose = Sound.score("mate-lose", {}).events.filter((e) => e.w === "felt");
+  const first = lose.filter((e) => e.t < 0.2).map((e) => ((e.n % 12) + 12) % 12);
+  const lastT = Math.max(...lose.map((e) => e.t));
+  const end = lose.filter((e) => e.t > lastT - 0.2);
+  const endPc = end.map((e) => ((e.n % 12) + 12) % 12);
+  ok("being mated begins in the minor and comes home to the major",
+     first.includes(9) && first.includes(0) && first.includes(4) &&                /* B D F# */
+     Math.min(...end.map((e) => e.n)) % 12 === 0 && endPc.includes(4) && endPc.includes(7),  /* D F# A */
+     "first " + first + ", last " + endPc);
+
+  const cap = (p) => Sound.score("capture-big", { piece: p }).events.find((e) => e.w === "thump").hz;
+  ok("a queen coming off the board lands lower than a rook", cap(5) < cap(4) && cap("q") === cap(5),
+     cap(5) + " Hz vs " + cap(4) + " Hz");
+
+  const figure = (p) => JSON.stringify(Sound.score("promote", { piece: p }).events.filter((e) => e.w === "chime").map((e) => e.n));
+  const figs = [5, 4, 3, 2].map(figure);
+  ok("every promotion has its own figure", new Set(figs).size === 4, figs.join(" "));
+  ok("…and the queen's is the longest",
+     [4, 3, 2].every((p) => JSON.parse(figure(5)).length > JSON.parse(figure(p)).length));
+
+  const beat2 = (left) => Sound.score("low-time", { left }).events[1].t;
+  ok("the heartbeat quickens as the clock runs down", beat2(1) < beat2(9) && beat2(0) <= beat2(1),
+     beat2(9).toFixed(3) + "s → " + beat2(1).toFixed(3) + "s");
+
+  /* a count climbs when it counts up, and falls when it counts down */
+  let climbs = true, falls = true;
+  for (const n of [5, 10, 37]) {
+    for (let i = 1; i <= n; i++) {
+      if (Sound.countTickPitch(i, n, true) < Sound.countTickPitch(i - 1, n, true)) climbs = false;
+      if (Sound.countTickPitch(i, n, false) > Sound.countTickPitch(i - 1, n, false)) falls = false;
+    }
+    if (!(Sound.countTickPitch(n, n, true) > Sound.countTickPitch(0, n, true) * 3)) climbs = false;
+    if (!(Sound.countTickPitch(n, n, false) < Sound.countTickPitch(0, n, false) / 3)) falls = false;
+  }
+  ok("a count climbs as it counts up", climbs,
+     [0, 5, 10].map((i) => Sound.countTickPitch(i, 10, true).toFixed(0)).join(" → ") + " Hz");
+  ok("…and falls as it counts down", falls);
+  ok("…and a count of nothing is still a note",
+     [Sound.countTickPitch(0, 0), Sound.countTickPitch(NaN, undefined), Sound.countTickPitch(9, 3, true)]
+       .every((f) => isFinite(f) && f >= Sound.noteHz(12) - 1e-9 && f <= Sound.noteHz(36) + 1e-9));
+
+  /* with no audio anywhere (node), the music is a polite no-op */
+  let threw = null;
+  try {
+    ok("with no audio to play into, a sting quietly plays nothing", Sound.sting("mate-win") === 0);
+    Sound.countTick(3, 10, true); Sound.ui("check"); Sound.ui("tick");
+    ok("the room tone remembers what it was set to", Sound.ambience(0.4) === 0.4 && Sound.ambience() === 0.4);
+    ok("…and off is off", Sound.ambience(0) === 0 && !Sound.ambienceLive());
+  } catch (e) { threw = e.message; }
+  ok("nothing in the music throws without an audio context", !threw, threw);
+})();
+
+/* the room, grown rather than recorded */
+(function () {
+  const SR = 22050;
+  const a = Sound.impulseResponse(SR), b = Sound.impulseResponse(SR);
+  const L = a[0], R = a[1];
+  ok("the room is the same room every time it is grown",
+     L.length === b[0].length && L.every((v, i) => v === b[0][i]));
+  ok("it is stereo, and as long as it says",
+     a.length === 2 && Math.abs(L.length / SR - Sound.REVERB.seconds) < 0.01);
+  const pre = Math.round(SR * Sound.REVERB.predelay);
+  ok("the first reflection takes a moment to arrive, and then does",
+     L.slice(0, pre).every((v) => v === 0) && L.slice(pre, pre + 400).some((v) => Math.abs(v) > 1e-4));
+  ok("it ends in silence rather than a step", L[L.length - 1] === 0 && R[R.length - 1] === 0);
+  const rms = (d, s, e) => {
+    let q = 0; for (let i = Math.round(s * SR); i < Math.round(e * SR); i++) q += d[i] * d[i];
+    return Math.sqrt(q / (Math.round(e * SR) - Math.round(s * SR)));
+  };
+  /* how bright a stretch of it is: the energy of its slope over the
+     energy of itself, which is the width of its spectrum in disguise */
+  const bright = (d, s, e) => {
+    let a = 0, q = 0;
+    for (let i = Math.round(s * SR) + 1; i < Math.round(e * SR); i++) { a += (d[i] - d[i - 1]) ** 2; q += d[i] * d[i]; }
+    return Math.sqrt(a / q) * SR / (2 * Math.PI);
+  };
+  let decays = true;
+  const steps = [];
+  for (let t = 0.05; t + 0.2 <= 2.0; t += 0.2) {
+    steps.push(rms(L, t, t + 0.2));
+    if (steps.length > 1 && !(steps[steps.length - 1] < steps[steps.length - 2])) decays = false;
+  }
+  ok("it dies away, every fifth of a second quieter than the last", decays,
+     steps.map((v) => (20 * Math.log10(v)).toFixed(0)).join(" ") + " dB");
+  const drop = 20 * Math.log10(rms(L, 0.05, 0.25) / rms(L, 1.45, 1.65));
+  ok("…by about the sixty decibels a room loses over its reverberation time",
+     drop > 35 && drop < 80, drop.toFixed(0) + " dB over 1.4s");
+  ok("…and the highs go first, the way air takes them",
+     bright(L, 1.2, 1.6) < bright(L, 0.02, 0.4) * 0.6,
+     bright(L, 0.02, 0.4).toFixed(0) + " Hz → " + bright(L, 1.2, 1.6).toFixed(0) + " Hz wide");
+  let lr = 0, ll = 0, rr = 0;
+  for (let i = 0; i < L.length; i++) { lr += L[i] * R[i]; ll += L[i] * L[i]; rr += R[i] * R[i]; }
+  const corr = lr / Math.sqrt(ll * rr);
+  ok("the two ears hear different rooms, which is what makes it wide", Math.abs(corr) < 0.1, corr.toFixed(3));
+  const energy = (x) => { let e = 0; for (const v of x) e += v * v; return e; };
+  const e44 = Sound.impulseResponse(44100), e48 = Sound.impulseResponse(48000);
+  ok("it is as loud at 48k as at 44.1k",
+     Math.abs(energy(e44[0]) + energy(e44[1]) - 2) < 0.01 && Math.abs(energy(e48[0]) + energy(e48[1]) - 2) < 0.01,
+     ((energy(e44[0]) + energy(e44[1])) / 2).toFixed(4) + " vs " + ((energy(e48[0]) + energy(e48[1])) / 2).toFixed(4));
+})();
+
 /* ================= the actual audio ================= */
 const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser",
@@ -192,8 +456,8 @@ try { pw = require("playwright-core"); } catch (e) { pw = null; }
 if (!CHROME || !pw) {
   console.log((CHROME ? "playwright-core is not installed" : "no chromium on this machine") +
               " — the model is checked, the rendering is not.");
-  console.log(failed ? "\n" + failed + " problem" + (failed > 1 ? "s" : "") + " with the way the pieces sound"
-                     : "\nevery material and every weight has its own voice");
+  console.log(failed ? "\n" + failed + " problem" + (failed > 1 ? "s" : "") + " with the way the room sounds"
+                     : "\nevery material and every weight has its own voice, and every moment its own music");
   process.exit(failed ? 1 : 0);
 }
 
@@ -240,27 +504,298 @@ const RENDER = `async (spec) => {
   const floor = peak * 0.0012;
   let last = 0;
   for (let i = d.length - 1; i >= 0; i--) if (Math.abs(d[i]) > floor) { last = i / SR; break; }
-  /* brightness: zero crossings in the first fortieth of a second after
-     the piece lands, which is a crude spectral centroid and enough to
-     tell a pawn from a king */
+  /* brightness as the piece lands. Zero crossings in the first
+     fortieth of a second used to stand in for it, but a burst of contact
+     noise moves them by a dozen either way and a king and a pawn
+     overlapped about one run in three. The energy of the slope over the
+     energy of the signal, across the first twentieth, is the width of
+     the spectrum in disguise and does not wobble. */
   const land = plan.dur / 1000 * plan.travel;
-  let lzc = 0, lp = 0;
+  let lzc = 0, lp = 0, slope = 0, body = 0;
   for (let i = Math.round(land * SR); i < Math.min(d.length, Math.round((land + 0.025) * SR)); i++) {
     if ((d[i] >= 0) !== (lp >= 0)) lzc++;
     lp = d[i];
   }
+  for (let i = Math.round(land * SR) + 1; i < Math.min(d.length, Math.round((land + 0.05) * SR)); i++) {
+    slope += (d[i] - d[i - 1]) * (d[i] - d[i - 1]); body += d[i] * d[i];
+  }
+  /* The ring is timed above 200 Hz. Below that is the weight of the
+     piece going through the table, which every material shares and
+     which lasts longer than ink or wood ring at all — timing the whole
+     signal timed the thud, and put ink and wood a millisecond apart. */
+  const w0 = 2 * Math.PI * 200 / SR, al = Math.sin(w0) / (2 * Math.SQRT1_2), cw = Math.cos(w0);
+  const b0 = (1 + cw) / 2 / (1 + al), b1 = -(1 + cw) / (1 + al), a1 = -2 * cw / (1 + al), a2 = (1 - al) / (1 + al);
+  const hi = new Float32Array(d.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, hpeak = 0;
+  for (let i = 0; i < d.length; i++) {
+    const y = b0 * d[i] + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = d[i]; y2 = y1; y1 = y; hi[i] = y;
+    if (Math.abs(y) > hpeak) hpeak = Math.abs(y);
+  }
+  let hlast = 0;
+  for (let i = hi.length - 1; i >= 0; i--) if (Math.abs(hi[i]) > hpeak * 0.0012) { hlast = i / SR; break; }
   return {
     peak: peak, rms: Math.sqrt(energy / d.length), zc: zc, tail: last,
-    /* how long it goes on ringing after it is put down, which is the
-       thing a material actually decides — the drag before it is not
-       part of the ring */
-    ring: Math.max(0, last - land),
-    land: land, landZc: lzc,
+    /* how long the body goes on ringing after it is put down, which is
+       the thing a material actually decides — the drag before it is
+       not part of the ring, and nor is the thud under it */
+    ring: Math.max(0, hlast - land),
+    land: land, landZc: lzc, landBright: body ? Math.sqrt(slope / body) * SR / (2 * Math.PI) : 0,
     travelRms: win(0.01, land * 0.92),
     landRms: win(land, land + 0.06),
     dur: plan.dur
   };
 }`;
+
+/* ---------- the music, rendered ----------
+   Every sting here is played half a second in. A compressor straight
+   out of the box starts clamped down and takes a moment to open up —
+   the same clock tick measures 13 dB quieter at the very first sample
+   than a second later — and in the room it has been running long
+   before anything is asked of it. Measuring from a cold start would be
+   measuring the compressor. */
+const WARM = 0.5;
+const MUSIC = `async (spec) => {
+  const SR = 44100;
+  const oc = new OfflineAudioContext(spec.channels || 1, Math.round(SR * spec.seconds), SR);
+  Sound.useContext(oc);
+  Sound.enable(true);
+  Sound.setReduced(!!spec.reduced);
+  let returned = 0;
+  const run = (calls) => {
+    for (const c of calls) {
+      if (c[0] === "sting") returned = Math.max(returned, Sound.sting(c[1], c[2] || {}) || 0);
+      else if (c[0] === "ui") Sound.ui(c[1]);
+      else if (c[0] === "count") Sound.countTick(c[1], c[2], c[3]);
+      else if (c[0] === "ambience") Sound.ambience(c[1]);
+      else if (c[0] === "enable") Sound.enable(c[1]);
+      else if (c[0] === "move") Sound.move(c[1], Motion.plan(c[1], {}), c[2] || {});
+    }
+  };
+  run(spec.calls || []);
+  const busy = Sound.busy();
+  for (const [at, calls] of spec.later || []) {
+    oc.suspend(at).then(() => { run(calls); oc.resume().catch(() => {}); });
+  }
+  const buf = await oc.startRendering();
+  const ambienceLive = Sound.ambienceLive();
+  Sound.ambience(0); Sound.enable(true); Sound.setReduced(null);
+
+  const chans = [];
+  for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+  const d = chans[0];
+  const idx = (t) => Math.max(0, Math.min(d.length, Math.round(t * SR)));
+  const rmsOf = (a, b) => {
+    let q = 0, n = 0;
+    for (let i = idx(a); i < idx(b); i++) { q += d[i] * d[i]; n++; }
+    return n ? Math.sqrt(q / n) : 0;
+  };
+  let peak = 0, energy = 0;
+  for (const x of chans) for (let i = 0; i < x.length; i++) {
+    const v = Math.abs(x[i]); if (v > peak) peak = v; energy += x[i] * x[i];
+  }
+  /* where it has died to a thousandth of its peak, and where it is
+     truly nothing */
+  let tail = 0, lastAbs = 0;
+  for (let i = d.length - 1; i >= 0; i--) if (Math.abs(d[i]) > peak * 1e-3) { tail = i / SR; break; }
+  for (let i = d.length - 1; i >= 0; i--) if (Math.abs(d[i]) > 1e-6) { lastAbs = i / SR; break; }
+  /* the loudest tenth of a second, and the bloom: the six tenths that
+     follow it */
+  const W = Math.round(SR * 0.1);
+  let loud = 0, loudAt = 0;
+  for (let s = 0; s + W <= d.length; s += W >> 2) {
+    let q = 0; for (let i = s; i < s + W; i++) q += d[i] * d[i];
+    q = Math.sqrt(q / W); if (q > loud) { loud = q; loudAt = s / SR; }
+  }
+  const zcOf = (a, b) => {
+    let n = 0; for (let i = idx(a) + 1; i < idx(b); i++) if ((d[i] >= 0) !== (d[i - 1] >= 0)) n++;
+    return n / (b - a);
+  };
+  const stepOf = (a, b) => {
+    let m = 0; for (let i = idx(a) + 1; i < idx(b); i++) m = Math.max(m, Math.abs(d[i] - d[i - 1]));
+    return m;
+  };
+  let width = null;
+  if (chans.length === 2 && spec.width) {
+    let s = 0, df = 0;
+    for (let i = idx(spec.width[0]); i < idx(spec.width[1]); i++) {
+      const l = chans[0][i], r = chans[1][i]; s += (l + r) * (l + r); df += (l - r) * (l - r);
+    }
+    width = s ? Math.sqrt(df / s) : 0;
+  }
+  return {
+    returned, busy, ambienceLive, peak, energy, rms: Math.sqrt(energy / (d.length * chans.length)),
+    tail, lastAbs, loud, loudAt, bloom: rmsOf(loudAt, loudAt + 0.6),
+    windows: (spec.windows || []).map((w) => rmsOf(w[0], w[1])),
+    zc: (spec.zc || []).map((w) => zcOf(w[0], w[1])),
+    steps: (spec.steps || []).map((w) => stepOf(w[0], w[1])),
+    width
+  };
+}`;
+
+async function musicChecks(render) {
+  const dB = (v) => (v > 0 ? (20 * Math.log10(v)).toFixed(0) + " dB" : "silence");
+  const sting = (kind, opts, extra) => render(Object.assign({
+    seconds: WARM + Sound.STINGS[kind].len + 0.3,
+    calls: [["sting", kind, Object.assign({ delay: WARM }, opts || {})]]
+  }, extra || {}));
+  const name = (k, o) => k + (Object.keys(o).length ? " " + JSON.stringify(o) : "");
+
+  /* every sting, and every shape of one that sounds different */
+  const LIST = Sound.STING_KINDS.map((k) => [k, k === "count" ? { i: 4, n: 10, up: true } : {}])
+    .concat([["check", { against: true }], ["capture-big", { piece: 4 }], ["promote", { piece: 2 }],
+             ["low-time", { left: 1 }], ["tick", { tock: true }], ["open", { reduced: true }],
+             ["mate-win", { reduced: true }]]);
+  const got = [];
+  for (const [k, o] of LIST) got.push([k, o, await sting(k, o)]);
+  if (VERBOSE) for (const [k, o, r] of got) {
+    console.log("      " + name(k, o).padEnd(34) + " peak " + r.peak.toFixed(3) + "  loudest " + dB(r.loud) +
+                "  died " + (r.tail - WARM).toFixed(2) + "s  silent " + (r.lastAbs - WARM).toFixed(2) +
+                "s  promised " + Sound.STINGS[k].len + "s");
+  }
+  const R = (k, o) => got.find(([kk, oo]) => kk === k && JSON.stringify(oo) === JSON.stringify(o || {}))[2];
+  const fails = (pred, show) => got.filter(pred).map(show || (([k, o]) => name(k, o))).join(", ");
+
+  ok("every sting makes a sound", !fails(([, , r]) => !(r.rms > 1e-6)),
+     fails(([, , r]) => !(r.rms > 1e-6)));
+  ok("no sting clips", !fails(([, , r]) => !(r.peak < 1)),
+     fails(([, , r]) => !(r.peak < 1), ([k, o, r]) => name(k, o) + " " + r.peak.toFixed(2)));
+  ok("every sting has died away inside the length it promises",
+     !fails(([k, , r]) => r.tail > WARM + Sound.STINGS[k].len + 0.01),
+     fails(([k, , r]) => r.tail > WARM + Sound.STINGS[k].len + 0.01,
+           ([k, o, r]) => name(k, o) + " " + (r.tail - WARM).toFixed(2) + "s > " + Sound.STINGS[k].len));
+  ok("…and is nothing at all after it, reverb included",
+     !fails(([k, , r]) => r.lastAbs > WARM + Sound.STINGS[k].len + 0.01),
+     fails(([k, , r]) => r.lastAbs > WARM + Sound.STINGS[k].len + 0.01,
+           ([k, o, r]) => name(k, o) + " " + (r.lastAbs - WARM).toFixed(2) + "s"));
+  ok("Sound.sting says how long it will ring",
+     !fails(([k, , r]) => r.returned !== Sound.STINGS[k].len),
+     fails(([k, , r]) => r.returned !== Sound.STINGS[k].len, ([k, o, r]) => name(k, o) + " said " + r.returned));
+
+  /* the old way in still works, through the new voices */
+  const OLD = ["check", "win", "lose", "draw", "tick", "link", "hint"];
+  const viaUi = [];
+  for (const k of OLD) {
+    viaUi.push([k, await render({ seconds: WARM + Sound.STINGS[k].len + 0.2, later: [[WARM, [["ui", k]]]] })]);
+  }
+  ok("every old Sound.ui kind still plays", viaUi.every(([, r]) => r.rms > 1e-6 && r.peak < 1),
+     viaUi.filter(([, r]) => !(r.rms > 1e-6 && r.peak < 1)).map(([k]) => k).join(", "));
+  const tickZc = { zc: [[WARM + 0.012, WARM + 0.04]], seconds: WARM + 0.3 };
+  const t1 = await render(Object.assign({ later: [[WARM, [["ui", "tick"]]]] }, tickZc));
+  const t2 = await render(Object.assign({ later: [[WARM, [["ui", "tick"]]]] }, tickZc));
+  ok("the clock goes tick, tock — a different note each second",
+     Math.abs(t1.zc[0] - t2.zc[0]) / Math.max(t1.zc[0], t2.zc[0]) > 0.12,
+     t1.zc[0].toFixed(0) + " vs " + t2.zc[0].toFixed(0) + " crossings/s");
+
+  /* the moments that have to mean something particular */
+  const mate = R("mate-win"), win = R("win");
+  ok("a mate rings on longer than a plain win", mate.tail > win.tail + 0.8,
+     (mate.tail - WARM).toFixed(2) + "s vs " + (win.tail - WARM).toFixed(2) + "s");
+  ok("…and blooms louder", mate.bloom > win.bloom * 1.15 && mate.energy > win.energy * 1.5,
+     "bloom " + dB(mate.bloom) + " vs " + dB(win.bloom) + ", energy " + (mate.energy / win.energy).toFixed(1) + "×");
+  /* (that the calm one has dropped its sparkles is proved on the score
+     above; three quiet chimes are well inside the few percent of
+     velocity every note is given, so it is not measured here) */
+  const calm = R("mate-win", { reduced: true });
+  ok("…and with less motion asked for it is still the whole fanfare",
+     calm.bloom > mate.bloom * 0.8 && calm.tail > win.tail + 0.8,
+     "bloom " + dB(calm.bloom) + " vs " + dB(mate.bloom) + ", rings " + (calm.tail - WARM).toFixed(2) + "s");
+
+  const zcWin = { zc: [[WARM, WARM + 0.7]] };
+  const given = await sting("check", {}, zcWin), received = await sting("check", { against: true }, zcWin);
+  ok("the check you are in is heard as a different figure from the check you give",
+     given.zc[0] > received.zc[0] * 1.3,
+     given.zc[0].toFixed(0) + " vs " + received.zc[0].toFixed(0) + " crossings/s");
+  ok("…and is no louder: careful, not alarmed", received.loud < given.loud * 1.25,
+     dB(received.loud) + " vs " + dB(given.loud));
+
+  const bigQ = R("capture-big"), bigR = R("capture-big", { piece: 4 });
+  ok("a queen coming off lands with more weight than a rook", bigQ.energy > bigR.energy,
+     (bigQ.energy / bigR.energy).toFixed(2) + "×");
+
+  /* the room, heard */
+  const de = Sound.dryEnd(Sound.score("hint", {}));
+  const roomWin = { windows: [[WARM + 0.6, WARM + 1.2], [WARM + de + 0.05, WARM + de + 0.9]] };
+  const wet = await sting("hint", {}, roomWin), dry = await sting("hint", { send: 0 }, roomWin);
+  ok("the reverb is heard while the notes are dying",
+     wet.windows[0] > dry.windows[0] * 2, dB(wet.windows[0]) + " with the room vs " + dB(dry.windows[0]) + " without");
+  ok("…and goes on after they have stopped",
+     wet.windows[1] > 1e-5 && dry.windows[1] === 0, dB(wet.windows[1]) + " vs " + dB(dry.windows[1]));
+  const wide = await sting("hint", {}, { channels: 2, width: [WARM + 0.3, WARM + 2] });
+  const narrow = await sting("tap", {}, { channels: 2, width: [WARM, WARM + 0.1] });
+  ok("the room is wide: the two ears hear different things", wide.width > 0.3, wide.width.toFixed(2));
+  ok("…while a dry, centred tap is the same in both", narrow.width < 0.01, narrow.width.toFixed(3));
+
+  /* a count, climbing */
+  const at = (i, up) => render({ seconds: WARM + 0.3, later: [[WARM, [["count", i, 10, up]]]],
+                                 zc: [[WARM + 0.012, WARM + 0.04]] });
+  const up = [await at(0, true), await at(5, true), await at(10, true)];
+  const down = [await at(0, false), await at(10, false)];
+  ok("a count rises as it counts up",
+     up[0].zc[0] < up[1].zc[0] && up[1].zc[0] < up[2].zc[0],
+     up.map((r) => r.zc[0].toFixed(0)).join(" → ") + " crossings/s");
+  ok("…and falls as it counts down", down[0].zc[0] > down[1].zc[0] * 2,
+     down.map((r) => r.zc[0].toFixed(0)).join(" → "));
+  ok("…and is very light", Math.max(...up.map((r) => r.peak)) < R("lesson-right").peak * 0.15,
+     Math.max(...up.map((r) => r.peak)).toFixed(3) + " vs a lesson's " + R("lesson-right").peak.toFixed(3));
+
+  /* off is off */
+  const muted = await render({ seconds: WARM + 3, calls: [["enable", false],
+    ["sting", "mate-win", { delay: WARM }], ["ui", "check"], ["count", 3, 10, true], ["ambience", 0.8],
+    ["move", { piece: 5, from: 0x03, to: 0x77 }, { captured: -4 }]] });
+  ok("a muted room renders silence — stings, counts, room tone, pieces", muted.peak === 0 && !muted.ambienceLive,
+     muted.peak);
+  const fadeWin = { windows: [[WARM + 1.0, WARM + 1.6]] };
+  const playing = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]] }, fadeWin));
+  const hushed = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]],
+                                              later: [[WARM + 0.6, [["enable", false]]]] }, fadeWin));
+  ok("a mute fades a fanfare that is already playing", hushed.windows[0] < playing.windows[0] * 0.2,
+     dB(hushed.windows[0]) + " vs " + dB(playing.windows[0]));
+
+  /* the room tone */
+  const none = await render({ seconds: 2, calls: [["ambience", 0]] });
+  ok("the room tone is silence when it is off", none.peak === 0 && !none.ambienceLive);
+  const toneOn = await render({ seconds: 3, calls: [["ambience", 0.6]], windows: [[1.5, 3]] });
+  ok("…is there when it is on", toneOn.windows[0] > 1e-5 && toneOn.ambienceLive, dB(toneOn.windows[0]));
+  ok("…but barely: far under any moment", toneOn.loud < R("lesson-right").loud * 0.3 && toneOn.peak < 0.2,
+     dB(toneOn.loud) + " vs a lesson's " + dB(R("lesson-right").loud));
+  const toneOff = await render({ seconds: 3.4, calls: [["ambience", 0.6]], later: [[1.4, [["ambience", 0]]]],
+                                 windows: [[1.1, 1.4], [2.45, 3.4]], steps: [[0.9, 1.4], [1.4, 2.45]] });
+  ok("…and switched off, it fades, stops, and leaves nothing running",
+     toneOff.windows[0] > 1e-5 && toneOff.windows[1] === 0 && !toneOff.ambienceLive,
+     dB(toneOff.windows[0]) + " then " + dB(toneOff.windows[1]));
+  ok("…without a click", toneOff.steps[1] <= toneOff.steps[0] * 1.5,
+     toneOff.steps[1].toExponential(2) + " vs " + toneOff.steps[0].toExponential(2) + " while steady");
+
+  /* everything at once */
+  const pile = await render({ seconds: WARM + 6,
+    calls: Sound.STING_KINDS.map((k) => ["sting", k, Object.assign({ delay: WARM }, k === "count" ? { i: 1, n: 2 } : {})]),
+    later: [[WARM, [["move", { piece: 1, from: 0x60, to: 0x73, promo: 5 }, { captured: -5 }]]]] });
+  ok("every moment at once still does not clip", pile.peak < 1, pile.peak.toFixed(2));
+  ok("…and stays inside the voice budget", pile.busy <= Sound.MAX_VOICES, pile.busy + " of " + Sound.MAX_VOICES);
+  /* the realistic worst case: a pawn takes a queen, promotes, and mates */
+  const bloomAt = [[WARM + 1.3, WARM + 1.9]];
+  const alone = await render({ seconds: WARM + 2.2, calls: [["sting", "mate-win", { delay: WARM }]], windows: bloomAt });
+  const crowded = await render({ seconds: WARM + 2.2, calls: [
+      ["move", { piece: 1, from: 0x60, to: 0x71, promo: 5 }, { captured: -5 }],
+      ["move", { piece: 5, from: 0x03, to: 0x63 }, { captured: -4 }],
+      ["sting", "mate-win", { delay: WARM }]], windows: bloomAt });
+  ok("a mate on top of a crowded move still lands its last chord",
+     crowded.windows[0] > alone.windows[0] * 0.6, dB(crowded.windows[0]) + " vs " + dB(alone.windows[0]) + " alone");
+
+  /* the pieces themselves */
+  const qMove = { piece: 3, from: 0x02, to: 0x46 };
+  const withBig = await render({ seconds: WARM + 3, later: [[WARM, [["move", qMove, { captured: -5 }]]]] });
+  const without = await render({ seconds: WARM + 3, later: [[WARM, [["move", qMove, { captured: -5, big: false }]]]] });
+  ok("taking a queen puts a low weight under the capture", withBig.energy > without.energy * 1.2,
+     (withBig.energy / without.energy).toFixed(2) + "×");
+  ok("…and still does not clip", withBig.peak < 1, withBig.peak.toFixed(2));
+  const pMove = { piece: 1, from: 0x60, to: 0x70, promo: 5 };
+  const crowned = await render({ seconds: WARM + 3, later: [[WARM, [["move", pMove, {}]]]] });
+  const plain = await render({ seconds: WARM + 3, later: [[WARM, [["move", pMove, { ceremony: false }]]]] });
+  ok("a promotion shimmers up out of the flash", crowned.energy > plain.energy * 1.5 && crowned.peak < 1,
+     (crowned.energy / plain.energy).toFixed(2) + "×");
+}
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
@@ -293,7 +828,7 @@ const RENDER = `async (spec) => {
     let ringing = true;
     for (let i = 1; i < MATS.length; i++) if (out[MATS[i]].ring <= out[MATS[i - 1]].ring) ringing = false;
     ok("rendered, each material rings longer than the one before it", ringing,
-       MATS.map((m) => m + " " + out[m].ring.toFixed(2) + "s").join(", "));
+       MATS.map((m) => m + " " + out[m].ring.toFixed(3) + "s").join(", "));
     ok("glass rings at least three times as long as wood",
        out.glass.ring > out.wood.ring * 3,
        out.glass.ring.toFixed(2) + "s vs " + out.wood.ring.toFixed(2) + "s");
@@ -304,8 +839,8 @@ const RENDER = `async (spec) => {
     const pawn = await render(Object.assign({}, base0, { material: "ivory", move: MOVE.pawn }));
     const king = await render(Object.assign({}, base0, { material: "ivory", move: MOVE.king }));
     if (VERBOSE) console.log("      pawn", JSON.stringify(pawn), "\n      king", JSON.stringify(king));
-    ok("a king lands duller and lower than a pawn", king.landZc < pawn.landZc,
-       king.landZc + " crossings vs " + pawn.landZc);
+    ok("a king lands duller and lower than a pawn", king.landBright < pawn.landBright * 0.9,
+       king.landBright.toFixed(0) + " Hz wide vs " + pawn.landBright.toFixed(0));
     ok("…and lands louder", king.landRms > pawn.landRms,
        king.landRms.toFixed(4) + " vs " + pawn.landRms.toFixed(4));
 
@@ -344,6 +879,8 @@ const RENDER = `async (spec) => {
       move: { piece: 1, from: 0x60, to: 0x70, promo: 5 } });
     ok("a promotion rings in the new piece", promo.rms > 1e-5 && promo.peak < 1, JSON.stringify(promo));
 
+    await musicChecks((spec) => page.evaluate(`(${MUSIC})(${JSON.stringify(spec)})`), page);
+
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the render check ran", false, e.message);
@@ -352,7 +889,8 @@ const RENDER = `async (spec) => {
     server.close();
   }
 
-  console.log(failed ? "\n" + failed + " problem" + (failed > 1 ? "s" : "") + " with the way the pieces sound"
-                     : "\nevery material and every weight has its own voice, and the knight slides on nothing");
+  console.log(failed ? "\n" + failed + " problem" + (failed > 1 ? "s" : "") + " with the way the room sounds"
+                     : "\nevery material and every weight has its own voice, the knight slides on nothing," +
+                       " and every moment in the room has its own music");
   process.exit(failed ? 1 : 0);
 })();
