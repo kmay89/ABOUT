@@ -18,7 +18,8 @@
        time budget, which is what the clock and the coach's turn rely on;
      • the ranked list the coaching is built from agrees with the move
        the search actually chose;
-     • and the three practice levels really are a ladder.
+     • and the practice levels, read from rating.js, really are a
+       ladder.
 
    Run: node chess/tools/engine-check.js [--slow]
 */
@@ -234,35 +235,77 @@ function forcedMate(g, n) {
      st.over ? st.reason : "still going");
 }
 
-/* ---- the practice ladder really is a ladder ---- */
+/* ---- the practice ladder really is a ladder ----
+   The rungs are read from rating.js rather than copied here, so the
+   ladder this plays is the ladder the room offers and the ratings it
+   carries. tools/calibrate.js measures the gaps properly, over hundreds
+   of games; this is the smoke test that the order still holds after a
+   change to the search or the evaluation — a short, seeded match between
+   each pair of neighbours. */
 if (SLOW) {
-  const SKILLS = {
-    sprout: { ms: 200, maxDepth: 2, noise: 170 },
-    club:   { ms: 450, maxDepth: 5, noise: 55 },
-    mentor: { ms: 1000, maxDepth: 64, noise: 0 }
-  };
-  const play = (A, B, games) => {
-    let score = 0;
-    for (let i = 0; i < games; i++) {
+  const Rating = require("../rating.js");
+  const LEVELS = Rating.LEVELS;
+  /* a rung that stops only on the clock plays a different game on every
+     machine, and cannot carry a rating */
+  const loose = LEVELS.filter((L) => !(L.nodes > 0) && !(L.maxDepth <= 8)).map((L) => L.id);
+  ok("every practice level stops on depth or nodes, not only on the clock", !loose.length, loose.join(", "));
+  if (!loose.length) {
+    /* With the clock stopped and the dice seeded, nothing about the
+       machine running this — or how busy it is — can change a single
+       move, so a result here is a property of the engine, not of the
+       afternoon. Both are put back afterwards. */
+    const realPerf = globalThis.performance, realRandom = Math.random;
+    Object.defineProperty(globalThis, "performance", { value: { now: () => 0 }, configurable: true, writable: true });
+    const seeded = (a) => () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const OPENINGS = [
+      ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5"],
+      ["d4", "d5", "c4", "e6", "Nc3", "Nf6"],
+      ["e4", "c5", "Nf3", "d6", "d4", "cxd4"]
+    ];
+    /* scored for A; adjudicated once both searches agree for eight plies
+       that one side is ten pawns up, the way an engine match resigns */
+    const game = (A, B, opening, aWhite, seed) => {
+      Math.random = seeded(seed);
+      C.setHashBits(16);
       const g = C.create();
-      for (let ply = 0; ply < 160; ply++) {
+      for (const san of opening) C.play(g, C.fromSAN(g, san));
+      let run = 0, sign = 0;
+      for (let ply = 0; ply < 200; ply++) {
         const st = C.status(g);
-        if (st.over) { score += st.result === "draw" ? 0.5 : ((st.result === "white") === (i % 2 === 0) ? 1 : 0); break; }
-        if (st.canClaim3 || st.canClaim50) { score += 0.5; break; }
-        const aTurn = (g.turn === C.WHITE) === (i % 2 === 0);
-        const cfg = aTurn ? A : B;
-        const r = C.search(g, cfg);
-        if (!r.move) { score += 0.5; break; }
+        if (st.over) return st.result === "draw" ? 0.5 : ((st.result === "white") === aWhite ? 1 : 0);
+        if (st.canClaim3 || st.canClaim50) return 0.5;
+        const r = C.search(g, Rating.searchOpts((g.turn === C.WHITE) === aWhite ? A : B));
+        if (!r.move) return 0.5;
+        const w = g.turn === C.WHITE ? r.score : -r.score;
+        const sg = w >= 1000 ? 1 : (w <= -1000 ? -1 : 0);
+        if (sg && sg === sign) run++; else { run = sg ? 1 : 0; sign = sg; }
         C.play(g, r.move);
-        if (ply === 159) score += 0.5;
+        if (run >= 8) return (sign > 0) === aWhite ? 1 : 0;
       }
+      return 0.5;
+    };
+    try {
+      for (let i = 1; i < LEVELS.length; i++) {
+        const S = LEVELS[i], W = LEVELS[i - 1];
+        let pts = 0, n = 0;
+        OPENINGS.forEach((op, k) => {
+          pts += game(S, W, op, true, 1000 * i + 2 * k);
+          pts += game(S, W, op, false, 1000 * i + 2 * k + 1);
+          n += 2;
+        });
+        ok(`${(S.name + " outscores " + W.name).padEnd(26)} ${pts}/${n}`, pts / n > 0.5,
+           `${S.name} needed more than half`);
+      }
+    } finally {
+      Object.defineProperty(globalThis, "performance", { value: realPerf, configurable: true, writable: true });
+      Math.random = realRandom;
     }
-    return score / games;
-  };
-  const mc = play(SKILLS.mentor, SKILLS.club, 6);
-  ok("mentor outscores club", mc > 0.5, `mentor scored ${(mc * 100).toFixed(0)}%`);
-  const cs = play(SKILLS.club, SKILLS.sprout, 6);
-  ok("club outscores sprout", cs > 0.5, `club scored ${(cs * 100).toFixed(0)}%`);
+  }
 } else {
   console.log("skip  practice-ladder match (pass --slow to play it)");
 }
