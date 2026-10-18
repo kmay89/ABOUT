@@ -1130,16 +1130,20 @@ function create(canvas, opts) {
      something to aim at and nothing reaches into the next square. */
   var GIRTH_BANDS = 8;
   function girthOf(pos, height) {
-    var h = height > 0 ? height : 1, r = [], i, b;
+    var h = height > 0 ? height : 1, r = [], i, b, top = 0, wide = 0;
     for (b = 0; b < GIRTH_BANDS; b++) r.push(0);
     for (i = 0; i < pos.length; i += 3) {
       b = Math.floor(pos[i + 1] / h * GIRTH_BANDS);
       if (b < 0) b = 0; else if (b >= GIRTH_BANDS) b = GIRTH_BANDS - 1;
       var d = Math.sqrt(pos[i] * pos[i] + pos[i + 2] * pos[i + 2]);
       if (d > r[b]) r[b] = d;
+      if (d > wide) wide = d;
+      if (pos[i + 1] > top) top = pos[i + 1];
     }
     for (b = 0; b < GIRTH_BANDS; b++) r[b] = Math.max(0.2, Math.min(0.4, r[b] + 0.05));
-    return { h: h, r: r };
+    /* and the plain can he fits in, unpadded, for deciding whether the
+       ray is worth trying against his triangles at all */
+    return { h: h, r: r, can: { h: Math.max(h, top) + 1e-3, r: [wide + 1e-3] } };
   }
   var setId = null, setFaces = "", setName = "";
   function freePieces() {
@@ -1168,8 +1172,9 @@ function create(canvas, opts) {
                     /* how this set's man lies when he is laid down, measured
                        once off the mesh rather than guessed per frame */
                     lie: Move.lieOf(m.pos, m.radius),
-                    /* and how much of the picture he takes up, for a tap */
-                    girth: girthOf(m.pos, m.height) };
+                    /* and how much of the picture he takes up, for a tap:
+                       his rough outline, and the triangles themselves */
+                    girth: girthOf(m.pos, m.height), pos: m.pos, idx: m.idx };
     }
     setId = built.id;
     setFaces = built.faces || "";
@@ -1732,6 +1737,38 @@ function create(canvas, opts) {
     return best;
   }
 
+  /* Where a ray first meets a man's actual surface, or Infinity: the ray
+     carried into his own frame (he stands at (cx, cz), turned `ry` about
+     his axis, exactly as he is drawn) and tried against every triangle,
+     both faces, by Möller and Trumbore. A few thousand triangles for each
+     of the two or three men a ray passes near — a millisecond or two, once
+     a tap, which is nothing beside being told the wrong man. */
+  function hitMesh(o, d, cx, cz, ry, P) {
+    var c = Math.cos(ry || 0), n = Math.sin(ry || 0);
+    var wx = o[0] - cx, wz = o[2] - cz;
+    var ox = c * wx - n * wz, oy = o[1], oz = n * wx + c * wz;
+    var dx = c * d[0] - n * d[2], dy = d[1], dz = n * d[0] + c * d[2];
+    var pos = P.pos, idx = P.idx, best = Infinity;
+    for (var i = 0; i < idx.length; i += 3) {
+      var a = idx[i] * 3, b = idx[i + 1] * 3, e = idx[i + 2] * 3;
+      var ax = pos[a], ay = pos[a + 1], az = pos[a + 2];
+      var e1x = pos[b] - ax, e1y = pos[b + 1] - ay, e1z = pos[b + 2] - az;
+      var e2x = pos[e] - ax, e2y = pos[e + 1] - ay, e2z = pos[e + 2] - az;
+      var px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+      var det = e1x * px + e1y * py + e1z * pz;
+      if (det > -1e-12 && det < 1e-12) continue;
+      var inv = 1 / det, tx = ox - ax, ty = oy - ay, tz = oz - az;
+      var u = (tx * px + ty * py + tz * pz) * inv;
+      if (u < 0 || u > 1) continue;
+      var qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+      var v = (dx * qx + dy * qy + dz * qz) * inv;
+      if (v < 0 || u + v > 1) continue;
+      var t = (e2x * qx + e2y * qy + e2z * qz) * inv;
+      if (t > 0 && t < best) best = t;
+    }
+    return best;
+  }
+
   /* A tap, to the square of whatever the player can see under it. The
      men are tall, and seen from the near side a back-rank piece stands
      over the pawn in front of it and a pawn over the square behind — so
@@ -1739,6 +1776,16 @@ function create(canvas, opts) {
      it will be once a move in flight has landed), nearest one wins, and
      only if it misses them all does it go on down to the wood. Without
      that, the head of the g1 knight was g2 and the queen's crown was d2.
+
+     Two tries, in order. First the men's real surfaces: the nearest
+     triangle the ray meets decides, so a pawn peeping out beside a king
+     in front of him is the pawn wherever you can actually see him (the
+     padded outlines alone gave half of him to the king, seen low).
+     Only if the ray slips between every man's triangles — through the
+     openwork of a spiral, or a hair to the side of a king's cross — do
+     the padded outlines get their say, nearest first: a fingertip is
+     wider than a finial, and a near miss on a man's head should still
+     pick the man rather than the square behind him.
      `{ plane: true }` skips the men and answers for the wood alone —
      what an effects check wants when it asks whether the projector and
      its inverse agree. */
@@ -1747,16 +1794,30 @@ function create(canvas, opts) {
     if (!ray) return -1;
     var O = ray.o, D = ray.d;
     if (!(o && o.plane) && PIECES) {
-      var b = R.anim ? R.anim.after : R.board, best = -1, bestT = Infinity;
+      var b = R.anim ? R.anim.after : R.board, near = -1, nearT = Infinity, cands = [];
       var down = R.toppled && !R.anim ? R.toppled.sq : -1;
       for (var sq = 0; sq < 128; sq++) {
         if ((sq & 0x88) || !b[sq] || sq === down || (drag && sq === drag.sq)) continue;
         var P = PIECES[Math.abs(b[sq])];
         if (!P || !P.girth) continue;
-        var t = hitMan(O, D, sqX(sq), sqZ(sq), P.girth);
-        if (t < bestT) { bestT = t; best = sq; }
+        var cx = sqX(sq), cz = sqZ(sq);
+        var t = hitMan(O, D, cx, cz, P.girth);
+        if (t < nearT) { nearT = t; near = sq; }
+        var tc = hitMan(O, D, cx, cz, P.girth.can);
+        if (tc < Infinity) cands.push({ sq: sq, t: tc, P: P, ry: faceAngle(Math.abs(b[sq]), b[sq] > 0) });
       }
-      if (best >= 0) return best;
+      /* nearest can first; a man whose can starts beyond the best hit so
+         far cannot be in front of it */
+      cands.sort(function (x, y) { return x.t - y.t; });
+      var hit = -1, hitT = Infinity;
+      for (var ci = 0; ci < cands.length && cands[ci].t < hitT; ci++) {
+        var C = cands[ci];
+        if (!C.P.pos || !C.P.idx) continue;
+        var te = hitMesh(O, D, sqX(C.sq), sqZ(C.sq), C.ry, C.P);
+        if (te < hitT) { hitT = te; hit = C.sq; }
+      }
+      if (hit >= 0) return hit;
+      if (near >= 0) return near;
     }
     if (D[1] > -1e-9) return -1;
     var tp = -O[1] / D[1];
