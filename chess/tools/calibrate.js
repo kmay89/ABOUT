@@ -111,8 +111,16 @@ function reseed(s) {
 
 /* ---- openings: short, sound, and many of them ---- */
 function openings(count) {
+  /* read straight out of the generated file, in the file's own order, so
+     the seeded shuffle below picks the same lines it always has. Eco's
+     public face only answers questions about one line at a time. */
   const src = fs.readFileSync(path.join(__dirname, "..", "eco.js"), "utf8");
   const lit = src.match(/var DATA = ("(?:[^"\\]|\\.)*");/);
+  if (!lit) {
+    console.error("calibrate: eco.js no longer holds its table as `var DATA = \"…\";` — " +
+                  "make-eco.js has changed shape, and openings() here needs the same change");
+    process.exit(2);
+  }
   const rows = JSON.parse(lit[1]).split("\n").map((l) => l.split("\t")).filter((r) => r.length === 3);
   const seen = new Set(), pool = [];
   for (const [, , seq] of rows) {
@@ -336,6 +344,9 @@ if (!NO_REVIEW && typeof Rating.gameAccuracy === "function") {
   for (const L of LEVELS) {
     const t = Date.now();
     const mine = games.filter((gm) => gm.white === L.id || gm.black === L.id);
+    /* a rung left out by --pairs played nothing, and an average of
+       nothing is not 0% */
+    if (!mine.length) { log(`  ${L.id.padEnd(8)} played no games this run — skipped`); continue; }
     /* take them evenly from both of the rung's pairings */
     const pick = [];
     const step = Math.max(1, Math.floor(mine.length / Math.max(1, REVIEW_GAMES)));

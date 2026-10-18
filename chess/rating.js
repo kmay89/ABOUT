@@ -50,7 +50,11 @@
    not a rung.
 
    The engine recipe:
-     maxDepth  how many plies the coach reads before it chooses
+     maxDepth  how many plies the coach reads before it chooses. The
+               moves its slack chooses among are always scored at least
+               two plies deep (that is the engine's floor for a ranked
+               list), so even Acorn sees a piece that would be taken
+               straight back — its weakness is the slack, not blindness
      nodes     how many positions it may look at, in all — the budget
                that makes a rung the same on every machine
      noise     centipawns of slack: the coach chooses, weighted toward
