@@ -1348,8 +1348,10 @@ function create(canvas, opts) {
        sampled out of a table every frame */
     var pl = Move.plan(m, { reduced: REDUCED, scale: o.scale });
     if (o.dur) pl.dur = REDUCED ? 1 : o.dur;   /* a caller that insists */
+    /* a move means the game goes on, so a king lying down gets up; the
+       men still arriving keep arriving round it, rather than thirty of
+       them popping into place because an engine was quick off the mark */
     R.toppled = null;
-    R.cascade = null;
     R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
                dur: pl.dur, glow: !!o.glow, done: done || null };
     R.dirty = true;

@@ -302,7 +302,7 @@ function create(canvas) {
        capture, the men arriving at the start of a game, and a slight
        lean in toward a square when something is worth leaning in for */
     toppled: null, impacts: [], cascade: null,
-    view: { z: 1, v: 0, target: 1, px: 0, py: 0, last: 0 }
+    view: { z: 1, v: 0, target: 1, px: 0, py: 0, sq: null, last: 0 }
   };
 
   function onBoard(sq) { return (sq & 0x88) === 0; }
@@ -353,6 +353,7 @@ function create(canvas) {
     R.ox = Math.round((w - R.size) / 2);
     R.oy = Math.round((h - R.size) / 2);
     boardKey = "";                       /* the cached board is now the wrong size */
+    leanAbout();
     R.dirty = true;
   };
 
@@ -486,7 +487,7 @@ function create(canvas) {
     boardKey = "";
     R.dirty = true;
   };
-  R.setOrientation = function (color) { R.orientation = color; R.dirty = true; };
+  R.setOrientation = function (color) { R.orientation = color; leanAbout(); R.dirty = true; };
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
@@ -550,11 +551,21 @@ function create(canvas) {
     }
     /* the pivot only moves while the board is at rest, or the picture
        would jump */
-    if (Math.abs(v.z - 1) < 1e-4) { var p = sqXY(sq); v.px = p.x; v.py = p.y; }
-    v.target = 1 + ((opts && opts.amount) || 0.045);
+    if (Math.abs(v.z - 1) < 1e-4) { v.sq = sq; leanAbout(); }
+    var amount = opts && opts.amount != null ? +opts.amount || 0 : 0.045;
+    v.target = 1 + Math.max(0, Math.min(0.2, amount));
     v.last = 0;
     R.dirty = true;
   };
+  /* the square the lean is about, wherever it is on screen now: a
+     resize or a flip moves the board under it, and a lean about where
+     the square used to be would drift the picture off-centre */
+  function leanAbout() {
+    var v = R.view;
+    if (v.sq == null || !R.cell) return;
+    var p = sqXY(v.sq);
+    v.px = p.x; v.py = p.y;
+  }
 
   /* light under a capture: a radial flash on the square, held longer for
      a bigger capture */
@@ -580,8 +591,10 @@ function create(canvas) {
     opts = opts || {};
     var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
+    /* a move means the game goes on, so a king lying down gets up; the
+       men still arriving keep arriving round it, rather than thirty of
+       them popping into place because an engine was quick off the mark */
     R.toppled = null;
-    R.cascade = null;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
       dur: pl.dur, glow: !!opts.glow, done: done || null
