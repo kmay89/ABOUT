@@ -82,9 +82,9 @@ function applySkin(s, save) {
    straight through, and a move hands over its plan so the slide and the
    set-down can be scheduled on the audio clock rather than hoped for on
    a timer. */
-function snd(kind) {
-  if (!prefs.sound || typeof Sound === "undefined") return;
-  Sound.ui(kind);
+function snd(kind, opts) {
+  if (!prefs.sound || typeof Sound === "undefined") return 0;
+  return Sound.ui(kind, opts) || 0;
 }
 /* a piece being lifted off the board: not a move yet, but the first
    thing you hear when you touch one */
@@ -295,7 +295,11 @@ function clockTick(now) {
   var ms = clock.run === 1 ? clock.w : clock.b;
   if (ms <= 10500 && ms > 0) {
     var sec = Math.ceil(ms / 1000);
-    if (sec !== clock.lowTicked) { clock.lowTicked = sec; snd("tick"); }
+    if (sec !== clock.lowTicked) {
+      clock.lowTicked = sec;
+      /* the last five seconds are a heartbeat, quickening, not a ticking */
+      if (sec <= 5) snd("low-time", { left: sec }); else snd("tick");
+    }
   }
   if (ms <= 0) flagFall(clock.run);
   syncClocks();
@@ -630,7 +634,13 @@ function commitMove(m, source, animOpts) {
     }
     syncBoard();
     syncButtons();     /* the hint's price depends on whose move it now is */
-    if (!over && st.reason === "check") snd("check");
+    /* giving check rises; being in check falls — the same two notes
+       never mean both */
+    if (!over && st.reason === "check") {
+      var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide :
+                 (mode === "lesson" && lesson) ? lesson.side : G.turn;
+      snd("check", { against: G.turn === mine });
+    }
   });
   sndMove(desc, plan, took);
   needFrame();
@@ -1468,7 +1478,7 @@ function startCoachGame(level, sideChoice, clockStr) {
   var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
              sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
   ladder.lastSide = side; saveLadder();
-  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none" });
+  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true });
   var L = SKILLS[skill];
   toast(L.emoji + " <b>" + escHtml(L.name) + "</b> · " + L.elo + " — " +
         (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
@@ -1577,7 +1587,7 @@ function popStar(i, live) {
   var el = $("endStars").children[i];
   if (!el || (live && !live())) return;
   el.classList.add("on", "pop");
-  sting("star", { n: i });
+  sting("lesson-right");                 /* each star lands with the ding of a right answer */
   if (typeof Fx !== "undefined" && Fx.sparkle) Fx.sparkle(el);
 }
 function renderEndRating(rs) {
@@ -1627,10 +1637,10 @@ function renderEndRating(rs) {
   setTimeout(function () {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
-      if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick) Sound.countTick(k, n, after >= before);
+      if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick && live()) Sound.countTick(k, n, after >= before);
     }).then(function () {
       dEl.classList.add("show");
-      sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+      if (live()) sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
       rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si, live); }, 380 + k * 420); });
       var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
       if (mile || up2) {
@@ -1832,6 +1842,9 @@ function startGame(newMode, opts) {
   saveGame();
   watchNetChip(mode === "lan" && Net.everLinked);
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
+  /* only for a game somebody just started — never at boot, where a
+     resumed game would leave the sting waiting for the first tap */
+  if (opts.fresh) snd("start");
   needFrame();
 }
 /* the engine names an ending in a word; a person deserves a sentence */
@@ -1861,7 +1874,8 @@ function endGame(result, reason, taught) {
   var mySide = mode === "coach" ? humanSide : (mode === "lan" ? lanSide : 0);
   var iWon = (result === "white" && mySide === 1) || (result === "black" && mySide === -1);
   var iLost = (result === "white" && mySide === -1) || (result === "black" && mySide === 1);
-  snd(result === "draw" ? "draw" : (iLost ? "lose" : "win"));
+  var mated = reason === "checkmate";
+  snd(result === "draw" ? "draw" : iLost ? (mated ? "mate-lose" : "lose") : (mated ? "mate-win" : "win"));
   var em = "🤝", title = "A draw!", sub = "";
   if (result === "draw") {
     sub = cap(reason) + ". Draws are real results — half a point each, and often the fairest one.";
@@ -1954,7 +1968,7 @@ function renderOddsReview() {
 function rematch() {
   $("ovEnd").classList.add("hide");
   if (mode === "coach") startCoachGame(skill, humanSide === 1 ? "b" : "w", clockStrOf());
-  else if (mode === "pass") startGame("pass", { clockStr: clockStrOf() });
+  else if (mode === "pass") startGame("pass", { clockStr: clockStrOf(), fresh: true });
   else if (mode === "lan") {
     if (!Net.linked()) { toast("The link closed. Host or join again to keep playing — the room remembers you."); return; }
     Net.send({ t: "rematch" });
@@ -3332,6 +3346,7 @@ function lessonAttempt(m) {
   lessonPaused = true;            /* the board shows the wrong move until it is taken back */
   var say = Learn.critique(lesson, G, m);
   var tryPlan = R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
+    snd("lesson-wrong");
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
@@ -3350,7 +3365,7 @@ function lessonAttempt(m) {
 }
 
 function celebrateLesson(verdict) {
-  snd("win");
+  snd("lesson-right");
   var why = verdict.best ? lesson.why : (lesson.alsoWhy || lesson.why);
   if (lessonRevealed) {
     /* it was shown first, and the schedule has already heard so: asking
@@ -3393,6 +3408,7 @@ function finishLesson(confidence) {
   var nextUp = lessonQueue.shift();
   if (nextUp) { startLesson(nextUp, lessonQueue); return; }
   var st = Learn.stats(p);
+  snd("lesson-done");
   lessonUI('<div class="lkick">Done</div>' +
     '<div class="lask">Learned ' + st.solved + " of " + st.total + '</div>' +
     '<div class="lsay">This comes back in a few days — that gap is what turns it into something you just <i>see</i>.</div>', "good");
@@ -3671,6 +3687,7 @@ function showMenu() {
     ops.appendChild(row);
   }
   $("ovMenu").classList.remove("hide");
+  snd("open");
 }
 function chipBtn(label, fn) {
   var b = document.createElement("button");
@@ -3885,7 +3902,7 @@ function syncSettingsUI() {
 
 /* the two ways a configured game begins, shared by the menu and the
    New game button */
-function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr }); }); }
+function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); }); }
 function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.side, o.clockStr); }); }
 /* New game, from the board. Starting over is one tap; it only asks first
    when there is something to lose — moves on the board, or a rated game
@@ -3895,7 +3912,7 @@ function newGameButton() {
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
-    else startGame("pass", { clockStr: clockStrOf() });
+    else startGame("pass", { clockStr: clockStrOf(), fresh: true });
   };
   if (over || !G.played.length) { again(); return; }
   if (ratedAtStake()) { leaveGameThen(again, "starting over"); return; }
@@ -4191,6 +4208,13 @@ function showUpdateBar(worker) {
 
 /* ===== go ===== */
 function boot() {
+  /* the first tap anywhere — not only on the board — is the gesture a
+     browser wants before it will start an audio clock, and lets the
+     room's reverb grow at idle before the first sting needs it */
+  document.addEventListener("pointerdown", function () {
+    if (prefs.sound && typeof Sound !== "undefined") { try { Sound.wake(); } catch (e) {} }
+  }, { capture: true, passive: true });
+  if (typeof Sound !== "undefined" && Sound.setReduced) Sound.setReduced(REDUCED);
   /* who this room is, as far as the shared front door is concerned */
   Room.configure({ game: "chess", seats: 2, label: "board" });
   wireUI();
