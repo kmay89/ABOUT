@@ -1099,7 +1099,16 @@ function showHint(raw, odds, book, sans, again) {
   if (!bookPick && res.pv && res.pv.length > 2 && res.pv[0] === san) {
     ahead = " Then likely " + res.pv.slice(1, 3).join(" ") + ".";
   }
-  toast("💡 <b>" + san + "</b> — " + (why || explainMove(chosen, res)) + ahead + paid, null, 9000);
+  /* the reason a hint gives is the concrete one when there is one — what
+     the move attacks, wins, forks or threatens — and a principle only
+     when nothing concrete applies */
+  var told = why;
+  if (!told && res && chosen === res.move && Math.abs(res.score) > Chess.MATE - 200) told = explainMove(chosen, res);
+  if (!told && Teach.explainMove) {
+    try { var ex = Teach.explainMove(G, chosen); if (ex && ex.text) told = ex.text.charAt(0).toLowerCase() + ex.text.slice(1); } catch (e) {}
+  }
+  if (!told) told = explainMove(chosen, res);
+  toast("💡 <b>" + san + "</b> — " + told + ahead + paid, null, 9000);
 }
 
 function explainMove(m, res) {
@@ -3335,7 +3344,7 @@ var CONCEPT_LABEL = {
   backRank: "back rank", checkmate: "mate", stalemate: "stalemate",
   discovered: "discovered attack", trade: "trade", development: "development",
   centre: "the centre", castling: "king safety", promotion: "promotion",
-  tempo: "tempo", overload: "overloaded defender"
+  tempo: "tempo", overload: "overloaded defender", mateThreat: "mate threat"
 };
 function conceptLabel(c) {
   return CONCEPT_LABEL[c] || String(c || "note").replace(/([A-Z])/g, " $1").toLowerCase();
@@ -3507,7 +3516,8 @@ function askLesson() {
   var side = lesson.side === 1 ? "White" : "Black";
   lessonUI('<div class="lkick">' + esc(chapterName(lesson.chapter)) + " · you are " + side + '</div>' +
     '<div class="lask">' + esc(lesson.ask) + '</div>' +
-    (lessonTries ? '<div class="lsay">Have another go — the board is small enough to see all of it.</div>' : ''));
+    (lessonTries ? '<div class="lsay">' + (lesson.chapter === "opening" ? "Have another go — look for a move that does two jobs at once." :
+                                           "Have another go — the board is small enough to see all of it.") + '</div>' : ''));
   lessonRow([
     lessonChip(lessonHints ? "Another nudge" : "💡 Nudge", giveLessonHint),
     lessonChip("Show me", revealLesson),
