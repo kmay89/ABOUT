@@ -61,6 +61,23 @@ function sane(s) {
   return null;
 }
 
+/* ---------- it loads where the room loads it ----------
+   The page includes rating.js as a plain script, with no module system,
+   and the coach's worker could too: both must find window.Rating (or
+   self.Rating) and nothing else on the global object. */
+(function () {
+  const vm = require("vm");
+  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "rating.js"), "utf8");
+  const page = { };
+  page.self = page;
+  let threw = null;
+  try { vm.runInNewContext(src, page, { filename: "rating.js" }); } catch (e) { threw = e.message; }
+  ok("loads as a plain browser script and lands on self.Rating, alone",
+     !threw && page.Rating && typeof page.Rating.update === "function" &&
+     Object.keys(page).filter((k) => k !== "self").join() === "Rating",
+     threw || Object.keys(page).join());
+})();
+
 /* ---------- the ladder ---------- */
 (function () {
   ok("the ladder has room to move (at least five rungs)", L.length >= 5, L.length + " rungs");
