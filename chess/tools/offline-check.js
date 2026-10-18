@@ -121,17 +121,18 @@ const server = http.createServer((req, res) => {
    index.html redirects to its folder, as "pretty URL" hosts do (a
    redirected response can't answer a navigation, so a worker that
    serves one as it is bricks the room). */
-const scriptTags = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1])
+const scriptTags = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1])
   .filter((u) => !/^(https?:|data:)/.test(u));
 const README = fs.readFileSync(path.join(ROOT, "chess/README.md"));
 const VERSION_RE = /const VERSION = '([^']*)'/;
 function build(tag) {
   const site = new Map();
   for (const f of shellFiles) {
+    if (!fs.existsSync(path.join(ROOT, "chess", f))) continue;   /* already reported above */
     let body = fs.readFileSync(path.join(ROOT, "chess", f));
     if (f === "index.html") {
       body = Buffer.from(body.toString("utf8")
-        .replace("<head>", '<head>\n<meta name="room-build" content="' + tag + '">'));
+        .replace(/<head\b[^>]*>/i, (h) => h + '\n<meta name="room-build" content="' + tag + '">'));
     } else if (f.endsWith(".js")) {
       body = Buffer.concat([body,
         Buffer.from('\n;(self.__builds = self.__builds || {})["' + f + '"] = "' + tag + '";\n')]);
@@ -186,6 +187,9 @@ async function releaseCheck(browser) {
   const page = await ctx.newPage();
   const crashes = [];
   page.on("pageerror", (e) => crashes.push(e.message));
+  /* the flat board throughout: this is a test of releases, not of a
+     software-rendered 3D board on a shared machine, and a reload keeps
+     the #force2d it was opened with */
   const builds = () => page.evaluate(() => {
     const m = document.querySelector('meta[name="room-build"]');
     return { html: m ? m.content : null, scripts: self.__builds || {} };
@@ -210,9 +214,10 @@ async function releaseCheck(browser) {
 
   try {
     /* 1 · a first visit to A: straight from the network, then the worker settles in */
-    await page.goto(base + "/chess/", { waitUntil: "load" });
+    await page.goto(base + "/chess/#force2d", { waitUntil: "load" });
     ok("release: version A installs and takes control", await waitForControl(page));
     let b = await builds();
+    if (VERBOSE) console.log("      watching " + scriptTags.length + " scripts: " + scriptTags.join(" "));
     ok("release: version A runs whole — page and every script", b.html === "A" && !mixOf(b), mixOf(b) || "page is " + b.html);
 
     /* 2 · other pages in the folder are not the room, and must not become it */
@@ -229,7 +234,7 @@ async function releaseCheck(browser) {
 
     /* 3 · the server moves on to B; the open room must not be half-moved with it */
     live = build("B");
-    await page.goto(base + "/chess/", { waitUntil: "load" });
+    await page.goto(base + "/chess/#force2d", { waitUntil: "load" });
     await page.waitForTimeout(400);
     b = await builds();
     ok("release: after a deploy the room runs one version, never a mix", !!b.html && !mixOf(b), mixOf(b));
@@ -249,9 +254,9 @@ async function releaseCheck(browser) {
     let swapped = bar;
     if (bar) {
       swapped = await Promise.all([
-        page.waitForNavigation({ waitUntil: "load", timeout: 30000 }),
-        page.click("#updateBar", { timeout: 10000 })
-      ]).then(() => true, (e) => { if (VERBOSE) console.log("      " + e.message.split("\n")[0]); return false; });
+        page.waitForNavigation({ waitUntil: "load", timeout: 45000 }),
+        page.click("#updateBar", { timeout: 30000 })
+      ]).then(() => true, (e) => { if (VERBOSE) console.log(e.message.split("\n").slice(0, 14).map((l) => "      " + l).join("\n")); return false; });
     }
     ok("release: tapping the bar reloads the room", swapped);
     await page.waitForTimeout(400);
