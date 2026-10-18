@@ -28,6 +28,9 @@ self.onmessage = function (e) {
   try {
     var g = position(d);
     if (d.op === "search") {
+      /* opts go to the engine exactly as the page sent them — time, depth,
+         a node budget, noise. Picking fields out here would mean a new
+         option silently did nothing off the main thread. */
       var r = Chess.search(g, d.opts || {});
       out = { move: lite(r.move), score: r.score, depth: r.depth, nodes: r.nodes, pv: r.pv || [],
               ranked: (r.ranked || []).map(function (x) {
