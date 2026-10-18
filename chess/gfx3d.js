@@ -967,9 +967,67 @@ function create(canvas, opts) {
     low:    { shadow: 0,    bloom: false, grain: false, aberration: false, mirror: false, bump: 256 }
   };
   var quality = Kit.autoQuality();
-  function autoFx() { return quality.segs < 30 ? "medium" : "high"; }
-  var fxName = TIERS[opts.fx] ? opts.fx : autoFx();
+  /* What the device looks able for — cores and screen, read before a
+     single frame has been drawn. A good guess, and only a guess: a phone
+     with eight cores and a hot battery can still drop to twenty frames a
+     second the moment the shadows and the bloom go on. */
+  function deviceFx() { return quality.segs < 30 ? "medium" : "high"; }
+  var ORDER = ["low", "medium", "high"], STEP_KEY = "chess.fx.stepped";
+  function remembered() {
+    try { var s = root.sessionStorage && root.sessionStorage.getItem(STEP_KEY); return TIERS[s] ? s : null; }
+    catch (e) { return null; }
+  }
+  /* what Auto runs: the device's tier, or lower if this session has
+     already watched it struggle — never higher than either */
+  function autoFx() {
+    var d = deviceFx(), s = remembered();
+    return s && ORDER.indexOf(s) < ORDER.indexOf(d) ? s : d;
+  }
+  /* An explicit choice (opts.fx from the Studio) always wins and is never
+     second-guessed; only Auto is watched. */
+  var fxMode = TIERS[opts.fx] ? "chosen" : "auto";
+  var fxName = fxMode === "chosen" ? opts.fx : autoFx();
   var FX = TIERS[fxName];
+
+  /* ---------- watching the frame rate, once ----------
+     The first few times something moves — the men arriving, a move, the
+     camera easing round — the gap between one frame and the next is
+     written down. Once there is a fair sample (enough frames, over more
+     than one animation, so a single hiccup cannot convict a phone), the
+     slowest quarter is looked at: if three frames in four took longer
+     than 40 ms (under 25 a second, where a slide starts to judder) the
+     room steps one tier down, between moves, and remembers it for the
+     rest of the session. It never steps back up by itself: a device that
+     was slow a minute ago will be slow again the moment it warms up, and
+     a board that flips between looks is worse than either look. A device
+     that keeps up is left alone and no longer watched at all. */
+  var FRAME_SLOW = 40, SAMPLE_MIN = 45, RUNS_MIN = 2;
+  var perf = { on: fxMode === "auto" && fxName !== "low", gaps: [], runs: 0, last: 0 };
+  function sampleFrame(now, busy) {
+    if (!perf.on) return;
+    if (!busy) { perf.last = 0; return; }          /* a single redraw is not a frame rate */
+    if (perf.last) {
+      var g = now - perf.last;
+      /* two calls in one tick, or a tab that was hidden, say nothing
+         about how fast this device draws */
+      if (g > 4 && g < 500 && perf.gaps.length < 600) perf.gaps.push(g);
+    } else perf.runs++;
+    perf.last = now;
+  }
+  function sampleEnd() {
+    perf.last = 0;
+    if (!perf.on || perf.gaps.length < SAMPLE_MIN || perf.runs < RUNS_MIN) return;
+    var g = perf.gaps.slice().sort(function (x, y) { return x - y; });
+    var p75 = g[Math.floor(g.length * 0.75)];
+    perf.gaps = []; perf.runs = 0;
+    var i = ORDER.indexOf(fxName);
+    if (p75 <= FRAME_SLOW || i <= 0) { perf.on = false; return; }
+    var next = ORDER[i - 1];
+    try { if (root.sessionStorage) root.sessionStorage.setItem(STEP_KEY, next); } catch (e) {}
+    applyFx(next);
+    /* the new tier gets a fair sample of its own before it can step again */
+    perf.on = next !== "low";
+  }
 
   var scene = null, bloomA = null, bloomB = null, postOk = false, bloomOk = false;
   /* A card that cannot give us an off-screen target will not change its
@@ -1443,13 +1501,35 @@ function create(canvas, opts) {
      is a thing you do between moves, not every frame. */
   R.fx = function () { return fxName; };
   R.autoFx = autoFx;
-  R.setFx = function (name) {
+  /* why this tier, in a word the Studio can put in a sentence: "device"
+     (Auto, from what the device looked able for), "frame rate" (Auto,
+     stepped down after watching it draw) or "chosen" (somebody picked it) */
+  R.fxReason = function () {
+    if (fxMode === "chosen") return "chosen";
+    return ORDER.indexOf(fxName) < ORDER.indexOf(deviceFx()) ? "frame rate" : "device";
+  };
+  function applyFx(name) {
     if (!TIERS[name] || name === fxName) return;
     fxName = name; FX = TIERS[name];
     freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB);
     scene = bloomA = bloomB = null;
     sizeShadow(); sizeTargets(); loadBoardTex();
     R.dirty = true;
+  }
+  /* setFx("high" | "medium" | "low") is a choice and is kept; setFx("auto")
+     hands it back to the device and the frame rate */
+  R.setFx = function (name) {
+    if (name === "auto") {
+      fxMode = "auto";
+      applyFx(autoFx());
+      perf.on = fxName !== "low"; perf.gaps = []; perf.runs = 0; perf.last = 0;
+      R.dirty = true;
+      return;
+    }
+    if (!TIERS[name]) return;
+    fxMode = "chosen";
+    perf.on = false;
+    applyFx(name);
   };
 
   R.setLines = function (list) { R.lines = list || []; R.dirty = true; };
@@ -2065,7 +2145,11 @@ function create(canvas, opts) {
     /* film grain moves, so a still frame is never quite still — but
        only while something else is already asking for frames. It is
        never a reason on its own to keep the loop awake. */
-    if (!R.dirty && !moving && !animating && !dropping && !falling && !flashing) return false;
+    if (!R.dirty && !moving && !animating && !dropping && !falling && !flashing) {
+      sampleEnd();                         /* (which may ask for one frame at a new tier) */
+      return R.dirty;
+    }
+    sampleFrame(nowMs, moving || animating || dropping || falling);
 
     refit();
     placeCamera();
@@ -2362,6 +2446,9 @@ function create(canvas, opts) {
 
     R.dirty = animating || moving || dropping || falling || lifting || R.impacts.length > 0 ||
               R.lines.length > 0 || pulse.live;
+    /* a slow card, found out, steps down between moves rather than in
+       the middle of one */
+    if (!R.dirty) sampleEnd();
     return R.dirty;
   };
 
