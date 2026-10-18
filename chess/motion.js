@@ -14,8 +14,14 @@
    into this move?") and get the same answer, so the 2D board is a
    simpler drawing of the same gesture rather than a different one.
 
-   Everything here is a pure function of a move and a time. No DOM, no
-   GL, no state, no clock of its own. Tested by chess/tools/motion-check.js.
+   The big moments live here for the same reason: the mated king going
+   over, the men being set out at the start of a game, the flash under
+   a capture, and the spring the camera leans in on — each one asked of
+   this file by both boards, so they fall, land and flash alike.
+
+   Everything here is a pure function of a move (or a board) and a time.
+   No DOM, no GL, no state, no clock of its own. Tested by
+   chess/tools/motion-check.js.
 
    Units: distance is squares, height is squares, time is milliseconds,
    angles are radians. */

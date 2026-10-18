@@ -220,14 +220,16 @@ function layerFor(name) {
   if (name === "page") return pageLayer();
   return stageL.ctx && stageL.host ? stageL : null;
 }
-/* sized to its box at the device's pixel density — capped at 2, and
-   dropped to 1 when the device has shown it is struggling */
+/* sized to its box at the device's pixel density — capped at 2 over
+   the board, 1.5 over the whole page (a tablet's full screen at 2x is
+   sixteen megabytes of canvas for paper that does not need to be
+   sharp), and dropped to 1 when the device has shown it is struggling */
 function sizeLayer(L) {
   if (!L || !L.cv) return false;
   var w, h;
   if (L.fixed) { w = root.innerWidth || 0; h = root.innerHeight || 0; }
   else { w = L.host ? L.host.clientWidth : 0; h = L.host ? L.host.clientHeight : 0; }
-  var dpr = Math.min(quality < 0.6 ? 1 : 2, root.devicePixelRatio || 1);
+  var dpr = Math.min(quality < 0.6 ? 1 : L.fixed ? 1.5 : 2, root.devicePixelRatio || 1);
   if (w !== L.w || h !== L.h || dpr !== L.dpr) {
     L.w = w; L.h = h; L.dpr = dpr;
     L.cv.width = Math.max(1, Math.round(w * dpr));
@@ -698,10 +700,12 @@ function flash(color, o) {
    loop, so Fx.busy() knows about them and Fx.clear() can finish them. */
 var tweens = [];
 function tween(t) { t.t0 = now(); tweens.push(t); kick(); return t; }
-function finishTween(t) {
+/* `cut` is a tween stopped early — by clear(), or by a new count on the
+   same number — rather than one that ran its course */
+function finishTween(t, cut) {
   var i = tweens.indexOf(t);
   if (i >= 0) tweens.splice(i, 1);
-  try { if (t.done) t.done(); } catch (e) { /* a broken callback never breaks the loop */ }
+  try { if (t.done) t.done(!!cut); } catch (e) { /* a broken callback never breaks the loop */ }
 }
 
 /* a short, damped shiver of an element — the end card when the result
@@ -711,7 +715,7 @@ var shaking = [];
 function shake(el, amount) {
   if (!el || !el.style || reduced || !HAS_DOM) return false;
   amount = amount == null ? 6 : clamp(+amount || 0, 0, 40);
-  for (var i = 0; i < shaking.length; i++) if (shaking[i].el === el) finishTween(shaking[i].t);
+  for (var i = shaking.length - 1; i >= 0; i--) if (shaking[i].el === el) finishTween(shaking[i].t, true);
   var base = el.style.transform || "";
   var rec = { el: el, t: null };
   rec.t = tween({
@@ -755,10 +759,14 @@ function countUp(el, from, to, o) {
     if (to !== from) tick(n, to);
     return Prom ? Prom.resolve(to) : null;
   }
+  /* a new count on a number that is already counting takes over from
+     it: the old one lands where it was going, silently */
+  for (var c = counting.length - 1; c >= 0; c--) if (counting[c].el === el) finishTween(counting[c].t, true);
   var fired = 0, resolve = null;
   var pr = Prom ? new Prom(function (res) { resolve = res; }) : null;
+  var rec = { el: el, t: null };
   put(from);
-  tween({
+  rec.t = tween({
     dur: ms,
     step: function (u) {
       var e = easeOutQuart(u);
@@ -766,14 +774,20 @@ function countUp(el, from, to, o) {
       var k = Math.min(n, Math.floor(e * n + 1e-9));
       while (fired < k) { fired++; tick(fired, from + (to - from) * fired / n); }
     },
-    done: function () {
+    done: function (cut) {
       put(to);
-      while (fired < n) { fired++; tick(fired, from + (to - from) * fired / n); }
+      /* the clicks that are owed are only owed if it ran its course: a
+         count cut short does not rattle off the rest in one frame */
+      if (!cut) while (fired < n) { fired++; tick(fired, from + (to - from) * fired / n); }
+      var j = counting.indexOf(rec);
+      if (j >= 0) counting.splice(j, 1);
       if (resolve) resolve(to);
     }
   });
+  counting.push(rec);
   return pr;
 }
+var counting = [];
 
 /* a buzz, where there is anything to buzz. iOS has no vibrate at all,
    which is fine: this is seasoning, never the only way to know. */
@@ -1178,7 +1192,7 @@ function attach(el, o) {
 function setProjector(fn) { projector = typeof fn === "function" ? fn : null; }
 function setReduced(on) { reduced = !!on; if (reduced) clear(); }
 function clear() {
-  while (tweens.length) finishTween(tweens[tweens.length - 1]);
+  while (tweens.length) finishTween(tweens[tweens.length - 1], true);
   while (P.length) retire(P.length - 1);
   stop();
 }

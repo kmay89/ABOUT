@@ -25,10 +25,17 @@
    looks like itself. Three tiers (full, balanced, simple) are picked
    automatically and can be overridden in the Studio.
 
-   Moves slide, knights hop a little arc, captured pieces sink through
-   the board and fade, promotions crossfade at the far rank. If WebGL is
-   missing or the context is lost, the app is told at once and the same
-   game continues in 2D — nothing is allowed to strand the player. */
+   Moves slide, knights hop a little arc, captured pieces are pushed
+   over the way they were taken, promotions crossfade at the far rank —
+   all of it read from motion.js. And the big moments have hooks of
+   their own, the same on both boards: the men set down rank by rank at
+   the start of a game (with the landings handed back for the sound),
+   light pooled on a struck square, the mated king laid down on its
+   side, a camera that springs in toward a square and back out, and
+   squareToScreen so the effects layer (fx.js) can put light exactly on
+   a square. If WebGL is missing or the context is lost, the app is told
+   at once and the same game continues in 2D — nothing is allowed to
+   strand the player. */
 (function (root) {
 "use strict";
 
@@ -1219,6 +1226,9 @@ function create(canvas, opts) {
     canvas.height = Math.round(h * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
     sizeTargets();
+    /* the old projection is for the old shape: anything that asks where
+       a square is before the next frame gets the new answer */
+    camPlaced = false;
     R.dirty = true;
   };
   /* the effects tier, for a settings switch or a weak-looking frame

@@ -3,8 +3,12 @@
    (no borrowed artwork), soft colours, and the same animation
    language as the 3D room: sliding moves, fading captures, a
    replayable last-move glow, dots for quiet moves and rings for
-   captures. It is also the safety net — if WebGL ever fails or the
-   context is lost, the game lands here and keeps playing. */
+   captures. The big moments are drawn here too, with the same hooks
+   as the carved board: the men set down at the start of a game, light
+   on a struck square, the mated king laid on its side, a slight lean
+   in toward a square, and squareToScreen for the effects layer. It is
+   also the safety net — if WebGL ever fails or the context is lost,
+   the game lands here and keeps playing. */
 (function (root) {
 "use strict";
 
