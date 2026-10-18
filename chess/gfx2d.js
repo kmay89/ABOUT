@@ -8,7 +8,8 @@
    on a struck square, the mated king laid on its side, a slight lean
    in toward a square, and squareToScreen for the effects layer. It is
    also the safety net — if WebGL ever fails or the context is lost,
-   the game lands here and keeps playing. */
+   the game lands here and keeps playing. The board keeps clear of the
+   player bars, and prints its coordinates where a phone can read them. */
 (function (root) {
 "use strict";
 
@@ -49,6 +50,75 @@ function shade(hex, f) {
 function luma(hex) {
   var c = rgbOf(hex);
   return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+}
+
+/* ---------- ink that can be read ----------
+   WCAG's sums, kept here so the coordinates can be checked rather than
+   eyeballed: relative luminance from linear light, and the contrast
+   ratio between two colours (1 to 21; 4.5 is the floor for small text). */
+function lumOf(c) {
+  var f = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+}
+function contrast(a, b) {
+  var la = lumOf(a), lb = lumOf(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+function mixRgb(a, b, t) {
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t),
+          Math.round(a[2] + (b[2] - a[2]) * t)];
+}
+/* The colour to letter a coordinate in, sitting on `bg` (rgb): the
+   other square's colour, the way a printed board does it — so on most
+   boards it simply looks like part of the set — then walked toward
+   black or white, whichever the background allows more of, only as far
+   as it takes to clear `need`. Light and dark squares on a board are
+   chosen to be close (that is what makes a board restful), so on several
+   house skins the other square's colour alone is about 2:1 — legible to
+   nobody on a phone in the sun. */
+function inkOn(bg, other, need) {
+  need = need || 4.5;
+  var ink = other.slice();
+  if (contrast(ink, bg) >= need) return ink;
+  var to = contrast([0, 0, 0], bg) >= contrast([255, 255, 255], bg) ? [0, 0, 0] : [255, 255, 255];
+  for (var t = 0.05; t < 1.0001; t += 0.05) {
+    var c = mixRgb(other, to, Math.min(1, t));
+    if (contrast(c, bg) >= need) return c;
+  }
+  return to;
+}
+/* The sixteen coordinates, the way lichess prints them: a rank number
+   in the top-left corner of each square up the left-hand file, a file
+   letter in the bottom-right corner of each square along the bottom
+   rank, each in ink chosen against exactly what it sits on — the
+   square's own colour with the board's sweep of gloss over it at that
+   spot. They used to live in the frame, where on a phone the frame is
+   thirteen pixels wide: nine-pixel letters in the margin colour, half
+   of each one under the rim's line. `i`, `j` are the screen column and
+   row (0, 0 at the top left). Pure, so tools/board-check.js can hold
+   every house skin to 4.5:1 without a browser. */
+var COORD_NEED = 4.8;                     /* 4.5, plus room for the grain */
+function coordLabels(board, orientation) {
+  var light = rgbOf(board.light), dark = rgbOf(board.dark), g = board.gloss || 0, out = [];
+  function glossOver(c, t) {
+    if (g <= 0.02) return c;
+    if (t <= 0.45) return mixRgb(c, [255, 255, 255], 0.22 * g * (1 - t / 0.45));
+    if (t >= 0.75) return mixRgb(c, [0, 0, 0], 0.16 * g * (t - 0.75) / 0.25);
+    return c;
+  }
+  function add(text, i, j, corner, t) {
+    var vf = orientation === 1 ? i : 7 - i, vr = orientation === 1 ? 7 - j : j;
+    var onDark = (vf + vr) % 2 === 0;
+    var bg = glossOver(onDark ? dark : light, t);
+    out.push({ text: text, i: i, j: j, corner: corner, bg: bg,
+               ink: inkOn(bg, onDark ? light : dark, COORD_NEED) });
+  }
+  for (var k = 0; k < 8; k++) {
+    /* t: how far along the gloss's diagonal the label sits */
+    add(String(orientation === 1 ? 8 - k : k + 1), 0, k, "tl", (k + 0.3) / 16);
+    add("abcdefgh".charAt(orientation === 1 ? k : 7 - k), k, 7, "br", (k + 8.7) / 16);
+  }
+  return out;
 }
 
 function derive(skin) {
@@ -339,22 +409,60 @@ function create(canvas) {
     return r * 16 + (7 - f);
   };
 
+  /* The player bars sit in strips along the top and bottom of the stage
+     (48 css px each unless the app says otherwise), and the turn pill
+     sits in the top one. The board used to be centred in the whole
+     canvas, so on a phone both name tags and the pill lay across the
+     back-rank men. Now the board — frame and all — is fitted between the
+     strips and no wider than FILL of the canvas, and the tags sit in the
+     margins. A canvas too short to give both strips their full height
+     (the Studio drawer open on a phone) shares out what it has, so the
+     board never shrinks to a stamp to make room for two labels. */
+  var FILL = 0.97, FRAME = 0.2;            /* frame width, in squares */
+  var insets = { top: 48, bottom: 48 };
+  function layout() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    var t = insets.top, b = insets.bottom, room = h * 0.3;
+    if (t + b > room) { var k = room / (t + b); t *= k; b *= k; }
+    var across = 8 + FRAME * 2;
+    R.cell = Math.max(4, Math.floor(Math.min(w * FILL, h - t - b) / across));
+    R.size = R.cell * 8;
+    R.ox = Math.round((w - R.size) / 2);
+    R.oy = Math.round(t + (h - t - b - R.size) / 2);
+    boardKey = "";                       /* the cached board is now the wrong size */
+    leanAbout();
+    R.dirty = true;
+  }
+  /* The app resizes the boards when the window does, but the stage can
+     change size without the window changing at all — starting a game
+     puts a cost under the Hint button and the stage loses eleven pixels.
+     The canvas kept its old bitmap and the stylesheet squashed it to
+     fit: a board 1.5% shorter than it was drawn, with every tap near the
+     bottom landing that much off. So a frame checks the box it is drawn
+     in first, and fits itself again if the box has moved. */
+  var seenW = 0, seenH = 0;
+  function refit() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (w && h && (w !== seenW || h !== seenH)) R.resize();
+  }
   R.resize = function () {
     var dpr = Math.min(2.5, window.devicePixelRatio || 1);
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
+    seenW = w; seenH = h;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     R.dpr = dpr;
-    var m = Math.min(w, h);
-    R.cell = Math.floor((m * 0.94) / 8);
-    R.size = R.cell * 8;
-    R.ox = Math.round((w - R.size) / 2);
-    R.oy = Math.round((h - R.size) / 2);
-    boardKey = "";                       /* the cached board is now the wrong size */
-    leanAbout();
-    R.dirty = true;
+    layout();
+  };
+  /* the strips the bars take, top and bottom, in css px; 0s when the
+     bars are hidden (a lesson) give the board the room back */
+  R.setInsets = function (top, bottom) {
+    insets.top = Math.max(0, +top || 0);
+    insets.bottom = Math.max(0, +(bottom == null ? top : bottom) || 0);
+    layout();
   };
 
   /* ---------- the board, painted once and reused ----------
@@ -366,7 +474,39 @@ function create(canvas) {
      sliders feeling instant even mid-animation. */
   var boardCv = document.createElement("canvas");
   var boardCtx = boardCv.getContext("2d");
-  var boardKey = "", boardPad = 0;
+  var boardKey = "", boardPad = 0, labels = null;
+
+  /* The coordinates go over the men rather than under them. These men
+     are drawn big — a foot nearly as wide as the square, a crown nearly
+     at its top edge — so a letter tucked under them in the corner was
+     simply covered on a full back rank, which is exactly where people
+     look for it. Each label is drawn with a thin keyline in the colour
+     of the square it sits on: invisible against the square, and where a
+     foot or a battlement does reach the corner, the letter is cut cleanly
+     out of it instead of being lost against it. */
+  function drawCoords() {
+    if (!labels) return;
+    var fs = Math.max(11, Math.round(R.cell * 0.24)), inset = Math.max(2, R.cell * 0.06);
+    ctx.save();
+    ctx.font = "700 " + fs + "px system-ui, -apple-system, sans-serif";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, fs * 0.2);
+    for (var i = 0; i < labels.length; i++) {
+      var L = labels[i], x, y;
+      if (L.corner === "tl") {
+        ctx.textAlign = "left"; ctx.textBaseline = "top";
+        x = R.ox + L.i * R.cell + inset; y = R.oy + L.j * R.cell + inset * 0.7;
+      } else {
+        ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+        x = R.ox + (L.i + 1) * R.cell - inset; y = R.oy + (L.j + 1) * R.cell - inset * 0.5;
+      }
+      ctx.strokeStyle = "rgb(" + L.bg[0] + "," + L.bg[1] + "," + L.bg[2] + ")";
+      ctx.strokeText(L.text, x, y);
+      ctx.fillStyle = "rgb(" + L.ink[0] + "," + L.ink[1] + "," + L.ink[2] + ")";
+      ctx.fillText(L.text, x, y);
+    }
+    ctx.restore();
+  }
 
   function paintPattern(g, x, y, cell, dark, pal, f, r) {
     var amt = pal.grain;
@@ -417,7 +557,7 @@ function create(canvas) {
 
   function buildBoard() {
     var pal = R.pal, dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    var pad = Math.round(R.cell * 0.30);
+    var pad = Math.round(R.cell * FRAME);
     var W = R.size + pad * 2, H = W;
     boardPad = pad;
     boardCv.width = Math.round(W * dpr);
@@ -459,16 +599,9 @@ function create(canvas) {
       g.fillRect(pad, pad, R.size, R.size);
     }
 
-    /* coordinates, in the margin where they belong */
-    g.fillStyle = pal.coord;
-    g.font = "600 " + Math.max(9, R.cell * 0.22) + "px system-ui, sans-serif";
-    g.textAlign = "center"; g.textBaseline = "middle";
-    for (var i = 0; i < 8; i++) {
-      var fileCh = "abcdefgh"[R.orientation === 1 ? i : 7 - i];
-      var rankCh = R.orientation === 1 ? 8 - i : i + 1;
-      g.fillText(fileCh, pad + (i + 0.5) * R.cell, pad + R.size + pad * 0.52);
-      g.fillText(String(rankCh), pad * 0.48, pad + (i + 0.5) * R.cell);
-    }
+    /* the coordinates are worked out here, with the board they belong
+       to, and drawn every frame over the men (see drawCoords) */
+    labels = coordLabels(pal, R.orientation);
     boardKey = key();
   }
   function key() {
@@ -631,6 +764,7 @@ function create(canvas) {
     var th = R.pal, animating = false;
     if (!th) return false;
     if (!R.dirty && !R.anim) return false;
+    refit();
     var now = performance.now();
     var w = canvas.clientWidth, h = canvas.clientHeight;
     var dpr = R.dpr || 1;
@@ -786,6 +920,8 @@ function create(canvas) {
       }
     }
 
+    drawCoords();
+
     /* legal-move markers (over the pieces so rings show on captures) */
     ctx.fillStyle = th.dot;
     for (var li = 0; li < R.hi.legal.length; li++) {
@@ -926,7 +1062,8 @@ function create(canvas) {
   return R;
 }
 
-var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS };
+var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS,
+              coordLabels: coordLabels, contrast: contrast, COORD_NEED: COORD_NEED };
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx2D;
 else root.Gfx2D = Gfx2D;
 })(typeof self !== "undefined" ? self : this);
