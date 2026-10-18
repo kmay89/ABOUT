@@ -110,18 +110,28 @@ const INK = `((cls) => {
 })`;
 
 /* every square there and back: centre out to the screen, and the
-   screen back to a square */
+   screen back to a square. On the wood alone ({ plane: true }) it has to
+   be exact. With the men standing on it, a tap on a square's centre may
+   land on a man instead — the carved board answers for what is in front
+   — but only on a man who is really there and nearer the eye (lower on
+   the screen) than the square he hides. */
 const ROUND_TRIP = `(() => {
   const R = window.__fx.R, bad = [];
-  let small = 0;
+  let small = 0, hidden = 0;
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
     const sq = r * 16 + f, p = R.squareToScreen(sq);
     if (!p) { bad.push(sq.toString(16) + ":null"); continue; }
     if (!(p.s > 2)) small++;
-    const back = R.screenToSquare(p.x, p.y);
+    const back = R.screenToSquare(p.x, p.y, { plane: true });
     if (back !== sq) bad.push(sq.toString(16) + "→" + (back < 0 ? back : back.toString(16)));
+    const seen = R.screenToSquare(p.x, p.y);
+    if (seen !== sq) {
+      const q = seen >= 0 ? R.squareToScreen(seen) : null;
+      if (seen < 0 || !R.board[seen] || !q || q.y <= p.y) bad.push(sq.toString(16) + "⇢" + (seen < 0 ? seen : seen.toString(16)));
+      else hidden++;
+    }
   }
-  return { bad: bad, small: small };
+  return { bad: bad, small: small, hidden: hidden };
 })()`;
 
 /* a signature of the board's own canvas, drawn and read in one task —
