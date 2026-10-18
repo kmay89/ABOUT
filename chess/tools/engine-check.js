@@ -16,6 +16,9 @@
      • a won position is not thrown away by repetition;
      • a search never returns an illegal move and never overruns its
        time budget, which is what the clock and the coach's turn rely on;
+     • a budget in positions is kept too, and the same budget gives the
+       same answer every time, which is what a practice level's rating
+       relies on;
      • the ranked list the coaching is built from agrees with the move
        the search actually chose;
      • and the practice levels, read from rating.js, really are a
@@ -189,6 +192,42 @@ function forcedMate(g, n) {
   }
   ok("search always returns a legal move", !illegal, illegal);
   ok("search keeps inside its time budget", worstOver <= 0, worstOver > 0 ? `overran by ${worstOver | 0}ms` : "");
+}
+
+/* ---- a budget in positions, kept like one ----
+   The practice levels count positions rather than milliseconds so that a
+   level plays the same game on any machine — which is only true if the
+   count is kept (the ranked list the slack chooses from included), and
+   if, once the count is what binds, the same position and the same
+   budget give the same answer every time. The clock is given far more
+   than the count needs, so the count is what stops it (if the count were
+   ignored, the clock would stop it and both checks would fail). The
+   slack is the margin the checks are made at: every 1024 positions, in
+   the search and again in the ranking, plus the quick look given to any
+   move the ranking had no positions left for. */
+{
+  const fens = [
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+    "r1bq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 b - - 0 1"
+  ];
+  let over = null, differ = null;
+  for (const fen of fens) {
+    for (const nodes of [4000, 30000]) {
+      for (const rank of [false, true]) {
+        C.setHashBits(16);
+        const a = C.search(C.create(fen), { ms: 4000, nodes, rank });
+        C.setHashBits(16);
+        const b = C.search(C.create(fen), { ms: 4000, nodes, rank });
+        if (a.nodes > nodes + 3000) over = over || `${fen.slice(0, 16)}… ${a.nodes} of ${nodes}${rank ? " ranked" : ""}`;
+        if (a.move.from !== b.move.from || a.move.to !== b.move.to || a.nodes !== b.nodes || a.score !== b.score) {
+          differ = differ || `${fen.slice(0, 16)}… ${nodes}: ${C.toSAN(C.create(fen), a.move)} vs ${C.toSAN(C.create(fen), b.move)}`;
+        }
+      }
+    }
+  }
+  ok("a node budget is kept, ranking and all", !over, over);
+  ok("the same position and the same node budget give the same answer", !differ, differ);
 }
 
 /* ---- the ranked list agrees with the move chosen ---- */
