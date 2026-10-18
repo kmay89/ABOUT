@@ -102,7 +102,7 @@ var LINES = [
   { seq: "c4", name: "English Opening",
     idea: "The centre, approached sideways: c4 controls d5 without offering a target." },
   { seq: "Nf3", name: "Zukertort Opening",
-    idea: "Develop first, decide later. The knight watches the centre while white keeps every plan available — with c4 to follow, it becomes the Réti." },
+    idea: "Develop first, decide later. The knight watches the centre while white keeps every plan available — if Black answers 1...d5, c4 turns it into the Réti." },
   { seq: "Nf3 d5 c4", name: "Réti Opening",
     idea: "White invites black to hold a centre that white will undermine from both wings." }
 ];
