@@ -9,7 +9,8 @@
    in toward a square, and squareToScreen for the effects layer. It is
    also the safety net — if WebGL ever fails or the context is lost,
    the game lands here and keeps playing. The board keeps clear of the
-   player bars, and prints its coordinates where a phone can read them. */
+   player bars, prints its coordinates where a phone can read them, and
+   lets a man be carried by hand with the same calls as the carved one. */
 (function (root) {
 "use strict";
 
@@ -131,6 +132,7 @@ function derive(skin) {
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
     pattern: b.pattern, grain: b.grain, gloss: b.gloss,
     selected: rgba(m.select, 0.55),
+    hoverFill: rgba(m.select, 0.20), hoverEdge: rgba(m.select, 0.92),
     lastA: rgba(m.last, 0.50), lastB: rgba(m.last, 0.36),
     dot: rgba(m.legal, 0.48), ring: rgba(m.capture, 0.66),
     checkCore: rgba(m.check, 0.58), checkEdge: rgba(m.check, 0),
@@ -353,6 +355,28 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, ext
     ctx.stroke();
     ctx.globalAlpha = baseAlpha;
   }
+  ctx.restore();
+}
+
+/* The shadow of a piece held above the board: its own silhouette,
+   blurred, a little below and to the right of it. Drawn with the old
+   trick of filling the shape far off to the left and throwing only its
+   shadow back on screen, so nothing of the fill itself can show through
+   a glass piece or fringe its edge. `px` is device pixels per css pixel
+   (shadows ignore the canvas transform, so they are given in those). */
+function liftedShadow(ctx, piece, x, y, size, scale, px) {
+  var FAR = 4000, s = size * 0.92 * scale;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.42)";
+  ctx.shadowBlur = size * 0.20 * px;
+  ctx.shadowOffsetX = (FAR + size * 0.05) * px;
+  ctx.shadowOffsetY = size * 0.15 * px;
+  ctx.translate(x - FAR, y + size * 0.38);
+  ctx.scale(s, s);
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  PAINTERS[Math.abs(piece)](ctx);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -737,6 +761,41 @@ function create(canvas) {
   };
   R.isAnimating = function () { return !!R.anim; };
 
+  /* ---------- a man carried by hand ----------
+     Drag-to-move, the same three calls as the carved board. While a
+     finger has a piece, its square is drawn empty and the piece is drawn
+     under the finger, a size up and with a soft shadow beneath it, the
+     way a piece looks when it has been lifted off a real board. Kept over
+     the board: dragged off the edge, it waits at the edge. setDrag hands
+     back the square under the finger (-1 off the board), which is where a
+     drop lands. */
+  var drag = null, hover = -1;
+  R.setDrag = function (sq, x, y) {
+    if (sq == null || sq < 0 || !onBoard(sq)) {
+      if (drag) { drag = null; R.dirty = true; }
+      return -1;
+    }
+    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: performance.now() };
+    drag.x = +x || 0; drag.y = +y || 0;
+    R.dirty = true;
+    return R.screenToSquare(drag.x, drag.y);
+  };
+  R.dragging = function () { return drag ? drag.sq : -1; };
+  /* a soft outline on the square a carried man would land on, or -1 */
+  R.dragHover = function (sq) {
+    var next = sq != null && sq >= 0 && onBoard(sq) ? sq : -1;
+    if (next !== hover) { hover = next; R.dirty = true; }
+  };
+  /* where the carried man is drawn: the pointer, carried back through
+     the lean-in so it stays under the finger, and kept on the board */
+  function dragAt() {
+    var v = R.view, x = drag.x, y = drag.y;
+    if (v.z !== 1) { x = v.px + (x - v.px) / v.z; y = v.py + (y - v.py) / v.z; }
+    var lo = R.cell * 0.3;
+    return { x: Math.max(R.ox + lo, Math.min(R.ox + R.size - lo, x)),
+             y: Math.max(R.oy + lo, Math.min(R.oy + R.size - lo, y)) };
+  }
+
   function arrow(from, to, color, alpha) {
     var a = sqXY(from), b = sqXY(to);
     var dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
@@ -802,6 +861,19 @@ function create(canvas) {
       ctx.fillStyle = gr;
       ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
     }
+    /* where a carried man would land: a breath of colour and a soft
+       edge, drawn under the men so a capture still shows what it takes */
+    if (hover >= 0) {
+      var hp = sqXY(hover), hl = Math.max(2, R.cell * 0.06);
+      ctx.save();
+      ctx.fillStyle = th.hoverFill;
+      ctx.fillRect(hp.x - R.cell / 2, hp.y - R.cell / 2, R.cell, R.cell);
+      ctx.strokeStyle = th.hoverEdge;
+      ctx.lineWidth = hl;
+      rr(ctx, hp.x - R.cell / 2 + hl / 2, hp.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
@@ -821,6 +893,8 @@ function create(canvas) {
       if (a.m.rookFrom != null) { skip[a.m.rookFrom] = true; skip[a.m.rookTo] = true; }
       if (a.m.epSq != null) skip[a.m.epSq] = true;
     }
+    /* a man in the hand has left his square */
+    if (drag) skip[drag.sq] = true;
     /* the men arriving at the start of a game */
     var casc = R.cascade, cascMs = 0;
     if (casc) {
@@ -905,6 +979,9 @@ function create(canvas) {
           ctx.stroke();
           ctx.restore();
         }
+      } else if (drag && drag.sq === a.m.to) {
+        /* picked up again while still landing: he is in the hand, and
+           is drawn there rather than twice */
       } else if (a.glow) {
         ctx.save();
         ctx.shadowColor = th.hint; ctx.shadowBlur = R.cell * 0.5;
@@ -959,6 +1036,19 @@ function create(canvas) {
       animating = true;                 /* keep the spark moving */
     }
     if (R.hi.hint && !R.lines.length) arrow(R.hi.hint[0], R.hi.hint[1], th.hint, 0.8);
+
+    /* the man in the hand, over everything: he grows a size as he comes
+       up off the board (instantly, for anyone who asked for stillness) */
+    if (drag) {
+      var held = (a ? a.after : R.board)[drag.sq];
+      if (held) {
+        var up = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 120);
+        if (up < 1) animating = true;
+        var grow = 1 + 0.16 * (1 - (1 - up) * (1 - up)), at = dragAt();
+        liftedShadow(ctx, held, at.x, at.y, R.cell, grow * up, dpr * v.z);
+        paintPiece(ctx, held, at.x, at.y, R.cell, th, 1, grow, 0, 1, { noShadow: true });
+      }
+    }
 
     R.dirty = animating;
     return animating;

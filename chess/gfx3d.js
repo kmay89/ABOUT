@@ -41,7 +41,8 @@
    wide as the screen allows and no taller than the room between the
    player bars, stood up steeper through a longer lens on a phone held
    upright. A tap is answered for what the eye sees under it — the men
-   first, then the wood. */
+   first, then the wood — and a man can be carried by hand, lifted over
+   the board with his shadow under him, for drag-to-move. */
 (function (root) {
 "use strict";
 
@@ -1669,7 +1670,7 @@ function create(canvas, opts) {
       var b = R.anim ? R.anim.after : R.board, best = -1, bestT = Infinity;
       var down = R.toppled && !R.anim ? R.toppled.sq : -1;
       for (var sq = 0; sq < 128; sq++) {
-        if ((sq & 0x88) || !b[sq] || sq === down) continue;
+        if ((sq & 0x88) || !b[sq] || sq === down || (drag && sq === drag.sq)) continue;
         var P = PIECES[Math.abs(b[sq])];
         if (!P || !P.girth) continue;
         var t = hitMan(O, D, sqX(sq), sqZ(sq), P.girth);
@@ -1683,6 +1684,55 @@ function create(canvas, opts) {
     var f = Math.round(x + 3.5), r = Math.round(3.5 - z);
     if (f < 0 || f > 7 || r < 0 || r > 7) return -1;
     return r * 16 + f;
+  };
+
+  /* ---------- a man carried by hand ----------
+     Drag-to-move: while a finger has a piece, the piece leaves its square
+     and travels with the finger, lifted clear of the others so it can be
+     carried over them, its shadow on the board under it. It is held at
+     the point where the ray under the finger meets the plane at its own
+     height, so the finger is always on the piece's foot — and that point
+     is what decides the square it is over, rather than the wood further
+     along the same ray. Clamped to the board: dragged off the edge, it
+     waits at the edge. */
+  var DRAG_LIFT = 0.6;
+  var drag = null, hover = -1;
+  function carry(now) {
+    var t = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 140);
+    var lift = DRAG_LIFT * (1 - (1 - t) * (1 - t));
+    drag.lift = lift;
+    var ray = rayAt(drag.x, drag.y);
+    if (!ray || ray.d[1] > -1e-6) return;            /* pointing at the sky: he stays put */
+    var k = (lift - ray.o[1]) / ray.d[1];
+    if (!(k > 0)) return;
+    var x = ray.o[0] + ray.d[0] * k, z = ray.o[2] + ray.d[2] * k;
+    drag.off = Math.abs(x) > 4 || Math.abs(z) > 4;
+    drag.wx = Math.max(-4, Math.min(4, x));
+    drag.wz = Math.max(-4, Math.min(4, z));
+  }
+  /* setDrag(sq, x, y): the man on sq is in the hand, the pointer at (x, y)
+     css px from the canvas's top-left; call it again as the pointer
+     moves. Hands back the square he is over (-1 off the board), which is
+     the square a drop lands on. setDrag(null) puts the hand away — the
+     app then either plays the move, which animates from the square as
+     every move does, or simply leaves him home. */
+  R.setDrag = function (sq, x, y) {
+    if (sq == null || sq < 0 || !onSq(sq)) {
+      if (drag) { drag = null; R.dirty = true; }
+      return -1;
+    }
+    var now = performance.now();
+    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: now, wx: sqX(sq), wz: sqZ(sq), lift: 0, off: false };
+    drag.x = +x || 0; drag.y = +y || 0;
+    carry(now);
+    R.dirty = true;
+    return drag.off ? -1 : squareAt(drag.wx, drag.wz);
+  };
+  R.dragging = function () { return drag ? drag.sq : -1; };
+  /* a soft outline on the square a carried man would land on, or -1 */
+  R.dragHover = function (sq) {
+    var next = sq != null && sq >= 0 && onSq(sq) ? sq : -1;
+    if (next !== hover) { hover = next; R.dirty = true; }
   };
 
   var STRIDE = 28;                       /* pos(3) + normal(3) + shade(1) */
@@ -2019,6 +2069,10 @@ function create(canvas, opts) {
 
     refit();
     placeCamera();
+    /* the man in the hand follows the camera as well as the finger: if
+       the view is still settling, so is the point under the finger */
+    var lifting = false;
+    if (drag) { carry(nowMs); lifting = drag.lift < DRAG_LIFT; }
 
     /* ---- who is standing where, once, for all the passes ---- */
     instances.length = 0;
@@ -2028,6 +2082,8 @@ function create(canvas, opts) {
       if (a.m.rookFrom != null) { skip[a.m.rookFrom] = true; skip[a.m.rookTo] = true; }
       if (a.m.epSq != null) skip[a.m.epSq] = true;
     }
+    /* his own square is empty while he is in the hand */
+    if (drag) skip[drag.sq] = true;
     for (var sq = 0; sq < 128; sq++) {
       if (!onSq(sq) || skip[sq]) continue;
       var piece = a ? (a.after[sq] || 0) : R.board[sq];
@@ -2115,10 +2171,19 @@ function create(canvas, opts) {
         }
         promoFlash = pr.flash;
         promoAt = [tx, tz];
-      } else {
+      } else if (!drag || drag.sq !== a.m.to) {
+        /* (a man picked up while he is still landing is in the hand
+           already, and is drawn there rather than twice) */
         pushPiece(a.m.piece, mx, mz, st.y, 1, 1, pose);
       }
     }
+    /* the man in the hand, last, so he is over everything he is carried
+       across — and in the instance list, so he casts a real shadow */
+    if (drag) {
+      var held = (a ? a.after : R.board)[drag.sq];
+      if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1, null);
+    }
+
     /* ---- pass one: what the light can see ---- */
     shadowPass();
 
@@ -2199,6 +2264,19 @@ function create(canvas, opts) {
       drawFlatSq(R.hi.last[1], th.last, 0.45);
     }
     if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
+    /* where a carried man would land: a breath of colour on the square
+       and a thin bright edge round it, so it reads as "here" without
+       hiding the square's own colour */
+    if (hover >= 0) {
+      var hx = sqX(hover), hz = sqZ(hover);
+      drawFlatSq(hover, th.selected, 0.16, null, 0.96, 0.017);
+      var edge = [[0, -0.46, 0.94, 0.05], [0, 0.46, 0.94, 0.05], [-0.46, 0, 0.05, 0.84], [0.46, 0, 0.05, 0.84]];
+      for (var he = 0; he < 4; he++) {
+        var E = edge[he];
+        drawMesh(MESH_QUAD, [E[2], 0, 0, 0, 0, 1, 0, 0, 0, 0, E[3], 0, hx + E[0], 0.019, hz + E[1], 1],
+          th.selected, 0.85, true, 0, 0, 1.7);
+      }
+    }
     /* a king in check breathes for a few seconds rather than blinking:
        a blink is an alarm, and an alarm is the one thing a beginner
        being shown a new idea does not need more of */
@@ -2282,7 +2360,7 @@ function create(canvas, opts) {
     /* ---- pass three: the lens ---- */
     if (postOk) post(th);
 
-    R.dirty = animating || moving || dropping || falling || R.impacts.length > 0 ||
+    R.dirty = animating || moving || dropping || falling || lifting || R.impacts.length > 0 ||
               R.lines.length > 0 || pulse.live;
     return R.dirty;
   };
