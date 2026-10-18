@@ -35,7 +35,13 @@
    squareToScreen so the effects layer (fx.js) can put light exactly on
    a square. If WebGL is missing or the context is lost, the app is told
    at once and the same game continues in 2D — nothing is allowed to
-   strand the player. */
+   strand the player.
+
+   The camera is fitted to whatever it is drawing into, every frame: as
+   wide as the screen allows and no taller than the room between the
+   player bars, stood up steeper through a longer lens on a phone held
+   upright. A tap is answered for what the eye sees under it — the men
+   first, then the wood. */
 (function (root) {
 "use strict";
 
@@ -148,6 +154,29 @@ function mLookAt(eye, at, up) {
   var yx = zy*xz-zz*xy, yy = zz*xx-zx*xz, yz = zx*xy-zy*xx;
   return [xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0,
           -(xx*eye[0]+xy*eye[1]+xz*eye[2]), -(yx*eye[0]+yy*eye[1]+yz*eye[2]), -(zx*eye[0]+zy*eye[1]+zz*eye[2]), 1];
+}
+/* The whole inverse, by cofactors. A tap has to be carried back through
+   exactly the matrices the picture went out through — lens shift and
+   all — and a hand-inverted special case is one more thing that can
+   quietly disagree with the projection it is meant to undo. */
+function mInvert(m) {
+  var a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3], a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7],
+      a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11], a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+  var b00 = a00*a11 - a01*a10, b01 = a00*a12 - a02*a10, b02 = a00*a13 - a03*a10,
+      b03 = a01*a12 - a02*a11, b04 = a01*a13 - a03*a11, b05 = a02*a13 - a03*a12,
+      b06 = a20*a31 - a21*a30, b07 = a20*a32 - a22*a30, b08 = a20*a33 - a23*a30,
+      b09 = a21*a32 - a22*a31, b10 = a21*a33 - a23*a31, b11 = a22*a33 - a23*a32;
+  var det = b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06;
+  if (!det) return null;
+  det = 1 / det;
+  return [(a11*b11 - a12*b10 + a13*b09)*det, (a02*b10 - a01*b11 - a03*b09)*det,
+          (a31*b05 - a32*b04 + a33*b03)*det, (a22*b04 - a21*b05 - a23*b03)*det,
+          (a12*b08 - a10*b11 - a13*b07)*det, (a00*b11 - a02*b08 + a03*b07)*det,
+          (a32*b02 - a30*b05 - a33*b01)*det, (a20*b05 - a22*b02 + a23*b01)*det,
+          (a10*b10 - a11*b08 + a13*b06)*det, (a01*b08 - a00*b10 - a03*b06)*det,
+          (a30*b04 - a31*b02 + a33*b00)*det, (a21*b02 - a20*b04 - a23*b00)*det,
+          (a11*b07 - a10*b09 - a12*b06)*det, (a00*b09 - a01*b07 + a02*b06)*det,
+          (a31*b01 - a30*b03 - a32*b00)*det, (a20*b03 - a21*b01 + a22*b00)*det];
 }
 /* the shadow camera: a light this far away has no perspective to
    speak of, so it sees the board through a box rather than a cone */
@@ -533,6 +562,20 @@ var FSH_COMPOSITE = [
   "  gl_FragColor = vec4(c, 1.0);",
   "}"].join("\n");
 
+/* ---------- how big the wood is ----------
+   The squares are one unit each, centred on the origin, because that is
+   where the men stand, where the markers are laid and where a tap is
+   worked out. The board's texture paints a frame round them that is
+   MARGIN of its width on each side, so the quad it is painted on has to
+   be exactly 4 / (1 - 2·MARGIN) from the middle to the edge — any other
+   size stretches the painted squares out from under the men. It used to
+   be 4.62, which made every painted square 1.028 units: an h-file rook
+   stood a tenth of a square inside its own square, and a highlight on
+   h8 sat visibly off the wood it was marking. */
+var MARGIN = 0.055;
+var HALF = 4 / (1 - 2 * MARGIN);
+var RIM_DEPTH = 0.30;                    /* how far the edge of the board drops */
+
 /* ---------- board texture (painted on an offscreen canvas) ----------
    The same five patterns the 2D board knows, so a skin looks like
    itself whichever way you're playing. */
@@ -586,7 +629,7 @@ function boardTexture(th) {
   var S = 1024, cv = document.createElement("canvas");
   cv.width = cv.height = S;
   var g = cv.getContext("2d");
-  var margin = S * 0.055, cell = (S - margin * 2) / 8;
+  var margin = S * MARGIN, cell = (S - margin * 2) / 8;
   g.fillStyle = th.margin; g.fillRect(0, 0, S, S);
   /* faint long grain in the margin */
   g.globalAlpha = 0.06 + th.grain * 0.10;
@@ -661,7 +704,7 @@ function heightCanvas(th, S) {
   var cv = document.createElement("canvas");
   cv.width = cv.height = S;
   var g = cv.getContext("2d");
-  var margin = S * 0.055, cell = (S - margin * 2) / 8;
+  var margin = S * MARGIN, cell = (S - margin * 2) / 8;
   g.fillStyle = "#808080"; g.fillRect(0, 0, S, S);
   /* margin: long grain, then a routed step just inside the frame */
   g.globalAlpha = 0.05 + th.grain * 0.08;
@@ -1017,7 +1060,28 @@ function create(canvas, opts) {
      piece is made of is welded into a single mesh before it gets here.
      Swapping sets frees the old buffers so a curious player can try all
      of them without the card filling up. */
-  var PIECES = null;      /* { 1..6: {mesh, radius, height} } */
+  var PIECES = null;      /* { 1..6: {mesh, radius, height, lie, girth} } */
+  /* A man as a tap sees him: a stack of short upright cylinders, one per
+     band of his height, each as wide as the widest part of the mesh in
+     that band. A single cylinder 0.36 wide all the way up is the right
+     size for a pawn's foot and twice the size of a king's cross, and the
+     difference is the square behind him you could see and could not
+     tap. Each band is padded a little for a fingertip and kept between
+     a fifth and four tenths of a square, so a thin finial is still
+     something to aim at and nothing reaches into the next square. */
+  var GIRTH_BANDS = 8;
+  function girthOf(pos, height) {
+    var h = height > 0 ? height : 1, r = [], i, b;
+    for (b = 0; b < GIRTH_BANDS; b++) r.push(0);
+    for (i = 0; i < pos.length; i += 3) {
+      b = Math.floor(pos[i + 1] / h * GIRTH_BANDS);
+      if (b < 0) b = 0; else if (b >= GIRTH_BANDS) b = GIRTH_BANDS - 1;
+      var d = Math.sqrt(pos[i] * pos[i] + pos[i + 2] * pos[i + 2]);
+      if (d > r[b]) r[b] = d;
+    }
+    for (b = 0; b < GIRTH_BANDS; b++) r[b] = Math.max(0.2, Math.min(0.4, r[b] + 0.05));
+    return { h: h, r: r };
+  }
   var setId = null, setFaces = "", setName = "";
   function freePieces() {
     if (!PIECES) return;
@@ -1044,7 +1108,9 @@ function create(canvas, opts) {
                     radius: m.radius, height: m.height,
                     /* how this set's man lies when he is laid down, measured
                        once off the mesh rather than guessed per frame */
-                    lie: Move.lieOf(m.pos, m.radius) };
+                    lie: Move.lieOf(m.pos, m.radius),
+                    /* and how much of the picture he takes up, for a tap */
+                    girth: girthOf(m.pos, m.height) };
     }
     setId = built.id;
     setFaces = built.faces || "";
@@ -1059,7 +1125,7 @@ function create(canvas, opts) {
 
   /* rim: a shallow box under the board, drawn with the lit shader */
   var rimGeo = (function () {
-    var w = 4.62, h = 0.30, pos = [], idx = [];
+    var w = HALF, h = RIM_DEPTH, pos = [], idx = [];
     var pts = [[-w,-w],[w,-w],[w,w],[-w,w]];
     for (var i = 0; i < 4; i++) {
       var a = pts[i], b = pts[(i+1)%4];
@@ -1075,9 +1141,9 @@ function create(canvas, opts) {
   })();
   var MESH_RIM = upload(rimGeo);
 
-  /* board texture quad (size 9.24 to include painted margin) */
+  /* board texture quad: the squares and the painted frame round them */
   var texQuad = (function () {
-    var s = 4.62;
+    var s = HALF;
     var vb = gl.createBuffer(), ib = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vb);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -1112,11 +1178,34 @@ function create(canvas, opts) {
   }
   loadBoardTex();
 
-  /* ---------- camera: an orbit on springs ---------- */
+  /* ---------- camera: an orbit on springs ----------
+     The player owns a yaw, a pitch and a zoom; the canvas owns the rest.
+     Every frame the camera is fitted to the shape it is drawing into, so
+     a phone held upright and a laptop held open both get the whole board
+     as large as it will go, with nothing under the player bars. */
+  var PITCH_HOME = 0.98, DIST_HOME = 12.6;
+  /* Below about 0.55 the board turns edge-on: the far ranks crush into a
+     sliver and the men hide each other, and nothing ever brought it back
+     up. That is the floor now, and Flip and a new game both ease home. */
+  var PITCH_MIN = 0.55, PITCH_MAX = 1.35;
+  /* A portrait screen has height to spare and no width to spare, so the
+     board is stood up to meet it: a steeper look (the far ranks open out
+     instead of being foreshortened into a strip) through a longer lens
+     (less perspective, so the far rank is nearly the size of the near
+     one). Both ease in with how tall the canvas is, from nothing at 1.3:1
+     wide to all of it at 3:4 or narrower. */
+  var FOV_WIDE = 0.72, FOV_TALL = 0.50, PITCH_TALL = 0.22, PITCH_CEIL = 1.45;
+  /* How much of the width the board may take, frame and all: the
+     squares come to about nine tenths of it, and the wood stops a few
+     pixels short of the glass on a phone (the drawn board keeps the
+     same margin). And the strips at the top and bottom of the canvas the
+     player bars sit in, in css px. */
+  var FILL = 0.97;
+  var insets = { top: 48, bottom: 48 };
   var cam = {
-    yaw: Math.PI / 2, pitch: 0.98, dist: 12.6,
-    tYaw: Math.PI / 2, tPitch: 0.98, tDist: 12.6,
-    eye: [0, 0, 0], look: [0, -0.4, 0],
+    yaw: Math.PI / 2, pitch: PITCH_HOME, dist: DIST_HOME,
+    tYaw: Math.PI / 2, tPitch: PITCH_HOME, tDist: DIST_HOME,
+    eye: [0, 0, 0], look: [0, 0, 0], fov: FOV_WIDE,
     /* The cinematic push-in, kept as a layer on top of the player's own
        orbit rather than written into it: `amt` springs between 0 (the
        view they chose) and 1 (closer, a little lower, the square in the
@@ -1125,54 +1214,155 @@ function create(canvas, opts) {
        back to 0 returns them to exactly the view they left. */
     focus: { amt: 0, vel: 0, target: 0, x: 0, z: 0, vx: 0, vz: 0, tx: 0, tz: 0, last: 0 }
   };
-  var camPlaced = false;
+  var camPlaced = false, vp = mIdent(), invVP = mIdent();
+
+  /* 0 on a landscape canvas, 1 on a portrait one, eased between */
+  function tallness(aspect) { return Math.max(0, Math.min(1, (1.3 - aspect) / 0.55)); }
+  /* the strip between the player bars, in clip space (+1 is the top).
+     The bars never take more than three tenths of the height between
+     them, so a short canvas (the Studio drawer open on a phone) still
+     gets a board rather than a postage stamp. */
+  function bandOf(hPx) {
+    var t = insets.top + 4, b = insets.bottom + 4, room = hPx * 0.3;
+    if (t + b > room) { var k = room / (t + b); t *= k; b *= k; }
+    return { top: 1 - 2 * t / hPx, bottom: -1 + 2 * b / hPx };
+  }
+  /* What has to be seen, relative to the middle of the board as the
+     camera sees it from the white side: the four corners of the frame,
+     the dark edge of the rim along the near side, and the crowns of the
+     far rank, which stand up past the far edge of the wood. Black's view
+     is the mirror image, so one list does for both. */
+  function fitPoints() {
+    var crown = 0;
+    if (PIECES) for (var k = 1; k <= 6; k++) if (PIECES[k]) crown = Math.max(crown, PIECES[k].height);
+    if (!(crown > 0)) crown = 1.3;
+    return [[-HALF, 0, -HALF], [HALF, 0, -HALF], [-HALF, 0, HALF], [HALF, 0, HALF],
+            [-HALF, -RIM_DEPTH, HALF], [HALF, -RIM_DEPTH, HALF],
+            [-3.5, crown, -3.5], [3.5, crown, -3.5], [0, crown, -3.5]];
+  }
+  /* those points through a camera `d` back at `pitch`, as clip-space
+     extents: the widest |x|, and the lowest and highest y */
+  function extents(pts, d, pitch, tanX, tanY) {
+    var c = Math.cos(pitch), s = Math.sin(pitch), out = { x: 0, lo: 9, hi: -9, ok: true };
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i], depth = d - (p[1] * s + p[2] * c);
+      if (depth < 0.25) { out.ok = false; continue; }
+      var x = Math.abs(p[0]) / (depth * tanX), y = (p[1] * c - p[2] * s) / (depth * tanY);
+      if (x > out.x) out.x = x;
+      if (y < out.lo) out.lo = y;
+      if (y > out.hi) out.hi = y;
+    }
+    return out;
+  }
+  /* The distance at which the board just fits: as wide as FILL of the
+     canvas, or as tall as the strip between the bars, whichever comes
+     first. Halving rather than a formula, because perspective makes the
+     near edge and the far crowns shrink at different rates and the
+     answer is wherever the last of them comes inside — thirty steps is a
+     millionth of a unit, and costs less than drawing one pawn. Kept
+     until the canvas, the pitch, the lens or the set changes. */
+  var fitMemo = { key: "", d: DIST_HOME };
+  function fitDistance(pts, pitch, tanX, tanY, band) {
+    var key = [pitch.toFixed(5), tanX.toFixed(5), tanY.toFixed(5), band.top.toFixed(4), band.bottom.toFixed(4),
+               pts[6][1].toFixed(3)].join("|");
+    if (fitMemo.key === key) return fitMemo.d;
+    var lo = 1, hi = 400, room = band.top - band.bottom;
+    for (var i = 0; i < 30; i++) {
+      var d = (lo + hi) / 2, e = extents(pts, d, pitch, tanX, tanY);
+      if (e.ok && e.x <= FILL && e.hi - e.lo <= room) hi = d; else lo = d;
+    }
+    fitMemo.key = key; fitMemo.d = hi;
+    return hi;
+  }
+
   /* where the camera stands and what it looks at, from the orbit and the
-     push-in together. The look-target leans a touch toward the camera so
-     the near rank never falls off the bottom of the screen, whatever the
-     yaw. Called once a frame, and by squareToScreen if it is asked
-     before the first frame has drawn. */
+     push-in together. Called once a frame, and by squareToScreen and
+     screenToSquare if they are asked before the first frame has drawn. */
   function placeCamera() {
-    /* A narrow canvas (phone, or the Studio drawer taking a slice) has a
-       small horizontal field of view, so the camera steps back far
-       enough to keep all eight files on screen. The player's own zoom is
-       left alone — this only ever adds distance, never removes it. */
     var aspect = canvas.width / Math.max(1, canvas.height);
-    var fit = aspect < 1.25 ? Math.min(2.4, 1.25 / Math.max(0.35, aspect)) : 1;
+    var hPx = canvas.clientHeight || canvas.height || 1;
+    var tall = tallness(aspect);
+    var fov = FOV_WIDE + (FOV_TALL - FOV_WIDE) * tall;
+    var tanY = Math.tan(fov / 2), tanX = tanY * aspect;
+    var pitch = Math.min(PITCH_CEIL, cam.pitch + PITCH_TALL * tall);
+    var band = bandOf(hPx), pts = fitPoints();
+    /* the player's zoom is a ratio of the fitted distance, so pinching
+       means the same thing on every screen */
+    var dist = fitDistance(pts, pitch, tanX, tanY, band) * (cam.dist / DIST_HOME);
+    /* The lens is shifted rather than the camera turned: the board's
+       picture slides up or down until it sits in the middle of the strip
+       between the bars, without the perspective changing at all. Worked
+       out from the white side whatever the yaw, so orbiting turns the
+       board in place rather than sliding it about the screen. The push-in
+       hands the middle of the frame to its square instead. */
+    var e = extents(pts, dist, pitch, tanX, tanY);
     var fo = cam.focus, f = fo.amt;
-    var dist = cam.dist * fit * (1 - 0.27 * f);
-    var pitch = Math.max(0.30, cam.pitch - 0.09 * f);
+    var shift = (1 - f) * ((band.top + band.bottom) / 2 - (e.lo + e.hi) / 2);
+    dist *= 1 - 0.27 * f;
+    pitch = Math.max(0.30, pitch - 0.09 * f);
     var ex = Math.cos(cam.yaw) * Math.cos(pitch) * dist;
     var ey = Math.sin(pitch) * dist;
     var ez = Math.sin(cam.yaw) * Math.cos(pitch) * dist;
-    var tx = ex * 0.055, ty = -0.4, tz = ez * 0.055;
     /* eye and target travel together toward the square, so the camera
        trucks in rather than swinging round to stare at it */
     var k = 0.94 * f;
-    var sx = (fo.x - tx) * k, sy = (0.30 - ty) * k, sz = (fo.z - tz) * k;
+    var sx = fo.x * k, sy = 0.30 * k, sz = fo.z * k;
     cam.eye = [ex + sx, ey + sy, ez + sz];
-    cam.look = [tx + sx, ty + sy, tz + sz];
-    proj = mPersp(0.72, aspect, 0.5, 80);
+    cam.look = [sx, sy, sz];
+    cam.fov = fov;
+    /* The near plane follows the camera out. A long lens stands well
+       back, and a near plane left at half a unit would spend nearly all
+       of a 16-bit depth buffer on empty air in front of the board — the
+       markers a few hundredths above the wood would start to flicker
+       through it. Nothing in the room is nearer than the board's corner
+       plus a king, about seven units in from the target. */
+    var near = Math.max(0.5, (dist - 7.5) * 0.8);
+    proj = mPersp(fov, aspect, near, dist + 14);
+    proj[9] = -shift;
     view = mLookAt(cam.eye, cam.look, [0, 1, 0]);
+    vp = mMul(proj, view);
+    invVP = mInvert(vp) || invVP;
     camPlaced = true;
   }
   R.orbit = function (dx, dy) {
     cam.tYaw -= dx * 0.008;
-    cam.tPitch = Math.min(1.35, Math.max(0.30, cam.tPitch + dy * 0.006));
+    cam.tPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, cam.tPitch + dy * 0.006));
     R.dirty = true;
   };
   R.zoom = function (f) {
     cam.tDist = Math.min(17, Math.max(6.5, cam.tDist * f));
     R.dirty = true;
   };
+  /* home for a side: the yaw that puts it at the bottom, taken the short
+     way round from wherever a long orbit has wound the camera to, so a
+     flip after a few laps of the board is half a turn and not three */
+  function homeYaw(color) {
+    var base = color === 1 ? Math.PI / 2 : -Math.PI / 2, turn = Math.PI * 2;
+    return base + turn * Math.round((cam.tYaw - base) / turn);
+  }
+  /* Flip turns the board and brings the camera home with it: a flip is
+     "show me this from the other side", and the other side seen from a
+     tilt and a zoom somebody left an hour ago is not what was asked for. */
   R.setOrientation = function (color) {
     R.orientation = color;
-    cam.tYaw = color === 1 ? Math.PI / 2 : -Math.PI / 2;
+    cam.tYaw = homeYaw(color);
+    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
     R.dirty = true;
   };
   R.resetView = function () {
-    cam.tPitch = 0.98; cam.tDist = 12.6;
-    cam.tYaw = R.orientation === 1 ? Math.PI / 2 : -Math.PI / 2;
+    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
+    cam.tYaw = homeYaw(R.orientation);
     R.focus(null);
+    R.dirty = true;
+  };
+  /* The strips at the top and bottom of the canvas that the player bars
+     take, in css pixels (48 each unless told otherwise). The board is
+     fitted between them; pass 0s when the bars are hidden, as they are in
+     a lesson, and the board takes the room back. */
+  R.setInsets = function (top, bottom) {
+    insets.top = Math.max(0, +top || 0);
+    insets.bottom = Math.max(0, +(bottom == null ? top : bottom) || 0);
+    camPlaced = false;
     R.dirty = true;
   };
   /* Lean the camera in toward a square — the push-in on a mate — or,
@@ -1223,10 +1413,21 @@ function create(canvas, opts) {
 
   var proj = mIdent(), view = mIdent();
 
+  /* The stage can change size without the window changing (starting a
+     game puts a cost under the Hint button and takes eleven pixels off
+     it), and the app only resizes on a window resize: the old drawing
+     buffer was stretched to the new box, a squashed board under a
+     camera fitted to the wrong shape. So a frame checks its box first. */
+  var seenW = 0, seenH = 0;
+  function refit() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (w && h && (w !== seenW || h !== seenH)) R.resize();
+  }
   R.resize = function () {
     var dpr = Math.min(2, window.devicePixelRatio || 1);
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
+    seenW = w; seenH = h;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -1265,6 +1466,14 @@ function create(canvas, opts) {
   /* which set is actually on the board — not always the one the skin
      asked for, if that skin named a set this browser doesn't have */
   R.pieceSet = function () { return { id: setId, name: setName }; };
+  /* how tall the man on a square stands, in squares (0 for an empty
+     square) — so something aiming at his head, rather than his feet,
+     can ask squareToScreen(sq, heightOf(sq) * 0.8) */
+  R.heightOf = function (sq) {
+    if (sq == null || sq < 0 || !onSq(sq)) return 0;
+    var p = (R.anim ? R.anim.after : R.board)[sq], P = p && PIECES && PIECES[Math.abs(p)];
+    return P ? P.height : 0;
+  };
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
@@ -1372,7 +1581,7 @@ function create(canvas, opts) {
   R.squareToScreen = function (sq, lift) {
     if (sq == null || sq < 0 || !onSq(sq)) return null;
     if (!camPlaced) placeCamera();
-    var m = mMul(proj, view), w = canvas.clientWidth, h = canvas.clientHeight;
+    var m = vp, w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return null;
     function at(x, y, z) {
       var cw = m[3]*x + m[7]*y + m[11]*z + m[15];
@@ -1389,25 +1598,88 @@ function create(canvas, opts) {
     return { x: c.x, y: c.y, s: s, sy: sy };
   };
 
-  /* unproject a click to the y=0 plane */
-  R.screenToSquare = function (px, py) {
+  /* a ray from the eye through a point on the canvas (css px), carried
+     back through exactly the matrices the picture went out through */
+  function rayAt(px, py) {
+    if (!camPlaced) placeCamera();
     var w = canvas.clientWidth, h = canvas.clientHeight;
-    var ndcX = (px / w) * 2 - 1, ndcY = 1 - (py / h) * 2;
-    /* build the ray in world space from the inverse view basis (the view
-       matrix is orthonormal rotation + translation, so invert by hand) */
-    var fovY = 0.72, aspect = w / h;
-    var tanY = Math.tan(fovY / 2), tanX = tanY * aspect;
-    /* camera basis vectors from the view matrix rows */
-    var rx = [view[0], view[4], view[8]], ry = [view[1], view[5], view[9]], rz = [view[2], view[6], view[10]];
-    var dir = [
-      rx[0]*ndcX*tanX + ry[0]*ndcY*tanY - rz[0],
-      rx[1]*ndcX*tanX + ry[1]*ndcY*tanY - rz[1],
-      rx[2]*ndcX*tanX + ry[2]*ndcY*tanY - rz[2]];
-    var eye = cam.eye;
-    if (Math.abs(dir[1]) < 1e-6) return -1;
-    var t = -eye[1] / dir[1];
-    if (t <= 0) return -1;
-    var x = eye[0] + dir[0]*t, z = eye[2] + dir[2]*t;
+    if (!w || !h) return null;
+    var nx = (px / w) * 2 - 1, ny = 1 - (py / h) * 2, m = invVP;
+    var X = m[0]*nx + m[4]*ny + m[8] + m[12], Y = m[1]*nx + m[5]*ny + m[9] + m[13],
+        Z = m[2]*nx + m[6]*ny + m[10] + m[14], W = m[3]*nx + m[7]*ny + m[11] + m[15];
+    if (!W) return null;
+    var e = cam.eye;
+    return { o: e, d: [X / W - e[0], Y / W - e[1], Z / W - e[2]] };
+  }
+  /* the square a point on the board's plane is over, clamped onto it */
+  function squareAt(x, z) {
+    var f = Math.max(0, Math.min(7, Math.floor(x + 4)));
+    var r = Math.max(0, Math.min(7, Math.floor(4 - z)));
+    return r * 16 + f;
+  }
+  /* How far along a ray it first touches a man standing at (cx, cz):
+     the earliest point that is inside one band's cylinder while inside
+     that band's slice of height, or Infinity. Each band is a circle in
+     plan (a quadratic in t) and a slab in height (two planes), and the
+     ray is inside the band where both intervals overlap. */
+  function hitMan(o, d, cx, cz, g) {
+    var px = o[0] - cx, pz = o[2] - cz;
+    var a = d[0]*d[0] + d[2]*d[2], b = px*d[0] + pz*d[2], c0 = px*px + pz*pz;
+    var best = Infinity, n = g.r.length, bh = g.h / n;
+    for (var i = 0; i < n; i++) {
+      var r = g.r[i], t0, t1;
+      if (a < 1e-12) {
+        if (c0 > r * r) continue;
+        t0 = -Infinity; t1 = Infinity;
+      } else {
+        var disc = b * b - a * (c0 - r * r);
+        if (disc < 0) continue;
+        var rt = Math.sqrt(disc);
+        t0 = (-b - rt) / a; t1 = (-b + rt) / a;
+      }
+      var s0, s1;
+      if (Math.abs(d[1]) < 1e-12) {
+        if (o[1] < i * bh || o[1] > (i + 1) * bh) continue;
+        s0 = -Infinity; s1 = Infinity;
+      } else {
+        s0 = (i * bh - o[1]) / d[1]; s1 = ((i + 1) * bh - o[1]) / d[1];
+        if (s0 > s1) { var sw = s0; s0 = s1; s1 = sw; }
+      }
+      var lo = Math.max(t0, s0, 0), hi = Math.min(t1, s1);
+      if (lo <= hi && lo < best) best = lo;
+    }
+    return best;
+  }
+
+  /* A tap, to the square of whatever the player can see under it. The
+     men are tall, and seen from the near side a back-rank piece stands
+     over the pawn in front of it and a pawn over the square behind — so
+     the ray is tried against every man on the board first (the board as
+     it will be once a move in flight has landed), nearest one wins, and
+     only if it misses them all does it go on down to the wood. Without
+     that, the head of the g1 knight was g2 and the queen's crown was d2.
+     `{ plane: true }` skips the men and answers for the wood alone —
+     what an effects check wants when it asks whether the projector and
+     its inverse agree. */
+  R.screenToSquare = function (px, py, o) {
+    var ray = rayAt(px, py);
+    if (!ray) return -1;
+    var O = ray.o, D = ray.d;
+    if (!(o && o.plane) && PIECES) {
+      var b = R.anim ? R.anim.after : R.board, best = -1, bestT = Infinity;
+      var down = R.toppled && !R.anim ? R.toppled.sq : -1;
+      for (var sq = 0; sq < 128; sq++) {
+        if ((sq & 0x88) || !b[sq] || sq === down) continue;
+        var P = PIECES[Math.abs(b[sq])];
+        if (!P || !P.girth) continue;
+        var t = hitMan(O, D, sqX(sq), sqZ(sq), P.girth);
+        if (t < bestT) { bestT = t; best = sq; }
+      }
+      if (best >= 0) return best;
+    }
+    if (D[1] > -1e-9) return -1;
+    var tp = -O[1] / D[1];
+    var x = O[0] + D[0] * tp, z = O[2] + D[2] * tp;
     var f = Math.round(x + 3.5), r = Math.round(3.5 - z);
     if (f < 0 || f > 7 || r < 0 || r > 7) return -1;
     return r * 16 + f;
@@ -1745,6 +2017,7 @@ function create(canvas, opts) {
        never a reason on its own to keep the loop awake. */
     if (!R.dirty && !moving && !animating && !dropping && !falling && !flashing) return false;
 
+    refit();
     placeCamera();
 
     /* ---- who is standing where, once, for all the passes ---- */
@@ -1846,7 +2119,6 @@ function create(canvas, opts) {
         pushPiece(a.m.piece, mx, mz, st.y, 1, 1, pose);
       }
     }
-
     /* ---- pass one: what the light can see ---- */
     shadowPass();
 
