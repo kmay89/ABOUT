@@ -27,8 +27,8 @@
      - does the reverb really leave a tail, and is the room wide;
      - does a count climb when it counts up;
      - and is off really off: a muted room renders silence, a mute
-       fades what is already playing, and the room tone, switched off,
-       leaves nothing running;
+       fades what is already playing and its echo, and the room tone,
+       switched off, leaves nothing running;
      - and is a moment asked for before anybody has touched the page
        let go, rather than saved up for the first tap.
 
@@ -739,9 +739,15 @@ async function musicChecks(render) {
      wet.windows[0] > dry.windows[0] * 2, dB(wet.windows[0]) + " with the room vs " + dB(dry.windows[0]) + " without");
   ok("…and goes on after they have stopped",
      wet.windows[1] > 1e-5 && dry.windows[1] === 0, dB(wet.windows[1]) + " vs " + dB(dry.windows[1]));
-  const wide = await sting("hint", {}, { channels: 2, width: [WARM + 0.3, WARM + 2] });
+  /* Width, measured where only the room can be making it: after the
+     last note of a sting whose notes are all in the middle. (The hint
+     pans its chimes, which would be wide with a mono room too.) */
+  const ding = Sound.dryEnd(Sound.score("lesson-right", {}));
+  ok("…the moment heard here has every note in the middle",
+     Sound.score("lesson-right", {}).events.every((e) => e.pan === "c"));
+  const wide = await sting("lesson-right", {}, { channels: 2, width: [WARM + ding + 0.05, WARM + ding + 1.2] });
   const narrow = await sting("tap", {}, { channels: 2, width: [WARM, WARM + 0.1] });
-  ok("the room is wide: the two ears hear different things", wide.width > 0.3, wide.width.toFixed(2));
+  ok("the room is wide: the two ears hear different echoes of a centred note", wide.width > 0.3, wide.width.toFixed(2));
   ok("…while a dry, centred tap is the same in both", narrow.width < 0.01, narrow.width.toFixed(3));
 
   /* a count, climbing */
@@ -763,12 +769,21 @@ async function musicChecks(render) {
     ["move", { piece: 5, from: 0x03, to: 0x77 }, { captured: -4 }]] });
   ok("a muted room renders silence — stings, counts, room tone, pieces", muted.peak === 0 && !muted.ambienceLive,
      muted.peak);
-  const fadeWin = { windows: [[WARM + 1.0, WARM + 1.6]] };
-  const playing = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]] }, fadeWin));
-  const hushed = await render(Object.assign({ seconds: WARM + 2, calls: [["sting", "mate-win", { delay: WARM }]],
+  const fadeWin = { windows: [[WARM + 1.0, WARM + 1.6], [WARM + 0.7, WARM + 3]] };
+  const playing = await render(Object.assign({ seconds: WARM + 3, calls: [["sting", "mate-win", { delay: WARM }]] }, fadeWin));
+  const hushed = await render(Object.assign({ seconds: WARM + 3, calls: [["sting", "mate-win", { delay: WARM }]],
                                               later: [[WARM + 0.6, [["enable", false]]]] }, fadeWin));
   ok("a mute fades a fanfare that is already playing", hushed.windows[0] < playing.windows[0] * 0.2,
      dB(hushed.windows[0]) + " vs " + dB(playing.windows[0]));
+  ok("…and a tenth of a second later it is silence, echo and all", hushed.windows[1] === 0,
+     dB(hushed.windows[1]) + " after the mute, against " + dB(playing.windows[1]) + " left playing");
+  /* and back on, the room has its echo again */
+  const tailAt = (t) => [[t + ding + 0.1, t + ding + 1.0]];
+  const back = await render({ seconds: 3.4, calls: [["sting", "hint", { delay: 0.1 }]],
+    later: [[0.4, [["enable", false]]], [0.6, [["enable", true], ["sting", "lesson-right", {}]]]], windows: tailAt(0.6) });
+  const plainly = await render({ seconds: 3.4, later: [[0.6, [["sting", "lesson-right", {}]]]], windows: tailAt(0.6) });
+  ok("…and with the sound back on, so is the room's echo",
+     back.windows[0] > plainly.windows[0] * 0.5, dB(back.windows[0]) + " vs " + dB(plainly.windows[0]) + " never muted");
 
   /* the room tone */
   const none = await render({ seconds: 2, calls: [["ambience", 0]] });

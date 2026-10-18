@@ -952,7 +952,7 @@ var WIDTH = 0.55, LANE_TRIM = 1.3;
    context and never again. */
 function verb(c) {
   if (room && room.ctx === c) return room.node;
-  room = { ctx: c, node: null };
+  room = { ctx: c, node: null, wet: null };
   try {
     var ir = impulseResponse(c.sampleRate);
     var buf = c.createBuffer(2, ir[0].length, c.sampleRate);
@@ -966,9 +966,20 @@ function verb(c) {
     var wet = c.createGain();
     wet.gain.value = REVERB.wet;
     conv.connect(wet); wet.connect(master);
-    room.node = conv;
+    room.node = conv; room.wet = wet;
   } catch (e) { room.node = null; /* a room without an echo is still a room */ }
   return room.node;
+}
+/* The room's echo, turned up or down over a breath rather than at
+   once: a gain that jumps mid-tail is a click. */
+function echoTo(c, v) {
+  if (!c || !room || room.ctx !== c || !room.wet) return;
+  var p = room.wet.gain, now = c.currentTime;
+  try {
+    p.cancelScheduledValues(now);
+    p.setValueAtTime(p.value, now);
+    p.linearRampToValueAtTime(v, now + 0.08);
+  } catch (e) {}
 }
 
 function applyPts(param, pts, t0, scale) {
@@ -1087,7 +1098,9 @@ function perform(c, sc, t0) {
   return sc.len;
 }
 /* a mute fades what is already playing rather than letting a fanfare
-   finish over somebody who has just asked for quiet */
+   finish over somebody who has just asked for quiet — and the room's
+   echo of it too, which would otherwise ring on for two seconds after
+   the notes had been told to stop */
 function hush(c) {
   if (!c) return;
   var now = c.currentTime;
@@ -1100,6 +1113,7 @@ function hush(c) {
       p.linearRampToValueAtTime(0, now + 0.08);
     } catch (e) {}
   }
+  echoTo(c, 0);
   outs = []; live = [];
 }
 
@@ -1179,13 +1193,17 @@ var Sound = {
   },
 
   /* Off means off for everything: the pieces, the music already
-     playing (faded, not cut), and the room tone. Back on, the room tone
-     comes back at the level it was left at. */
+     playing and its echo (faded, not cut), and the room tone. Back on,
+     the room has its echo again and the room tone comes back at the
+     level it was left at. */
   enable: function (v) {
     var was = on;
     on = !!v;
     if (was && !on) { hush(AC); ambStop(); }
-    if (!was && on && ambLevel > 0) Sound.ambience(ambLevel);
+    if (!was && on) {
+      echoTo(AC, REVERB.wet);
+      if (ambLevel > 0) Sound.ambience(ambLevel);
+    }
   },
   enabled: function () { return on; },
   /* Less motion asked for means fewer sparkles and no sweeps; the
