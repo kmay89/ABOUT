@@ -131,6 +131,8 @@ function G(fen) { return Chess.create(fen); }
   const g = G("rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1");
   const said = Teach.afterMove(g, Chess.fromSAN(g, "O-O"));
   ok("castling is explained", said.some((s) => s.concept === "castling"));
+  /* e4 and e5 both still stand: there is no "open centre" to step away from */
+  ok("…without calling a closed centre open", said.some((s) => s.concept === "castling" && !/open centre/.test(s.text)));
 }
 
 /* ---- opportunities & warnings ---- */
@@ -239,6 +241,10 @@ const concepts = (list) => list.map((s) => s.concept).join(",") || "(nothing)";
   const s = said(G("r1b1kb1r/3q1pp1/1p3n1p/pN2n3/4P3/1P6/P1QP1PPP/R1B1KB1R w KQkq - 0 13"), "Nc7+").find((x) => x.concept === "fork");
   ok("a check-fork only says 'and then the rook falls' when it falls after every answer",
      s && /however they answer it, you still win material/.test(plain(s.text)) && !/then the rook falls/.test(plain(s.text)), s && plain(s.text));
+  /* the same when the named piece answers the check itself: ...Ne7 blocks
+     Qe6+ by moving the very knight the fork was aimed at */
+  const b = said(G("4kbnr/1r4p1/p5n1/PpP1pp2/1PQp1P1p/2RP4/3B2P1/4KB2 w - - 0 43"), "Qe6+").find((x) => x.concept === "fork");
+  ok("…or when the named piece can step in to block the check", b && !/then the knight falls/.test(plain(b.text)), b && plain(b.text));
 }
 {
   const g = G("rb2k3/8/8/3N4/8/8/8/4K3 w - - 0 1");    // Nc7+ "forks" — and the bishop takes it
