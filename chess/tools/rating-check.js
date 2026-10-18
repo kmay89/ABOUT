@@ -96,6 +96,19 @@ function sane(s) {
     ok(`saved games can still find "${id}"`, !!Rating.levelById(id));
   }
   ok("an unknown rung is null, not a crash", Rating.levelById("nope") === null && Rating.levelById(undefined) === null);
+  {
+    /* one game never lurches the number by more than MAX_STEP, however
+       wide the newcomer's deviation — but the deviation still shrinks */
+    const lose = Rating.update(Rating.fresh(), { level: L[0].id, result: 0, at: 1 });
+    const win = Rating.update(Rating.fresh(), { level: L[L.length - 1].id, result: 1, at: 1 });
+    ok("a first loss to the gentlest coach moves the number at most MAX_STEP",
+       Rating.MAX_STEP > 0 && lose.before - lose.after <= Rating.MAX_STEP && lose.after < lose.before,
+       lose.before + " → " + lose.after);
+    ok("…and so does a first win over the strongest",
+       win.after - win.before <= Rating.MAX_STEP && win.after > win.before, win.before + " → " + win.after);
+    ok("…while the deviation still narrows as much as it would have", lose.rd < Rating.START_RD && win.rd < Rating.START_RD,
+       lose.rd + " / " + win.rd);
+  }
   const ids = new Set(L.map((x) => x.id));
   ok("every rung has its own id", ids.size === L.length);
   let bad = null;

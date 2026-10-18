@@ -153,7 +153,9 @@ function fxMate(kingSq, attackerSq, win) {
   fxDown = { king: kingSq, from: attackerSq };
   if (R.topple) R.topple(kingSq, { from: attackerSq });
   /* a narrow phone is already framed wide; lean in less */
-  if (R.focus) R.focus(kingSq, { amount: innerWidth < 600 ? 0.6 : 1 });
+  /* a narrow phone's 3D view is already framed wide; lean in less. (The
+     drawn board's lean is its own small zoom, left at its default.) */
+  if (R.focus) R.focus(kingSq, R.kind === "3d" ? { amount: innerWidth < 600 ? 0.6 : 1 } : undefined);
   needFrame();
   if (!FX) return;
   Fx.mate(kingSq, { win: win });

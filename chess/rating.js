@@ -319,6 +319,7 @@ var PROVISIONAL_RD = 150;
    the history. */
 var RD_GROWTH_PER_DAY = 100;
 var R_FLOOR = 100, R_CEIL = 3000;
+var MAX_STEP = 250;       /* the most one game can move the number; see update() */
 var DAY = 86400000;
 
 function gRD(rd) { return 1 / Math.sqrt(1 + 3 * Q * Q * rd * rd / (Math.PI * Math.PI)); }
@@ -529,7 +530,17 @@ function update(state, game) {
   var info = w * Q * Q * gg * gg * E * (1 - E);
   var denom = 1 / (rd * rd) + info;
   var r0 = s.r;
-  var r1 = num(r0 + (Q / denom) * w * gg * (result - E), START_R, R_FLOOR, R_CEIL);
+  /* No single game moves the number more than MAX_STEP. Glicko is right
+     that a new player's first result says a lot — with a deviation of
+     350, losing a first game to Acorn would take an 800 to 330 — but a
+     number that lurches by hundreds on one game reads as noise, and a
+     first loss that big reads as a verdict. The deviation still shrinks
+     by the full amount, so the cap slows a strong or weak newcomer's
+     arrival by a game or two and changes nothing once the score has
+     settled, where steps are far smaller than this anyway. */
+  var step = (Q / denom) * w * gg * (result - E);
+  if (step > MAX_STEP) step = MAX_STEP; else if (step < -MAX_STEP) step = -MAX_STEP;
+  var r1 = num(r0 + step, START_R, R_FLOOR, R_CEIL);
   var rd1 = num(Math.sqrt(1 / denom), START_RD, RD_MIN, RD_MAX);
 
   s.r = r1; s.rd = rd1;
@@ -654,7 +665,7 @@ var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
   REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, ACCURACY_FROM_PLY: ACCURACY_FROM_PLY,
-  PERF_ABOVE: PERF_ABOVE,
+  PERF_ABOVE: PERF_ABOVE, MAX_STEP: MAX_STEP,
   levelById: levelById, searchOpts: searchOpts,
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,
