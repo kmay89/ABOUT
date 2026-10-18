@@ -394,13 +394,18 @@ function lines(g, side) {
       var fk = kindOf(g.board[front]), bk = kindOf(g.board[back]);
       var rec = { by: sq, piece: p, front: front, frontPiece: g.board[front],
                   back: back, backPiece: g.board[back] };
+      /* every square of the line: a front piece that slides along it
+         toward the attacker is still standing in the way, and still
+         falls */
+      var lane = [];
+      for (t = sq + step; t !== back + step; t += step) lane.push(t);
 
       if (fk === K) {
         /* the king is in front: it is check, it must step aside, and the
            piece behind falls — if nothing they do prevents it */
         if (!live) continue;
         if (winsBehind(g, sq, front, back) < GAIN) continue;
-        if (!holds(g, sq, side, [back])) continue;
+        if (!holds(g, sq, side, lane)) continue;
         rec.kind = "skewer"; rec.concept = "skewer"; rec.absolute = false; rec.check = true;
         skewers.push(rec);
       } else if (bk === K) {
@@ -428,7 +433,7 @@ function lines(g, side) {
         if (!legalOn(pos, sq, front) || see(g, sq, front) < GAIN) continue;
         if (frontTakes(g, front, sq)) continue;
         if (winsBehind(g, sq, front, back) < GAIN) continue;
-        if (live && !holds(g, sq, side, [front, back])) continue;
+        if (live && !holds(g, sq, side, lane)) continue;
         rec.kind = "skewer"; rec.concept = "skewer"; rec.absolute = false; rec.check = false;
         skewers.push(rec);
       }
@@ -615,13 +620,15 @@ function joinOr(list) {
    observations, each tagged with the concept it teaches so the app can
    fade the ones you've already mastered. */
 function afterMove(g, m) {
+  if (!g || !g.board || !m || !m.piece || g.board[m.from] !== m.piece) return [];
   var side = colorOf(m.piece), out = [], i;
   var st = standing(g, side);
   var wasLoose = {}, own0 = looseFor(g, side);
   for (i = 0; i < own0.length; i++) wasLoose[own0[i].sq] = true;
-  /* what the move does materially, if it captures: an even trade is an
-     offer, not a piece left hanging */
-  var trade = m.capt ? seeMove(g, m) : null;
+  /* what the move does materially on its own square: an even trade is
+     an offer, and a promotion they can only take back at a loss is a
+     win, so neither is a piece "left hanging" */
+  var moveSee = seeMove(g, m);
   var early = g.full <= 12;
 
   Chess.make(g, m);
@@ -631,6 +638,7 @@ function afterMove(g, m) {
   var mated = gaveCheck && replies.length === 0;
   var stale = !gaveCheck && replies.length === 0;
   var options = gaveCheck && !mated ? checkOptions(g, side, replies) : [];
+  var threat = !gaveCheck && replies.length ? mateThreat(g, side) : null;
   /* a pinned piece that can still slide along its line deserves to be
      told so — "it can't move" would be untrue */
   for (i = 0; i < after.lines.pins.length; i++) {
@@ -650,6 +658,13 @@ function afterMove(g, m) {
     out.push({ concept: "stalemate", weight: 100,
       text: "Stalemate: they aren't in check, but they have no legal move at all — so it's a <b>draw</b>. When you're far ahead, always give the losing king a square to breathe." });
     return out;
+  }
+
+  /* a threat of mate is the loudest thing a quiet move can say */
+  if (threat) {
+    out.push({ concept: "mateThreat", weight: 93, squares: [threat.move.from, threat.move.to],
+      text: "That threatens <b>mate</b>: " + threat.san.replace(/#$/, "") +
+        " next move would be checkmate unless they deal with it. Whenever a move of theirs arrives, ask first: <i>what does it threaten?</i>" });
   }
 
   /* new forks (the classic aha) — every one reported here wins
@@ -716,7 +731,7 @@ function afterMove(g, m) {
     var l = after.ownLoose[i];
     if (wasLoose[l.sq]) continue;
     if (l.value < 300) continue;                       /* pawns: don't nag */
-    if (l.sq === m.to && trade !== null && trade > -GAIN) continue;   /* a trade, not a gift */
+    if (l.sq === m.to && moveSee > -GAIN) continue;    /* a trade or a win, not a gift */
     var where = "your " + name(l.piece) + " on " + sqName(l.sq);
     out.push({
       concept: "hanging", weight: 95, squares: [l.sq, l.from],
@@ -746,7 +761,8 @@ function afterMove(g, m) {
   } else if (gaveCheck) {
     out.push({ concept: "check", weight: 60,
       text: "Check — they must deal with it right now" +
-        (options.length ? ", and the only ways are to " + joinOr(options) : "") +
+        (options.length === 1 ? ", and the only way is to " + options[0]
+          : options.length ? ", and the only ways are to " + joinOr(options) : "") +
         ". Nothing else is legal." });
   }
 
@@ -965,7 +981,9 @@ function explainMove(g, m) {
     var hadAim = !direct && st.hits[l.from] && st.hits[l.from].targets[l.sq] === l.piece;
     var what = name(l.piece) + " on " + sqName(l.sq);
     fact(40, "hanging", hadAim
-      ? "Now the " + what + " can be won: it no longer has enough defenders."
+      ? (l.why === "undefended" ? "Leaves the " + what + " with no defender."
+         : l.why === "outnumbered" ? "Leaves the " + what + " attacked more times than it is defended."
+         : "Leaves the " + what + " open to a cheaper attacker.")
       : direct && l.why === "outnumbered"
         ? "Piles onto the " + what + ": it is now attacked more times than it is defended."
         : (direct ? "Attacks the " : "Opens up an attack on the ") + what +
