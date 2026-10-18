@@ -321,11 +321,14 @@ function holds(g, by, side, targets) {
    recapture while its own king was in check, which stops being true
    the moment they answer the check. */
 function profile(g, by, side, targets, full) {
-  var res = { holds: false, fell: {} };
+  /* fell: falls after at least one reply. always: falls after every one —
+     only then may the coach say "and then the rook falls" */
+  var res = { holds: false, fell: {}, always: {} };
   if (g.turn !== -side) return res;
   var piece = g.board[by], replies = Chess.moves(g), i, k;
   if (!replies.length) return res;            /* mate and stalemate are told elsewhere */
   res.holds = true;
+  for (k = 0; k < targets.length; k++) res.always[targets[k]] = true;
   for (i = 0; i < replies.length; i++) {
     var r = replies[i], took = r.capt ? VAL[kindOf(r.capt)] : 0, win = 0;
     Chess.make(g, r);
@@ -334,11 +337,14 @@ function profile(g, by, side, targets, full) {
         for (k = 0; k < targets.length; k++) {
           var v = strikeFrom(g, by, side, [targets[k]]);
           if (v >= GAIN) res.fell[targets[k]] = true;
+          else res.always[targets[k]] = false;
           if (v > win) win = v;
         }
       } else {
         win = strikeFrom(g, by, side, targets);
       }
+    } else {
+      for (k = 0; k < targets.length; k++) res.always[targets[k]] = false;
     }
     if (took) {
       var back = bestCapture(g, r.to, side);
@@ -380,6 +386,7 @@ function forks(g, side) {
       if (!pr.holds) continue;
       victims = victims.filter(function (v) { return kindOf(v.piece) === K || pr.fell[v.sq]; });
       if (victims.length < 2) continue;      /* the king and one real victim, or two real victims */
+      victims.forEach(function (v) { v.always = kindOf(v.piece) === K || !!pr.always[v.sq]; });
     }
     victims.sort(function (a, b) { return b.value - a.value; });
     out.push({
@@ -822,8 +829,9 @@ function afterMove(g, m) {
       squares: [f.by].concat(f.victims.map(function (v) { return v.sq; })),
       text: "That's a <b>fork</b> — your " + name(f.piece) + " on " + sqName(f.by) +
         " attacks " + vs.join(" and ") + " at the same time. " +
-        (f.check ? "One of them is the king, so they must answer the check — and then the " +
-                   name(other.piece) + " falls."
+        (f.check ? "One of them is the king, so they must answer the check — " +
+                   (other.always ? "and then the " + name(other.piece) + " falls."
+                                 : "and however they answer it, you still win material.")
                  : "They only get one move: whichever they save, you take the other.")
     });
     break;
@@ -1141,7 +1149,8 @@ function explainMove(g, m) {
     var named = f.victims.slice(0, 2).map(function (v) { return "the " + name(v.piece) + " on " + sqName(v.sq); });
     var rest = f.victims.filter(function (v) { return kindOf(v.piece) !== K; })[0];
     fact(20, "fork", "Forks " + named.join(" and ") +
-      (f.check ? ": they must answer the check, and then the " + name(rest.piece) + " falls."
+      (f.check ? (rest.always ? ": they must answer the check, and then the " + name(rest.piece) + " falls."
+                              : ": they must answer the check, and however they do, you still win material.")
                : ": whichever they save, you take the other."),
       [f.by].concat(f.victims.map(function (v) { return v.sq; })));
     f.victims.forEach(function (v) { spoken[v.sq] = true; });

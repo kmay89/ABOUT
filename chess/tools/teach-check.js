@@ -234,6 +234,13 @@ const concepts = (list) => list.map((s) => s.concept).join(",") || "(nothing)";
   ok("…but it is honestly called a piece left en prise", s.some((x) => x.concept === "hanging"), concepts(s));
 }
 {
+  /* Nc7+ forks king and rook, but ...Qxc7 Qxc7 is one answer in which
+     the rook never falls: material is still won, the rook isn't */
+  const s = said(G("r1b1kb1r/3q1pp1/1p3n1p/pN2n3/4P3/1P6/P1QP1PPP/R1B1KB1R w KQkq - 0 13"), "Nc7+").find((x) => x.concept === "fork");
+  ok("a check-fork only says 'and then the rook falls' when it falls after every answer",
+     s && /however they answer it, you still win material/.test(plain(s.text)) && !/then the rook falls/.test(plain(s.text)), s && plain(s.text));
+}
+{
   const g = G("rb2k3/8/8/3N4/8/8/8/4K3 w - - 0 1");    // Nc7+ "forks" — and the bishop takes it
   const s = said(g, "Nc7+");
   ok("a fork whose forker is simply captured is not a fork", !s.some((x) => x.concept === "fork"), concepts(s));
