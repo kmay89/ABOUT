@@ -1431,6 +1431,7 @@ function undoPly(n) {
   if (!G || !G.played.length) return;
   if (mode === "lan") return; /* LAN goes through the polite request */
   clearTimeout(coachTimer); thinking = false;
+  Brain.cancel();
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
   over = null;
   /* a move that has been taken back never happened, so neither did
@@ -1965,6 +1966,7 @@ function showProfile() {
 /* ===== game start / end ===== */
 function startGame(newMode, opts) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  Brain.cancel();                /* …and stops, rather than holding up the next one */
   opts = opts || {};
   stopTour();
   lesson = null; lessonDone = false; lessonQueue = [];
@@ -4500,6 +4502,12 @@ function wireSW() {
       });
     }
     if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+    /* a room left open on a phone for days never navigates, so it never
+       asks whether there is a new release; coming back to it is a good
+       moment to ask */
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") { try { reg.update(); } catch (e) {} }
+    });
     if (reg.installing) watch(reg.installing);
     reg.addEventListener("updatefound", function () { if (reg.installing) watch(reg.installing); });
   }).catch(function () {});
