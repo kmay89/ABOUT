@@ -25,9 +25,12 @@
      - is a mate a bigger, longer thing than a plain win, and is the
        check you are in a different figure from the check you give;
      - does the reverb really leave a tail, and is the room wide;
-     - does a count climb when it counts up;
+     - does a count climb when it counts up, and skip the steps the ear
+       could not separate anyway;
      - does a busy room give up the sparkles first, then the colour of
        the opening, and keep the last chord whole;
+     - is the same moment asked for twice heard once, and does asking
+       the room for less motion take the sparkles out of every moment;
      - and is off really off: a muted room renders silence, a mute
        fades what is already playing and its echo, the room tone,
        switched off, leaves nothing running, and a tab nobody is
@@ -617,10 +620,11 @@ const MUSIC = `async (spec) => {
   Sound.enable(true);
   Sound.setReduced(!!spec.reduced);
   let returned = 0;
+  const rets = [];
   const run = (calls) => {
     for (const c of calls) {
-      if (c[0] === "sting") returned = Math.max(returned, Sound.sting(c[1], c[2] || {}) || 0);
-      else if (c[0] === "ui") Sound.ui(c[1]);
+      if (c[0] === "sting") { const r = Sound.sting(c[1], c[2] || {}); rets.push(r); returned = Math.max(returned, r || 0); }
+      else if (c[0] === "ui") rets.push(Sound.ui(c[1], c[2]));
       else if (c[0] === "count") Sound.countTick(c[1], c[2], c[3]);
       else if (c[0] === "ambience") Sound.ambience(c[1]);
       else if (c[0] === "enable") Sound.enable(c[1]);
@@ -689,7 +693,7 @@ const MUSIC = `async (spec) => {
     width = s ? Math.sqrt(df / s) : 0;
   }
   return {
-    returned, busy, ambienceLive, peak, energy, rms: Math.sqrt(energy / (d.length * chans.length)),
+    returned, rets, busy, ambienceLive, peak, energy, rms: Math.sqrt(energy / (d.length * chans.length)),
     tail, lastAbs, loud, loudAt, bloom: rmsOf(loudAt, loudAt + 0.6),
     windows: (spec.windows || []).map((w) => rmsOf(w[0], w[1])),
     zc: (spec.zc || []).map((w) => zcOf(w[0], w[1])),
@@ -809,6 +813,41 @@ async function musicChecks(render) {
      down.map((r) => r.zc[0].toFixed(0)).join(" → "));
   ok("…and is very light", Math.max(...up.map((r) => r.peak)) < R("lesson-right").peak * 0.15,
      Math.max(...up.map((r) => r.peak)).toFixed(3) + " vs a lesson's " + R("lesson-right").peak.toFixed(3));
+  /* a count shown every frame: every step asked for at once, against
+     just the first and the last */
+  const steps = [];
+  for (let i = 0; i <= 10; i++) steps.push(["count", i, 10, true]);
+  const burst = await render({ seconds: WARM + 0.4, later: [[WARM, steps]] });
+  const ends = await render({ seconds: WARM + 0.4, later: [[WARM, [steps[0], steps[10]]]] });
+  ok("…and a count faster than the ear can follow skips the steps between, never the last",
+     burst.energy > 0 && Math.abs(burst.energy - ends.energy) <= ends.energy * 1e-6,
+     (burst.energy / ends.energy).toFixed(4) + "× the first and last alone");
+
+  /* asked for twice at once is one sound; the old way in passes its
+     options through; and the room's own reduced-motion setting is the
+     same as asking each sting for less */
+  const once = await sting("check", {});
+  const twice = await render({ seconds: WARM + Sound.STINGS.check.len + 0.3,
+    calls: [["sting", "check", { delay: WARM }], ["sting", "check", { delay: WARM }]] });
+  ok("the same moment asked for twice at once is heard once",
+     Math.abs(twice.energy - once.energy) <= once.energy * 1e-6 && twice.rets[1] === 0,
+     (twice.energy / once.energy).toFixed(4) + "×, second call said " + twice.rets[1]);
+  const oldWay = await render({ seconds: WARM + Sound.STINGS.check.len + 0.3,
+    calls: [["ui", "check", { against: true, delay: WARM }]] });
+  const against = await sting("check", { against: true });
+  ok("Sound.ui passes its options on: the old way in can still say whose king it is",
+     Math.abs(oldWay.energy - against.energy) <= against.energy * 1e-6 && oldWay.rets[0] === Sound.STINGS.check.len,
+     (oldWay.energy / against.energy).toFixed(4) + "×");
+  const calmPref = await sting("mate-win", {}, { reduced: true });
+  const calmAsked = R("mate-win", { reduced: true });
+  ok("asking the room for less motion is the same as asking each moment for it",
+     Math.abs(calmPref.energy - calmAsked.energy) <= calmAsked.energy * 1e-6 && calmPref.energy !== mate.energy,
+     (calmPref.energy / calmAsked.energy).toFixed(4) + "× vs " + (mate.energy / calmAsked.energy).toFixed(4) + "× with it");
+  const crown = { piece: 1, from: 0x60, to: 0x70, promo: 5 };
+  const crownFull = await render({ seconds: WARM + 2, calls: [["move", crown, {}]] });
+  const crownCalm = await render({ seconds: WARM + 2, reduced: true, calls: [["move", crown, {}]] });
+  ok("…and a promotion under less motion keeps its figure and drops its sparkle",
+     crownCalm.busy > 0 && crownCalm.busy < crownFull.busy, crownCalm.busy + " voices vs " + crownFull.busy);
 
   /* off is off */
   const muted = await render({ seconds: WARM + 3, calls: [["enable", false],

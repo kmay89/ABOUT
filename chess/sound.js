@@ -904,6 +904,12 @@ var STING_KINDS = Object.keys(STINGS);
    number counting down walks down. Quantised to the scale rather than
    gliding, because a glide is a siren and a scale is a tune. */
 var COUNT_STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+/* The closest two ticks of a count may come. Closer than about a
+   twentieth of a second apart, clicks stop being heard as clicks and
+   fuse into a buzz: at one a frame, a count is a 30 Hz rasp rather
+   than a ratchet. So a count shown at sixty frames a second is heard at
+   twenty, which is about as fast as a roulette wheel sounds. */
+var COUNT_GAP = 0.05;
 function countTickPitch(i, n, up) {
   n = +n || 0;
   var f = n > 0 ? clamp((+i || 0) / n, 0, 1) : 1;
@@ -1381,13 +1387,13 @@ var Sound = {
   /* One tick of a number counting — a rating being revealed, say:
      `i` of `n`, rising up the scale if `up`, falling if not. Light
      enough to call on every step; if the steps come faster than the ear
-     can separate them, the in-between ones are skipped, but the last
-     one always sounds. */
+     can separate them (see COUNT_GAP), the in-between ones are skipped,
+     but the last one always sounds. */
   countTick: function (i, n, up) {
     if (!on) return;
     var c = ctx(); if (!c || !running(c)) return;   /* a count nobody can hear yet is not saved up */
     var now = c.currentTime;
-    if (lastCount >= 0 && now >= lastCount && now - lastCount < 0.028 && i !== n) return;
+    if (lastCount >= 0 && now >= lastCount && now - lastCount < COUNT_GAP && i !== n) return;
     lastCount = now;
     perform(c, score("count", { i: i, n: n, up: up !== false }), now + 0.004);
   },
