@@ -166,13 +166,27 @@ const PLAY = `([san, src]) => {
     await page.click("#pfBack");
 
     /* ---- New game, and the rated game that is under way ---- */
+    /* a young game restarts freely */
     await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
-    for (let k = 0; k < 3; k++) {
+    await play("e4", "local");
+    await page.waitForFunction(() => __cr.game.played.length === 2 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });
+    await page.click("#btnNew");
+    await page.waitForTimeout(300);
+    const youngAsk = await page.evaluate(() => document.getElementById("askBody").innerText);
+    ok("New game in a young rated game only checks you meant it", /start a new game/i.test(youngAsk) && !/loss/i.test(youngAsk), youngAsk);
+    await page.click("#askRow button >> nth=0");
+    await page.waitForTimeout(600);
+    st = await state();
+    ok("…and counts nothing", st.rating.games === 1 && st.mode === "coach", JSON.stringify([st.rating.games, st.mode]));
+    /* a game well under way does not go so quietly */
+    await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
+    for (let k = 0; k < 10; k++) {
       await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });
       await page.waitForTimeout(150);
+      /* a quiet move that keeps the game going: never a capture, never mate */
       const mine = await page.evaluate(() => {
-        const g = __cr.game, ms = Chess.moves(g);
-        return Chess.toSAN(g, ms.find((m) => Math.abs(m.piece) === 1) || ms[0]);
+        const g = __cr.game, ms = Chess.moves(g).filter((m) => !m.capt);
+        return Chess.toSAN(g, ms.find((m) => Math.abs(m.piece) === 2 || Math.abs(m.piece) === 1) || ms[0] || Chess.moves(g)[0]);
       });
       await play(mine, "local");
       await page.waitForTimeout(300);
@@ -199,10 +213,10 @@ const PLAY = `([san, src]) => {
 
     /* a question asked from the lobby is drawn above it, not under it */
     await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
-    for (let k = 0; k < 3; k++) {
+    for (let k = 0; k < 10; k++) {
       await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });
       await page.waitForTimeout(150);
-      await page.evaluate(() => { const g = __cr.game, ms = Chess.moves(g); __cr.commitMove(ms.find((m) => Math.abs(m.piece) === 1) || ms[0], "local"); });
+      await page.evaluate(() => { const g = __cr.game, ms = Chess.moves(g).filter((m) => !m.capt); __cr.commitMove(ms.find((m) => Math.abs(m.piece) <= 2) || ms[0] || Chess.moves(g)[0], "local"); });
       await page.waitForTimeout(300);
     }
     await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });

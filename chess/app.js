@@ -245,7 +245,9 @@ var principleN = 0;
 var SKILLS = {};
 Rating.LEVELS.forEach(function (L) {
   SKILLS[L.id] = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, label: L.emoji + " " + L.name,
-                   name: L.name, emoji: L.emoji, elo: L.elo, blurb: L.blurb };
+                   name: L.name, emoji: L.emoji, elo: L.elo, blurb: L.blurb,
+                   /* the first sentence, for a row that has room for one */
+                   short: String(L.blurb || "").replace(/([.!?])\s.*$/, "$1") };
 });
 /* a save from before the ladder grew may name a rung by an old id; it
    still has to open */
@@ -684,7 +686,6 @@ function scheduleCoach() {
   clearTimeout(coachTimer);
   coachTimer = setTimeout(function () {
     if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
-    var sk = SKILLS[skill];
     var ticket = ++brainTicket;
     var answer = function (res) {
       /* the board may have moved on while it was thinking — a take-back,
@@ -697,6 +698,9 @@ function scheduleCoach() {
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
       thinking = false;
+      /* what the coach thinks of the position, from your side: the
+         abandonment rule asks whether you were clearly losing */
+      if (res && typeof res.score === "number") lastEval = -res.score;
       var m = res && res.move && Brain.resolve(G, res.move);
       /* a worker that died mid-thought must not leave the coach staring
          at the board: think again, briefly, here */
@@ -707,7 +711,9 @@ function scheduleCoach() {
       if (m) commitMove(m, "coach");
       syncTurnStrip(); syncButtons();
     };
-    Brain.search(G, { ms: sk.ms, maxDepth: sk.maxDepth, noise: sk.noise }).then(answer, function () { answer(null); });
+    /* exactly the settings the rung was measured with — node budget and
+       all — or its rating would be a rating of some other opponent */
+    Brain.search(G, Rating.searchOpts(skill)).then(answer, function () { answer(null); });
   }, REDUCED ? 60 : 420);
 }
 
@@ -747,7 +753,7 @@ function gentleCheck(fenBefore, played, san, ply, ticket) {
   }
   if (!mine) return;
   /* one call, both sides of the comparison measured the same way */
-  Brain.review(pre, mine, { ms: 420, mark: true }).then(function (res) {
+  Brain.review(pre, mine, { ms: 900, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
     reviewMemo[ply] = { best: res.bestScore, played: res.playedScore };
@@ -940,7 +946,7 @@ function showHint(raw, odds, book, sans, again) {
   var paid = again ? " <i>(the same hint — no charge twice)</i>" : odds.free ? (odds.mood === "behind" ? " <i>(free — you're behind)</i>" : "") :
     " <i>(" + (clock.on ? odds.cost + " seconds" : odds.cost + " mark" + (odds.cost > 1 ? "s" : "")) +
     (odds.mood === "ahead" ? " — you're ahead" : " — it's level") + ")</i>";
-  if (mode === "coach" && !again) paid += " <i>A hint means this game counts at half weight.</i>";
+  if (mode === "coach" && !again) paid += " <i>A hint makes this game count for a little less.</i>";
   /* the line the engine is actually counting on, when the hint is the
      engine's own move: seeing the next two plies is most of what turns a
      hint into a lesson */
@@ -1324,7 +1330,7 @@ function undoSmart() {
     var k = (G.turn === humanSide) ? 2 : 1;
     assist.takebacks++;
     undoPly(Math.min(k, G.played.length));
-    toast("Rewound. Chess deserves second thoughts. <i>(A take-back — this game now counts at half weight.)</i>");
+    toast("Rewound. Chess deserves second thoughts. <i>(A take-back makes this game count for a little less.)</i>");
   } else {
     if (over && mode === "pass") { over = null; $("ovEnd").classList.add("hide"); }
     undoPly(1);
@@ -1345,6 +1351,7 @@ var ladder = loadLadder();
    you can do on your own, without ever refusing the help */
 var assist = { takebacks: 0, hints: 0 };
 var ratedDone = false;          /* this game has been counted */
+var lastEval = 0;               /* the coach's last word on the position, from your side, in cp */
 var reviewMemo = {};            /* ply → {best, played}: the gentle coach's reviews, reused by the look-back */
 
 function loadLadder() {
@@ -1393,17 +1400,13 @@ function streakDays() {
   var now = Date.now();
   return (ladder.day === dayKey(now) || ladder.day === dayKey(now - 86400000)) ? ladder.days : 0;
 }
-function ratingNow() { return Math.round(Rating.summary(rating).r); }
 function ratingText() {
   var sm = Rating.summary(rating);
-  return Math.round(sm.r) + (sm.provisional ? "?" : "");
+  return sm.rating + (sm.provisional ? "?" : "");
 }
-/* who to play next: a fair fight, and for somebody with no games yet,
-   a gentle one */
-function nextLevel() {
-  if (!Rating.summary(rating).games) return SKILLS.sprout ? "sprout" : Rating.LEVELS[0].id;
-  return skillOk(Rating.suggestLevel(rating));
-}
+/* who to play next: a fair fight — and while the room is still finding
+   your level, a slightly gentle one */
+function nextLevel() { return skillOk(Rating.suggestLevel(rating)); }
 function levelIndex(id) {
   for (var i = 0; i < Rating.LEVELS.length; i++) if (Rating.LEVELS[i].id === id) return i;
   return -1;
@@ -1418,11 +1421,17 @@ function humanMovesMade() {
    keep a number up, so a game that is properly under way counts as a
    resignation if you start another. Before your third move it is free:
    a misclick on the colour, a change of heart about the opponent. */
+/* Starting over is free while a game is young and level. It counts as a
+   loss once the game is properly under way, or once you are clearly
+   losing — the two moments walking away would be a way of keeping a
+   number up rather than of starting fresh. */
+var ABANDON_PLIES = 20, ABANDON_EVAL = -300;
 function ratedAtStake() {
-  if (mode === "coach" && G && !over && !ratedDone) return humanMovesMade() >= 3;
+  if (mode === "coach" && G && !over && !ratedDone)
+    return humanMovesMade() >= 3 && (G.played.length >= ABANDON_PLIES || lastEval <= ABANDON_EVAL);
   /* a rated game left on the shelf while you did a lesson is still a game */
   var sv = mode !== "coach" ? loadSave() : null;
-  return !!(sv && sv.mode === "coach" && savedHumanMoves(sv) >= 3);
+  return !!(sv && sv.mode === "coach" && savedHumanMoves(sv) >= 3 && sv.sans.length >= ABANDON_PLIES);
 }
 function savedHumanMoves(sv) { var n = sv.sans.length; return sv.humanSide === 1 ? Math.ceil(n / 2) : Math.floor(n / 2); }
 /* resigning the shelved game: counted against the coach it was against */
@@ -1430,14 +1439,15 @@ function settleSaved(sv) {
   var a = Array.isArray(sv.assist) ? sv.assist : [0, 0];
   var out = Rating.update(rating, { level: sv.skill, result: 0, accuracy: null, at: Date.now(),
                                     assisted: { takebacks: a[0] | 0, hints: a[1] | 0 } });
-  rating = out.state; Rating.save(rating, lsSet);
+  if (out.rated) { rating = out.state; Rating.save(rating, lsSet); }
   rungOf(sv.skill).l++; markDay(); saveLadder();
   lsDel(SAVE_KEY);
   return { out: out };
 }
 function leaveGameThen(fn, verb) {
   if (!ratedAtStake()) { fn(); return; }
-  ask("This game is rated — " + (verb || "starting another") + " now counts as a loss.<br><b>Resign and go on?</b>",
+  var why = (mode === "coach" && lastEval <= ABANDON_EVAL && G && !over) ? "You're behind in a rated game" : "This rated game is well under way";
+  ask(why + " — " + (verb || "starting another") + " now counts as a loss.<br><b>Resign and go on?</b>",
     [{ label: "🏳️ Resign & go on", fn: function () {
         /* the game may have ended while the question was up */
         if (!ratedAtStake()) { fn(); return; }
@@ -1476,6 +1486,7 @@ function settleRating(result) {
   var clean = !assist.takebacks && !assist.hints;
   var out = Rating.update(rating, { level: skill, result: s, accuracy: null, at: Date.now(),
                                     assisted: { takebacks: assist.takebacks, hints: assist.hints } });
+  if (!out.rated) return null;
   rating = out.state;
   Rating.save(rating, lsSet);
   var rung = rungOf(skill), newStars = [];
@@ -1512,7 +1523,8 @@ function analyseGame(onStep) {
         if (list[j].from === want.from && list[j].to === want.to && (list[j].promo || 0) === (want.promo || 0)) { mine = list[j]; break; }
       }
       if (!mine) { i++; next(); return; }
-      Brain.review(pre, mine, { ms: 170 }).then(function (res) {
+      /* the accuracy table was fitted with a reviewer of this depth */
+      Brain.review(pre, mine, { ms: 900, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
         if (ticket !== gameTicket) { resolve(null); return; }
         if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push(reviewMemo[ply]); }
         i++; onStep(i, plies.length); next();
@@ -1584,7 +1596,7 @@ function renderEndRating(rs) {
   dEl.textContent = fmtDelta(after - before) + (out.provisional ? " ?" : "");
   var t = Rating.title(after);
   $("endRateTitle").textContent = t.emoji + " " + t.name + (out.provisional ? " · still finding your level" : "") +
-    (rs.clean ? "" : " · counted at half weight (hints or take-backs)");
+    (out.weight < 1 ? " · counted as " + Math.round(out.weight * 100) + "% of a game (hints or take-backs)" : "");
   var stars = $("endStars").children, rung = rungOf(rs.level);
   for (var i = 0; i < 3; i++) {
     var already = rung.stars[i] && rs.newStars.indexOf(i) < 0;
@@ -1620,13 +1632,17 @@ function renderEndRating(rs) {
       dEl.classList.add("show");
       sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
       rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si, live); }, 380 + k * 420); });
-      if (out.milestone) {
+      var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
+      if (mile || up2) {
         setTimeout(function () {
           if (!live()) return;
-          var m = $("endMile");
-          m.textContent = (out.milestone.emoji || "🏅") + " " + out.milestone.name + " — " + Math.round(out.milestone.rating || after);
+          var m = $("endMile"), was = out.levelUp && Rating.levelById(out.levelUp);
+          m.textContent = mile ? (mile.emoji || "🏅") + " " + (mile.kind === "settled" ? "Your rating has settled" :
+                                  mile.kind === "best" ? "A new personal best" : "You're now: " + mile.name) +
+                                  " — " + Math.round(mile.rating || after)
+                               : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
           m.classList.remove("hide");
-          sting("milestone");
+          sting(mile ? "milestone" : "levelup");
           if (typeof Fx !== "undefined" && Fx.confetti) Fx.confetti({ ms: 3200 });
         }, 500 + rs.newStars.length * 420);
       }
@@ -1689,7 +1705,7 @@ function sparkPath(vals, w, h, pad) {
            d: "M" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") };
 }
 function renderLobby() {
-  var sm = Rating.summary(rating), t = Rating.title(sm.r);
+  var sm = Rating.summary(rating), t = sm.title;
   var num = $("mRateNum"), streak = streakDays();
   if (!sm.games) {
     num.textContent = "—";
@@ -1699,10 +1715,10 @@ function renderLobby() {
     $("mRateSpark").classList.add("hide");
   } else {
     $("mRateSpark").classList.remove("hide");
-    num.innerHTML = Math.round(sm.r) + (sm.provisional ? '<span class="prov">?</span>' : "");
+    num.innerHTML = sm.rating + (sm.provisional ? '<span class="prov">?</span>' : "");
     $("mRateTitle").textContent = t.emoji + " " + t.name;
     var bits = [sm.games + (sm.games === 1 ? " game" : " games")];
-    if (sm.best) bits.push("best " + Math.round(sm.best));
+    if (sm.best) bits.push("best " + sm.best);
     if (streak > 1) bits.push("🔥 " + streak + "-day streak");
     else if (sm.provisional) bits.push("still finding your level");
     $("mRateSub").textContent = bits.join(" · ");
@@ -1740,13 +1756,13 @@ function renderLobby() {
 /* ---- your record ---- */
 function showProfile() {
   hideAllOverlays();
-  var sm = Rating.summary(rating), t = Rating.title(sm.r);
-  $("pfRate").textContent = sm.games ? Math.round(sm.r) + (sm.provisional ? "?" : "") : "—";
-  $("pfRd").textContent = sm.games ? (sm.provisional ? "provisional — " + Math.max(1, 5 - sm.games) + " more to settle" : "±" + Math.round(2 * (sm.rd || 60))) : "no games yet";
+  var sm = Rating.summary(rating), t = sm.title;
+  $("pfRate").textContent = sm.games ? sm.rating + (sm.provisional ? "?" : "") : "—";
+  $("pfRd").textContent = sm.games ? (sm.provisional ? "provisional — a few more games to settle it" : "give or take " + 2 * sm.rd) : "no games yet";
   $("pfTitle").textContent = t.emoji + " " + t.name;
   if (t.next) {
-    var span = t.next.floor - t.floor, k = Math.max(0, Math.min(1, (sm.r - t.floor) / span));
-    $("pfNext").textContent = Math.max(1, Math.ceil(t.next.floor - sm.r)) + " to " + t.next.emoji + " " + t.next.name;
+    var span = t.next.floor - t.floor, k = Math.max(0, Math.min(1, (sm.rating - t.floor) / span));
+    $("pfNext").textContent = Math.max(1, t.next.floor - sm.rating) + " to " + t.next.emoji + " " + t.next.name;
     setTimeout(function () { $("pfBar").style.width = Math.round(k * 100) + "%"; }, 60);
   } else { $("pfNext").textContent = "the top of the scale"; $("pfBar").style.width = "100%"; }
   /* the chart */
@@ -1760,15 +1776,14 @@ function showProfile() {
   } else {
     ch.innerHTML = '<text x="160" y="64" text-anchor="middle">your rating will draw itself here, game by game</text>';
   }
-  var accs = (sm.history || []).filter(function (e) { return e.acc != null; }).slice(-10);
-  var accAvg = accs.length ? Math.round(accs.reduce(function (a, e) { return a + e.acc; }, 0) / accs.length) + "%" : "—";
+  var accAvg = sm.recentAccuracy != null ? Math.round(sm.recentAccuracy) + "%" : "—";
   var stars = 0;
   Rating.LEVELS.forEach(function (L) { stars += starCount(L.id); });
   $("pfStats").innerHTML = [
-    [sm.games || 0, "games"], [(sm.w || 0) + "·" + (sm.d || 0) + "·" + (sm.l || 0), "W · D · L"],
-    [sm.best ? Math.round(sm.best) : "—", "best"], [accAvg, "accuracy"],
+    [sm.games || 0, "games"], [sm.wins + "·" + sm.draws + "·" + sm.losses, "W · D · L"],
+    [sm.best || "—", "best"], [accAvg, "accuracy"],
     [streakDays() || 0, "day streak"], [ladder.bestDays || 0, "longest"],
-    [stars + "/" + Rating.LEVELS.length * 3, "stars"], [sm.streak || 0, "win run"]
+    [stars + "/" + Rating.LEVELS.length * 3, "stars"], [sm.streak.kind === "win" ? sm.streak.n : 0, "win run"]
   ].map(function (x) { return "<div><b>" + x[0] + "</b><span>" + x[1] + "</span></div>"; }).join("");
   var list = $("pfLadder");
   list.innerHTML = "";
@@ -1777,7 +1792,7 @@ function showProfile() {
     var b = document.createElement("button");
     b.className = "rungRow";
     b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
-      (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(L.blurb)) + '</small></span><span class="rgElo">' + L.elo +
+      (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(SKILLS[L.id].short)) + '</small></span><span class="rgElo">' + L.elo +
       '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
     b.addEventListener("click", function () { quickPlay(L.id); });
     list.appendChild(b);
@@ -1794,7 +1809,7 @@ function startGame(newMode, opts) {
   teachSeen = {}; teachCool = 0; taughtAt = [];
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
-  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {};
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
@@ -3708,7 +3723,7 @@ function renderRungChoices(selId) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", L.id === selId ? "true" : "false");
     b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b>" +
-      (L.id === fair ? '<span class="fair">fair fight</span>' : "") + "<small>" + escHtml(L.blurb) +
+      (L.id === fair ? '<span class="fair">fair fight</span>' : "") + "<small>" + escHtml(SKILLS[L.id].short) +
       (r && r.w + r.d + r.l ? " · " + r.w + "–" + r.d + "–" + r.l : "") + '</small></span><span class="rgElo">' + L.elo +
       '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
     row.appendChild(b);
