@@ -57,10 +57,17 @@ const SHELL = [
    The app shell is the folder itself and its index.html, with any query
    ignored (a link like ./?room=BUZZ is still the room). Every other page
    in the folder — the README, the tools, a 404 — is someone else's
-   business, and must never be mistaken for the shell. */
-const ROOM = new URL('./', self.location);
-const SHELL_PAGES = [ROOM.pathname, ROOM.pathname + 'index.html'];
-const isShellPage = (url) => url.origin === ROOM.origin && SHELL_PAGES.indexOf(url.pathname) >= 0;
+   business, and must never be mistaken for the shell.
+   It is worked out on first use rather than the moment this file loads:
+   tools/room-parity.js runs every room's worker in a bare sandbox to
+   watch it install and activate, and a sandbox has no location to work
+   it out from. */
+let room = null;
+const roomURL = () => room || (room = new URL('./', self.location));
+function isShellPage(url) {
+  const r = roomURL();
+  return url.origin === r.origin && (url.pathname === r.pathname || url.pathname === r.pathname + 'index.html');
+}
 
 self.addEventListener('install', (e) => {
   /* cache: 'reload' sends every request to the server, past the
@@ -135,7 +142,7 @@ self.addEventListener('fetch', (e) => {
      would otherwise be stored once per poll, for ever, in a cache that
      only shrinks when the next release replaces it. Anything that asks
      not to be stored is taken at its word, too. */
-  if (!url.pathname.startsWith(ROOM.pathname) || req.cache === 'no-store') return;
+  if (!url.pathname.startsWith(roomURL().pathname) || req.cache === 'no-store') return;
 
   // Everything else: cache-first (the shell is versioned; a new version
   // means a new cache, so stale files can't outlive a release).
