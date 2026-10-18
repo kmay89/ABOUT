@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {} };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -590,6 +590,11 @@ function commitMove(m, source, animOpts) {
      voice rather than as a generic thump */
   var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
   var plan = R.animateMove(desc, G.board, animOpts || {}, function () {
+    /* two people sharing one screen: the board turns to whoever is next,
+       once the piece has landed rather than under it */
+    if (mode === "pass" && prefs.autoFlip && !over && orientation !== G.turn) {
+      orientation = G.turn; R.setOrientation(orientation); syncBars(); syncClocks();
+    }
     syncBoard();
     syncButtons();     /* the hint's price depends on whose move it now is */
     if (!over && st.reason === "check") snd("check");
@@ -3585,6 +3590,10 @@ function openNewCard(kind, cb) {
     c.classList.toggle("sel", v === newCardCtx.side);
   });
   if (kind === "coach") renderRungChoices(newCardCtx.skill);
+  $("flipRow").classList.toggle("hide", kind !== "pass");
+  Array.prototype.forEach.call($("flipChips").children, function (c) {
+    c.classList.toggle("sel", (c.getAttribute("data-flip") === "1") === !!prefs.autoFlip);
+  });
   $("sideRow").classList.toggle("hide", kind === "pass");
   $("skillRow").classList.toggle("hide", kind !== "coach");
   hideAllOverlays();
@@ -3827,6 +3836,7 @@ function wireUI() {
   wireChips("sideChips", "side", function (v) { if (newCardCtx) newCardCtx.side = v; });
   wireChips("skillChips", "skill", function (v) { if (newCardCtx) newCardCtx.skill = v; });
   wireChips("clockChips", "clock", function (v) { if (newCardCtx) newCardCtx.clockStr = v; });
+  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
     var ctx = newCardCtx; newCardCtx = null;

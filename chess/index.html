@@ -1020,6 +1020,13 @@
       <p><b>Your opponent</b> <small id="skillHint">— every game against the computer is rated.</small></p>
       <div class="rungList" id="skillChips" role="radiogroup" aria-label="Your opponent"></div>
     </div>
+    <div id="flipRow" class="hide">
+      <p><b>The board</b> <small>— two people passing one device usually want their own pieces nearest them.</small></p>
+      <div class="rowbtns" id="flipChips">
+        <button class="chip sel" data-flip="0">Stays put</button>
+        <button class="chip" data-flip="1">Turns to whoever moves</button>
+      </div>
+    </div>
     <p><b>Clock</b> <small id="clockHint">— optional. Fischer increment adds seconds back after every move.</small></p>
     <div class="rowbtns" id="clockChips">
       <button class="chip sel" data-clock="none">No clock</button>
