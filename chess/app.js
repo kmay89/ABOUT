@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx */
 (function () {
 "use strict";
 
@@ -209,13 +209,18 @@ var principleN = 0;
    way on a fast laptop and a slow phone — a coach whose strength depends
    on your hardware cannot be practised against. The slack (noise) is
    what actually sets the level now that the ranked list it draws from is
-   a real search: at sprout it will walk into things, at mentor it will
-   not. */
-var SKILLS = {
-  sprout: { ms: 200, maxDepth: 2,  noise: 170, label: "Coach 🌱" },
-  club:   { ms: 450, maxDepth: 5,  noise: 55,  label: "Coach 🌿" },
-  mentor: { ms: 1000, maxDepth: 64, noise: 0,  label: "Coach 🌳" }
-};
+   a real search: at the bottom it will walk into things, at mentor it
+   will not. The rungs themselves, and the rating each one carries, live
+   in rating.js, where they were measured by playing them off against
+   each other. */
+var SKILLS = {};
+Rating.LEVELS.forEach(function (L) {
+  SKILLS[L.id] = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, label: L.emoji + " " + L.name,
+                   name: L.name, emoji: L.emoji, elo: L.elo, blurb: L.blurb };
+});
+/* a save from before the ladder grew may name a rung by an old id; it
+   still has to open */
+function skillOk(id) { return SKILLS[id] ? id : "sprout"; }
 
 /* ===== clock ===== */
 var clock = { on: false, base: 0, inc: 0, w: 0, b: 0, run: 0 /* 0 none, 1 white, -1 black */, lastT: 0, lowTicked: -1 };
@@ -307,14 +312,37 @@ function sideName(side) {
 }
 var GLYPH = { 1: "♙", 2: "♘", 3: "♗", 4: "♖", 5: "♕", 6: "♔" };
 var GLYPHB = { 1: "♟", 2: "♞", 3: "♝", 4: "♜", 5: "♛", 6: "♚" };
+/* A tag says who is sitting there, how strong they are when that is
+   known, and — because a phone has no room for a separate strip —
+   whether it is their move, whether they are thinking, and whether
+   their king is in check. */
+function tagHTML(side) {
+  var n = sideName(side), c = side === 1 ? "White" : "Black";
+  /* against the computer the colours are plain from the board — yours are
+     the near ones — and the room is better spent on the ratings */
+  var h = escHtml(n === c || mode === "coach" ? n : n + " · " + c);
+  if (mode === "coach") {
+    if (side === humanSide) {
+      if (Rating.summary(rating).games) h += '<span class="elo">' + ratingText() + "</span>";
+    } else h += '<span class="elo">' + SKILLS[skill].elo + "</span>";
+  }
+  if (G && !over && viewPly < 0 && G.turn === side) {
+    if (thinking) h += '<span class="think" aria-label="thinking"><i>·</i><i>·</i><i>·</i></span>';
+    else if (Chess.inCheck(G)) h += '<span class="inCheck">check!</span>';
+  }
+  return h;
+}
+function syncTagState() {
+  var topSide = -orientation, botSide = orientation;
+  $("nameTop").innerHTML = tagHTML(topSide);
+  $("nameBot").innerHTML = tagHTML(botSide);
+  var live = G && !over && viewPly < 0 && mode && mode !== "tour";
+  $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
+  $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
+}
 function syncBars() {
   var topSide = -orientation, botSide = orientation;
-  function tag(side) {
-    var n = sideName(side), c = side === 1 ? "White" : "Black";
-    return n === c ? n : n + " · " + c;
-  }
-  $("nameTop").textContent = tag(topSide);
-  $("nameBot").textContent = tag(botSide);
+  syncTagState();
   /* captured pieces: what each side has taken, plus the material lead.
      While you're looking back the tally looks back with you — a score
      from a position that isn't on the board would only mislead. */
@@ -365,6 +393,7 @@ function showViewBanner(on) {
 function syncTurnStrip() {
   var el = $("turnStrip");
   if (!G) { el.textContent = "…"; return; }
+  syncTagState();
   if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + Math.floor(viewPly / 2 + 1); return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
@@ -547,7 +576,7 @@ function commitMove(m, source, animOpts) {
 
   /* the gentle coach looks over the human's shoulder */
   if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || mode === "pass")) {
-    setTimeout(function () { gentleCheck(fenBefore, m, san); }, 1400);
+    setTimeout(function () { gentleCheck(fenBefore, m, san, ply); }, 1400);
   }
   /* the coach takes its turn */
   if (mode === "coach" && !over && G.turn !== humanSide) {
@@ -604,7 +633,7 @@ function pawnsWorth(cp) {
   if (p < 1.2) return "about a pawn";
   return "about " + (p < 3 ? p.toFixed(1) : Math.round(p)) + " pawns";
 }
-function gentleCheck(fenBefore, played, san) {
+function gentleCheck(fenBefore, played, san, ply) {
   if (!G || over) return;
   var pre;
   try { pre = Chess.create(fenBefore); } catch (e) { return; }
@@ -619,6 +648,7 @@ function gentleCheck(fenBefore, played, san) {
   Brain.review(pre, mine, { ms: 420, mark: true }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
+    if (ply != null) reviewMemo[ply] = { best: res.bestScore, played: res.playedScore };
     showReview(pre, san, res, mine);
   });
 }
@@ -715,6 +745,7 @@ function gentleUndo() {
   if (!G || !G.played.length) return;
   clearTimeout(coachTimer); thinking = false;
   var k = (mode === "coach" && G.turn !== humanSide) ? 1 : (mode === "coach" ? 2 : 1);
+  if (mode === "coach") assist.takebacks++;
   undoPly(Math.min(k, G.played.length));
 }
 
@@ -724,6 +755,7 @@ function giveHint() {
   if (!canActNow()) { toast(mode === "lan" && G.turn !== lanSide ? "It's your opponent's move — the hint lamp lights on your turn." : "Hints come on your turn."); return; }
   var odds = oddsFor(G.turn);
   if (!oddsPay(G.turn)) return;
+  if (mode === "coach") { assist.hints++; saveGame(); }
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
   var book = Book.suggest(sans);
   /* rank: the book-agreement test below compares real scores, so the
@@ -1127,6 +1159,7 @@ function undoPly(n) {
   /* a move that has been taken back never happened, so neither did
      anything the room said about it */
   forgetNotesAfter(G.played.length - 1);
+  Object.keys(reviewMemo).forEach(function (k) { if (+k >= G.played.length) delete reviewMemo[k]; });
   clearSel(); hintArrow = null; viewPly = -1;
   showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
@@ -1147,11 +1180,443 @@ function undoSmart() {
   if (mode === "coach") {
     /* undo to the human's previous turn */
     var k = (G.turn === humanSide) ? 2 : 1;
+    assist.takebacks++;
     undoPly(Math.min(k, G.played.length));
-    toast("Rewound. Chess deserves second thoughts.");
+    toast("Rewound. Chess deserves second thoughts. <i>(A take-back — this game now counts at half weight.)</i>");
   } else {
     undoPly(1);
   }
+}
+
+/* ===== your chess: the number, the ladder, the reasons to come back =====
+   A game against the computer used to end and leave nothing behind. A
+   person who plays alone needs what a club gives you: a number that is
+   yours, somebody a little stronger to beat next, and a record of having
+   beaten them. So every game against the computer is rated (rating.js
+   holds the arithmetic), every coach on the ladder carries three stars,
+   and a day you play is a day on your streak. */
+var LADDER_KEY = "chessroom_ladder";
+var rating = Rating.load(lsGet);
+var ladder = loadLadder();
+/* the help a player took in this game: kept so the score can say what
+   you can do on your own, without ever refusing the help */
+var assist = { takebacks: 0, hints: 0 };
+var ratedDone = false;          /* this game has been counted */
+var reviewMemo = {};            /* ply → {best, played}: the gentle coach's reviews, reused by the look-back */
+
+function loadLadder() {
+  var fresh = { v: 1, rungs: {}, lastSide: -1, day: "", days: 0, bestDays: 0 };
+  try {
+    var s = JSON.parse(lsGet(LADDER_KEY) || "null");
+    if (!s || s.v !== 1 || !s.rungs || typeof s.rungs !== "object") return fresh;
+    var out = { v: 1, rungs: {}, lastSide: s.lastSide === 1 ? 1 : -1,
+                day: typeof s.day === "string" ? s.day.slice(0, 10) : "",
+                days: Math.max(0, Math.min(99999, s.days | 0)), bestDays: Math.max(0, Math.min(99999, s.bestDays | 0)) };
+    Rating.LEVELS.forEach(function (L) {
+      var r = s.rungs[L.id];
+      if (!r || typeof r !== "object") return;
+      var st = Array.isArray(r.stars) ? r.stars : [];
+      out.rungs[L.id] = { w: Math.max(0, r.w | 0), d: Math.max(0, r.d | 0), l: Math.max(0, r.l | 0),
+                          stars: [st[0] ? 1 : 0, st[1] ? 1 : 0, st[2] ? 1 : 0] };
+    });
+    return out;
+  } catch (e) { return fresh; }
+}
+function saveLadder() { lsSet(LADDER_KEY, JSON.stringify(ladder)); }
+function rungOf(id) {
+  if (!ladder.rungs[id]) ladder.rungs[id] = { w: 0, d: 0, l: 0, stars: [0, 0, 0] };
+  return ladder.rungs[id];
+}
+function starCount(id) { var r = ladder.rungs[id]; return r ? r.stars[0] + r.stars[1] + r.stars[2] : 0; }
+function starsHTML(id) {
+  var r = ladder.rungs[id], h = "";
+  for (var i = 0; i < 3; i++) h += '<i class="' + (r && r.stars[i] ? "on" : "") + '">★</i>';
+  return h;
+}
+/* a day you play is a day on the streak — a lesson counts as much as a game */
+function dayKey(t) {
+  var d = new Date(t);
+  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+}
+function markDay() {
+  var now = Date.now(), today = dayKey(now), yest = dayKey(now - 86400000);
+  if (ladder.day === today) return;
+  ladder.days = ladder.day === yest ? ladder.days + 1 : 1;
+  ladder.bestDays = Math.max(ladder.bestDays, ladder.days);
+  ladder.day = today;
+  saveLadder();
+}
+function streakDays() {
+  var now = Date.now();
+  return (ladder.day === dayKey(now) || ladder.day === dayKey(now - 86400000)) ? ladder.days : 0;
+}
+function ratingNow() { return Math.round(Rating.summary(rating).r); }
+function ratingText() {
+  var sm = Rating.summary(rating);
+  return Math.round(sm.r) + (sm.provisional ? "?" : "");
+}
+/* who to play next: a fair fight, and for somebody with no games yet,
+   a gentle one */
+function nextLevel() {
+  if (!Rating.summary(rating).games) return SKILLS.sprout ? "sprout" : Rating.LEVELS[0].id;
+  return skillOk(Rating.suggestLevel(rating));
+}
+function levelIndex(id) {
+  for (var i = 0; i < Rating.LEVELS.length; i++) if (Rating.LEVELS[i].id === id) return i;
+  return -1;
+}
+function humanMovesMade() {
+  if (!G || mode !== "coach") return 0;
+  var n = 0;
+  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) n++;
+  return n;
+}
+/* Walking away from a rated game you are losing is the oldest way to
+   keep a number up, so a game that is properly under way counts as a
+   resignation if you start another. Before your third move it is free:
+   a misclick on the colour, a change of heart about the opponent. */
+function ratedAtStake() { return mode === "coach" && G && !over && !ratedDone && humanMovesMade() >= 3; }
+function leaveGameThen(fn, verb) {
+  if (!ratedAtStake()) { fn(); return; }
+  toast("This game is rated — " + (verb || "starting another") + " now counts as a loss. <b>Resign and go on?</b>",
+    [{ label: "🏳️ Resign & go on", fn: function () {
+        var out = settleRating("resign");
+        if (out) toast("Counted as a loss (" + fmtDelta(out.out.delta) + "). On to the next one.", null, 3800);
+        over = { result: humanSide === 1 ? "black" : "white", reason: "you resigned" };
+        lsDel(SAVE_KEY);
+        fn();
+      } },
+     { label: "Keep playing", ghost: true, fn: function () { hideAllOverlays(); } }], 14000);
+}
+function fmtDelta(d) { d = Math.round(d); return (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d); }
+
+/* start a game against the computer. "a" takes turns: the colour you did
+   not have last time */
+function startCoachGame(level, sideChoice, clockStr) {
+  var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
+             sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
+  ladder.lastSide = side; saveLadder();
+  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none" });
+  var L = SKILLS[skill];
+  toast(L.emoji + " <b>" + escHtml(L.name) + "</b> · " + L.elo + " — " +
+        (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
+}
+function quickPlay(level) {
+  leaveGameThen(function () { startCoachGame(level || nextLevel(), "a", "none"); }, "a new game");
+}
+
+/* ---- counting a game ---- */
+function settleRating(result) {
+  if (mode !== "coach" || ratedDone || !G) return null;
+  ratedDone = true;
+  var s = result === "draw" ? 0.5 : result === "resign" ? 0 :
+          ((result === "white") === (humanSide === 1) ? 1 : 0);
+  var clean = !assist.takebacks && !assist.hints;
+  var out = Rating.update(rating, { level: skill, result: s, accuracy: null, at: Date.now(),
+                                    assisted: { takebacks: assist.takebacks, hints: assist.hints } });
+  rating = out.state;
+  Rating.save(rating, lsSet);
+  var rung = rungOf(skill), newStars = [];
+  if (s === 1) rung.w++; else if (s === 0) rung.l++; else rung.d++;
+  if (s === 1 && !rung.stars[0]) { rung.stars[0] = 1; newStars.push(0); }
+  if (s === 1 && clean && !rung.stars[1]) { rung.stars[1] = 1; newStars.push(1); }
+  markDay();
+  saveLadder();
+  return { out: out, s: s, clean: clean, newStars: newStars, level: skill };
+}
+
+/* ---- looking back over your moves ----
+   The accuracy is the same like-for-like comparison the gentle coach
+   already makes after each of your moves — the move you played against
+   the move the engine wanted, scored by the same call — so anything the
+   coach already looked at is reused rather than thought about twice. */
+function humanPlies() {
+  var out = [];
+  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) out.push(i);
+  return out;
+}
+function analyseGame(onStep) {
+  var ticket = gameTicket, plies = humanPlies(), got = [], i = 0;
+  return new Promise(function (resolve) {
+    function next() {
+      if (ticket !== gameTicket || !G) { resolve(null); return; }
+      if (i >= plies.length) { resolve(got); return; }
+      var ply = plies[i];
+      if (reviewMemo[ply]) { got.push(reviewMemo[ply]); i++; onStep(i, plies.length); setTimeout(next, 0); return; }
+      var pre = Chess.create();
+      for (var k = 0; k < ply; k++) Chess.play(pre, G.played[k].m);
+      var want = G.played[ply].m, mine = null, list = Chess.moves(pre);
+      for (var j = 0; j < list.length; j++) {
+        if (list[j].from === want.from && list[j].to === want.to && (list[j].promo || 0) === (want.promo || 0)) { mine = list[j]; break; }
+      }
+      if (!mine) { i++; next(); return; }
+      Brain.review(pre, mine, { ms: 170 }).then(function (res) {
+        if (ticket !== gameTicket) { resolve(null); return; }
+        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push(reviewMemo[ply]); }
+        i++; onStep(i, plies.length); next();
+      });
+    }
+    next();
+  });
+}
+/* the same three words the coach uses during the game, counted */
+function qualityCounts(moves) {
+  var c = { blunder: 0, mistake: 0, inaccuracy: 0 };
+  moves.forEach(function (e) {
+    if (e.best < -650 || e.played > 650) return;       /* already decided: nothing to count */
+    var loss = e.best - e.played;
+    if (loss >= 250) c.blunder++; else if (loss >= 110) c.mistake++; else if (loss >= 50) c.inaccuracy++;
+  });
+  var good = 0, brilliant = 0;
+  Object.keys(marks).forEach(function (k) {
+    if (((+k) % 2 === 0 ? 1 : -1) !== humanSide) return;
+    if (marks[k] === "!!") brilliant++; else if (marks[k] === "!") good++;
+  });
+  c.brilliant = brilliant; c.good = good;
+  return c;
+}
+
+/* ---- the reveal ----
+   The result is the headline, so the number moves first and on its own;
+   then the stars land one at a time; then the look-back fills its bar
+   while it works, which is the honest way to show a computer thinking. */
+function countUp(el, from, to, ms, onTick) {
+  if (typeof Fx !== "undefined" && Fx.countUp) return Fx.countUp(el, from, to, { ms: ms, onTick: onTick });
+  return new Promise(function (resolve) {
+    if (REDUCED || from === to) { el.textContent = Math.round(to); resolve(); return; }
+    var t0 = performance.now(), last = -1, n = Math.abs(Math.round(to) - Math.round(from));
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      var v = Math.round(from + (to - from) * e);
+      el.textContent = v;
+      var i = Math.round(e * n);
+      if (i !== last && onTick) { last = i; onTick(i, n, v); }
+      if (k < 1) requestAnimationFrame(step); else resolve();
+    })(t0);
+  });
+}
+function sting(kind, o) {
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  if (Sound.sting) Sound.sting(kind, o || {}); else Sound.ui(kind);
+}
+function popStar(i) {
+  var el = $("endStars").children[i];
+  if (!el) return;
+  el.classList.add("on", "pop");
+  sting("star", { n: i });
+  if (typeof Fx !== "undefined" && Fx.sparkle) Fx.sparkle(el);
+}
+function renderEndRating(rs) {
+  var box = $("endRate");
+  box.classList.toggle("hide", !rs);
+  $("endNext").classList.add("hide");
+  $("endMile").classList.add("hide");
+  if (!rs) return;
+  var out = rs.out, before = Math.round(out.before), after = Math.round(out.after);
+  $("endRateNum").textContent = before;
+  var dEl = $("endRateDelta");
+  dEl.className = "erDelta " + (after > before ? "up" : after < before ? "down" : "flat");
+  dEl.textContent = fmtDelta(after - before) + (out.provisional ? " ?" : "");
+  var t = Rating.title(after);
+  $("endRateTitle").textContent = t.emoji + " " + t.name + (out.provisional ? " · still finding your level" : "") +
+    (rs.clean ? "" : " · counted at half weight (hints or take-backs)");
+  var stars = $("endStars").children, rung = rungOf(rs.level);
+  for (var i = 0; i < 3; i++) {
+    var already = rung.stars[i] && rs.newStars.indexOf(i) < 0;
+    stars[i].className = already ? "on" : "";
+  }
+  $("endAccTx").textContent = "Looking back over your moves…";
+  $("endAccNum").textContent = "";
+  $("endAccBar").style.width = "0%";
+  $("endCounts").innerHTML = "";
+
+  /* what to do next is part of the result */
+  var idx = levelIndex(rs.level), up = Rating.LEVELS[idx + 1], down = Rating.LEVELS[idx - 1];
+  var me = after;
+  if (rs.s === 1 && up) {
+    $("endNextTx").textContent = "Next: " + up.emoji + " " + up.name + " · " + up.elo;
+    $("endNextSub").textContent = "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
+    $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(up.id, "a", clockStrOf()); };
+    $("endNext").classList.remove("hide");
+  } else if (rs.s === 0 && down && SKILLS[rs.level].elo - me > 220) {
+    $("endNextTx").textContent = "Try " + down.emoji + " " + down.name + " · " + down.elo;
+    $("endNextSub").textContent = "A step down the ladder is how everyone climbs it.";
+    $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(down.id, "a", clockStrOf()); };
+    $("endNext").classList.remove("hide");
+  }
+
+  /* the choreography, once the card is up */
+  var startAt = REDUCED ? 120 : 1500;
+  setTimeout(function () {
+    if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
+    countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
+      if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick) Sound.countTick(k, n, after >= before);
+    }).then(function () {
+      dEl.classList.add("show");
+      sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+      rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si); }, 380 + k * 420); });
+      if (out.milestone) {
+        setTimeout(function () {
+          var m = $("endMile");
+          m.textContent = (out.milestone.emoji || "🏅") + " " + out.milestone.name + " — " + Math.round(out.milestone.rating || after);
+          m.classList.remove("hide");
+          sting("milestone");
+          if (typeof Fx !== "undefined" && Fx.confetti) Fx.confetti({ ms: 3200 });
+        }, 500 + rs.newStars.length * 420);
+      }
+    });
+  }, startAt);
+
+  /* and the look-back, alongside */
+  analyseGame(function (k, n) {
+    $("endAccBar").style.width = Math.round(k / Math.max(1, n) * 100) + "%";
+    $("endAccTx").textContent = "Looking back over your moves… " + k + "/" + n;
+  }).then(function (moves) {
+    if (!moves) return;
+    if (!moves.length) { $("endAccTx").textContent = "No moves of yours to look back on."; $("endAccBar").style.width = "0%"; return; }
+    var acc = Rating.gameAccuracy(moves), perf = Rating.perfFromAccuracy(acc);
+    if (acc == null) return;
+    rememberAccuracy(acc, perf);
+    var c = qualityCounts(moves);
+    setTimeout(function () {
+      /* a performance read off four moves is a guess, so it waits for a game */
+      $("endAccTx").innerHTML = moves.length >= 10 ? "Accuracy · you played like <b>~" + Math.round(perf) + "</b>" : "Accuracy";
+      countUp($("endAccNum"), 0, Math.round(acc), REDUCED ? 0 : 900).then(function () { $("endAccNum").textContent = Math.round(acc) + "%"; });
+      $("endAccBar").style.width = Math.round(acc) + "%";
+      var chips = [];
+      if (c.brilliant) chips.push('<span><b class="k" style="color:var(--blue)">!!</b>' + c.brilliant + " brilliant</span>");
+      if (c.good) chips.push('<span><b class="k" style="color:var(--good)">!</b>' + c.good + " great</span>");
+      if (c.inaccuracy) chips.push('<span><b class="k">?!</b>' + c.inaccuracy + " inaccurac" + (c.inaccuracy > 1 ? "ies" : "y") + "</span>");
+      if (c.mistake) chips.push('<span><b class="k" style="color:var(--amber)">?</b>' + c.mistake + " mistake" + (c.mistake > 1 ? "s" : "") + "</span>");
+      if (c.blunder) chips.push('<span><b class="k" style="color:var(--bad)">??</b>' + c.blunder + " blunder" + (c.blunder > 1 ? "s" : "") + "</span>");
+      if (!chips.length) chips.push("<span>✨ not a single slip</span>");
+      $("endCounts").innerHTML = chips.join("");
+      /* the third star is the hard one: a win, on your own, played well */
+      var rung = rungOf(rs.level);
+      if (rs.s === 1 && rs.clean && acc >= 80 && !rung.stars[2]) {
+        rung.stars[2] = 1; saveLadder();
+        setTimeout(function () { popStar(2); }, 700);
+      }
+    }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
+  });
+}
+/* the look-back finishes after the game has been counted, so its
+   accuracy is written onto the record afterwards */
+function rememberAccuracy(acc, perf) {
+  if (Rating.annotateLast) rating = Rating.annotateLast(rating, { acc: acc, perf: perf });
+  else {
+    var h = rating.history;
+    if (h && h.length) { h[h.length - 1].acc = acc; h[h.length - 1].perf = perf; }
+  }
+  Rating.save(rating, lsSet);
+}
+
+/* ---- the lobby ---- */
+function sparkPath(vals, w, h, pad) {
+  if (vals.length < 2) return null;
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (hi - lo < 40) { var mid = (hi + lo) / 2; lo = mid - 20; hi = mid + 20; }
+  var pts = vals.map(function (v, i) {
+    return [pad + (w - 2 * pad) * i / (vals.length - 1), h - pad - (h - 2 * pad) * (v - lo) / (hi - lo)];
+  });
+  return { pts: pts, lo: lo, hi: hi,
+           d: "M" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") };
+}
+function renderLobby() {
+  var sm = Rating.summary(rating), t = Rating.title(sm.r);
+  var num = $("mRateNum"), streak = streakDays();
+  if (!sm.games) {
+    num.textContent = "—";
+    $("mRateTitle").textContent = "Not rated yet";
+    $("mRateSub").textContent = "Play the computer — your first game sets your starting point.";
+    $("mRateSpark").innerHTML = "";
+    $("mRateSpark").classList.add("hide");
+  } else {
+    $("mRateSpark").classList.remove("hide");
+    num.innerHTML = Math.round(sm.r) + (sm.provisional ? '<span class="prov">?</span>' : "");
+    $("mRateTitle").textContent = t.emoji + " " + t.name;
+    var bits = [sm.games + (sm.games === 1 ? " game" : " games")];
+    if (sm.best) bits.push("best " + Math.round(sm.best));
+    if (streak > 1) bits.push("🔥 " + streak + "-day streak");
+    else if (sm.provisional) bits.push("still finding your level");
+    $("mRateSub").textContent = bits.join(" · ");
+    var hist = (sm.history || []).slice(-24).map(function (e) { return e.r; });
+    var sp = sparkPath(hist, 100, 34, 3);
+    $("mRateSpark").innerHTML = sp ? '<path class="area" d="' + sp.d + " L97 31 L3 31 Z" + '"></path><path d="' + sp.d + '"></path>' +
+      '<circle r="2.6" cx="' + sp.pts[sp.pts.length - 1][0] + '" cy="' + sp.pts[sp.pts.length - 1][1] + '"></circle>' : "";
+  }
+  var nl = nextLevel(), L = SKILLS[nl];
+  $("mPlaySub").textContent = !sm.games ? "A gentle first game against " + L.emoji + " " + L.name + "."
+    : "Next up: " + L.emoji + " " + L.name + " · " + L.elo + " — a fair fight for you.";
+  /* the ladder strip */
+  var lad = $("mLadder");
+  lad.innerHTML = "";
+  var total = 0;
+  Rating.LEVELS.forEach(function (Lv) {
+    var b = document.createElement("button"), r = ladder.rungs[Lv.id], n = starCount(Lv.id);
+    total += n;
+    b.className = "rung" + (Lv.id === nl ? " next" : "") + (r && r.stars[0] ? " done" : "");
+    b.setAttribute("role", "listitem");
+    b.setAttribute("aria-label", "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
+    b.innerHTML = '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
+      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" +
+      (Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
+    b.addEventListener("click", function () { quickPlay(Lv.id); });
+    lad.appendChild(b);
+  });
+  $("mLadderNote").textContent = total ? total + " of " + Rating.LEVELS.length * 3 + " stars — tap a coach to play it"
+                                       : "Beat each coach to earn its stars — tap one to play it";
+  /* bring the coach you're up against next into view */
+  var nx = lad.querySelector(".rung.next");
+  if (nx) lad.scrollLeft = Math.max(0, nx.offsetLeft - 8 - (lad.clientWidth - nx.offsetWidth) / 3);
+}
+
+/* ---- your record ---- */
+function showProfile() {
+  hideAllOverlays();
+  var sm = Rating.summary(rating), t = Rating.title(sm.r);
+  $("pfRate").textContent = sm.games ? Math.round(sm.r) + (sm.provisional ? "?" : "") : "—";
+  $("pfRd").textContent = sm.games ? (sm.provisional ? "provisional — " + Math.max(1, 5 - sm.games) + " more to settle" : "±" + Math.round(2 * (sm.rd || 60))) : "no games yet";
+  $("pfTitle").textContent = t.emoji + " " + t.name;
+  if (t.next) {
+    var span = t.next.floor - t.floor, k = Math.max(0, Math.min(1, (sm.r - t.floor) / span));
+    $("pfNext").textContent = Math.max(1, Math.ceil(t.next.floor - sm.r)) + " to " + t.next.emoji + " " + t.next.name;
+    setTimeout(function () { $("pfBar").style.width = Math.round(k * 100) + "%"; }, 60);
+  } else { $("pfNext").textContent = "the top of the scale"; $("pfBar").style.width = "100%"; }
+  /* the chart */
+  var hist = (sm.history || []).slice(-60).map(function (e) { return e.r; });
+  var ch = $("pfChart");
+  if (hist.length >= 2) {
+    var sp = sparkPath(hist, 320, 120, 10), g = "";
+    for (var gi = 0; gi < 4; gi++) { var y = 10 + gi * 100 / 3; g += '<line class="grid" x1="0" x2="320" y1="' + y + '" y2="' + y + '"></line>'; }
+    ch.innerHTML = g + '<path class="area" d="' + sp.d + " L310 110 L10 110 Z" + '"></path><path class="line" d="' + sp.d + '"></path>' +
+      '<text x="6" y="12">' + Math.round(sp.hi) + '</text><text x="6" y="116">' + Math.round(sp.lo) + "</text>";
+  } else {
+    ch.innerHTML = '<text x="160" y="64" text-anchor="middle">your rating will draw itself here, game by game</text>';
+  }
+  var accs = (sm.history || []).filter(function (e) { return e.acc != null; }).slice(-10);
+  var accAvg = accs.length ? Math.round(accs.reduce(function (a, e) { return a + e.acc; }, 0) / accs.length) + "%" : "—";
+  var stars = 0;
+  Rating.LEVELS.forEach(function (L) { stars += starCount(L.id); });
+  $("pfStats").innerHTML = [
+    [sm.games || 0, "games"], [(sm.w || 0) + "·" + (sm.d || 0) + "·" + (sm.l || 0), "W · D · L"],
+    [sm.best ? Math.round(sm.best) : "—", "best"], [accAvg, "accuracy"],
+    [streakDays() || 0, "day streak"], [ladder.bestDays || 0, "longest"],
+    [stars + "/" + Rating.LEVELS.length * 3, "stars"], [sm.streak || 0, "win run"]
+  ].map(function (x) { return "<div><b>" + x[0] + "</b><span>" + x[1] + "</span></div>"; }).join("");
+  var list = $("pfLadder");
+  list.innerHTML = "";
+  Rating.LEVELS.forEach(function (L) {
+    var r = ladder.rungs[L.id] || { w: 0, d: 0, l: 0 };
+    var b = document.createElement("button");
+    b.className = "rungRow";
+    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
+      (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(L.blurb)) + '</small></span><span class="rgElo">' + L.elo +
+      '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
+    b.addEventListener("click", function () { quickPlay(L.id); });
+    list.appendChild(b);
+  });
+  $("ovProfile").classList.remove("hide");
 }
 
 /* ===== game start / end ===== */
@@ -1163,6 +1628,7 @@ function startGame(newMode, opts) {
   teachSeen = {}; teachCool = 0;
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {};
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
@@ -1171,7 +1637,7 @@ function startGame(newMode, opts) {
   showViewBanner(false);
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
-  skill = opts.skill || skill;
+  skill = skillOk(opts.skill || skill);
   clockConfig(opts.clockStr || "none");
   orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
   R.setOrientation(orientation);
@@ -1210,7 +1676,7 @@ function endGame(result, reason, taught) {
     if (mySide === 0) { em = "🏆"; title = winner + " wins!"; }
     else if (iWon) { em = "🎉"; title = "You won!"; }
     else { em = "🌱"; title = "This one goes to " + sideName(-mySide) + "."; }
-    sub = cap(reason) + "." + (iLost ? " Every strong player has lost thousands of games — this one taught you something specific. Peek back through the moves and find where it turned." : (reason === "checkmate" ? " The king had no escape, no shield, and no rescue — that's all a checkmate is." : ""));
+    sub = cap(reason) + "." + (iLost ? " Every strong player has lost thousands of games — this one taught you something specific. Peek back through the moves and find where it turned." : (reason === "checkmate" && !(taught && taught.text) ? " The king had no escape, no shield, and no rescue — that's all a checkmate is." : ""));
   }
   $("endEmoji").textContent = em;
   $("endTitle").textContent = title;
@@ -1222,6 +1688,12 @@ function endGame(result, reason, taught) {
     else lessonLine.classList.add("hide");
   }
   $("endRematchSub").textContent = "Same setup" + (mode !== "pass" ? ", colours swapped." : ".");
+  $("endRematchTx").textContent = "Rematch";
+  if (mode === "coach") {
+    $("endRematchTx").textContent = "Play again";
+    $("endRematchSub").textContent = "Same coach — you'll have " + (humanSide === 1 ? "Black" : "White") + " this time.";
+  }
+  renderEndRating(mode === "coach" ? settleRating(result) : null);
   renderOddsReview();
   setTimeout(function () { if (over) $("ovEnd").classList.remove("hide"); }, REDUCED ? 100 : 1100);
   lsDel(SAVE_KEY);
@@ -1280,7 +1752,7 @@ function renderOddsReview() {
 
 function rematch() {
   $("ovEnd").classList.add("hide");
-  if (mode === "coach") startGame("coach", { humanSide: -humanSide, skill: skill, clockStr: clockStrOf() });
+  if (mode === "coach") startCoachGame(skill, humanSide === 1 ? "b" : "w", clockStrOf());
   else if (mode === "pass") startGame("pass", { clockStr: clockStrOf() });
   else if (mode === "lan") {
     if (!Net.linked()) { toast("The link closed. Host or join again to keep playing — the room remembers you."); return; }
@@ -1300,7 +1772,9 @@ function saveGame() {
     clockStr: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
     humanSide: humanSide, skill: skill,
     /* the odds ledger is part of the game's story, so it survives a reload */
-    odds: [oddsSpent[1], oddsSpent[-1], oddsNudged]
+    odds: [oddsSpent[1], oddsSpent[-1], oddsNudged],
+    /* and so is the help taken, or a reload would wash a rated game clean */
+    assist: [assist.takebacks, assist.hints]
   }));
 }
 function loadSave() {
@@ -1343,6 +1817,7 @@ function resumeSave(s) {
   }
   if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 1 ? g.turn : 0; clock.lastT = performance.now(); }
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
+  if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0) };
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -2639,6 +3114,7 @@ function finishLesson(confidence) {
   var clean = lessonTries === 0 && lessonHints === 0;
   Learn.grade(p, lesson, true, clean ? confidence : (confidence === "sure" ? "shaky" : "guess"));
   Learn.save(p);
+  markDay();                           /* a lesson keeps the streak alive as much as a game */
   var nextUp = lessonQueue.shift();
   if (nextUp) { startLesson(nextUp, lessonQueue); return; }
   var st = Learn.stats(p);
@@ -2855,7 +3331,7 @@ function adoptSkin(s) {
 
 /* ===== overlays & menus ===== */
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovPromo", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy"].forEach(function (id) {
+  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovPromo", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile"].forEach(function (id) {
     $(id).classList.add("hide");
   });
 }
@@ -2867,13 +3343,19 @@ function showMenu() {
   hideAllOverlays();
   var lp = Learn.stats(Learn.load());
   $("mAcademySub").textContent = lp.solved
-    ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due for review" : "")
-    : "Learn by doing — short positions, real feedback.";
+    ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due" : "")
+    : "Short positions, real feedback.";
+  renderLobby();
+  /* a game nobody has moved in yet is not worth coming back to — it
+     used to be offered as "0 moves in" */
   var s = loadSave();
-  var hasLive = G && !over && mode && mode !== "tour";
+  if (s && !s.sans.length) s = null;
+  var hasLive = G && !over && mode && mode !== "tour" && mode !== "lesson";
   $("mResume").classList.toggle("hide", !s && !hasLive);
-  if (hasLive) $("mResumeSub").textContent = "Return to the board — " + Math.ceil(G.played.length / 2) + " moves in.";
-  else if (s) $("mResumeSub").textContent = (s.mode === "coach" ? "Against the coach" : "Pass & play") + " — " + Math.ceil(s.sans.length / 2) + " moves in.";
+  function against(m, sk) { return m === "coach" ? "Against " + SKILLS[skillOk(sk)].label : "Two players"; }
+  function movesIn(n) { return n ? Math.ceil(n / 2) + (Math.ceil(n / 2) === 1 ? " move" : " moves") + " in" : "not started yet"; }
+  if (hasLive) $("mResumeSub").textContent = against(mode, skill) + " — " + movesIn(G.played.length) + ".";
+  else if (s) $("mResumeSub").textContent = against(s.mode, s.skill) + " — " + movesIn(s.sans.length) + ".";
   /* contextual resign / draw offers for a live game */
   var ops = $("gameOps");
   if (!ops) {
@@ -2916,12 +3398,37 @@ function showOpenings() {
 /* new-game card (shared by pass/coach/lan-host) */
 var newCardCtx = null;
 function openNewCard(kind, cb) {
-  newCardCtx = { kind: kind, cb: cb, side: "w", skill: skill, clockStr: "none" };
-  $("newTitle").textContent = kind === "pass" ? "Pass & play" : kind === "coach" ? "Play the coach" : "Host a board";
+  newCardCtx = { kind: kind, cb: cb, side: kind === "coach" ? "a" : "w", skill: nextLevel(), clockStr: "none" };
+  $("newTitle").textContent = kind === "pass" ? "Two players, one device" : kind === "coach" ? "Play the computer" : "Host a board";
+  /* the colour chips: taking turns only means something against the computer */
+  Array.prototype.forEach.call($("sideChips").children, function (c) {
+    var v = c.getAttribute("data-side");
+    c.classList.toggle("hide", v === "a" && kind !== "coach");
+    c.classList.toggle("sel", v === newCardCtx.side);
+  });
+  if (kind === "coach") renderRungChoices(newCardCtx.skill);
   $("sideRow").classList.toggle("hide", kind === "pass");
   $("skillRow").classList.toggle("hide", kind !== "coach");
   hideAllOverlays();
   $("ovNew").classList.remove("hide");
+}
+/* every coach on the ladder, with your record against it and the one
+   that would give you a fair fight marked */
+function renderRungChoices(selId) {
+  var row = $("skillChips"), fair = nextLevel();
+  row.innerHTML = "";
+  Rating.LEVELS.forEach(function (L) {
+    var b = document.createElement("button"), r = ladder.rungs[L.id];
+    b.className = "rungRow" + (L.id === selId ? " sel" : "");
+    b.setAttribute("data-skill", L.id);
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", L.id === selId ? "true" : "false");
+    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b>" +
+      (L.id === fair ? '<span class="fair">fair fight</span>' : "") + "<small>" + escHtml(L.blurb) +
+      (r && r.w + r.d + r.l ? " · " + r.w + "–" + r.d + "–" + r.l : "") + '</small></span><span class="rgElo">' + L.elo +
+      '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
+    row.appendChild(b);
+  });
 }
 function wireChips(rowId, attr, set) {
   $(rowId).addEventListener("click", function (e) {
@@ -3069,6 +3576,28 @@ function syncSettingsUI() {
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
 }
 
+/* the two ways a configured game begins, shared by the menu and the
+   New game button */
+function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr }); }); }
+function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.side, o.clockStr); }); }
+/* New game, from the board. Starting over is one tap; it only asks first
+   when there is something to lose — moves on the board, or a rated game
+   that is properly under way. */
+function newGameButton() {
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan") { showMenu(); return; }
+  var kind = mode;
+  var again = function () {
+    if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
+    else startGame("pass", { clockStr: clockStrOf() });
+  };
+  if (over || !G.played.length) { again(); return; }
+  if (ratedAtStake()) { leaveGameThen(again, "starting over"); return; }
+  toast("Start a new game? This one ends here.",
+    [{ label: "✚ New game", fn: again },
+     { label: "Change opponent…", ghost: true, fn: function () { openNewCard(kind, kind === "coach" ? coachBegin : passBegin); } },
+     { label: "Keep playing", ghost: true, fn: function () {} }], 10000);
+}
+
 /* ===== boot ===== */
 function wireUI() {
   $("btnMenu").addEventListener("click", showMenu);
@@ -3090,12 +3619,12 @@ function wireUI() {
     var s = loadSave();
     if (s) resumeSave(s);
   });
-  $("mPass").addEventListener("click", function () { openNewCard("pass", function (o) { startGame("pass", { clockStr: o.clockStr }); }); });
-  $("mCoach").addEventListener("click", function () { openNewCard("coach", function (o) {
-    var side = o.side === "r" ? (Math.random() < 0.5 ? 1 : -1) : (o.side === "b" ? -1 : 1);
-    startGame("coach", { humanSide: side, skill: o.skill, clockStr: o.clockStr });
-    if (side === -1) toast("You have black — the coach opens. Watch what it does with the centre.");
-  }); });
+  $("mPass").addEventListener("click", function () { openNewCard("pass", passBegin); });
+  $("mCoach").addEventListener("click", function () { openNewCard("coach", coachBegin); });
+  $("mPlay").addEventListener("click", function () { quickPlay(); });
+  $("mRating").addEventListener("click", showProfile);
+  $("pfBack").addEventListener("click", showMenu);
+  $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
   $("mLearn").addEventListener("click", function () { showLearn(0); });

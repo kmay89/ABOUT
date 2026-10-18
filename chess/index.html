@@ -652,6 +652,202 @@
     padding:8px 18px; z-index:40; box-shadow:var(--shadow); cursor:pointer; font-size:.9em;
   }
 
+  /* ---------- the lobby ----------
+     One question answered per row, in the order a person asks them: how
+     am I doing, can I just play, what is there to beat, what else is
+     here. The play button is the only amber thing on the card, so the eye
+     has nowhere else to land first. */
+  .card.lobby{max-width:560px; padding:18px 18px 12px}
+  .lobbyHead{display:flex; align-items:center; gap:12px; margin-bottom:10px}
+  .lobbyHead h1{font-size:1.45em; margin:0; line-height:1.15}
+  .lobbyKnight{font-size:2.3em; line-height:1; color:var(--glow); filter:drop-shadow(0 4px 10px rgba(240,160,32,.35))}
+  .rateCard{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left; margin:4px 0 10px;
+    background:linear-gradient(135deg, rgba(240,160,32,.13), rgba(240,160,32,.03) 60%), var(--card2);
+    border:1px solid rgba(240,160,32,.35); border-radius:16px; padding:10px 14px;
+    transition:transform .08s, border-color .15s;
+  }
+  .rateCard:active{transform:scale(.985)}
+  .rcNumWrap{display:flex; flex-direction:column; align-items:flex-start; flex:none; min-width:74px}
+  .rcKick{font-size:.62em; letter-spacing:.14em; text-transform:uppercase; color:var(--soft); font-weight:700}
+  .rcNum{font-size:2em; font-weight:800; line-height:1.05; color:var(--glow); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .rcNum .prov{font-size:.5em; color:var(--soft); font-weight:700; margin-left:2px; vertical-align:super}
+  .rcMid{flex:1; min-width:0}
+  .rcMid b{display:block; font-size:.98em}
+  .rcMid small{display:block; color:var(--soft); font-size:.8em; line-height:1.35}
+  .rcSpark{width:74px; height:34px; flex:none; overflow:visible}
+  .rcSpark path{fill:none; stroke:var(--glow); stroke-width:2; vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round}
+  .rcSpark .area{fill:rgba(255,209,102,.12); stroke:none}
+  .rcSpark circle{fill:var(--glow)}
+  .resumeBtn{border-color:rgba(62,207,142,.45); background:linear-gradient(135deg, rgba(62,207,142,.12), transparent 70%), var(--card2)}
+  .playBtn{
+    display:flex; align-items:center; gap:14px; width:100%; text-align:left; margin:6px 0 2px;
+    background:linear-gradient(180deg, #ffb53c, var(--amber)); color:#241a08;
+    border-radius:18px; padding:14px 16px; box-shadow:0 8px 22px rgba(240,160,32,.28), inset 0 1px 0 rgba(255,255,255,.35);
+    transition:transform .08s, box-shadow .15s;
+  }
+  .playBtn:active{transform:scale(.98); box-shadow:0 4px 12px rgba(240,160,32,.25)}
+  .pbGo{
+    width:48px; height:48px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+    background:#241a08; color:var(--glow); font-size:1.25em; padding-left:4px;
+    box-shadow:0 0 0 0 rgba(36,26,8,.35); animation:pbPulse 2.6s ease-out infinite;
+  }
+  @keyframes pbPulse{0%{box-shadow:0 0 0 0 rgba(36,26,8,.35)} 70%{box-shadow:0 0 0 12px rgba(36,26,8,0)} 100%{box-shadow:0 0 0 0 rgba(36,26,8,0)}}
+  .pbTx b{display:block; font-size:1.18em; line-height:1.2}
+  .pbTx small{display:block; font-size:.86em; opacity:.85; line-height:1.3}
+  .playMore{text-align:center; margin:4px 0 6px}
+  .linkish{color:var(--soft); font-size:.86em; padding:6px 8px; border-radius:8px}
+  .linkish:hover{color:var(--ink)}
+  .secHead{display:flex; align-items:baseline; gap:8px; margin:14px 0 6px; flex-wrap:wrap}
+  .secHead b{font-size:.74em; letter-spacing:.14em; text-transform:uppercase; color:var(--amber)}
+  .secHead small{color:var(--soft); font-size:.78em}
+  /* the ladder: a row of coaches you can scroll with a thumb */
+  .ladder{display:flex; gap:8px; overflow-x:auto; padding:10px 4px 8px; margin:-6px -4px 0;
+    scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:thin}
+  .rung{
+    flex:0 0 auto; width:104px; scroll-snap-align:start; position:relative;
+    display:flex; flex-direction:column; align-items:center; gap:1px; text-align:center;
+    background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:9px 6px 8px;
+    transition:transform .08s, border-color .15s;
+  }
+  .rung:active{transform:scale(.96)}
+  .rung .rgE{font-size:1.65em; line-height:1.15}
+  .rung b{font-size:.88em}
+  .rung .rgElo{font-size:.76em; color:var(--soft); font-variant-numeric:tabular-nums}
+  .rung .rgStars{font-size:.86em; letter-spacing:.08em; color:#5a4b3c; margin-top:2px}
+  .rung .rgStars i{font-style:normal}
+  .rung .rgStars i.on{color:var(--glow); text-shadow:0 0 8px rgba(255,209,102,.55)}
+  .rung .rgTag{position:absolute; top:-7px; left:50%; transform:translateX(-50%); white-space:nowrap;
+    font-size:.6em; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:1px 7px; border-radius:999px;
+    background:var(--amber); color:#241a08}
+  .rung.next{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,160,32,.2)}
+  .rung.done{border-color:rgba(255,209,102,.45)}
+  .rung.done .rgTag{background:var(--good)}
+  .tileRow{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .tileRow.three{grid-template-columns:1fr 1fr 1fr}
+  .tile{
+    display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left;
+    background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:10px 11px; min-height:64px;
+    transition:transform .08s, border-color .15s;
+  }
+  .tile:active{transform:scale(.97)}
+  .tile .em{font-size:1.35em; line-height:1}
+  .tile b{display:block; font-size:.9em; line-height:1.2}
+  .tile small{display:block; color:var(--soft); font-size:.74em; line-height:1.3}
+  @media (hover:hover){
+    .rateCard:hover, .rung:hover, .tile:hover{border-color:var(--amber)}
+  }
+  @media (max-width:420px){
+    .tileRow.three{grid-template-columns:1fr 1fr}
+    .tileRow.three .tile:last-child{grid-column:1 / -1}
+  }
+  .lobbyFoot{display:flex; justify-content:center; gap:18px; margin-top:6px}
+  /* iOS keeps :hover after a tap, which used to leave whichever card you
+     last touched outlined in amber as if it were selected */
+  @media (hover:none){ .bigbtn:hover{border-color:var(--line)} .resumeBtn:hover{border-color:rgba(62,207,142,.45)} }
+
+  /* the new-game card's ladder: one row per coach */
+  .rungList{display:flex; flex-direction:column; gap:6px; margin:6px 0 4px}
+  .rungRow{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:8px 12px;
+  }
+  .rungRow .rgE{font-size:1.4em; flex:none; width:1.4em; text-align:center}
+  .rungRow .rgT{flex:1; min-width:0}
+  .rungRow .rgT b{font-size:.95em} .rungRow .rgT small{display:block; color:var(--soft); font-size:.78em}
+  .rungRow .rgElo{font-variant-numeric:tabular-nums; color:var(--soft); font-size:.85em; flex:none}
+  .rungRow .rgStars{flex:none; font-size:.85em; color:#5a4b3c; letter-spacing:.05em}
+  .rungRow .rgStars i{font-style:normal} .rungRow .rgStars i.on{color:var(--glow)}
+  .rungRow .fair{font-size:.62em; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:#241a08; background:var(--good); border-radius:999px; padding:1px 6px; margin-left:6px; vertical-align:2px}
+  .rungRow.sel{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,160,32,.3); background:linear-gradient(90deg, rgba(240,160,32,.12), transparent 70%), var(--card2)}
+
+  /* ---------- your record ---------- */
+  .card.profile{max-width:560px}
+  .pfTop{display:flex; gap:16px; align-items:center; margin-bottom:8px}
+  .pfNum{display:flex; flex-direction:column}
+  .pfNum b{font-size:2.6em; line-height:1; color:var(--glow); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .pfNum small{color:var(--soft); font-size:.76em}
+  .pfTitle{flex:1; min-width:0}
+  .pfTitle b{display:block; font-size:1.1em}
+  .pfTitle small{display:block; color:var(--soft); font-size:.8em; margin:2px 0 6px}
+  .pfBar{height:7px; border-radius:4px; background:var(--line); overflow:hidden}
+  .pfBar i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--amber),var(--glow)); transition:width .9s cubic-bezier(.2,.9,.3,1)}
+  .pfChart{width:100%; height:120px; background:#1c1713; border:1px solid var(--line); border-radius:12px; margin:6px 0 10px}
+  .pfChart .grid{stroke:rgba(179,164,143,.14); stroke-width:1; vector-effect:non-scaling-stroke}
+  .pfChart .line{fill:none; stroke:var(--glow); stroke-width:2.2; vector-effect:non-scaling-stroke; stroke-linejoin:round; stroke-linecap:round}
+  .pfChart .area{fill:rgba(255,209,102,.10)}
+  .pfChart text{fill:var(--soft); font-size:9px}
+  .pfStats{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+  .pfStats div{background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:7px 4px; text-align:center}
+  .pfStats b{display:block; font-size:1.15em; color:var(--ink); font-variant-numeric:tabular-nums}
+  .pfStats span{font-size:.6em; letter-spacing:.1em; text-transform:uppercase; color:var(--soft)}
+  @media (max-width:420px){ .pfStats b{font-size:1em} .pfStats span{font-size:.54em; letter-spacing:.06em} .pfStats div{padding:6px 2px} }
+
+  /* ---------- the end card's reveal ---------- */
+  .endRate{margin:10px 0 6px; padding:12px 14px; border-radius:16px; text-align:center;
+    background:radial-gradient(120% 90% at 50% 0%, rgba(255,209,102,.16), transparent 70%), var(--card2);
+    border:1px solid rgba(255,209,102,.3)}
+  .erTop{display:flex; align-items:baseline; justify-content:center; gap:10px}
+  .erNum{font-size:2.7em; font-weight:800; line-height:1; color:var(--glow); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .erDelta{font-size:1.15em; font-weight:800; font-variant-numeric:tabular-nums; opacity:0; transform:translateY(6px); transition:opacity .4s, transform .4s}
+  .erDelta.show{opacity:1; transform:none}
+  .erDelta.up{color:var(--good)} .erDelta.down{color:var(--bad)} .erDelta.flat{color:var(--soft)}
+  .erTitle{color:var(--soft); font-size:.9em; margin-top:2px}
+  .erStars{display:flex; justify-content:center; gap:10px; margin:8px 0 4px; font-size:1.7em; line-height:1}
+  .erStars i{font-style:normal; color:#4a3e32; transition:color .3s}
+  .erStars i.on{color:var(--glow); text-shadow:0 0 14px rgba(255,209,102,.6)}
+  .erStars i.pop{animation:starPop .7s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes starPop{0%{transform:scale(.2) rotate(-40deg); color:#4a3e32} 60%{transform:scale(1.45) rotate(8deg)} 100%{transform:scale(1) rotate(0)}}
+  .erAcc{margin-top:8px; text-align:left}
+  .erAccRow{display:flex; justify-content:space-between; align-items:baseline; font-size:.86em; color:var(--soft)}
+  .erAccRow b{color:var(--ink); font-size:1.15em; font-variant-numeric:tabular-nums}
+  .erBar{height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin:5px 0}
+  .erBar i{display:block; height:100%; width:0; border-radius:4px; background:linear-gradient(90deg,var(--bad),var(--amber) 45%,var(--good)); background-size:300px 100%; transition:width .5s ease-out}
+  .erCounts{display:flex; flex-wrap:wrap; gap:6px; font-size:.76em; color:var(--soft); margin-top:4px}
+  .erCounts span{background:#1c1713; border:1px solid var(--line); border-radius:999px; padding:2px 8px}
+  .erCounts .k{font-weight:800; margin-right:3px}
+  .erMile{margin-top:10px; padding:8px 10px; border-radius:12px; font-weight:700;
+    background:linear-gradient(90deg, rgba(62,207,142,.18), rgba(255,209,102,.18)); border:1px solid rgba(255,209,102,.4);
+    animation:mileIn .6s cubic-bezier(.2,1.4,.4,1) both}
+  @keyframes mileIn{from{transform:scale(.7); opacity:0} to{transform:none; opacity:1}}
+  .primaryBtn{border-color:var(--amber); background:linear-gradient(135deg, rgba(240,160,32,.18), transparent 70%), var(--card2)}
+  #ovEnd .card{max-width:440px}
+  #endEmoji{display:inline-block; animation:endPop .8s cubic-bezier(.2,1.5,.4,1) both}
+  @keyframes endPop{0%{transform:scale(.2) rotate(-25deg); opacity:0} 100%{transform:none; opacity:1}}
+
+  /* ---------- whose turn, worn on the tag ----------
+     On a phone the turn strip and the opponent's name were fighting for
+     the same strip of glass. The tag of whoever is to move lights up
+     instead, which works at any width; the strip stays for wide screens. */
+  .ptag{transition:box-shadow .25s, border-color .25s, color .25s}
+  .ptag.toMove{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,160,32,.28)}
+  .ptag .think{display:inline-block; margin-left:6px; color:var(--glow); font-weight:700}
+  .ptag .think i{font-style:normal; display:inline-block; animation:thinkDot 1.2s infinite}
+  .ptag .think i:nth-child(2){animation-delay:.15s} .ptag .think i:nth-child(3){animation-delay:.3s}
+  @keyframes thinkDot{0%,80%,100%{opacity:.2; transform:translateY(0)} 40%{opacity:1; transform:translateY(-2px)}}
+  .ptag .inCheck{color:var(--bad); margin-left:6px; font-weight:800}
+  .ptag .elo{font-weight:500; color:var(--soft); margin-left:6px; font-size:.86em; font-variant-numeric:tabular-nums}
+  @media (max-width:560px){ #turnStrip{display:none} }
+
+  /* On a phone the board fills the width and a toast laid over its lower
+     edge hides the very pieces you are about to move. There, a remark
+     floats over the move list instead, just above the buttons. */
+  @media (max-width:760px){
+    #toast{position:fixed; bottom:calc(76px + var(--safe-bot)); max-width:calc(100vw - 24px); font-size:.9em; z-index:12}
+    body.lesson-on #toast{bottom:calc(190px + var(--safe-bot))}
+    .ptag{max-width:62vw}
+  }
+  /* the action bar fits one row on a phone */
+  .abtn .lbl-short{display:none}
+  @media (max-width:560px){
+    #actions{gap:4px; padding:6px 6px calc(6px + var(--safe-bot)); flex-wrap:nowrap}
+    .abtn{min-width:0; flex:1 1 0; padding:6px 2px; font-size:.64em; max-width:72px}
+    .abtn .ic{font-size:1.5em}
+    .abtn .lbl-long{display:none} .abtn .lbl-short{display:inline}
+    .hintCost{font-size:.9em}
+  }
+
   #splash{position:fixed; inset:0; z-index:50; background:var(--room); display:flex;
     align-items:center; justify-content:center; flex-direction:column; gap:8px;
     transition:opacity .5s; }
@@ -716,9 +912,10 @@
   </div>
   <div id="actions">
     <button class="abtn" id="btnMenu"><span class="ic">☰</span>Menu</button>
+    <button class="abtn" id="btnNew"><span class="ic">✚</span><span class="lbl-long">New game</span><span class="lbl-short">New</span></button>
     <button class="abtn" id="btnUndo"><span class="ic">↩</span><span id="undoLbl">Undo</span></button>
     <button class="abtn" id="btnHint"><span class="ic">💡</span>Hint<span class="hintCost" id="hintCost"></span></button>
-    <button class="abtn" id="btnReplay"><span class="ic">🔁</span>Last move</button>
+    <button class="abtn" id="btnReplay"><span class="ic">🔁</span><span class="lbl-long">Last move</span><span class="lbl-short">Replay</span></button>
     <button class="abtn" id="btnFlip"><span class="ic">⇅</span>Flip</button>
     <button class="abtn" id="btnDim"><span class="ic" id="dimIc">③</span><span id="dimLbl">3D</span></button>
     <button class="abtn" id="btnStudio"><span class="ic">🎨</span>Look</button>
@@ -728,21 +925,70 @@
 <!-- ===== splash ===== -->
 <div id="splash"><div class="k">♞</div><div class="t">The Chess Room</div><div class="s">chess, taught kindly</div></div>
 
-<!-- ===== main menu ===== -->
+<!-- ===== the lobby =====
+     The first question anybody asks of a chess app is "can I just play?",
+     so the answer is the biggest thing on the screen: one button, against
+     the computer, at a strength chosen for you. The second question is
+     "why come back?" — and the answer to that sits right above it: a
+     number that is yours, a ladder of coaches to climb, and stars you can
+     only earn by beating them. Everything else is one row further down. -->
 <div class="ov hide" id="ovMenu">
-  <div class="card">
-    <div class="kicker">The Solving Room presents</div>
-    <h1>♞ The Chess Room</h1>
-    <p>Chess for everyone — especially if you're new. Nothing to install, nobody to sign up with, nothing tracked. Just a board that teaches.</p>
-    <button class="bigbtn hide" id="mResume"><span class="em">🕯️</span><span><b>Welcome back</b><small id="mResumeSub">Your game is right where you left it.</small></span></button>
-    <button class="bigbtn" id="mPass"><span class="em">🤝</span><span><b>Pass &amp; play</b><small>Two players, one screen, taking turns.</small></span></button>
-    <button class="bigbtn" id="mCoach"><span class="em">🌱</span><span><b>Play the coach</b><small>A patient opponent who explains, hints, and never gloats.</small></span></button>
-    <button class="bigbtn" id="mLan"><span class="em">📡</span><span><b>Play nearby</b><small>Two devices, same room. A code links them — no accounts, no server.</small></span></button>
-    <button class="bigbtn" id="mOpenings"><span class="em">📖</span><span><b>Opening stories</b><small>Watch the famous openings play themselves, told plainly.</small></span></button>
-    <button class="bigbtn" id="mAcademy"><span class="em">🎓</span><span><b>The Academy</b><small id="mAcademySub">Learn by doing — short positions, real feedback.</small></span></button>
-    <button class="bigbtn" id="mLearn"><span class="em">🐣</span><span><b>Completely new?</b><small>The rules in five gentle minutes.</small></span></button>
-    <button class="ghostbtn" id="mSettings">Settings</button>
-    <button class="ghostbtn" id="mAbout">About this room</button>
+  <div class="card lobby">
+    <div class="lobbyHead">
+      <span class="lobbyKnight" aria-hidden="true">♞</span>
+      <div><div class="kicker">The Solving Room</div><h1>The Chess Room</h1></div>
+    </div>
+
+    <button class="rateCard" id="mRating" aria-label="Your chess rating — open your record">
+      <span class="rcNumWrap"><span class="rcKick">Your rating</span><span class="rcNum" id="mRateNum">—</span></span>
+      <span class="rcMid"><b id="mRateTitle">Not rated yet</b><small id="mRateSub">Play the computer and the room works out how strong you are.</small></span>
+      <svg class="rcSpark" id="mRateSpark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </button>
+
+    <button class="bigbtn resumeBtn hide" id="mResume"><span class="em">🕯️</span><span><b>Continue your game</b><small id="mResumeSub">Your game is right where you left it.</small></span></button>
+
+    <button class="playBtn" id="mPlay">
+      <span class="pbGo" aria-hidden="true">▶</span>
+      <span class="pbTx"><b>Play the computer</b><small id="mPlaySub">A gentle first game against 🌱 Sprout.</small></span>
+    </button>
+    <div class="playMore"><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
+
+    <div class="secHead"><b>Climb the ladder</b><small id="mLadderNote">Beat each coach to earn its stars</small></div>
+    <div class="ladder" id="mLadder" role="list"></div>
+
+    <div class="secHead"><b>More ways to play</b></div>
+    <div class="tileRow">
+      <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Take turns on this screen.</small></span></button>
+      <button class="tile" id="mLan"><span class="em">📡</span><span><b>A friend nearby</b><small>Two devices, four letters.</small></span></button>
+    </div>
+
+    <div class="secHead"><b>Learn</b></div>
+    <div class="tileRow three">
+      <button class="tile" id="mAcademy"><span class="em">🎓</span><span><b>The Academy</b><small id="mAcademySub">Short positions, real feedback.</small></span></button>
+      <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>The rules in five gentle minutes.</small></span></button>
+      <button class="tile" id="mOpenings"><span class="em">📖</span><span><b>Opening stories</b><small>Famous openings, told plainly.</small></span></button>
+    </div>
+
+    <div class="lobbyFoot">
+      <button class="ghostbtn" id="mSettings">Settings</button>
+      <button class="ghostbtn" id="mAbout">About this room</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== your record: the number, where it came from, what is next ===== -->
+<div class="ov hide" id="ovProfile">
+  <div class="card profile">
+    <div class="pfTop">
+      <div class="pfNum"><span class="rcKick">Your rating</span><b id="pfRate">—</b><small id="pfRd"></small></div>
+      <div class="pfTitle"><b id="pfTitle"></b><small id="pfNext"></small><div class="pfBar"><i id="pfBar"></i></div></div>
+    </div>
+    <svg class="pfChart" id="pfChart" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Your rating over your recent games"></svg>
+    <div class="pfStats" id="pfStats"></div>
+    <div class="secHead"><b>The ladder</b><small>★ win · ★ win without help · ★ win without help at 80%+ accuracy</small></div>
+    <div id="pfLadder"></div>
+    <div class="howBox"><b>How the number works.</b> Every game against the computer is rated, with or without a clock. Each coach has a rating of its own, so beating a stronger one moves you further than beating a gentler one, and your first few games move you most while the room is still finding your level. Hints and take-backs are always allowed — a game where you used them still counts, at half weight, because the number is meant to say what you can do on your own. Games between two people, lessons and opening stories never touch it.</div>
+    <button class="ghostbtn" id="pfBack">Back</button>
   </div>
 </div>
 
@@ -753,18 +999,15 @@
     <div id="sideRow">
       <p><b>Your colour</b></p>
       <div class="rowbtns" id="sideChips">
-        <button class="chip sel" data-side="w">♙ White</button>
+        <button class="chip sel" data-side="a">⇄ Take turns</button>
+        <button class="chip" data-side="w">♙ White</button>
         <button class="chip" data-side="b">♟ Black</button>
         <button class="chip" data-side="r">🎲 Surprise me</button>
       </div>
     </div>
     <div id="skillRow">
-      <p><b>Coach strength</b></p>
-      <div class="rowbtns" id="skillChips">
-        <button class="chip sel" data-skill="sprout">🌱 Sprout<br><small>learning together</small></button>
-        <button class="chip" data-skill="club">🌿 Club<br><small>a fair fight</small></button>
-        <button class="chip" data-skill="mentor">🌳 Mentor<br><small>bring your best</small></button>
-      </div>
+      <p><b>Your opponent</b> <small id="skillHint">— every game against the computer is rated.</small></p>
+      <div class="rungList" id="skillChips" role="radiogroup" aria-label="Your opponent"></div>
     </div>
     <p><b>Clock</b> <small id="clockHint">— optional. Fischer increment adds seconds back after every move.</small></p>
     <div class="rowbtns" id="clockChips">
@@ -903,7 +1146,22 @@
     <h2 id="endTitle">Game over</h2>
     <p id="endSub"></p>
     <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.92em"></p>
-    <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b>Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
+    <div class="endRate hide" id="endRate">
+      <div class="erTop">
+        <span class="erNum" id="endRateNum">—</span>
+        <span class="erDelta" id="endRateDelta"></span>
+      </div>
+      <div class="erTitle" id="endRateTitle"></div>
+      <div class="erStars" id="endStars" aria-label="Stars against this coach"><i>★</i><i>★</i><i>★</i></div>
+      <div class="erAcc" id="endAccBox">
+        <div class="erAccRow"><span id="endAccTx">Looking back over your moves…</span><b id="endAccNum"></b></div>
+        <div class="erBar"><i id="endAccBar"></i></div>
+        <div class="erCounts" id="endCounts"></div>
+      </div>
+      <div class="erMile hide" id="endMile"></div>
+    </div>
+    <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
+    <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
     <p id="endReview2" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em;color:var(--soft)"></p>
     <button class="bigbtn hide" id="endPractise"><span class="em">🎓</span><span><b>Practise what this game showed you</b><small id="endPractiseSub"></small></span></button>
     <button class="bigbtn" id="endReview"><span class="em">🔍</span><span><b>Look back at the game</b><small>Step through the moves on the board.</small></span></button>
@@ -1059,6 +1317,7 @@
 <script src="brain.js"></script>
 <script src="teach.js"></script>
 <script src="learn.js"></script>
+<script src="rating.js"></script>
 <script src="pieces3d.js"></script>
 <script src="pieces-classic.js"></script>
 <script src="skins.js"></script>
