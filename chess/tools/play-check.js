@@ -240,9 +240,10 @@ const PLAY = `([san, src]) => {
     await page.waitForTimeout(300);
     ok("…and 'Keep playing' goes back to the game", (await state()).mode === "coach" && !(await page.isVisible("#ovMenu")));
 
-    /* ---- a real game's look-back: ten moves, then resign ---- */
+    /* ---- a real game's look-back: fourteen moves, then resign (the
+       first four of yours are the opening, which accuracy leaves out) ---- */
     await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
-    for (let k = 0; k < 10; k++) {
+    for (let k = 0; k < 14; k++) {
       const alive = await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 }).then(() => true, () => false);
       if (!alive || await page.isVisible("#ovEnd")) break;
       await page.waitForTimeout(120);

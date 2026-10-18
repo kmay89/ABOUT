@@ -123,7 +123,8 @@ function fxInit() {
    it down, louder for a capture */
 function fxCapture(desc, took, plan) {
   if (!took) return;
-  var power = FX ? Fx.powerOf(took) : 0.5, sq = desc.to, at = gameTicket;
+  var power = FX ? Fx.powerOf(took) : 0.5, at = gameTicket;
+  var sq = desc.epSq != null ? desc.epSq : desc.to;    /* en passant: the pawn taken stands beside the landing square */
   setTimeout(function () {
     if (!R || at !== gameTicket) return;
     if (R.impact) { R.impact(sq, power); needFrame(); }
@@ -146,8 +147,10 @@ function fxCheck(kingSq) {
 }
 /* win: true (you delivered it), false (it was delivered to you), null
    (two people on one board — a mate is everyone's moment) */
+var fxDown = null;     /* the mated king and who mated him, to lay him down again */
 function fxMate(kingSq, attackerSq, win) {
   if (!R) return;
+  fxDown = { king: kingSq, from: attackerSq };
   if (R.topple) R.topple(kingSq, { from: attackerSq });
   /* a narrow phone is already framed wide; lean in less */
   if (R.focus) R.focus(kingSq, { amount: innerWidth < 600 ? 0.6 : 1 });
@@ -156,15 +159,25 @@ function fxMate(kingSq, attackerSq, win) {
   Fx.mate(kingSq, { win: win });
   if (prefs.sound) Fx.haptic(win === false ? "loss" : "mate");
 }
+/* the board was redrawn under a finished game — a switch between 2D and
+   3D, a return from looking back — so he is laid down again, without the
+   fall: a mated king does not get up */
+function fxRelay() {
+  if (fxDown && over && viewPly < 0 && R && R.topple) {
+    R.topple(fxDown.king, { from: fxDown.from, still: true });
+    needFrame();
+  }
+}
 /* leaving a finished game behind: a take-back, the look-back, the menu */
 function fxCalm() {
+  fxDown = null;
   if (R && R.untopple) R.untopple();
   if (R && R.focus) R.focus(null);
   if (FX) Fx.clear();
   needFrame();
 }
 function mateMood(result) {
-  var me = mode === "coach" ? humanSide : (mode === "lan" ? lanSide : 0);
+  var me = mode === "coach" ? humanSide : mode === "lan" ? lanSide : (mode === "lesson" && lesson) ? lesson.side : 0;
   if (!me) return null;
   return (result === "white") === (me === 1);
 }
@@ -272,7 +285,7 @@ function useRenderer(r) {
   R.setSkin(skin);
   R.setOrientation(orientation);
   R.resize();
-  if (G) { R.setPosition(currentViewBoard()); syncBoard(); }
+  if (G) { R.setPosition(currentViewBoard()); syncBoard(); fxRelay(); }
   needFrame();
 }
 /* A canvas whose context has been lost keeps handing the same dead
@@ -1389,6 +1402,7 @@ function exitView() {
   viewPly = -1;
   showViewBanner(false);
   R.setPosition(G.board);
+  fxRelay();
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
 }
 
@@ -1569,6 +1583,7 @@ function savedHumanMoves(sv) { var n = sv.sans.length; return sv.humanSide === 1
 /* resigning the shelved game: counted against the coach it was against */
 function settleSaved(sv) {
   var a = Array.isArray(sv.assist) ? sv.assist : [0, 0];
+  rating = Rating.load(lsGet);
   var out = Rating.update(rating, { level: sv.skill, result: 0, accuracy: null, at: Date.now(),
                                     assisted: { takebacks: a[0] | 0, hints: a[1] | 0 } });
   if (out.rated) { rating = out.state; Rating.save(rating, lsSet); }
@@ -1616,6 +1631,8 @@ function settleRating(result) {
   var s = result === "draw" ? 0.5 : result === "resign" ? 0 :
           ((result === "white") === (humanSide === 1) ? 1 : 0);
   var clean = !assist.takebacks && !assist.hints;
+  /* read back first: another tab may have played a game since this one loaded */
+  rating = Rating.load(lsGet);
   var out = Rating.update(rating, { level: skill, result: s, accuracy: null, at: Date.now(),
                                     assisted: { takebacks: assist.takebacks, hints: assist.hints } });
   if (!out.rated) return null;
@@ -1647,7 +1664,7 @@ function analyseGame(onStep) {
       if (ticket !== gameTicket || !G) { resolve(null); return; }
       if (i >= plies.length) { resolve(got); return; }
       var ply = plies[i];
-      if (reviewMemo[ply]) { got.push(reviewMemo[ply]); i++; onStep(i, plies.length); setTimeout(next, 0); return; }
+      if (reviewMemo[ply]) { got.push({ ply: ply, best: reviewMemo[ply].best, played: reviewMemo[ply].played }); i++; onStep(i, plies.length); setTimeout(next, 0); return; }
       var pre = Chess.create();
       for (var k = 0; k < ply; k++) Chess.play(pre, G.played[k].m);
       var want = G.played[ply].m, mine = null, list = Chess.moves(pre);
@@ -1658,7 +1675,7 @@ function analyseGame(onStep) {
       /* the accuracy table was fitted with a reviewer of this depth */
       Brain.review(pre, mine, { ms: 900, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
         if (ticket !== gameTicket) { resolve(null); return; }
-        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push(reviewMemo[ply]); }
+        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
         i++; onStep(i, plies.length); next();
       });
     }
@@ -1793,7 +1810,7 @@ function renderEndRating(rs, cardAt) {
     if (acc == null) {
       /* a handful of moves is not a game's worth of evidence: say so,
          and still say what the moves were */
-      $("endAccTx").textContent = "Too short to measure — accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own.";
+      $("endAccTx").textContent = "Too short to measure — accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own after the opening.";
       $("endAccBar").style.width = "0%";
       $("endCounts").innerHTML = countChips(c);
       return;
@@ -1972,6 +1989,7 @@ function startGame(newMode, opts) {
   orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
   R.setOrientation(orientation);
   if (FX) Fx.clear();
+  fxDown = null;
   R.setPosition(G.board, { flourish: true });
   sndArrival(!!opts.fresh);
   syncAll();
@@ -2147,7 +2165,11 @@ function saveGame() {
     /* the odds ledger is part of the game's story, so it survives a reload */
     odds: [oddsSpent[1], oddsSpent[-1], oddsNudged],
     /* and so is the help taken, or a reload would wash a rated game clean */
-    assist: [assist.takebacks, assist.hints]
+    assist: [assist.takebacks, assist.hints],
+    /* and the coach's reviews so far, so a reload doesn't throw away the
+       look-back's work — or the abandonment rule's sense of the position */
+    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
+    ev: lastEval
   }));
 }
 function loadSave() {
@@ -2203,6 +2225,11 @@ function resumeSaveInner(s) {
   if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 2 ? g.turn : 0; clock.lastT = performance.now(); }
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
   if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0) };
+  if (Array.isArray(s.rv)) s.rv.forEach(function (t) {
+    if (Array.isArray(t) && typeof t[0] === "number" && t[0] < g.played.length && typeof t[1] === "number" && typeof t[2] === "number")
+      reviewMemo[t[0]] = { best: t[1], played: t[2] };
+  });
+  if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -4243,7 +4270,8 @@ function wireUI() {
   $("endRematch").addEventListener("click", rematch);
   $("endReview").addEventListener("click", function () {
     $("ovEnd").classList.add("hide");
-    fxCalm();
+    var down = fxDown;
+    fxCalm(); fxDown = down;      /* the light goes; the fallen king comes back with the final position */
     if (G && G.played.length) viewAt(0);
     syncTurnStrip();
     toast("Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
