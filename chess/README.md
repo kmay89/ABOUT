@@ -192,6 +192,11 @@ tools/              dev-only, never shipped:
                     lands like wood rather than rubber, and moves
                     differently from all five others — plus the castle,
                     the topple, the promotion and reduced motion
+  touch-check.js    plays a whole game by thumb on a phone-sized screen,
+                    in 3D and in 2D, and fails on a single page error —
+                    every other check moves pieces through the dev
+                    handle, which cannot notice the board has stopped
+                    listening to fingers
   sound-check.js    checks the model in node, then renders the actual
                     audio in a browser and measures the samples: each
                     material rings longer than the last, metal is a bell
@@ -681,6 +686,7 @@ node chess/tools/gfx-check.js      # the room lights up, every tier and every sk
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/sound-check.js    # every material and every weight has its own voice
+node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 

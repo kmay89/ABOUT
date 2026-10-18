@@ -115,7 +115,12 @@
     opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; text-align:center;
     font-size:.95em;
   }
-  #toast.show{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  /* a toast that only says something is see-through to a finger: on a
+     phone it sits over the near ranks, and a word about the opening must
+     never stand between a player and their own bishop. One that asks
+     something takes the tap. */
+  #toast.show.acts{pointer-events:auto}
   #toast .tact{display:inline-block; margin:6px 6px 0; padding:4px 12px; border-radius:999px;
     background:var(--amber); color:#241a08; font-weight:700; font-size:.9em}
   #toast .tact.ghost{background:transparent; border:1px solid var(--line); color:var(--soft)}
