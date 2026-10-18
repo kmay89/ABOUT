@@ -241,7 +241,7 @@ function flashPeak(plan) {
 }
 
 /* ================= the audio side ================= */
-var AC = null, master = null, noiseBuf = null, on = true;
+var AC = null, master = null, noiseBuf = null, on = true, borrowed = false;
 var skinNow = null, materialNow = "ivory", surfaceNow = surfaceOf(null);
 
 /* one compressor on the way out: two pieces landing together, or a long
@@ -265,7 +265,10 @@ function ctx() {
     catch (e) { return null; }
     master = buildChain(AC);
   }
-  if (AC.state === "suspended") AC.resume().catch(function () {});
+  /* a context somebody else lent us (the checker's offline one) is
+     theirs to start and stop; resuming it from in here would let it
+     race ahead of whatever is still being scheduled */
+  if (AC.state === "suspended" && !borrowed) AC.resume().catch(function () {});
   return AC;
 }
 function noise(c) {
@@ -428,7 +431,9 @@ var TIMBRES = {
 /* ---------- a note, taken apart into the oscillators that play it ----------
    Every voice is planned before anything is built: a list of
    oscillators and noise bands, each with its own gain envelope as a
-   list of [time, value, how-to-get-there] points. Planning it as data
+   list of [time, value, how-to-get-there] points, and a `core` mark on
+   the ones a note cannot do without (its fundamental), for a busy room
+   to fall back to. Planning it as data
    is what lets the checker prove, in node, that every voice starts
    from silence and comes back to silence before the sting says it is
    over — the two places a synth clicks. */
@@ -455,7 +460,7 @@ function voicePlan(ev) {
       p = tb.partials[i];
       if (f * p[0] > 15000) continue;       /* nobody can hear it, so nobody pays for it */
       r = Math.max(0.03, base * p[2]);
-      out.push({ k: "osc", wave: "sine", f: f * p[0], lane: lane,
+      out.push({ k: "osc", wave: "sine", f: f * p[0], lane: lane, core: i === 0,
                  fm: i === 0 && tb.fm ? tb.fm : null,
                  pts: percussive(at, tb.attack, tb.level * v * p[1], r) });
     }
@@ -473,7 +478,7 @@ function voicePlan(ev) {
        sharp in the right: the width and the shimmer are the same trick */
     for (i = -1; i <= 1; i += 2) {
       out.push({ k: "osc", wave: tb.wave, f: f * Math.pow(2, i * tb.detune / 1200),
-                 lane: i < 0 ? "l" : "r",
+                 lane: i < 0 ? "l" : "r", core: true,
                  pts: [[at, 0, "set"], [at + atk, peak, "lin"], [at + atk + tb.decay, sus, "lin"],
                        [at + hold, sus, "lin"], [at + hold + rel, sus * 0.001, "exp"],
                        [at + hold + rel + 0.015, 0, "lin"]] });
@@ -482,7 +487,8 @@ function voicePlan(ev) {
     var r0 = tb.ring * (ev.ring || 1);
     for (i = 0; i < tb.partials.length; i++) {
       p = tb.partials[i];
-      out.push({ k: "osc", wave: "sine", f: f * p[0] * tb.from, f2: f * p[0], glide: tb.glide, lane: lane,
+      out.push({ k: "osc", wave: "sine", f: f * p[0] * tb.from, f2: f * p[0], glide: tb.glide,
+                 lane: lane, core: i === 0,
                  pts: percussive(at, tb.attack, tb.level * v * p[1], Math.max(0.03, r0 * p[2])) });
     }
     var tn = tb.noise;
@@ -492,15 +498,15 @@ function voicePlan(ev) {
     var len = ev.len || 0.25, from = ev.from || 400, to = ev.to || from;
     peak = Math.max(tb.level * v, 1e-5);
     out.push({ k: "noise", filter: "bandpass", f: from, f2: to !== from ? to : 0, glide: len,
-               q: tb.q, lane: lane,
+               q: tb.q, lane: lane, core: true,
                /* a swell rather than a hit: most of it spent arriving */
                pts: [[at, 0, "set"], [at + len * 0.62, peak, "lin"], [at + len, peak * 0.03, "exp"],
                      [at + len + 0.03, 0, "lin"]] });
   } else if (tb.type === "tick") {
     var ck = tb.click;
-    out.push({ k: "noise", filter: "bandpass", f: ev.cut || ck.hz, q: ck.q, lane: lane,
+    out.push({ k: "noise", filter: "bandpass", f: ev.cut || ck.hz, q: ck.q, lane: lane, core: true,
                pts: percussive(at, 0.0008, tb.level * v * ck.gain, ck.len) });
-    out.push({ k: "osc", wave: "sine", f: f, lane: lane,
+    out.push({ k: "osc", wave: "sine", f: f, lane: lane, core: true,
                pts: percussive(at, 0.001, tb.level * v * 0.6, tb.ring * (ev.ring || 1)) });
   }
   for (i = 0; i < out.length; i++) out[i].end = out[i].pts[out[i].pts.length - 1][0];
@@ -522,7 +528,7 @@ function eventEnd(ev) {
    way. So that is what this grows, from a seeded generator, once per
    audio context: no recording, nothing to download, the same room on
    every device. A different seed per ear is what makes it wide. */
-var REVERB = { seconds: 2.4, rt60: 2.0, predelay: 0.014, bright: 6000, dark: 1.1, wet: 1.6, seed: 1789 };
+var REVERB = { seconds: 2.4, rt60: 2.0, predelay: 0.014, bright: 7500, dark: 1.1, wet: 1.6, seed: 1789 };
 function seeded(seed) {
   var a = seed >>> 0;
   return function () {
@@ -546,20 +552,23 @@ function impulseResponse(sampleRate, o) {
   var fall = Math.exp(-6.9078 / (rt * sr));
   for (ch = 0; ch < 2; ch++) {
     var d = new Float32Array(n), r = seeded((o.seed || REVERB.seed) + ch * 7919);
-    var lp = 0, amp = 1, coef = 0;
+    var lp = 0, lp2 = 0, amp = 1, coef = 0;
     for (i = p0; i < n; i++) {
       /* the lowpass closes as the tail goes on: a dark tail is a warm
-         room, a bright one is a bathroom. Moving it every 64 samples
-         is far finer than anybody can hear. */
+         room, a bright one is a bathroom. Two poles rather than one,
+         because one rolls off so gently that the tail never really
+         darkens. Moving it every 64 samples is far finer than anybody
+         can hear. */
       if (((i - p0) & 63) === 0) {
         var cut = Math.min(bright * Math.exp(-(i - p0) / sr * dark) + 500, sr * 0.45);
         coef = 1 - Math.exp(-2 * Math.PI * cut / sr);
       }
       lp += coef * ((r() * 2 - 1) - lp);
+      lp2 += coef * (lp - lp2);
       amp *= fall;
       var k = i - p0 < fadeIn ? (i - p0) / fadeIn : 1;
       if (i >= n - fadeOut) k *= 0.5 - 0.5 * Math.cos(Math.PI * (n - 1 - i) / fadeOut);
-      d[i] = lp * amp * k;
+      d[i] = lp2 * amp * k;
       energy += d[i] * d[i];
     }
     out.push(d);
@@ -897,7 +906,7 @@ var outs = [];                   /* each sting's own output, so a mute can fade 
 var lastSting = {}, lastCount = -1, tockNow = false, reducedPref = null, growing = false;
 /* a phone can play a great many oscillators, but not an unlimited
    number; past this the sparkles are the first thing to go */
-var MAX_LIVE = 140;
+var MAX_LIVE = 160;
 /* how far the panned lanes sit from the middle, and the little they
    are lifted to make up for equal-power panning putting less in each
    ear than a centred note does */
@@ -1009,18 +1018,28 @@ function perform(c, sc, t0) {
     return trim;
   }
 
-  /* plan everything first, so a busy room can drop the sparkles before
-     it drops a note of the tune */
-  var plans = [], total = 0;
-  for (i = 0; i < sc.events.length; i++) {
-    var vp = voicePlan(sc.events[i]);
-    plans.push(vp); total += vp.length;
+  /* Plan everything first, so a busy room can choose what to give up.
+     The order matters: the sparkles go first; then every note is
+     played plainer — its fundamental only, no overtones, no mallet —
+     rather than any note going missing; and only a room that is still
+     over budget after that starts leaving notes out. A fanfare that
+     arrives on top of a promotion that took a queen keeps its last
+     chord, which is the part anybody remembers. */
+  var plans = [], i2, budget = MAX_LIVE - live.length;
+  var count = function () { var n = 0; for (var q = 0; q < plans.length; q++) n += plans[q].length; return n; };
+  for (i = 0; i < sc.events.length; i++) plans.push(voicePlan(sc.events[i]));
+  if (count() > budget) {
+    for (i = 0; i < plans.length; i++) if (sc.events[i].fl) plans[i] = [];
   }
-  var budget = MAX_LIVE - live.length;
-  var thin = total > budget;
+  if (count() > budget) {
+    for (i = 0; i < plans.length; i++) {
+      var core = [];
+      for (i2 = 0; i2 < plans[i].length; i2++) if (plans[i][i2].core) core.push(plans[i][i2]);
+      plans[i] = core;
+    }
+  }
   for (i = 0; i < plans.length; i++) {
-    if (thin && sc.events[i].fl) continue;
-    if (plans[i].length > budget) continue;
+    if (!plans[i].length || plans[i].length > budget) continue;
     budget -= plans[i].length;
     /* a hair of difference every time — two cents and a few percent of
        velocity — so the same sting twice sounds played rather than
@@ -1109,7 +1128,7 @@ var Sound = {
   /* the music, as data: pure, so the checker can read the scores in
      node before it ever renders one */
   HOME: HOME, QUALITY: QUALITY, TIMBRES: TIMBRES, STINGS: STINGS, STING_KINDS: STING_KINDS,
-  REVERB: REVERB, noteHz: noteHz, chord: chord, score: score, voicePlan: voicePlan,
+  REVERB: REVERB, MAX_VOICES: MAX_LIVE, noteHz: noteHz, chord: chord, score: score, voicePlan: voicePlan,
   eventEnd: eventEnd, dryEnd: dryEnd, impulseResponse: impulseResponse,
   countTickPitch: countTickPitch,
 
@@ -1119,7 +1138,7 @@ var Sound = {
      is no way to test a sound except to listen to it, and a machine
      listens by looking. */
   useContext: function (c) {
-    AC = c; noiseBuf = null;
+    AC = c; noiseBuf = null; borrowed = true;
     master = buildChain(c);
     room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null;
     return master;
@@ -1167,6 +1186,10 @@ var Sound = {
     if (!on || !m || !plan) return;
     var c = ctx(); if (!c) return;
     o = o || {};
+    /* a move that brings music with it grows the room first, so the
+       clock below is read after the work rather than before it */
+    var heavy = kindName(o.captured || 1);
+    if (m.promo || (o.captured && (heavy === "queen" || heavy === "rook"))) verb(c);
     var t0 = c.currentTime + 0.004;
     var secs = plan.dur / 1000;
     var voice = voiceFor(materialNow, kindName(m.piece), surfaceNow);
@@ -1249,10 +1272,16 @@ var Sound = {
     var o = {}, k;
     if (opts) for (k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
     if (o.reduced == null) o.reduced = reducedNow();
+    var sc = score(kind, o);
+    /* If the room has not been grown yet, grow it before reading the
+       clock: it takes a few tens of milliseconds the first time, and a
+       sting scheduled from a clock read before that would start its
+       first notes in the past. */
+    if (sc.send > 0) verb(c);
     var now = c.currentTime;
     if (lastSting[kind] != null && now >= lastSting[kind] && now - lastSting[kind] < 0.05) return 0;
     lastSting[kind] = now;
-    return perform(c, score(kind, o), now + 0.006 + Math.max(0, +o.delay || 0));
+    return perform(c, sc, now + 0.006 + Math.max(0, +o.delay || 0));
   },
 
   /* One tick of a number counting — a rating being revealed, say:
