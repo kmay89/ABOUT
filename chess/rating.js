@@ -197,14 +197,21 @@ function stdev(xs) {
   return Math.sqrt(v / n);
 }
 /* moves: [{ best, played }] in centipawns, the player's moves only, in
-   order. Returns 0..100 to one decimal, or null with nothing to judge.
+   order. Returns 0..100 to one decimal, or null with too little to judge.
 
    Two means, averaged, the way lichess does it. The weighted mean counts
    a move by how turbulent the game was around it — the standard
    deviation of the winning chances in a small window — because a quiet
    move in a quiet position says less about you than one made while the
    game was swinging. The harmonic mean is there so a single blunder
-   cannot be averaged away by thirty easy recaptures. */
+   cannot be averaged away by thirty easy recaptures.
+
+   A handful of moves is not a game. Six moves of theory and a
+   resignation would read as 100%, and the table below would turn that
+   into a grandmaster; eight moves of your own is the least this will put
+   a number on. (Lichess shows accuracy for any length; it does not then
+   tell you what rating you played at.) */
+var ACCURACY_MIN_MOVES = 8;
 function gameAccuracy(moves) {
   if (!moves || typeof moves.length !== "number") return null;
   var accs = [], wins = [], i, m, a;
@@ -216,7 +223,7 @@ function gameAccuracy(moves) {
     accs.push(a); wins.push(winPct(m.best));
   }
   var n = accs.length;
-  if (!n) return null;
+  if (n < ACCURACY_MIN_MOVES) return null;
   var win = Math.max(2, Math.min(8, Math.floor(n / 10)));
   var wsum = 0, wacc = 0, inv = 0, w, lo;
   for (i = 0; i < n; i++) {
@@ -252,6 +259,21 @@ function perfFromAccuracy(acc) {
     }
   }
   return PERF[PERF.length - 1][1];
+}
+/* One game's estimate, against the rung it was played against. The table
+   was fitted on games between neighbours, where both sides were being
+   tested; a game against a much weaker coach is not that. Acorn hands
+   over pieces, and taking a free piece is the best move and an easy
+   one, so a clean win against it says you are comfortably stronger than
+   400, not that you are 2000. So the estimate is held to at most 400
+   points above the coach it came from: the same limit FIDE puts on a
+   performance rating, for the same reason. It is not held from below —
+   a rough game against Oak is still a rough game. */
+var PERF_ABOVE = 400;
+function gamePerf(acc, L) {
+  var p = perfFromAccuracy(acc);
+  if (p === null || !L) return p;
+  return p > L.elo + PERF_ABOVE ? L.elo + PERF_ABOVE : p;
 }
 
 /* ---------- Glicko ---------- */
@@ -290,9 +312,10 @@ function expected(r, rj, rdj) {
    a helped loss costs you a little: the same in both directions. */
 function assistWeight(assisted) {
   var t = 0, h = 0;
+  /* whole counts, exactly as the history will record them */
   if (assisted && typeof assisted === "object") {
-    t = num(assisted.takebacks, 0, 0, 1000);
-    h = num(assisted.hints, 0, 0, 1000);
+    t = Math.floor(num(assisted.takebacks, 0, 0, 1000));
+    h = Math.floor(num(assisted.hints, 0, 0, 1000));
   }
   var w = Math.pow(0.8, t) * Math.pow(0.9, h);
   return w < 0.25 ? 0.25 : w;
@@ -442,8 +465,11 @@ function load(getItem) {
   if (typeof raw !== "string" || raw.length > 400000) return fresh();
   try { return clean(JSON.parse(raw)); } catch (e) { return fresh(); }
 }
+/* true only when the write took. A setter that throws (quota, Safari's
+   private mode of old) and one that swallows the error and answers false
+   — as the room's own lsSet does — are both a save that did not happen. */
 function save(state, setItem) {
-  try { setItem(KEY, JSON.stringify(clean(state))); return true; } catch (e) { return false; }
+  try { return setItem(KEY, JSON.stringify(clean(state))) !== false; } catch (e) { return false; }
 }
 
 /* ---------- one game ---------- */
@@ -455,9 +481,13 @@ function update(state, game) {
   var result = RESULTS.indexOf(g.result) >= 0 ? g.result : null;
   var before = Math.round(s.r);
   if (!L || result === null) {
-    /* nothing rateable happened: the state comes back as it was */
-    return { state: s, rated: false, before: before, after: before, delta: 0, rd: s.rd,
-             provisional: isProvisional(s.rd), perf: null, milestone: null, levelUp: null };
+    /* nothing rateable happened: the state comes back as it was, in the
+       same shape a rated game has, so the end card never reads a field
+       that is not there */
+    var p0 = isProvisional(s.rd);
+    return { state: s, rated: false, before: before, after: before, delta: 0, rd: Math.round(s.rd),
+             provisional: p0, wasProvisional: p0, expected: null, weight: 0,
+             perf: null, milestone: null, levelUp: null, next: null };
   }
   var at = typeof g.at === "number" && isFinite(g.at) && g.at >= 0 ? g.at : s.lastAt;
   var wasProvisional = isProvisional(s.rd);
@@ -486,7 +516,7 @@ function update(state, game) {
   s.vs[L.id] = rec;
 
   var acc = typeof g.accuracy === "number" && g.accuracy === g.accuracy ? round1(num(g.accuracy, 0, 0, 100)) : null;
-  var perf = acc === null ? null : perfFromAccuracy(acc);
+  var perf = acc === null ? null : gamePerf(acc, L);
   var after = Math.round(r1);
   var assisted = null;
   if (g.assisted && typeof g.assisted === "object") {
@@ -560,8 +590,11 @@ function display(stateOrR, rd) {
    its own level within a few games either way. */
 var GENTLE = 200;
 function suggestLevel(state) {
-  var s = clean(state);
-  var target = s.r - (isProvisional(s.rd) ? GENTLE : 0);
+  /* only the two numbers are read, so there is no need to copy a
+     two-hundred-game history every time a menu is drawn */
+  var o = state && typeof state === "object" ? state : {};
+  var r = num(o.r, START_R, R_FLOOR, R_CEIL), rd = num(o.rd, START_RD, RD_MIN, RD_MAX);
+  var target = r - (isProvisional(rd) ? GENTLE : 0);
   var best = LEVELS[0], gap = Infinity, i, d;
   for (i = 0; i < LEVELS.length; i++) {
     d = Math.abs(LEVELS[i].elo - target);
@@ -594,7 +627,7 @@ function summary(state) {
 var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
-  REVIEW_DEPTH: REVIEW_DEPTH,
+  REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, PERF_ABOVE: PERF_ABOVE,
   levelById: levelById, searchOpts: searchOpts,
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,

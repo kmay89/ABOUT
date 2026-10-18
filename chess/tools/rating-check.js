@@ -180,6 +180,29 @@ function sane(s) {
   const a = Rating.update(est, { level: "club", result: 1, at, accuracy: 77 });
   const b = Rating.update(est, { level: "club", result: 1, at, accuracy: 77 });
   ok("the same game scores the same way twice", JSON.stringify(a) === JSON.stringify(b));
+
+  /* Glickman (1995), one game, written out from the paper rather than
+     from rating.js: q = ln10/400, g(RD) = 1/√(1 + 3q²RD²/π²),
+     E = 1/(1 + 10^(−g(RDj)(r − rj)/400)), d² = 1/(q² g² E(1 − E)),
+     r' = r + q/(1/RD² + 1/d²) · g · (s − E), RD' = √(1/(1/RD² + 1/d²)). */
+  const q = Math.LN10 / 400, gf = (rd) => 1 / Math.sqrt(1 + 3 * q * q * rd * rd / (Math.PI * Math.PI));
+  let glickWorst = 0, glickAt = "";
+  for (const [r0, rd0, lvl, s] of [[1500, 200, "pine", 1], [800, 350, "club", 0], [1234, 75, "acorn", 0.5], [400, 120, "mentor", 1]]) {
+    const rj = Rating.levelById(lvl).elo, g = gf(Rating.OPP_RD);
+    const E = 1 / (1 + Math.pow(10, -g * (r0 - rj) / 400));
+    const d2 = 1 / (q * q * g * g * E * (1 - E));
+    const r1 = r0 + q / (1 / (rd0 * rd0) + 1 / d2) * g * (s - E), rd1 = Math.sqrt(1 / (1 / (rd0 * rd0) + 1 / d2));
+    const u = Rating.update(Object.assign(Rating.fresh(), { r: r0, rd: rd0 }), { level: lvl, result: s, at });
+    const err = Math.max(Math.abs(u.state.r - r1), Math.abs(u.state.rd - rd1), Math.abs(u.expected - E));
+    if (err > glickWorst) { glickWorst = err; glickAt = `${r0}±${rd0} v ${lvl}: ${u.state.r.toFixed(2)}±${u.state.rd.toFixed(2)}, paper says ${r1.toFixed(2)}±${rd1.toFixed(2)}`; }
+  }
+  ok("one unhelped game moves r and RD exactly as Glickman's formulas say", glickWorst < 1e-6, glickAt);
+
+  /* a clock set back must not be remembered: the next real game is a day
+     after the last one, not a year */
+  const last = us[us.length - 1].state;
+  ok("a game dated before the last one does not move the last-played date back",
+     backwards.state.lastAt === last.lastAt, `${backwards.state.lastAt} vs ${last.lastAt}`);
 })();
 
 /* ---------- help, kindly ---------- */
@@ -195,6 +218,10 @@ function sane(s) {
   ok("a helped loss costs less than a clean one, by the same weight",
      helpedL.delta < 0 && helpedL.delta > cleanL.delta &&
      near(helped.weight, helpedL.weight) && helped.weight < 1, `${helpedL.delta} vs ${cleanL.delta}`);
+  ok("…and teaches us less about you: the deviation shrinks less after a helped game",
+     helped.state.rd > clean.state.rd && helped.state.rd < est.rd, `${helped.state.rd.toFixed(1)} vs ${clean.state.rd.toFixed(1)}`);
+  ok("help is counted in whole take-backs and hints, as the history records it",
+     Rating.assistWeight({ takebacks: 1.9 }) === Rating.assistWeight({ takebacks: 1 }));
   ok("no help is full weight", Rating.assistWeight(null) === 1 && Rating.assistWeight({ takebacks: 0, hints: 0 }) === 1);
   ok("more help, less weight", Rating.assistWeight({ takebacks: 1 }) > Rating.assistWeight({ takebacks: 3 }) &&
      Rating.assistWeight({ hints: 1 }) > Rating.assistWeight({ takebacks: 1 }));
@@ -255,9 +282,77 @@ function sane(s) {
   const sloppy = [];
   for (let i = 0; i < 30; i++) sloppy.push({ best: 30, played: 30 - (i % 3) * 60 });
   ok("sloppier play, lower accuracy", Rating.gameAccuracy(sloppy) < ga, `${Rating.gameAccuracy(sloppy)}`);
-  const mates = [{ best: MATE - 5, played: MATE - 9 }, { best: MATE - 3, played: 900 }, { best: -(MATE - 4), played: -(MATE - 2) }];
+  const mates = perfect.slice(0, 8).concat([{ best: MATE - 5, played: MATE - 9 }, { best: MATE - 3, played: 900 },
+                                             { best: -(MATE - 4), played: -(MATE - 2) }, { best: Infinity, played: -Infinity }]);
   const gm = Rating.gameAccuracy(mates);
   ok("mate scores give a finite, sane accuracy", typeof gm === "number" && gm >= 0 && gm <= 100, gm);
+  const few = perfect.slice(0, Rating.ACCURACY_MIN_MOVES - 1);
+  ok(`fewer than ${Rating.ACCURACY_MIN_MOVES} moves of your own is too few to judge`,
+     Rating.gameAccuracy(few) === null && Rating.gameAccuracy(perfect.slice(0, Rating.ACCURACY_MIN_MOVES)) === 100);
+
+  /* The blend, written out again from lichess's description rather than
+     from rating.js: per-move accuracy from the win-chance drop, a window
+     of max(2, min(8, ⌊n/10⌋)) moves, each move weighted by the standard
+     deviation of the winning chances in its window (held to 0.5..12),
+     and the weighted mean averaged with the harmonic mean (each move
+     counted as at least 1%). If either side of this drifts — a weight
+     flattened, a mean dropped, a window off by one — the two disagree. */
+  const wp = (cp) => { const c = Math.max(-1000, Math.min(1000, cp)); return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * c)) - 1); };
+  const reference = (moves) => {
+    const acc = moves.map((m) => {
+      const b = wp(m.best), a = wp(m.played);
+      return a >= b ? 100 : Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * (b - a)) - 3.1669));
+    });
+    const wins = moves.map((m) => wp(m.best)), n = acc.length;
+    const size = Math.max(2, Math.min(8, Math.floor(n / 10)));
+    let ws = 0, wa = 0, inv = 0;
+    for (let i = 0; i < n; i++) {
+      const start = Math.max(0, Math.min(i - size + 1, n - size));
+      const win = wins.slice(start, start + size);
+      const mean = win.reduce((x, y) => x + y, 0) / win.length;
+      const sd = Math.sqrt(win.reduce((x, y) => x + (y - mean) * (y - mean), 0) / win.length);
+      const w = Math.max(0.5, Math.min(12, sd));
+      ws += w; wa += w * acc[i]; inv += 1 / Math.max(1, acc[i]);
+    }
+    return Math.round(((wa / ws) + n / inv) / 2 * 10) / 10;
+  };
+  let seed = 99, worst = 0, worstAt = "";
+  const rnd = () => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return seed / 4294967296; };
+  /* a game with a move worth exactly nothing in it, where the harmonic
+     mean's floor of 1% is the whole difference */
+  const games = [perfect.slice(0, 11).concat([{ best: MATE - 3, played: -(MATE - 2) }])];
+  for (let t = 0; t < 200; t++) {
+    const n = 8 + Math.floor(rnd() * 70), moves = [];
+    let ev = 0;
+    for (let i = 0; i < n; i++) {
+      ev += Math.round((rnd() - 0.5) * 160);
+      const drop = rnd() < 0.7 ? 0 : Math.round(rnd() * rnd() * 700);
+      moves.push({ best: ev, played: ev - drop });
+      ev -= drop;
+    }
+    games.push(moves);
+  }
+  for (const moves of games) {
+    const d = Math.abs(Rating.gameAccuracy(moves) - reference(moves));
+    if (d > worst) { worst = d; worstAt = `${moves.length} moves: ${Rating.gameAccuracy(moves)} vs ${reference(moves)}`; }
+  }
+  ok("game accuracy is the lichess blend, checked against a second implementation over 200 games",
+     worst <= 0.1 + 1e-9, worstAt);
+
+  /* the same slip, once at a quiet moment and once in the middle of a
+     storm: the storm is where it counts. Both games hold the same storm
+     and the same slip, so only where the slip falls differs. */
+  const calm = Array.from({ length: 20 }, () => ({ best: 0, played: 0 }));
+  calm[10] = { best: 450, played: 450 }; calm[11] = { best: -450, played: -450 };
+  const inStorm = calm.map((m) => Object.assign({}, m)), inCalm = calm.map((m) => Object.assign({}, m));
+  inStorm[10] = { best: 450, played: 450 - 200 };
+  const target = Rating.moveAccuracy(450, 250);
+  let lo2 = 0, hi2 = 1000;
+  for (let k = 0; k < 60; k++) { const mid = (lo2 + hi2) / 2; if (Rating.moveAccuracy(0, -mid) > target) lo2 = mid; else hi2 = mid; }
+  inCalm[3] = { best: 0, played: -lo2 };
+  ok("a slip made while the game is swinging counts for more than the same slip in a quiet spell",
+     Rating.gameAccuracy(inStorm) < Rating.gameAccuracy(inCalm),
+     `${Rating.gameAccuracy(inStorm)} vs ${Rating.gameAccuracy(inCalm)}`);
 })();
 
 /* ---------- accuracy → rating ---------- */
@@ -292,6 +387,15 @@ function sane(s) {
   ok("a game with an accuracy carries its estimate", u.perf === Rating.perfFromAccuracy(88));
   const v = Rating.update(Rating.fresh(), { level: "club", result: 1, at: T0, accuracy: null });
   ok("…and a game without one says so", v.perf === null);
+  /* a spotless win over Acorn says "comfortably stronger than 400", not
+     "2400": the estimate is held within reach of the coach it was earned
+     against, and a rough game against Oak is not lifted by the company */
+  const acorn = Rating.levelById("acorn");
+  const clean = Rating.update(Rating.fresh(), { level: "acorn", result: 1, at: T0, accuracy: 100 });
+  ok("a clean win against a weak coach is not read as a master's game",
+     clean.perf === acorn.elo + Rating.PERF_ABOVE, clean.perf);
+  const rough = Rating.update(Rating.fresh(), { level: "mentor", result: 0, at: T0, accuracy: 55 });
+  ok("…and a rough game against a strong one is not flattered", rough.perf === Rating.perfFromAccuracy(55), rough.perf);
 })();
 
 /* ---------- titles ---------- */
@@ -337,6 +441,14 @@ function sane(s) {
   const bests = seen.filter((m) => m.indexOf("best") === 0).map((m) => +m.split("@")[1]);
   ok("…in steps worth noticing, never the same step twice",
      bests.every((b, i) => i === 0 || Math.floor(b / 50) > Math.floor(bests[i - 1] / 50)), bests.join(" "));
+  /* a few points above the old best, inside the same band of fifty, is
+     a good day rather than news */
+  const nudge = Rating.update(Object.assign(Rating.fresh(), { r: 1210, rd: 60, games: 40, best: 1210, settled: true,
+                                                               reached: [0, 600, 900, 1200] }),
+                              { level: "pine", result: 0.5, at: T0 });
+  ok("a new best inside the same band of fifty is not announced",
+     nudge.state.r > 1210 && Math.floor(nudge.state.r / 50) === Math.floor(1210 / 50) && nudge.milestone === null,
+     `${nudge.state.r.toFixed(1)}: ${JSON.stringify(nudge.milestone)}`);
 
   const us = run(Rating.fresh(), [1, 1, 0, 1, 0.5, 1, 0, 1, 1, 1].map((r) => ({ level: "sprout", result: r })));
   const settles = us.filter((u) => u.milestone && u.milestone.kind === "settled");
@@ -425,6 +537,9 @@ function sane(s) {
   const junk2 = Rating.update(s, { level: "club", result: 2, at: T0 });
   ok("an unknown rung or result is not rated", !junk.rated && !junk2.rated && junk.delta === 0 &&
      junk.state.games === s.games);
+  ok("…and comes back in the same shape a rated game does",
+     Object.keys(junk).sort().join() === Object.keys(u).sort().join() && Number.isInteger(junk.rd),
+     Object.keys(junk).sort().join());
   ok("update() survives being handed nothing at all",
      Rating.update(null, null).rated === false && !sane(Rating.update(undefined, {}).state));
 })();
@@ -440,6 +555,8 @@ function sane(s) {
   ok("load(save(x)) is x", JSON.stringify(Rating.load(get)) === JSON.stringify(s));
   ok("save() never throws, even when storage is full",
      Rating.save(s, () => { throw new Error("QuotaExceeded"); }) === false);
+  ok("…and a setter that swallows the failure and answers false is a failed save too",
+     Rating.save(s, () => false) === false && Rating.save(s, () => undefined) === true);
   ok("nothing stored is a fresh start", JSON.stringify(Rating.load(() => null)) === JSON.stringify(Rating.fresh()));
   ok("storage that throws is a fresh start", !sane(Rating.load(() => { throw new Error("SecurityError"); })));
 
@@ -476,6 +593,9 @@ function sane(s) {
   const legacy = Rating.load(() => JSON.stringify({ rating: 1234, dev: 80, games: 30 }));
   ok("an older, unversioned score is carried over", legacy.r === 1234 && legacy.rd === 80 && legacy.games === 30 &&
      legacy.v === Rating.VERSION, JSON.stringify(legacy).slice(0, 80));
+  const after = Rating.update(legacy, { level: "cactus", result: 0.5, at: T0 });
+  ok("…already settled, so its next game is not announced as settling",
+     !after.milestone || after.milestone.kind !== "settled", JSON.stringify(after.milestone));
   const future = Rating.load(() => JSON.stringify({ v: 99, r: 1500, rd: 70, games: 40, wins: 20, draws: 5, losses: 15, newThing: { x: 1 } }));
   ok("a newer version's score keeps what this version understands", future.r === 1500 && future.games === 40 && !sane(future));
 
@@ -484,6 +604,11 @@ function sane(s) {
      sm.games === 3 && sm.wins === 1 && sm.draws === 1 && sm.losses === 1 && sm.history.length === 3);
   ok("summary knows the current streak", sm.streak.kind === "loss" && sm.streak.n === 1, JSON.stringify(sm.streak));
   ok("summary averages recent accuracy over the games that had one", sm.recentAccuracy === 74.2, sm.recentAccuracy);
+  /* recent means recent: twelve games, the first two dreadful, the last
+     ten all at 80 — the two from long ago are no longer in it */
+  const accRun = run(Rating.fresh(), Array.from({ length: 12 }, (_, i) => ({ level: "club", result: 1, accuracy: i < 2 ? 20 : 80 })));
+  const recent = Rating.summary(accRun[accRun.length - 1].state).recentAccuracy;
+  ok("recent accuracy is the last ten games that had one, not the whole history", recent === 80, recent);
   let many = Rating.fresh();
   for (let i = 0; i < 230; i++) many = Rating.update(many, { level: "club", result: i % 2, at: T0 + i * DAY }).state;
   ok("the history keeps the last 200 games", many.history.length === 200 && many.games === 230 &&
