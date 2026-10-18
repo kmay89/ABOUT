@@ -403,6 +403,12 @@ function openingCritique(lesson, g, move) {
     return "That develops a piece — good. But one move develops <i>and</i> makes a threat at the same time." + target;
   }
   if (kind === Chess.P) {
+    /* d4 or f4 against e5 is not a quiet move — it attacks — so the
+       feedback has to say what is actually missing: a piece */
+    Chess.make(g, move);
+    var hits = Teach.attacksFrom(g, move.to).some(function (sq) { return g.board[sq] && Math.sign(g.board[sq]) === -side; });
+    Chess.unmake(g);
+    if (hits) return "That pawn move makes a threat, but it brings no new piece into the game. Which knight or bishop can come out <i>and</i> attack something?";
     return "A pawn move — but pieces before quiet pawn moves. Which knight or bishop can come out, and attack something as it does?";
   }
   if (kind === Chess.Q) {

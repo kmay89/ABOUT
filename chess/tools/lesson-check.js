@@ -140,6 +140,13 @@ for (const L of Learn.LESSONS) {
     if (L.chapter === "opening" && /small enough to see/.test(text)) {
       fail(L.id, `critique of ${Chess.toSAN(g, wrong)} calls a full board "small enough to see"`); break;
     }
+    /* a pawn move that attacks something (d4 or f4 against e5) is not "quiet" */
+    if (/quiet/.test(text) && Math.abs(wrong.piece) === Chess.P) {
+      Chess.make(g, wrong);
+      const attacks = require("../teach.js").attacksFrom(g, wrong.to).some((s) => g.board[s] && Math.sign(g.board[s]) === -Math.sign(wrong.piece));
+      Chess.unmake(g);
+      if (attacks) { fail(L.id, `critique of ${Chess.toSAN(g, wrong)} calls a pawn move that attacks something "quiet"`); break; }
+    }
     if (Chess.fen(g) !== L.fen) { fail(L.id, "critique() disturbed the position"); break; }
   }
 
