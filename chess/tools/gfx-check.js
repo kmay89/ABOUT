@@ -169,6 +169,40 @@ const PROBE = `(() => {
       __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null });
     });
 
+    /* The big moments, in the real room rather than the preview: light
+       on a struck square, a king going over, the camera leaning in. Each
+       has to draw with an empty error queue and leave the board at rest,
+       and the last two have to put back exactly the picture that was
+       there before — on the simple tier, which has no grain, so one frame
+       can be compared with another. */
+    const rest = async () => {
+      for (let i = 0; i < 240; i++) {
+        if (!(await page.evaluate(() => __cr.renderer.frame()))) return true;
+        await page.waitForTimeout(25);
+      }
+      return false;
+    };
+    await page.evaluate(() => __cr.renderer.setFx("low"));
+    await rest();
+    const calm = await page.evaluate(PROBE);
+    await page.evaluate(() => __cr.renderer.impact(0x34, 1));
+    await page.waitForTimeout(80);
+    const struck = await page.evaluate(PROBE);
+    await page.evaluate(() => { const r = __cr.renderer; r.topple(0x04, { from: 0x74 }); r.focus(0x04); });
+    const settledIn = await rest();
+    const leaning = await page.evaluate(PROBE);
+    await page.evaluate(() => { const r = __cr.renderer; r.untopple(); r.focus(null); });
+    const settledOut = await rest();
+    const restored = await page.evaluate(PROBE);
+    ok("a struck square, a king going over and the camera leaning in all draw cleanly",
+       struck.err === 0 && leaning.err === 0 && struck.hash !== calm.hash && leaning.hash !== calm.hash,
+       JSON.stringify({ calm, struck, leaning }));
+    ok("…and leave the board at rest, exactly as it was",
+       settledIn && settledOut && restored.hash === calm.hash && restored.err === 0,
+       JSON.stringify({ settledIn, settledOut, restored, calm }));
+    await page.evaluate(() => __cr.renderer.setFx("high"));
+    await page.waitForTimeout(250);
+
     /* every house skin: lights, relief and all, and no two alike */
     const ids = await page.evaluate(() => Skins.PRESETS.map((s) => s.id));
     const seen = new Map();
