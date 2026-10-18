@@ -283,16 +283,17 @@ function ctx() {
   }
   return AC;
 }
-/* A moment of music belongs to the moment it was asked for. A browser
-   will not start the audio clock until somebody has touched the page,
-   and whatever is asked of a clock that is not running yet is saved up
-   and played the instant it starts. For a piece being set down that is
-   right: the tap that starts the clock is the tap that moved it. For a
-   fanfare it is not. A finished game restored at boot would greet your
-   first tap, a minute later, with its ending. So a sting asked for
-   while the clock is stopped waits only as long as a tap takes to start
-   it (a few milliseconds, inside the gesture), and is let go after
-   that. */
+/* A sound belongs to the moment it was asked for. A browser will not
+   start the audio clock until somebody has touched the page, and
+   whatever is asked of a clock that is not running yet is saved up and
+   played the instant it starts. Inside a tap that is exactly right: the
+   tap that starts the clock is the tap that asked. Outside one it is
+   not. A finished game restored at boot would greet your first tap, a
+   minute later, with its ending, and a coach's reply made while the
+   clock was stopped would set down a piece nobody moved. So anything
+   asked for while the clock is stopped waits only as long as a tap
+   takes to start it (a few milliseconds, inside the gesture), and is
+   let go after that. */
 var STALE_MS = 500;
 function running(c) { return borrowed || c.state === "running"; }
 function whenRunning(c, play) {
@@ -1277,6 +1278,12 @@ var Sound = {
   move: function (m, plan, o) {
     if (!on || !m || !plan) return;
     var c = ctx(); if (!c) return;
+    /* A move made while the clock is stopped (the coach answering a
+       game restored at boot, or a reply landing after iOS took the
+       speaker for a call) is held for the tap that starts the clock,
+       like a sting, and let go if that tap is not soon. Otherwise the
+       first tap of the session would set down a piece nobody moved. */
+    if (!running(c)) { whenRunning(c, function () { Sound.move(m, plan, o); }); return; }
     o = o || {};
     /* a move that brings music with it grows the room first, so the
        clock below is read after the work rather than before it */
@@ -1432,6 +1439,7 @@ var Sound = {
   pickUp: function (piece) {
     if (!on) return;
     var c = ctx(); if (!c) return;
+    if (!running(c)) { whenRunning(c, function () { Sound.pickUp(piece); }); return; }
     var v = voiceFor(materialNow, kindName(piece), surfaceNow);
     var s = c.createBufferSource(); s.buffer = noise(c); s.loop = true;
     var f = c.createBiquadFilter(); f.type = "bandpass";
@@ -1445,6 +1453,7 @@ var Sound = {
   tap: function (piece, force) {
     if (!on) return;
     var c = ctx(); if (!c) return;
+    if (!running(c)) { whenRunning(c, function () { Sound.tap(piece, force); }); return; }
     strike(c, c.currentTime + 0.003, voiceFor(materialNow, kindName(piece), surfaceNow), force);
   }
 };

@@ -509,18 +509,22 @@ const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "applic
 /* A bare page with just the two modules and one big button: no game,
    no canvas, nothing to go wrong but the synth. The button wakes the
    synth on pointerdown, the way the board does in the room. Opened as
-   #over, it does what the room does when it restores a game that turns
-   out to be finished: asks for the ending as the page loads, before
-   anybody has touched anything. (That has to happen in the page's own
-   script: the checker's evaluate() counts as a tap.) */
+   #over, it does what the room does when it restores a game: the coach
+   answers (a queen takes a rook) and the game turns out to be finished,
+   so the ending is asked for, all as the page loads and before anybody
+   has touched anything. (That has to happen in the page's own script:
+   the checker's evaluate() counts as a tap.) */
+const COACH = { piece: 5, from: 0x03, to: 0x63 };
 const BARE = "/chess/tools/__sound-check.html";
 const BARE_HTML = '<!doctype html><meta charset="utf-8"><title>sound-check</title>' +
   '<button id="tap" style="position:fixed;left:0;top:0;width:100%;height:100%">tap</button>' +
   '<script src="/chess/motion.js"></script><script src="/chess/sound.js"></script>' +
   '<script>document.getElementById("tap").addEventListener("pointerdown", function () {' +
   ' Sound.wake(); if (window.onTap) window.onTap(); });' +
-  ' if (location.hash === "#over") { Sound.enable(true); window.said = Sound.sting("mate-win");' +
-  ' Sound.countTick(1, 2, true); }</script>';
+  ' window.coach = function () { var m = ' + JSON.stringify(COACH) + ';' +
+  ' Sound.move(m, Motion.plan(m, {}), { captured: -4 }); };' +
+  ' if (location.hash === "#over") { Sound.enable(true); window.coach();' +
+  ' window.said = Sound.sting("mate-win"); Sound.countTick(1, 2, true); }</script>';
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === BARE) { res.writeHead(200, { "Content-Type": "text/html" }); res.end(BARE_HTML); return; }
@@ -961,29 +965,36 @@ async function wakeChecks(browser, base, errs) {
   };
   const state = () => page.evaluate(() => ({ busy: Sound.busy(), clock: window.__ac ? window.__ac.state : "none" }));
 
-  /* a game restored at boot that turns out to be over asks for its
-     ending before anybody has touched anything */
+  /* a game restored at boot: the coach answers and the game is over,
+     before anybody has touched anything. (A queen taking a rook lays
+     music under the capture, which is what lets busy() see the move.) */
   await open("#over");
   const atBoot = await state();
   await page.waitForTimeout(900);
   await page.click("#tap");
   await page.waitForTimeout(400);
   const firstTap = await state();
-  ok("a moment asked for before anybody has touched the page is not saved up for the first tap",
+  ok("a move and a fanfare from before anybody touched the page are not saved up for the first tap",
      atBoot.busy === 0 && firstTap.clock === "running" && firstTap.busy === 0,
      "at boot " + JSON.stringify(atBoot) + ", after the first tap " + JSON.stringify(firstTap));
 
-  /* and the one that matters: the very first sound of the session, asked
+  /* and the ones that matter: the very first sound of the session, asked
      for inside the tap that starts the clock */
-  await open();
-  await page.evaluate(() => { Sound.enable(true); window.onTap = () => { window.said = Sound.sting("check"); }; });
-  await page.click("#tap");
-  await page.waitForTimeout(300);
-  const inTap = await state();
-  const said = await page.evaluate(() => window.said);
-  ok("…while one asked for inside the tap that starts the clock is heard",
-     inTap.clock === "running" && inTap.busy > 0 && said === Sound.STINGS.check.len,
-     JSON.stringify(inTap) + ", said " + said);
+  const inTap = async (what) => {
+    await open();
+    await page.evaluate((w) => {
+      Sound.enable(true);
+      window.onTap = () => { window.said = w === "move" ? window.coach() : Sound.sting("check"); };
+    }, what);
+    await page.click("#tap");
+    await page.waitForTimeout(300);
+    return Object.assign(await state(), { said: await page.evaluate(() => window.said) });
+  };
+  const check = await inTap("check"), move = await inTap("move");
+  ok("…while a sting or a move asked for inside the tap that starts the clock is heard",
+     check.clock === "running" && check.busy > 0 && check.said === Sound.STINGS.check.len &&
+     move.clock === "running" && move.busy > 0,
+     JSON.stringify(check) + ", " + JSON.stringify(move));
   await page.close();
 }
 
