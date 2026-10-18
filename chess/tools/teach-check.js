@@ -117,8 +117,10 @@ function G(fen) { return Chess.create(fen); }
   // the bishop steps onto an open file where the rook takes it for free
   const g = G("3r3k/8/8/8/8/8/8/4KB2 w - - 0 1");
   const said = Teach.afterMove(g, Chess.fromSAN(g, "Bd3"));
-  ok("hanging a piece is called out", said.some((s) => s.concept === "hanging"),
-     said.map((s) => s.concept).join(","));
+  const h = said.find((s) => s.concept === "hanging");
+  ok("hanging a piece is called out", !!h, said.map((s) => s.concept).join(","));
+  ok("…and its arrow runs from the attacker to the piece (d8 → d3)",
+     h && Chess.sqName(h.squares[0]) === "d8" && Chess.sqName(h.squares[1]) === "d3");
 }
 {
   const g = Chess.create();

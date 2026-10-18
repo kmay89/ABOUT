@@ -60,7 +60,6 @@ function sqName(sq) { return Chess.sqName(sq); }
 function rankOf(sq) { return sq >> 4; }
 function fileOf(sq) { return sq & 7; }
 function homeRank(side) { return side === 1 ? 0 : 7; }
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 /* ---------- raw attacks (ignores pins; "what does this piece hit") ---------- */
 function attacksFrom(g, sq) {
@@ -618,7 +617,10 @@ function joinOr(list) {
 /* ---------- what did this move just do? ----------
    `g` is the position BEFORE the move. Returns plain-language
    observations, each tagged with the concept it teaches so the app can
-   fade the ones you've already mastered. */
+   fade the ones you've already mastered. `squares` lists the squares
+   the remark is about, and the first two are in the direction the idea
+   travels — attacker to target, pinner to pinned piece, the landing
+   square to the king — because the app draws them as an arrow. */
 function afterMove(g, m) {
   if (!g || !g.board || !m || !m.piece || g.board[m.from] !== m.piece) return [];
   var side = colorOf(m.piece), out = [], i;
@@ -760,7 +762,7 @@ function afterMove(g, m) {
     if (l.sq === m.to && moveSee > -GAIN) continue;    /* a trade or a win, not a gift */
     var where = "your " + name(l.piece) + " on " + sqName(l.sq);
     out.push({
-      concept: "hanging", weight: 95, squares: [l.sq, l.from],
+      concept: "hanging", weight: 95, squares: [l.from, l.sq],
       text: "Careful — " +
         (l.why === "undefended"
           ? "that leaves " + where + " where it can be taken for free."
@@ -832,7 +834,7 @@ function opportunities(g, side) {
   for (i = 0; i < loose.length; i++) {
     var l = loose[i];
     if (l.value < 300) continue;
-    out.push({ concept: "hanging", weight: 80, squares: [l.sq, l.from],
+    out.push({ concept: "hanging", weight: 80, squares: [l.from, l.sq],
       text: looseSentence(l, "their") +
         " Free material is the cheapest way to win a game; always scan for it before anything clever." });
     break;
@@ -845,7 +847,7 @@ function opportunities(g, side) {
   }
   var br = backRank(g, -side);
   if (br) {
-    out.push({ concept: "backRank", weight: 65, squares: [br.king].concat(br.squares),
+    out.push({ concept: "backRank", weight: 65, squares: [br.squares[0], br.king].concat(br.squares.slice(1)),
       text: "Their king can't get off its back row: a rook or queen landing on " + sqName(br.squares[0]) +
         " would be checkmate. This is the most common way club games end." });
   }
@@ -859,12 +861,12 @@ function warnings(g, side) {
   for (i = 0; i < own.length; i++) {
     var l = own[i];
     if (l.value < 300) continue;
-    out.push({ concept: "hanging", weight: 90, squares: [l.sq, l.from],
+    out.push({ concept: "hanging", weight: 90, squares: [l.from, l.sq],
       text: looseSentence(l, "your") });
     break;
   }
   var br = backRank(g, side);
-  if (br) out.push({ concept: "backRank", weight: 60, squares: [br.king].concat(br.squares),
+  if (br) out.push({ concept: "backRank", weight: 60, squares: [br.squares[0], br.king].concat(br.squares.slice(1)),
     text: "Your king can't get off its back row — a rook or queen landing on " + sqName(br.squares[0]) +
       " would be checkmate. Worth making a square for it before that matters." });
   return out;
