@@ -401,8 +401,7 @@ function capture(target, o) {
   if (!ready(L)) return 0;
   var w = where(target, 0.35);
   if (!w) return 0;
-  var power = o.power != null ? clamp(+o.power || 0, 0, 1)
-            : PIECE_POWER[Math.abs(o.piece | 0)] != null ? PIECE_POWER[Math.abs(o.piece | 0)] : 0.5;
+  var power = o.power != null ? clamp(+o.power || 0, 0, 1) : powerOf(o.piece);
   var col = pieceColour(o.color);
   var s = w.s, k = flatOf(w), x = w.x, y = w.y, an = w.an, n0 = P.length, i, a, sp;
   var bx = x + w.up.x * 0.6, by = y + w.up.y * 0.6;
@@ -1197,6 +1196,12 @@ function clear() {
   stop();
 }
 function busy() { return P.length > 0 || tweens.length > 0; }
+/* how big a capture of this piece is, 0..1 — the same number for the
+   board's flash (R.impact) and the debris here, so the two agree */
+function powerOf(piece) {
+  var k = Math.abs(piece | 0);
+  return PIECE_POWER[k] != null ? PIECE_POWER[k] : 0.5;
+}
 function stats(reset) {
   var out = { alive: P.length, peak: peak, frames: frames, looping: looping, quality: quality,
               dropped: dropped, max: MAX, reduced: reduced, tweens: tweens.length };
@@ -1216,7 +1221,7 @@ var Fx = {
   capture: capture, check: check, promote: promote, mate: mate,
   confetti: confetti, fireworks: fireworks, sparkle: sparkle, flash: flash,
   shake: shake, countUp: countUp, haptic: haptic,
-  clear: clear, busy: busy, stats: stats,
+  clear: clear, busy: busy, stats: stats, powerOf: powerOf,
   /* exposed for the checks and the preview page, not for the game */
   _colour: { rgbOf: rgbOf, mixHex: mixHex, shade: shade, pieceColour: pieceColour }
 };

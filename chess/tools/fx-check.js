@@ -45,16 +45,37 @@ const ok = (what, cond, detail) => {
   else { failed++; console.log("FAIL  " + what + (detail ? "  → " + detail : "")); }
 };
 
+/* ---------- without a page at all ----------
+   The layer has to load anywhere the rest of the room's modules load —
+   a worker, a test runner — and simply do nothing there. */
+(function () {
+  const Fx = require("../fx.js");
+  let threw = null, drew = 0;
+  try {
+    drew += Fx.capture(0x44, { piece: 5 }) + Fx.check(0x04) + Fx.promote(0x70) + Fx.mate(0x74, { win: true }) +
+            Fx.confetti() + Fx.fireworks() + Fx.flash() + Fx.sparkle(null);
+    Fx.shake(null); Fx.clear();
+  } catch (e) { threw = e.message; }
+  ok("fx.js loads without a page and quietly does nothing", !threw && drew === 0 && !Fx.busy(), threw);
+  ok("a queen's capture is bigger than a rook's, a rook's than a pawn's",
+     Fx.powerOf(5) > Fx.powerOf(4) && Fx.powerOf(4) > Fx.powerOf(1) && Fx.powerOf(-5) === Fx.powerOf(5) &&
+     Fx.powerOf(5) <= 1 && Fx.powerOf(1) > 0);
+  ok("a buzz with nothing to buzz is simply no buzz", Fx.haptic("mate") === false);
+})();
+
 const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser",
   "/usr/bin/google-chrome"].filter((p) => fs.existsSync(p))[0] || null;
-if (!CHROME) { console.log("no chromium on this machine — skipping the effects check."); process.exit(0); }
+if (!CHROME) {
+  console.log("no chromium on this machine — skipping the effects check in a browser.");
+  process.exit(failed ? 1 : 0);
+}
 let pw;
 try { pw = require("playwright-core"); }
 catch (e) {
-  console.log("playwright-core is not installed — skipping the effects check.");
+  console.log("playwright-core is not installed — skipping the effects check in a browser.");
   console.log("  npm i --no-save playwright-core");
-  process.exit(0);
+  process.exit(failed ? 1 : 0);
 }
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
