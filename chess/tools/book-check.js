@@ -58,6 +58,12 @@ function material(g) {
   return s;
 }
 const W = 1, B = -1;
+/* The engine's opinion is asked to a fixed depth, never against the
+   clock: a time budget reaches depth 8 on a quiet laptop and depth 4 on
+   a busy one, and at depth 4 this engine prefers Bxc6 to Re1 in the
+   Open Ruy — the same check would pass or fail depending on what else
+   the machine was doing. Depth 6 takes well under a second here. */
+const SETTLED = { ms: 600000, maxDepth: 6 };
 
 /* ---------- the claims ----------
    key: the moves up to and including the move whose reason is checked.
@@ -85,7 +91,7 @@ const CLAIMS = {
     ["e4 is loose", (g) => loose(g, "e4")],
     ["if Black takes it, White is not left a pawn down (Re1 wins one back)", () => {
       const g = at("e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Nxe4");
-      const r = Chess.search(g, { ms: 2500, maxDepth: 8 });
+      const r = Chess.search(g, SETTLED);
       return r.score > -40 && /^(Re1|d4)$/.test(Chess.toSAN(g, r.move));
     }]],
   "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7": [["Black's kingside is clear to castle", (g) => !g.board[sq("f8")] && !g.board[sq("g8")]],
@@ -147,7 +153,7 @@ const CLAIMS = {
                   ["the c8 bishop's diagonal is open", (g) => canMove(g, "c8")]],
   "d4 d5 c4 dxc4": [["White is not left a pawn down for long", () => {
     const g = at("d4 d5 c4 dxc4");
-    return Chess.search(g, { ms: 2000, maxDepth: 8 }).score > -40;
+    return Chess.search(g, SETTLED).score > -40;
   }]],
   "d4 Nf6": [["Nf6 controls e4", (g) => attacks(g, "f6", "e4")]],
   "d4 Nf6 c4": [["c4 controls d5", (g) => attacks(g, "c4", "d5")]],
