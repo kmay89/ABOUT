@@ -590,6 +590,46 @@ const has = (r, re) => !!r && re.test(r.text);
   ok("explain: no 'saves' claim computed while in check", r && !/saves/i.test(r.text), r && r.text);
 }
 
+/* ---- positions nobody planned ----
+   Random games, every legal move at every fourth position: nothing may
+   throw, disturb the game, print "undefined" or point an arrow off the
+   board. A fixed seed, so a failure here is the same failure next run. */
+{
+  let seed = 20261018, calls = 0, first = "";
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const junk = /undefined|NaN|null|\[object/;
+  const onBoard = (q) => typeof q === "number" && !(q & 0x88);
+  for (let gi = 0; gi < 4 && !first; gi++) {
+    const g = Chess.create();
+    for (let ply = 0; ply < 120 && !first; ply++) {
+      const ms = Chess.moves(g);
+      if (!ms.length || Chess.status(g).over) break;
+      if (ply % 4 === 0) {
+        const fen = Chess.fen(g);
+        for (const m of ms) {
+          const san = Chess.toSAN(g, m);
+          try {
+            const a = Teach.afterMove(g, m), e = Teach.explainMove(g, m);
+            calls++;
+            if (Chess.fen(g) !== fen) first = first || `${fen} ${san}: position disturbed`;
+            for (const x of a) {
+              if (typeof x.text !== "string" || junk.test(x.text)) first = first || `${fen} ${san}: "${x.text}"`;
+              if ((x.squares || []).some((q) => !onBoard(q))) first = first || `${fen} ${san}: ${x.concept} arrow off the board`;
+            }
+            if (e && (!e.text || junk.test(e.text) || !e.squares.every(onBoard) || e.squares[0] !== m.from || e.squares[1] !== m.to)) {
+              first = first || `${fen} ${san}: explain → ${JSON.stringify(e)}`;
+            }
+          } catch (err) { first = first || `${fen} ${san}: threw ${err.message}`; }
+        }
+        try { Teach.opportunities(g, g.turn); Teach.warnings(g, g.turn); }
+        catch (err) { first = first || `${fen}: opportunities/warnings threw ${err.message}`; }
+      }
+      Chess.play(g, ms[Math.floor(rnd() * ms.length)]);
+    }
+  }
+  ok(`random games: ${calls} moves read, none throws, disturbs the game or says "undefined"`, !first && calls > 500, first);
+}
+
 /* ---- fast enough to run on every move ---- */
 {
   const seq = "e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7 Kxf7 Qf3+ Ke6 Nc3 Nb4 a3 Nxc2+ Kd1 Nxa1".split(" ");
