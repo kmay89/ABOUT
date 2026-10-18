@@ -162,10 +162,19 @@ gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
                     set down at the start of a game, light on a struck
                     square, the mated king laid on his side with his crown
                     on the wood, a camera that springs in toward a square,
-                    and squareToScreen for the effects layer
+                    and squareToScreen for the effects layer. The camera
+                    is fitted to the canvas every frame (steeper, through
+                    a longer lens, on a phone held upright); a tap answers
+                    for the man in front before the wood; a man can be
+                    carried by hand for drag-to-move; and Auto effects
+                    step down for the session if frames come slowly
+                    (R.fxReason says why)
 gfx2d.js            canvas renderer with an original hand-drawn piece set,
                     the same big-moment hooks as the carved board; also
-                    the safety net if WebGL is missing or lost
+                    the safety net if WebGL is missing or lost. Keeps
+                    clear of the player bars, prints its coordinates in
+                    ink chosen against the pixels under them, and carries
+                    a man by hand with the same calls as the carved board
 sound.js            what the room sounds like. The pieces by modal
                     synthesis: one voice per material (the partials and
                     how long they ring), one per man (how low and how loud
@@ -183,7 +192,9 @@ motion.js           how a piece moves, as data: a character per man
                     the man's own shape), the men arriving, the flash
                     under a capture and the camera's spring. Pure
                     arithmetic, no DOM — both boards ask it the same
-                    question and get the same answer
+                    question and get the same answer — and Move.setDown,
+                    the last of a move made by hand: from where the
+                    finger let go onto the square
 fx.js               the big moments, as light: a layer over the board for
                     a capture (shockwave, sparks, chips of the taken man),
                     a check, a promotion and a mate (a burst and a band of
@@ -300,6 +311,17 @@ tools/              dev-only, never shipped:
                     every other check moves pieces through the dev
                     handle, which cannot notice the board has stopped
                     listening to fingers
+  board-check.js    the board fits the glass and answers the finger: on a
+                    390x844 phone the carved far rank is at least 37 px
+                    across and both boards stay clear of the player bars;
+                    every back-rank man's head, from both sides and from
+                    as low as the orbit tilts, picks that man; every
+                    visible pixel of every man picks him too, in well
+                    under a millisecond; Flip brings the camera home;
+                    every house skin's coordinates clear 4.5:1 against
+                    the pixels really under them; drag-to-move draws,
+                    follows, sets a man down or glides him home, on both
+                    boards; and Auto effects step down when frames are slow
   play-check.js     sits down and plays the room the way a person does:
                     the lobby's one tap into a rated game, a win that
                     moves the number and lands its stars, New game and the
@@ -767,7 +789,24 @@ the look, so it is never part of a shared skin code.
 `gfx-check.js` keeps all of it honest in a real browser: it asks for
 pixels rather than for reassurance.
 
-<!-- gfx: renderer fixes to be described -->
+**A board that fits the hand.** The orbit camera is fitted to the canvas
+every frame rather than once: on a phone held upright it climbs steeper
+and reaches for a longer lens, so the far rank is a row of men a thumb
+can hit (at least 37 pixels a square on a 390×844 screen) rather than a
+sliver of wood on the horizon, and both boards keep clear of the player
+bars above and below. A tap is answered for whatever the eye sees first:
+each man stands in a cylinder of his own shape, and a finger on his head
+picks him even where his head overlaps the square behind — the wood is
+only asked once no man is in the way. A man can be carried as well as
+tapped: pressed, he rises into the hand, follows the finger across the
+board (legal squares lighting under him), and is set down from wherever
+he was let go, or glides home if the square was not his to take. The
+coordinates are printed in ink chosen against the pixels really under
+them, so every house skin reads at 4.5:1. And **Auto** effects watch the
+frame rate: if the frames come slowly the room steps down a tier for the
+rest of the session, and the Studio says why.
+
+`board-check.js` measures every one of those claims on a real canvas.
 
 ## How the pieces move
 
@@ -1436,6 +1475,7 @@ node chess/tools/motion-check.js   # every piece arrives, and no two the same wa
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
+node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js

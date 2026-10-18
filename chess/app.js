@@ -3445,6 +3445,10 @@ function startLesson(L, queue) {
 
 /* the stage gives up room for the bar/drawer instead of being covered */
 function reflow() {
+  /* the player bars hide in a lesson or a story, so the board may use
+     their strips */
+  var bars = document.body.classList.contains("lesson-on") ? 0 : 48;
+  [R2, R3].forEach(function (r) { if (r && r.setInsets) r.setInsets(bars, bars); });
   if (R2) R2.resize();
   if (R3) R3.resize();
   needFrame();
@@ -3769,7 +3773,7 @@ function renderStudio() {
     b.addEventListener("click", function () {
       prefs.fx = lv.id; savePrefs();
       if (R3) {
-        if (lv.id === "auto") R3.setFx(R3.autoFx());
+        if (lv.id === "auto") R3.setFx("auto");
         else R3.setFx(lv.id);
       }
       renderStudio(); needFrame();
@@ -3780,7 +3784,8 @@ function renderStudio() {
   var lvHere = null;
   FX_LEVELS.forEach(function (lv) { if (lv.id === prefs.fx) lvHere = lv; });
   $("stFxNote").textContent = (lvHere ? lvHere.note : "") +
-    (R3 && prefs.fx === "auto" ? " — running " + R3.fx() : "");
+    (R3 && prefs.fx === "auto" ? " — running " + ({ high: "Full", medium: "Balanced", low: "Simple" }[R3.fx()] || R3.fx()) +
+      (R3.fxReason && R3.fxReason() === "frame rate" ? ", stepped down because frames were coming slowly" : "") : "");
 
   var pats = $("stPatterns");
   pats.innerHTML = "";
@@ -4123,10 +4128,14 @@ function wireInput() {
     if (!dragging && Math.hypot(dx, dy) > 9) dragging = true;
     if (!dragging) return;
     if (carry && sel === carry.from) {
-      /* the piece goes with the finger */
+      /* the piece goes with the finger; the square it is over is the
+         renderer's answer (in 3D it is carried above the board, so the
+         wood under the pointer can be a different square) */
       var at = local(e);
-      if (R.setDrag) R.setDrag(carry.from, at.x, at.y);
-      if (R.dragHover) R.dragHover(R.screenToSquare(at.x, at.y));
+      var over = R.setDrag ? R.setDrag(carry.from, at.x, at.y) : R.screenToSquare(at.x, at.y);
+      var legal = false;
+      for (var i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === over) { legal = true; break; }
+      if (R.dragHover) R.dragHover(legal ? over : -1);
       needFrame();
       return;
     }
@@ -4141,14 +4150,16 @@ function wireInput() {
     if (pts.size > 0) return;
     if (carry) {
       var c = carry; carry = null;
-      dropCarry();
       if (dragging && last && e.type !== "pointercancel") {
-        /* let go: on a square it can reach, that is the move */
+        /* let go: on a square it can reach, that is the move — set down
+           from under the finger, so it is asked before the drag ends */
         var r = stage.getBoundingClientRect();
-        var to = R.screenToSquare(last.x - r.left, last.y - r.top);
+        var to = R.setDrag ? R.setDrag(c.from, last.x - r.left, last.y - r.top) : R.screenToSquare(last.x - r.left, last.y - r.top);
+        dropCarry();
         if (to >= 0 && to !== c.from && sel === c.from) tapSquare(to);
-      } else if (!dragging && !c.picked) {
-        tapSquare(downSq);         /* a tap on the man already in hand puts it down */
+      } else {
+        dropCarry();
+        if (!dragging && !c.picked) tapSquare(downSq);   /* a tap on the man already in hand puts it down */
       }
     } else if (!dragging && downSq >= 0) tapSquare(downSq);
     downSq = -1; downXY = null; dragging = false; pinchD = 0;
