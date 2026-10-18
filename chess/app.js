@@ -3493,6 +3493,7 @@ function showWorkedExample() {
   lessonUI('<div class="lkick">Watch first</div>' +
     '<div class="lask">' + esc(lesson.title) + '</div>' +
     '<div class="lsay">Here it is once, so you know what you\'re looking for. Then it\'s yours.</div>');
+  lessonRow([lessonChip("Leave", exitLesson)]);
   setTimeout(function () {
     /* a different lesson started in the meantime: this one's answer is not its demonstration */
     if (mode !== "lesson" || lesson !== L0 || !m) return;
@@ -3508,7 +3509,7 @@ function showWorkedExample() {
         R.setPosition(G.board);
         lessonPaused = false;
         clearSel(); syncAll(); askLesson();
-      }, true)]);
+      }, true), lessonChip("Leave", exitLesson)]);
     });
     sndMove(desc, wPlan, m.capt);
     needFrame();
