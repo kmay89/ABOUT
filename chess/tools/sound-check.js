@@ -26,6 +26,8 @@
        check you are in a different figure from the check you give;
      - does the reverb really leave a tail, and is the room wide;
      - does a count climb when it counts up;
+     - does a busy room give up the sparkles first, then the colour of
+       the opening, and keep the last chord whole;
      - and is off really off: a muted room renders silence, a mute
        fades what is already playing and its echo, the room tone,
        switched off, leaves nothing running, and a tab nobody is
@@ -399,6 +401,40 @@ const meanHz = (sc) => {
     ok("…and off is off", Sound.ambience(0) === 0 && !Sound.ambienceLive());
   } catch (e) { threw = e.message; }
   ok("nothing in the music throws without an audio context", !threw, threw);
+})();
+
+/* a busy room: what it gives up, and in what order */
+(function () {
+  const sc = Sound.score("mate-win", {});
+  const full = sc.events.map((e) => Sound.voicePlan(e));
+  const size = (plans) => plans.reduce((n, p) => n + p.length, 0);
+  const total = size(full);
+  let over = null;
+  for (let b = -2; b <= total + 2; b++) {
+    const n = size(Sound.allot(sc, b));
+    if (n > Math.max(0, b)) over = over || "budget " + b + " built " + n;
+  }
+  ok("a busy room never builds more voices than it can afford", !over, over);
+  ok("…and a quiet one builds every one", Sound.allot(sc, total).every((p, i) => p.length === full[i].length));
+  const glitter = sc.events.reduce((n, e, i) => n + (e.fl ? full[i].length : 0), 0);
+  ok("the sparkles are the first thing to go",
+     Sound.allot(sc, total - glitter).every((p, i) => p.length === (sc.events[i].fl ? 0 : full[i].length)));
+  /* the crowd the render below piles up: a pawn that takes a queen and
+     promotes, then a queen that takes a rook */
+  const crowd = ["promote", "capture-big", "capture-big"].map((k, i) =>
+    size(Sound.allot(Sound.score(k, { piece: i === 2 ? 4 : 5 }), 1e9)));
+  const left = Sound.MAX_VOICES - crowd.reduce((a, b) => a + b, 0);
+  const busy = Sound.allot(sc, left);
+  const lastAt = Math.max(...sc.events.filter((e) => !e.fl).map((e) => e.t));
+  const bloom = sc.events.map((e, i) => i).filter((i) => !sc.events[i].fl && sc.events[i].t > lastAt - 0.2);
+  ok("…then the opening is played plainer, and the last chord keeps every voice",
+     size(busy) < total - glitter && busy.every((p, i) => sc.events[i].fl || p.length > 0) &&
+     bloom.every((i) => busy[i].length === full[i].length),
+     left + " voices to spare of " + total);
+  const starved = Sound.allot(sc, 12);
+  ok("…and when whole notes must go, the opening goes and the ending stays",
+     starved[0].length === 0 && bloom.some((i) => starved[i].length > 0),
+     starved.map((p) => p.length).join(""));
 })();
 
 /* the room, grown rather than recorded */

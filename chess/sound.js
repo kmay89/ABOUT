@@ -931,6 +931,37 @@ function dryEnd(sc) {
   return end;
 }
 
+/* What a busy room gives up. Every voice of a score is planned before
+   anything is built, so when the room cannot afford all of them it can
+   choose, in this order and only as far as it has to:
+
+     the sparkles, which the moment does not need;
+     then the overtones, note by note — a note played plainer, its
+       fundamental only, is still that note;
+     and only then whole notes.
+
+   Each of those starts from the earliest note and works forward. The
+   end of a sting is the part anybody remembers: a fanfare that lands on
+   top of a promotion that took a queen keeps its last chord whole, and
+   gives up the colour of its opening instead. Pure, so the checker can
+   ask what a sting would keep without an audio context anywhere near
+   it. Returns a plan per event, empty for an event left out. */
+function allot(sc, budget) {
+  var plans = [], n = 0, i, j;
+  for (i = 0; i < sc.events.length; i++) { plans.push(voicePlan(sc.events[i])); n += plans[i].length; }
+  for (i = 0; i < plans.length && n > budget; i++) {
+    if (sc.events[i].fl) { n -= plans[i].length; plans[i] = []; }
+  }
+  for (i = 0; i < plans.length && n > budget; i++) {
+    var core = [];
+    for (j = 0; j < plans[i].length; j++) if (plans[i][j].core) core.push(plans[i][j]);
+    n -= plans[i].length - core.length;
+    plans[i] = core;
+  }
+  for (i = 0; i < plans.length && n > budget; i++) { n -= plans[i].length; plans[i] = []; }
+  return plans;
+}
+
 /* ---------- playing it ----------
    Everything below here needs an audio context; everything above it
    is arithmetic. */
@@ -1063,29 +1094,9 @@ function perform(c, sc, t0) {
     return trim;
   }
 
-  /* Plan everything first, so a busy room can choose what to give up.
-     The order matters: the sparkles go first; then every note is
-     played plainer — its fundamental only, no overtones, no mallet —
-     rather than any note going missing; and only a room that is still
-     over budget after that starts leaving notes out. A fanfare that
-     arrives on top of a promotion that took a queen keeps its last
-     chord, which is the part anybody remembers. */
-  var plans = [], i2, budget = MAX_LIVE - live.length;
-  var count = function () { var n = 0; for (var q = 0; q < plans.length; q++) n += plans[q].length; return n; };
-  for (i = 0; i < sc.events.length; i++) plans.push(voicePlan(sc.events[i]));
-  if (count() > budget) {
-    for (i = 0; i < plans.length; i++) if (sc.events[i].fl) plans[i] = [];
-  }
-  if (count() > budget) {
-    for (i = 0; i < plans.length; i++) {
-      var core = [];
-      for (i2 = 0; i2 < plans[i].length; i2++) if (plans[i][i2].core) core.push(plans[i][i2]);
-      plans[i] = core;
-    }
-  }
+  var plans = allot(sc, MAX_LIVE - live.length);
   for (i = 0; i < plans.length; i++) {
-    if (!plans[i].length || plans[i].length > budget) continue;
-    budget -= plans[i].length;
+    if (!plans[i].length) continue;
     /* a hair of difference every time — two cents and a few percent of
        velocity — so the same sting twice sounds played rather than
        pasted */
@@ -1200,7 +1211,7 @@ var Sound = {
      node before it ever renders one */
   HOME: HOME, QUALITY: QUALITY, TIMBRES: TIMBRES, STINGS: STINGS, STING_KINDS: STING_KINDS,
   REVERB: REVERB, MAX_VOICES: MAX_LIVE, noteHz: noteHz, chord: chord, score: score, voicePlan: voicePlan,
-  eventEnd: eventEnd, dryEnd: dryEnd, impulseResponse: impulseResponse,
+  eventEnd: eventEnd, dryEnd: dryEnd, allot: allot, impulseResponse: impulseResponse,
   countTickPitch: countTickPitch,
 
   /* Point the whole synth at a context somebody else made. The only
