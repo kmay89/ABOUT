@@ -491,9 +491,11 @@ function voicePlan(ev) {
                  lane: lane, core: i === 0,
                  pts: percussive(at, tb.attack, tb.level * v * p[1], Math.max(0.03, r0 * p[2])) });
     }
+    /* the contact: dull by default, opened up (`cut`) where a phone
+       speaker that cannot play the body still has to hear the knock */
     var tn = tb.noise;
-    out.push({ k: "noise", filter: tn.filter, f: tn.hz, q: tn.q, lane: lane,
-               pts: percussive(at, 0.002, tb.level * v * tn.gain, tn.len) });
+    out.push({ k: "noise", filter: tn.filter, f: ev.cut || tn.hz, q: tn.q, lane: lane,
+               pts: percussive(at, 0.002, tb.level * v * tn.gain * (ev.cut ? 1.6 : 1), tn.len) });
   } else if (tb.type === "air") {
     var len = ev.len || 0.25, from = ev.from || 400, to = ev.to || from;
     peak = Math.max(tb.level * v, 1e-5);
@@ -653,7 +655,7 @@ var STINGS = {
      under it. Laid under the capture by Sound.move itself. */
   "capture-big": { len: 3.6, send: 0.12, gain: 1, score: function (s, o) {
     var q = pieceName(o.piece) !== "rook";
-    N(s, 0, "thump", 0, q ? 0.95 : 0.8, { hz: q ? 52 : 64, ring: q ? 1.35 : 1 });
+    N(s, 0, "thump", 0, q ? 0.95 : 0.8, { hz: q ? 52 : 64, ring: q ? 1.35 : 1, cut: 480 });
     N(s, 0.004, "felt", q ? -24 : -19, q ? 0.5 : 0.42, { ring: 0.32 });
     N(s, 0.004, "felt", q ? -12 : -7, 0.22, { ring: 0.3 });
   } },
@@ -839,8 +841,8 @@ var STINGS = {
      the way your own does. Dry, so one beat never smears into the next. */
   "low-time": { len: 0.5, send: 0, gain: 1, score: function (s, o) {
     var left = o.left == null ? 5 : clamp(+o.left || 0, 0, 10), u = 1 - left / 10;
-    N(s, 0, "thump", 0, 0.62 + 0.3 * u, { hz: 64 + 10 * u, ring: 0.55 });
-    N(s, 0.2 - 0.05 * u, "thump", 0, 0.42 + 0.22 * u, { hz: 58 + 8 * u, ring: 0.5 });
+    N(s, 0, "thump", 0, 0.62 + 0.3 * u, { hz: 64 + 10 * u, ring: 0.55, cut: 900 });
+    N(s, 0.2 - 0.05 * u, "thump", 0, 0.42 + 0.22 * u, { hz: 58 + 8 * u, ring: 0.5, cut: 700 });
   } },
   /* the clock: tick and tock a third apart, like a real escapement */
   tick: { len: 0.15, send: 0, gain: 0.8, score: function (s, o) {
