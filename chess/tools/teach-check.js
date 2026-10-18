@@ -567,6 +567,10 @@ const has = (r, re) => !!r && re.test(r.text);
   const t3 = explain(G("1r6/5p1p/3b1k2/3p4/6K1/1N6/1R5P/8 b - - 7 46"), "Bxh2");
   ok("explain: a desperado that comes out ahead says how (Bxh2 Rxh2 Rxb3)",
      has(t3, /if they take back, Rxb3 takes their knight, and you come out ahead/), t3 && t3.text);
+  const blk = explain(line("e4 e5 Nf3 d6 Bb5+"), "c6"), run = explain(G("4k3/8/8/8/8/8/4r3/4K3 w - - 0 1"), "Kd1");
+  ok("explain: answering a check says how, instead of falling back on a principle",
+     has(blk, /blocks the check: the pawn stands between the king and the piece giving check/i) && has(run, /Steps the king out of check/),
+     (blk && blk.text) + " / " + (run && run.text));
   const n = explain(G("4k3/2p5/4p3/8/8/2N5/8/4K3 w - - 0 1"), "Nd5");
   ok("explain: a knight that can simply be taken doesn't brag about what it attacks", !has(n, /Attacks the pawn on c7/), n && n.text);
   const k = explain(G("4k3/8/1p6/n7/8/8/7Q/R3K3 w - - 0 1"), "Qe2+");

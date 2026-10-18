@@ -1214,6 +1214,13 @@ function explainMove(g, m) {
     }
   }
 
+  /* answering a check is the whole point of the move when there's nothing
+     else to say — far better than falling back on an opening principle */
+  if (inCheck0 && gain === null) {
+    fact(60, "check", kind === K ? "Steps the king out of check."
+      : "Blocks the check: the " + name(m.piece) + " stands between the king and the piece giving check.", [m.from, m.to]);
+  }
+
   /* quieter, but still concrete */
   if (m.flags & Chess.F_CASTLE) {
     fact(70, "castling", "Castles: the king steps away from the centre and the rook comes toward the middle.", [m.from, m.to]);
