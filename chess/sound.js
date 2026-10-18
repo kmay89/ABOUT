@@ -364,7 +364,7 @@ function drag(c, t, dur, voice, curve, level) {
    other one, so a check that lands while the start motif is still
    ringing is a chord rather than a collision, and the room has a home
    note that the endings can come back to. D puts the chimes between
-   600 and 2,400 Hz, where a phone speaker is at its best, and keeps the
+   600 and 3,000 Hz, where a phone speaker is at its best, and keeps the
    felt piano's lowest notes above where small speakers give up. */
 var HOME = 62;                       /* D4, as a MIDI note number */
 function noteHz(n) { return 440 * Math.pow(2, (HOME + n - 69) / 12); }
@@ -392,7 +392,7 @@ function chord(root, quality) {
    felt     a felt-damped upright: whole-number partials stretched a
             hair sharp the way real strings are, the top ones dying
             first, a soft hammer underneath. The harmony. (A fourth
-            partial was tried; it cost a quarter of the fanfare's
+            partial was tried; it cost an eighth of the fanfare's
             oscillators for a difference nobody could hear.)
    chime    two-operator FM at 1 : 3.5, the classic tubular bell. The
             modulation dies away within a quarter of a second, so it
