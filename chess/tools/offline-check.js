@@ -154,9 +154,10 @@ const server = http.createServer((req, res) => {
    So: two builds of the room, A and B. Each has its mark stamped into
    index.html and onto the foot of every script, and its own VERSION in
    sw.js. Serve A until its worker is in charge, swap the server over to
-   B, and watch what the browser actually runs. The files are whatever
-   the SHELL list in sw.js says they are, so a file added to the room is
-   in this test the moment it is in the shell.
+   B, and watch what the browser actually runs — on every page load, not
+   just the ones the test stops to look at. The files are whatever the
+   SHELL list in sw.js says they are, so a file added to the room is in
+   this test the moment it is in the shell.
 
    The server behaves the way plenty of real hosts do, which is the
    awkward way: pages must be revalidated but scripts may sit in the
@@ -293,6 +294,17 @@ const builds = (page) => page.evaluate(() => {
   const m = document.querySelector('meta[name="room-build"]');
   return { html: m ? m.content : null, scripts: self.__builds || {} };
 });
+/* Every page load, looked at as it finishes: "never a mix" is a claim
+   about all of them, including any the test didn't stop to examine. A
+   load the browser has already moved on from by the time it is asked
+   is simply not counted. */
+function watchLoads(page) {
+  const seen = [];
+  page.on("load", () => {
+    builds(page).then((b) => { if (b.html) seen.push(b); }, () => {});
+  });
+  return seen;
+}
 /* what each cache holds for the given paths: a build letter, "missing",
    or "not the room" when something else has been filed under its name */
 const cacheMarks = (page, paths, only) => page.evaluate(async ([paths, only]) => {
@@ -329,6 +341,7 @@ async function releaseCheck(browser, base) {
   const page = await ctx.newPage();
   const crashes = [];
   page.on("pageerror", (e) => crashes.push(e.message));
+  const loads = watchLoads(page);
   /* the flat board throughout: this is a test of releases, not of a
      software-rendered 3D board on a shared machine, and a reload keeps
      the #force2d it was opened with */
@@ -397,12 +410,22 @@ async function releaseCheck(browser, base) {
     ok("release: mailbox polls are never stored in the offline cache", outside.length === 0,
        outside.length + " stored, e.g. " + outside.slice(0, 2).join(", "));
 
-    /* 7 · and B is what survives a tunnel */
+    /* 7 · and B is what survives a tunnel — however the room is asked
+       for: a home-screen icon or an old bookmark may well say index.html,
+       and carry a query the room has never heard of */
     await ctx.setOffline(true);
     await page.reload({ waitUntil: "load" });
     await page.waitForTimeout(800);
     b = await builds(page);
     ok("release: offline afterwards, the room is B, whole", b.html === "B" && !mixOf(b), mixOf(b) || "page is " + b.html);
+    await page.goto(base + "/chess/index.html?from=homescreen#force2d", { waitUntil: "load" });
+    await page.waitForTimeout(400);
+    b = await builds(page);
+    ok("release: …and offline by index.html with a query, too", b.html === "B" && !mixOf(b), mixOf(b) || "page is " + b.html);
+
+    const mixed = loads.filter((x) => mixOf(x));
+    ok("release: of " + loads.length + " page loads along the way, not one ran a mix", loads.length >= 3 && mixed.length === 0,
+       mixed.length ? mixOf(mixed[0]) : "only " + loads.length + " loads seen");
     ok("release: no page errors from start to finish", crashes.length === 0, crashes.slice(0, 3).join(" | "));
   } catch (e) {
     /* a page that won't even load is the loudest failure there is, and
@@ -545,7 +568,12 @@ async function handoverCheck(browser, base) {
     ok("…and still from its own thread", brain.offThread,
        "fell back to the main thread — the worker or its importScripts missed the cache");
     ok("no console errors while offline", errs.length === 0, errs.slice(0, 3).join(" | "));
-
+  } catch (e) {
+    /* a room that won't load offline at all still gets a FAIL line, and
+       the release legs below still run */
+    ok("the offline walk-through reaches the end", false, e.message.split("\n")[0]);
+  }
+  try {
     /* one browser context at a time — the machine is shared */
     await ctx.close();
     if (!VERSION_RE.test(sw)) ok("release: sw.js declares its VERSION where this can find it", false);
