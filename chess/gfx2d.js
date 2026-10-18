@@ -77,14 +77,21 @@ function mixRgb(a, b, t) {
    chosen to be close (that is what makes a board restful), so on several
    house skins the other square's colour alone is about 2:1 — legible to
    nobody on a phone in the sun. */
-function inkOn(bg, other, need) {
+function inkOn(bg, other, need, ext) {
   need = need || 4.5;
-  var ink = other.slice();
-  if (contrast(ink, bg) >= need) return ink;
   var to = contrast([0, 0, 0], bg) >= contrast([255, 255, 255], bg) ? [0, 0, 0] : [255, 255, 255];
+  /* `ext`, when the painted board was there to look at, is its darkest
+     and lightest pixels under the label: a grain line or a vein or an
+     inlay stripe running through it. The ink has to stand off those as
+     well (4.5:1 against whichever one is nearer to it), not only off the
+     average, or a dark letter on a light square is lost wherever a dark
+     grain line crosses it. */
+  var risky = ext ? (to[0] ? ext.light : ext.dark) : null;
+  function good(c) { return contrast(c, bg) >= need && (!risky || contrast(c, risky) >= 4.5); }
+  if (good(other)) return other.slice();
   for (var t = 0.05; t < 1.0001; t += 0.05) {
     var c = mixRgb(other, to, Math.min(1, t));
-    if (contrast(c, bg) >= need) return c;
+    if (good(c)) return c;
   }
   return to;
 }
@@ -97,9 +104,16 @@ function inkOn(bg, other, need) {
    thirteen pixels wide: nine-pixel letters in the margin colour, half
    of each one under the rim's line. `i`, `j` are the screen column and
    row (0, 0 at the top left). Pure, so tools/board-check.js can hold
-   every house skin to 4.5:1 without a browser. */
+   every house skin to 4.5:1 without a browser.
+
+   In the browser the board has been painted by then, so `sample(i, j,
+   corner)` hands back what is really under each label — the average of
+   the pixels there, and the darkest and lightest of them — and the
+   model of the gloss is only the fallback. A wood grain, a marble vein
+   or an inlay line through a corner is then something the ink is chosen
+   against rather than something it is surprised by. */
 var COORD_NEED = 4.8;                     /* 4.5, plus room for the grain */
-function coordLabels(board, orientation) {
+function coordLabels(board, orientation, sample) {
   var light = rgbOf(board.light), dark = rgbOf(board.dark), g = board.gloss || 0, out = [];
   function glossOver(c, t) {
     if (g <= 0.02) return c;
@@ -110,9 +124,10 @@ function coordLabels(board, orientation) {
   function add(text, i, j, corner, t) {
     var vf = orientation === 1 ? i : 7 - i, vr = orientation === 1 ? 7 - j : j;
     var onDark = (vf + vr) % 2 === 0;
-    var bg = glossOver(onDark ? dark : light, t);
+    var seen = sample ? sample(i, j, corner) : null;
+    var bg = seen ? seen.mean : glossOver(onDark ? dark : light, t);
     out.push({ text: text, i: i, j: j, corner: corner, bg: bg,
-               ink: inkOn(bg, onDark ? light : dark, COORD_NEED) });
+               ink: inkOn(bg, onDark ? light : dark, COORD_NEED, seen) });
   }
   for (var k = 0; k < 8; k++) {
     /* t: how far along the gloss's diagonal the label sits */
@@ -508,22 +523,66 @@ function create(canvas) {
      of the square it sits on: invisible against the square, and where a
      foot or a battlement does reach the corner, the letter is cut cleanly
      out of it instead of being lost against it. */
+  /* how big the coordinates are and where in its corner each one sits,
+     relative to the board's top-left: shared by the drawing and by the
+     look at what is under them */
+  function coordMetrics() {
+    return { fs: Math.max(11, Math.round(R.cell * 0.24)), inset: Math.max(2, R.cell * 0.06) };
+  }
+  function coordAt(L, k) {
+    if (L.corner === "tl") return { x: L.i * R.cell + k.inset, y: L.j * R.cell + k.inset * 0.7 };
+    return { x: (L.i + 1) * R.cell - k.inset, y: (L.j + 1) * R.cell - k.inset * 0.5 };
+  }
+  /* What is really under each label on the painted board: the average
+     colour of a box the size of one character there, and its darkest and
+     lightest pixels. Read once when the board is painted, never per frame
+     — and through a scrap canvas of its own, copied out of the board,
+     because a browser that sees a canvas read back is entitled to stop
+     drawing it on the GPU, and the board is drawn every frame. */
+  var probeCv = null, probeCtx = null;
+  function underLabels(src, pad, dpr) {
+    var k = coordMetrics(), w = k.fs * 0.72, h = k.fs;
+    return function (i, j, corner) {
+      try {
+        var at = coordAt({ i: i, j: j, corner: corner }, k);
+        var x0 = corner === "tl" ? at.x : at.x - w, y0 = corner === "tl" ? at.y : at.y - h;
+        var X = Math.round((pad + x0) * dpr), Y = Math.round((pad + y0) * dpr);
+        var W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+        if (!probeCv) {
+          probeCv = document.createElement("canvas");
+          probeCtx = probeCv.getContext("2d", { willReadFrequently: true });
+        }
+        if (probeCv.width < W || probeCv.height < H) { probeCv.width = W; probeCv.height = H; }
+        probeCtx.clearRect(0, 0, probeCv.width, probeCv.height);
+        probeCtx.drawImage(src, X, Y, W, H, 0, 0, W, H);
+        var d = probeCtx.getImageData(0, 0, W, H).data, px = [], mr = 0, mg = 0, mb = 0, n = 0;
+        for (var q = 0; q < d.length; q += 4) {
+          var c = [d[q], d[q + 1], d[q + 2]];
+          px.push({ c: c, l: lumOf(c) });
+          mr += d[q]; mg += d[q + 1]; mb += d[q + 2]; n++;
+        }
+        if (!n) return null;
+        px.sort(function (a, b) { return a.l - b.l; });
+        return { mean: [Math.round(mr / n), Math.round(mg / n), Math.round(mb / n)],
+                 dark: px[Math.floor(n * 0.04)].c, light: px[Math.min(n - 1, Math.floor(n * 0.96))].c };
+      } catch (e) { return null; }               /* fall back to the model */
+    };
+  }
   function drawCoords() {
     if (!labels) return;
-    var fs = Math.max(11, Math.round(R.cell * 0.24)), inset = Math.max(2, R.cell * 0.06);
+    var k = coordMetrics(), fs = k.fs;
     ctx.save();
     ctx.font = "700 " + fs + "px system-ui, -apple-system, sans-serif";
     ctx.lineJoin = "round";
-    ctx.lineWidth = Math.max(2, fs * 0.2);
+    /* The keyline is a plate as much as an outline: wide enough to fill
+       the letter's counters and lay a clean margin of the square's own
+       colour round every stroke, so the ink is read against that and not
+       against a grain line or an inlay stripe that happens to cross it. */
+    ctx.lineWidth = Math.max(3, fs * 0.34);
     for (var i = 0; i < labels.length; i++) {
-      var L = labels[i], x, y;
-      if (L.corner === "tl") {
-        ctx.textAlign = "left"; ctx.textBaseline = "top";
-        x = R.ox + L.i * R.cell + inset; y = R.oy + L.j * R.cell + inset * 0.7;
-      } else {
-        ctx.textAlign = "right"; ctx.textBaseline = "bottom";
-        x = R.ox + (L.i + 1) * R.cell - inset; y = R.oy + (L.j + 1) * R.cell - inset * 0.5;
-      }
+      var L = labels[i], c = coordAt(L, k), x = R.ox + c.x, y = R.oy + c.y;
+      if (L.corner === "tl") { ctx.textAlign = "left"; ctx.textBaseline = "top"; }
+      else { ctx.textAlign = "right"; ctx.textBaseline = "bottom"; }
       ctx.strokeStyle = "rgb(" + L.bg[0] + "," + L.bg[1] + "," + L.bg[2] + ")";
       ctx.strokeText(L.text, x, y);
       ctx.fillStyle = "rgb(" + L.ink[0] + "," + L.ink[1] + "," + L.ink[2] + ")";
@@ -625,7 +684,7 @@ function create(canvas) {
 
     /* the coordinates are worked out here, with the board they belong
        to, and drawn every frame over the men (see drawCoords) */
-    labels = coordLabels(pal, R.orientation);
+    labels = coordLabels(pal, R.orientation, underLabels(boardCv, pad, dpr));
     boardKey = key();
   }
   function key() {
