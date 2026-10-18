@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion */
 (function () {
 "use strict";
 
@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain" };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -44,6 +44,10 @@ var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, 
      renderer has never heard of */
   if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
   if (["plain", "brief"].indexOf(prefs.coachVoice) < 0) prefs.coachVoice = "plain";
+  if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
+  Object.keys(prefs.lastClock).forEach(function (k) {
+    if (["none", "3+2", "5+0", "10+5", "15+10", "30+0"].indexOf(String(prefs.lastClock[k])) < 0) delete prefs.lastClock[k];
+  });
 })();
 function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
 
@@ -78,9 +82,9 @@ function applySkin(s, save) {
    straight through, and a move hands over its plan so the slide and the
    set-down can be scheduled on the audio clock rather than hoped for on
    a timer. */
-function snd(kind) {
-  if (!prefs.sound || typeof Sound === "undefined") return;
-  Sound.ui(kind);
+function snd(kind, opts) {
+  if (!prefs.sound || typeof Sound === "undefined") return 0;
+  return Sound.ui(kind, opts) || 0;
 }
 /* a piece being lifted off the board: not a move yet, but the first
    thing you hear when you touch one */
@@ -97,10 +101,113 @@ function sndMove(desc, plan, captured) {
   Sound.move(desc, plan, { captured: captured || 0 });
 }
 
+/* ===== the big moments (fx.js) =====
+   The board's half (a struck square, a king laid down, a camera that
+   leans in) and the light's half (sparks, rings, a sweep, confetti) are
+   fired together at the instant each thing happens — which is when the
+   piece lands, not when the move is decided. All of it is optional: a
+   room without fx.js, or with reduced motion, simply has none of it. */
+var FX = typeof Fx !== "undefined";
+function fxInit() {
+  if (!FX) return;
+  Fx.attach($("stage"), { reduced: REDUCED });
+  Fx.setProjector(function (sq, lift) {
+    if (!R || !R.squareToScreen) return null;
+    var p = R.squareToScreen(sq, lift);
+    if (!p) return null;
+    var cv = R === R3 ? $("cv3") : $("cv2");
+    return { x: p.x + cv.offsetLeft, y: p.y + cv.offsetTop, s: p.s, sy: p.sy };
+  });
+}
+/* a capture lands when the taker does — the same instant the synth sets
+   it down, louder for a capture */
+function fxCapture(desc, took, plan) {
+  if (!took) return;
+  var power = FX ? Fx.powerOf(took) : 0.5, at = gameTicket;
+  var sq = desc.epSq != null ? desc.epSq : desc.to;    /* en passant: the pawn taken stands beside the landing square */
+  setTimeout(function () {
+    if (!R || at !== gameTicket) return;
+    if (R.impact) { R.impact(sq, power); needFrame(); }
+    if (!FX) return;
+    Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
+    if (prefs.sound) Fx.haptic("capture");
+  }, plan ? plan.dur * plan.travel : 0);
+}
+function fxPromote(desc, plan) {
+  if (!FX || !desc.promo) return;
+  var at = gameTicket;
+  /* the pillar rises with the renderer's own promotion flash */
+  setTimeout(function () { if (at === gameTicket) Fx.promote(desc.to, { color: desc.piece > 0 ? 1 : -1 }); },
+             plan ? plan.dur * 0.3 : 0);
+}
+function fxCheck(kingSq) {
+  if (!FX || kingSq == null || kingSq < 0) return;
+  Fx.check(kingSq, { color: skin.marks.check });
+  if (prefs.sound) Fx.haptic("check");
+}
+/* win: true (you delivered it), false (it was delivered to you), null
+   (two people on one board — a mate is everyone's moment) */
+var fxDown = null;     /* the mated king and who mated him, to lay him down again */
+function fxMate(kingSq, attackerSq, win) {
+  if (!R) return;
+  fxDown = { king: kingSq, from: attackerSq };
+  if (R.topple) R.topple(kingSq, { from: attackerSq });
+  /* a narrow phone is already framed wide; lean in less */
+  /* a narrow phone's 3D view is already framed wide; lean in less. (The
+     drawn board's lean is its own small zoom, left at its default.) */
+  if (R.focus) R.focus(kingSq, R.kind === "3d" ? { amount: innerWidth < 600 ? 0.6 : 1 } : undefined);
+  needFrame();
+  if (!FX) return;
+  Fx.mate(kingSq, { win: win });
+  if (prefs.sound) Fx.haptic(win === false ? "loss" : "mate");
+}
+/* the board was redrawn under a finished game — a switch between 2D and
+   3D, a return from looking back — so he is laid down again, without the
+   fall: a mated king does not get up */
+function fxRelay() {
+  if (fxDown && over && viewPly < 0 && R && R.topple) {
+    R.topple(fxDown.king, { from: fxDown.from, still: true });
+    needFrame();
+  }
+}
+/* leaving a finished game behind: a take-back, the look-back, the menu */
+function fxCalm() {
+  fxDown = null;
+  if (R && R.untopple) R.untopple();
+  if (R && R.focus) R.focus(null);
+  if (FX) Fx.clear();
+  needFrame();
+}
+function mateMood(result) {
+  var me = mode === "coach" ? humanSide : mode === "lan" ? lanSide : (mode === "lesson" && lesson) ? lesson.side : 0;
+  if (!me) return null;
+  return (result === "white") === (me === 1);
+}
+/* the men arriving: one soft knock per rank as it lands, and the game's
+   opening motif once the last of them is still */
+function sndArrival(fresh) {
+  var landings = R && R.flourishPlan ? R.flourishPlan() : [];
+  if (!fresh) return;
+  if (!landings.length) { snd("start"); return; }
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  var seen = {}, at = gameTicket;
+  landings.forEach(function (l) {
+    if (seen[l.wave]) return;
+    seen[l.wave] = true;
+    setTimeout(function () { if (at === gameTicket && Sound.tap) Sound.tap(Math.abs(l.piece), 0.4); }, l.t);
+  });
+  var still = landings[landings.length - 1].t +
+    (typeof Motion !== "undefined" && Motion.DROP_MS ? Motion.DROP_MS - Motion.DROP.fall : 300);
+  setTimeout(function () { if (at === gameTicket) snd("start"); }, still);
+}
+
 /* ===== toast — the one funnel for every message ===== */
 var toastTimer = 0;
 function toast(html, actions, ms) {
   var el = $("toast");
+  /* a remark never replaces a question that is still waiting for an
+     answer — the notebook has kept the remark */
+  if (!actions && el.classList.contains("show") && el.classList.contains("acts")) return;
   el.innerHTML = html;
   el.classList.toggle("acts", !!actions);
   if (actions) {
@@ -120,6 +227,28 @@ function toast(html, actions, ms) {
 }
 function hideToast() { $("toast").classList.remove("show"); }
 
+/* A question that needs an answer before anything else happens: above
+   every card (a question asked from the lobby used to be drawn beneath
+   it), never overwritten by a remark, and answered by Escape or a tap
+   outside with its last, gentlest choice. */
+var askCancel = null;
+function ask(html, actions) {
+  $("askBody").innerHTML = html;
+  var row = $("askRow");
+  row.innerHTML = "";
+  actions.forEach(function (a, i) {
+    var b = document.createElement("button");
+    b.textContent = a.label;
+    if (i === 0) b.className = "go";
+    b.addEventListener("click", function () { closeAsk(); a.fn(); });
+    row.appendChild(b);
+  });
+  askCancel = actions[actions.length - 1].fn;
+  $("ovAsk").classList.remove("hide");
+  snd("open");
+}
+function closeAsk() { $("ovAsk").classList.add("hide"); askCancel = null; }
+
 /* ===== renderers ===== */
 var R2 = null, R3 = null, R = null;
 /* How much of the 3D board's lighting to actually run. "Auto" lets the
@@ -136,7 +265,7 @@ var FX_LEVELS = [
 ];
 function gfxOpts() {
   return {
-    onContextLost: function () { switchDim(false, true); },
+    onContextLost: function () { retire3D(); switchDim(false, true); },
     fx: prefs.fx && prefs.fx !== "auto" ? prefs.fx : undefined
   };
 }
@@ -158,8 +287,20 @@ function useRenderer(r) {
   R.setSkin(skin);
   R.setOrientation(orientation);
   R.resize();
-  if (G) { R.setPosition(currentViewBoard()); syncBoard(); }
+  if (G) { R.setPosition(currentViewBoard()); syncBoard(); fxRelay(); }
   needFrame();
+}
+/* A canvas whose context has been lost keeps handing the same dead
+   context back, so trying 3D again on it drew a blank board for ever.
+   The renderer is let go and its canvas replaced, and the next try
+   builds both from scratch. */
+function retire3D() {
+  if (!R3) return;
+  try { R3.destroy(); } catch (e) {}
+  R3 = null;
+  var old = $("cv3"), cv = document.createElement("canvas");
+  cv.id = "cv3"; cv.className = old.className;
+  old.parentNode.replaceChild(cv, old);
 }
 function switchDim(to3d, becauseLost) {
   if (to3d && !R3) {
@@ -171,9 +312,11 @@ function switchDim(to3d, becauseLost) {
   syncDimButton();
   if (becauseLost) toast("The 3D view stumbled, so the game moved to the 2D board — nothing was lost. You can try 3D again from the button below.");
 }
+/* the button names what it will do, not what is already on screen */
 function syncDimButton() {
-  $("dimLbl").textContent = prefs.use3d ? "3D" : "2D";
-  $("dimIc").textContent = prefs.use3d ? "③" : "②";
+  $("dimLbl").textContent = prefs.use3d ? "2D" : "3D";
+  $("dimIc").textContent = prefs.use3d ? "②" : "③";
+  $("btnDim").title = prefs.use3d ? "Switch to the flat board" : "Switch to the 3D board";
 }
 
 /* ===== game state ===== */
@@ -209,13 +352,20 @@ var principleN = 0;
    way on a fast laptop and a slow phone — a coach whose strength depends
    on your hardware cannot be practised against. The slack (noise) is
    what actually sets the level now that the ranked list it draws from is
-   a real search: at sprout it will walk into things, at mentor it will
-   not. */
-var SKILLS = {
-  sprout: { ms: 200, maxDepth: 2,  noise: 170, label: "Coach 🌱" },
-  club:   { ms: 450, maxDepth: 5,  noise: 55,  label: "Coach 🌿" },
-  mentor: { ms: 1000, maxDepth: 64, noise: 0,  label: "Coach 🌳" }
-};
+   a real search: at the bottom it will walk into things, at mentor it
+   will not. The rungs themselves, and the rating each one carries, live
+   in rating.js, where they were measured by playing them off against
+   each other. */
+var SKILLS = {};
+Rating.LEVELS.forEach(function (L) {
+  SKILLS[L.id] = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, label: L.emoji + " " + L.name,
+                   name: L.name, emoji: L.emoji, elo: L.elo, blurb: L.blurb,
+                   /* the first sentence, for a row that has room for one */
+                   short: String(L.blurb || "").replace(/([.!?])\s.*$/, "$1") };
+});
+/* a save from before the ladder grew may name a rung by an old id; it
+   still has to open */
+function skillOk(id) { return SKILLS[id] ? id : "sprout"; }
 
 /* ===== clock ===== */
 var clock = { on: false, base: 0, inc: 0, w: 0, b: 0, run: 0 /* 0 none, 1 white, -1 black */, lastT: 0, lowTicked: -1 };
@@ -238,16 +388,32 @@ function fmtClock(ms) {
   if (mm >= 60) return Math.floor(mm / 60) + ":" + String(mm % 60).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
   return mm + ":" + String(ss).padStart(2, "0");
 }
+/* A game on this device stops its clock while you are somewhere else —
+   the menu, the settings, your record. Nobody asked the room to charge
+   them for choosing a board colour. The Studio is a drawer beside a game
+   that goes on, so it does not stop anything. A game between two devices
+   keeps running: the other person is still sitting there. */
+var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk"];
+function clockPaused() {
+  if (mode === "lan") return false;
+  for (var i = 0; i < PAUSING.length; i++) if (!$(PAUSING[i]).classList.contains("hide")) return true;
+  return false;
+}
 function clockTick(now) {
   if (!clock.on || !clock.run || over || !G) return;
   var dt = now - clock.lastT;
   clock.lastT = now;
+  if (clockPaused()) return;
   if (dt <= 0 || dt > 3000) return;
   if (clock.run === 1) clock.w -= dt; else clock.b -= dt;
   var ms = clock.run === 1 ? clock.w : clock.b;
   if (ms <= 10500 && ms > 0) {
     var sec = Math.ceil(ms / 1000);
-    if (sec !== clock.lowTicked) { clock.lowTicked = sec; snd("tick"); }
+    if (sec !== clock.lowTicked) {
+      clock.lowTicked = sec;
+      /* the last five seconds are a heartbeat, quickening, not a ticking */
+      if (sec <= 5) snd("low-time", { left: sec }); else snd("tick");
+    }
   }
   if (ms <= 0) flagFall(clock.run);
   syncClocks();
@@ -257,42 +423,55 @@ function flagFall(side) {
   /* the pro rule: a flag falls to a WIN only if the other side could
      still in principle mate; otherwise it's a draw */
   var other = -side;
-  var winner = sideHasMatingMaterial(other) ? other : 0;
+  var winner = sideHasMatingMaterial(other, side) ? other : 0;
+  var who = side === 1 ? "White" : "Black";
+  if (mode === "coach" && side === humanSide) who = "You";
   endGame(winner === 0 ? "draw" : (winner === 1 ? "white" : "black"),
-    winner === 0 ? "time out — but " + sideName(other) + " had no way to mate, so it's a draw (the real rule!)" : "time out");
+    winner === 0 ? who + (who === "You" ? " ran" : " ran") + " out of time — but " + sideName(other) + " had no way to mate, so it's a draw (the real rule!)"
+                 : who + " ran out of time");
 }
-function sideHasMatingMaterial(side) {
-  var n = 0, i, p;
+/* Could `side` still mate at all? A lone knight or bishop cannot on an
+   empty board — but it can when the other side has men of its own to
+   get in their king's way, which is why the rule asks about both. */
+function sideHasMatingMaterial(side, against) {
+  var n = 0, i, p, theirs = 0;
   for (i = 0; i < 128; i++) {
     if (i & 0x88) continue;
     p = G.board[i];
-    if (!p || (p > 0 ? 1 : -1) !== side) continue;
+    if (!p) continue;
     var k = Math.abs(p);
+    if ((p > 0 ? 1 : -1) !== side) { if (k !== Chess.K) theirs++; continue; }
     if (k === Chess.P || k === Chess.R || k === Chess.Q) return true;
     if (k !== Chess.K) n++;
-    if (n >= 2) return true;
   }
-  return false;
+  return n >= 2 || (n === 1 && against != null && theirs > 0);
 }
 function afterMoveClock(mover) {
   if (!clock.on) return;
-  if (mover === 1) clock.w += clock.inc; else clock.b += clock.inc;
+  /* before each side's first move its time doesn't run (the friendly
+     online convention) — so neither clock starts until both sides have
+     moved, and a first move that cost no time earns no increment */
+  if (G.played.length > 2) { if (mover === 1) clock.w += clock.inc; else clock.b += clock.inc; }
   clock.lowTicked = -1;
-  /* the first press starts the opponent's clock; before each side's first
-     move, its time doesn't run (the friendly online convention) */
-  clock.run = (G.played.length >= 1 && !over) ? G.turn : 0;
+  clock.run = (G.played.length >= 2 && !over) ? G.turn : 0;
   clock.lastT = performance.now();
   syncClocks();
 }
+/* sixty times a second the clock is asked how it looks; it only touches
+   the page when the answer has changed */
+var clockLook = { clockTop: "", clockBot: "" };
 function syncClocks() {
   var topSide = -orientation, botSide = orientation;
-  var ct = $("clockTop"), cb = $("clockBot");
-  [[ct, topSide], [cb, botSide]].forEach(function (pair) {
-    var el = pair[0], side = pair[1];
+  [["clockTop", topSide], ["clockBot", botSide]].forEach(function (pair) {
+    var id = pair[0], side = pair[1], el = $(id);
+    var ms = side === 1 ? clock.w : clock.b;
+    var txt = clock.on ? fmtClock(ms) : "";
+    var look = [clock.on, txt, clock.run === side && !over, ms < 20000, ms <= 0].join("|");
+    if (look === clockLook[id]) return;
+    clockLook[id] = look;
     el.classList.toggle("off", !clock.on);
     if (!clock.on) return;
-    var ms = side === 1 ? clock.w : clock.b;
-    el.textContent = fmtClock(ms);
+    el.textContent = txt;
     el.classList.toggle("run", clock.run === side && !over);
     el.classList.toggle("low", ms < 20000);
     el.classList.toggle("flag", ms <= 0);
@@ -307,14 +486,37 @@ function sideName(side) {
 }
 var GLYPH = { 1: "♙", 2: "♘", 3: "♗", 4: "♖", 5: "♕", 6: "♔" };
 var GLYPHB = { 1: "♟", 2: "♞", 3: "♝", 4: "♜", 5: "♛", 6: "♚" };
+/* A tag says who is sitting there, how strong they are when that is
+   known, and — because a phone has no room for a separate strip —
+   whether it is their move, whether they are thinking, and whether
+   their king is in check. */
+function tagHTML(side) {
+  var n = sideName(side), c = side === 1 ? "White" : "Black";
+  /* against the computer the colours are plain from the board — yours are
+     the near ones — and the room is better spent on the ratings */
+  var h = escHtml(n === c || mode === "coach" ? n : n + " · " + c);
+  if (mode === "coach") {
+    if (side === humanSide) {
+      if (Rating.summary(rating).games) h += '<span class="elo">' + ratingText() + "</span>";
+    } else h += '<span class="elo">' + SKILLS[skill].elo + "</span>";
+  }
+  if (G && !over && viewPly < 0 && G.turn === side) {
+    if (thinking) h += '<span class="think" aria-label="thinking"><i>·</i><i>·</i><i>·</i></span>';
+    else if (Chess.inCheck(G)) h += '<span class="inCheck">check!</span>';
+  }
+  return h;
+}
+function syncTagState() {
+  var topSide = -orientation, botSide = orientation;
+  $("nameTop").innerHTML = tagHTML(topSide);
+  $("nameBot").innerHTML = tagHTML(botSide);
+  var live = G && !over && viewPly < 0 && mode && mode !== "tour";
+  $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
+  $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
+}
 function syncBars() {
   var topSide = -orientation, botSide = orientation;
-  function tag(side) {
-    var n = sideName(side), c = side === 1 ? "White" : "Black";
-    return n === c ? n : n + " · " + c;
-  }
-  $("nameTop").textContent = tag(topSide);
-  $("nameBot").textContent = tag(botSide);
+  syncTagState();
   /* captured pieces: what each side has taken, plus the material lead.
      While you're looking back the tally looks back with you — a score
      from a position that isn't on the board would only mislead. */
@@ -326,7 +528,11 @@ function syncBars() {
     var k = Math.abs(c);
     diff += (c < 0 ? 1 : -1) * Chess.VAL[k];
     (c < 0 ? takenByW : takenByB).push(k);
-    if (rec.m.promo) diff += 0; /* promo material shows up via board, keep simple */
+  });
+  /* a pawn that became a queen is eight pawns of material nobody captured */
+  if (G) G.played.slice(0, upto).forEach(function (rec) {
+    var pr = rec.m.promo;
+    if (pr) diff += (pr > 0 ? 1 : -1) * (Chess.VAL[Math.abs(pr)] - Chess.VAL[Chess.P]);
   });
   var wStr = takenByW.sort().map(function (k) { return GLYPHB[k]; }).join("");
   var bStr = takenByB.sort().map(function (k) { return GLYPH[k]; }).join("");
@@ -364,8 +570,13 @@ function showViewBanner(on) {
 }
 function syncTurnStrip() {
   var el = $("turnStrip");
+  $("resultChip").classList.toggle("hide", !(over && G && (mode === "coach" || mode === "pass" || mode === "lan") &&
+    $("ovEnd").classList.contains("hide")));
   if (!G) { el.textContent = "…"; return; }
+  syncTagState();
   if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + Math.floor(viewPly / 2 + 1); return; }
+  if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
+  if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
   var who = sideName(G.turn);
@@ -396,7 +607,8 @@ function syncBoard() {
     });
     var lastRec = G.played[G.played.length - 1];
     if (lastRec) hi.last = [lastRec.m.from, lastRec.m.to];
-    if (!over && Chess.inCheck(G)) hi.check = G.kings[G.turn === 1 ? 0 : 1];
+    /* a mated king keeps its mark: the final position should say how it ended */
+    if (Chess.inCheck(G) && (!over || over.reason === "checkmate")) hi.check = G.kings[G.turn === 1 ? 0 : 1];
   } else {
     var rec = G.played[viewPly];
     if (rec) hi.last = [rec.m.from, rec.m.to];
@@ -407,27 +619,47 @@ function syncBoard() {
 }
 function clearSel() { sel = -1; legalMoves = []; }
 
-function canActNow() {
+/* A piece still landing is not a reason to ignore the next player's
+   finger: you may pick a piece up while the last move settles, and the
+   move you make waits for it to land. */
+function canActNow(evenWhileMoving) {
   if (!G || over || viewPly >= 0 || pendingPromo) return false;
-  if (R.isAnimating && R.isAnimating()) return false;
+  if (!evenWhileMoving && R.isAnimating && R.isAnimating()) return false;
   if (mode === "pass") return true;
   if (mode === "coach") return G.turn === humanSide && !thinking;
   if (mode === "lan") return G.turn === lanSide && Net.linked();
-  if (mode === "lesson") return !!lesson && !lessonDone && G.turn === lesson.side;
+  if (mode === "lesson") return !!lesson && !lessonDone && !lessonPaused && G.turn === lesson.side;
   return false; /* tour or menu */
 }
 
+function whenLanded(fn) {
+  if (R.isAnimating && R.isAnimating()) { setTimeout(function () { whenLanded(fn); }, 40); return; }
+  fn();
+}
 function tapSquare(sq) {
   if (!G) return;
   if (viewPly >= 0) { exitView(); return; }
-  if (!canActNow()) { clearSel(); syncBoard(); return; }
+  if (!canActNow(true)) { clearSel(); syncBoard(); return; }
+  if (R.isAnimating && R.isAnimating() && sel >= 0) {
+    /* the second tap of a move made while the last one is landing */
+    var at = gameTicket, n = G.played.length;
+    whenLanded(function () { if (gameTicket === at && G.played.length === n && canActNow()) tapSquare(sq); });
+    return;
+  }
   hintArrow = null;
   var p = G.board[sq];
   if (sel >= 0) {
     var mv = null;
     for (var i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === sq) { mv = legalMoves[i]; break; }
+    /* king, then its own rook: what most people mean by "castle" */
+    if (!mv && p && Math.abs(G.board[sel]) === Chess.K && p === Chess.R * G.turn) {
+      for (i = 0; i < legalMoves.length; i++) {
+        var c = legalMoves[i];
+        if ((c.flags & Chess.F_CASTLE) && ((c.to > c.from) === (sq > sel))) { mv = c; break; }
+      }
+    }
     if (mv) {
-      if (mv.promo && mode !== "lesson") { askPromotion(sel, sq); return; }
+      if (mv.promo) { askPromotion(sel, sq); return; }
       clearSel();
       if (mode === "lesson") { lessonAttempt(mv); return; }
       commitMove(mv, "local");
@@ -466,11 +698,21 @@ function askPromotion(from, to) {
       }
       pendingPromo = null;
       clearSel();
-      if (mvv) commitMove(mvv, "local");
+      if (mvv) { if (mode === "lesson") lessonAttempt(mvv); else commitMove(mvv, "local"); }
     });
+    b.setAttribute("aria-label", { 5: "Queen", 2: "Knight", 4: "Rook", 3: "Bishop" }[kind]);
+    b.title = b.getAttribute("aria-label");
     row.appendChild(b);
   });
   $("ovPromo").classList.remove("hide");
+}
+/* a misclick onto the last rank can be taken back before it is a move */
+function cancelPromo() {
+  if (!pendingPromo) return;
+  var from = pendingPromo.from;
+  closePromo();
+  sel = from; legalMoves = Chess.movesFrom(G, from);
+  syncBoard();
 }
 
 /* ===== the one move pipeline ===== */
@@ -513,11 +755,31 @@ function commitMove(m, source, animOpts) {
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
   var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+  var hurtKing = (st.reason === "check" || st.reason === "checkmate") ? G.kings[G.turn === 1 ? 0 : 1] : -1;
+  var landTicket = gameTicket;
   var plan = R.animateMove(desc, G.board, animOpts || {}, function () {
+    /* the mate waits for the mating move to land, so the king does not
+       start to fall under a piece still in the air */
+    if (landTicket === gameTicket && st.reason === "checkmate") fxMate(hurtKing, desc.to, mateMood(st.result));
+    /* two people sharing one screen: the board turns to whoever is next,
+       once the piece has landed rather than under it */
+    if (mode === "pass" && prefs.autoFlip && !over && orientation !== G.turn) {
+      orientation = G.turn; R.setOrientation(orientation); syncBars(); syncClocks();
+    }
     syncBoard();
-    if (!over && st.reason === "check") snd("check");
+    syncButtons();     /* the hint's price depends on whose move it now is */
+    /* giving check rises; being in check falls — the same two notes
+       never mean both */
+    if (!over && st.reason === "check" && landTicket === gameTicket) {
+      var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide :
+                 (mode === "lesson" && lesson) ? lesson.side : G.turn;
+      snd("check", { against: G.turn === mine });
+      fxCheck(hurtKing);
+    }
   });
   sndMove(desc, plan, took);
+  fxCapture(desc, took, plan);
+  fxPromote(desc, plan);
   needFrame();
   syncMoveList();
   syncBars();
@@ -537,17 +799,26 @@ function commitMove(m, source, animOpts) {
   syncButtons();
 
   clearLines();
+  /* Everything said about this move later is said about *this* move:
+     the coach will usually have replied by the time a review comes back,
+     so the ply and the game are fixed now, and a remark that arrives
+     after a take-back or a new game is simply dropped. */
+  var myTicket = gameTicket;
   /* name what just happened, while it's still on screen */
-  if (lessons.length) setTimeout(function () { teachMoment(lessons, mover, source); }, 520);
+  if (lessons.length) setTimeout(function () {
+    if (myTicket === gameTicket && G && G.played.length > ply) teachMoment(lessons, mover, source, ply);
+  }, 520);
   /* and give the player who's behind a free word before their turn */
-  setTimeout(oddsNudge, 1500);
+  setTimeout(function () { if (myTicket === gameTicket && G && G.played.length === ply + 1) oddsNudge(); }, 1500);
   /* when a king is nearly caged, show the cage: it explains mate better
      than any sentence can */
-  if (st.reason === "check") setTimeout(function () { if (!over) showMateNet(G.turn); }, 700);
+  if (st.reason === "check") setTimeout(function () {
+    if (!over && myTicket === gameTicket && G && G.played.length === ply + 1) showMateNet(G.turn);
+  }, 700);
 
   /* the gentle coach looks over the human's shoulder */
   if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || mode === "pass")) {
-    setTimeout(function () { gentleCheck(fenBefore, m, san); }, 1400);
+    setTimeout(function () { gentleCheck(fenBefore, m, san, ply, myTicket); }, 1400);
   }
   /* the coach takes its turn */
   if (mode === "coach" && !over && G.turn !== humanSide) {
@@ -558,24 +829,38 @@ function commitMove(m, source, animOpts) {
 /* ===== the practice opponent ===== */
 function scheduleCoach() {
   thinking = true;
-  syncTurnStrip();
+  syncTurnStrip(); syncButtons();
   clearTimeout(coachTimer);
   coachTimer = setTimeout(function () {
     if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
-    var sk = SKILLS[skill];
     var ticket = ++brainTicket;
-    Brain.search(G, { ms: sk.ms, maxDepth: sk.maxDepth, noise: sk.noise }).then(function (res) {
+    var answer = function (res) {
       /* the board may have moved on while it was thinking — a take-back,
          a new game, a resign. The ticket says whether this answer is
-         still the answer to the question that was asked. */
-      if (ticket !== brainTicket || !G || over || mode !== "coach" || G.turn === humanSide) {
-        thinking = false; syncTurnStrip(); return;
-      }
+         still the answer to the question that was asked; an old answer
+         says nothing at all, not even "I've stopped thinking", because a
+         newer question may be being thought about right now. */
+      if (ticket !== brainTicket) return;
+      if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
+      /* you are in the menu: its move waits for you, so you see it land */
+      if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
       thinking = false;
-      var m = res && Brain.resolve(G, res.move);
+      /* what the coach thinks of the position, from your side: the
+         abandonment rule asks whether you were clearly losing */
+      if (res && typeof res.score === "number") lastEval = -res.score;
+      var m = res && res.move && Brain.resolve(G, res.move);
+      /* a worker that died mid-thought must not leave the coach staring
+         at the board: think again, briefly, here */
+      if (!m) {
+        try { var r2 = Chess.search(G, { ms: 120, maxDepth: 3 }); m = r2 && r2.move; } catch (e) { m = null; }
+        if (!m) m = Chess.moves(G)[0] || null;
+      }
       if (m) commitMove(m, "coach");
-      syncTurnStrip();
-    });
+      syncTurnStrip(); syncButtons();
+    };
+    /* exactly the settings the rung was measured with — node budget and
+       all — or its rating would be a rating of some other opponent */
+    Brain.search(G, Rating.searchOpts(skill)).then(answer, function () { answer(null); });
   }, REDUCED ? 60 : 420);
 }
 
@@ -604,8 +889,8 @@ function pawnsWorth(cp) {
   if (p < 1.2) return "about a pawn";
   return "about " + (p < 3 ? p.toFixed(1) : Math.round(p)) + " pawns";
 }
-function gentleCheck(fenBefore, played, san) {
-  if (!G || over) return;
+function gentleCheck(fenBefore, played, san, ply, ticket) {
+  if (!G || over || ticket !== gameTicket || G.played.length <= ply) return;
   var pre;
   try { pre = Chess.create(fenBefore); } catch (e) { return; }
   var mine = null, list = Chess.moves(pre), i;
@@ -614,12 +899,12 @@ function gentleCheck(fenBefore, played, san) {
         (list[i].promo || 0) === (played.promo || 0)) { mine = list[i]; break; }
   }
   if (!mine) return;
-  var ticket = gameTicket;
   /* one call, both sides of the comparison measured the same way */
-  Brain.review(pre, mine, { ms: 420, mark: true }).then(function (res) {
+  Brain.review(pre, mine, { ms: 900, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
-    showReview(pre, san, res, mine);
+    reviewMemo[ply] = { best: res.bestScore, played: res.playedScore };
+    showReview(pre, san, res, mine, ply);
   });
 }
 /* Praise has to mean something or it means nothing, and a coach that
@@ -641,7 +926,7 @@ function worthPraising(pre, played, ply) {
       G.played[ply - 1].m.to === played.to) return false;   /* a recapture */
   return true;
 }
-function showReview(pre, san, res, played) {
+function showReview(pre, san, res, played, ply) {
   var i;
   var bestScore = res.bestScore, mineScore = res.playedScore, loss = res.loss;
 
@@ -650,7 +935,7 @@ function showReview(pre, san, res, played) {
      three pieces up does not need to hear about a rounding error. */
   if (bestScore < -650 || mineScore > 650) return;
 
-  var ply = G.played.length - 1, side = ply % 2 === 0 ? 1 : -1;
+  var side = ply % 2 === 0 ? 1 : -1;
   var better = res.bestSAN;
 
   var step = null;
@@ -701,29 +986,47 @@ function showReview(pre, san, res, played) {
      worth more than reading later: a blunder you can still take back,
      said while the position is still on the board. Everything quieter
      than that is in the notebook, where it can be read twice. */
-  if (loss >= 250 && voice() === "plain") {
+  /* …and only while it can still be taken back cleanly: once the game has
+     moved two plies past it, the offer would undo more than the blunder */
+  if (loss >= 250 && voice() === "plain" && !over && G.played.length - ply <= 2) {
     toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost,
-      [{ label: "\u21a9 Take it back", fn: gentleUndo },
+      [{ label: "\u21a9 Take it back", fn: function () { gentleUndo(ply); } },
        { label: "Play on", fn: function () {}, ghost: true }], 11000);
   }
 }
 /* every remark about a move goes through here, so the mark on the move
    list and the entry in the notebook can never disagree */
 function noteMove(e) { note(e); }
-/* rewind to the human's turn, whether or not the coach already replied */
-function gentleUndo() {
-  if (!G || !G.played.length) return;
-  clearTimeout(coachTimer); thinking = false;
-  var k = (mode === "coach" && G.turn !== humanSide) ? 1 : (mode === "coach" ? 2 : 1);
-  undoPly(Math.min(k, G.played.length));
+/* rewind to just before the move that was judged — whatever has been
+   played since, and whoever played it */
+function gentleUndo(ply) {
+  if (!G || over || (mode !== "coach" && mode !== "pass")) return;
+  var n = G.played.length - ply;
+  if (n < 1 || n > 2) return;
+  if (mode === "coach") assist.takebacks++;
+  undoPly(n);
 }
 
 /* ===== hints ===== */
+/* A hint is paid for when it arrives, not when it is asked for — a move
+   made while it was being worked out would otherwise pay for nothing —
+   and asking twice in the same position shows the same hint again for
+   free. */
+var hintPending = false, hintShown = null;
 function giveHint() {
+  if (mode === "lesson") { if (lesson && !lessonDone && !lessonPaused) giveLessonHint(); return; }
   if (!G || over) { return; }
   if (!canActNow()) { toast(mode === "lan" && G.turn !== lanSide ? "It's your opponent's move — the hint lamp lights on your turn." : "Hints come on your turn."); return; }
+  if (hintPending) return;
+  var here = gameTicket + ":" + G.played.length;
+  if (hintShown && hintShown.at === here) { hintShown.show(); return; }
   var odds = oddsFor(G.turn);
-  if (!oddsPay(G.turn)) return;
+  /* can they afford it? asked now, paid later */
+  if (!odds.free && clock.on && (G.turn === 1 ? clock.w : clock.b) < (odds.cost + 5) * 1000) {
+    toast("Not enough clock left to buy that — but it's free again the moment you're behind.");
+    return;
+  }
+  hintPending = true; syncButtons();
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
   var book = Book.suggest(sans);
   /* rank: the book-agreement test below compares real scores, so the
@@ -731,13 +1034,18 @@ function giveHint() {
      which meant "the engine doesn't mind this book move" was a coin
      toss — and a hint you can't trust is worse than no hint. */
   var ticket = brainTicket;
+  var done = function () { hintPending = false; syncButtons(); };
   Brain.search(G, { ms: 800, rank: true, rankDepth: 6 }).then(function (raw) {
+    done();
     if (ticket !== brainTicket || !G || over || !canActNow()) return;
     if (!raw || !raw.move) return;
+    if (!oddsPay(G.turn)) return;
+    if (mode === "coach") { assist.hints++; saveGame(); }
     showHint(raw, odds, book, sans);
-  });
+    hintShown = { at: here, show: function () { showHint(raw, { free: true, cost: 0, mood: odds.mood }, book, sans, true); } };
+  }, done);
 }
-function showHint(raw, odds, book, sans) {
+function showHint(raw, odds, book, sans, again) {
   var res = { move: Brain.resolve(G, raw.move), score: raw.score, pv: raw.pv,
               ranked: raw.ranked.map(function (x) {
                 return { move: Brain.resolve(G, x.move), score: x.score, shallow: x.shallow };
@@ -782,8 +1090,10 @@ function showHint(raw, odds, book, sans) {
                knight: Math.abs(chosen.piece) === Chess.N }], 9000);
   syncBoard();
   snd("hint");
-  var paid = odds.free ? "" :
-    " <i>(" + (clock.on ? odds.cost + " seconds" : odds.cost + " mark" + (odds.cost > 1 ? "s" : "")) + " — you're ahead)</i>";
+  var paid = again ? " <i>(the same hint — no charge twice)</i>" : odds.free ? (odds.mood === "behind" ? " <i>(free — you're behind)</i>" : "") :
+    " <i>(" + (clock.on ? odds.cost + " seconds" : odds.cost + " mark" + (odds.cost > 1 ? "s" : "")) +
+    (odds.mood === "ahead" ? " — you're ahead" : " — it's level") + ")</i>";
+  if (mode === "coach" && !again) paid += " <i>A hint makes this game count for a little less.</i>";
   /* the line the engine is actually counting on, when the hint is the
      engine's own move: seeing the next two plies is most of what turns a
      hint into a lesson */
@@ -791,7 +1101,16 @@ function showHint(raw, odds, book, sans) {
   if (!bookPick && res.pv && res.pv.length > 2 && res.pv[0] === san) {
     ahead = " Then likely " + res.pv.slice(1, 3).join(" ") + ".";
   }
-  toast("💡 <b>" + san + "</b> — " + (why || explainMove(chosen, res)) + ahead + paid, null, 9000);
+  /* the reason a hint gives is the concrete one when there is one — what
+     the move attacks, wins, forks or threatens — and a principle only
+     when nothing concrete applies */
+  var told = why;
+  if (!told && res && chosen === res.move && Math.abs(res.score) > Chess.MATE - 200) told = explainMove(chosen, res);
+  if (!told && Teach.explainMove) {
+    try { var ex = Teach.explainMove(G, chosen); if (ex && ex.text) told = ex.text.charAt(0).toLowerCase() + ex.text.slice(1); } catch (e) {}
+  }
+  if (!told) told = explainMove(chosen, res);
+  toast("💡 <b>" + san + "</b> — " + told + ahead + paid, null, 9000);
 }
 
 function explainMove(m, res) {
@@ -807,14 +1126,14 @@ function explainMove(m, res) {
   if (m.promo) return "the pawn becomes a queen — the biggest promotion in board games.";
   if (m.capt) {
     var vc = Chess.VAL[Math.abs(m.capt)], vm = Chess.VAL[kind];
-    if (vc > vm) bits.push("it wins material — a " + pieceName(m.capt) + " for a " + pieceName(m.piece));
+    if (vc > vm) bits.push("it takes a " + pieceName(m.capt) + " with a " + pieceName(m.piece));
     else if (Chess.attacked(G, m.from, -G.turn) && vc >= vm) bits.push("a fair trade that relieves the pressure");
     else bits.push("it captures the " + pieceName(m.capt));
   }
   if (Chess.attacked(G, m.from, -G.turn) && !Chess.attacked(G, m.to, -G.turn) && !m.capt) {
     bits.push("it slips the " + pieceName(m.piece) + " out of danger");
   }
-  if (givesCheck) bits.push("it gives check, so the reply is forced");
+  if (givesCheck) bits.push("it gives check, so they must deal with that first");
   var toF = m.to & 7, toR = m.to >> 4, fromR = m.from >> 4;
   if (!bits.length) {
     if (kind === Chess.P && (toF === 3 || toF === 4) && (toR === 3 || toR === 4)) bits.push("it claims a share of the centre");
@@ -1094,12 +1413,13 @@ function exitView() {
   viewPly = -1;
   showViewBanner(false);
   R.setPosition(G.board);
+  fxRelay();
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
 }
 
 /* ===== replay the last move (again, with feeling) ===== */
 function replayLast() {
-  if (!G || !G.played.length || (R.isAnimating && R.isAnimating())) return;
+  if (!G || !G.played.length || thinking || (R.isAnimating && R.isAnimating())) return;
   if (viewPly >= 0) { exitView(); return; }
   var rec = G.played[G.played.length - 1];
   /* rebuild the position just before it, hand it to the renderer, then
@@ -1122,20 +1442,39 @@ function undoPly(n) {
   if (!G || !G.played.length) return;
   if (mode === "lan") return; /* LAN goes through the polite request */
   clearTimeout(coachTimer); thinking = false;
+  Brain.cancel();
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
   over = null;
   /* a move that has been taken back never happened, so neither did
      anything the room said about it */
   forgetNotesAfter(G.played.length - 1);
+  Object.keys(reviewMemo).forEach(function (k) { if (+k >= G.played.length) delete reviewMemo[k]; });
+  /* the ideas named about undone moves were never part of this game */
+  taughtAt = taughtAt.filter(function (t) { return t.ply < G.played.length; });
+  teachSeen = {};
+  taughtAt.forEach(function (t) { teachSeen[t.concept] = (teachSeen[t.concept] || 0) + 1; });
+  closePromo();
+  hideToast(); clearLines(); hintShown = null; fxCalm();
   clearSel(); hintArrow = null; viewPly = -1;
   showViewBanner(false);
-  if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
+  if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
+  /* the opening card belongs to the position that is left */
+  if (G.played.length) narrateOpening("", "resume"); else hideOpeningCard();
   syncAll();
   saveGame();
+  /* a take-back that leaves it the computer's turn (you had Black and
+     took back before your first move) must not leave it sitting there */
+  if (mode === "coach" && !over && G.turn !== humanSide) scheduleCoach();
+}
+/* the promotion picker never outlives the position it was asked in */
+function closePromo() {
+  pendingPromo = null;
+  $("ovPromo").classList.add("hide");
 }
 function undoSmart() {
   if (!G || !G.played.length) { toast("Nothing to undo yet."); return; }
+  if (mode === "coach" && !humanMovesMade()) { toast("Nothing of yours to take back yet."); return; }
   if (mode === "lan") {
     if (!Net.linked()) { toast("The link is down — nothing to ask."); return; }
     var n = (G.turn === lanSide) ? 2 : 1;
@@ -1147,35 +1486,525 @@ function undoSmart() {
   if (mode === "coach") {
     /* undo to the human's previous turn */
     var k = (G.turn === humanSide) ? 2 : 1;
+    assist.takebacks++;
     undoPly(Math.min(k, G.played.length));
-    toast("Rewound. Chess deserves second thoughts.");
+    toast("Rewound. Chess deserves second thoughts. <i>(A take-back makes this game count for a little less.)</i>");
   } else {
+    if (over && mode === "pass") { over = null; $("ovEnd").classList.add("hide"); }
     undoPly(1);
   }
+}
+
+/* ===== your chess: the number, the ladder, the reasons to come back =====
+   A game against the computer used to end and leave nothing behind. A
+   person who plays alone needs what a club gives you: a number that is
+   yours, somebody a little stronger to beat next, and a record of having
+   beaten them. So every game against the computer is rated (rating.js
+   holds the arithmetic), every coach on the ladder carries three stars,
+   and a day you play is a day on your streak. */
+var LADDER_KEY = "chessroom_ladder";
+var rating = Rating.load(lsGet);
+var ladder = loadLadder();
+/* the help a player took in this game: kept so the score can say what
+   you can do on your own, without ever refusing the help */
+var assist = { takebacks: 0, hints: 0 };
+var ratedDone = false;          /* this game has been counted */
+var lastEval = 0;               /* the coach's last word on the position, from your side, in cp */
+var reviewMemo = {};            /* ply → {best, played}: the gentle coach's reviews, reused by the look-back */
+
+function loadLadder() {
+  var fresh = { v: 1, rungs: {}, lastSide: -1, day: "", days: 0, bestDays: 0 };
+  try {
+    var s = JSON.parse(lsGet(LADDER_KEY) || "null");
+    if (!s || s.v !== 1 || !s.rungs || typeof s.rungs !== "object") return fresh;
+    var out = { v: 1, rungs: {}, lastSide: s.lastSide === 1 ? 1 : -1,
+                day: typeof s.day === "string" ? s.day.slice(0, 10) : "",
+                days: Math.max(0, Math.min(99999, s.days | 0)), bestDays: Math.max(0, Math.min(99999, s.bestDays | 0)) };
+    Rating.LEVELS.forEach(function (L) {
+      var r = s.rungs[L.id];
+      if (!r || typeof r !== "object") return;
+      var st = Array.isArray(r.stars) ? r.stars : [];
+      out.rungs[L.id] = { w: Math.max(0, r.w | 0), d: Math.max(0, r.d | 0), l: Math.max(0, r.l | 0),
+                          stars: [st[0] ? 1 : 0, st[1] ? 1 : 0, st[2] ? 1 : 0] };
+    });
+    return out;
+  } catch (e) { return fresh; }
+}
+function saveLadder() { lsSet(LADDER_KEY, JSON.stringify(ladder)); }
+function rungOf(id) {
+  if (!ladder.rungs[id]) ladder.rungs[id] = { w: 0, d: 0, l: 0, stars: [0, 0, 0] };
+  return ladder.rungs[id];
+}
+function starCount(id) { var r = ladder.rungs[id]; return r ? r.stars[0] + r.stars[1] + r.stars[2] : 0; }
+function starsHTML(id) {
+  var r = ladder.rungs[id], h = "";
+  for (var i = 0; i < 3; i++) h += '<i class="' + (r && r.stars[i] ? "on" : "") + '">★</i>';
+  return h;
+}
+/* a day you play is a day on the streak — a lesson counts as much as a game */
+function dayKey(t) {
+  var d = new Date(t);
+  return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+}
+function markDay() {
+  var now = Date.now(), today = dayKey(now), yest = dayKey(now - 86400000);
+  if (ladder.day === today) return;
+  ladder.days = ladder.day === yest ? ladder.days + 1 : 1;
+  ladder.bestDays = Math.max(ladder.bestDays, ladder.days);
+  ladder.day = today;
+  saveLadder();
+}
+function streakDays() {
+  var now = Date.now();
+  return (ladder.day === dayKey(now) || ladder.day === dayKey(now - 86400000)) ? ladder.days : 0;
+}
+function ratingText() {
+  var sm = Rating.summary(rating);
+  return sm.rating + (sm.provisional ? "?" : "");
+}
+/* who to play next: a fair fight — and while the room is still finding
+   your level, a slightly gentle one */
+function nextLevel() { return skillOk(Rating.suggestLevel(rating)); }
+function levelIndex(id) {
+  for (var i = 0; i < Rating.LEVELS.length; i++) if (Rating.LEVELS[i].id === id) return i;
+  return -1;
+}
+function humanMovesMade() {
+  if (!G || mode !== "coach") return 0;
+  var n = 0;
+  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) n++;
+  return n;
+}
+/* Walking away from a rated game you are losing is the oldest way to
+   keep a number up, so a game that is properly under way counts as a
+   resignation if you start another. Before your third move it is free:
+   a misclick on the colour, a change of heart about the opponent. */
+/* Starting over is free while a game is young and level. It counts as a
+   loss once the game is properly under way, or once you are clearly
+   losing — the two moments walking away would be a way of keeping a
+   number up rather than of starting fresh. */
+var ABANDON_PLIES = 20, ABANDON_EVAL = -300;
+function ratedAtStake() {
+  if (mode === "coach" && G && !over && !ratedDone)
+    return humanMovesMade() >= 3 && (G.played.length >= ABANDON_PLIES || lastEval <= ABANDON_EVAL);
+  /* a rated game left on the shelf while you did a lesson is still a game */
+  var sv = mode !== "coach" ? loadSave() : null;
+  return !!(sv && sv.mode === "coach" && savedHumanMoves(sv) >= 3 && sv.sans.length >= ABANDON_PLIES);
+}
+function savedHumanMoves(sv) { var n = sv.sans.length; return sv.humanSide === 1 ? Math.ceil(n / 2) : Math.floor(n / 2); }
+/* resigning the shelved game: counted against the coach it was against */
+function settleSaved(sv) {
+  var a = Array.isArray(sv.assist) ? sv.assist : [0, 0];
+  rating = Rating.load(lsGet);
+  var out = Rating.update(rating, { level: sv.skill, result: 0, accuracy: null, at: Date.now(),
+                                    assisted: { takebacks: a[0] | 0, hints: a[1] | 0 } });
+  if (out.rated) { rating = out.state; Rating.save(rating, lsSet); }
+  rungOf(sv.skill).l++; markDay(); saveLadder();
+  lsDel(SAVE_KEY);
+  return { out: out };
+}
+function leaveGameThen(fn, verb) {
+  if (!ratedAtStake()) { fn(); return; }
+  var why = (mode === "coach" && lastEval <= ABANDON_EVAL && G && !over) ? "You're behind in a rated game" : "This rated game is well under way";
+  ask(why + " — " + (verb || "starting another") + " now counts as a loss.<br><b>Resign and go on?</b>",
+    [{ label: "🏳️ Resign & go on", fn: function () {
+        /* the game may have ended while the question was up */
+        if (!ratedAtStake()) { fn(); return; }
+        var live = mode === "coach" && G && !over;
+        var out = live ? settleRating("resign") : settleSaved(loadSave());
+        if (live) over = { result: humanSide === 1 ? "black" : "white", reason: "you resigned" };
+        lsDel(SAVE_KEY);
+        fn();
+        if (out) toast("Counted as a loss (" + fmtDelta(out.out.delta) + "). On to the next one.", null, 3800);
+      } },
+     { label: "Keep playing", ghost: true, fn: function () { hideAllOverlays(); } }]);
+}
+function fmtDelta(d) { d = Math.round(d); return (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d); }
+
+/* start a game against the computer. "a" takes turns: the colour you did
+   not have last time */
+function startCoachGame(level, sideChoice, clockStr) {
+  var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
+             sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
+  ladder.lastSide = side; saveLadder();
+  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true });
+  var L = SKILLS[skill];
+  toast(L.emoji + " <b>" + escHtml(L.name) + "</b> · " + L.elo + " — " +
+        (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
+}
+function quickPlay(level) {
+  leaveGameThen(function () { startCoachGame(level || nextLevel(), "a", "none"); }, "a new game");
+}
+
+/* ---- counting a game ---- */
+function settleRating(result) {
+  if (mode !== "coach" || ratedDone || !G) return null;
+  ratedDone = true;
+  var s = result === "draw" ? 0.5 : result === "resign" ? 0 :
+          ((result === "white") === (humanSide === 1) ? 1 : 0);
+  var clean = !assist.takebacks && !assist.hints;
+  /* read back first: another tab may have played a game since this one loaded */
+  rating = Rating.load(lsGet);
+  var out = Rating.update(rating, { level: skill, result: s, accuracy: null, at: Date.now(),
+                                    assisted: { takebacks: assist.takebacks, hints: assist.hints } });
+  if (!out.rated) return null;
+  rating = out.state;
+  Rating.save(rating, lsSet);
+  var rung = rungOf(skill), newStars = [];
+  if (s === 1) rung.w++; else if (s === 0) rung.l++; else rung.d++;
+  if (s === 1 && !rung.stars[0]) { rung.stars[0] = 1; newStars.push(0); }
+  if (s === 1 && clean && !rung.stars[1]) { rung.stars[1] = 1; newStars.push(1); }
+  markDay();
+  saveLadder();
+  return { out: out, s: s, clean: clean, newStars: newStars, level: skill };
+}
+
+/* ---- looking back over your moves ----
+   The accuracy is the same like-for-like comparison the gentle coach
+   already makes after each of your moves — the move you played against
+   the move the engine wanted, scored by the same call — so anything the
+   coach already looked at is reused rather than thought about twice. */
+function humanPlies() {
+  var out = [];
+  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) out.push(i);
+  return out;
+}
+function analyseGame(onStep) {
+  var ticket = gameTicket, plies = humanPlies(), got = [], i = 0;
+  return new Promise(function (resolve) {
+    function next() {
+      if (ticket !== gameTicket || !G) { resolve(null); return; }
+      if (i >= plies.length) { resolve(got); return; }
+      var ply = plies[i];
+      if (reviewMemo[ply]) { got.push({ ply: ply, best: reviewMemo[ply].best, played: reviewMemo[ply].played }); i++; onStep(i, plies.length); setTimeout(next, 0); return; }
+      var pre = Chess.create();
+      for (var k = 0; k < ply; k++) Chess.play(pre, G.played[k].m);
+      var want = G.played[ply].m, mine = null, list = Chess.moves(pre);
+      for (var j = 0; j < list.length; j++) {
+        if (list[j].from === want.from && list[j].to === want.to && (list[j].promo || 0) === (want.promo || 0)) { mine = list[j]; break; }
+      }
+      if (!mine) { i++; next(); return; }
+      /* the accuracy table was fitted with a reviewer of this depth */
+      Brain.review(pre, mine, { ms: 900, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
+        if (ticket !== gameTicket) { resolve(null); return; }
+        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
+        i++; onStep(i, plies.length); next();
+      });
+    }
+    next();
+  });
+}
+/* the same three words the coach uses during the game, counted */
+function qualityCounts(moves) {
+  var c = { blunder: 0, mistake: 0, inaccuracy: 0 };
+  moves.forEach(function (e) {
+    if (e.best < -650 || e.played > 650) return;       /* already decided: nothing to count */
+    var loss = e.best - e.played;
+    if (loss >= 250) c.blunder++; else if (loss >= 110) c.mistake++; else if (loss >= 50) c.inaccuracy++;
+  });
+  var good = 0, brilliant = 0;
+  Object.keys(marks).forEach(function (k) {
+    if (((+k) % 2 === 0 ? 1 : -1) !== humanSide) return;
+    if (marks[k] === "!!") brilliant++; else if (marks[k] === "!") good++;
+  });
+  c.brilliant = brilliant; c.good = good;
+  return c;
+}
+
+/* ---- the reveal ----
+   The result is the headline, so the number moves first and on its own;
+   then the stars land one at a time; then the look-back fills its bar
+   while it works, which is the honest way to show a computer thinking. */
+function countUp(el, from, to, ms, onTick) {
+  if (typeof Fx !== "undefined" && Fx.countUp) return Fx.countUp(el, from, to, { ms: ms, onTick: onTick });
+  return new Promise(function (resolve) {
+    if (REDUCED || from === to) { el.textContent = Math.round(to); resolve(); return; }
+    var t0 = performance.now(), last = -1, n = Math.abs(Math.round(to) - Math.round(from));
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      var v = Math.round(from + (to - from) * e);
+      el.textContent = v;
+      var i = Math.round(e * n);
+      if (i !== last && onTick) { last = i; onTick(i, n, v); }
+      if (k < 1) requestAnimationFrame(step); else resolve();
+    })(t0);
+  });
+}
+function sting(kind, o) {
+  if (!prefs.sound || typeof Sound === "undefined") return;
+  if (Sound.sting) Sound.sting(kind, o || {}); else Sound.ui(kind);
+}
+function popStar(i, live) {
+  var el = $("endStars").children[i];
+  if (!el || (live && !live())) return;
+  el.classList.add("on", "pop");
+  sting("lesson-right");                 /* each star lands with the ding of a right answer */
+  if (FX) Fx.sparkle(el, { count: 18 });
+}
+function renderEndRating(rs, cardAt) {
+  var box = $("endRate"), myGame = gameTicket;
+  /* what is earned is kept whatever happens; what is shown and heard
+     only happens while this game's card is the one on screen */
+  var live = function () { return myGame === gameTicket && !$("ovEnd").classList.contains("hide"); };
+  box.classList.toggle("hide", !rs);
+  $("endNext").classList.add("hide");
+  $("endMile").classList.add("hide");
+  if (!rs) return;
+  var out = rs.out, before = Math.round(out.before), after = Math.round(out.after);
+  $("endRateNum").textContent = before;
+  var dEl = $("endRateDelta");
+  dEl.className = "erDelta " + (after > before ? "up" : after < before ? "down" : "flat");
+  dEl.textContent = fmtDelta(after - before) + (out.provisional ? " ?" : "");
+  var t = Rating.title(after);
+  $("endRateTitle").textContent = t.emoji + " " + t.name + (out.provisional ? " · still finding your level" : "") +
+    (out.weight < 1 ? " · counted as " + Math.round(out.weight * 100) + "% of a game (hints or take-backs)" : "");
+  var stars = $("endStars").children, rung = rungOf(rs.level);
+  for (var i = 0; i < 3; i++) {
+    var already = rung.stars[i] && rs.newStars.indexOf(i) < 0;
+    stars[i].className = already ? "on" : "";
+  }
+  $("endAccTx").textContent = "Looking back over your moves…";
+  $("endAccNum").textContent = "";
+  $("endAccBar").style.width = "0%";
+  $("endCounts").innerHTML = "";
+
+  /* what to do next is part of the result */
+  var idx = levelIndex(rs.level), up = Rating.LEVELS[idx + 1], down = Rating.LEVELS[idx - 1];
+  var me = after;
+  if (rs.s === 1 && up) {
+    $("endNextTx").textContent = "Next: " + up.emoji + " " + up.name + " · " + up.elo;
+    $("endNextSub").textContent = "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
+    $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(up.id, "a", clockStrOf()); };
+    $("endNext").classList.remove("hide");
+  } else if (rs.s === 0 && down && SKILLS[rs.level].elo - me > 220) {
+    $("endNextTx").textContent = "Try " + down.emoji + " " + down.name + " · " + down.elo;
+    $("endNextSub").textContent = "A step down the ladder is how everyone climbs it.";
+    $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(down.id, "a", clockStrOf()); };
+    $("endNext").classList.remove("hide");
+  }
+
+  /* the choreography, once the card is up */
+  var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
+  setTimeout(function () {
+    if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
+    countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
+      if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick && live()) Sound.countTick(k, n, after >= before);
+    }).then(function () {
+      dEl.classList.add("show");
+      if (live()) sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+      rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si, live); }, 380 + k * 420); });
+      var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
+      if (mile || up2) {
+        setTimeout(function () {
+          if (!live()) return;
+          var m = $("endMile"), was = out.levelUp && Rating.levelById(out.levelUp);
+          m.textContent = mile ? (mile.emoji || "🏅") + " " + (mile.kind === "settled" ? "Your rating has settled" :
+                                  mile.kind === "best" ? "A new personal best" : "You're now: " + mile.name) +
+                                  " — " + Math.round(mile.rating || after)
+                               : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
+          m.classList.remove("hide");
+          sting(mile ? "milestone" : "levelup");
+          if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+        }, 500 + rs.newStars.length * 420);
+      }
+    });
+  }, startAt);
+
+  /* and the look-back, alongside */
+  analyseGame(function (k, n) {
+    $("endAccBar").style.width = Math.round(k / Math.max(1, n) * 100) + "%";
+    $("endAccTx").textContent = "Looking back over your moves… " + k + "/" + n;
+  }).then(function (moves) {
+    if (!moves || myGame !== gameTicket) return;
+    if (!moves.length) { $("endAccTx").textContent = "No moves of yours to look back on."; $("endAccBar").style.width = "0%"; return; }
+    var acc = Rating.gameAccuracy(moves);
+    var c = qualityCounts(moves);
+    if (acc == null) {
+      /* a handful of moves is not a game's worth of evidence: say so,
+         and still say what the moves were */
+      $("endAccTx").textContent = "Too short to measure — accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own after the opening.";
+      $("endAccBar").style.width = "0%";
+      $("endCounts").innerHTML = countChips(c);
+      return;
+    }
+    /* taking what is handed to you is the best move and an easy one, so a
+       game's estimate is held within reach of the coach it was against */
+    var perf = Math.min(Rating.perfFromAccuracy(acc), SKILLS[rs.level].elo + (Rating.PERF_ABOVE || 400));
+    rememberAccuracy(acc, perf);
+    setTimeout(function () {
+      /* a performance read off four moves is a guess, so it waits for a game */
+      $("endAccTx").innerHTML = moves.length >= 10 ? "Accuracy · you played like <b>~" + Math.round(perf) + "</b>" : "Accuracy";
+      countUp($("endAccNum"), 0, Math.round(acc), REDUCED ? 0 : 900).then(function () { $("endAccNum").textContent = Math.round(acc) + "%"; });
+      $("endAccBar").style.width = Math.round(acc) + "%";
+      $("endCounts").innerHTML = countChips(c);
+      /* the third star is the hard one: a win, on your own, played well */
+      var rung = rungOf(rs.level);
+      if (rs.s === 1 && rs.clean && acc >= 80 && !rung.stars[2]) {
+        rung.stars[2] = 1; saveLadder();
+        setTimeout(function () { popStar(2, live); }, 700);
+      }
+    }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
+  });
+}
+function countChips(c) {
+  var chips = [];
+  if (c.brilliant) chips.push('<span><b class="k" style="color:var(--blue)">!!</b>' + c.brilliant + " brilliant</span>");
+  if (c.good) chips.push('<span><b class="k" style="color:var(--good)">!</b>' + c.good + " great</span>");
+  if (c.inaccuracy) chips.push('<span><b class="k">?!</b>' + c.inaccuracy + " inaccurac" + (c.inaccuracy > 1 ? "ies" : "y") + "</span>");
+  if (c.mistake) chips.push('<span><b class="k" style="color:var(--amber)">?</b>' + c.mistake + " mistake" + (c.mistake > 1 ? "s" : "") + "</span>");
+  if (c.blunder) chips.push('<span><b class="k" style="color:var(--bad)">??</b>' + c.blunder + " blunder" + (c.blunder > 1 ? "s" : "") + "</span>");
+  if (!chips.length) chips.push("<span>✨ not a single slip</span>");
+  return chips.join("");
+}
+/* the look-back finishes after the game has been counted, so its
+   accuracy is written onto the record afterwards */
+function rememberAccuracy(acc, perf) {
+  if (Rating.annotateLast) rating = Rating.annotateLast(rating, { acc: acc, perf: perf });
+  else {
+    var h = rating.history;
+    if (h && h.length) { h[h.length - 1].acc = acc; h[h.length - 1].perf = perf; }
+  }
+  Rating.save(rating, lsSet);
+}
+
+/* ---- the lobby ---- */
+function sparkPath(vals, w, h, pad) {
+  if (vals.length < 2) return null;
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  if (hi - lo < 40) { var mid = (hi + lo) / 2; lo = mid - 20; hi = mid + 20; }
+  var pts = vals.map(function (v, i) {
+    return [pad + (w - 2 * pad) * i / (vals.length - 1), h - pad - (h - 2 * pad) * (v - lo) / (hi - lo)];
+  });
+  return { pts: pts, lo: lo, hi: hi,
+           d: "M" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") };
+}
+function renderLobby() {
+  var sm = Rating.summary(rating), t = sm.title;
+  var num = $("mRateNum"), streak = streakDays();
+  if (!sm.games) {
+    num.textContent = "—";
+    $("mRateTitle").textContent = "Not rated yet";
+    $("mRateSub").textContent = "Play the computer — your first game sets your starting point.";
+    $("mRateSpark").innerHTML = "";
+    $("mRateSpark").classList.add("hide");
+  } else {
+    $("mRateSpark").classList.remove("hide");
+    num.innerHTML = sm.rating + (sm.provisional ? '<span class="prov">?</span>' : "");
+    $("mRateTitle").textContent = t.emoji + " " + t.name;
+    var bits = [sm.games + (sm.games === 1 ? " game" : " games")];
+    if (sm.best) bits.push("best " + sm.best);
+    if (streak > 1) bits.push("🔥 " + streak + "-day streak");
+    else if (sm.provisional) bits.push("still finding your level");
+    $("mRateSub").textContent = bits.join(" · ");
+    var hist = (sm.history || []).slice(-24).map(function (e) { return e.r; });
+    var sp = sparkPath(hist, 100, 34, 3);
+    $("mRateSpark").innerHTML = sp ? '<path class="area" d="' + sp.d + " L97 31 L3 31 Z" + '"></path><path d="' + sp.d + '"></path>' +
+      '<circle r="2.6" cx="' + sp.pts[sp.pts.length - 1][0] + '" cy="' + sp.pts[sp.pts.length - 1][1] + '"></circle>' : "";
+  }
+  var nl = nextLevel(), L = SKILLS[nl];
+  $("mPlaySub").textContent = !sm.games ? "A gentle first game against " + L.emoji + " " + L.name + "."
+    : "Next up: " + L.emoji + " " + L.name + " · " + L.elo + " — a fair fight for you.";
+  /* the ladder strip */
+  var lad = $("mLadder");
+  lad.innerHTML = "";
+  var total = 0;
+  Rating.LEVELS.forEach(function (Lv) {
+    var b = document.createElement("button"), r = ladder.rungs[Lv.id], n = starCount(Lv.id);
+    total += n;
+    b.className = "rung" + (Lv.id === nl ? " next" : "") + (r && r.stars[0] ? " done" : "");
+    b.setAttribute("role", "listitem");
+    b.setAttribute("aria-label", "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
+    b.innerHTML = '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
+      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" +
+      (Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
+    b.addEventListener("click", function () { quickPlay(Lv.id); });
+    lad.appendChild(b);
+  });
+  $("mLadderNote").textContent = total ? total + " of " + Rating.LEVELS.length * 3 + " stars — tap a coach to play it"
+                                       : "Beat each coach to earn its stars — tap one to play it";
+  /* bring the coach you're up against next into view */
+  var nx = lad.querySelector(".rung.next");
+  if (nx) lad.scrollLeft = Math.max(0, nx.offsetLeft - 8 - (lad.clientWidth - nx.offsetWidth) / 3);
+}
+
+/* ---- your record ---- */
+function showProfile() {
+  hideAllOverlays();
+  var sm = Rating.summary(rating), t = sm.title;
+  $("pfRate").textContent = sm.games ? sm.rating + (sm.provisional ? "?" : "") : "—";
+  $("pfRd").textContent = sm.games ? (sm.provisional ? "provisional — a few more games to settle it" : "give or take " + 2 * sm.rd) : "no games yet";
+  $("pfTitle").textContent = t.emoji + " " + t.name;
+  if (t.next) {
+    var span = t.next.floor - t.floor, k = Math.max(0, Math.min(1, (sm.rating - t.floor) / span));
+    $("pfNext").textContent = Math.max(1, t.next.floor - sm.rating) + " to " + t.next.emoji + " " + t.next.name;
+    setTimeout(function () { $("pfBar").style.width = Math.round(k * 100) + "%"; }, 60);
+  } else { $("pfNext").textContent = "the top of the scale"; $("pfBar").style.width = "100%"; }
+  /* the chart */
+  var hist = (sm.history || []).slice(-60).map(function (e) { return e.r; });
+  var ch = $("pfChart");
+  if (hist.length >= 2) {
+    var sp = sparkPath(hist, 320, 120, 10), g = "";
+    for (var gi = 0; gi < 4; gi++) { var y = 10 + gi * 100 / 3; g += '<line class="grid" x1="0" x2="320" y1="' + y + '" y2="' + y + '"></line>'; }
+    ch.innerHTML = g + '<path class="area" d="' + sp.d + " L310 110 L10 110 Z" + '"></path><path class="line" d="' + sp.d + '"></path>' +
+      '<text x="6" y="12">' + Math.round(sp.hi) + '</text><text x="6" y="116">' + Math.round(sp.lo) + "</text>";
+  } else {
+    ch.innerHTML = '<text x="160" y="64" text-anchor="middle">your rating will draw itself here, game by game</text>';
+  }
+  var accAvg = sm.recentAccuracy != null ? Math.round(sm.recentAccuracy) + "%" : "—";
+  var stars = 0;
+  Rating.LEVELS.forEach(function (L) { stars += starCount(L.id); });
+  $("pfStats").innerHTML = [
+    [sm.games || 0, "games"], [sm.wins + "·" + sm.draws + "·" + sm.losses, "W · D · L"],
+    [sm.best || "—", "best"], [accAvg, "accuracy"],
+    [streakDays() || 0, "day streak"], [ladder.bestDays || 0, "longest"],
+    [stars + "/" + Rating.LEVELS.length * 3, "stars"], [sm.streak.kind === "win" ? sm.streak.n : 0, "win run"]
+  ].map(function (x) { return "<div><b>" + x[0] + "</b><span>" + x[1] + "</span></div>"; }).join("");
+  var list = $("pfLadder");
+  list.innerHTML = "";
+  Rating.LEVELS.forEach(function (L) {
+    var r = ladder.rungs[L.id] || { w: 0, d: 0, l: 0 };
+    var b = document.createElement("button");
+    b.className = "rungRow";
+    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
+      (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(SKILLS[L.id].short)) + '</small></span><span class="rgElo">' + L.elo +
+      '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
+    b.addEventListener("click", function () { quickPlay(L.id); });
+    list.appendChild(b);
+  });
+  $("ovProfile").classList.remove("hide");
 }
 
 /* ===== game start / end ===== */
 function startGame(newMode, opts) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  Brain.cancel();                /* …and stops, rather than holding up the next one */
   opts = opts || {};
   stopTour();
   lesson = null; lessonDone = false; lessonQueue = [];
-  teachSeen = {}; teachCool = 0;
+  teachSeen = {}; teachCool = 0; taughtAt = [];
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
   over = null;
+  closePromo();
+  clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
+  hideToast(); clearLines();
+  if (R && R.resetView) R.resetView();
   clearSel(); hintArrow = null; viewPly = -1; lastNarratedOpening = ""; thinking = false;
   showViewBanner(false);
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
-  skill = opts.skill || skill;
+  skill = skillOk(opts.skill || skill);
   clockConfig(opts.clockStr || "none");
   orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
   R.setOrientation(orientation);
+  if (FX) Fx.clear();
+  fxDown = null;
   R.setPosition(G.board, { flourish: true });
+  sndArrival(!!opts.fresh);
   syncAll();
   hideAllOverlays();
   saveGame();
@@ -1183,8 +2012,17 @@ function startGame(newMode, opts) {
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   needFrame();
 }
+/* the engine names an ending in a word; a person deserves a sentence */
+var REASON_WORDS = {
+  insufficient: "neither side has enough left to checkmate",
+  "75-move rule": "seventy-five moves passed with no capture or pawn move",
+  "fivefold repetition": "the same position came round five times",
+  agreed: "agreed between the players"
+};
 function endGame(result, reason, taught) {
   if (over) return;
+  reason = REASON_WORDS[reason] || reason;
+  closePromo();
   /* the last move's lesson counts toward "what this game was about" */
   if (taught && taught.concept) teachSeen[taught.concept] = (teachSeen[taught.concept] || 0) + 1;
   over = { result: result, reason: reason };
@@ -1201,7 +2039,8 @@ function endGame(result, reason, taught) {
   var mySide = mode === "coach" ? humanSide : (mode === "lan" ? lanSide : 0);
   var iWon = (result === "white" && mySide === 1) || (result === "black" && mySide === -1);
   var iLost = (result === "white" && mySide === -1) || (result === "black" && mySide === 1);
-  snd(result === "draw" ? "draw" : (iLost ? "lose" : "win"));
+  var mated = reason === "checkmate";
+  snd(result === "draw" ? "draw" : iLost ? (mated ? "mate-lose" : "lose") : (mated ? "mate-win" : "win"));
   var em = "🤝", title = "A draw!", sub = "";
   if (result === "draw") {
     sub = cap(reason) + ". Draws are real results — half a point each, and often the fairest one.";
@@ -1210,7 +2049,7 @@ function endGame(result, reason, taught) {
     if (mySide === 0) { em = "🏆"; title = winner + " wins!"; }
     else if (iWon) { em = "🎉"; title = "You won!"; }
     else { em = "🌱"; title = "This one goes to " + sideName(-mySide) + "."; }
-    sub = cap(reason) + "." + (iLost ? " Every strong player has lost thousands of games — this one taught you something specific. Peek back through the moves and find where it turned." : (reason === "checkmate" ? " The king had no escape, no shield, and no rescue — that's all a checkmate is." : ""));
+    sub = cap(reason) + "." + (iLost ? " Every strong player has lost thousands of games — this one taught you something specific. Peek back through the moves and find where it turned." : (reason === "checkmate" && !(taught && taught.text) ? " The king had no escape, no shield, and no rescue — that's all a checkmate is." : ""));
   }
   $("endEmoji").textContent = em;
   $("endTitle").textContent = title;
@@ -1222,8 +2061,30 @@ function endGame(result, reason, taught) {
     else lessonLine.classList.add("hide");
   }
   $("endRematchSub").textContent = "Same setup" + (mode !== "pass" ? ", colours swapped." : ".");
+  $("endRematchTx").textContent = "Rematch";
+  if (mode === "coach") {
+    $("endRematchTx").textContent = "Play again";
+    $("endRematchSub").textContent = "Same coach — you'll have " + (humanSide === 1 ? "Black" : "White") + " this time.";
+  }
+  /* a mate gets a moment on the board — the king laid down, the camera
+     leaning in — before the card comes up over it */
+  var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
+  renderEndRating(mode === "coach" ? settleRating(result) : null, cardAt);
   renderOddsReview();
-  setTimeout(function () { if (over) $("ovEnd").classList.remove("hide"); }, REDUCED ? 100 : 1100);
+  /* the card waits its turn: if something else was opened in the
+     meantime, the Result chip offers it instead of stacking on top */
+  setTimeout(function () {
+    if (!over) return;
+    if (document.querySelector(".ov:not(.hide)") || studioOpen) { syncTurnStrip(); return; }
+    $("ovEnd").classList.remove("hide");
+    syncTurnStrip();
+    /* the room celebrates with you — and for two people on one board, a
+       decisive result is everyone's */
+    if (FX && result !== "draw" && (iWon || mySide === 0)) {
+      Fx.confetti({ ms: iWon ? 2800 : 1800, layer: "page" });
+      if (iWon) Fx.fireworks({ count: reason === "checkmate" ? 3 : 2, layer: "page" });
+    }
+  }, cardAt);
   lsDel(SAVE_KEY);
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -1260,6 +2121,19 @@ function renderOddsReview() {
      a nearer name — checkmate is met through the back rank, and so on */
   var ALIAS = { checkmate: "backRank", check: "mate-support", stalemate: "promotion",
                 centre: "development" };
+  /* not the first idea named, which was nearly always the opening's: the
+     most important one the game turned on, and of those the one you know
+     least */
+  var WEIGHT = ["hanging", "backRank", "checkmate", "fork", "pin", "skewer", "overload", "discovered",
+                "promotion", "stalemate", "castling", "trade", "tempo", "development", "centre", "check"];
+  var prog = null;
+  try { prog = Learn.load(); } catch (e) { prog = null; }
+  seen.sort(function (a, b) {
+    var wa = WEIGHT.indexOf(a), wb = WEIGHT.indexOf(b);
+    wa = wa < 0 ? 99 : wa; wb = wb < 0 ? 99 : wb;
+    if (wa !== wb) return wa - wb;
+    try { return Learn.mastery(prog, a) - Learn.mastery(prog, b); } catch (e) { return 0; }
+  });
   var target = null;
   for (var i = 0; i < seen.length && !target; i++) {
     var want = seen[i];
@@ -1280,8 +2154,8 @@ function renderOddsReview() {
 
 function rematch() {
   $("ovEnd").classList.add("hide");
-  if (mode === "coach") startGame("coach", { humanSide: -humanSide, skill: skill, clockStr: clockStrOf() });
-  else if (mode === "pass") startGame("pass", { clockStr: clockStrOf() });
+  if (mode === "coach") startCoachGame(skill, humanSide === 1 ? "b" : "w", clockStrOf());
+  else if (mode === "pass") startGame("pass", { clockStr: clockStrOf(), fresh: true });
   else if (mode === "lan") {
     if (!Net.linked()) { toast("The link closed. Host or join again to keep playing — the room remembers you."); return; }
     Net.send({ t: "rematch" });
@@ -1293,20 +2167,36 @@ function clockStrOf() { return clock.on ? (clock.base / 60000) + "+" + (clock.in
 /* ===== persistence ===== */
 function saveGame() {
   if (mode === "lan") { saveLan(); return; }
-  if (!G || mode === "tour" || !mode) return;
+  /* lessons and stories are not games: saving one used to overwrite the
+     game you had left to go and do it */
+  if (!G || (mode !== "pass" && mode !== "coach")) return;
   if (over) { lsDel(SAVE_KEY); return; }
   lsSet(SAVE_KEY, JSON.stringify({
     v: 1, mode: mode, sans: G.played.map(function (r) { return r.san; }),
     clockStr: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
     humanSide: humanSide, skill: skill,
     /* the odds ledger is part of the game's story, so it survives a reload */
-    odds: [oddsSpent[1], oddsSpent[-1], oddsNudged]
+    odds: [oddsSpent[1], oddsSpent[-1], oddsNudged],
+    /* and so is the help taken, or a reload would wash a rated game clean */
+    assist: [assist.takebacks, assist.hints],
+    /* and the coach's reviews so far, so a reload doesn't throw away the
+       look-back's work — or the abandonment rule's sense of the position */
+    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
+    ev: lastEval
   }));
 }
 function loadSave() {
   try {
     var s = JSON.parse(lsGet(SAVE_KEY) || "null");
-    if (!s || s.v !== 1 || !s.sans || (s.mode !== "pass" && s.mode !== "coach")) return null;
+    if (!s || s.v !== 1 || (s.mode !== "pass" && s.mode !== "coach")) return null;
+    /* a save that parses but lies — hand-edited, half-written, from an
+       older room — is retired rather than trusted */
+    var okClock = s.clockStr === "none" || /^\d{1,3}\+\d{1,3}$/.test(String(s.clockStr));
+    var timed = okClock && s.clockStr !== "none";
+    if (!Array.isArray(s.sans) || s.sans.length > 1200 || !s.sans.every(function (x) { return typeof x === "string" && x.length < 12; }) ||
+        !okClock || (timed && !(typeof s.wMs === "number" && typeof s.bMs === "number" && isFinite(s.wMs) && isFinite(s.bMs) && s.wMs >= 0 && s.bMs >= 0)) ||
+        (s.mode === "coach" && (s.humanSide !== 1 && s.humanSide !== -1))) { lsDel(SAVE_KEY); return null; }
+    s.skill = skillOk(s.skill);
     return s;
   } catch (e) { lsDel(SAVE_KEY); return null; }
 }
@@ -1334,6 +2224,10 @@ function loadLan() {
   } catch (e) { lsDel(LAN_KEY); return null; }
 }
 function resumeSave(s) {
+  try { resumeSaveInner(s); }
+  catch (e) { lsDel(SAVE_KEY); startGame(s.mode === "coach" ? "coach" : "pass", {}); toast("That saved game couldn't be read back, so here is a fresh board."); }
+}
+function resumeSaveInner(s) {
   startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr });
   var g = G;
   for (var i = 0; i < s.sans.length; i++) {
@@ -1341,8 +2235,14 @@ function resumeSave(s) {
     if (!m) break;
     Chess.play(g, m);
   }
-  if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 1 ? g.turn : 0; clock.lastT = performance.now(); }
+  if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 2 ? g.turn : 0; clock.lastT = performance.now(); }
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
+  if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0) };
+  if (Array.isArray(s.rv)) s.rv.forEach(function (t) {
+    if (Array.isArray(t) && typeof t[0] === "number" && t[0] < g.played.length && typeof t[1] === "number" && typeof t[2] === "number")
+      reviewMemo[t[0]] = { best: t[1], played: t[2] };
+  });
+  if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -1470,7 +2370,7 @@ function beginLan(mySide, clockStr, sans, wMs, bMs) {
     }
     R.setPosition(G.board);
     if (clock.on && wMs != null) { clock.w = wMs; clock.b = bMs; }
-    if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
+    if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
     narrateOpening("", "resume");
     toast("📡 Resumed exactly where you left off.");
   }
@@ -1519,7 +2419,7 @@ function lanUndo(n) {
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
   over = null;
   clearSel(); hintArrow = null; viewPly = -1;
-  if (clock.on) { clock.run = G.played.length >= 1 ? G.turn : 0; clock.lastT = performance.now(); }
+  if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
   syncAll();
 }
@@ -2109,13 +3009,26 @@ function buildOpeningList() {
   Book.LINES.filter(function (l) { return l.seq.split(" ").length >= 2; }).forEach(function (l) {
     var d = document.createElement("div");
     d.className = "oline";
+    d.setAttribute("role", "button"); d.tabIndex = 0;
     d.innerHTML = "<b>" + l.name + "</b><span class='seq'>" + l.seq + "</span><small>" + l.idea + "</small>";
     d.addEventListener("click", function () { startTour(l); });
+    d.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startTour(l); } });
     box.appendChild(d);
   });
 }
+/* a story or a lesson takes the board over completely: nothing still
+   thinking or waiting to speak about the last game may follow it in */
+function quietBoard() {
+  brainTicket++; gameTicket++;
+  Brain.cancel();
+  clearTimeout(coachTimer); thinking = false; hintPending = false;
+  closePromo(); hideToast(); clearLines();
+  clearNotes(); showPanelTab("moves");
+  if (R && R.resetView) R.resetView();
+}
 function startTour(line) {
   stopTour();
+  quietBoard();
   mode = "tour";
   G = Chess.create();
   over = null; clearSel(); hintArrow = null; viewPly = -1;
@@ -2125,27 +3038,68 @@ function startTour(line) {
   R.setPosition(G.board, { flourish: true });
   hideAllOverlays();
   syncAll();
-  tourLine = line; tourStep = 0;
+  tourLine = line; tourStep = 0; tourPaused = false;
   showOpeningCard(line.name, "", line.idea);
-  toast("📖 <b>" + line.name + "</b> — watch; each move explains itself.", null, 3000);
-  tourTimer = setTimeout(tourNext, REDUCED ? 600 : 1700);
+  tourBar();
+  tourTimer = setTimeout(tourNext, REDUCED ? 600 : 2200);
+}
+/* A story used to flash each move's reason in a toast for under three
+   seconds, with no way to stop it, go back, or read it again. Now it
+   sits in a bar of its own — paused, stepped, rewound — stays on screen
+   for as long as it takes to read, and is kept in the notebook. */
+var tourPaused = false;
+function tourSans() { return tourLine ? tourLine.seq.split(" ") : []; }
+function tourBar() {
+  if (mode !== "tour" || !tourLine) return;
+  var n = tourSans().length, i = tourStep;
+  var why = i > 0 && tourLine.why ? tourLine.why[i - 1] : null;
+  var said = i === 0 ? (tourLine.idea || "Watch — each move explains itself.")
+                     : "<b>" + esc(G.played[i - 1].san) + "</b>" + (why ? " — " + why : "");
+  lessonUI('<div class="lkick">📖 ' + esc(tourLine.name) + " · " + (i >= n ? "the end of the story" : "move " + (i + 1) + " of " + n) + "</div>" +
+           '<div class="lsay">' + said + "</div>");
+  var row = [
+    lessonChip("◀", tourBack),
+    i < n ? lessonChip(tourPaused ? "▶ Play" : "⏸ Pause", function () {
+      tourPaused = !tourPaused; clearTimeout(tourTimer);
+      if (!tourPaused) tourTimer = setTimeout(tourNext, 400);
+      tourBar();
+    }, !tourPaused ? false : true) : null,
+    i < n ? lessonChip("Next ▶", function () { clearTimeout(tourTimer); tourNext(); }) : null,
+    i >= n ? lessonChip("▶ Play on from here", tourPlayOn, true) : null,
+    lessonChip(i >= n ? "📖 Another story" : "Leave", function () { stopTour(); showOpenings(); })
+  ];
+  lessonRow(row);
+}
+function tourBack() {
+  if (mode !== "tour" || !tourLine || !tourStep) return;
+  clearTimeout(tourTimer); tourPaused = true;
+  if (viewPly >= 0) exitView();
+  Chess.takeBack(G); tourStep--;
+  forgetNotesAfter(G.played.length - 1);
+  R.setPosition(G.board);
+  syncMoveList(); syncBars(); syncTurnStrip(); syncBoard();
+  tourBar(); needFrame();
+}
+function tourPlayOn() {
+  if (viewPly >= 0) exitView();
+  var side = G.turn;
+  stopTour();
+  $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
+  /* the book's moves were nobody's: a fresh, rated game from here, against
+     the coach that gives you a fair fight */
+  mode = "coach"; humanSide = side; skill = nextLevel();
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  orientation = side; R.setOrientation(side);
+  syncAll(); saveGame();
+  toast("You're " + (side === 1 ? "White" : "Black") + ", picking up where the book ends, against " + SKILLS[skill].label + ".");
 }
 function tourNext() {
-  if (mode !== "tour" || !tourLine) return;
-  var sans = tourLine.seq.split(" ");
-  if (tourStep >= sans.length) {
-    toast("That's the " + tourLine.name + ". Want to play on from here against the coach?",
-      [{ label: "▶ Play on", fn: function () {
-          var side = G.turn;
-          mode = "coach"; humanSide = side; skill = "club";
-          orientation = side; R.setOrientation(side);
-          syncAll(); saveGame();
-          toast("You're " + (side === 1 ? "white" : "black") + ", picking up right where the book ends. The coach is listening.");
-        } },
-       { label: "📖 Another story", fn: function () { showOpenings(); }, ghost: true },
-       { label: "Menu", fn: function () { showMenu(); }, ghost: true }], 30000);
-    return;
-  }
+  if (mode !== "tour" || !tourLine || tourPaused) return;
+  /* browsing the move list pauses the story rather than moving the board
+     underneath the position being looked at */
+  if (viewPly >= 0) { tourTimer = setTimeout(tourNext, 600); return; }
+  var sans = tourSans();
+  if (tourStep >= sans.length) { tourBar(); return; }
   var m = Chess.fromSAN(G, sans[tourStep]);
   if (!m) { toast("(This story lost its page — that's a bug worth reporting.)"); return; }
   var why = tourLine.why && tourLine.why[tourStep];
@@ -2153,12 +3107,20 @@ function tourNext() {
   var san = Chess.play(G, m);
   sndMove(desc, R.animateMove(desc, G.board, { scale: 1.7 }, null), m.capt);
   syncMoveList(); syncBars(); syncTurnStrip();
-  if (why) toast("<b>" + san + "</b> — " + why, null, 2600);
+  if (why) note({ ply: G.played.length - 1, icon: "📖", tone: "note", key: "story", head: tourLine.name,
+                  text: "<b>" + esc(san) + "</b> — " + why, brief: san + " · " + stripTags(why).slice(0, 60) });
   tourStep++;
-  tourTimer = setTimeout(tourNext, REDUCED ? 500 : (why ? 2900 : 1500));
+  tourBar();
+  /* long enough to read what was said, at an unhurried pace */
+  var words = why ? stripTags(why).split(/\s+/).length : 0;
+  if (tourStep >= sans.length) { snd("lesson-done"); return; }
+  tourTimer = setTimeout(tourNext, REDUCED ? 500 : Math.max(2200, Math.min(8000, 1400 + words * 260)));
   needFrame();
 }
-function stopTour() { clearTimeout(tourTimer); tourLine = null; }
+function stopTour() {
+  clearTimeout(tourTimer); tourLine = null; tourPaused = false;
+  if (mode === "tour") { $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow(); }
+}
 
 /* ===== learn (the rules, gently) ===== */
 var LEARN = [
@@ -2182,7 +3144,7 @@ function showLearn(n) {
   $("learnBody").innerHTML = "<h2 style='margin-top:0'>" + LEARN[learnAt][0] + "</h2><p>" + LEARN[learnAt][1] + "</p>" +
     "<p style='text-align:center;color:var(--soft)'>" + (learnAt + 1) + " / " + LEARN.length + "</p>";
   $("learnPrev").style.visibility = learnAt === 0 ? "hidden" : "visible";
-  $("learnNext").textContent = learnAt === LEARN.length - 1 ? "Play! →" : "Next →";
+  $("learnNext").textContent = learnAt === LEARN.length - 1 ? "Play your first game →" : "Next →";
   $("ovLearn").classList.remove("hide");
 }
 
@@ -2332,15 +3294,22 @@ function showMateNet(side) {
    (mastery comes from the Academy's spacing data, so the room really
    does stop explaining forks once forks are yours). */
 var teachSeen = {}, teachCool = 0;
-function teachMoment(list, mover, source) {
+/* which idea was named at which move, so a take-back can forget it */
+var taughtAt = [];
+function teachMoment(list, mover, source, ply) {
   if (!prefs.coach || !G || over || mode === "lesson" || mode === "tour") return;
   /* in a two-player game, only speak about the move the local player made */
   if (mode === "lan" && source !== "local") return;
   if (mode === "coach" && mover !== humanSide) return;
-  if (teachCool > 0) { teachCool--; return; }
+  /* A cooldown keeps the room from chattering, but it must never silence
+     a hanging piece or a mate because a remark about a centre pawn came
+     a move earlier: the big moments go first and skip the queue. */
+  var hasMajor = list.some(function (x) { return x.weight >= 90; });
+  if (teachCool > 0 && !hasMajor) { teachCool--; return; }
   var prog = Learn.load();
   for (var i = 0; i < list.length; i++) {
     var item = list[i];
+    if (teachCool > 0 && item.weight < 90) continue;
     var m = Learn.mastery(prog, item.concept);
     var shown = teachSeen[item.concept] || 0;
     /* big moments (mate, stalemate, a hanging piece) always get said */
@@ -2348,6 +3317,7 @@ function teachMoment(list, mover, source) {
     if (!major && (m > 0.6 || shown >= 2)) continue;
     if (major && shown >= 3) continue;
     teachSeen[item.concept] = shown + 1;
+    taughtAt.push({ concept: item.concept, ply: ply });
     teachCool = major ? 0 : 2;
     if (item.squares && item.squares.length >= 2) {
       hintArrow = [item.squares[0], item.squares[1]];
@@ -2357,7 +3327,7 @@ function teachMoment(list, mover, source) {
     /* Named, kept, and re-readable. Naming is what turns a thing that
        happened into a pattern you can recognise again, and keeping it is
        what lets you look at the name twice. */
-    note({ ply: G.played.length - 1, icon: "\ud83d\udc41", tone: "note", key: item.concept,
+    note({ ply: ply, icon: "\ud83d\udc41", tone: "note", key: item.concept,
            squares: item.squares || null, text: item.text,
            brief: conceptLabel(item.concept) + (item.squares && item.squares.length
                   ? " \u00b7 " + item.squares.map(Chess.sqName).join("\u2013") : "") });
@@ -2376,7 +3346,7 @@ var CONCEPT_LABEL = {
   backRank: "back rank", checkmate: "mate", stalemate: "stalemate",
   discovered: "discovered attack", trade: "trade", development: "development",
   centre: "the centre", castling: "king safety", promotion: "promotion",
-  tempo: "tempo", overload: "overloaded defender"
+  tempo: "tempo", overload: "overloaded defender", mateThreat: "mate threat", sacrifice: "sacrifice"
 };
 function conceptLabel(c) {
   return CONCEPT_LABEL[c] || String(c || "note").replace(/([A-Z])/g, " $1").toLowerCase();
@@ -2385,6 +3355,11 @@ function conceptLabel(c) {
 /* ===================== the Academy =====================
    Lessons run on the real board with the real pieces, because a
    position you can touch is remembered and a diagram is not. */
+/* lessonPaused: the board is showing something other than the question
+   (a wrong move playing out, the demonstration, the revealed answer), so
+   a tap on it must not act on the position underneath. lessonRevealed:
+   the answer was shown, so a solve afterwards is not a solve. */
+var lessonPaused = false, lessonRevealed = false;
 var lesson = null, lessonDone = false, lessonTries = 0, lessonHints = 0,
     lessonQueue = [], lessonWorked = false, lessonPrev = null;
 
@@ -2445,11 +3420,11 @@ function startNextLesson() {
 
 function startLesson(L, queue) {
   stopTour();
-  clearTimeout(coachTimer);
+  quietBoard();
   hideAllOverlays();
   closeStudio();
   lesson = L; lessonQueue = queue || []; lessonDone = false; lessonTries = 0; lessonHints = 0;
-  lessonWorked = false;
+  lessonWorked = false; lessonPaused = false; lessonRevealed = false;
   mode = "lesson"; over = null; thinking = false;
   G = Chess.create(L.fen);
   lessonPrev = null;
@@ -2470,17 +3445,35 @@ function startLesson(L, queue) {
 
 /* the stage gives up room for the bar/drawer instead of being covered */
 function reflow() {
+  /* the player bars hide in a lesson or a story, so the board may use
+     their strips */
+  var bars = document.body.classList.contains("lesson-on") ? 0 : 48;
+  [R2, R3].forEach(function (r) { if (r && r.setInsets) r.setInsets(bars, bars); });
   if (R2) R2.resize();
   if (R3) R3.resize();
   needFrame();
 }
 function lessonUI(html, cls) {
   document.body.classList.add("lesson-on");
-  reflow();
   var bar = $("lessonBar");
   bar.className = "lessonBar" + (cls ? " " + cls : "");
   bar.innerHTML = html;
   bar.classList.remove("hide");
+  measureLessonBar();
+}
+/* the board above a lesson is exactly as tall as the room the bar leaves */
+var SIDE_LESSON = matchMedia("(orientation:landscape) and (max-height:500px)");
+var lessonH = -1;
+function measureLessonBar() {
+  var bar = $("lessonBar");
+  var h = (bar.classList.contains("hide") || SIDE_LESSON.matches) ? 0 : bar.offsetHeight + 20;
+  if (h === lessonH) return;
+  lessonH = h;
+  document.documentElement.style.setProperty("--lesson-h", h + "px");
+  reflow();
+}
+if (typeof ResizeObserver !== "undefined") {
+  try { new ResizeObserver(function () { if (document.body.classList.contains("lesson-on")) measureLessonBar(); }).observe($("lessonBar")); } catch (e) {}
 }
 function lessonChip(label, fn, go) {
   var b = document.createElement("button");
@@ -2499,12 +3492,15 @@ function lessonRow(chips) {
 
 function showWorkedExample() {
   lessonWorked = true;
-  var m = Chess.fromSAN(G, lesson.best);
+  lessonPaused = true;
+  var m = Chess.fromSAN(G, lesson.best), L0 = lesson;
   lessonUI('<div class="lkick">Watch first</div>' +
     '<div class="lask">' + esc(lesson.title) + '</div>' +
     '<div class="lsay">Here it is once, so you know what you\'re looking for. Then it\'s yours.</div>');
+  lessonRow([lessonChip("Leave", exitLesson)]);
   setTimeout(function () {
-    if (mode !== "lesson" || !m) return;
+    /* a different lesson started in the meantime: this one's answer is not its demonstration */
+    if (mode !== "lesson" || lesson !== L0 || !m) return;
     var desc = animDescriptor(m);
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
@@ -2515,8 +3511,9 @@ function showWorkedExample() {
       lessonRow([lessonChip("Now let me try →", function () {
         G = Chess.create(lesson.fen);
         R.setPosition(G.board);
+        lessonPaused = false;
         clearSel(); syncAll(); askLesson();
-      }, true)]);
+      }, true), lessonChip("Leave", exitLesson)]);
     });
     sndMove(desc, wPlan, m.capt);
     needFrame();
@@ -2527,7 +3524,8 @@ function askLesson() {
   var side = lesson.side === 1 ? "White" : "Black";
   lessonUI('<div class="lkick">' + esc(chapterName(lesson.chapter)) + " · you are " + side + '</div>' +
     '<div class="lask">' + esc(lesson.ask) + '</div>' +
-    (lessonTries ? '<div class="lsay">Have another go — the board is small enough to see all of it.</div>' : ''));
+    (lessonTries ? '<div class="lsay">' + (lesson.chapter === "opening" ? "Have another go — look for a move that does two jobs at once." :
+                                           "Have another go — the board is small enough to see all of it.") + '</div>' : ''));
   lessonRow([
     lessonChip(lessonHints ? "Another nudge" : "💡 Nudge", giveLessonHint),
     lessonChip("Show me", revealLesson),
@@ -2562,12 +3560,15 @@ function giveLessonHint() {
 }
 function revealLesson() {
   var m = Chess.fromSAN(G, lesson.best);
+  lessonRevealed = true;
   if (m) { hintArrow = [m.from, m.to]; syncBoard(); }
   lessonUI('<div class="lkick">The answer</div><div class="lask">' + esc(lesson.best) + '</div>' +
     '<div class="lsay">' + lesson.why + '</div>');
   lessonRow([lessonChip("Let me play it", function () {
     hintArrow = null; syncBoard(); askLesson();
   }, true), lessonChip("Leave", exitLesson)]);
+  /* the arrow is on the board; the board is still the question, so it
+     can be played straight from here */
   /* revealing counts as not knowing it — the schedule should hear that */
   var p = Learn.load();
   Learn.grade(p, lesson, false, null);
@@ -2597,16 +3598,20 @@ function lessonAttempt(m) {
 
   /* wrong: play it anyway so they *see* the consequence, then rewind */
   lessonTries++;
+  lessonPaused = true;            /* the board shows the wrong move until it is taken back */
   var say = Learn.critique(lesson, G, m);
   var tryPlan = R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
+    snd("lesson-wrong");
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
     lessonRow([lessonChip("Take it back", function () {
       R.setPosition(Chess.create(before).board);
+      lessonPaused = false;
       clearSel(); syncBoard(); askLesson(); needFrame();
     }, true), lessonChip("Show me", function () {
       R.setPosition(Chess.create(before).board);
+      lessonPaused = false;
       clearSel(); syncBoard(); revealLesson(); needFrame();
     })]);
   });
@@ -2615,8 +3620,23 @@ function lessonAttempt(m) {
 }
 
 function celebrateLesson(verdict) {
-  snd("win");
+  snd("lesson-right");
   var why = verdict.best ? lesson.why : (lesson.alsoWhy || lesson.why);
+  if (lessonRevealed) {
+    /* it was shown first, and the schedule has already heard so: asking
+       "did you see it?" now would only invite a kind lie */
+    lessonUI('<div class="lkick">Now you know it</div>' +
+      '<div class="lask">' + esc(lesson.title) + '</div>' +
+      '<div class="lsay">' + why + ' It\'ll come back tomorrow, and you\'ll find it on your own.</div>', "good");
+    markDay();
+    var nextQ = lessonQueue.shift();
+    lessonRow([
+      nextQ ? lessonChip("Next →", function () { startLesson(nextQ, lessonQueue); }, true)
+            : lessonChip("Next lesson →", function () { startNextLesson(); }, true),
+      lessonChip("The Academy", openAcademy)
+    ]);
+    return;
+  }
   lessonUI('<div class="lkick">' + (verdict.best ? "That's it" : "That works") + '</div>' +
     '<div class="lask">' + esc(lesson.title) + '</div>' +
     '<div class="lsay">' + why + '</div>', "good");
@@ -2639,9 +3659,11 @@ function finishLesson(confidence) {
   var clean = lessonTries === 0 && lessonHints === 0;
   Learn.grade(p, lesson, true, clean ? confidence : (confidence === "sure" ? "shaky" : "guess"));
   Learn.save(p);
+  markDay();                           /* a lesson keeps the streak alive as much as a game */
   var nextUp = lessonQueue.shift();
   if (nextUp) { startLesson(nextUp, lessonQueue); return; }
   var st = Learn.stats(p);
+  snd("lesson-done");
   lessonUI('<div class="lkick">Done</div>' +
     '<div class="lask">Learned ' + st.solved + " of " + st.total + '</div>' +
     '<div class="lsay">This comes back in a few days — that gap is what turns it into something you just <i>see</i>.</div>', "good");
@@ -2751,7 +3773,7 @@ function renderStudio() {
     b.addEventListener("click", function () {
       prefs.fx = lv.id; savePrefs();
       if (R3) {
-        if (lv.id === "auto") R3.setFx(R3.autoFx());
+        if (lv.id === "auto") R3.setFx("auto");
         else R3.setFx(lv.id);
       }
       renderStudio(); needFrame();
@@ -2762,7 +3784,8 @@ function renderStudio() {
   var lvHere = null;
   FX_LEVELS.forEach(function (lv) { if (lv.id === prefs.fx) lvHere = lv; });
   $("stFxNote").textContent = (lvHere ? lvHere.note : "") +
-    (R3 && prefs.fx === "auto" ? " — running " + R3.fx() : "");
+    (R3 && prefs.fx === "auto" ? " — running " + ({ high: "Full", medium: "Balanced", low: "Simple" }[R3.fx()] || R3.fx()) +
+      (R3.fxReason && R3.fxReason() === "frame rate" ? ", stepped down because frames were coming slowly" : "") : "");
 
   var pats = $("stPatterns");
   pats.innerHTML = "";
@@ -2794,20 +3817,32 @@ function wireStudio() {
            ["cBg", "room", "bg"], ["cSelect", "marks", "select"], ["cLegal", "marks", "legal"],
            ["cCapture", "marks", "capture"], ["cLast", "marks", "last"], ["cCheck", "marks", "check"],
            ["cHint", "marks", "hint"]];
+  /* A colour well or a slider fires dozens of times a second while it is
+     being dragged, and every apply used to repaint the board's texture,
+     recut its relief and write the preferences. Now a drag applies once a
+     frame without saving, and letting go saves once. */
+  var dragApply = 0;
+  function applySoon() {
+    if (dragApply) return;
+    dragApply = requestAnimationFrame(function () { dragApply = 0; applySkin(skin, false); });
+  }
+  function applyNow() { if (dragApply) { cancelAnimationFrame(dragApply); dragApply = 0; } applySkin(skin); }
   C.forEach(function (row) {
     $(row[0]).addEventListener("input", function () {
       skin[row[1]][row[2]] = this.value;
       skin.name = skin.name.indexOf("(edited)") >= 0 ? skin.name : skin.name + " (edited)";
-      applySkin(skin);
+      applySoon();
     });
+    $(row[0]).addEventListener("change", applyNow);
   });
   var S = [["sGrain", "board", "grain"], ["sGloss", "board", "gloss"],
            ["sShine", "pieces", "shine"], ["sRim", "pieces", "rim"]];
   S.forEach(function (row) {
     $(row[0]).addEventListener("input", function () {
       skin[row[1]][row[2]] = (+this.value) / 100;
-      applySkin(skin);
+      applySoon();
     });
+    $(row[0]).addEventListener("change", applyNow);
   });
   $("stRandom").addEventListener("click", function () {
     applySkin(Skins.random()); renderStudio();
@@ -2855,25 +3890,36 @@ function adoptSkin(s) {
 
 /* ===== overlays & menus ===== */
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovPromo", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy"].forEach(function (id) {
+  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile"].forEach(function (id) {
     $(id).classList.add("hide");
   });
+  /* the picker is not just hidden but closed: a picker that is hidden
+     while still pending is a board that refuses every tap */
+  closePromo();
+  if (G) syncTurnStrip();
 }
 function showMenu() {
   stopTour();
   closeStudio();
+  if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   hideAllOverlays();
   var lp = Learn.stats(Learn.load());
   $("mAcademySub").textContent = lp.solved
-    ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due for review" : "")
-    : "Learn by doing — short positions, real feedback.";
+    ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due" : "")
+    : "Short positions, real feedback.";
+  renderLobby();
+  /* a game nobody has moved in yet is not worth coming back to — it
+     used to be offered as "0 moves in" */
   var s = loadSave();
-  var hasLive = G && !over && mode && mode !== "tour";
+  if (s && !s.sans.length) s = null;
+  var hasLive = G && !over && mode && mode !== "tour" && mode !== "lesson";
   $("mResume").classList.toggle("hide", !s && !hasLive);
-  if (hasLive) $("mResumeSub").textContent = "Return to the board — " + Math.ceil(G.played.length / 2) + " moves in.";
-  else if (s) $("mResumeSub").textContent = (s.mode === "coach" ? "Against the coach" : "Pass & play") + " — " + Math.ceil(s.sans.length / 2) + " moves in.";
+  function against(m, sk) { return m === "coach" ? "Against " + SKILLS[skillOk(sk)].label : "Two players"; }
+  function movesIn(n) { return n ? Math.ceil(n / 2) + (Math.ceil(n / 2) === 1 ? " move" : " moves") + " in" : "not started yet"; }
+  if (hasLive) $("mResumeSub").textContent = against(mode, skill) + " — " + movesIn(G.played.length) + ".";
+  else if (s) $("mResumeSub").textContent = against(s.mode, s.skill) + " — " + movesIn(s.sans.length) + ".";
   /* contextual resign / draw offers for a live game */
   var ops = $("gameOps");
   if (!ops) {
@@ -2882,6 +3928,16 @@ function showMenu() {
     $("mResume").parentNode.insertBefore(ops, $("mResume").nextSibling);
   }
   ops.innerHTML = "";
+  if (hasLive && mode === "pass" && G.played.length) {
+    var prow = document.createElement("div"); prow.className = "rowbtns";
+    var who = G.turn === 1 ? "White" : "Black";
+    prow.appendChild(chipBtn("🏳️ " + who + " resigns", function () {
+      hideAllOverlays();
+      endGame(G.turn === 1 ? "black" : "white", who + " resigned");
+    }));
+    prow.appendChild(chipBtn("🤝 Agree a draw", function () { hideAllOverlays(); endGame("draw", "agreed"); }));
+    ops.appendChild(prow);
+  }
   if (hasLive && (mode === "lan" || mode === "coach")) {
     var row = document.createElement("div"); row.className = "rowbtns";
     if (mode === "lan" && Net.linked()) {
@@ -2889,7 +3945,7 @@ function showMenu() {
     }
     row.appendChild(chipBtn("🏳️ Resign this game", function () {
       hideAllOverlays();
-      toast("Resign — really? Tipping the king is honourable, but so is fighting on a pawn down.",
+      ask("Resign — really? Tipping the king is honourable, but so is fighting on a pawn down.",
         [{ label: "🏳️ Yes, resign", fn: function () {
             if (mode === "lan") Net.send({ t: "resign" });
             var meSide = mode === "lan" ? lanSide : humanSide;
@@ -2900,6 +3956,7 @@ function showMenu() {
     ops.appendChild(row);
   }
   $("ovMenu").classList.remove("hide");
+  snd("open");
 }
 function chipBtn(label, fn) {
   var b = document.createElement("button");
@@ -2916,12 +3973,47 @@ function showOpenings() {
 /* new-game card (shared by pass/coach/lan-host) */
 var newCardCtx = null;
 function openNewCard(kind, cb) {
-  newCardCtx = { kind: kind, cb: cb, side: "w", skill: skill, clockStr: "none" };
-  $("newTitle").textContent = kind === "pass" ? "Pass & play" : kind === "coach" ? "Play the coach" : "Host a board";
+  /* the card starts what it shows: every chip is set from this, and the
+     clock you chose last time for this kind of game is chosen again */
+  var lastClock = (prefs.lastClock && prefs.lastClock[kind]) || "none";
+  newCardCtx = { kind: kind, cb: cb, side: kind === "coach" ? "a" : "w", skill: nextLevel(), clockStr: lastClock };
+  Array.prototype.forEach.call($("clockChips").children, function (c) {
+    c.classList.toggle("sel", c.getAttribute("data-clock") === newCardCtx.clockStr);
+  });
+  $("newTitle").textContent = kind === "pass" ? "Two players, one device" : kind === "coach" ? "Play the computer" : "Host a board";
+  /* the colour chips: taking turns only means something against the computer */
+  Array.prototype.forEach.call($("sideChips").children, function (c) {
+    var v = c.getAttribute("data-side");
+    c.classList.toggle("hide", v === "a" && kind !== "coach");
+    c.classList.toggle("sel", v === newCardCtx.side);
+  });
+  if (kind === "coach") renderRungChoices(newCardCtx.skill);
+  $("flipRow").classList.toggle("hide", kind !== "pass");
+  Array.prototype.forEach.call($("flipChips").children, function (c) {
+    c.classList.toggle("sel", (c.getAttribute("data-flip") === "1") === !!prefs.autoFlip);
+  });
   $("sideRow").classList.toggle("hide", kind === "pass");
   $("skillRow").classList.toggle("hide", kind !== "coach");
   hideAllOverlays();
   $("ovNew").classList.remove("hide");
+}
+/* every coach on the ladder, with your record against it and the one
+   that would give you a fair fight marked */
+function renderRungChoices(selId) {
+  var row = $("skillChips"), fair = nextLevel();
+  row.innerHTML = "";
+  Rating.LEVELS.forEach(function (L) {
+    var b = document.createElement("button"), r = ladder.rungs[L.id];
+    b.className = "rungRow" + (L.id === selId ? " sel" : "");
+    b.setAttribute("data-skill", L.id);
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", L.id === selId ? "true" : "false");
+    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b>" +
+      (L.id === fair ? '<span class="fair">fair fight</span>' : "") + "<small>" + escHtml(SKILLS[L.id].short) +
+      (r && r.w + r.d + r.l ? " · " + r.w + "–" + r.d + "–" + r.l : "") + '</small></span><span class="rgElo">' + L.elo +
+      '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
+    row.appendChild(b);
+  });
 }
 function wireChips(rowId, attr, set) {
   $(rowId).addEventListener("click", function (e) {
@@ -2964,11 +4056,32 @@ function loop(t) {
 }
 
 /* ===== input: taps move pieces, drags orbit the 3D camera ===== */
+/* A piece can be tapped and then tapped to where it goes, or picked up
+   and carried there — people do both, often in the same game. Pressing
+   on one of your own men picks it up at once, so its squares light while
+   you decide; dragging it carries it; letting go on a square it can reach
+   plays the move, and anywhere else puts it back. A drag that starts
+   anywhere else still turns the 3D board, and two fingers still zoom. */
 function wireInput() {
   var stage = $("stage");
   var pts = new Map(), downSq = -1, downXY = null, dragging = false, pinchD = 0;
+  var carry = null;      /* { from, picked } while a press began on a man of the side to move */
+  function local(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function ownMan(sq) {
+    if (!G || sq < 0 || !canActNow(true)) return false;
+    var p = G.board[sq];
+    return !!p && (p > 0 ? 1 : -1) === G.turn;
+  }
+  function dropCarry() {
+    if (R.setDrag) R.setDrag(null);
+    if (R.dragHover) R.dragHover(-1);
+    needFrame();
+  }
   stage.addEventListener("pointerdown", function (e) {
-    if (e.target.closest(".clock") || e.target.closest("#toast")) return;
+    /* anything you can press that happens to sit on the stage — a lesson's
+       buttons, the clock, a question — is not the board. Capturing the
+       pointer for those used to swallow every mouse click on them. */
+    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, button, a")) return;
     /* a remark lying over the board goes as soon as the board is
        touched; the notebook has kept it */
     if (!$("toast").classList.contains("acts")) hideToast();
@@ -2980,9 +4093,18 @@ function wireInput() {
     if (pts.size === 1) {
       downXY = { x: e.clientX, y: e.clientY };
       dragging = false;
-      var rect = stage.getBoundingClientRect();
-      downSq = R.screenToSquare(e.clientX - rect.left, e.clientY - rect.top);
+      var at = local(e);
+      downSq = R.screenToSquare(at.x, at.y);
+      carry = null;
+      if (viewPly < 0 && ownMan(downSq)) {
+        /* already in hand: the release decides (a tap puts it down) */
+        var already = sel === downSq;
+        if (!already) { tapSquare(downSq); }
+        carry = { from: downSq, picked: !already };
+      }
     } else if (pts.size === 2) {
+      /* a second finger means zoom, never a move */
+      if (carry) { dropCarry(); carry = null; }
       var arr = Array.from(pts.values());
       pinchD = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     }
@@ -3004,15 +4126,42 @@ function wireInput() {
     if (!downXY) return;
     var dx = e.clientX - downXY.x, dy = e.clientY - downXY.y;
     if (!dragging && Math.hypot(dx, dy) > 9) dragging = true;
-    if (dragging && R.orbit) {
+    if (!dragging) return;
+    if (carry && sel === carry.from) {
+      /* the piece goes with the finger; the square it is over is the
+         renderer's answer (in 3D it is carried above the board, so the
+         wood under the pointer can be a different square) */
+      var at = local(e);
+      var over = R.setDrag ? R.setDrag(carry.from, at.x, at.y) : R.screenToSquare(at.x, at.y);
+      var legal = false;
+      for (var i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === over) { legal = true; break; }
+      if (R.dragHover) R.dragHover(legal ? over : -1);
+      needFrame();
+      return;
+    }
+    if (R.orbit) {
       R.orbit(e.clientX - prev.x, e.clientY - prev.y);
       needFrame();
     }
   });
   function up(e) {
+    var last = pts.get(e.pointerId);
     pts.delete(e.pointerId);
     if (pts.size > 0) return;
-    if (!dragging && downSq >= 0) tapSquare(downSq);
+    if (carry) {
+      var c = carry; carry = null;
+      if (dragging && last && e.type !== "pointercancel") {
+        /* let go: on a square it can reach, that is the move — set down
+           from under the finger, so it is asked before the drag ends */
+        var r = stage.getBoundingClientRect();
+        var to = R.setDrag ? R.setDrag(c.from, last.x - r.left, last.y - r.top) : R.screenToSquare(last.x - r.left, last.y - r.top);
+        dropCarry();
+        if (to >= 0 && to !== c.from && sel === c.from) tapSquare(to);
+      } else {
+        dropCarry();
+        if (!dragging && !c.picked) tapSquare(downSq);   /* a tap on the man already in hand puts it down */
+      }
+    } else if (!dragging && downSq >= 0) tapSquare(downSq);
     downSq = -1; downXY = null; dragging = false; pinchD = 0;
   }
   stage.addEventListener("pointerup", up);
@@ -3029,9 +4178,14 @@ function syncAll() {
 function syncButtons() {
   syncOddsUI();
   $("undoLbl").textContent = mode === "lan" ? "Takeback" : "Undo";
-  $("btnUndo").toggleAttribute("disabled", !G || !G.played.length || !!over || mode === "tour");
-  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour");
-  $("btnReplay").toggleAttribute("disabled", !G || !G.played.length);
+  /* Undo needs a move of yours to take back; after the end of a game
+     between two people on one screen it stays, because that is exactly
+     when a person playing both sides wants to try the other line */
+  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" &&
+    (!over || (mode === "pass" && !/out of time/.test(over.reason))) && (mode !== "coach" || humanMovesMade() > 0);
+  $("btnUndo").toggleAttribute("disabled", !canUndo);
+  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || hintPending);
+  $("btnReplay").toggleAttribute("disabled", !G || !G.played.length || thinking);
 }
 
 /* the hint button says what it will cost before you press it */
@@ -3069,6 +4223,28 @@ function syncSettingsUI() {
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
 }
 
+/* the two ways a configured game begins, shared by the menu and the
+   New game button */
+function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); }); }
+function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.side, o.clockStr); }); }
+/* New game, from the board. Starting over is one tap; it only asks first
+   when there is something to lose — moves on the board, or a rated game
+   that is properly under way. */
+function newGameButton() {
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan") { showMenu(); return; }
+  var kind = mode;
+  var again = function () {
+    if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
+    else startGame("pass", { clockStr: clockStrOf(), fresh: true });
+  };
+  if (over || !G.played.length) { again(); return; }
+  if (ratedAtStake()) { leaveGameThen(again, "starting over"); return; }
+  ask("Start a new game? This one ends here.",
+    [{ label: "✚ New game", fn: again },
+     { label: kind === "coach" ? "Change opponent…" : "Change the clock…", ghost: true, fn: function () { openNewCard(kind, kind === "coach" ? coachBegin : passBegin); } },
+     { label: "Keep playing", ghost: true, fn: function () {} }]);
+}
+
 /* ===== boot ===== */
 function wireUI() {
   $("btnMenu").addEventListener("click", showMenu);
@@ -3090,12 +4266,12 @@ function wireUI() {
     var s = loadSave();
     if (s) resumeSave(s);
   });
-  $("mPass").addEventListener("click", function () { openNewCard("pass", function (o) { startGame("pass", { clockStr: o.clockStr }); }); });
-  $("mCoach").addEventListener("click", function () { openNewCard("coach", function (o) {
-    var side = o.side === "r" ? (Math.random() < 0.5 ? 1 : -1) : (o.side === "b" ? -1 : 1);
-    startGame("coach", { humanSide: side, skill: o.skill, clockStr: o.clockStr });
-    if (side === -1) toast("You have black — the coach opens. Watch what it does with the centre.");
-  }); });
+  $("mPass").addEventListener("click", function () { openNewCard("pass", passBegin); });
+  $("mCoach").addEventListener("click", function () { openNewCard("coach", coachBegin); });
+  $("mPlay").addEventListener("click", function () { quickPlay(); });
+  $("mRating").addEventListener("click", showProfile);
+  $("pfBack").addEventListener("click", showMenu);
+  $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
   $("mLearn").addEventListener("click", function () { showLearn(0); });
@@ -3115,21 +4291,66 @@ function wireUI() {
   wireChips("sideChips", "side", function (v) { if (newCardCtx) newCardCtx.side = v; });
   wireChips("skillChips", "skill", function (v) { if (newCardCtx) newCardCtx.skill = v; });
   wireChips("clockChips", "clock", function (v) { if (newCardCtx) newCardCtx.clockStr = v; });
+  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
     var ctx = newCardCtx; newCardCtx = null;
-    skill = ctx.skill;
+    if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
+    prefs.lastClock[ctx.kind] = ctx.clockStr; savePrefs();
+    skill = skillOk(ctx.skill);
     hideAllOverlays();
     ctx.cb({ side: ctx.side, skill: ctx.skill, clockStr: ctx.clockStr });
   });
   $("newBack").addEventListener("click", showMenu);
 
+  /* a tap on the dimmed room around a card closes it, the way Escape does:
+     the side cards go back to the lobby, and the lobby itself goes back
+     to a game that is waiting */
+  ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) { if (e.target === this) showMenu(); });
+  });
+  $("ovMenu").addEventListener("click", function (e) {
+    if (e.target === this && G && mode && mode !== "tour" && mode !== "lesson" && (!over || G.played.length)) hideAllOverlays();
+  });
+  $("ovEnd").addEventListener("click", function (e) { if (e.target === this) { this.classList.add("hide"); syncTurnStrip(); } });
+
+  /* promotion: a way back out */
+  $("promoCancel").addEventListener("click", cancelPromo);
+  $("ovAsk").addEventListener("click", function (e) { if (e.target === this && askCancel) { var c = askCancel; closeAsk(); c(); } });
+  $("ovPromo").addEventListener("click", function (e) { if (e.target === this) cancelPromo(); });
+  /* the keyboard: Escape backs out of whatever is open; the arrows walk
+     through the game */
+  document.addEventListener("keydown", function (e) {
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (e.key === "Escape") {
+      if (askCancel) { var c = askCancel; closeAsk(); c(); return; }
+      if (pendingPromo) { cancelPromo(); return; }
+      if (!$("ovEnd").classList.contains("hide")) { $("ovEnd").classList.add("hide"); syncTurnStrip(); return; }
+      if (studioOpen) { closeStudio(); return; }
+      var open = ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].filter(function (id) { return !$(id).classList.contains("hide"); });
+      if (open.length) { showMenu(); return; }
+      if (!$("ovMenu").classList.contains("hide") && G && mode) { hideAllOverlays(); return; }
+      if (viewPly >= 0) exitView();
+      return;
+    }
+    if (!G || !G.played.length || document.querySelector(".ov:not(.hide)")) return;
+    var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+    if (e.key === "ArrowLeft") { viewAt(Math.max(0, at - 1)); e.preventDefault(); }
+    else if (e.key === "ArrowRight") { if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); } e.preventDefault(); }
+    else if (e.key === "Home") { viewAt(0); e.preventDefault(); }
+    else if (e.key === "End") { if (viewPly >= 0) exitView(); e.preventDefault(); }
+  });
+  $("resultChip").addEventListener("click", function () { if (over) { exitView(); $("ovEnd").classList.remove("hide"); } });
+
   /* end card */
   $("endRematch").addEventListener("click", rematch);
   $("endReview").addEventListener("click", function () {
     $("ovEnd").classList.add("hide");
+    var down = fxDown;
+    fxCalm(); fxDown = down;      /* the light goes; the fallen king comes back with the final position */
     if (G && G.played.length) viewAt(0);
-    toast("Tap moves in the list to step through. Tap the banner to come back to the end.");
+    syncTurnStrip();
+    toast("Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
   });
   $("endMenu").addEventListener("click", showMenu);
 
@@ -3160,7 +4381,8 @@ function wireUI() {
   /* learn */
   $("learnPrev").addEventListener("click", function () { showLearn(learnAt - 1); });
   $("learnNext").addEventListener("click", function () {
-    if (learnAt === LEARN.length - 1) { hideAllOverlays(); showMenu(); }
+    /* the rules end where they are for: a first game, against the gentlest coach */
+    if (learnAt === LEARN.length - 1) { hideAllOverlays(); quickPlay(Rating.LEVELS[0].id); }
     else showLearn(learnAt + 1);
   });
   $("learnClose").addEventListener("click", showMenu);
@@ -3230,7 +4452,15 @@ function wireUI() {
   /* recovery */
   $("recReload").addEventListener("click", function () { location.reload(); });
   $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
-  $("recFresh").addEventListener("click", function () { lsDel(SAVE_KEY); lsDel(PREF_KEY); location.hash = ""; location.reload(); });
+  /* a fresh start forgets everything the room ever wrote — the game, the
+     settings, the Academy, the score — because any one of them, damaged,
+     is enough to strand it, and a recovery card that cannot recover is
+     worse than none */
+  $("recFresh").addEventListener("click", function () {
+    try { Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k)) lsDel(k); }); } catch (e) {}
+    lsDel(SAVE_KEY); lsDel(PREF_KEY);
+    location.hash = ""; location.reload();
+  });
 
   window.addEventListener("resize", function () {
     if (R2) R2.resize();
@@ -3238,8 +4468,18 @@ function wireUI() {
     needFrame();
   });
   /* a tab coming back from the background repaints and re-arms the clock */
+  /* Away from the tab: in a game on this device that is a pause, like the
+     menu. In a game between two devices it is time spent thinking — the
+     other person waited through it — so it is charged when you return. */
+  var hiddenAt = 0;
   document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") { hiddenAt = performance.now(); return; }
     if (document.visibilityState === "visible") {
+      if (mode === "lan" && clock.on && clock.run && !over && hiddenAt) {
+        var away = performance.now() - hiddenAt;
+        if (clock.run === 1) clock.w -= away; else clock.b -= away;
+      }
+      hiddenAt = 0;
       clock.lastT = performance.now();
       if (R) { R.dirty = true; }
       needFrame();
@@ -3288,6 +4528,12 @@ function wireSW() {
       });
     }
     if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+    /* a room left open on a phone for days never navigates, so it never
+       asks whether there is a new release; coming back to it is a good
+       moment to ask */
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") { try { reg.update(); } catch (e) {} }
+    });
     if (reg.installing) watch(reg.installing);
     reg.addEventListener("updatefound", function () { if (reg.installing) watch(reg.installing); });
   }).catch(function () {});
@@ -3313,11 +4559,19 @@ function showUpdateBar(worker) {
 
 /* ===== go ===== */
 function boot() {
+  /* the first tap anywhere — not only on the board — is the gesture a
+     browser wants before it will start an audio clock, and lets the
+     room's reverb grow at idle before the first sting needs it */
+  document.addEventListener("pointerdown", function () {
+    if (prefs.sound && typeof Sound !== "undefined") { try { Sound.wake(); } catch (e) {} }
+  }, { capture: true, passive: true });
+  if (typeof Sound !== "undefined" && Sound.setReduced) Sound.setReduced(REDUCED);
   /* who this room is, as far as the shared front door is concerned */
   Room.configure({ game: "chess", seats: 2, label: "board" });
   wireUI();
   lanHandlers();
   initRenderers();
+  fxInit();
   applySkin(skin, false);
   wireInput();
   syncSettingsUI();
@@ -3370,6 +4624,8 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
     savePrefs(); syncSettingsUI(); renderNotes(); syncMoveList();
   },
   undoPlyForTest: undoPly,
+  /* run a clock down to its last millisecond, for play-check.js */
+  flagForTest: function (side) { if (side === 1) clock.w = 1; else clock.b = 1; clock.lastT = performance.now(); needFrame(); },
   marksForTest: function () { return marks; },
   notesForTest: function () { return notes; },
   get mode() { return mode; }, startGame: startGame, get renderer() { return R; },

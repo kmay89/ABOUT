@@ -194,6 +194,40 @@ const SOME = ALL.filter((_, i) => i % 97 === 0);
   ok("…but never over somebody who asked for stillness", reducedSlow.dur === 1);
 })();
 
+/* ---------- a man let go of by hand ----------
+   A drag-to-move has already travelled; what is left is setting him down
+   from where the hand let go. It has to be quick, never climb, never go
+   backwards, land with his own landing, and still give a castle's rook
+   and a promotion the time they need. */
+(function () {
+  let bad = "", climb = "", back = "";
+  for (const k of [1, 2, 3, 4, 5, 6]) {
+    for (const reach of [0, 0.3, 1, 3]) {
+      const m = { piece: k, from: 0x14, to: 0x34 };
+      const pl = Motion.setDown(m, { reach });
+      if (!(pl.dur >= 150 && pl.dur <= 240) || !pl.dropped) bad += KIND[k] + "@" + reach + ":" + pl.dur + " ";
+      let lastP = 0;
+      for (let i = 0; i <= 200; i++) {
+        const a = Motion.at(pl, i / 200);
+        if (a.y > 1e-9) climb = KIND[k];
+        if (a.p < lastP - 1e-9) back = KIND[k];
+        lastP = a.p;
+      }
+      const end = Motion.at(pl, 1);
+      if (!near(end.p, 1) || !near(end.y, 0) || !near(end.squash, 1)) bad += KIND[k] + " does not land ";
+    }
+  }
+  ok("a man let go of by hand is set down quickly, and lands", !bad, bad);
+  ok("…without climbing or going backwards on the way", !climb && !back, climb + " " + back);
+  const castle = Motion.setDown({ piece: 6, from: 0x04, to: 0x06, rookFrom: 0x07, rookTo: 0x05 }, { reach: 0.2 });
+  const promo = Motion.setDown({ piece: 1, from: 0x64, to: 0x74, promo: 5 }, { reach: 0.2 });
+  ok("…while a castle's rook and a promotion keep the time they need",
+     castle.dur >= 300 && promo.dur === Motion.plan({ piece: 1, from: 0x64, to: 0x74, promo: 5 }).dur,
+     castle.dur + " / " + promo.dur);
+  ok("…and under reduced motion it is as still as any other move",
+     Motion.setDown({ piece: 2, from: 0x01, to: 0x22 }, { reach: 1, reduced: true }).dur === 1);
+})();
+
 /* ---------- the check pulse ---------- */
 (function () {
   const a = Motion.checkPulse(0), b = Motion.checkPulse(Motion.PULSE_MS + 10);
@@ -206,6 +240,182 @@ const SOME = ALL.filter((_, i) => i % 97 === 0);
     lo = Math.min(lo, p.amount); hi = Math.max(hi, p.amount);
   }
   ok("the pulse stays inside its bounds", lo >= 0 && hi <= 1.001, lo.toFixed(3) + ".." + hi.toFixed(3));
+})();
+
+/* ---------- the king going over ----------
+   The end of a game is the one animation everybody watches to the
+   last frame, so it gets the same treatment as a move: exact at the
+   ends, and never anywhere a solid thing could not be. */
+(function () {
+  const rest = 1.36;
+  const a = Motion.kingFall(0, rest), z = Motion.kingFall(Motion.FALL_MS, rest);
+  ok("a mated king starts upright", near(a.tilt, 0) && !a.done, JSON.stringify(a));
+  ok("…and ends lying exactly at rest", near(z.tilt, rest) && z.done, JSON.stringify(z));
+  let past = null, backMost = 0, landedAt = -1, bounced = false, prev = 0, wentDown = false;
+  for (let t = 0; t <= Motion.FALL_MS + 40; t += 2) {
+    const f = Motion.kingFall(t, rest);
+    if (f.tilt > rest + 1e-9) past = past || "tilt " + f.tilt.toFixed(4) + " at " + t + "ms";
+    backMost = Math.min(backMost, f.tilt);
+    if (f.landed && landedAt < 0) landedAt = t;
+    if (landedAt >= 0 && f.tilt < prev - 1e-6) wentDown = true;
+    if (wentDown && f.tilt > prev + 1e-6) bounced = true;
+    prev = f.tilt;
+  }
+  ok("it never falls through the board", !past, past);
+  ok("it rocks back against the blow, a little", backMost < -0.02 && backMost > -0.09,
+     "leans back to " + backMost.toFixed(3));
+  ok("it meets the board when the sound is told it will", Math.abs(landedAt - Motion.FALL_IMPACT) <= 2,
+     "landed at " + landedAt + "ms, impact said " + Motion.FALL_IMPACT);
+  ok("and bounces once off the wood before it lies still", bounced);
+  let falling = true, p2 = -1;
+  for (let t = 170; t < Motion.FALL_IMPACT; t += 3) {
+    const f = Motion.kingFall(t, rest).tilt;
+    if (f < p2 - 1e-9) falling = false;
+    p2 = f;
+  }
+  ok("once it goes, it goes one way", falling);
+  /* the speed it hits the board with: slow over the lip, fast at the end */
+  const early = Motion.kingFall(230, rest).tilt - Motion.kingFall(200, rest).tilt;
+  const late = Motion.kingFall(590, rest).tilt - Motion.kingFall(560, rest).tilt;
+  ok("it is slow over the lip and fast at the end", late > early * 3,
+     "early " + early.toFixed(3) + ", late " + late.toFixed(3));
+})();
+
+/* ---------- how he lies ----------
+   The fall above is only as honest as the angle it falls to. Guess it
+   short and he is left leaning on nothing with his crown in the air;
+   guess it long and his head goes through the wood. So the angle is
+   measured off the man's own shape, and here it is measured against
+   shapes whose answer is known, then turned every way he could fall to
+   prove no part of him ends up under the board. */
+(function () {
+  /* a turned man: a profile of [radius, height] spun round, eight ways */
+  function turned(profile) {
+    const pts = [];
+    for (const [r, y] of profile) for (let a = 0; a < 16; a++) {
+      pts.push(r * Math.cos(a * Math.PI / 8), y, r * Math.sin(a * Math.PI / 8));
+    }
+    return pts;
+  }
+  /* where every point of him is, laid down at `tilt` toward `dir`,
+     turning on the rim of his base `pivot` out, then raised by `lift` */
+  function lowest(pts, pivot, tilt, dir, lift, above) {
+    const s = Math.sin(tilt), c = Math.cos(tilt);
+    let lo = Infinity;
+    for (let i = 0; i < pts.length; i += 3) {
+      if (pts[i + 1] < (above || 0)) continue;
+      const u = pts[i] * Math.cos(dir) + pts[i + 2] * Math.sin(dir);
+      lo = Math.min(lo, (pivot - u) * s + pts[i + 1] * c + lift);
+    }
+    return lo;
+  }
+  /* a king: a deep foot, a waist, a crown narrower than the foot */
+  const king = turned([[0.36, 0], [0.36, 0.08], [0.24, 0.16], [0.14, 0.55], [0.22, 0.86], [0.12, 0.98], [0.03, 1.1]]);
+  const k = Motion.lieOf(king, 0.36);
+  const exact = Math.PI / 2 + Math.atan2(0.36 - 0.22, 0.86);
+  ok("a king whose crown is narrower than his foot lies a little past flat, crown on the wood",
+     Math.abs(k.rest - exact) < 1e-9 && k.rest > Math.PI / 2, k.rest.toFixed(4) + " vs " + exact.toFixed(4));
+  let sunk = null, floats = Infinity;
+  for (let d = 0; d < 32; d++) {
+    const dir = d * Math.PI / 16, lo = lowest(king, 0.36, k.rest, dir, k.lift);
+    if (lo < -1e-9) sunk = sunk || "dips " + lo.toFixed(4) + " falling at " + dir.toFixed(2);
+    /* his head, not the rim he turned on, which touches by definition */
+    floats = Math.min(floats, lowest(king, 0.36, k.rest, dir, k.lift, 0.5));
+  }
+  ok("…and whichever way he falls, no part of him is under the board", !sunk, sunk);
+  ok("…nor is his head hovering over it", floats < 0.03, "his head is " + floats.toFixed(4) + " above the board");
+  ok("…with the deep foot's top edge lifting him a hair, not a square",
+     k.lift > 0 && k.lift < 0.03, "lift " + k.lift.toFixed(4));
+  /* a man wider at the top than at the foot comes to rest short of flat */
+  const heavy = turned([[0.2, 0], [0.12, 0.4], [0.32, 0.9], [0.2, 1.0]]);
+  const h = Motion.lieOf(heavy, 0.2);
+  ok("a man wider at the head than the foot rests short of flat",
+     h.rest < Math.PI / 2 && lowest(heavy, 0.2, h.rest, 0, h.lift) > -1e-9, h.rest.toFixed(3));
+  ok("the lift is nothing short of flat and all of it at rest",
+     Motion.lieLift(1.2, k) === 0 && Math.abs(Motion.lieLift(k.rest, k) - k.lift) < 1e-12 &&
+     Motion.lieLift(1.0, h) === 0);
+  ok("a shape with nothing above its foot still gets an answer", Motion.lieOf([0.3, 0, 0], 0.3).rest > 1);
+})();
+
+/* ---------- the men arriving ---------- */
+(function () {
+  const start = new Int8Array(128);
+  const back = [4, 2, 3, 5, 6, 3, 2, 4];
+  for (let f = 0; f < 8; f++) {
+    start[f] = back[f]; start[0x10 + f] = 1;
+    start[0x60 + f] = -1; start[0x70 + f] = -back[f];
+  }
+  const plan = Motion.cascade(start, { orientation: 1 });
+  ok("every man in the starting position is set down once", plan.length === 32 &&
+     new Set(plan.map((p) => p.sq)).size === 32, plan.length + " landings");
+  let sorted = true;
+  for (let i = 1; i < plan.length; i++) if (plan[i].t < plan[i - 1].t) sorted = false;
+  ok("the landings come back in the order they happen", sorted);
+  const firstRank = (pl) => pl[0].sq >> 4;
+  ok("they arrive from the player's own side outward", firstRank(plan) === 0 &&
+     firstRank(Motion.cascade(start, { orientation: -1 })) === 7);
+  const centre = plan.filter((p) => (p.sq >> 4) === 0);
+  ok("the middle files land before the edges",
+     centre[0].sq === 3 || centre[0].sq === 4, "first on the back rank: " + centre[0].sq.toString(16));
+  const end = Motion.cascadeEnd(plan);
+  ok("the whole board is set in about a second", end > 700 && end < 1300, Math.round(end) + "ms");
+  const few = new Int8Array(128); few[0x04] = 6; few[0x74] = -6;
+  ok("a nearly empty board is set faster than a full one",
+     Motion.cascadeEnd(Motion.cascade(few, {})) < end * 0.75);
+
+  const d0 = Motion.dropAt(0), d1 = Motion.dropAt(Motion.DROP_MS);
+  ok("a falling man starts in the air and unseen", d0.y > 1 && near(d0.alpha, 0), JSON.stringify(d0));
+  ok("…and ends on its square, whole and still", near(d1.y, 0) && near(d1.squash, 1) &&
+     near(d1.alpha, 1) && d1.done, JSON.stringify(d1));
+  let under = null, minSq = 1, hop = false;
+  for (let t = 0; t <= Motion.DROP_MS; t += 2) {
+    const s = Motion.dropAt(t);
+    if (s.y < -1e-9) under = under || "y " + s.y + " at " + t;
+    minSq = Math.min(minSq, s.squash);
+    if (t > Motion.DROP.fall + 20 && s.y > 0.02) hop = true;
+  }
+  ok("it never lands below the board", !under, under);
+  ok("it lands with a soft hop", hop);
+  ok("and gives like wood, not rubber", minSq >= 0.9, "squash " + minSq.toFixed(3));
+  const land = Motion.dropAt(Motion.DROP.fall + 0.01);
+  ok("the landing the sound is told about is the moment it touches", land.landed && land.y < 0.01,
+     JSON.stringify(land));
+})();
+
+/* ---------- the camera's spring ---------- */
+(function () {
+  let s = { x: 0, v: 0 }, over = false, steps = 0;
+  while (!Motion.springAtRest(s.x, s.v, 1) && steps < 2000) {
+    s = Motion.spring(s.x, s.v, 1, 1 / 60, 5);
+    if (s.x > 1 + 1e-6) over = true;
+    steps++;
+  }
+  ok("the camera's spring arrives", steps < 2000, steps + " frames");
+  ok("…without going past where it was sent", !over);
+  ok("…in a second or two, not a moment and not an age", steps > 30 && steps < 150, steps + " frames at 60Hz");
+  const big = Motion.spring(0, 0, 1, 5, 5);
+  ok("a long stall lands it rather than flinging it", Math.abs(big.x - 1) < 1e-3 && Math.abs(big.v) < 1e-2,
+     JSON.stringify(big));
+  const none = Motion.spring(0.3, 0.2, 1, 0, 5);
+  ok("no time, no movement", none.x === 0.3 && none.v === 0.2);
+})();
+
+/* ---------- light under a capture ---------- */
+(function () {
+  const pawn = Motion.impactAt(60, 0.1), queen = Motion.impactAt(60, 1);
+  ok("a capture lights its square", pawn.live && pawn.amount > 0.5);
+  let lastPawn = 0, lastQueen = 0;
+  for (let t = 0; t < 2000; t += 5) {
+    if (Motion.impactAt(t, 0.1).live) lastPawn = t;
+    if (Motion.impactAt(t, 1).live) lastQueen = t;
+  }
+  ok("a queen's capture holds the light longer than a pawn's", lastQueen > lastPawn,
+     lastPawn + "ms vs " + lastQueen + "ms");
+  ok("and both go dark on their own", !Motion.impactAt(5000, 1).live && !Motion.impactAt(-1, 1).live);
+  let lo = 2, hi = -1;
+  for (let t = 0; t < 700; t += 3) { const m = Motion.impactAt(t, 0.7); lo = Math.min(lo, m.amount); hi = Math.max(hi, m.amount); }
+  ok("the flash stays inside its bounds", lo >= 0 && hi <= 1 + 1e-9, lo.toFixed(3) + ".." + hi.toFixed(3));
+  void queen;
 })();
 
 console.log(failed ? "\n" + failed + " problem" + (failed > 1 ? "s" : "") + " with the way the pieces move"

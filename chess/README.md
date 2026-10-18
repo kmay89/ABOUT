@@ -1,11 +1,16 @@
 # ♞ The Chess Room
 
 **Chess, taught kindly.** A free chess app that runs entirely in your
-browser — a full 3D board with four piece sets (and a lovely 2D
-option), a patient coach who hints and explains, opening stories told
-plainly, a real tournament clock, and same-room two-player that links
-two devices with a pasted or scanned code. No accounts, no server, no ads, nothing tracked. Installable
-as a PWA; works offline; quietly announces new versions.
+browser. One tap plays the computer, and every game you play it counts:
+a ladder of eight coaches, each one measured against the others, with
+three stars to earn on every rung, and a rating of your own on the
+scale every club already uses — so you can tell whether you are getting
+better. Around that: a patient coach who hints and explains, an Academy
+of short lessons, opening stories told plainly, a real tournament clock,
+a full 3D board with four piece sets (and a lovely 2D option), and
+same-room two-player that links two devices with four letters or a
+scanned code. No accounts, no server, no ads, nothing tracked.
+Installable as a PWA; works offline; quietly announces new versions.
 
 Part of [The Solving Room](../). No libraries, no build step, MIT.
 
@@ -75,14 +80,29 @@ rules: MIT-compatible, no build step, no runtime dependency, offline.
 
 ```
 index.html          markup + all styling (the room's warm dark look)
-app.js              the conductor: game flow, clock, coach, tours,
-                    persistence, self-healing boot, input
+app.js              the conductor: the lobby, the ladder and the record,
+                    game flow, clock, coach, tours, the end-of-game
+                    reveal, persistence, self-healing boot, input (tap
+                    a piece or carry it)
+rating.js           the score: the coach ladder as data — eight rungs
+                    from Acorn to Oak, each a fixed engine recipe with a
+                    measured rating — lichess-style accuracy, a fitted
+                    accuracy → rating table, and a Glicko score that
+                    counts a helped game for less, never for nothing.
+                    Pure arithmetic: no DOM, no clock, no storage of its
+                    own
 teach.js            the teaching eyes: forks, pins, skewers, hanging
-                    pieces, back ranks, mate — spotted and named in
-                    plain words, both in lessons and in your own game
+                    pieces, back ranks, mate threats — spotted and named
+                    in plain words, and only when they are true: every
+                    claim rests on a static exchange count, a fork or
+                    skewer has to survive every legal reply, and a
+                    "hanging" piece has to stay lost once the capture is
+                    played out. Also explainMove(), which tells a hint
+                    what the move really does, or says nothing
 learn.js            the Academy: an 18-lesson course built on retrieval
                     practice, worked-example fading, interleaving and
-                    SM-2 spacing, with mastery tracked per idea
+                    SM-2 spacing, with mastery tracked per idea — and
+                    saved progress that no amount of junk can break
 skins.js            the look, as data: board colours + pattern, piece
                     colour + material, markings, plus share codes so a
                     skin can travel to a friend
@@ -100,15 +120,22 @@ engine.js           the rules of chess, complete: legal move generation
                     mobility, open files and the shelter round the king.
                     Also review(), which answers the only question a coach
                     actually asks: how much worse was that than the best
-                    you had?
+                    you had? It can also be given a budget in positions
+                    rather than milliseconds, and told to start from an
+                    empty table, which is what lets a practice level
+                    play the same game on every machine, whatever was
+                    searched before it
 brain.js            the engine on a thread of its own, as promises — the
                     board keeps drawing and the clock keeps ticking while
                     the coach thinks. Falls back to the main thread where
                     workers can't be built (file://), same API, same
-                    answers, just the pause back
+                    answers, just the pause back. cancel() drops a search
+                    nobody is waiting for any more — a new game, a
+                    take-back — so the next one doesn't queue behind it;
+                    busy() says whether anything is being thought about
 brain-worker.js     the other side of that conversation
 book.js             the teaching book — famous lines in SAN with
-                    plain-language ideas and per-move reasons
+                    plain-language ideas and a reason for every move
 eco.js              generated: all 3,807 named openings (ECO codes)
                     from lichess-org/chess-openings, CC0
 pieces-classic.js   generated: the default set, six print models decimated
@@ -129,22 +156,55 @@ gfx3d.js            raw WebGL 1 renderer: a shadow pass, a linear-space
                     graded composite (bloom, vignette, lens fringe, ACES,
                     grain). The board carries a relief map cut from its
                     own colour canvas and reflects the men when polished.
-                    Orbit camera on springs, sliding/hopping/sinking
-                    animations, and three effects tiers that degrade on
-                    their own when a card says no
-gfx2d.js            canvas renderer with an original hand-drawn piece set;
-                    also the safety net if WebGL is missing or lost
-sound.js            what a piece sounds like: modal synthesis, one voice
-                    per material (the partials and how long they ring) and
-                    one per man (how low and how loud a weight lands),
-                    plus the friction of a slide, read off the very plan
-                    the board is animating. All synthesized — no samples
+                    Orbit camera on springs, sliding/hopping/toppling
+                    animations, three effects tiers that degrade on their
+                    own when a card says no — and the big moments: the men
+                    set down at the start of a game, light on a struck
+                    square, the mated king laid on his side with his crown
+                    on the wood, a camera that springs in toward a square,
+                    and squareToScreen for the effects layer. The camera
+                    is fitted to the canvas every frame (steeper, through
+                    a longer lens, on a phone held upright); a tap answers
+                    for the man in front before the wood; a man can be
+                    carried by hand for drag-to-move; and Auto effects
+                    step down for the session if frames come slowly
+                    (R.fxReason says why)
+gfx2d.js            canvas renderer with an original hand-drawn piece set,
+                    the same big-moment hooks as the carved board; also
+                    the safety net if WebGL is missing or lost. Keeps
+                    clear of the player bars, prints its coordinates in
+                    ink chosen against the pixels under them, and carries
+                    a man by hand with the same calls as the carved board
+sound.js            what the room sounds like. The pieces by modal
+                    synthesis: one voice per material (the partials and
+                    how long they ring), one per man (how low and how loud
+                    a weight lands), plus the friction of a slide read off
+                    the very plan the board is animating. And the room's
+                    music: every other moment — a check, a mate, a lesson,
+                    a rating — a short score in D major, written down as
+                    data and played by a tiny synth into a reverb grown
+                    from noise. All synthesized — no samples
 motion.js           how a piece moves, as data: a character per man
                     (duration, lift, easing, lean, landing), plus the
                     curves for a capture being pushed over, a castle's
-                    two-piece gesture, a promotion and the check pulse.
-                    Pure arithmetic, no DOM — both boards ask it the same
-                    question and get the same answer
+                    two-piece gesture, a promotion, the check pulse, the
+                    mated king going over (and how far over, measured off
+                    the man's own shape), the men arriving, the flash
+                    under a capture and the camera's spring. Pure
+                    arithmetic, no DOM — both boards ask it the same
+                    question and get the same answer — and Move.setDown,
+                    the last of a move made by hand: from where the
+                    finger let go onto the square
+fx.js               the big moments, as light: a layer over the board for
+                    a capture (shockwave, sparks, chips of the taken man),
+                    a check, a promotion and a mate (a burst and a band of
+                    light across the board, in three moods), each one
+                    pinned to its square as the camera moves; and a layer
+                    over the page for the end of the game — confetti that
+                    flutters, fireworks, sparkles, a count-up with a tick
+                    per step, a shake, a buzz. Procedural sprites, 400
+                    particles at most, asleep and a pixel big when idle,
+                    nothing at all under reduced motion
 room.js             the shared front door: four-letter room codes over the
                     site's mailbox, the link heartbeat, the healing loop,
                     and the keepsake a reload comes back to. Byte-identical
@@ -152,13 +212,23 @@ room.js             the shared front door: four-letter room codes over the
 net.js              nearby two-player: WebRTC over four letters, with the
                     serverless invite/reply codes (deflated, QR-scannable)
                     still underneath, and resume-after-drop
-sw.js               offline shell + update notifications (bump VERSION
-                    on every release)
+sw.js               offline shell + update notifications, one release at
+                    a time: the page and its scripts always come from the
+                    same versioned cache, and a new release waits for the
+                    update bar (bump VERSION on every release — a release
+                    without one reaches nobody). The one exception is the
+                    release that replaces the old network-first worker:
+                    it takes over by itself, so the one mixed visit that
+                    worker hands out heals without a tap
 manifest.webmanifest, icons/
 tools/              dev-only, never shipped:
   perft.js          proves the move generator against published perft
                     counts — run before trusting any rules change
-  book-check.js     every book line must be legal and in canonical SAN
+  book-check.js     every book line legal and in canonical SAN, every
+                    move with its own reason, names that agree with the
+                    ECO table, no markup slips — and every reason that
+                    names an attack, a defence, a pin or a mate checked
+                    on the board after that very move
   crosscheck.js     fuzzes our engine against chess.js (dev-only):
                     identical move sets and FENs over random games
   make-eco.js       regenerates eco.js from lichess chess-openings,
@@ -166,10 +236,18 @@ tools/              dev-only, never shipped:
   make-tactics.js   curates + engine-verifies a tactics pack from the
                     CC0 lichess puzzle dump (data not shipped yet)
   teach-check.js    hand-built positions where the right answer is
-                    obvious to a human, checked against teach.js
+                    obvious to a human, checked against teach.js — plus
+                    the openings people actually play, where the coach
+                    once saw pins and skewers that weren't there, the
+                    self-play positions where it once cried wolf, and a
+                    few thousand moves of random games it must read
+                    without a stumble
   lesson-check.js   every lesson must load, be solvable by its own rule,
-                    and reject its listed wrong answers — plus the
-                    spacing maths
+                    and reject its listed wrong answers; the engine must
+                    agree that every accepted answer holds and every
+                    "wrong" one really is worse — plus the spacing maths,
+                    and junk saves fed through the browser's own door
+                    that must not stop the Academy opening
   skin-check.js     presets are complete, share codes round-trip, and
                     hostile input (markup, bad colours, junk numbers)
                     comes back safe
@@ -185,24 +263,99 @@ tools/              dev-only, never shipped:
                     proved by brute force rather than taken on the
                     engine's word, free material taken, a won position not
                     thrown away by repetition, a legal move inside the
-                    time budget every time, and (--slow) that the three
-                    practice levels really are a ladder
+                    time budget every time, a budget in positions kept
+                    and answered the same way twice — even straight after
+                    a deep search — and (--slow) that the practice
+                    levels, read from rating.js, really are a ladder
+  rating-check.js   the score is honest: Glicko against Glickman's own
+                    formulas, help weighed the same in both directions,
+                    one game never moving the number more than 250, the
+                    accuracy blend against a second implementation, the
+                    mate clamp, a monotone table that reads each rung back
+                    at its own rating, a clean win over a weak coach not
+                    read as a master's game, milestones said once, a
+                    simulated player found within a season, and storage
+                    that survives hostile JSON. Then, in a real browser,
+                    every rung played through the coach's worker inside
+                    its own budget, and the same move after a hint as
+                    before it
+  calibrate.js      not a check — the measurement. Neighbouring rungs
+                    play seeded, clock-frozen matches from sound openings,
+                    the Elo gaps are pinned between 400 and 1800, and each
+                    rung's reviewed accuracy becomes the accuracy → rating
+                    table. Slow; run it by hand when a recipe or the
+                    engine's strength changes, and copy what it prints
+                    into rating.js (--pairs measures part of the ladder,
+                    --from reuses unchanged pairings)
+  brain-check.js    the coach's thread. In node, a pretend Worker runs the
+                    real worker script but only on cue, so the test picks
+                    when each answer lands: options reach the engine
+                    intact (node budgets too), answers come back in order
+                    and once each, cancel() drops what is in flight and
+                    nothing it dropped can come back, a dead worker hands
+                    its work to the main thread. Then a real Worker in a
+                    browser: a long search cancelled, and the next one not
+                    waiting behind it
   motion-check.js   every piece starts on its square and ends on the next
                     one, never travels backwards or through the board,
                     lands like wood rather than rubber, and moves
                     differently from all five others — plus the castle,
-                    the topple, the promotion and reduced motion
+                    the topple, the promotion, reduced motion, the mated
+                    king's fall (never through the board, knocking when
+                    the sound is told it will), how he lies once down
+                    (crown on the wood whichever way he fell, never under
+                    it), the men arriving in order from the player's side,
+                    and a camera spring that arrives without overshooting
   touch-check.js    plays a whole game by thumb on a phone-sized screen,
                     in 3D and in 2D, and fails on a single page error —
                     every other check moves pieces through the dev
                     handle, which cannot notice the board has stopped
                     listening to fingers
+  board-check.js    the board fits the glass and answers the finger: on a
+                    390x844 phone the carved far rank is at least 37 px
+                    across and both boards stay clear of the player bars;
+                    every back-rank man's head, from both sides and from
+                    as low as the orbit tilts, picks that man; every
+                    visible pixel of every man picks him too, in well
+                    under a millisecond; Flip brings the camera home;
+                    every house skin's coordinates clear 4.5:1 against
+                    the pixels really under them; drag-to-move draws,
+                    follows, sets a man down or glides him home, on both
+                    boards; and Auto effects step down when frames are slow
+  play-check.js     sits down and plays the room the way a person does:
+                    the lobby's one tap into a rated game, a win that
+                    moves the number and lands its stars, New game and the
+                    rated game that asks before it is thrown away, pieces
+                    carried as well as tapped on both boards, a lost
+                    graphics context recovered — and every bug the
+                    playtests turned up, kept fixed: Undo as Black before
+                    you have moved, the flag that fell under the promotion
+                    picker, the review on the wrong move, castling by the
+                    rook, the new-game card that lied, hints charged
+                    twice, and a save that lies
+  features-check.js walks the room wide rather than deep: every setting,
+                    every look in the Studio and its export, Flip,
+                    Replay, Undo, Hint, the 2D/3D switch, a game left and
+                    come back to, an agreed draw, a resignation, a clock
+                    running out, all four promotions, every page of the
+                    rules, every opening story to its last move, every
+                    lesson in the Academy, the record and the nearby door
+                    — on a phone and on a laptop, failing on a single
+                    page error
   sound-check.js    checks the model in node, then renders the actual
                     audio in a browser and measures the samples: each
                     material rings longer than the last, metal is a bell
                     where the others are bars, a heavier piece lands lower
                     and louder, nothing clips, and a sliding rook is heard
-                    the whole way while a carried knight is not
+                    the whole way while a carried knight is not. Then the
+                    music: every moment written down in one key, every
+                    sting sounds, none clips, each is silence by the length
+                    it promises; a mate outshines a win, the check you are
+                    in is a different figure from the one you give, the
+                    room's echo is heard and is wide, a count climbs, a
+                    busy room keeps the end of a fanfare, a muted room is
+                    silent echo and all, and nothing asked for before the
+                    first tap is saved up for it
   coach-check.js    plays a real game in a real browser and reads what the
                     room wrote down: the notebook fills, names the opening
                     and the tactic, marks the mistake on the move list,
@@ -213,13 +366,40 @@ tools/              dev-only, never shipped:
                     than the code: every program links, the GL error
                     queue stays empty, the frame has a range of colours
                     in it, turning the shadow pass off changes what the
-                    board looks like, all three effects tiers draw, and
-                    the eight house skins all light up and all differ
+                    board looks like, all three effects tiers draw, the
+                    big moments draw cleanly and put the board back
+                    exactly, and the eight house skins all light up and
+                    all differ
+  fx-check.js       the big moments in a real browser: all 64 squares
+                    round-trip between squareToScreen and screenToSquare
+                    on both boards, both sides, mid-push-in and after an
+                    orbit; every effect inks its layer, and one pinned to
+                    a square moves and grows with it; the king lies past
+                    flat, and laid down still lies exactly where his fall
+                    would have left him; the men keep arriving through a
+                    quick first move; a shake keeps the stylesheet's own
+                    transform; the loop stops asking for frames and the
+                    layers end clear, hidden and a pixel big; reduced
+                    motion draws nothing; a little game plays through; a
+                    storm of everything stays under 400 particles
+  fx-preview.html   the real boards under the real effects layer, with a
+                    button for every moment and a four-move game played
+                    the way the app conducts it. Open it from a static
+                    server while tuning an effect
   offline-check.js  pulls the plug for real: compares the service worker's
                     shell with everything the page and its worker load, in
                     both directions, then cuts the network in a live
                     browser and checks the room still boots, still carves
-                    its pieces, and still answers with a move
+                    its pieces, and still answers with a move. Then it
+                    ships a release while the room is open — two builds,
+                    marked in the page and in every script — and checks
+                    that no page load along the way is one build's page
+                    with the other's scripts, that the update bar appears,
+                    that one tap swaps the lot, and that the README or a
+                    404 can't write itself over the offline shell. Last,
+                    it ships this worker over a copy of the old
+                    network-first one and checks the old worker's last
+                    mixed visit heals itself, without a tap
   pieces-preview.html
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
@@ -232,6 +412,225 @@ tools/              dev-only, never shipped:
   make-icons.js     draws the app icons from scratch (analytic raster + 
                     hand-rolled PNG writer)
 ```
+
+## Play the computer, and a reason to
+
+The menu used to offer six equal doors and never say which one meant
+playing alone; "Play the coach" read as a lesson. And a game against the
+computer ended leaving nothing behind, so there was no reason to play
+another. Most people who open a chess app want one thing first, and the
+room now leads with it.
+
+**One tap.** The lobby opens on one amber button — *Play the computer* —
+at a strength chosen for you: the coach nearest your score, and while
+the room is still finding your level, one a step gentler, because a
+first win teaches more than a first even game. You take turns with the
+colours. *Choose your opponent, colour & clock* is a line underneath,
+for when you want to choose.
+
+**A number that is yours.** Above the button sits a card with your
+rating, your title and a small line of where the score has been. Tap
+it and *Your record* opens: the full chart, your games won, drawn and
+lost, your best, your recent accuracy, the stars you hold, and the
+ladder with your score against every rung. How the number is worked
+out is in *The score*, below, and on that page in a short paragraph.
+
+**A ladder to climb.** Below the button are the eight coaches, from 🌰
+Acorn to 🌳 Oak, each with its rating and three stars to earn:
+
+- ★ win against it;
+- ★ win without help — no hint, no take-back;
+- ★ win without help at 80% accuracy or better.
+
+The first star says you can beat it. The second says you can beat it on
+your own. The third says you beat it on your own *and* played well,
+which is the one a lucky blunder by the coach cannot hand you. A coach
+whose three stars you hold is marked mastered; the one you should try
+next is marked next, and the strip scrolls it into view. Tap any rung
+to play it.
+
+**A day on the streak.** A day you play is a day on your streak, and a
+lesson in the Academy counts as much as a game. The longest one is
+kept. The rating card only mentions it once it is two days long.
+
+Two players on one device, a friend nearby and the three ways to learn
+sit one row further down. They are not less important; they are just
+not what someone opening the room alone came for.
+
+**New game is one tap**, from the board. It only asks first when there
+is something to lose — moves on the board — and then it asks in a small
+card above everything: *new game*, *change opponent* (or, between two
+people, the clock), or *keep playing*.
+Every question in the room now asks that way. A question used to be a
+toast, which a remark arriving a second later could replace under your
+finger, and from the lobby it was drawn underneath the lobby. A remark
+never replaces a question now, and Escape or a tap outside picks the
+last, gentlest answer.
+
+**Starting over, honestly.** Every game against the computer is rated,
+clock or no clock. Walking away from a rated game you are losing is the
+oldest way there is to keep a number up, so starting another is only
+free while a game is young: always before your third move (a misclick
+on the colour, a change of heart about the opponent), and after that as
+long as the game is short and you are not clearly behind. Once it is
+well under way — twenty plies, ten moves each — or the coach's last
+look puts you three pawns or more behind, starting another counts as
+resigning it. The room says
+which of the two it is, and asks first. A rated game left on the shelf
+while you did a lesson is still a game. A reload is not leaving: the
+game is still there to continue.
+
+**Moving a piece** is a tap and a tap, as it always was — or press on
+one of your own men and it is picked up at once, its squares light
+while you decide, and letting go on one of them plays the move. Let go
+anywhere else and it goes back. A drag that starts anywhere but your
+own piece still turns the 3D board, and a second finger still zooms;
+most people try to drag first, and on the flat board a drag used to do
+nothing at all. A piece can be picked up while the last move is still
+landing, and the move you make waits for it to land; a tap in that
+moment used to be dropped without a word. On a phone shared by two
+people, an option on the two-player card turns the board to whoever is
+to move, once the piece has landed — off by default, because someone
+playing both sides alone wants the board to stay put.
+
+## The score
+
+A person who plays the coach a hundred times deserves to know whether
+they are getting better — not a pat on the head, but a number that
+means the same thing next month as it does today, on the scale every
+chess site and every club already uses, so "about 900" is a sentence
+they can carry out of the room. `rating.js` keeps that number. It is
+pure arithmetic — no DOM, no storage of its own, no clock — and the room
+hands it a finished game and gets a new score back.
+
+**A ladder you can measure.** The coach comes in eight strengths, named
+for something growing:
+
+| | rung | rating | recipe | accuracy |
+|---|---|---|---|---|
+| 🌰 | **Acorn** | 400 | reads 1 ply (its choices 2), 30k positions, 400 cp slack | 66% |
+| 🌱 | **Sprout** | 580 | reads 2 plies, 30k positions, 300 cp slack | 71% |
+| 🍀 | **Clover** | 740 | reads 2 plies, 30k positions, 190 cp slack | 76% |
+| 🌿 | **Fern** | 920 | reads 2 plies, 30k positions, 130 cp slack | 84% |
+| 🎋 | **Bamboo** | 1120 | reads 3 plies, 150k positions, 130 cp slack | 85% |
+| 🌵 | **Cactus** | 1370 | reads 3 plies, 150k positions, 70 cp slack | 92% |
+| 🌲 | **Pine** | 1560 | reads 4 plies, 200k positions, 55 cp slack | 95% |
+| 🌳 | **Oak** | 1800 | searches freely, 80k positions, 10 cp slack | 98% |
+
+The old three levels keep their ids — `sprout`, `club` and `mentor`, now
+Sprout, Fern and Oak — so saved games still find them. Each rung is a
+fixed recipe: how many plies it reads, how many positions it may look
+at in all, and how much slack it allows itself when choosing. The
+recipe counts positions rather than milliseconds, so a rung plays the
+same game on a phone as on a laptop; `engine.js` grew an optional
+position budget for exactly this. The slack is what makes a weak rung
+weak the way a person is weak: it picks among the moves within that
+many centipawns of its best, weighted toward the better end, so it is
+mostly sensible and sometimes loose rather than random. The moves it
+chooses among are always read at least two plies deep, so even Acorn
+sees a piece that would be taken straight back; its weakness is the
+slack, not blindness.
+
+**The ratings are measured, not guessed.** `tools/calibrate.js` plays
+every pair of neighbours from the same short, sound opening lines
+(taken from the lichess opening table) with the colours swapped, the
+clock frozen and the dice seeded, so that any game can be replayed
+exactly and a busy machine changes nothing. Each score becomes an Elo
+gap — the stronger rung took 86% to 94% every time. Then it has to
+decide what the numbers *mean*, and that is where it has to be honest.
+Engines playing engines exaggerate: an engine never has an off day, so
+it collects its whole edge in every game, and stacked raw on a
+newcomer's 400 the chain would put Oak above 3000. So the chain is
+pinned at both ends — Acorn at 400, someone who has just learned how
+the pieces move; Oak at 1800, the cautious end of where an engine of
+its kind plays people — and every measured gap between them is scaled
+by the same factor (×0.52). **The spacing is measured; the scale is the
+one assumption**, and it is written down in `rating.js` so it can be
+argued with.
+
+There are eight rungs rather than three because the engine's strength
+is not smooth. Reading three plies instead of two is a cliff, and the
+whole engine against anything reading three plies is another; the old
+jump from club to mentor was as wide as the bottom half of the new
+ladder put together. A rung nobody can climb to is not a rung.
+
+**The number itself** is Glicko: a rating and a deviation that says how
+sure we are of it. A newcomer starts at about 800 with a wide deviation,
+and the score wears a question mark until it has settled — about five
+or six games — because a provisional number should look like one. A
+regular's score moves by tens. Time away makes it less sure, not lower:
+the deviation grows back slowly, so the first game after a long break
+counts for a little more. And no single game moves the number more than
+250 points. Glicko is right that a newcomer's first result says a lot,
+but a first loss to Acorn would otherwise take an 800 to 330 — a number
+that reads as noise, and a first game that reads as a verdict. The
+deviation still narrows by the full amount, so the cap only slows a
+strong or weak newcomer's arrival by a game or two.
+
+**Help, kindly.** Hints and take-backs are part of how this room
+teaches, and they stay allowed. A game you were helped through still
+counts — just for less, because it says less about what you can do
+alone: each take-back keeps 80% of the game's weight, each hint 90%,
+and no game falls below a quarter. The weight cuts both ways — a helped
+win lifts you a little, a helped loss costs you a little — so there is
+nothing to game and nothing to be afraid of. The end card says how much
+a game counted.
+
+Resigning is a loss; leaving a game is covered above. Draws by any rule
+are draws. Games between two people and lessons are never rated. An
+opening story isn't either, but *Play on from here* at the end of one
+starts a fresh rated game from that position, against the coach that
+gives you a fair fight, because from there the moves are yours.
+
+**Accuracy, the way modern sites show it.** Every move is scored by how
+much of your winning chance it kept — lichess's logistic curve, so a
+pawn dropped in a level game costs far more than one dropped a rook up —
+and the game is a blend of a weighted mean (moves made while the game
+was swinging count more) and a harmonic mean (one blunder is not
+averaged away by thirty recaptures). Forced mates are held at ±10 pawns
+before they reach the curve, so missing a mate while staying a queen up
+costs almost nothing and walking into one costs nearly everything. The
+calibration reviewed every rung's own games at depth 5 — the same
+like-for-like comparison the notebook runs — and found accuracy
+climbing steadily up the ladder, 66% for Acorn to 98% for Oak. Those
+points became a table from accuracy to rating, which is how the end card
+can say *"you played like about 1100 today"*: a second opinion beside
+the result, never a replacement for it, and never part of the score.
+
+Three things keep that sentence honest, and each one was a way it used
+to flatter:
+
+- **The opening is left out** — the first eight plies, four moves
+  each. The calibration handed both sides their openings from a book, so
+  those moves were nobody's accuracy, and an opening played from memory
+  is a few easy points that read as a few hundred rating points on the
+  steep parts of the table.
+- **Eight moves of your own after that, or no number.** Six moves of
+  theory and a resignation used to read as 100%. Now the card says
+  plainly that the game was too short to measure.
+- **Never more than 400 above the coach.** A clean win over Acorn once
+  read as "about 2400". Taking the pieces Acorn hands you is the best
+  move and an easy one, and a spotless win over a 400 says you are
+  comfortably stronger than 400, not that you are 2400. FIDE puts the
+  same limit on a performance rating for the same reason. It is not held
+  from below: a rough game against Oak is still a rough game.
+
+**Milestones, said once.** Nothing is celebrated while the score is
+provisional. The first settled score is its own moment; after that a
+title — Newcomer, Improver, Casual player, Club player, Strong club
+player, Advanced, Expert, the names a club noticeboard would use — is
+announced the first time it is reached and never again, and a personal
+best is noticed each time it climbs into a new band of fifty. Beat a
+rung twice in your last three meetings while your score sits 200 above
+it — three wins in four, expected — and the room says you have
+outgrown it, once.
+
+The score is read back from storage just before each game is counted,
+so a second tab can't write over a game this one finished, and what is
+read is rebuilt field by field, so a junk save cannot strand the room.
+`rating-check.js` holds all of it to account, and `engine-check.js
+--slow` plays every rung against its neighbour to confirm the ladder is
+still a ladder after any change to the search.
 
 ## Bringing your own pieces
 
@@ -390,6 +789,25 @@ the look, so it is never part of a shared skin code.
 `gfx-check.js` keeps all of it honest in a real browser: it asks for
 pixels rather than for reassurance.
 
+**A board that fits the hand.** The orbit camera is fitted to the canvas
+every frame rather than once: on a phone held upright it climbs steeper
+and reaches for a longer lens, so the far rank is a row of men a thumb
+can hit (at least 37 pixels a square on a 390×844 screen) rather than a
+sliver of wood on the horizon, and both boards keep clear of the player
+bars above and below. A tap is answered for whatever the eye sees first:
+each man stands in a cylinder of his own shape, and a finger on his head
+picks him even where his head overlaps the square behind — the wood is
+only asked once no man is in the way. A man can be carried as well as
+tapped: pressed, he rises into the hand, follows the finger across the
+board (legal squares lighting under him), and is set down from wherever
+he was let go, or glides home if the square was not his to take. The
+coordinates are printed in ink chosen against the pixels really under
+them, so every house skin reads at 4.5:1. And **Auto** effects watch the
+frame rate: if the frames come slowly the room steps down a tier for the
+rest of the session, and the Studio says why.
+
+`board-check.js` measures every one of those claims on a real canvas.
+
 ## How the pieces move
 
 A chess piece is not a sprite that slides from one square to another. A
@@ -428,9 +846,134 @@ explained without a sentence:
   shown a new idea does not need more of. It settles so that a board
   nobody is touching stops asking to be redrawn.
 
+Three moments get more than a gesture — the men being set out at the
+start of a game, a capture's blow, and a king who has been mated — and
+they are in *The big moments*, below.
+
 The sound of a piece being set down plays at the moment it is set down,
 not at the moment you let go of it. And `prefers-reduced-motion` is not
 a slower version of any of this — it is none of it.
+
+## The big moments
+
+Most of a game of chess is quiet, and should be: a piece is picked up,
+carried, set down, and the room says nothing. But a game has
+punctuation too — a capture, a check, a pawn that becomes a queen, a
+king with nowhere left to go — and a board that marks all of those the
+same as a quiet move is a board that is not paying attention.
+
+So there is a layer of light over the board, `fx.js`, that the pieces
+never touch and fingers pass straight through. Each moment has a board
+half and a light half, fired together at the instant the piece lands —
+the same instant `sound.js` sets it down:
+
+- **A capture is a blow.** The square under it flashes like struck wood
+  (the renderer's own light, so the bloom takes it), a shockwave runs
+  out across the board, sparks fly, and a few chips of the piece that
+  was taken scatter in its own colour and bounce to rest on the board's
+  own plane. A pawn is a tap; a queen is a blow. `Fx.powerOf` is the
+  one number both halves read, so they always agree. A phone that can
+  buzz, buzzes.
+- **A check** sends three warm rings out from the king, under the square
+  that already breathes.
+- **A promotion** raises a pillar of light out of the square, with
+  sparkles riding up it — the ceremony `motion.js` began, finished.
+- **A mate is the one moment worth all of it.** The mated king is not
+  removed or greyed out: he rocks back against the blow, goes over the
+  rim of his own base away from whatever mated him, knocks on the board,
+  rebounds once and lies there with his crown on the wood — the oldest
+  way there is to say a game is over. The camera leans in on him. A
+  burst comes out of him and a band of light passes over the whole
+  board, the way a lamp carried across a table lights each square in
+  turn. Gold when you won it; a soft grey-blue, fewer and slower sparks,
+  ash rather than embers when you did not, because nobody should be
+  punished with fireworks for losing; a neutral gold when two people at
+  one board share it.
+- **A new game sets the men out** rank by rank from your side, the middle
+  files a beat before the edges, each one dropped onto its square with a
+  small hop. The renderer hands back every landing, so the sound can put
+  a soft knock under each rank rather than on a timer that hopes, and
+  the start motif waits until the last man is still. If the coach plays
+  its first move before the last man lands, the rest keep landing round
+  it.
+
+**The end card is the other half of a mate.** It waits for the king to
+go down before it rises, and on a phone it rises as a sheet from the
+bottom over an unblurred board, so the fallen king stays in view. It
+leads with the result, the number and what to do next; the longer words
+follow the buttons. Then it plays out in order, because the result is
+the headline:
+
+1. a win brings confetti and fireworks up with the card;
+2. the rating counts up from where it was to where it is, a light tick
+   on every step, and lands on a rise or a step home;
+3. any new stars land one at a time, each with the ding of a right
+   answer and a sparkle;
+4. a settled rating, a new title, a new best or an outgrown coach is
+   named, with confetti of its own;
+5. alongside all of that, the room **looks back over your moves**, with
+   a bar that fills while it works — the honest way to show a computer
+   thinking. Every move the gentle coach already reviewed during the
+   game is reused rather than thought about twice. The look-back gives
+   an accuracy, *"you played like about …"* once there are enough moves
+   to say it, and your slips counted in the coach's own words:
+   inaccuracies, mistakes, blunders, and the `!` and `!!` moves too — or
+   *not a single slip*. The third star, if you earned it, lands here.
+
+And it says what to do next: after a win, the next coach up the ladder
+is one button away; after a loss to a coach well above you, a step down
+is offered, because a step down the ladder is how everyone climbs it.
+After *Look back*, a Result chip brings the card back.
+
+Over the whole page, for that card: confetti that behaves like paper —
+it tumbles, so you see its shaded back; it sways; and it falls slower
+broadside than edge-on, which is the flutter — fireworks, sparkles, a
+shake, and a buzz where the phone has one (an iPhone does not, and that
+is fine: it is seasoning, never the only way to know).
+
+Three rules keep it in a room this warm:
+
+**It is light, not noise.** Everything is stamped from three little
+procedural pictures — a glow, a soft puff, a four-pointed star — painted
+once and reused, with no filters and no blur in the frame loop. Four
+hundred particles is the ceiling; a celebration and a mate at once are
+held to it. A slow device is noticed by its frame times, not guessed
+from its name, and quietly given fewer.
+
+**It is asleep when nothing is happening.** The loop runs only while
+something is alive; when the last ember goes out the layers are hidden,
+shrunk to a single pixel so they hold no memory either, and the loop
+stops asking for frames. `fx-check.js` counts the frames it asks for
+afterwards, and the answer has to be zero.
+
+**It respects stillness.** Under `prefers-reduced-motion` it draws
+nothing at all, the camera does not move, the king is simply lying down,
+and a number that would have counted up simply arrives.
+
+Where a square is on screen is the renderer's business: both boards
+answer `squareToScreen`, and effects that belong to a square ask again
+every frame and are drawn through it — moved with the square and grown
+as it comes nearer — so a spark stays on its square, at its size, while
+you orbit or the camera leans in. The push-in itself is a layer over
+your own view rather than a change to it: orbit and pinch keep working
+through it, and easing out returns you to exactly where you were.
+
+Building it found two things worth confessing. On the carved board a
+captured piece had always slid away from the piece that took it while
+tipping back toward it — a lean axis with the wrong sign; it now falls
+the way it is pushed, as the drawn board always drew it. And the mated
+king first came to rest at an angle somebody guessed, a little short of
+flat — which, for a man turning on the rim of his base, left him
+leaning on nothing with his crown in the air. A king's crown is
+narrower than his foot, so he really lies a little *past* flat, head
+lower than foot. `Motion.lieOf` now measures that off the man's own
+shape — the carved board's mesh, the drawn board's outline — so every
+set, including one dropped in from outside, lies on the wood, and
+`motion-check.js` turns him every way he could fall to prove no part of
+him ends up under it. When the board is redrawn under a finished game —
+a switch between 2D and 3D, or coming back from looking at an earlier
+move — he is laid down again without the fall, exactly where it left
+him.
 
 ## What the pieces sound like
 
@@ -449,11 +992,13 @@ models that, and three things decide every sound in the room:
 block of something homogeneous rings at roughly 1 : 2.76 : 5.40 : 8.93 —
 the free-bar series — and ivory, porcelain and glass sit on it, which is
 why they have a pitch you could sing. Metal does not, which is why a
-bell does not. Rendered and measured, the ring comes out:
+bell does not. Rendered and measured — timed above 200 Hz, where the
+piece itself rings, rather than on the thud through the table that
+every material shares — the ring comes out:
 
 | | ink | wood | ivory | porcelain | glass | metal |
 |---|---|---|---|---|---|---|
-| rings for | 0.12s | 0.13s | 0.17s | 0.31s | 0.66s | 0.82s |
+| rings for | 0.098s | 0.104s | 0.169s | 0.309s | 0.665s | 0.830s |
 
 **The piece** picks how low and how loud. Mass is taken from a real
 weighted tournament set rather than from the carved geometry, because
@@ -494,6 +1039,101 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## The room's music
+
+The pieces were modelled; everything else was a sine beep. A beep can
+tell you *that* something happened. It cannot tell you how to feel about
+it, and that is the whole job of a signal in a game. The same two notes
+that say "check!" when you give it should sound like "careful" when it is
+given to you. Losing should sound like a friend's hand on your shoulder,
+not a game-show buzzer.
+
+So every moment that is not a piece touching wood is now a short piece
+of music, written down as data the way `motion.js` writes down a
+gesture: which notes, when, how hard, on which instrument. A small synth
+plays it, with four pitched voices and three unpitched ones:
+
+- a **marimba**, from the board's own family, for the motifs;
+- a **felt piano** for the harmony, its partials stretched a hair sharp
+  the way real strings are;
+- an **FM chime** (two operators at 1 : 3.5, the classic tubular bell)
+  for every reward. The modulation dies within a quarter of a second,
+  so it strikes bright and rings pure;
+- a **pad** of two triangle waves a few cents apart, one in each ear.
+  The beating between them is the shimmer, and the split is the stereo
+  width;
+- a **thump** that drops in pitch as it lands, plus air for a card
+  opening and a tick for the clock.
+
+**One key for the whole room: D major.** Every moment agrees with every
+other one, so a check that lands while the start motif is still ringing
+makes a chord rather than a collision, and the endings have a home note
+to come back to. D also puts the chimes where a phone speaker is at its
+best. The one note outside the key is deliberate: the check you are in
+borrows a B-flat from the minor, so it reads as "careful" rather than
+"wrong".
+
+The moments that matter most were written with the most care. **Mate**
+is a real fanfare: three quick notes on the dominant (the way fanfares
+have started since the hunting horn), then I, IV and V, then the home
+chord spread across four octaves with a low weight under it and bells
+over it. **Being mated** is B minor, then G with its seventh, then D.
+The minor chord admits it, the next one softens it, and the last one is
+home, because the next game starts from home. **A wrong answer in a
+lesson** is a low open fifth, neither major nor minor, so it carries no
+verdict at all: getting things wrong is how a lesson works. **A
+promotion** gives each piece its own figure; the knight's arpeggio
+jumps, steps sideways and jumps again. **The last seconds on a clock**
+are a heartbeat rather than an alarm, and its second beat comes sooner
+as the time runs down. **A rating counting up** on the end card climbs
+the pentatonic as it goes, at most twenty ticks a second, because
+clicks any closer than that stop being clicks and become a buzz. Each
+star lands with the lesson's right-answer ding; a milestone gets a
+peal, and outgrowing a coach a run of chimes. A game you start begins
+with a short rising motif once the last man has been set down — never
+at boot, where a resumed game would leave it waiting for the first tap.
+A queen or rook coming off the board lands with weight under it.
+
+**The room itself is grown, not recorded.** A real room's echo is, to a
+very good approximation, noise that dies away exponentially and loses
+its top end first. So that is what is generated, once per audio context,
+from a seeded generator: 2.4 seconds of stereo, with a different seed
+for each ear, which is what makes it wide. It is grown at an idle moment
+after your first tap, so the first fanfare does not pay for it.
+
+Kindness has some mechanics to it too:
+
+- **Off is off.** A muted room renders silence. A mute fades a fanfare
+  that is already playing, and the room's echo of it, rather than
+  letting it finish over somebody who just asked for quiet. `sound.js`
+  also has an optional room tone, off by default; switched off, it lets
+  go of every node, and it never hums in a tab nobody is looking at.
+- **A sound belongs to its moment.** A browser will not start the audio
+  clock until somebody touches the page, and anything asked of a
+  stopped clock is saved up for the instant it starts. So anything
+  asked for before then — a sting, or a piece being set down — waits
+  only as long as a tap takes to start the clock, and is let go after
+  that. A finished game restored at boot does not greet your first tap
+  with its fanfare, and a coach's reply made at boot does not set down
+  a piece on it that nobody moved.
+- **Less motion** keeps the harmony of every moment and drops the
+  sparkles and the sweeps.
+- **A busy room** gives up only as much as it has to: first the
+  sparkles, then the colour of the opening notes, and only then whole
+  notes — always from the beginning, because the end is the part
+  anybody remembers. A mate that lands on top of a promotion that took
+  a queen still gets its whole last chord.
+- **Phones** were listened to as well. The heartbeat and the weight
+  under a big capture live mostly below 200 Hz, which is exactly where a
+  phone speaker gives up, so each carries a soft knock in the mid-range:
+  heard there, and not only on headphones.
+
+Every voice is planned as data before anything is built. That lets
+`sound-check.js` prove in node that each note starts and ends at
+silence inside the length its sting promises, and what a busy room
+would keep. It then hears it all again in a browser, including on a
+page whose audio clock waits for a real tap, the way a phone's does.
+
 ## The coach's notebook
 
 Everything the room noticed used to live for seven seconds in a toast
@@ -504,7 +1144,10 @@ game at once and got a sentence at a time.
 So it is kept, beside the moves, on its own tab. Openings, tactics
 spotted by `teach.js`, what a move cost, how the game ended — each entry
 remembers which move it belongs to, so tapping it takes the board back
-to that position and draws the squares the remark is about. A take-back
+to that position and draws the squares the remark is about. Where a
+remark is about a danger, the arrow points the way the danger travels:
+from the piece about to take to the piece about to be taken, and from
+the square a rook would land on to the king it would mate. A take-back
 forgets what was said about the moves it undid; a new game starts clean.
 
 The same observation comes in two languages, chosen in Settings:
@@ -574,21 +1217,132 @@ book and every board afterwards. Then it names the punishment before the
 cure, because *"Qxe5+ is the problem"* is what you want to spot next
 time; *"Qe7 was the move"* is only what to memorise.
 
-**Off the drawing thread.** A mentor move used to hold the main thread
-for most of a second: the clock stopped, the board froze, taps went
-nowhere. The work was never the problem — doing it where the page draws
-was. `brain.js` moves it to a worker and the worst frame gap during a
-full-second search is now zero. That is also what makes it safe to let
-the coach think for longer.
+**Off the drawing thread.** A move from the strongest coach used to hold
+the main thread for most of a second: the clock stopped, the board
+froze, taps went nowhere. The work was never the problem — doing it
+where the page draws was. `brain.js` moves it to a worker and the worst
+frame gap during a full-second search is now zero. That is also what makes it safe to let
+the coach think for longer. And when the board changes underneath a
+search — a new game, a take-back, a story or a lesson begun —
+`Brain.cancel()` ends it, rather than letting the next question wait
+behind an answer nobody will read.
 
-**A ladder you can practise against.** Depth is capped as well as time,
-so a level plays the same on a slow phone as on a fast laptop — a coach
-whose strength depends on your hardware can't be trained against. Below
-mentor, the opponent plays under its strength on purpose, weighted toward
-the better moves rather than picking evenly from everything it can get
-away with: mostly sensible, occasionally loose, which is what a real
-player of that level looks like. `engine-check.js --slow` plays the
-levels off against each other to confirm the ladder is a ladder.
+**A ladder you can practise against.** A level used to stop on the
+clock, which meant it was simply stronger on a faster laptop. Now every
+level is a budget of positions as well as plies, so it plays the same
+game on a slow phone as on a fast laptop — a coach whose strength
+depends on your hardware can't be trained against, and can't carry a
+rating. It also starts every move from an empty memory. The engine keeps
+one table of positions it has already read, shared by the coach, the
+hints and the reviews, and a level that reads two plies, replying just
+after a hint that read six, used to choose with six plies of knowledge:
+along one test game, a review run just before the reply changed between
+a quarter and two-thirds of the weaker levels' moves. Asking for a hint
+made the coach's next move sharper. Emptying the table first costs a
+fraction of a millisecond and changes nothing else. Below the top, the
+opponent plays under its strength on purpose, weighted toward the better
+moves rather than picking evenly from everything it can get away with:
+mostly sensible, occasionally loose, which is what a real player of that
+level looks like. There are eight levels now, each with a measured
+rating (see *The score*), and the reviews run at the depth the accuracy
+table was measured at, so the gentle coach's reviews and the end card's
+look-back are one and the same. `engine-check.js --slow` plays every
+level against its neighbour to confirm the ladder is still a ladder;
+`calibrate.js` measures how far apart the rungs are.
+
+## The teacher has to be right
+
+A name is the most useful thing a beginner can be given, and the most
+dangerous. "That's a skewer" turns a thing that happened into a pattern
+you'll look for again, so a wrong name is worse than silence: you learn
+the wrong pattern with total confidence. The coach used to call 3.Bb5 in
+the Ruy López a skewer, 3.Bc4 a pin, and 2.Qh5 a pin of the h-pawn. Once,
+in the Fried Liver, it praised 8.Qf3+ as a skewer whose follow-up, Qxf8,
+loses the queen to the rook on h8. All of it came from comparing piece
+values on a line and never asking whether anything could actually be
+won.
+
+So underneath every remark is now a **static exchange count**: play out
+every capture on a square, cheapest piece first, each side free to stop
+when going on would lose. Pinned pieces sit it out, a rook behind a rook
+joins in by itself, and a pawn that reaches the last rank counts as what
+it becomes. On top of it:
+
+- A **fork** has to win something whatever they reply, and "and then the
+  rook falls" is only said when the rook falls after every reply.
+- A **pin** has to stop the front piece doing something it wanted to
+  do; the piece behind has to be genuinely winnable, and the pinning
+  piece mustn't simply be lost itself. A pin you *walk into* is the
+  cheapest kind to avoid, so the coach now warns about that too — and
+  never scolds a block of a check, because that pin was forced.
+- A **skewer** needs the front piece genuinely attacked and has to
+  survive every reply, including the king stepping over to guard what's
+  behind it.
+- The **back rank** used to mean "the pawns in front of the king haven't
+  moved", which is every king in the starting position. Now the king
+  must really have no square off its back row; a rook is set down on a
+  copy of the board, the rules are asked whether it would be mate, and
+  the square is named.
+- **"That threatens mate"** is said only when the move made the threat,
+  and said first — a quiet 3.Qh5 against f7 is about the mate, not about
+  f7 being pinned.
+
+One square is not the whole board, though. "Careful — that knight hangs"
+about a knight that is bait teaches the opposite of the truth: take it,
+and the rook it was guarding falls instead. So before the coach calls
+anything **hanging**, it plays the capture out once and counts the
+owner's best answer: a mate, or a capture elsewhere, plus whatever the
+move itself just took. A piece that is won back like that was never
+lost. A capture that does lose its piece is told as one ("you've given a
+knight for a pawn"), never as a piece "taken for free". When the honest
+answer is "that's just a trade", the coach says nothing.
+
+The same eyes now **explain hints**. Ask for a hint and
+`Teach.explainMove` names what the move really does: it wins the knight,
+completes an exchange, forks the king and rook, threatens mate, pins the
+knight to the queen, steps the king out of check, blocks the check. If it
+gives up material on one square to take more on another, it names the
+second capture too: "if they take back, Nxc7 takes their queen". If none
+of that is true, it returns nothing, and the room falls back on a
+principle rather than dressing one up as a reason. A forced mate is
+still said first.
+
+The **opening stories** explain every move now — all 37 lines, 141
+moves. A story that explains half its moves teaches that the other half
+are magic. Reasons live in one table keyed by the moves that lead to
+them, so a move shared by several lines is explained the same way in
+all of them. Any reason that claims something checkable — an attack, a
+defence, a pin, a pawn offered or won back, a mate next move — is
+checked on the board by `book-check.js` after that very move. Writing
+them turned up wrong chess that had shipped: the Scholar's Mate line
+claimed 2.Qh5 threatens Qxf7#, which it doesn't, because the king takes
+back. And a story used to flash each reason in a toast for under three
+seconds, with no way to stop it. Now it has a bar of its own — pause,
+step, go back — and a reason stays on screen as long as it takes to
+read, and stays in the notebook after. At the end, *Play on from here*
+turns the position into a game.
+
+The **Academy** gets the engine as a second marker. A lesson once taught
+a losing promotion with a confident explanation, so `lesson-check.js`
+now asks, for every lesson, whether each accepted answer actually holds
+and whether each "wrong" answer really is worse. Five more lessons
+failed that test and were rebuilt. Honesty runs the schedule too: a
+lucky guess counts as not knowing it yet and comes back tomorrow, a
+half-guess halves the interval, and solving the same idea three times
+in ten minutes is practice, not three spaced reviews. Saved progress is
+rebuilt field by field when it is read, so a damaged save cannot stop
+the Academy opening — even in a private window where storage throws on
+every read. *New to chess?* ends by starting a first game against the
+gentlest coach, rather than dropping you back at the menu, and the end
+card's *Practise what this game showed you* picks the most important
+idea the game turned on and, of those, the one you know least.
+
+Finally, the checks were checked. Each guard in `teach.js` was broken on
+purpose, one at a time, to see that something noticed. Where nothing
+did, a position was found that needs the guard, and it is now a case.
+And `teach-check.js` reads every legal move at every fourth position of
+a few random games — thousands of calls — and none may throw, print
+"undefined", or point an arrow off the board.
 
 ## Two ideas worth explaining
 
@@ -614,8 +1368,11 @@ for a hint and the price depends on the position, not on who you are:
 **free while you're behind**, a small price when it's level, and steeper
 the further ahead you get (paid in clock seconds if you're using a
 clock, in marks if you aren't). The hint button wears its own price, so
-you always see the trade before you take it. The player who's behind
-also gets occasional *free* nudges, unasked — and the player who's ahead
+you always see the trade before you take it, and the price is paid when
+the hint arrives, once per position — not again on a second tap. In a
+rated game the score notices too, and counts that game for a little
+less; the hint itself is never refused. The player who's behind also
+gets occasional *free* nudges, unasked — and the player who's ahead
 never does, because they don't need them. The end card shows the ledger
 ("odds given"), names what the game was actually about, and offers the
 matching lesson, so a loss turns into the next thing you learn.
@@ -627,7 +1384,15 @@ matching lesson, so a loss turns into the next thing you learn.
   positions deep), so castling-through-check, en-passant pins, and
   underpromotions are provably right. `node chess/tools/perft.js --deep`
 - Every opening line in the book is **replayed through the engine** at
-  test time; a typo cannot ship. `node chess/tools/book-check.js`
+  test time; a typo cannot ship — and every reason given for a move that
+  claims something on the board is checked on the board.
+  `node chess/tools/book-check.js`
+- **The ladder is measured, not named.** Every coach's rating comes out
+  of matches against its neighbours, played with the clock frozen and
+  the dice seeded so any game can be replayed. The one assumption — how
+  self-play gaps scale to people — is written down beside the numbers.
+  `node chess/tools/calibrate.js`, and `rating-check.js` for the
+  arithmetic.
 - **Joining is four letters.** One of you taps *Start a board* and reads
   out something like `BUZZ`; the other types it. That's the whole
   ritual, and it is the same one at the domino table and in HIVEMIND —
@@ -656,10 +1421,30 @@ matching lesson, so a loss turns into the next thing you learn.
 - **A flat battery is an inconvenience, not a loss.** The code, your
   seat and the game so far are written down after every move; the join
   screen offers *Rejoin your board* for eight hours afterwards.
+- **One release at a time.** A page and its scripts are one program
+  written in two files, and they only work as the pair they shipped as.
+  The service worker used to fetch the page fresh while answering the
+  scripts from the old cache, so for one visit after every release the
+  room was new buttons wired to old code. Now both come from the same
+  versioned cache: a release downloads whole beside the old one, the
+  update bar offers it, and one tap swaps everything at once. The price
+  is that a deploy reaches you one tap later. The payoff is that the
+  room is never half of two versions, and it opens without waiting on
+  the network. The old worker still gets to hand out one last mixed
+  visit before it is replaced — nothing new can stop that — so the
+  release that replaces it doesn't wait for a tap: it takes over as soon
+  as it has downloaded, and the room reloads itself, whole. A room left
+  open for days asks for a new release whenever you come back to the
+  tab. `offline-check.js` ships both kinds of release in a real browser
+  to prove it.
 - **Self-healing** by design: saves are written after every move and
-  survive reloads; a corrupt save is quietly retired; if the 3D context
-  is lost the same game continues in 2D on the spot; repeated errors
-  offer a recovery card instead of a white screen.
+  survive reloads; a corrupt save is quietly retired, and so is one that
+  parses but lies; if the 3D context is lost the same game continues in
+  2D on the spot, and *try 3D again* builds a fresh renderer on a fresh
+  canvas rather than asking the dead one; repeated errors offer a
+  recovery card instead of a white screen, and its *Fresh start* forgets
+  everything the room ever wrote — the Academy and the score included,
+  either of which, damaged, could otherwise strand it again.
 
 ## Run it locally
 
@@ -671,28 +1456,56 @@ python3 -m http.server 8000
 # open http://localhost:8000/chess/
 ```
 
-Before shipping changes, run the lot — each one is fast:
+Before shipping changes, run the lot:
 
 ```
 node chess/tools/perft.js          # the rules, against published counts
-node chess/tools/book-check.js     # every opening line legal & canonical
-node chess/tools/teach-check.js    # the teaching eyes see what they claim
-node chess/tools/lesson-check.js   # every lesson solvable; spacing maths
+node chess/tools/book-check.js     # every opening line legal, explained, and true
+node chess/tools/teach-check.js    # the teaching eyes see what's there, and only that
+node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk saves
 node chess/tools/skin-check.js     # presets, share codes, hostile input
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
-node chess/tools/offline-check.js  # the room survives the train tunnel
+node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
+node chess/tools/brain-check.js    # the coach's thread: in order, cancellable, options intact
+node chess/tools/offline-check.js  # the room survives the train tunnel, and a release
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier and every skin
+node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
-node chess/tools/sound-check.js    # every material and every weight has its own voice
+node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
+node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
+node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
+node chess/tools/features-check.js # every button in the room, on a phone and a laptop
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
+
+Or from the repo root, in three groups by how long they take:
+
+```
+npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
+                               # pieces, engine, brain, offline, touch, play, rating,
+                               # sound, motion
+npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
+npm run check:chess:features   # features-check: the whole room, twice over
+```
+
+The ones that open a browser need `playwright-core` and a Chromium on
+the machine; without them they say so and skip what needs one, rather
+than fail. `calibrate.js` is not on any list — it is a measurement, not a
+check, and it only needs running when a coach's recipe or the engine's
+strength changes.
 
 Designing a piece set? Open
 `http://localhost:8000/chess/tools/pieces-preview.html` beside the
 checker — it lines every set up under the board's own shader, with
 wireframe and baked-occlusion views and a per-piece triangle count.
 
-…and bump `VERSION` in `sw.js` so installed players hear about it.
+Tuning an effect? Open
+`http://localhost:8000/chess/tools/fx-preview.html` — the carved and
+drawn boards with the effects layer over them, a button for every
+moment, and a little game conducted the way the app does it.
+
+…and bump `VERSION` in `sw.js` — the room opens from its own cache now,
+so a release without a new VERSION reaches nobody.

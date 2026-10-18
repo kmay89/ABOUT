@@ -3,8 +3,14 @@
    (no borrowed artwork), soft colours, and the same animation
    language as the 3D room: sliding moves, fading captures, a
    replayable last-move glow, dots for quiet moves and rings for
-   captures. It is also the safety net — if WebGL ever fails or the
-   context is lost, the game lands here and keeps playing. */
+   captures. The big moments are drawn here too, with the same hooks
+   as the carved board: the men set down at the start of a game, light
+   on a struck square, the mated king laid on its side, a slight lean
+   in toward a square, and squareToScreen for the effects layer. It is
+   also the safety net — if WebGL ever fails or the context is lost,
+   the game lands here and keeps playing. The board keeps clear of the
+   player bars, prints its coordinates where a phone can read them, and
+   lets a man be carried by hand with the same calls as the carved one. */
 (function (root) {
 "use strict";
 
@@ -47,6 +53,90 @@ function luma(hex) {
   return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
 }
 
+/* ---------- ink that can be read ----------
+   WCAG's sums, kept here so the coordinates can be checked rather than
+   eyeballed: relative luminance from linear light, and the contrast
+   ratio between two colours (1 to 21; 4.5 is the floor for small text). */
+function lumOf(c) {
+  var f = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+}
+function contrast(a, b) {
+  var la = lumOf(a), lb = lumOf(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+function mixRgb(a, b, t) {
+  return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t),
+          Math.round(a[2] + (b[2] - a[2]) * t)];
+}
+/* The colour to letter a coordinate in, sitting on `bg` (rgb): the
+   other square's colour, the way a printed board does it — so on most
+   boards it simply looks like part of the set — then walked toward
+   black or white, whichever the background allows more of, only as far
+   as it takes to clear `need`. Light and dark squares on a board are
+   chosen to be close (that is what makes a board restful), so on several
+   house skins the other square's colour alone is about 2:1 — legible to
+   nobody on a phone in the sun. */
+function inkOn(bg, other, need, ext) {
+  need = need || 4.5;
+  var to = contrast([0, 0, 0], bg) >= contrast([255, 255, 255], bg) ? [0, 0, 0] : [255, 255, 255];
+  /* `ext`, when the painted board was there to look at, is its darkest
+     and lightest pixels under the label: a grain line or a vein or an
+     inlay stripe running through it. The ink has to stand off those as
+     well (4.5:1 against whichever one is nearer to it), not only off the
+     average, or a dark letter on a light square is lost wherever a dark
+     grain line crosses it. */
+  var risky = ext ? (to[0] ? ext.light : ext.dark) : null;
+  function good(c) { return contrast(c, bg) >= need && (!risky || contrast(c, risky) >= 4.5); }
+  if (good(other)) return other.slice();
+  for (var t = 0.05; t < 1.0001; t += 0.05) {
+    var c = mixRgb(other, to, Math.min(1, t));
+    if (good(c)) return c;
+  }
+  return to;
+}
+/* The sixteen coordinates, the way lichess prints them: a rank number
+   in the top-left corner of each square up the left-hand file, a file
+   letter in the bottom-right corner of each square along the bottom
+   rank, each in ink chosen against exactly what it sits on — the
+   square's own colour with the board's sweep of gloss over it at that
+   spot. They used to live in the frame, where on a phone the frame is
+   thirteen pixels wide: nine-pixel letters in the margin colour, half
+   of each one under the rim's line. `i`, `j` are the screen column and
+   row (0, 0 at the top left). Pure, so tools/board-check.js can hold
+   every house skin to 4.5:1 without a browser.
+
+   In the browser the board has been painted by then, so `sample(i, j,
+   corner)` hands back what is really under each label — the average of
+   the pixels there, and the darkest and lightest of them — and the
+   model of the gloss is only the fallback. A wood grain, a marble vein
+   or an inlay line through a corner is then something the ink is chosen
+   against rather than something it is surprised by. */
+var COORD_NEED = 4.8;                     /* 4.5, plus room for the grain */
+function coordLabels(board, orientation, sample) {
+  var light = rgbOf(board.light), dark = rgbOf(board.dark), g = board.gloss || 0, out = [];
+  function glossOver(c, t) {
+    if (g <= 0.02) return c;
+    if (t <= 0.45) return mixRgb(c, [255, 255, 255], 0.22 * g * (1 - t / 0.45));
+    if (t >= 0.75) return mixRgb(c, [0, 0, 0], 0.16 * g * (t - 0.75) / 0.25);
+    return c;
+  }
+  function add(text, i, j, corner, t) {
+    var vf = orientation === 1 ? i : 7 - i, vr = orientation === 1 ? 7 - j : j;
+    var onDark = (vf + vr) % 2 === 0;
+    var seen = sample ? sample(i, j, corner) : null;
+    var bg = seen ? seen.mean : glossOver(onDark ? dark : light, t);
+    out.push({ text: text, i: i, j: j, corner: corner, bg: bg,
+               ink: inkOn(bg, onDark ? light : dark, COORD_NEED, seen) });
+  }
+  for (var k = 0; k < 8; k++) {
+    /* t: how far along the gloss's diagonal the label sits */
+    add(String(orientation === 1 ? 8 - k : k + 1), 0, k, "tl", (k + 0.3) / 16);
+    add("abcdefgh".charAt(orientation === 1 ? k : 7 - k), k, 7, "br", (k + 8.7) / 16);
+  }
+  return out;
+}
+
 function derive(skin) {
   var b = skin.board, p = skin.pieces, m = skin.marks;
   var surf = (root.Skins && root.Skins.surface) ? root.Skins.surface(skin)
@@ -57,6 +147,7 @@ function derive(skin) {
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
     pattern: b.pattern, grain: b.grain, gloss: b.gloss,
     selected: rgba(m.select, 0.55),
+    hoverFill: rgba(m.select, 0.20), hoverEdge: rgba(m.select, 0.92),
     lastA: rgba(m.last, 0.50), lastB: rgba(m.last, 0.36),
     dot: rgba(m.legal, 0.48), ring: rgba(m.capture, 0.66),
     checkCore: rgba(m.check, 0.58), checkEdge: rgba(m.check, 0),
@@ -179,7 +270,42 @@ function drawKing(ctx) {
 }
 var PAINTERS = [null, drawPawn, drawKnight, drawBishop, drawRook, drawQueen, drawKing];
 
-function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
+/* How each drawn man lies when he is laid down — the mated king, mostly.
+   He turns on the rim of his base (0.34 out, where base() ends) until
+   his upper body meets the board, and Motion.lieOf measures when that
+   is from a few points off his outline: x out from his middle, h up
+   from the board, in the painters' unit box. Only the widest and the
+   highest of him matter. The knight's muzzle juts out past his base, so
+   he alone stops short of flat. */
+var PIVOT_2D = 0.34;
+function arcPts(cy, r) {
+  var out = [];
+  for (var i = 0; i < 12; i++) {
+    var a = (i / 12) * Math.PI * 2;
+    out.push([Math.abs(Math.cos(a)) * r, cy + Math.sin(a) * r]);
+  }
+  return out;
+}
+var OUTLINE = [null,
+  arcPts(0.60, 0.155),                                                      /* pawn: the head */
+  [[0.14, 0.86], [0.235, 0.66], [0.235, 0.52], [0.36, 0.56], [0.31, 0.66]], /* knight: ears, mane, muzzle */
+  [[0.155, 0.38], [0.045, 0.72]].concat(arcPts(0.845, 0.055)),              /* bishop: shoulders, mitre, ball */
+  [[0.16, 0.52], [0.24, 0.56], [0.24, 0.74], [0.13, 0.74]],                 /* rook: the battlements */
+  [[0.21, 0.58], [0.26, 0.62], [0.20, 0.80], [0.055, 0.83]],                /* queen: the crown's points */
+  [[0.2085, 0.595], [0.215, 0.62], [0.209, 0.642], [0.197, 0.681],          /* king: the dome… */
+   [0.085, 0.875], [0.028, 0.94]]                                           /* …and the cross */
+];
+var LIE = [];
+function lieOf2D(kind, Move) {
+  if (!LIE[kind] && Move && Move.lieOf) {
+    var pts = OUTLINE[kind] || OUTLINE[6], flat = [];
+    for (var i = 0; i < pts.length; i++) flat.push(pts[i][0], pts[i][1], 0);
+    LIE[kind] = Move.lieOf(flat, PIVOT_2D);
+  }
+  return LIE[kind] || { rest: 1.7, lift: 0 };
+}
+
+function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, extra) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
   /* the origin is the point the piece stands on, which is what lets a
@@ -187,17 +313,25 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
      middle, and a landing one compress into the board rather than
      through it */
   ctx.translate(x, y + size * 0.38);
-  if (lean) ctx.rotate(lean);
   var s = size * 0.92 * (scale || 1);
+  /* a mated king goes over on the rim of its base, not about its
+     middle: `pivot` is where on the base it turns, in the unit box */
+  var pivot = extra && extra.pivot ? extra.pivot * s : 0;
+  if (pivot) ctx.translate(pivot, 0);
+  if (lean) ctx.rotate(lean);
+  if (pivot) ctx.translate(-pivot, 0);
   var sq = squash == null ? 1 : squash;
   ctx.scale(s * (1 + (1 - sq) * 0.42), s * sq);
   var baseAlpha = (alpha == null ? 1 : alpha);
   ctx.globalAlpha = baseAlpha;
-  /* soft ground shadow */
-  ctx.beginPath();
-  ctx.ellipse(0, -0.02, 0.30, 0.075, 0, 0, Math.PI * 2);
-  ctx.fillStyle = pal.shadow;
-  ctx.fill();
+  /* soft ground shadow — unless the piece is lying down, when a shadow
+     drawn in its own frame would stand up on end with it */
+  if (!(extra && extra.noShadow)) {
+    ctx.beginPath();
+    ctx.ellipse(0, -0.02, 0.30, 0.075, 0, 0, Math.PI * 2);
+    ctx.fillStyle = pal.shadow;
+    ctx.fill();
+  }
 
   /* the body — translucent materials (glass) let the board through */
   ctx.globalAlpha = baseAlpha * pal.alpha;
@@ -239,6 +373,28 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash) {
   ctx.restore();
 }
 
+/* The shadow of a piece held above the board: its own silhouette,
+   blurred, a little below and to the right of it. Drawn with the old
+   trick of filling the shape far off to the left and throwing only its
+   shadow back on screen, so nothing of the fill itself can show through
+   a glass piece or fringe its edge. `px` is device pixels per css pixel
+   (shadows ignore the canvas transform, so they are given in those). */
+function liftedShadow(ctx, piece, x, y, size, scale, px) {
+  var FAR = 4000, s = size * 0.92 * scale;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.42)";
+  ctx.shadowBlur = size * 0.20 * px;
+  ctx.shadowOffsetX = (FAR + size * 0.05) * px;
+  ctx.shadowOffsetY = size * 0.15 * px;
+  ctx.translate(x - FAR, y + size * 0.38);
+  ctx.scale(s, s);
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  PAINTERS[Math.abs(piece)](ctx);
+  ctx.fill();
+  ctx.restore();
+}
+
 /* ---------- renderer ---------- */
 function create(canvas) {
   var ctx = canvas.getContext("2d");
@@ -250,41 +406,102 @@ function create(canvas) {
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     lines: [], net: [],
     anim: null,                 /* the move in flight */
-    size: 0, cell: 0, ox: 0, oy: 0, dirty: true
+    size: 0, cell: 0, ox: 0, oy: 0, dirty: true,
+    /* the big moments: a king lying where it was mated, light under a
+       capture, the men arriving at the start of a game, and a slight
+       lean in toward a square when something is worth leaning in for */
+    toppled: null, impacts: [], cascade: null,
+    view: { z: 1, v: 0, target: 1, px: 0, py: 0, sq: null, last: 0 }
   };
 
   function onBoard(sq) { return (sq & 0x88) === 0; }
   function fileOf(sq) { return sq & 7; }
   function rankOf(sq) { return sq >> 4; }
 
-  /* square → centre in css pixels */
+  /* square → centre in css pixels, on the board as it is drawn before
+     any lean-in; everything that paints works in these */
   function sqXY(sq) {
     var f = fileOf(sq), r = rankOf(sq);
     if (R.orientation === 1) return { x: R.ox + (f + 0.5) * R.cell, y: R.oy + (7 - r + 0.5) * R.cell };
     return { x: R.ox + (7 - f + 0.5) * R.cell, y: R.oy + (r + 0.5) * R.cell };
   }
 
+  /* Where a square's centre actually is on the screen, lean-in and all,
+     in css pixels from the canvas's top-left: what an effects layer over
+     the board needs to put a spark on the right square. `s` is the
+     on-screen size of a square; the drawn board is square-on, so the
+     vertical size `sy` is the same. */
+  R.squareToScreen = function (sq) {
+    if (sq == null || sq < 0 || !onBoard(sq) || !R.cell) return null;
+    var p = sqXY(sq), v = R.view;
+    return { x: v.px + (p.x - v.px) * v.z, y: v.py + (p.y - v.py) * v.z,
+             s: R.cell * v.z, sy: R.cell * v.z };
+  };
+
   R.screenToSquare = function (px, py) {
+    /* undo the lean-in first, so a tap lands where the eye says it did */
+    var v = R.view;
+    if (v.z !== 1) { px = v.px + (px - v.px) / v.z; py = v.py + (py - v.py) / v.z; }
     var f = Math.floor((px - R.ox) / R.cell), r = Math.floor((py - R.oy) / R.cell);
     if (f < 0 || f > 7 || r < 0 || r > 7) return -1;
     if (R.orientation === 1) return (7 - r) * 16 + f;
     return r * 16 + (7 - f);
   };
 
+  /* The player bars sit in strips along the top and bottom of the stage
+     (48 css px each unless the app says otherwise), and the turn pill
+     sits in the top one. The board used to be centred in the whole
+     canvas, so on a phone both name tags and the pill lay across the
+     back-rank men. Now the board — frame and all — is fitted between the
+     strips and no wider than FILL of the canvas, and the tags sit in the
+     margins. A canvas too short to give both strips their full height
+     (the Studio drawer open on a phone) shares out what it has, so the
+     board never shrinks to a stamp to make room for two labels. */
+  var FILL = 0.97, FRAME = 0.2;            /* frame width, in squares */
+  var insets = { top: 48, bottom: 48 };
+  function layout() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    var t = insets.top, b = insets.bottom, room = h * 0.3;
+    if (t + b > room) { var k = room / (t + b); t *= k; b *= k; }
+    var across = 8 + FRAME * 2;
+    R.cell = Math.max(4, Math.floor(Math.min(w * FILL, h - t - b) / across));
+    R.size = R.cell * 8;
+    R.ox = Math.round((w - R.size) / 2);
+    R.oy = Math.round(t + (h - t - b - R.size) / 2);
+    boardKey = "";                       /* the cached board is now the wrong size */
+    leanAbout();
+    R.dirty = true;
+  }
+  /* The app resizes the boards when the window does, but the stage can
+     change size without the window changing at all — starting a game
+     puts a cost under the Hint button and the stage loses eleven pixels.
+     The canvas kept its old bitmap and the stylesheet squashed it to
+     fit: a board 1.5% shorter than it was drawn, with every tap near the
+     bottom landing that much off. So a frame checks the box it is drawn
+     in first, and fits itself again if the box has moved. */
+  var seenW = 0, seenH = 0;
+  function refit() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (w && h && (w !== seenW || h !== seenH)) R.resize();
+  }
   R.resize = function () {
     var dpr = Math.min(2.5, window.devicePixelRatio || 1);
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
+    seenW = w; seenH = h;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var m = Math.min(w, h);
-    R.cell = Math.floor((m * 0.94) / 8);
-    R.size = R.cell * 8;
-    R.ox = Math.round((w - R.size) / 2);
-    R.oy = Math.round((h - R.size) / 2);
-    boardKey = "";                       /* the cached board is now the wrong size */
-    R.dirty = true;
+    R.dpr = dpr;
+    layout();
+  };
+  /* the strips the bars take, top and bottom, in css px; 0s when the
+     bars are hidden (a lesson) give the board the room back */
+  R.setInsets = function (top, bottom) {
+    insets.top = Math.max(0, +top || 0);
+    insets.bottom = Math.max(0, +(bottom == null ? top : bottom) || 0);
+    layout();
   };
 
   /* ---------- the board, painted once and reused ----------
@@ -296,7 +513,83 @@ function create(canvas) {
      sliders feeling instant even mid-animation. */
   var boardCv = document.createElement("canvas");
   var boardCtx = boardCv.getContext("2d");
-  var boardKey = "", boardPad = 0;
+  var boardKey = "", boardPad = 0, labels = null;
+
+  /* The coordinates go over the men rather than under them. These men
+     are drawn big — a foot nearly as wide as the square, a crown nearly
+     at its top edge — so a letter tucked under them in the corner was
+     simply covered on a full back rank, which is exactly where people
+     look for it. Each label is drawn with a thin keyline in the colour
+     of the square it sits on: invisible against the square, and where a
+     foot or a battlement does reach the corner, the letter is cut cleanly
+     out of it instead of being lost against it. */
+  /* how big the coordinates are and where in its corner each one sits,
+     relative to the board's top-left: shared by the drawing and by the
+     look at what is under them */
+  function coordMetrics() {
+    return { fs: Math.max(11, Math.round(R.cell * 0.24)), inset: Math.max(2, R.cell * 0.06) };
+  }
+  function coordAt(L, k) {
+    if (L.corner === "tl") return { x: L.i * R.cell + k.inset, y: L.j * R.cell + k.inset * 0.7 };
+    return { x: (L.i + 1) * R.cell - k.inset, y: (L.j + 1) * R.cell - k.inset * 0.5 };
+  }
+  /* What is really under each label on the painted board: the average
+     colour of a box the size of one character there, and its darkest and
+     lightest pixels. Read once when the board is painted, never per frame
+     — and through a scrap canvas of its own, copied out of the board,
+     because a browser that sees a canvas read back is entitled to stop
+     drawing it on the GPU, and the board is drawn every frame. */
+  var probeCv = null, probeCtx = null;
+  function underLabels(src, pad, dpr) {
+    var k = coordMetrics(), w = k.fs * 0.72, h = k.fs;
+    return function (i, j, corner) {
+      try {
+        var at = coordAt({ i: i, j: j, corner: corner }, k);
+        var x0 = corner === "tl" ? at.x : at.x - w, y0 = corner === "tl" ? at.y : at.y - h;
+        var X = Math.round((pad + x0) * dpr), Y = Math.round((pad + y0) * dpr);
+        var W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+        if (!probeCv) {
+          probeCv = document.createElement("canvas");
+          probeCtx = probeCv.getContext("2d", { willReadFrequently: true });
+        }
+        if (probeCv.width < W || probeCv.height < H) { probeCv.width = W; probeCv.height = H; }
+        probeCtx.clearRect(0, 0, probeCv.width, probeCv.height);
+        probeCtx.drawImage(src, X, Y, W, H, 0, 0, W, H);
+        var d = probeCtx.getImageData(0, 0, W, H).data, px = [], mr = 0, mg = 0, mb = 0, n = 0;
+        for (var q = 0; q < d.length; q += 4) {
+          var c = [d[q], d[q + 1], d[q + 2]];
+          px.push({ c: c, l: lumOf(c) });
+          mr += d[q]; mg += d[q + 1]; mb += d[q + 2]; n++;
+        }
+        if (!n) return null;
+        px.sort(function (a, b) { return a.l - b.l; });
+        return { mean: [Math.round(mr / n), Math.round(mg / n), Math.round(mb / n)],
+                 dark: px[Math.floor(n * 0.04)].c, light: px[Math.min(n - 1, Math.floor(n * 0.96))].c };
+      } catch (e) { return null; }               /* fall back to the model */
+    };
+  }
+  function drawCoords() {
+    if (!labels) return;
+    var k = coordMetrics(), fs = k.fs;
+    ctx.save();
+    ctx.font = "700 " + fs + "px system-ui, -apple-system, sans-serif";
+    ctx.lineJoin = "round";
+    /* The keyline is a plate as much as an outline: wide enough to fill
+       the letter's counters and lay a clean margin of the square's own
+       colour round every stroke, so the ink is read against that and not
+       against a grain line or an inlay stripe that happens to cross it. */
+    ctx.lineWidth = Math.max(3, fs * 0.34);
+    for (var i = 0; i < labels.length; i++) {
+      var L = labels[i], c = coordAt(L, k), x = R.ox + c.x, y = R.oy + c.y;
+      if (L.corner === "tl") { ctx.textAlign = "left"; ctx.textBaseline = "top"; }
+      else { ctx.textAlign = "right"; ctx.textBaseline = "bottom"; }
+      ctx.strokeStyle = "rgb(" + L.bg[0] + "," + L.bg[1] + "," + L.bg[2] + ")";
+      ctx.strokeText(L.text, x, y);
+      ctx.fillStyle = "rgb(" + L.ink[0] + "," + L.ink[1] + "," + L.ink[2] + ")";
+      ctx.fillText(L.text, x, y);
+    }
+    ctx.restore();
+  }
 
   function paintPattern(g, x, y, cell, dark, pal, f, r) {
     var amt = pal.grain;
@@ -347,7 +640,7 @@ function create(canvas) {
 
   function buildBoard() {
     var pal = R.pal, dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    var pad = Math.round(R.cell * 0.30);
+    var pad = Math.round(R.cell * FRAME);
     var W = R.size + pad * 2, H = W;
     boardPad = pad;
     boardCv.width = Math.round(W * dpr);
@@ -389,16 +682,9 @@ function create(canvas) {
       g.fillRect(pad, pad, R.size, R.size);
     }
 
-    /* coordinates, in the margin where they belong */
-    g.fillStyle = pal.coord;
-    g.font = "600 " + Math.max(9, R.cell * 0.22) + "px system-ui, sans-serif";
-    g.textAlign = "center"; g.textBaseline = "middle";
-    for (var i = 0; i < 8; i++) {
-      var fileCh = "abcdefgh"[R.orientation === 1 ? i : 7 - i];
-      var rankCh = R.orientation === 1 ? 8 - i : i + 1;
-      g.fillText(fileCh, pad + (i + 0.5) * R.cell, pad + R.size + pad * 0.52);
-      g.fillText(String(rankCh), pad * 0.48, pad + (i + 0.5) * R.cell);
-    }
+    /* the coordinates are worked out here, with the board they belong
+       to, and drawn every frame over the men (see drawCoords) */
+    labels = coordLabels(pal, R.orientation, underLabels(boardCv, pad, dpr));
     boardKey = key();
   }
   function key() {
@@ -417,8 +703,95 @@ function create(canvas) {
     boardKey = "";
     R.dirty = true;
   };
-  R.setOrientation = function (color) { R.orientation = color; R.dirty = true; };
-  R.setPosition = function (board) { R.board.set(board); R.anim = null; R.dirty = true; };
+  R.setOrientation = function (color) { R.orientation = color; leanAbout(); R.dirty = true; };
+  R.setPosition = function (board, o) {
+    R.board.set(board);
+    R.anim = null;
+    settling = null;
+    R.toppled = null;
+    R.cascade = null;
+    if (o && o.flourish) {
+      /* a new game starts from the player's own view, whatever the last
+         one ended on */
+      R.focus(null);
+      if (!REDUCED && Move && Move.cascade) {
+        var plan = Move.cascade(R.board, { orientation: R.orientation });
+        var delay = {};
+        for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
+        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+      }
+    }
+    R.dirty = true;
+  };
+  /* the landings of the arrival just started, as [{sq, t, piece, wave}]
+     with t in ms from the setPosition call — so a sound can be put on
+     each one. Empty when there is no arrival (reduced motion, or a
+     position set without a flourish). */
+  R.flourishPlan = function () {
+    if (!R.cascade) return [];
+    return R.cascade.plan.map(function (p) { return { sq: p.sq, t: p.t, piece: p.piece, wave: p.wave }; });
+  };
+
+  /* The mated king, laid down. It falls away from whatever mated it —
+     on a drawn board that means left or right, so the side the attacker
+     stands on decides — and stays down until the position changes.
+     `still: true` lays him down without the fall, for a finished game
+     shown again after the board was reset under it. */
+  R.topple = function (sq, opts) {
+    opts = opts || {};
+    if (sq == null || sq < 0 || !onBoard(sq)) return;
+    var dir = 0;
+    if (opts.from != null && opts.from >= 0 && onBoard(opts.from)) {
+      var k = sqXY(sq), a = sqXY(opts.from);
+      dir = k.x > a.x + 0.5 ? 1 : k.x < a.x - 0.5 ? -1 : 0;
+    }
+    /* straight above or below it: toward the nearer edge, off the board
+       rather than across it */
+    if (!dir) dir = sqXY(sq).x >= R.ox + R.size / 2 ? 1 : -1;
+    /* on the rim of his base and on his crown: a little past flat */
+    var kind = Math.abs(R.board[sq]) || 6;
+    R.toppled = { sq: sq, kind: kind, dir: dir, t0: opts.still ? -Infinity : performance.now(),
+                  rest: lieOf2D(kind, Move).rest };
+    R.dirty = true;
+  };
+  R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
+
+  /* The faintest lean in toward a square, and back out with null. The
+     drawn board fills its canvas, so this is a few percent rather than a
+     camera move, about the square itself so nothing slides — and taps
+     are mapped back through it, so the board never stops listening. */
+  R.focus = function (sq, opts) {
+    var v = R.view;
+    if (sq == null || sq < 0 || !onBoard(sq) || REDUCED) {
+      if (v.target !== 1) { v.target = 1; v.last = 0; R.dirty = true; }
+      return;
+    }
+    /* the pivot only moves while the board is at rest, or the picture
+       would jump */
+    if (Math.abs(v.z - 1) < 1e-4) { v.sq = sq; leanAbout(); }
+    var amount = opts && opts.amount != null ? +opts.amount || 0 : 0.045;
+    v.target = 1 + Math.max(0, Math.min(0.2, amount));
+    v.last = 0;
+    R.dirty = true;
+  };
+  /* the square the lean is about, wherever it is on screen now: a
+     resize or a flip moves the board under it, and a lean about where
+     the square used to be would drift the picture off-centre */
+  function leanAbout() {
+    var v = R.view;
+    if (v.sq == null || !R.cell) return;
+    var p = sqXY(v.sq);
+    v.px = p.x; v.py = p.y;
+  }
+
+  /* light under a capture: a radial flash on the square, held longer for
+     a bigger capture */
+  R.impact = function (sq, power) {
+    if (REDUCED || sq == null || sq < 0 || !onBoard(sq)) return;
+    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : power });
+    if (R.impacts.length > 6) R.impacts.shift();
+    R.dirty = true;
+  };
   R.setHighlights = function (hi) {
     R.hi.selected = hi.selected != null ? hi.selected : -1;
     R.hi.legal = hi.legal || [];
@@ -433,16 +806,88 @@ function create(canvas) {
      `after` is the position once the move lands. done() fires at the end. */
   R.animateMove = function (m, after, opts, done) {
     opts = opts || {};
-    var pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
+    /* a move played by letting go of a carried man is only the setting
+       down, from where he is; any other move travels from its square */
+    var drop = null;
+    if (settling && settling.sq === m.from) drop = settleAt(performance.now());
+    settling = null;
+    if (drag && drag.sq === m.from) drag = null;
+    var pl;
+    if (drop) {
+      var to = sqXY(m.to);
+      pl = Move.setDown(m, { reduced: REDUCED, scale: opts.scale,
+                             reach: Math.hypot(to.x - drop.x, to.y - drop.y) / (R.cell || 1) });
+    } else pl = Move.plan(m, { reduced: REDUCED, scale: opts.scale });
     if (opts.dur) pl.dur = REDUCED ? 1 : opts.dur;
+    /* a move means the game goes on, so a king lying down gets up; the
+       men still arriving keep arriving round it, rather than thirty of
+       them popping into place because an engine was quick off the mark */
+    R.toppled = null;
     R.anim = {
       m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-      dur: pl.dur, glow: !!opts.glow, done: done || null
+      dur: pl.dur, glow: !!opts.glow, done: done || null, drop: drop
     };
     R.dirty = true;
     return pl;
   };
   R.isAnimating = function () { return !!R.anim; };
+
+  /* ---------- a man carried by hand ----------
+     Drag-to-move, the same three calls as the carved board. While a
+     finger has a piece, its square is drawn empty and the piece is drawn
+     under the finger, a size up and with a soft shadow beneath it, the
+     way a piece looks when it has been lifted off a real board. Kept over
+     the board: dragged off the edge, it waits at the edge. setDrag hands
+     back the square under the finger (-1 off the board), which is where a
+     drop lands. */
+  var drag = null, hover = -1;
+  /* Let go of, he is never simply teleported: a move played there and
+     then sets him down from under the finger (see animateMove), and a
+     drop the app refuses glides him home. `settling` is that glide —
+     where he was let go (board coordinates, before any lean-in), how big
+     he was, and when. */
+  var SETTLE_MS = 170, settling = null;
+  function settleAt(now) {
+    var u = REDUCED ? 1 : Math.min(1, (now - settling.t0) / SETTLE_MS);
+    var e = 1 - (1 - u) * (1 - u) * (1 - u), h = sqXY(settling.sq);
+    return { x: settling.x + (h.x - settling.x) * e, y: settling.y + (h.y - settling.y) * e,
+             grow: settling.grow + (1 - settling.grow) * e, done: u >= 1 };
+  }
+  function dragGrow(now) {
+    var up = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 120);
+    return { up: up, grow: 1 + 0.16 * (1 - (1 - up) * (1 - up)) };
+  }
+  R.setDrag = function (sq, x, y) {
+    var now = performance.now();
+    if (sq == null || sq < 0 || !onBoard(sq)) {
+      if (drag) {
+        var at = dragAt();
+        settling = REDUCED ? null : { sq: drag.sq, x: at.x, y: at.y, grow: dragGrow(now).grow, t0: now };
+        drag = null; R.dirty = true;
+      }
+      return -1;
+    }
+    if (!drag || drag.sq !== sq) drag = { sq: sq, t0: now };
+    settling = null;
+    drag.x = +x || 0; drag.y = +y || 0;
+    R.dirty = true;
+    return R.screenToSquare(drag.x, drag.y);
+  };
+  R.dragging = function () { return drag ? drag.sq : -1; };
+  /* a soft outline on the square a carried man would land on, or -1 */
+  R.dragHover = function (sq) {
+    var next = sq != null && sq >= 0 && onBoard(sq) ? sq : -1;
+    if (next !== hover) { hover = next; R.dirty = true; }
+  };
+  /* where the carried man is drawn: the pointer, carried back through
+     the lean-in so it stays under the finger, and kept on the board */
+  function dragAt() {
+    var v = R.view, x = drag.x, y = drag.y;
+    if (v.z !== 1) { x = v.px + (x - v.px) / v.z; y = v.py + (y - v.py) / v.z; }
+    var lo = R.cell * 0.3;
+    return { x: Math.max(R.ox + lo, Math.min(R.ox + R.size - lo, x)),
+             y: Math.max(R.oy + lo, Math.min(R.oy + R.size - lo, y)) };
+  }
 
   function arrow(from, to, color, alpha) {
     var a = sqXY(from), b = sqXY(to);
@@ -471,8 +916,25 @@ function create(canvas) {
     var th = R.pal, animating = false;
     if (!th) return false;
     if (!R.dirty && !R.anim) return false;
+    refit();
+    var now = performance.now();
     var w = canvas.clientWidth, h = canvas.clientHeight;
+    var dpr = R.dpr || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+
+    /* the lean-in: a spring toward its target, and everything below
+       drawn through it. At rest at 1 it costs nothing at all. */
+    var v = R.view;
+    if (v.z !== 1 || v.target !== 1) {
+      var ts = now / 1000, dts = v.last ? Math.min(0.25, ts - v.last) : 1 / 60;
+      v.last = ts;
+      var spr = Move.spring(v.z, v.v, v.target, dts, 5.5);
+      v.z = spr.x; v.v = spr.v;
+      if (Move.springAtRest(v.z, v.v, v.target)) { v.z = v.target; v.v = 0; v.last = 0; }
+      else animating = true;
+      ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * v.px * (1 - v.z), dpr * v.py * (1 - v.z));
+    }
 
     /* the board itself, straight off the cache */
     if (boardKey !== key()) buildBoard();
@@ -492,21 +954,85 @@ function create(canvas) {
       ctx.fillStyle = gr;
       ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
     }
+    /* where a carried man would land: a breath of colour and a soft
+       edge, drawn under the men so a capture still shows what it takes */
+    if (hover >= 0) {
+      var hp = sqXY(hover), hl = Math.max(2, R.cell * 0.06);
+      ctx.save();
+      ctx.fillStyle = th.hoverFill;
+      ctx.fillRect(hp.x - R.cell / 2, hp.y - R.cell / 2, R.cell, R.cell);
+      ctx.strokeStyle = th.hoverEdge;
+      ctx.lineWidth = hl;
+      rr(ctx, hp.x - R.cell / 2 + hl / 2, hp.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* light under a capture, under the men so the one who took stands
+       in it rather than in front of it */
+    for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
+      var im = R.impacts[ii], ia = Move.impactAt(now - im.t0, im.power);
+      if (!ia.live) { R.impacts.splice(ii, 1); continue; }
+      animating = true;
+      drawImpact(sqXY(im.sq), im.power, ia);
+    }
 
     /* pieces (skipping any square involved in the animation) */
     var skip = {}, a = R.anim, prog = 0;
     if (a) {
-      prog = Math.min(1, (performance.now() - a.t0) / a.dur);
-      animating = prog < 1;
+      prog = Math.min(1, (now - a.t0) / a.dur);
+      /* (or-ed in, not assigned: the last frame of a move must not
+         switch off a lean-in or a capture's flash that is still going) */
+      if (prog < 1) animating = true;
       skip[a.m.from] = true; skip[a.m.to] = true;
       if (a.m.rookFrom != null) { skip[a.m.rookFrom] = true; skip[a.m.rookTo] = true; }
       if (a.m.epSq != null) skip[a.m.epSq] = true;
+    }
+    /* a man in the hand has left his square, and so has one on his way
+       back to it */
+    if (drag) skip[drag.sq] = true;
+    var home = null;
+    if (settling) {
+      home = settleAt(now);
+      if (home.done) { settling = null; home = null; }
+      else { animating = true; skip[settling.sq] = true; }
+    }
+    /* the men arriving at the start of a game */
+    var casc = R.cascade, cascMs = 0;
+    if (casc) {
+      cascMs = now - casc.t0;
+      if (cascMs >= casc.end) R.cascade = casc = null; else animating = true;
+    }
+    /* the mated king, going over or lying down */
+    var tp = R.toppled, fall = null;
+    if (tp) {
+      fall = Move.kingFall(REDUCED ? Infinity : now - tp.t0, tp.rest);
+      if (!fall.done) animating = true;
     }
     for (var sq2 = 0; sq2 < 128; sq2++) {
       if (!onBoard(sq2) || skip[sq2]) continue;
       var piece = a ? (a.after[sq2] || 0) : R.board[sq2];
       if (!piece) continue;
       var q = sqXY(sq2);
+      if (casc && casc.delay[sq2] != null) {
+        var dp = Move.dropAt(cascMs - casc.delay[sq2]);
+        if (dp.alpha <= 0.004) continue;
+        /* the shadow waits on the square and darkens as the man comes
+           down to meet it */
+        groundShadow(q.x, q.y, R.cell, dp.alpha * (1 - dp.y / Move.DROP.height * 0.75), 1);
+        paintPiece(ctx, piece, q.x, q.y - dp.y * R.cell * 0.6, R.cell, th, dp.alpha, 1, 0, dp.squash,
+                   { noShadow: true });
+        continue;
+      }
+      if (tp && sq2 === tp.sq && !a) {
+        /* the shadow runs out under the length of him: he lies from his
+           base rim, a third of a square out, to his crown well past it */
+        var lie = Math.sin(Math.max(0, fall.tilt));
+        groundShadow(q.x + tp.dir * R.cell * 0.68 * lie, q.y, R.cell, 1, 1 + lie * 0.95);
+        paintPiece(ctx, piece, q.x, q.y, R.cell, th, 1, 1, tp.dir * fall.tilt, 1,
+                   { pivot: (fall.tilt >= 0 ? tp.dir : -tp.dir) * PIVOT_2D, noShadow: true });
+        continue;
+      }
       paintPiece(ctx, piece, q.x, q.y, R.cell, th);
     }
 
@@ -535,8 +1061,11 @@ function create(canvas) {
         paintPiece(ctx, a.after[a.m.rookTo],
           rf.x + (rt.x - rf.x) * rk.p, rf.y + (rt.y - rf.y) * rk.p - rk.y * R.cell * 0.6, R.cell, th);
       }
-      var mx = f0.x + (f1.x - f0.x) * stt.p;
-      var my = f0.y + (f1.y - f0.y) * stt.p - stt.y * R.cell * 0.6;
+      /* a move let go of by hand sets down from under the finger,
+         shrinking back from the size he was carried at */
+      var s0 = a.drop || f0, grown = a.drop ? 1 + (a.drop.grow - 1) * (1 - stt.p) : 1;
+      var mx = s0.x + (f1.x - s0.x) * stt.p;
+      var my = s0.y + (f1.y - s0.y) * stt.p - stt.y * R.cell * 0.6;
       if (a.m.promo) {
         var pr = Move.promoteAt(pl, prog);
         if (pr.pawnAlpha > 0.004) {
@@ -555,20 +1084,25 @@ function create(canvas) {
           ctx.stroke();
           ctx.restore();
         }
+      } else if ((drag && drag.sq === a.m.to) || (home && settling.sq === a.m.to)) {
+        /* picked up again while still landing: he is in the hand, and
+           is drawn there rather than twice */
       } else if (a.glow) {
         ctx.save();
         ctx.shadowColor = th.hint; ctx.shadowBlur = R.cell * 0.5;
-        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, grown, stt.bank * 0.5, stt.squash);
         ctx.restore();
       } else {
-        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, 1, stt.bank * 0.5, stt.squash);
+        paintPiece(ctx, a.m.piece, mx, my, R.cell, th, 1, grown, stt.bank * 0.5, stt.squash);
       }
-      if (!animating) {
+      if (prog >= 1) {
         R.board.set(a.after);
         R.anim = null;
         if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
       }
     }
+
+    drawCoords();
 
     /* legal-move markers (over the pieces so rings show on captures) */
     ctx.fillStyle = th.dot;
@@ -601,13 +1135,31 @@ function create(canvas) {
 
     /* the lines themselves */
     if (R.lines.length && root.Lines) {
-      var now = performance.now();
       for (var li2 = 0; li2 < R.lines.length; li2++) {
         drawLine(R.lines[li2], now, th);
       }
       animating = true;                 /* keep the spark moving */
     }
     if (R.hi.hint && !R.lines.length) arrow(R.hi.hint[0], R.hi.hint[1], th.hint, 0.8);
+
+    /* the man in the hand, over everything: he grows a size as he comes
+       up off the board (instantly, for anyone who asked for stillness) */
+    if (drag) {
+      var held = (a ? a.after : R.board)[drag.sq];
+      if (held) {
+        var up = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 120);
+        if (up < 1) animating = true;
+        var grow = dragGrow(now).grow, at = dragAt();
+        liftedShadow(ctx, held, at.x, at.y, R.cell, grow * up, dpr * v.z);
+        paintPiece(ctx, held, at.x, at.y, R.cell, th, 1, grow, 0, 1, { noShadow: true });
+      }
+    }
+
+    /* and one let go of, on his way home */
+    if (home) {
+      var going = (a ? a.after : R.board)[settling.sq];
+      if (going) paintPiece(ctx, going, home.x, home.y, R.cell, th, 1, home.grow, 0, 1);
+    }
 
     R.dirty = animating;
     return animating;
@@ -659,6 +1211,43 @@ function create(canvas) {
     ctx.fillRect(p.x - R.cell / 2, p.y - R.cell / 2, R.cell, R.cell);
   }
 
+  /* a shadow on the board itself, for a man that is not standing on it
+     the ordinary way: in the air above it, or lying across it */
+  function groundShadow(x, y, size, amount, stretch) {
+    if (amount <= 0.01) return;
+    var s = size * 0.92, by = y + size * 0.38 - 0.02 * s;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, amount);
+    ctx.fillStyle = R.pal.shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, by, 0.30 * s * (stretch || 1), 0.075 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* the struck square: warm light pooled on the wood, and a ring of it
+     running outward — the drawn twin of the carved board's glow */
+  function drawImpact(c, power, ia) {
+    var rad = R.cell * (0.58 + 0.42 * power);
+    var g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, rad);
+    g.addColorStop(0, "rgba(255,244,222," + (0.66 * ia.amount).toFixed(3) + ")");
+    g.addColorStop(0.42, "rgba(255,206,138," + (0.34 * ia.amount).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(255,190,120,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(c.x - rad, c.y - rad, rad * 2, rad * 2);
+    var fade = (1 - ia.ring) * Math.min(1, ia.amount * 3);
+    if (fade > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = 0.6 * fade;
+      ctx.strokeStyle = "#ffe2b4";
+      ctx.lineWidth = Math.max(1, R.cell * 0.05 * (1 - ia.ring));
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, R.cell * (0.22 + 0.62 * ia.ring * (0.7 + 0.5 * power)), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function rr(c, x, y, w, h, r) {
     c.beginPath();
     c.moveTo(x + r, y);
@@ -674,7 +1263,8 @@ function create(canvas) {
   return R;
 }
 
-var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS };
+var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS,
+              coordLabels: coordLabels, contrast: contrast, COORD_NEED: COORD_NEED };
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx2D;
 else root.Gfx2D = Gfx2D;
 })(typeof self !== "undefined" ? self : this);

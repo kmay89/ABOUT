@@ -48,9 +48,11 @@ coming up out of it).
   notes in `cube/README.md`. Also published standalone at
   [kmay89.github.io/puzzles](https://kmay89.github.io/puzzles/)
   ([kmay89/puzzles](https://github.com/kmay89/puzzles)).
-- `chess/` — the chess room: chess taught kindly, with a full 3D board
-  (2D one tap away), a patient coach, opening stories, a tournament
-  clock, and same-room two-player over WebRTC with no accounts. A
+- `chess/` — the chess room: chess taught kindly, with one button to
+  play the computer, a rated ladder of eight coaches to climb, a full 3D
+  board (2D one tap away), a patient coach, opening stories, a
+  tournament clock, and same-room two-player over WebRTC with no
+  accounts. A
   mirror of [kmay89/puzzles](https://github.com/kmay89/puzzles)'s
   `chess/` (see its README there); update it by copying that directory
   over this one.

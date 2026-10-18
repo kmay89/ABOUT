@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Chess Room — effects preview</title>
+<!--
+  fx-preview.html — dev-only, never shipped.
+
+  The real boards (gfx3d.js and gfx2d.js, the carved men, the house
+  skins) with the real effects layer (fx.js) laid over them, and a
+  button for every moment: a capture by a pawn and by a queen, a check,
+  a promotion, a mate in each of its three moods, confetti on the board
+  and over the page, fireworks, a flash, and the end-card things — a
+  rating that counts up, sparkles round it, a shake. Plus the board's
+  own half of each: the light under a capture, the king going over, the
+  camera pushing in, the men arriving.
+
+  Open it from a static server at the repo root:
+      python3 -m http.server 8000
+      open http://localhost:8000/chess/tools/fx-preview.html
+
+  tools/fx-check.js drives the same page through window.__fx.
+-->
+<style>
+  :root{--room:#191512;--ink:#f0e8da;--soft:#b3a48f;--line:#463a2f;--card:#241e19;--card2:#2c241e;--amber:#f0a020}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--room);color:var(--ink);overflow:hidden;
+       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+  #bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);
+       background:linear-gradient(var(--card),#201a15);flex:none}
+  #bar .sep{width:1px;background:var(--line);margin:0 4px}
+  button{font:inherit;color:var(--ink);background:var(--card2);border:1px solid var(--line);
+         border-radius:999px;padding:4px 11px;cursor:pointer;font-size:.8em}
+  button:hover{border-color:var(--amber)}
+  button.sel{background:var(--amber);border-color:var(--amber);color:#241a08;font-weight:700}
+  #wrap{position:relative;flex:1;min-height:0;display:flex}
+  #stage{position:relative;flex:1;min-height:0}
+  canvas.board{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hide{display:none !important}
+  /* a stand-in for the end card, so the page layer has something to
+     celebrate over */
+  #card{position:absolute;right:14px;bottom:14px;z-index:5;background:var(--card);border:1px solid var(--line);
+        border-radius:18px;padding:12px 18px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+  #card .k{color:var(--amber);font-size:.7em;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+  #rating{font-size:2.4em;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  #stat{position:absolute;left:10px;bottom:10px;z-index:5;font-size:.75em;color:var(--soft);
+        background:rgba(20,16,12,.8);border:1px solid var(--line);border-radius:10px;padding:5px 10px;
+        white-space:pre;font-variant-numeric:tabular-nums;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar"></div>
+  <div id="wrap">
+    <div id="stage">
+      <canvas id="cv3" class="board"></canvas>
+      <canvas id="cv2" class="board hide"></canvas>
+      <div id="card"><div class="k">Your rating</div><div id="rating">1200</div></div>
+      <div id="stat"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../skins.js"></script>
+<script src="../lines.js"></script>
+<script src="../motion.js"></script>
+<script src="../pieces3d.js"></script>
+<script src="../pieces-classic.js"></script>
+<script src="../gfx3d.js"></script>
+<script src="../gfx2d.js"></script>
+<script src="../fx.js"></script>
+<script>
+"use strict";
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var LETTER = { p: 1, n: 2, b: 3, r: 4, q: 5, k: 6 };
+  /* piece placement only — enough to set a scene */
+  function board(fen) {
+    var b = new Int8Array(128), rank = 7, file = 0;
+    for (var i = 0; i < fen.length; i++) {
+      var c = fen.charAt(i);
+      if (c === " ") break;
+      if (c === "/") { rank--; file = 0; continue; }
+      if (c >= "1" && c <= "8") { file += +c; continue; }
+      var k = LETTER[c.toLowerCase()];
+      if (k) { b[rank * 16 + file] = c === c.toLowerCase() ? -k : k; file++; }
+    }
+    return b;
+  }
+  var START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+  /* a back-rank mate: the rook has just come to e8, the king on g8 has
+     nowhere to go */
+  var MATED = "4R1k1/5ppp/8/8/8/8/5PPP/6K1";
+  var SCENE = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R";
+
+  var skin = Skins.byId("walnut") || Skins.PRESETS[0];
+  var R3 = null, R2 = Gfx2D.create($("cv2")), R = null, orient = 1;
+  try { R3 = Gfx3D.create($("cv3"), {}); } catch (e) { R3 = null; }
+  var pos = board(SCENE);
+
+  /* the app's frame loop, in miniature: draw while anything asks to */
+  var pending = false;
+  function needFrame() { if (!pending) { pending = true; requestAnimationFrame(loop); } }
+  function loop() {
+    pending = false;
+    var more = false;
+    try { more = R.frame(); } catch (e) { console.error(e); }
+    if (more) needFrame();
+    stat();
+  }
+  function use(kind) {
+    R = kind === "2d" || !R3 ? R2 : R3;
+    $("cv3").classList.toggle("hide", R !== R3);
+    $("cv2").classList.toggle("hide", R !== R2);
+    R.setSkin(skin);
+    R.setOrientation(orient);
+    R.resize();
+    R.setPosition(pos);
+    R.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null });
+    needFrame();
+    bar();
+  }
+  function setScene(fen, flourish) {
+    pos = board(fen);
+    R.setPosition(pos, flourish ? { flourish: true } : null);
+    needFrame();
+  }
+
+  Fx.attach($("stage"));
+  /* the board canvas fills the stage here, as it does in the app, so the
+     renderer's own coordinates are the stage's */
+  function projector(sq, lift) { return R && R.squareToScreen ? R.squareToScreen(sq, lift) : null; }
+  Fx.setProjector(projector);
+
+  var KING_B = 0x76, ROOK_E8 = 0x74;
+  var fire = {
+    capturePawn: function () { R.impact(0x44, 0.3); needFrame(); return Fx.capture(0x44, { color: -1, piece: 1 }); },
+    captureQueen: function () { R.impact(0x53, 1); needFrame(); return Fx.capture(0x53, { color: 1, piece: 5 }); },
+    check: function () { return Fx.check(0x74, { color: skin.marks.check }); },
+    promote: function () { return Fx.promote(0x70, { color: 1 }); },
+    mateWin: function () { return mateScene(true); },
+    mateLoss: function () { return mateScene(false); },
+    mateEven: function () { return mateScene(null); },
+    confetti: function () { return Fx.confetti({ ms: 2600 }); },
+    confettiPage: function () { return Fx.confetti({ ms: 2600, layer: "page" }); },
+    fireworks: function () { return Fx.fireworks({ count: 3 }); },
+    flash: function () { return Fx.flash("#fff1d6"); },
+    sparkle: function () { return Fx.sparkle($("rating")); },
+    shake: function () { return Fx.shake($("card"), 7) ? 1 : 0; },
+    countUp: function () {
+      var from = 1200, to = 1200 + Math.round(Math.random() * 60 + 8), ticks = 0;
+      var pr = Fx.countUp($("rating"), from, to, { ms: 1200, onTick: function () { ticks++; } });
+      if (pr) pr.then(function () { window.__fx.lastTicks = ticks; Fx.sparkle($("rating")); });
+      return to;
+    },
+    impact: function () { R.impact(0x34, 0.8); needFrame(); return 1; },
+    topple: function () {
+      setScene(MATED);
+      R.topple(KING_B, { from: ROOK_E8 });
+      needFrame();
+      return 1;
+    },
+    untopple: function () { R.untopple(); needFrame(); return 1; },
+    focus: function () { R.focus(KING_B); needFrame(); return 1; },
+    unfocus: function () { R.focus(null); needFrame(); return 1; },
+    flourish: function () { setScene(START, true); return R.flourishPlan().length; },
+    game: function () { return playGame(); },
+    storm: function () {
+      var n = Fx.confetti({ ms: 3000 }) + Fx.fireworks({ count: 6 });
+      for (var i = 0; i < 6; i++) n += Fx.capture(0x22 + i * 17 % 0x55, { color: i % 2 ? 1 : -1, piece: 5 });
+      n += Fx.mate(0x44, { win: true }) + Fx.confetti({ ms: 3000, layer: "page" });
+      return n;
+    },
+    clear: function () { Fx.clear(); return 1; }
+  };
+  /* ---------- the moments, conducted the way app.js should ----------
+     These three are the recipe the integration notes hand over: the
+     board's half and the overlay's half of each moment, at the instant
+     it happens — a capture when the taking piece lands (the same moment
+     sound.js sets it down, louder for a capture), a mate once the mating
+     move has landed. */
+  function captureMoment(desc, taken, plan) {
+    setTimeout(function () {
+      var power = Fx.powerOf(taken);
+      R.impact(desc.to, power);
+      needFrame();
+      Fx.capture(desc.to, { piece: taken, power: power,
+                            color: taken > 0 ? skin.pieces.white : skin.pieces.black });
+      Fx.haptic("capture");
+    }, plan.dur * plan.travel);
+  }
+  function mateMoment(kingSq, fromSq, win) {
+    R.topple(kingSq, { from: fromSq });
+    R.focus(kingSq);
+    needFrame();
+    var n = Fx.mate(kingSq, { win: win });
+    Fx.haptic(win === false ? "loss" : "mate");
+    if (win) setTimeout(function () { Fx.confetti({ ms: 2600 }); }, 520);
+    return n;
+  }
+  /* the whole mate in a still position */
+  function mateScene(win) {
+    setScene(MATED);
+    return mateMoment(KING_B, ROOK_E8, win);
+  }
+  /* and a whole little game: the men set out, four moves each way, a
+     capture that is also mate */
+  var SCHOLAR = [[0x14, 0x34], [0x64, 0x44], [0x05, 0x32], [0x71, 0x52], [0x03, 0x47], [0x76, 0x55], [0x47, 0x65]];
+  function playGame() {
+    setScene(START, true);
+    var landings = R.flourishPlan();
+    var settled = landings.length ? landings[landings.length - 1].t + Motion.DROP_MS - Motion.DROP.fall : 0;
+    var i = 0;
+    window.__fx.gameOver = false;
+    function next() {
+      var mv = SCHOLAR[i++], from = mv[0], to = mv[1];
+      var piece = pos[from], taken = pos[to];
+      var after = new Int8Array(pos); after[to] = piece; after[from] = 0;
+      var desc = { piece: piece, from: from, to: to };
+      var last = i === SCHOLAR.length;
+      var plan = R.animateMove(desc, after, {}, function () {
+        pos = after;
+        if (last) { mateMoment(0x74, to, true); window.__fx.gameOver = true; }
+        else setTimeout(next, 240);
+      });
+      if (taken) captureMoment(desc, taken, plan);
+      needFrame();
+    }
+    setTimeout(next, settled + 220);
+    return SCHOLAR.length;
+  }
+
+  function bar() {
+    var el = $("bar");
+    el.innerHTML = "";
+    function b(label, on, fn) {
+      var x = document.createElement("button");
+      x.textContent = label; if (on) x.className = "sel";
+      x.onclick = function () { fn(); needFrame(); };
+      el.appendChild(x);
+    }
+    function sep() { var s = document.createElement("span"); s.className = "sep"; el.appendChild(s); }
+    b("3D", R === R3, function () { use("3d"); });
+    b("2D", R === R2, function () { use("2d"); });
+    b("flip", false, function () { orient = -orient; R.setOrientation(orient); needFrame(); });
+    b("reset view", false, function () { if (R.resetView) R.resetView(); needFrame(); });
+    sep();
+    Object.keys(fire).forEach(function (k) { b(k, false, fire[k]); });
+  }
+  function stat() {
+    var s = Fx.stats();
+    $("stat").textContent = (R === R3 ? "3D" : "2D") + " · alive " + s.alive + " · peak " + s.peak +
+      " · quality " + s.quality.toFixed(2) + (s.looping ? " · running" : " · asleep");
+  }
+  setInterval(stat, 250);
+
+  /* drag to orbit and wheel to zoom, the way the app does it, so the
+     push-in can be checked against a camera somebody has moved */
+  var drag = null;
+  $("stage").addEventListener("pointerdown", function (e) { drag = { x: e.clientX, y: e.clientY }; });
+  addEventListener("pointerup", function () { drag = null; });
+  addEventListener("pointermove", function (e) {
+    if (!drag || !R.orbit) return;
+    R.orbit(e.clientX - drag.x, e.clientY - drag.y);
+    drag = { x: e.clientX, y: e.clientY };
+    needFrame();
+  });
+  $("stage").addEventListener("wheel", function (e) {
+    if (R.zoom) { R.zoom(e.deltaY > 0 ? 1.07 : 0.93); needFrame(); e.preventDefault(); }
+  }, { passive: false });
+  addEventListener("resize", function () { R.resize(); needFrame(); });
+
+  use(R3 ? "3d" : "2d");
+
+  window.__fx = {
+    get R() { return R; }, R3: R3, R2: R2, Fx: Fx, fire: fire, use: use, needFrame: needFrame, projector: projector,
+    setScene: setScene, board: board, START: START, MATED: MATED, SCENE: SCENE,
+    /* run the board's frames by hand until it says it is done (or a cap) */
+    settle: function (cap) {
+      var n = 0;
+      while (n < (cap || 600) && R.frame()) n++;
+      return n;
+    },
+    flip: function (o) { orient = o; R.setOrientation(o); needFrame(); },
+    lastTicks: -1
+  };
+})();
+</script>
+</body>
+</html>

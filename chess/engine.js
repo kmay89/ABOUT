@@ -754,8 +754,16 @@ function evaluate(g) {
 
 var MATE = 100000, MATE_IN_MAX = MATE - 1000;
 var searchDeadline = 0, searchNodes = 0, searchAborted = false;
+/* An optional ceiling on nodes, beside the one on time. A clock is the
+   right budget for a person waiting on a reply and the wrong one for a
+   level meant to play the same on every machine: the same second buys a
+   laptop twice the search a phone gets. Counting nodes buys the same
+   game everywhere, which is what lets a practice level carry a rating.
+   Unset, it is Infinity and nothing about the search changes. */
+var searchNodeCap = Infinity;
 
 function now() { return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
+function outOfBudget() { return now() > searchDeadline || searchNodes >= searchNodeCap; }
 
 /* ---- transposition table ----
    Parallel typed arrays rather than objects: one allocation at startup
@@ -776,6 +784,15 @@ function allocTT(bits) {
 }
 allocTT(16);
 var TT_EXACT = 1, TT_LOWER = 2, TT_UPPER = 3;
+/* An empty table, on request. One table serves every search the worker
+   runs — the coach's reply, a hint, the review of your last move — and a
+   probe takes any entry deep enough, whoever wrote it. That is right for
+   a hint and wrong for a practice level: a level that reads two plies,
+   searching just after a six-ply hint, chooses with six plies of
+   knowledge and plays well above the rating it carries. A level asks
+   for `fresh` so its move depends on the position and nothing else.
+   An emptied slot has flag 0, which no probe acts on. */
+function emptyTT() { ttHi.fill(0); ttMove.fill(0); ttScore.fill(0); ttDepth.fill(0); ttFlag.fill(0); }
 
 /* moves pack into one int so the table and the killer slots can hold
    them without keeping the move objects alive */
@@ -858,7 +875,7 @@ function orderMoves(ms, ttCode, ply) {
 function quiesce(g, alpha, beta, ply) {
   searchNodes++;
   if (ply >= MAX_PLY - 2) return evaluate(g);
-  if ((searchNodes & 2047) === 0 && now() > searchDeadline) { searchAborted = true; return alpha; }
+  if ((searchNodes & 2047) === 0 && outOfBudget()) { searchAborted = true; return alpha; }
   var stand = evaluate(g);
   if (stand >= beta) return beta;
   if (ply < MAX_PLY - 2 && stand + 975 < alpha) return alpha;   /* hopeless even a queen up */
@@ -879,7 +896,7 @@ function quiesce(g, alpha, beta, ply) {
 }
 
 function alphabeta(g, depth, alpha, beta, ply, canNull) {
-  if ((searchNodes & 1023) === 0 && now() > searchDeadline) { searchAborted = true; return alpha; }
+  if ((searchNodes & 1023) === 0 && outOfBudget()) { searchAborted = true; return alpha; }
   var isPV = beta - alpha > 1;
   pvLen[ply] = 0;
 
@@ -1061,6 +1078,7 @@ function scoreMoves(g, list, opts) {
   opts = opts || {};
   var depth = opts.depth || 4;
   searchDeadline = now() + (opts.ms || 400);
+  searchNodeCap = opts.nodes > 0 ? searchNodes + opts.nodes : Infinity;
   searchAborted = false;
   loadHistory(g);
   var out = [], i, sc;
@@ -1170,7 +1188,11 @@ var rootBest = null;
 
 /* Iterative-deepening root search.
    opts: { ms, maxDepth, noise (cp of random slack for a weaker, more
-   human opponent), rank (score every root move properly for the coach) }
+   human opponent), rank (score every root move properly for the coach),
+   nodes (optional: stop at this many nodes as well as at ms — whichever
+   comes first), fresh (optional: start from an empty transposition
+   table, so nothing an earlier search left behind can change the
+   answer) }
    Returns { move, score, depth, nodes, ranked, pv }. */
 function search(g, opts) {
   opts = opts || {};
@@ -1187,16 +1209,21 @@ function search(g, opts) {
      left with no time — a 60ms hint used to hand the ranking 80ms and
      start the search already past its deadline */
   var rankMs = wantRank ? Math.min(Math.max(50, budget * 0.3), 400, budget * 0.35) : 0;
+  /* a node budget is shared out the same way the time is */
+  var nodeBudget = opts.nodes > 0 ? opts.nodes : Infinity;
+  var rankNodes = (wantRank && nodeBudget < Infinity) ? Math.round(nodeBudget * 0.3) : 0;
   searchDeadline = now() + (budget - rankMs);
   searchNodes = 0; searchAborted = false;
+  searchNodeCap = nodeBudget - rankNodes;
   clearTables();
+  if (opts.fresh) emptyTT();
   loadHistory(g);
 
   var best = rootMoves[0], bestScore = 0, depth = 0, i, pv = [];
   var alpha = -Infinity, beta = Infinity, window = 40;
 
   for (var d = 1; d <= maxDepth; d++) {
-    var iterStart = now();
+    var iterStart = now(), iterNodes = searchNodes;
     if (d > 1) { alpha = bestScore - window; beta = bestScore + window; }
     var v, tries = 0;
     for (;;) {
@@ -1216,6 +1243,7 @@ function search(g, opts) {
        the budget left the next one cannot finish, and an unfinished
        iteration is thrown away */
     if (now() - iterStart > (searchDeadline - iterStart) * 0.45) break;
+    if (searchNodes - iterNodes > (searchNodeCap - iterNodes) * 0.45) break;
   }
 
   /* a ranked list the coach can reason about */
@@ -1228,7 +1256,7 @@ function search(g, opts) {
        itself in the same sentence */
     var order = [best];
     for (i = 0; i < rootMoves.length; i++) if (rootMoves[i] !== best) order.push(rootMoves[i]);
-    ranked = scoreMoves(g, order, { depth: rd, ms: rankMs });
+    ranked = scoreMoves(g, order, { depth: rd, ms: rankMs, nodes: rankNodes });
   } else {
     ranked = [{ move: best, score: bestScore }];
   }
