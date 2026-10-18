@@ -4034,9 +4034,27 @@ function loop(t) {
 }
 
 /* ===== input: taps move pieces, drags orbit the 3D camera ===== */
+/* A piece can be tapped and then tapped to where it goes, or picked up
+   and carried there — people do both, often in the same game. Pressing
+   on one of your own men picks it up at once, so its squares light while
+   you decide; dragging it carries it; letting go on a square it can reach
+   plays the move, and anywhere else puts it back. A drag that starts
+   anywhere else still turns the 3D board, and two fingers still zoom. */
 function wireInput() {
   var stage = $("stage");
   var pts = new Map(), downSq = -1, downXY = null, dragging = false, pinchD = 0;
+  var carry = null;      /* { from, picked } while a press began on a man of the side to move */
+  function local(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function ownMan(sq) {
+    if (!G || sq < 0 || !canActNow(true)) return false;
+    var p = G.board[sq];
+    return !!p && (p > 0 ? 1 : -1) === G.turn;
+  }
+  function dropCarry() {
+    if (R.setDrag) R.setDrag(null);
+    if (R.dragHover) R.dragHover(-1);
+    needFrame();
+  }
   stage.addEventListener("pointerdown", function (e) {
     /* anything you can press that happens to sit on the stage — a lesson's
        buttons, the clock, a question — is not the board. Capturing the
@@ -4053,9 +4071,18 @@ function wireInput() {
     if (pts.size === 1) {
       downXY = { x: e.clientX, y: e.clientY };
       dragging = false;
-      var rect = stage.getBoundingClientRect();
-      downSq = R.screenToSquare(e.clientX - rect.left, e.clientY - rect.top);
+      var at = local(e);
+      downSq = R.screenToSquare(at.x, at.y);
+      carry = null;
+      if (viewPly < 0 && ownMan(downSq)) {
+        /* already in hand: the release decides (a tap puts it down) */
+        var already = sel === downSq;
+        if (!already) { tapSquare(downSq); }
+        carry = { from: downSq, picked: !already };
+      }
     } else if (pts.size === 2) {
+      /* a second finger means zoom, never a move */
+      if (carry) { dropCarry(); carry = null; }
       var arr = Array.from(pts.values());
       pinchD = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
     }
@@ -4077,15 +4104,36 @@ function wireInput() {
     if (!downXY) return;
     var dx = e.clientX - downXY.x, dy = e.clientY - downXY.y;
     if (!dragging && Math.hypot(dx, dy) > 9) dragging = true;
-    if (dragging && R.orbit) {
+    if (!dragging) return;
+    if (carry && sel === carry.from) {
+      /* the piece goes with the finger */
+      var at = local(e);
+      if (R.setDrag) R.setDrag(carry.from, at.x, at.y);
+      if (R.dragHover) R.dragHover(R.screenToSquare(at.x, at.y));
+      needFrame();
+      return;
+    }
+    if (R.orbit) {
       R.orbit(e.clientX - prev.x, e.clientY - prev.y);
       needFrame();
     }
   });
   function up(e) {
+    var last = pts.get(e.pointerId);
     pts.delete(e.pointerId);
     if (pts.size > 0) return;
-    if (!dragging && downSq >= 0) tapSquare(downSq);
+    if (carry) {
+      var c = carry; carry = null;
+      dropCarry();
+      if (dragging && last && e.type !== "pointercancel") {
+        /* let go: on a square it can reach, that is the move */
+        var r = stage.getBoundingClientRect();
+        var to = R.screenToSquare(last.x - r.left, last.y - r.top);
+        if (to >= 0 && to !== c.from && sel === c.from) tapSquare(to);
+      } else if (!dragging && !c.picked) {
+        tapSquare(downSq);         /* a tap on the man already in hand puts it down */
+      }
+    } else if (!dragging && downSq >= 0) tapSquare(downSq);
     downSq = -1; downXY = null; dragging = false; pinchD = 0;
   }
   stage.addEventListener("pointerup", up);

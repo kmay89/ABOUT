@@ -303,6 +303,29 @@ const PLAY = `([san, src]) => {
     const marks = await page.evaluate(() => __cr.marksForTest());
     ok("a blunder's mark is on the blunder, not the reply", marks[3] && !marks[4], JSON.stringify(marks));
 
+    /* ---- carrying a piece: press, drag, let go ---- */
+    for (const dim of ["#force2d", "#"]) {
+      await fresh(dim);
+      await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
+      await page.waitForTimeout(1200);
+      const box = await page.locator("#stage").boundingBox();
+      const at = async (name) => page.evaluate(([f, s]) => eval(f)(s), [WHERE, SQ(name)]);
+      const drag = async (a, b) => {
+        const A = await at(a), B = await at(b);
+        await page.mouse.move(box.x + A.x, box.y + A.y);
+        await page.mouse.down();
+        for (let k = 1; k <= 8; k++) await page.mouse.move(box.x + A.x + (B.x - A.x) * k / 8, box.y + A.y + (B.y - A.y) * k / 8);
+        await page.mouse.up();
+        await settle();
+      };
+      await drag("e2", "e4");
+      ok((dim === "#" ? "3d" : "2d") + ": a piece carried to a square it can reach plays the move", (await state()).sans.join(" ") === "e4", (await state()).sans.join(" "));
+      await drag("g8", "g5");
+      ok((dim === "#" ? "3d" : "2d") + ": …and carried somewhere it can't go, it goes back", (await state()).sans.join(" ") === "e4", (await state()).sans.join(" "));
+      await drag("g8", "f6");
+      ok((dim === "#" ? "3d" : "2d") + ": …and can then be carried again", (await state()).sans.join(" ") === "e4 Nf6", (await state()).sans.join(" "));
+    }
+
     /* ---- castling by king then rook; backing out of a promotion ---- */
     await fresh();
     await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
