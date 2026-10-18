@@ -120,7 +120,9 @@
      phone it sits over the near ranks, and a word about the opening must
      never stand between a player and their own bishop. One that asks
      something takes the tap. */
-  #toast.show.acts{pointer-events:auto}
+  /* even then only the buttons do: the words over the board let a tap
+     through to the piece beneath them */
+  #toast.show.acts .tact{pointer-events:auto}
   #toast .tact{display:inline-block; margin:6px 6px 0; padding:4px 12px; border-radius:999px;
     background:var(--amber); color:#241a08; font-weight:700; font-size:.9em}
   #toast .tact.ghost{background:transparent; border:1px solid var(--line); color:var(--soft)}
@@ -816,6 +818,14 @@
   #endEmoji{display:inline-block; animation:endPop .8s cubic-bezier(.2,1.5,.4,1) both}
   @keyframes endPop{0%{transform:scale(.2) rotate(-25deg); opacity:0} 100%{transform:none; opacity:1}}
 
+  /* a finished game you are looking over keeps a way back to its result */
+  #resultChip{position:absolute; top:46px; left:50%; transform:translateX(-50%); z-index:4;
+    background:var(--amber); color:#241a08; font-weight:800; border-radius:999px; padding:5px 14px;
+    font-size:.85em; box-shadow:var(--shadow)}
+  /* the promotion picker leaves the board in view: you may want to see
+     the fork before you choose the knight */
+  #ovPromo{background:rgba(10,8,6,.38); backdrop-filter:none}
+  #promoCancel{display:block; margin:12px auto 0}
   /* ---------- whose turn, worn on the tag ----------
      On a phone the turn strip and the opponent's name were fighting for
      the same strip of glass. The tag of whoever is to move lights up
@@ -878,6 +888,7 @@
         <div class="clock off" id="clockBot">5:00</div>
       </div>
       <div id="toast"></div>
+      <button id="resultChip" class="hide">🏁 Result</button>
       <div class="lessonBar hide" id="lessonBar"></div>
     </div>
     <div id="panel">
@@ -1136,6 +1147,7 @@
     <h2>A pawn reaches the last rank!</h2>
     <p>It becomes any piece you like — nearly everyone chooses the queen.</p>
     <div id="promoRow"></div>
+    <button class="ghostbtn" id="promoCancel">Not that square — put it back</button>
   </div>
 </div>
 
