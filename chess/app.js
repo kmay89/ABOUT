@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park" };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", tilt: true };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -129,10 +129,27 @@ function fxCapture(desc, took, plan) {
   setTimeout(function () {
     if (!R || at !== gameTicket) return;
     if (R.impact) { R.impact(sq, power); needFrame(); }
+    /* the weight of it: the board holds its breath for a few frames
+       while the camera takes the blow — longer and harder for a queen
+       than for a pawn */
+    if (R.hitStop) R.hitStop(45 + 50 * power);
+    if (R.kick) R.kick(0.35 + 0.65 * power, sq);
     if (!FX) return;
     Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
     if (prefs.sound) Fx.haptic("capture");
   }, plan ? plan.dur * plan.travel : 0);
+}
+/* A heavy man set down without taking anything still has weight: a
+   king, a queen or a rook landing gives the camera the smallest of
+   nudges. The light pieces land without one, so it means something. */
+var LAND_WEIGHT = [0, 0, 0, 0, 0.13, 0.16, 0.16];
+function feelLand(desc, took, plan) {
+  if (took || !R || !R.kick || !plan) return;
+  var w = LAND_WEIGHT[Math.abs(desc.piece)] || 0;
+  if (!w) return;
+  var at = gameTicket;
+  setTimeout(function () { if (R && at === gameTicket) { R.kick(w, desc.to); needFrame(); } },
+             plan.dur * plan.travel);
 }
 function fxPromote(desc, plan) {
   if (!FX || !desc.promo) return;
@@ -142,6 +159,7 @@ function fxPromote(desc, plan) {
              plan ? plan.dur * 0.3 : 0);
 }
 function fxCheck(kingSq) {
+  if (kingSq != null && kingSq >= 0 && R && R.kick) { R.kick(0.24, kingSq); needFrame(); }
   if (!FX || kingSq == null || kingSq < 0) return;
   Fx.check(kingSq, { color: skin.marks.check });
   if (prefs.sound) Fx.haptic("check");
@@ -157,6 +175,12 @@ function fxMate(kingSq, attackerSq, win) {
   /* a narrow phone's 3D view is already framed wide; lean in less. (The
      drawn board's lean is its own small zoom, left at its default.) */
   if (R.focus) R.focus(kingSq, R.kind === "3d" ? { amount: innerWidth < 600 ? 0.6 : 1 } : undefined);
+  /* the camera takes the blow as the king hits the wood, then walks
+     slowly round him while the result sinks in */
+  var at = gameTicket;
+  setTimeout(function () { if (R && at === gameTicket && R.kick) { R.kick(0.9, kingSq); needFrame(); } },
+             typeof Motion !== "undefined" && Motion.kingFallKnock ? Motion.kingFallKnock() : 600);
+  if (R.drift) R.drift(true);
   needFrame();
   if (!FX) return;
   Fx.mate(kingSq, { win: win });
@@ -176,6 +200,7 @@ function fxCalm() {
   fxDown = null;
   if (R && R.untopple) R.untopple();
   if (R && R.focus) R.focus(null);
+  if (R && R.drift) R.drift(false);
   if (FX) Fx.clear();
   needFrame();
 }
@@ -822,6 +847,7 @@ function commitMove(m, source, animOpts) {
   });
   sndMove(desc, plan, took);
   fxCapture(desc, took, plan);
+  feelLand(desc, took, plan);
   fxPromote(desc, plan);
   needFrame();
   syncMoveList();
@@ -4614,6 +4640,36 @@ function showUpdateBar(worker) {
 }
 
 /* ===== go ===== */
+/* ===== tilt to look round =====
+   On a phone the board answers how you hold it: tip the phone and the
+   camera steps a degree or two the same way, as if you had moved your
+   head over a real board. It follows movement rather than angle — the
+   level it measures from drifts slowly to however you are holding the
+   phone, so lying down or sitting up is level within a second or two —
+   and it ignores the tremble of a hand, so a still phone means a still
+   board and the loop is allowed to sleep. iOS only sends tilt once it
+   has been asked for in a tap (the Settings switch does that). */
+function wireParallax() {
+  if (REDUCED || typeof window.DeviceOrientationEvent === "undefined") return;
+  var base = null, sent = { x: 0, y: 0 };
+  window.addEventListener("deviceorientation", function (e) {
+    if (!prefs.tilt || !R3 || R !== R3 || !R3.parallax || document.hidden) return;
+    if (e.beta == null || e.gamma == null) return;
+    var angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    /* across and along the screen as it is being held */
+    var across = e.gamma, along = e.beta;
+    if (angle === 90) { across = e.beta; along = -e.gamma; }
+    else if (angle === -90 || angle === 270) { across = -e.beta; along = e.gamma; }
+    if (!base) base = { a: across, b: along };
+    base.a += (across - base.a) * 0.012; base.b += (along - base.b) * 0.012;
+    var nx = Math.max(-1, Math.min(1, (across - base.a) / 14));
+    var ny = Math.max(-1, Math.min(1, (along - base.b) / 14));
+    if (Math.abs(nx - sent.x) < 0.05 && Math.abs(ny - sent.y) < 0.05) return;
+    sent.x = nx; sent.y = ny;
+    R3.parallax(nx, -ny);
+    needFrame();
+  });
+}
 function boot() {
   /* the first tap anywhere — not only on the board — is the gesture a
      browser wants before it will start an audio clock, and lets the
@@ -4630,6 +4686,7 @@ function boot() {
   fxInit();
   applySkin(skin, false);
   wireInput();
+  wireParallax();
   syncSettingsUI();
   wireSW();
   wireHashLinks();

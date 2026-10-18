@@ -1528,6 +1528,142 @@ function create(canvas, opts) {
   };
   var camPlaced = false, vp = mIdent(), invVP = mIdent();
 
+  /* ---------- the board's own clock ----------
+     Every animation on the board — a move, the men arriving, a king
+     going over, a struck square — reads its time from here rather than
+     from the wall. The difference is hit-stop: at the instant a capture
+     lands, the board holds its breath for a few frames while the camera
+     answers the blow, and then everything carries on from exactly where
+     it was. Fighting games have done this for thirty years because it is
+     the cheapest weight there is. The camera's own springs, the grain and
+     the frame-rate watch stay on the wall clock: they are the world
+     reacting, not the thing that happened. */
+  var hold = { at: 0, until: 0, debt: 0 };
+  function clock() {
+    var t = performance.now();
+    if (hold.until) {
+      if (t < hold.until) return hold.at - hold.debt;
+      hold.debt += hold.until - hold.at; hold.until = 0;
+    }
+    return t - hold.debt;
+  }
+  R.hitStop = function (ms) {
+    if (REDUCED || !(ms > 0)) return;
+    var t = performance.now();
+    if (hold.until && t < hold.until) { hold.until = Math.max(hold.until, t + ms); return; }
+    hold.at = t; hold.until = t + Math.min(160, ms);
+    R.dirty = true;
+  };
+  R.clock = clock;
+  /* what the feel layer is doing right now, for chess/tools/feel-check.js */
+  R.feelState = function () {
+    var lists = takenFrom(R.anim ? R.anim.after : R.board);
+    return { held: !!(hold.until && performance.now() < hold.until), kicks: feel.kicks.length,
+             swoop: feel.swoopT0 >= 0, drift: feel.drift.on, par: [feel.par.x, feel.par.y],
+             sel: sel.sq, selLift: sel.lift, settling: Object.keys(settles).length,
+             tray: place.ready && R.pal && R.pal.table ? { white: lists[1].slice(), black: lists[-1].slice() } : null,
+             flying: !!tray.fly, eye: cam.eye.slice() };
+  };
+
+  /* ---------- the camera answering things ----------
+     Four layers over the player's own view, like the push-in: none of
+     them writes to yaw, pitch or distance, so orbiting and pinching keep
+     working through all of them and each one simply comes back to zero.
+
+     kicks: thuds in flight (Motion.thud), summed. A capture, a heavy man
+       landing, a mate.
+     swoop: the opening shot of a fresh game, low across the board.
+     drift: after a mate the camera walks slowly round the fallen king,
+       the way a film lingers on the last shot; it stops the moment
+       anybody touches the board.
+     par: a few degrees of parallax from the tilt of the phone (or the
+       pointer, on a desk), sprung so it never jitters. */
+  var feel = {
+    kicks: [], swoopT0: -1,
+    drift: { on: false, t0: 0, last: 0, done: 0 },
+    par: { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, last: 0 }
+  };
+  var DRIFT_RATE = 0.05, DRIFT_FOR = 14000, DRIFT_WAIT = 1600;
+  /* power 0..1; sq (optional) leans the drop a touch toward the square */
+  R.kick = function (power, sq) {
+    if (REDUCED || !(power > 0)) return;
+    var dx = 0, dz = 0;
+    if (sq != null && sq >= 0 && onSq(sq)) { dx = sqX(sq); dz = sqZ(sq); var l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
+    feel.kicks.push({ t0: performance.now(), power: Math.min(1, power), dx: dx, dz: dz });
+    if (feel.kicks.length > 4) feel.kicks.shift();
+    R.dirty = true;
+  };
+  R.drift = function (on) {
+    var d = feel.drift;
+    if (on && !REDUCED) { d.on = true; d.t0 = performance.now(); d.last = 0; }
+    else d.on = false;
+    R.dirty = true;
+  };
+  /* nx, ny in −1..1: where the phone is tipped (or the pointer is) */
+  R.parallax = function (nx, ny) {
+    if (REDUCED) return;
+    var p = feel.par;
+    p.tx = Math.max(-1, Math.min(1, +nx || 0));
+    p.ty = Math.max(-1, Math.min(1, +ny || 0));
+    R.dirty = true;
+  };
+  /* one step of all four; true while any of them is still moving */
+  function stepFeel(wall) {
+    var live = false, i;
+    for (i = feel.kicks.length - 1; i >= 0; i--) {
+      if (wall - feel.kicks[i].t0 >= Move.THUD_MS) feel.kicks.splice(i, 1); else live = true;
+    }
+    if (feel.swoopT0 >= 0) {
+      if (wall - feel.swoopT0 >= Move.SWOOP_MS) feel.swoopT0 = -1; else live = true;
+    }
+    var d = feel.drift;
+    if (d.on) {
+      var since = wall - d.t0;
+      if (since > DRIFT_WAIT + DRIFT_FOR) d.on = false;
+      else {
+        var ts = wall / 1000, dt = d.last ? Math.min(0.1, ts - d.last) : 0;
+        d.last = ts;
+        /* eased in, so the walk begins as gently as it ends */
+        var ramp = Math.max(0, Math.min(1, (since - DRIFT_WAIT) / 2500));
+        var tail = Math.max(0, Math.min(1, (DRIFT_WAIT + DRIFT_FOR - since) / 2500));
+        cam.tYaw += DRIFT_RATE * dt * ramp * tail;
+        cam.yaw = cam.tYaw;
+        live = true;
+      }
+    }
+    var p = feel.par;
+    if (p.x !== p.tx || p.y !== p.ty || p.vx || p.vy) {
+      var pts = wall / 1000, pdt = p.last ? Math.min(0.1, pts - p.last) : 1 / 60;
+      p.last = pts;
+      var a = Move.spring(p.x, p.vx, p.tx, pdt, 7), b = Move.spring(p.y, p.vy, p.ty, pdt, 7);
+      p.x = a.x; p.vx = a.v; p.y = b.x; p.vy = b.v;
+      if (Move.springAtRest(p.x, p.vx, p.tx) && Move.springAtRest(p.y, p.vy, p.ty)) {
+        p.x = p.tx; p.y = p.ty; p.vx = p.vy = 0; p.last = 0;
+      } else live = true;
+    }
+    return live;
+  }
+  /* where the four layers put the camera this frame, from the wall clock */
+  function feelPose(wall) {
+    var o = { yaw: 0, pitch: 0, dist: 1, y: 0, x: 0, z: 0, roll: 0 };
+    for (var i = 0; i < feel.kicks.length; i++) {
+      var k = feel.kicks[i], th = Move.thud(wall - k.t0, k.power);
+      o.y += th.y; o.roll += th.roll * (k.dx >= 0 ? 1 : -1);
+      o.x += -th.y * k.dx * 0.35; o.z += -th.y * k.dz * 0.35;
+    }
+    if (feel.swoopT0 >= 0) {
+      var w = Move.swoop(wall - feel.swoopT0);
+      /* a low shot across the board from beside the player's corner,
+         close enough that the men arrive large against the place behind
+         them, rising and turning into the player's own view — never so
+         wide or low that the eye could see under the table */
+      o.yaw += 0.50 * w; o.pitch -= 0.33 * w; o.dist *= 1 - 0.10 * w;
+    }
+    o.yaw -= 0.05 * feel.par.x;            /* positive: the camera steps to the viewer's right */
+    o.pitch += 0.03 * feel.par.y;
+    return o;
+  }
+
   /* 0 on a landscape canvas, 1 on a portrait one, eased between */
   function tallness(aspect) { return Math.max(0, Math.min(1, (1.3 - aspect) / 0.55)); }
   /* the strip between the player bars, in clip space (+1 is the top).
@@ -1596,11 +1732,12 @@ function create(canvas, opts) {
     var tall = tallness(aspect);
     var fov = FOV_WIDE + (FOV_TALL - FOV_WIDE) * tall;
     var tanY = Math.tan(fov / 2), tanX = tanY * aspect;
-    var pitch = Math.min(PITCH_CEIL, cam.pitch + PITCH_TALL * tall);
+    var fp = feelPose(performance.now());
+    var pitch = Math.min(PITCH_CEIL, cam.pitch + PITCH_TALL * tall + fp.pitch);
     var band = bandOf(hPx), pts = fitPoints();
     /* the player's zoom is a ratio of the fitted distance, so pinching
        means the same thing on every screen */
-    var dist = fitDistance(pts, pitch, tanX, tanY, band) * (cam.dist / DIST_HOME);
+    var dist = fitDistance(pts, pitch, tanX, tanY, band) * (cam.dist / DIST_HOME) * fp.dist;
     /* The lens is shifted rather than the camera turned: the board's
        picture slides up or down until it sits in the middle of the strip
        between the bars, without the perspective changing at all. Worked
@@ -1612,15 +1749,17 @@ function create(canvas, opts) {
     var shift = (1 - f) * ((band.top + band.bottom) / 2 - (e.lo + e.hi) / 2);
     dist *= 1 - 0.27 * f;
     pitch = Math.max(0.30, pitch - 0.09 * f);
-    var ex = Math.cos(cam.yaw) * Math.cos(pitch) * dist;
+    var yaw = cam.yaw + fp.yaw;
+    var ex = Math.cos(yaw) * Math.cos(pitch) * dist;
     var ey = Math.sin(pitch) * dist;
-    var ez = Math.sin(cam.yaw) * Math.cos(pitch) * dist;
+    var ez = Math.sin(yaw) * Math.cos(pitch) * dist;
     /* eye and target travel together toward the square, so the camera
        trucks in rather than swinging round to stare at it */
     var k = 0.94 * f;
     var sx = fo.x * k, sy = 0.30 * k, sz = fo.z * k;
-    cam.eye = [ex + sx, ey + sy, ez + sz];
-    cam.look = [sx, sy, sz];
+    /* a thud moves eye and target together: the whole view drops */
+    cam.eye = [ex + sx + fp.x, ey + sy + fp.y, ez + sz + fp.z];
+    cam.look = [sx + fp.x, sy + fp.y, sz + fp.z];
     cam.fov = fov;
     cam.lookPitch = pitch;
     /* The near plane follows the camera out. A long lens stands well
@@ -1632,7 +1771,13 @@ function create(canvas, opts) {
     var near = Math.max(0.5, (dist - 7.5) * 0.8);
     proj = mPersp(fov, aspect, near, dist + 14);
     proj[9] = -shift;
-    view = mLookAt(cam.eye, cam.look, [0, 1, 0]);
+    /* and rolls a hair about the line of sight */
+    var up = [0, 1, 0];
+    if (fp.roll) {
+      var fx = cam.look[0] - cam.eye[0], fz = cam.look[2] - cam.eye[2], fl = Math.hypot(fx, fz) || 1;
+      up = [Math.sin(fp.roll) * (-fz / fl), Math.cos(fp.roll), Math.sin(fp.roll) * (fx / fl)];
+    }
+    view = mLookAt(cam.eye, cam.look, up);
     vp = mMul(proj, view);
     invVP = mInvert(vp) || invVP;
     camPlaced = true;
@@ -1654,11 +1799,13 @@ function create(canvas, opts) {
             m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3], m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]];
   }
   R.orbit = function (dx, dy) {
+    feel.drift.on = false;
     cam.tYaw -= dx * 0.008;
     cam.tPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, cam.tPitch + dy * 0.006));
     R.dirty = true;
   };
   R.zoom = function (f) {
+    feel.drift.on = false;
     cam.tDist = Math.min(17, Math.max(6.5, cam.tDist * f));
     R.dirty = true;
   };
@@ -1673,6 +1820,7 @@ function create(canvas, opts) {
      "show me this from the other side", and the other side seen from a
      tilt and a zoom somebody left an hour ago is not what was asked for. */
   R.setOrientation = function (color) {
+    feel.drift.on = false;
     R.orientation = color;
     cam.tYaw = homeYaw(color);
     cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
@@ -1843,6 +1991,7 @@ function create(canvas, opts) {
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
+    settles = {}; tray.fly = null;
     settling = null;
     R.toppled = null;
     R.cascade = null;
@@ -1850,11 +1999,13 @@ function create(canvas, opts) {
       /* a new game starts from the player's own view, whatever the last
          one ended on */
       R.focus(null);
+      feel.drift.on = false;
       if (!REDUCED) {
+        feel.swoopT0 = performance.now();
         var plan = Move.cascade(R.board, { orientation: R.orientation });
         var delay = {};
         for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
-        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+        R.cascade = { t0: clock(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
       }
     }
     R.dirty = true;
@@ -1890,7 +2041,7 @@ function create(canvas, opts) {
     var kind = Math.abs(R.board[sq]) || 6, P = PIECES && PIECES[kind];
     R.toppled = { sq: sq, kind: kind, dx: dx / l, dz: dz / l,
                   rest: P && P.lie ? P.lie.rest : 1.7,
-                  t0: opts.still ? -Infinity : performance.now() };
+                  t0: opts.still ? -Infinity : clock() };
     R.dirty = true;
   };
   R.untopple = function () { if (R.toppled) { R.toppled = null; R.dirty = true; } };
@@ -1899,7 +2050,7 @@ function create(canvas, opts) {
      a ring of light runs out of it, bright enough for the bloom to find */
   R.impact = function (sq, power) {
     if (REDUCED || sq == null || sq < 0 || !onSq(sq)) return;
-    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : Math.max(0, Math.min(1, power)) });
+    R.impacts.push({ sq: sq, t0: clock(), power: power == null ? 0.5 : Math.max(0, Math.min(1, power)) });
     if (R.impacts.length > 6) R.impacts.shift();
     R.dirty = true;
   };
@@ -1908,9 +2059,11 @@ function create(canvas, opts) {
        breathing on its square; one that has been in check all along does
        not, or a board nobody is touching would never stop redrawing */
     var nextCheck = hi.check != null ? hi.check : -1;
-    if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = performance.now();
+    if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = clock();
     else if (nextCheck < 0) R.checkAt = -1;
-    R.hi.selected = hi.selected != null ? hi.selected : -1;
+    var nextSel = hi.selected != null ? hi.selected : -1;
+    if (nextSel !== sel.sq) { sel.sq = nextSel; sel.t0 = clock(); sel.lift = 0; }
+    R.hi.selected = nextSel;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -1925,7 +2078,7 @@ function create(canvas, opts) {
        setting down; any other move travels the whole way from its square. */
     var drop = null;
     if (settling && settling.sq === m.from) {
-      var at = settleAt(performance.now());
+      var at = settleAt(clock());
       drop = { x: at.x, z: at.z, y: at.y };
     }
     settling = null;
@@ -1940,8 +2093,15 @@ function create(canvas, opts) {
        men still arriving keep arriving round it, rather than thirty of
        them popping into place because an engine was quick off the mark */
     R.toppled = null;
-    R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-               dur: pl.dur, glow: !!o.glow, done: done || null, drop: drop };
+    var raise = !drop && sel.sq === m.from ? sel.lift : 0;
+    var taken = m.epSq != null ? R.board[m.epSq] : R.board[m.to];
+    var t0 = clock();
+    if (taken && place.ready && !REDUCED) {
+      var tsq = m.epSq != null ? m.epSq : m.to;
+      tray.fly = { piece: taken, x: sqX(tsq), z: sqZ(tsq), t0: t0 + pl.dur * 0.9, dur: TRAY_FLY_MS };
+    }
+    R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: t0,
+               dur: pl.dur, glow: !!o.glow, done: done || null, drop: drop, raise: raise, took: !!taken };
     R.dirty = true;
     /* handed back so the caller can put a sound on the same plan: both
        are measured from this moment, on clocks that do not drift apart */
@@ -2131,6 +2291,79 @@ function create(canvas, opts) {
      waits at the edge. */
   var DRAG_LIFT = 0.6;
   var drag = null, hover = -1;
+
+  /* ---------- a man in the hand, and a man set down ----------
+     sel: the man you have picked up by tapping. He rises off his square
+     and breathes (Motion.hold) while you choose, and the squares he can
+     reach ripple outward from him (Motion.ripple). When the move is
+     played he sets off from the height he was holding, not from the wood.
+     settles: men just set down, rocking once on their bases
+     (Motion.settle) — a capture lands harder than a quiet move. */
+  var sel = { sq: -1, t0: 0, lift: 0 };
+  var settles = {};
+  /* ---------- the men that have been taken ----------
+     On a table there is somewhere to put them: in a row beside the board
+     on the right hand of whoever took them, smallest first, the way
+     people actually play. The row is read off the position every frame
+     (what is missing from a full set, with promoted pawns accounted for),
+     so it is always right after an undo, a resumed game or a look back;
+     a man just taken is lifted off his square and carried over to it. */
+  var TRAY_X = HALF + 0.64, TRAY_STEP = 0.5, TRAY_SCALE = 0.72, TRAY_FLY_MS = 560;
+  var tray = { pos: {}, fly: null, last: 0 };
+  var FULL = [0, 8, 2, 2, 2, 1, 1];
+  function takenFrom(board) {
+    var have = { 1: [0, 0, 0, 0, 0, 0, 0], "-1": [0, 0, 0, 0, 0, 0, 0] }, sq;
+    for (sq = 0; sq < 128; sq++) {
+      if (!onSq(sq) || !board[sq]) continue;
+      have[board[sq] > 0 ? 1 : -1][Math.abs(board[sq])]++;
+    }
+    var out = { 1: [], "-1": [] };
+    [1, -1].forEach(function (c) {
+      var h = have[c], extra = 0, k, n;
+      for (k = 2; k <= 5; k++) extra += Math.max(0, h[k] - FULL[k]);
+      var lost = [0, Math.max(0, 8 - h[1] - extra), 0, 0, 0, 0, 0];
+      for (k = 2; k <= 5; k++) lost[k] = Math.max(0, FULL[k] - h[k]);
+      /* pawns, knights, bishops, rooks, queens: the order a row is read in */
+      for (k = 1; k <= 5; k++) for (n = 0; n < lost[k]; n++) out[c].push(k * c);
+    });
+    return out;
+  }
+  /* the row's men into the instance list; true while any is moving */
+  function placeTray(board, now) {
+    var lists = takenFrom(board), live = false;
+    var dt = tray.last ? Math.min(0.1, (now - tray.last) / 1000) : 0;
+    tray.last = now;
+    var fly = tray.fly;
+    if (fly && now >= fly.t0 + fly.dur) { tray.fly = fly = null; }
+    [1, -1].forEach(function (c) {
+      /* the black men White has taken stand at White's right hand, from
+         White's end of the table; and the other way about */
+      var list = lists[c], seen = {};
+      var x = c < 0 ? TRAY_X : -TRAY_X, z0 = c < 0 ? 3.75 : -3.75, dz = c < 0 ? -TRAY_STEP : TRAY_STEP;
+      for (var i = 0; i < list.length; i++) {
+        var code = list[i], nth = seen[code] = (seen[code] || 0) + 1;
+        var key = code + ":" + nth, tx = x, tz = z0 + dz * i;
+        var newest = fly && fly.piece === code && nth === countOf(list, code);
+        if (newest && now < fly.t0) continue;          /* still going over on his square */
+        if (newest) {
+          var u = Math.min(1, (now - fly.t0) / fly.dur), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+          var fx = fly.x + (tx - fly.x) * e, fz = fly.z + (tz - fly.z) * e;
+          pushPiece(code, fx, fz, Math.sin(Math.PI * e) * 1.3 - RIM_DEPTH * e,
+                    Math.min(1, u * 5), 1 + (TRAY_SCALE - 1) * e, { lean: Math.sin(Math.PI * e) * 0.35, ax: 0, az: 1 });
+          tray.pos[key] = { x: tx, z: tz };
+          live = true;
+          continue;
+        }
+        var ps = tray.pos[key] || (tray.pos[key] = { x: tx, z: tz });
+        var k = dt ? Math.min(1, dt * 9) : 1;
+        ps.x += (tx - ps.x) * k; ps.z += (tz - ps.z) * k;
+        if (Math.abs(ps.x - tx) + Math.abs(ps.z - tz) > 0.002) live = true; else { ps.x = tx; ps.z = tz; }
+        pushPiece(code, ps.x, ps.z, -RIM_DEPTH, 1, TRAY_SCALE, null);
+      }
+    });
+    return live || !!fly;
+  }
+  function countOf(list, code) { var n = 0; for (var i = 0; i < list.length; i++) if (list[i] === code) n++; return n; }
   function carry(now) {
     var t = REDUCED ? 1 : Math.min(1, (now - drag.t0) / 140);
     var lift = DRAG_LIFT * (1 - (1 - t) * (1 - t));
@@ -2141,8 +2374,20 @@ function create(canvas, opts) {
     if (!(k > 0)) return;
     var x = ray.o[0] + ray.d[0] * k, z = ray.o[2] + ray.d[2] * k;
     drag.off = Math.abs(x) > 4 || Math.abs(z) > 4;
-    drag.wx = Math.max(-4, Math.min(4, x));
-    drag.wz = Math.max(-4, Math.min(4, z));
+    var nx = Math.max(-4, Math.min(4, x)), nz = Math.max(-4, Math.min(4, z));
+    /* carried, he swings: the crown leads the way he is being moved,
+       by as much as he is being hurried, and rights himself when the
+       hand stops — the weight of a real piece held by its head */
+    var dt = drag.lt ? Math.min(0.05, (now - drag.lt) / 1000) : 0;
+    if (dt > 0 && !REDUCED) {
+      var vx = (nx - drag.wx) / dt, vz = (nz - drag.wz) / dt, vl = Math.hypot(vx, vz);
+      var want = Math.min(0.30, vl * 0.028), gx = vl ? vx / vl * want : 0, gz = vl ? vz / vl * want : 0;
+      var sx = Move.spring(drag.lx || 0, drag.lvx || 0, gx, dt, 16), sz = Move.spring(drag.lz || 0, drag.lvz || 0, gz, dt, 16);
+      drag.lx = sx.x; drag.lvx = sx.v; drag.lz = sz.x; drag.lvz = sz.v;
+    }
+    drag.lt = now;
+    drag.wx = nx;
+    drag.wz = nz;
   }
   /* Let go of, he is never simply teleported. If the app plays the move
      there and then, the move sets him down from where the hand left him
@@ -2166,7 +2411,7 @@ function create(canvas, opts) {
      app then either plays the move, which sets him down from where he
      was let go, or leaves him be, and he glides home. */
   R.setDrag = function (sq, x, y) {
-    var now = performance.now();
+    var now = clock();
     if (sq == null || sq < 0 || !onSq(sq)) {
       if (drag) {
         settling = REDUCED ? null : { sq: drag.sq, x: drag.wx, z: drag.wz, y: drag.lift, t0: now };
@@ -2517,8 +2762,12 @@ function create(canvas, opts) {
       moving = true;
     } else { cam.yaw = cam.tYaw; cam.pitch = cam.tPitch; cam.dist = cam.tDist; }
 
-    var nowMs = performance.now();
+    var nowMs = clock();
     if (stepFocus(nowMs)) moving = true;
+    if (stepFeel(performance.now())) moving = true;
+    /* held breath: nothing on the board advances, but frames keep coming
+       so the camera can answer the blow */
+    if (hold.until && performance.now() < hold.until) moving = true;
 
     var a = R.anim, aprog = 0, animating = false;
     if (a) {
@@ -2571,11 +2820,24 @@ function create(canvas, opts) {
     /* his own square is empty while he is in the hand */
     if (drag) skip[drag.sq] = true;
     if (home) skip[settling.sq] = true;
+    var touchLive = false, selLift = 0;
+    if (sel.sq >= 0 && !a && !drag && !REDUCED && R.board[sel.sq]) {
+      var selMs = nowMs - sel.t0;
+      selLift = Move.hold(Math.min(selMs, 6000));
+      if (selMs < Math.max(6000, Move.rippleEnd(8))) touchLive = true;
+    }
+    sel.lift = selLift;
+    for (var sk in settles) {
+      if (nowMs - settles[sk].t0 >= Move.SETTLE_MS) delete settles[sk]; else touchLive = true;
+    }
     for (var sq = 0; sq < 128; sq++) {
       if (!onSq(sq) || skip[sq]) continue;
       var piece = a ? (a.after[sq] || 0) : R.board[sq];
       if (!piece) continue;
       var lift = 0, alph = 1, still = null;
+      if (sq === sel.sq && selLift) lift = selLift;
+      var sett = settles[sq];
+      if (sett) still = { lean: Move.settle(nowMs - sett.t0, sett.amt).tilt, ax: sett.ax, az: sett.az };
       if (casc && casc.delay[sq] != null) {
         /* set down rank by rank from the player's side, with a hop as
            each one lands — the schedule is the one flourishPlan() hands
@@ -2638,6 +2900,7 @@ function create(canvas, opts) {
       var sx = a.drop ? a.drop.x : fx, sz = a.drop ? a.drop.z : fz;
       var mx = sx + (tx - sx) * st.p, mz = sz + (tz - sz) * st.p;
       if (a.drop) st.y += a.drop.y * (1 - st.p);
+      else if (a.raise) st.y += a.raise * (1 - st.p);
       /* the lean is about the axis across the travel — a long diagonal
          gets a little roll into it, a one-square step gets none */
       var pose = { squash: st.squash, lean: st.bank, ax: vz, az: -vx };
@@ -2671,12 +2934,17 @@ function create(canvas, opts) {
        across — and in the instance list, so he casts a real shadow */
     if (drag) {
       var held = (a ? a.after : R.board)[drag.sq];
-      if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1, null);
+      var ll = Math.hypot(drag.lx || 0, drag.lz || 0);
+      if (ll > 0.002) touchLive = true;
+      if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1,
+        ll > 1e-4 ? { lean: ll, ax: drag.lz / ll, az: -drag.lx / ll } : null);
     }
     if (home) {
       var going = (a ? a.after : R.board)[settling.sq];
       if (going) pushPiece(going, home.x, home.z, home.y, 1, 1, null);
     }
+
+    if (place.ready && th.table && placeTray(a ? a.after : R.board, nowMs)) touchLive = true;
 
     /* ---- pass one: what the light can see ---- */
     shadowPass();
@@ -2836,7 +3104,7 @@ function create(canvas, opts) {
        being shown a new idea does not need more of */
     var pulse = { amount: 1, live: false };
     if (R.hi.check >= 0) {
-      if (R.checkAt >= 0) pulse = Move.checkPulse(performance.now() - R.checkAt);
+      if (R.checkAt >= 0) pulse = Move.checkPulse(clock() - R.checkAt);
       drawFlatSq(R.hi.check, th.check, 0.30 + 0.34 * pulse.amount);
       if (pulse.amount > 0.5) {
         bindMesh(MESH_RING);
@@ -2846,12 +3114,20 @@ function create(canvas, opts) {
       }
     }
     bindMesh(MESH_DISC);
+    /* the choices ripple out from the man in the hand, a ring at a time */
+    var rip = function (to) {
+      if (REDUCED || sel.sq < 0) return 1;
+      var d = Math.hypot(sqX(to) - sqX(sel.sq), sqZ(to) - sqZ(sel.sq));
+      return Move.ripple(nowMs - sel.t0, d - 1);
+    };
     for (var li = 0; li < R.hi.legal.length; li++) {
-      drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13, 0), th.legal, 0.55, true, 0, 0, 1.9);
+      var rl = rip(R.hi.legal[li]);
+      if (rl > 0.01) drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13 * rl, 0), th.legal, 0.55, true, 0, 0, 1.9);
     }
     bindMesh(MESH_RING);
     for (var ci = 0; ci < R.hi.legalCapt.length; ci++) {
-      drawMesh(MESH_RING, mModel(sqX(R.hi.legalCapt[ci]), 0.02, sqZ(R.hi.legalCapt[ci]), 0.46, 0), th.capt, 0.6, true, 0, 0, 1.9);
+      var rc = rip(R.hi.legalCapt[ci]);
+      if (rc > 0.01) drawMesh(MESH_RING, mModel(sqX(R.hi.legalCapt[ci]), 0.02, sqZ(R.hi.legalCapt[ci]), 0.46 * (0.7 + 0.3 * rc), 0), th.capt, 0.6 * Math.min(1, rc), true, 0, 0, 1.9);
     }
     if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);
     /* the mate net: squares the king can't use */
@@ -2908,13 +3184,19 @@ function create(canvas, opts) {
     if (a && !animating) {
       R.board.set(a.after);
       R.anim = null;
+      if (!REDUCED && a.after[a.m.to]) {
+        var mvx = sqX(a.m.to) - sqX(a.m.from), mvz = sqZ(a.m.to) - sqZ(a.m.from), mvl = Math.hypot(mvx, mvz) || 1;
+        var heavy = [0, 0.03, 0.04, 0.04, 0.045, 0.05, 0.05][Math.abs(a.after[a.m.to])] || 0.04;
+        settles[a.m.to] = { t0: nowMs, amt: a.took ? heavy * 1.7 : heavy, ax: mvz / mvl, az: -mvx / mvl };
+        touchLive = true;
+      }
       if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
     }
 
     /* ---- pass three: the lens ---- */
     if (postOk) post(th);
 
-    R.dirty = animating || moving || dropping || falling || lifting || R.impacts.length > 0 ||
+    R.dirty = animating || moving || dropping || falling || lifting || touchLive || R.impacts.length > 0 ||
               R.lines.length > 0 || pulse.live;
     /* a slow card, found out, steps down between moves rather than in
        the middle of one */

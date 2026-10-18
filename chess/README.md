@@ -379,6 +379,15 @@ tools/              dev-only, never shipped:
                     exactly, the eight house skins all light up and all
                     differ, and every place draws cleanly with something
                     of its own behind the table
+  feel-check.js     the board has weight, and comes to rest: the curves in
+                    Node, then both boards in a real browser with the
+                    page's clock stood still and stepped by hand — the
+                    opening shot lands, a man picked up rises and then
+                    lets the board sleep, a capture holds the board's
+                    clock and thuds the camera and both stop, the taken
+                    men find their row (and lose it again on a take-back),
+                    the walk round a mated king stops when touched, and
+                    tilt comes to rest
   fx-check.js       the big moments in a real browser: all 64 squares
                     round-trip between squareToScreen and screenToSquare
                     on both boards, both sides, mid-push-in and after an
@@ -907,6 +916,57 @@ they are in *The big moments*, below.
 The sound of a piece being set down plays at the moment it is set down,
 not at the moment you let go of it. And `prefers-reduced-motion` is not
 a slower version of any of this — it is none of it.
+
+## Weight
+
+The difference between a board that shows you chess and one you feel
+you are playing on is mostly in how the world answers you. None of
+these is large, and every one of them stops: a board that is still is a
+board the phone is allowed to sleep on.
+
+- **A man you pick up rises** off his square and breathes very slightly
+  while you choose, his shadow left behind on the wood; the squares he
+  can reach **ripple outward** from him a ring at a time, each popping
+  in with a small overshoot, so the eye is led from the piece to its
+  choices instead of everything blinking on at once. When you play the
+  move he sets off from the height he was holding.
+- **Carried by hand, he swings**: the crown leads the way he is being
+  moved, by as much as he is being hurried, and rights himself when the
+  finger stops.
+- **Set down, he rocks once** on his base before he is still — a capture
+  lands harder than a quiet move.
+- **A capture has weight.** At the instant it lands the board holds its
+  breath for a few frames (hit-stop: the board's own clock stands still
+  while the wall clock does not) and the camera takes the blow — it
+  drops a fraction of a square and rolls a hair, then comes back through
+  one small overshoot, an underdamped spring. A queen hits harder than a
+  pawn. A king, queen or rook set down without taking anything gives the
+  camera the smallest nudge; the light pieces land without one, so it
+  means something.
+- **What was taken goes somewhere.** On a table, a man just taken is
+  lifted off his square and carried to a row beside the board, on the
+  right hand of whoever took him, smallest first — the way people
+  actually play. The row is read off the position, so it is right after
+  an undo, a resumed game or a look back.
+- **A fresh game opens on a shot**: low across the board from beside
+  your corner, the men arriving large in front of the place behind
+  them, and the camera rising into your own view as the last of them
+  land.
+- **After a mate the camera walks slowly round** the fallen king, the
+  way a film lingers on its last shot, and stops the moment anybody
+  touches the board.
+- **Tilt to look round.** On a phone the camera steps a degree or two
+  the way you tip it, as if you had moved your head over a real board.
+  It follows movement rather than angle and ignores the tremble of a
+  hand, so a still phone is a still board.
+
+All of it is a layer over the player's own view — none of it writes to
+the orbit, so pinching and turning keep working through every one — and
+all of it is off under reduced motion. The curves live in `motion.js`
+as pure functions of time (`thud`, `swoop`, `settle`, `ripple`, `hold`),
+so the flat board asks the same questions and gets the same answers, and
+`tools/feel-check.js` checks that each one starts, and that each one
+stops.
 
 ## The big moments
 
@@ -1525,6 +1585,7 @@ node chess/tools/offline-check.js  # the room survives the train tunnel, and a r
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier, every skin and every place
 node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
+node chess/tools/feel-check.js     # the board has weight, and comes to rest
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
