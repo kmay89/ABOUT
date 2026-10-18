@@ -4110,6 +4110,8 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
     savePrefs(); syncSettingsUI(); renderNotes(); syncMoveList();
   },
   undoPlyForTest: undoPly,
+  /* run a clock down to its last millisecond, for play-check.js */
+  flagForTest: function (side) { if (side === 1) clock.w = 1; else clock.b = 1; clock.lastT = performance.now(); needFrame(); },
   marksForTest: function () { return marks; },
   notesForTest: function () { return notes; },
   get mode() { return mode; }, startGame: startGame, get renderer() { return R; },
