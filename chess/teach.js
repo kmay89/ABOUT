@@ -623,6 +623,11 @@ function afterMove(g, m) {
   if (!g || !g.board || !m || !m.piece || g.board[m.from] !== m.piece) return [];
   var side = colorOf(m.piece), out = [], i;
   var st = standing(g, side);
+  /* their lines too, by attacker and front piece: a pin of ours that
+     was already standing isn't news, wherever the king behind it went */
+  var theirs0 = standing(g, -side).lines, theirPinned = {};
+  for (var key in theirs0) theirPinned[key.split(":").slice(0, 2).join(":")] = true;
+  var inCheck0 = Chess.inCheck(g, side);
   var wasLoose = {}, own0 = looseFor(g, side);
   for (i = 0; i < own0.length; i++) wasLoose[own0[i].sq] = true;
   /* what the move does materially on its own square: an even trade is
@@ -633,6 +638,11 @@ function afterMove(g, m) {
 
   Chess.make(g, m);
   var after = { forks: forks(g, side), lines: lines(g, side), ownLoose: looseFor(g, side) };
+  /* pins of OUR pieces this move walked into (not forced interpositions
+     while in check — blocking a check often has to pin something) */
+  var walkedInto = inCheck0 ? [] : lines(g, -side).pins.filter(function (p) {
+    return !theirPinned[p.by + ":" + p.front];
+  });
   var replies = Chess.moves(g);
   var gaveCheck = Chess.inCheck(g, -side);
   var mated = gaveCheck && replies.length === 0;
@@ -708,6 +718,22 @@ function afterMove(g, m) {
               : "Moving it would expose the king, so it is <b>not allowed to move at all</b> — it's frozen, and you can pile more attackers onto it.")
           : "If the " + front + " steps off that line, your " + name(pn.piece) + " can take the " +
             name(pn.backPiece) + " — so it is stuck where it is for now.")
+    });
+    break;
+  }
+
+  /* a pin walked into: the same pattern from the other side of the
+     board, and the cheapest one to avoid */
+  for (i = 0; i < walkedInto.length; i++) {
+    var wp = walkedInto[i], fr = name(wp.frontPiece);
+    out.push({
+      concept: "pin", weight: 91, squares: [wp.by, wp.front, wp.back],
+      text: "Careful — that walks into a <b>pin</b>: their " + name(wp.piece) + " on " + sqName(wp.by) +
+        " now pins your " + fr + " on " + sqName(wp.front) + " to your " + name(wp.backPiece) +
+        (wp.absolute
+          ? ", so the " + fr + " can't step off that line without exposing your king."
+          : " — if the " + fr + " moves, they can take the " + name(wp.backPiece) + ".") +
+        " Pinned pieces are easy targets: expect them to pile on."
     });
     break;
   }

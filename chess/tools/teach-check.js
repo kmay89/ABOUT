@@ -199,15 +199,30 @@ const concepts = (list) => list.map((s) => s.concept).join(",") || "(nothing)";
      !ex || !/skewer|f8/.test(ex.text), ex && ex.text);
 }
 {
-  /* the whole playtest line, move by move: no pin or skewer anywhere */
+  /* the whole playtest line, move by move: the only pin named anywhere
+     is the real one — 7...Kxf7 walks into Bc4 pinning the d5 knight */
   const seq = "e4 e5 Nf3 Nc6 Bb5 a6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7 Kxf7 Qf3+".split(" ");
   const g = Chess.create(), bad = [];
+  let walked = null;
   for (const s of seq) {
     const out = said(g, s);
-    if (out.some((x) => x.concept === "pin" || x.concept === "skewer")) bad.push(s);
+    for (const x of out.filter((y) => y.concept === "pin" || y.concept === "skewer")) {
+      if (s === "Kxf7" && /walks into a <b>pin<\/b>: their bishop on c4 now pins your knight on d5 to your king/.test(x.text)) walked = x;
+      else bad.push(s + " (" + x.concept + ")");
+    }
     Chess.play(g, Chess.fromSAN(g, s));
   }
-  ok("no pin or skewer is claimed anywhere in the playtest game", !bad.length, bad.join(" "));
+  ok("no false pin or skewer is claimed anywhere in the playtest game", !bad.length, bad.join(" "));
+  const h = line("e4 e5 Nf3 Nc6 Bb5 a6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7 Kxf7");
+  ok("…and the pin 7...Kxf7 walks into is real (Bc4 pins Nd5 to the king)", !!walked &&
+     Teach.lines(h, Chess.WHITE).pins.some((p) => Chess.sqName(p.by) === "c4" && Chess.sqName(p.front) === "d5" && p.absolute));
+}
+{
+  /* blocking a check with a piece pins it, but that was forced: no scolding */
+  const g = line("e4 e5 Nf3 d6");
+  const s = said(line("e4 e5 Nf3 d6 Bb5+"), "Bd7");
+  ok("a forced interposition is not scolded as 'walking into a pin'", !s.some((x) => /walks into/.test(x.text)), concepts(s));
+  ok("(and the check before it was real)", Chess.inCheck(line("e4 e5 Nf3 d6 Bb5+")) && !!g);
 }
 {
   /* Nxf7 forks queen and rook — and the king simply takes it */
