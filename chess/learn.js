@@ -121,7 +121,7 @@ var LESSONS = [
     ask: "Their pawn attacks your bishop. Move it somewhere it can't be taken.",
     rule: "safe", best: "Bd3",
     hint: "A pawn captures diagonally forward. Which squares does that little pawn actually cover — and what is guarding it?",
-    why: "The other half of the same habit: after every move of yours, ask <i>what does that leave hanging?</i> A bishop lost to a pawn is about two pawns' worth of material gone for nothing — one of the commonest ways a good position quietly falls apart.",
+    why: "The other half of the same habit: after every move of yours, ask <i>what does that leave hanging?</i> A bishop lost to a pawn is a whole piece — about three pawns' worth — gone for nothing, and one of the commonest ways a good position quietly falls apart.",
     misses: {
       "Bxa6": "Count first: their rook on a8 defends that pawn, so after Rxa6 you've given a bishop for a pawn. A capture is only free when nothing is guarding the square."
     }
@@ -403,6 +403,12 @@ function openingCritique(lesson, g, move) {
     return "That develops a piece — good. But one move develops <i>and</i> makes a threat at the same time." + target;
   }
   if (kind === Chess.P) {
+    /* d4 or f4 against e5 is not a quiet move — it attacks — so the
+       feedback has to say what is actually missing: a piece */
+    Chess.make(g, move);
+    var hits = Teach.attacksFrom(g, move.to).some(function (sq) { return g.board[sq] && Math.sign(g.board[sq]) === -side; });
+    Chess.unmake(g);
+    if (hits) return "That pawn move makes a threat, but it brings no new piece into the game. Which knight or bishop can come out <i>and</i> attack something?";
     return "A pawn move — but pieces before quiet pawn moves. Which knight or bishop can come out, and attack something as it does?";
   }
   if (kind === Chess.Q) {
