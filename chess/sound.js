@@ -273,9 +273,35 @@ function ctx() {
   }
   /* a context somebody else lent us (the checker's offline one) is
      theirs to start and stop; resuming it from in here would let it
-     race ahead of whatever is still being scheduled */
-  if (AC.state === "suspended" && !borrowed) AC.resume().catch(function () {});
+     race ahead of whatever is still being scheduled. iOS calls a clock
+     that a phone call or another app took the speaker from
+     "interrupted" rather than "suspended", and it wants the same nudge.
+     (A very old Safari's resume hands back no promise at all, so the
+     catch is only hung on one that does.) */
+  if ((AC.state === "suspended" || AC.state === "interrupted") && !borrowed) {
+    try { var p = AC.resume(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+  }
   return AC;
+}
+/* A moment of music belongs to the moment it was asked for. A browser
+   will not start the audio clock until somebody has touched the page,
+   and whatever is asked of a clock that is not running yet is saved up
+   and played the instant it starts. For a piece being set down that is
+   right: the tap that starts the clock is the tap that moved it. For a
+   fanfare it is not. A finished game restored at boot would greet your
+   first tap, a minute later, with its ending. So a sting asked for
+   while the clock is stopped waits only as long as a tap takes to start
+   it (a few milliseconds, inside the gesture), and is let go after
+   that. */
+var STALE_MS = 500;
+function running(c) { return borrowed || c.state === "running"; }
+function whenRunning(c, play) {
+  var asked = Date.now(), p = null;
+  try { p = c.resume(); } catch (e) { p = null; }
+  if (!p || typeof p.then !== "function") return;
+  p.then(function () {
+    if (AC === c && c.state === "running" && Date.now() - asked < STALE_MS) play();
+  }, function () {});
 }
 function noise(c) {
   if (noiseBuf && noiseBuf.sampleRate === c.sampleRate) return noiseBuf;
@@ -1273,10 +1299,18 @@ var Sound = {
      Scheduled on the audio clock, `opts.delay` seconds from now; the
      same kind asked for twice inside a twentieth of a second plays once.
      Returns how long it will ring, reverb and all, in seconds (0 if it
-     did not play). */
+     will not play). Asked for before the audio clock has started, it
+     plays if a tap starts the clock within half a second, and is let go
+     if not (see whenRunning). */
   sting: function (kind, opts) {
     if (!on || !STINGS[kind]) return 0;
     var c = ctx(); if (!c) return 0;
+    /* the clock is not running yet: play this the moment it starts, if
+       that is soon enough to still be the same moment (see whenRunning) */
+    if (!running(c)) {
+      whenRunning(c, function () { Sound.sting(kind, opts); });
+      return STINGS[kind].len;
+    }
     var o = {}, k;
     if (opts) for (k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
     if (o.reduced == null) o.reduced = reducedNow();
@@ -1299,7 +1333,7 @@ var Sound = {
      one always sounds. */
   countTick: function (i, n, up) {
     if (!on) return;
-    var c = ctx(); if (!c) return;
+    var c = ctx(); if (!c || !running(c)) return;   /* a count nobody can hear yet is not saved up */
     var now = c.currentTime;
     if (lastCount >= 0 && now >= lastCount && now - lastCount < 0.028 && i !== n) return;
     lastCount = now;

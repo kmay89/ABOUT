@@ -28,7 +28,9 @@
      - does a count climb when it counts up;
      - and is off really off: a muted room renders silence, a mute
        fades what is already playing, and the room tone, switched off,
-       leaves nothing running.
+       leaves nothing running;
+     - and is a moment asked for before anybody has touched the page
+       let go, rather than saved up for the first tap.
 
    Needs `playwright-core` for the second half; the first half runs
    anywhere. A missing browser skips the render and still checks the
@@ -464,8 +466,24 @@ if (!CHROME || !pw) {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml",
   ".css": "text/css", ".ico": "image/x-icon" };
+/* A bare page with just the two modules and one big button: no game,
+   no canvas, nothing to go wrong but the synth. The button wakes the
+   synth on pointerdown, the way the board does in the room. Opened as
+   #over, it does what the room does when it restores a game that turns
+   out to be finished: asks for the ending as the page loads, before
+   anybody has touched anything. (That has to happen in the page's own
+   script: the checker's evaluate() counts as a tap.) */
+const BARE = "/chess/tools/__sound-check.html";
+const BARE_HTML = '<!doctype html><meta charset="utf-8"><title>sound-check</title>' +
+  '<button id="tap" style="position:fixed;left:0;top:0;width:100%;height:100%">tap</button>' +
+  '<script src="/chess/motion.js"></script><script src="/chess/sound.js"></script>' +
+  '<script>document.getElementById("tap").addEventListener("pointerdown", function () {' +
+  ' Sound.wake(); if (window.onTap) window.onTap(); });' +
+  ' if (location.hash === "#over") { Sound.enable(true); window.said = Sound.sting("mate-win");' +
+  ' Sound.countTick(1, 2, true); }</script>';
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
+  if (p === BARE) { res.writeHead(200, { "Content-Type": "text/html" }); res.end(BARE_HTML); return; }
   if (p.endsWith("/")) p += "index.html";
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -797,6 +815,70 @@ async function musicChecks(render) {
      (crowned.energy / plain.energy).toFixed(2) + "×");
 }
 
+/* ---------- before anybody has touched the page ----------
+   A browser will not start an audio clock until somebody touches the
+   page, and the checker's browser is let off that rule. So this page
+   puts it back: an AudioContext that stays stopped until it is resumed
+   inside a real tap, and whose earlier resume() calls wait until then,
+   the way the specification says they do. */
+const STOPPED_UNTIL_TAPPED = `(() => {
+  const Real = window.AudioContext;
+  const stateOf = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "state").get;
+  let open = false;
+  const waiting = [];
+  window.AudioContext = function (o) {
+    const c = new Real(o), resume = c.resume.bind(c);
+    c.suspend();
+    Object.defineProperty(c, "state", { get: () => (open ? stateOf.call(c) : "suspended") });
+    c.resume = function () {
+      if (navigator.userActivation && navigator.userActivation.isActive) {
+        open = true;
+        return resume().then(() => { waiting.splice(0).forEach((f) => f()); });
+      }
+      return new Promise((res) => waiting.push(res));
+    };
+    window.__ac = c;
+    return c;
+  };
+  window.AudioContext.prototype = Real.prototype;
+})();`;
+
+async function wakeChecks(browser, base, errs) {
+  const page = await browser.newPage();
+  page.on("pageerror", (e) => errs.push("" + e.message));
+  await page.addInitScript(STOPPED_UNTIL_TAPPED);
+  const open = async (hash) => {
+    await page.goto(base + BARE + (hash || ""), { waitUntil: "load" });
+    await page.waitForFunction("typeof Sound !== 'undefined'");
+  };
+  const state = () => page.evaluate(() => ({ busy: Sound.busy(), clock: window.__ac ? window.__ac.state : "none" }));
+
+  /* a game restored at boot that turns out to be over asks for its
+     ending before anybody has touched anything */
+  await open("#over");
+  const atBoot = await state();
+  await page.waitForTimeout(900);
+  await page.click("#tap");
+  await page.waitForTimeout(400);
+  const firstTap = await state();
+  ok("a moment asked for before anybody has touched the page is not saved up for the first tap",
+     atBoot.busy === 0 && firstTap.clock === "running" && firstTap.busy === 0,
+     "at boot " + JSON.stringify(atBoot) + ", after the first tap " + JSON.stringify(firstTap));
+
+  /* and the one that matters: the very first sound of the session, asked
+     for inside the tap that starts the clock */
+  await open();
+  await page.evaluate(() => { Sound.enable(true); window.onTap = () => { window.said = Sound.sting("check"); }; });
+  await page.click("#tap");
+  await page.waitForTimeout(300);
+  const inTap = await state();
+  const said = await page.evaluate(() => window.said);
+  ok("…while one asked for inside the tap that starts the clock is heard",
+     inTap.clock === "running" && inTap.busy > 0 && said === Sound.STINGS.check.len,
+     JSON.stringify(inTap) + ", said " + said);
+  await page.close();
+}
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -811,9 +893,7 @@ async function musicChecks(render) {
                  king: { piece: 6, from: 0x04, to: 0x05 } };
 
   try {
-    /* a bare page with just the two modules: no game, no canvas, nothing
-       to go wrong but the synth */
-    await page.goto(base + "/chess/", { waitUntil: "domcontentloaded" });
+    await page.goto(base + BARE, { waitUntil: "domcontentloaded" });
     await page.waitForFunction("typeof Sound !== 'undefined' && typeof Motion !== 'undefined'");
 
     const base0 = { seconds: 3, gloss: 0.22, grain: 0.55 };
@@ -880,6 +960,7 @@ async function musicChecks(render) {
     ok("a promotion rings in the new piece", promo.rms > 1e-5 && promo.peak < 1, JSON.stringify(promo));
 
     await musicChecks((spec) => page.evaluate(`(${MUSIC})(${JSON.stringify(spec)})`), page);
+    await wakeChecks(browser, base, errs);
 
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
