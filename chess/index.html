@@ -615,7 +615,11 @@
   body.studio-on #wrap{padding-right:min(330px, 92vw)}
   /* while you're skinning, the board matters more than the move list */
   body.studio-on #panel{display:none}
-  body.lesson-on canvas.board{height:calc(100% - 176px)}
+  /* a lesson's board gives the bar exactly the room it takes — measured,
+     not guessed, so a long explanation never lies over the pieces — and
+     the empty move list gives its room to the board */
+  body.lesson-on canvas.board{height:calc(100% - var(--lesson-h, 176px))}
+  body.lesson-on #panel{display:none}
   @media (max-width:760px){
     #studio{
       top:auto; left:0; width:auto; max-height:52vh; border-left:none; border-top:1px solid var(--line);
@@ -624,7 +628,7 @@
     #studio.open{transform:translateY(0)}
     body.studio-on #wrap{padding-right:0}
     body.studio-on canvas.board{height:calc(100% - 52vh)}
-    body.lesson-on canvas.board{height:calc(100% - 158px)}
+    body.lesson-on canvas.board{height:calc(100% - var(--lesson-h, 158px))}
   }
   .settingRow{display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:9px 0; border-bottom:1px solid var(--line)}
@@ -818,6 +822,19 @@
   #endEmoji{display:inline-block; animation:endPop .8s cubic-bezier(.2,1.5,.4,1) both}
   @keyframes endPop{0%{transform:scale(.2) rotate(-25deg); opacity:0} 100%{transform:none; opacity:1}}
 
+  /* a phone on its side: the lesson sits beside the board, not on it */
+  @media (orientation:landscape) and (max-height:500px){
+    body.lesson-on canvas.board{height:100%; width:calc(100% - min(46vw, 360px))}
+    .lessonBar{left:auto; right:8px; transform:none; top:8px; bottom:8px; width:min(46vw, 352px); overflow-y:auto}
+  }
+  /* a question asked of you sits above every card, and nothing else may
+     replace it while it waits for an answer */
+  #ovAsk{z-index:30}
+  .askCard{max-width:400px; text-align:center}
+  .askCard p{color:var(--ink); font-size:1.02em}
+  .askRow{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px}
+  .askRow button{min-height:44px; padding:10px 18px; border-radius:999px; border:1px solid var(--line); background:var(--card2); color:var(--soft); font-weight:600}
+  .askRow button.go{background:var(--amber); border-color:var(--amber); color:#241a08; font-weight:800}
   /* a finished game you are looking over keeps a way back to its result */
   #resultChip{position:absolute; top:46px; left:50%; transform:translateX(-50%); z-index:4;
     background:var(--amber); color:#241a08; font-weight:800; border-radius:999px; padding:5px 14px;
@@ -985,6 +1002,11 @@
       <button class="ghostbtn" id="mAbout">About this room</button>
     </div>
   </div>
+</div>
+
+<!-- ===== a question: the one thing that may stand above everything ===== -->
+<div class="ov hide" id="ovAsk" role="dialog" aria-modal="true" aria-labelledby="askBody">
+  <div class="card askCard"><p id="askBody"></p><div class="askRow" id="askRow"></div></div>
 </div>
 
 <!-- ===== your record: the number, where it came from, what is next ===== -->

@@ -181,9 +181,9 @@ const PLAY = `([san, src]) => {
     const gamesBefore = (await state()).rating.games;
     await page.click("#btnNew");
     await page.waitForTimeout(300);
-    const asked = await page.evaluate(() => document.getElementById("toast").innerText);
-    ok("New game on a rated game under way asks first", /rated/i.test(asked), asked.slice(0, 80));
-    await page.click("#toast .tact >> nth=0");
+    const asked = await page.evaluate(() => document.getElementById("askBody").innerText);
+    ok("New game on a rated game under way asks first", /rated/i.test(asked) && await page.isVisible("#ovAsk"), asked.slice(0, 80));
+    await page.click("#askRow button >> nth=0");
     await page.waitForTimeout(900);
     st = await state();
     ok("…and resigning to go on counts it as a loss", st.rating.games === gamesBefore + 1 && st.rating.history.slice(-1)[0].result === 0,
@@ -193,9 +193,30 @@ const PLAY = `([san, src]) => {
     await play("e4");
     await page.click("#btnNew");
     await page.waitForTimeout(250);
-    await page.click("#toast .tact >> nth=0");
+    await page.click("#askRow button >> nth=0");
     await page.waitForTimeout(400);
     ok("New game in an unrated game restarts after one question", (await state()).sans.length === 0);
+
+    /* a question asked from the lobby is drawn above it, not under it */
+    await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none" }); });
+    for (let k = 0; k < 3; k++) {
+      await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });
+      await page.waitForTimeout(150);
+      await page.evaluate(() => { const g = __cr.game, ms = Chess.moves(g); __cr.commitMove(ms.find((m) => Math.abs(m.piece) === 1) || ms[0], "local"); });
+      await page.waitForTimeout(300);
+    }
+    await page.waitForFunction(() => __cr.game.turn === 1 && !__cr.renderer.isAnimating(), null, { timeout: 9000 });
+    await page.click("#btnMenu"); await page.waitForTimeout(300);
+    await page.click("#mPlay"); await page.waitForTimeout(300);
+    const top = await page.evaluate(() => {
+      const b = document.querySelector("#askRow button"); if (!b) return "no question";
+      const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return hit === b ? "on top" : "covered by " + (hit && (hit.id || hit.className));
+    });
+    ok("a question asked from the lobby is drawn above it", top === "on top", top);
+    await page.click("#askRow button >> nth=-1");
+    await page.waitForTimeout(300);
+    ok("…and 'Keep playing' goes back to the game", (await state()).mode === "coach" && !(await page.isVisible("#ovMenu")));
 
     /* ---- Undo as Black before you have moved ---- */
     await fresh();
@@ -280,6 +301,43 @@ const PLAY = `([san, src]) => {
     await page.waitForTimeout(400);
     const spent2 = await page.evaluate(() => __cr.oddsSpent[1]);
     ok("a second tap on Hint in the same position costs nothing", spent1 === spent2 && spent1 >= 1, spent1 + " then " + spent2);
+
+    /* ---- the Academy, with a mouse ---- */
+    await fresh();
+    await page.click("#mAcademy"); await page.waitForTimeout(300);
+    await page.click("#aNext"); await page.waitForTimeout(2600);
+    /* a first lesson opens with a demonstration; let it hand over */
+    const tryIt = page.locator("#lessonBar .lchip", { hasText: "Now let me try" });
+    if (await tryIt.count()) { await tryIt.first().click(); await page.waitForTimeout(400); }
+    const kickBefore = await page.evaluate(() => document.querySelector("#lessonBar .lkick").textContent);
+    await page.locator("#lessonBar .lchip", { hasText: "Nudge" }).first().click();
+    await page.waitForTimeout(300);
+    const kickAfter = await page.evaluate(() => document.querySelector("#lessonBar .lkick").textContent);
+    ok("a lesson's buttons answer a mouse click", /nudge/i.test(kickAfter), kickBefore + " → " + kickAfter);
+    /* a wrong move plays out; until it is taken back, the board is the
+       picture of a mistake, not a position to act on */
+    const wrong = await page.evaluate(() => {
+      const L = __cr.lesson, g = __cr.game;
+      const bad = Chess.moves(g).find((m) => !Learn.accepts(L, g, m).ok);
+      return bad ? [bad.from, bad.to] : null;
+    });
+    if (wrong) {
+      const name = (q) => String.fromCharCode(97 + (q & 7)) + ((q >> 4) + 1);
+      await click(name(wrong[0])); await click(name(wrong[1]));
+      await page.waitForTimeout(1200);
+      const fenBefore = await page.evaluate(() => Chess.fen(__cr.game));
+      await click(name(wrong[1])); await click(name(wrong[0]));
+      await page.waitForTimeout(400);
+      const sameFen = await page.evaluate(() => Chess.fen(__cr.game));
+      ok("a wrong move's picture can't be played on", fenBefore === sameFen && await page.evaluate(() => __cr.renderer.hi.selected === -1));
+      await page.locator("#lessonBar .lchip", { hasText: "Take it back" }).first().click();
+      await page.waitForTimeout(400);
+      await click(name(wrong[0]));
+      ok("…and after Take it back the board answers again", await page.evaluate((q) => __cr.renderer.hi.selected === q, wrong[0]));
+    }
+    await page.locator("#lessonBar .lchip", { hasText: "Leave" }).first().click();
+    await page.waitForTimeout(400);
+    ok("Leave goes back to the Academy", await page.isVisible("#ovAcademy"));
 
     /* ---- a save that lies ---- */
     await page.evaluate(() => localStorage.setItem("chessroom_save",
