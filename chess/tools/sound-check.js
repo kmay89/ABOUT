@@ -504,22 +504,43 @@ const RENDER = `async (spec) => {
   const floor = peak * 0.0012;
   let last = 0;
   for (let i = d.length - 1; i >= 0; i--) if (Math.abs(d[i]) > floor) { last = i / SR; break; }
-  /* brightness: zero crossings in the first fortieth of a second after
-     the piece lands, which is a crude spectral centroid and enough to
-     tell a pawn from a king */
+  /* brightness as the piece lands. Zero crossings in the first
+     fortieth of a second used to stand in for it, but a burst of contact
+     noise moves them by a dozen either way and a king and a pawn
+     overlapped about one run in three. The energy of the slope over the
+     energy of the signal, across the first twentieth, is the width of
+     the spectrum in disguise and does not wobble. */
   const land = plan.dur / 1000 * plan.travel;
-  let lzc = 0, lp = 0;
+  let lzc = 0, lp = 0, slope = 0, body = 0;
   for (let i = Math.round(land * SR); i < Math.min(d.length, Math.round((land + 0.025) * SR)); i++) {
     if ((d[i] >= 0) !== (lp >= 0)) lzc++;
     lp = d[i];
   }
+  for (let i = Math.round(land * SR) + 1; i < Math.min(d.length, Math.round((land + 0.05) * SR)); i++) {
+    slope += (d[i] - d[i - 1]) * (d[i] - d[i - 1]); body += d[i] * d[i];
+  }
+  /* The ring is timed above 200 Hz. Below that is the weight of the
+     piece going through the table, which every material shares and
+     which lasts longer than ink or wood ring at all — timing the whole
+     signal timed the thud, and put ink and wood a millisecond apart. */
+  const w0 = 2 * Math.PI * 200 / SR, al = Math.sin(w0) / (2 * Math.SQRT1_2), cw = Math.cos(w0);
+  const b0 = (1 + cw) / 2 / (1 + al), b1 = -(1 + cw) / (1 + al), a1 = -2 * cw / (1 + al), a2 = (1 - al) / (1 + al);
+  const hi = new Float32Array(d.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, hpeak = 0;
+  for (let i = 0; i < d.length; i++) {
+    const y = b0 * d[i] + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = d[i]; y2 = y1; y1 = y; hi[i] = y;
+    if (Math.abs(y) > hpeak) hpeak = Math.abs(y);
+  }
+  let hlast = 0;
+  for (let i = hi.length - 1; i >= 0; i--) if (Math.abs(hi[i]) > hpeak * 0.0012) { hlast = i / SR; break; }
   return {
     peak: peak, rms: Math.sqrt(energy / d.length), zc: zc, tail: last,
-    /* how long it goes on ringing after it is put down, which is the
-       thing a material actually decides — the drag before it is not
-       part of the ring */
-    ring: Math.max(0, last - land),
-    land: land, landZc: lzc,
+    /* how long the body goes on ringing after it is put down, which is
+       the thing a material actually decides — the drag before it is
+       not part of the ring, and nor is the thud under it */
+    ring: Math.max(0, hlast - land),
+    land: land, landZc: lzc, landBright: body ? Math.sqrt(slope / body) * SR / (2 * Math.PI) : 0,
     travelRms: win(0.01, land * 0.92),
     landRms: win(land, land + 0.06),
     dur: plan.dur
@@ -672,10 +693,13 @@ async function musicChecks(render) {
      (mate.tail - WARM).toFixed(2) + "s vs " + (win.tail - WARM).toFixed(2) + "s");
   ok("…and blooms louder", mate.bloom > win.bloom * 1.15 && mate.energy > win.energy * 1.5,
      "bloom " + dB(mate.bloom) + " vs " + dB(win.bloom) + ", energy " + (mate.energy / win.energy).toFixed(1) + "×");
+  /* (that the calm one has dropped its sparkles is proved on the score
+     above; three quiet chimes are well inside the few percent of
+     velocity every note is given, so it is not measured here) */
   const calm = R("mate-win", { reduced: true });
-  ok("…and with less motion asked for it is still a fanfare, just without the glitter",
-     calm.bloom > mate.bloom * 0.8 && calm.energy < mate.energy,
-     "bloom " + dB(calm.bloom) + " vs " + dB(mate.bloom));
+  ok("…and with less motion asked for it is still the whole fanfare",
+     calm.bloom > mate.bloom * 0.8 && calm.tail > win.tail + 0.8,
+     "bloom " + dB(calm.bloom) + " vs " + dB(mate.bloom) + ", rings " + (calm.tail - WARM).toFixed(2) + "s");
 
   const zcWin = { zc: [[WARM, WARM + 0.7]] };
   const given = await sting("check", {}, zcWin), received = await sting("check", { against: true }, zcWin);
@@ -804,7 +828,7 @@ async function musicChecks(render) {
     let ringing = true;
     for (let i = 1; i < MATS.length; i++) if (out[MATS[i]].ring <= out[MATS[i - 1]].ring) ringing = false;
     ok("rendered, each material rings longer than the one before it", ringing,
-       MATS.map((m) => m + " " + out[m].ring.toFixed(2) + "s").join(", "));
+       MATS.map((m) => m + " " + out[m].ring.toFixed(3) + "s").join(", "));
     ok("glass rings at least three times as long as wood",
        out.glass.ring > out.wood.ring * 3,
        out.glass.ring.toFixed(2) + "s vs " + out.wood.ring.toFixed(2) + "s");
@@ -815,8 +839,8 @@ async function musicChecks(render) {
     const pawn = await render(Object.assign({}, base0, { material: "ivory", move: MOVE.pawn }));
     const king = await render(Object.assign({}, base0, { material: "ivory", move: MOVE.king }));
     if (VERBOSE) console.log("      pawn", JSON.stringify(pawn), "\n      king", JSON.stringify(king));
-    ok("a king lands duller and lower than a pawn", king.landZc < pawn.landZc,
-       king.landZc + " crossings vs " + pawn.landZc);
+    ok("a king lands duller and lower than a pawn", king.landBright < pawn.landBright * 0.9,
+       king.landBright.toFixed(0) + " Hz wide vs " + pawn.landBright.toFixed(0));
     ok("…and lands louder", king.landRms > pawn.landRms,
        king.landRms.toFixed(4) + " vs " + pawn.landRms.toFixed(4));
 

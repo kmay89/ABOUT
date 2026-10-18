@@ -242,6 +242,12 @@ function flashPeak(plan) {
 
 /* ================= the audio side ================= */
 var AC = null, master = null, noiseBuf = null, on = true, borrowed = false;
+/* Where the randomness comes from: the noise, and the hair of
+   difference each note is given. In the room it is Math.random; in a
+   context lent by the checker it is seeded, so the same render twice is
+   the same samples and a failure can be reproduced rather than
+   shrugged at. */
+var rand = Math.random;
 var skinNow = null, materialNow = "ivory", surfaceNow = surfaceOf(null);
 
 /* one compressor on the way out: two pieces landing together, or a long
@@ -276,7 +282,7 @@ function noise(c) {
   var n = Math.floor(c.sampleRate * 0.5);
   noiseBuf = c.createBuffer(1, n, c.sampleRate);
   var d = noiseBuf.getChannelData(0);
-  for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  for (var i = 0; i < n; i++) d[i] = rand() * 2 - 1;
   return noiseBuf;
 }
 function env(g, t, peak, attack, decay) {
@@ -982,7 +988,7 @@ function build(c, a, t0, dest, tune, vel) {
     src.connect(fl); fl.connect(g);
   }
   g.connect(dest);
-  if (a.k === "osc") src.start(T); else src.start(T, Math.random() * 0.4);
+  if (a.k === "osc") src.start(T); else src.start(T, rand() * 0.4);
   src.stop(end);
   return end;
 }
@@ -1046,7 +1052,7 @@ function perform(c, sc, t0) {
     /* a hair of difference every time — two cents and a few percent of
        velocity — so the same sting twice sounds played rather than
        pasted */
-    var tune = 1 + (Math.random() - 0.5) * 0.0024, vel = 1 - Math.random() * 0.06;
+    var tune = 1 + (rand() - 0.5) * 0.0024, vel = 1 - rand() * 0.06;
     for (j = 0; j < plans[i].length; j++) {
       var a = plans[i][j];
       live.push(build(c, a, t0, lane(a.lane === "l" || a.lane === "r" ? a.lane : "c"), tune, vel));
@@ -1140,7 +1146,7 @@ var Sound = {
      is no way to test a sound except to listen to it, and a machine
      listens by looking. */
   useContext: function (c) {
-    AC = c; noiseBuf = null; borrowed = true;
+    AC = c; noiseBuf = null; borrowed = true; rand = seeded(20261018);
     master = buildChain(c);
     room = null; live = []; outs = []; lastSting = {}; lastCount = -1; amb = null;
     return master;
