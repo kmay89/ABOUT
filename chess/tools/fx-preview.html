@@ -166,6 +166,7 @@
     focus: function () { R.focus(KING_B); needFrame(); return 1; },
     unfocus: function () { R.focus(null); needFrame(); return 1; },
     flourish: function () { setScene(START, true); return R.flourishPlan().length; },
+    game: function () { return playGame(); },
     storm: function () {
       var n = Fx.confetti({ ms: 3000 }) + Fx.fireworks({ count: 6 });
       for (var i = 0; i < 6; i++) n += Fx.capture(0x22 + i * 17 % 0x55, { color: i % 2 ? 1 : -1, piece: 5 });
@@ -174,16 +175,62 @@
     },
     clear: function () { Fx.clear(); return 1; }
   };
-  /* the whole mate, the way the app should play it: the board's half
-     and the overlay's half at the same instant */
-  function mateScene(win) {
-    setScene(MATED);
-    R.topple(KING_B, { from: ROOK_E8 });
-    R.focus(KING_B);
+  /* ---------- the moments, conducted the way app.js should ----------
+     These three are the recipe the integration notes hand over: the
+     board's half and the overlay's half of each moment, at the instant
+     it happens — a capture when the taking piece lands (the same moment
+     sound.js sets it down, louder for a capture), a mate once the mating
+     move has landed. */
+  var POWER = [0.5, 0.30, 0.55, 0.58, 0.74, 1.0, 1.0];
+  function captureMoment(desc, taken, plan) {
+    setTimeout(function () {
+      var power = POWER[Math.abs(taken)];
+      R.impact(desc.to, power);
+      needFrame();
+      Fx.capture(desc.to, { piece: taken, power: power,
+                            color: taken > 0 ? skin.pieces.white : skin.pieces.black });
+      Fx.haptic("capture");
+    }, plan.dur * plan.travel);
+  }
+  function mateMoment(kingSq, fromSq, win) {
+    R.topple(kingSq, { from: fromSq });
+    R.focus(kingSq);
     needFrame();
-    var n = Fx.mate(KING_B, { win: win });
+    var n = Fx.mate(kingSq, { win: win });
+    Fx.haptic(win === false ? "loss" : "mate");
     if (win) setTimeout(function () { Fx.confetti({ ms: 2600 }); }, 520);
     return n;
+  }
+  /* the whole mate in a still position */
+  function mateScene(win) {
+    setScene(MATED);
+    return mateMoment(KING_B, ROOK_E8, win);
+  }
+  /* and a whole little game: the men set out, four moves each way, a
+     capture that is also mate */
+  var SCHOLAR = [[0x14, 0x34], [0x64, 0x44], [0x05, 0x32], [0x71, 0x52], [0x03, 0x47], [0x76, 0x55], [0x47, 0x65]];
+  function playGame() {
+    setScene(START, true);
+    var landings = R.flourishPlan();
+    var settled = landings.length ? landings[landings.length - 1].t + Motion.DROP_MS - Motion.DROP.fall : 0;
+    var i = 0;
+    window.__fx.gameOver = false;
+    function next() {
+      var mv = SCHOLAR[i++], from = mv[0], to = mv[1];
+      var piece = pos[from], taken = pos[to];
+      var after = new Int8Array(pos); after[to] = piece; after[from] = 0;
+      var desc = { piece: piece, from: from, to: to };
+      var last = i === SCHOLAR.length;
+      var plan = R.animateMove(desc, after, {}, function () {
+        pos = after;
+        if (last) { mateMoment(0x74, to, true); window.__fx.gameOver = true; }
+        else setTimeout(next, 240);
+      });
+      if (taken) captureMoment(desc, taken, plan);
+      needFrame();
+    }
+    setTimeout(next, settled + 220);
+    return SCHOLAR.length;
   }
 
   function bar() {

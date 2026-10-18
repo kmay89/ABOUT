@@ -1195,7 +1195,9 @@ function create(canvas, opts) {
   function stepFocus(nowMs) {
     var fo = cam.focus;
     if (fo.amt === fo.target && fo.vel === 0 && fo.x === fo.tx && fo.z === fo.tz) return false;
-    var ts = nowMs / 1000, dt = fo.last ? Math.min(0.1, ts - fo.last) : 1 / 60;
+    /* the spring is stepped exactly, so a long frame is safe to take whole:
+       a slow device still arrives in the same wall-clock time */
+    var ts = nowMs / 1000, dt = fo.last ? Math.min(0.25, ts - fo.last) : 1 / 60;
     fo.last = ts;
     var a = Move.spring(fo.amt, fo.vel, fo.target, dt, 4.2);
     var x = Move.spring(fo.x, fo.vx, fo.tx, dt, 4.2);

@@ -185,9 +185,10 @@ const PROBE = `(() => {
     await page.evaluate(() => __cr.renderer.setFx("low"));
     await rest();
     const calm = await page.evaluate(PROBE);
-    await page.evaluate(() => __cr.renderer.impact(0x34, 1));
-    await page.waitForTimeout(80);
-    const struck = await page.evaluate(PROBE);
+    /* struck and measured 80ms into the flash in one task, so a busy
+       machine cannot let the whole flash go by in between */
+    const struck = await page.evaluate("(() => { const r = __cr.renderer; r.impact(0x34, 1);" +
+      " r.impacts[r.impacts.length - 1].t0 -= 80; return " + PROBE + "; })()");
     await page.evaluate(() => { const r = __cr.renderer; r.topple(0x04, { from: 0x74 }); r.focus(0x04); });
     const settledIn = await rest();
     const leaning = await page.evaluate(PROBE);

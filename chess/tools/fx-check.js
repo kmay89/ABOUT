@@ -125,10 +125,23 @@ const BOARD_SIG = `(() => {
   return { hash: hash, err: err, spread: hi - lo };
 })()`;
 
+/* Fire an effect, let the layer draw a few of its own frames, and
+   measure the ink. Counted in frames rather than milliseconds: the
+   layer never ages anything by more than 50ms a frame, so however busy
+   the machine is, six frames in is at most 300ms into the effect. */
+const FIRE_AND_INK = `(async ([name, cls, INKSRC]) => {
+  const ink = eval(INKSRC), F = window.__fx.Fx;
+  F.clear();
+  const spawned = window.__fx.fire[name]();
+  const f0 = F.stats().frames, t0 = Date.now();
+  while (F.stats().frames < f0 + 6 && Date.now() - t0 < 8000) await new Promise((r) => requestAnimationFrame(r));
+  return { spawned, ink: ink(cls) };
+})`;
+
 /* run the board's frames until it says it has nothing left to draw */
 async function settle(page, capMs) {
   const t0 = Date.now();
-  while (Date.now() - t0 < (capMs || 9000)) {
+  while (Date.now() - t0 < (capMs || 20000)) {
     const more = await page.evaluate(() => {
       const R = window.__fx.R;
       let m = false;
@@ -234,7 +247,7 @@ let base = "";
          before.hash + " vs " + again.hash);
 
       await page.evaluate(() => window.__fx.R.topple(0x76, { from: 0x74 }));
-      const fell = await settle(page, 6000);
+      const fell = await settle(page, 15000);
       const down = await page.evaluate(BOARD_SIG);
       const idleDown = await page.evaluate(() => window.__fx.R.frame());
       ok("the mated king goes over and the " + dim + " board goes idle", fell && !idleDown && down.hash !== before.hash,
@@ -246,18 +259,20 @@ let base = "";
       ok("untopple stands him back up exactly (" + dim + ")", up.hash === before.hash, up.hash + " vs " + before.hash);
 
       await page.evaluate(() => window.__fx.R.focus(0x76));
-      const pushed = await settle(page, 8000);
+      const pushed = await settle(page);
       const close = await page.evaluate(BOARD_SIG);
       ok("the push-in changes the picture and comes to rest (" + dim + ")", pushed && close.hash !== before.hash && close.err === 0);
       await page.evaluate(() => window.__fx.R.focus(null));
-      await settle(page, 8000);
+      await settle(page);
       const back = await page.evaluate(BOARD_SIG);
       ok("focus(null) returns to exactly the view it left (" + dim + ")", back.hash === before.hash, back.hash + " vs " + before.hash);
 
-      await page.evaluate(() => { window.__fx.R.impact(0x44, 1); });
-      await page.waitForTimeout(60);
-      const lit = await page.evaluate(BOARD_SIG);
-      const dimmed = await settle(page, 4000);
+      /* struck, and measured 60ms into the flash in the same task — a
+         busy machine can take longer than the whole flash to get from
+         one evaluate to the next */
+      const lit = await page.evaluate("(() => { const R = window.__fx.R; R.impact(0x44, 1);" +
+        " R.impacts[R.impacts.length - 1].t0 -= 60; return " + BOARD_SIG + "; })()");
+      const dimmed = await settle(page, 10000);
       const after = await page.evaluate(BOARD_SIG);
       ok("a struck square lights up, goes dark again and the board rests (" + dim + ")",
          lit.hash !== before.hash && dimmed && after.hash === before.hash && lit.err === 0,
@@ -271,7 +286,7 @@ let base = "";
       });
       ok("a new game hands back a landing for every man, in order (" + dim + ")",
          plan.n === 32 && plan.sorted && (plan.first >> 4) === 0 && plan.last < 1200, JSON.stringify(plan));
-      const arrived = await settle(page, 6000);
+      const arrived = await settle(page, 15000);
       const set = await page.evaluate(BOARD_SIG);
       ok("…and the board rests once they have landed (" + dim + ")", arrived && set.err === 0 && set.spread > 24);
       await page.evaluate(() => { if (window.__fx.R.setFx) window.__fx.R.setFx(window.__fx.R.autoFx()); });
@@ -284,10 +299,9 @@ let base = "";
                    "confetti", "fireworks", "flash"];
     const PAGE = ["confettiPage", "sparkle"];
     for (const name of STAGE.concat(PAGE)) {
-      await page.evaluate(() => window.__fx.Fx.clear());
-      const spawned = await page.evaluate((n) => window.__fx.fire[n](), name);
-      await page.waitForTimeout(name === "fireworks" ? 260 : 140);
-      const ink = await page.evaluate(INK + "(" + JSON.stringify(PAGE.indexOf(name) >= 0 ? "fx-page" : "fx-stage") + ")");
+      const r = await page.evaluate(FIRE_AND_INK + "(" +
+        JSON.stringify([name, PAGE.indexOf(name) >= 0 ? "fx-page" : "fx-stage", INK]) + ")");
+      const spawned = r.spawned, ink = r.ink;
       if (VERBOSE) console.log("      ", name, "spawned", spawned, "ink", ink);
       ok(name + " draws something", spawned > 0 && ink > 20, "spawned " + spawned + ", ink " + ink);
     }
@@ -295,10 +309,8 @@ let base = "";
       await page.evaluate(() => { window.__fx.Fx.clear(); window.__fx.use("3d"); window.__fx.setScene(window.__fx.SCENE); });
       await settle(page);
       for (const name of ["captureQueen", "mateWin", "promote"]) {
-        await page.evaluate(() => window.__fx.Fx.clear());
-        const spawned = await page.evaluate((n) => window.__fx.fire[n](), name);
-        await page.waitForTimeout(160);
-        const ink = await page.evaluate(INK + "('fx-stage')");
+        const r = await page.evaluate(FIRE_AND_INK + "(" + JSON.stringify([name, "fx-stage", INK]) + ")");
+        const spawned = r.spawned, ink = r.ink;
         ok(name + " draws over the carved board too", spawned > 0 && ink > 20, "spawned " + spawned + ", ink " + ink);
         if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, "fx-" + name + ".png") }); }
       }
@@ -309,18 +321,27 @@ let base = "";
     const shook = await page.evaluate(async () => {
       const el = document.getElementById("card"), before = el.style.transform;
       window.__fx.Fx.shake(el, 8);
-      await new Promise((r) => setTimeout(r, 90));
-      const mid = el.style.transform;
-      await new Promise((r) => setTimeout(r, 700));
+      /* the first frame or two of it, however long they take to come */
+      let mid = "";
+      for (let i = 0; i < 3 && !/translate/.test(mid); i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        mid = el.style.transform;
+      }
+      const t0 = Date.now();
+      while (window.__fx.Fx.busy() && Date.now() - t0 < 5000) await new Promise((r) => setTimeout(r, 50));
       return { before, mid, after: el.style.transform };
     });
     ok("a shake moves the element and gives it back as it was",
        /translate/.test(shook.mid) && shook.after === shook.before, JSON.stringify(shook));
     const counted = await page.evaluate(async () => {
       const el = document.getElementById("rating"), ticks = [];
-      const p = window.__fx.Fx.countUp(el, 1200, 1236, { ms: 600, onTick: (i, n, v) => ticks.push([i, n, Math.round(v)]) });
-      await new Promise((r) => setTimeout(r, 120));
-      const mid = +el.textContent;
+      /* what the number read when the first tick was heard: on its way,
+         not already there */
+      let mid = -1;
+      const p = window.__fx.Fx.countUp(el, 1200, 1236, { ms: 1500, onTick: (i, n, v) => {
+        if (mid < 0) mid = +el.textContent;
+        ticks.push([i, n, Math.round(v)]);
+      } });
       const fin = await p;
       return { mid, fin, text: el.textContent, ticks: ticks.length, n: ticks.length ? ticks[0][1] : 0,
                last: ticks.length ? ticks[ticks.length - 1] : null,
@@ -341,10 +362,25 @@ let base = "";
     ok("a buzz never throws, and quietly does nothing where there is no vibrate",
        buzz.a === "boolean" && buzz.b === false, JSON.stringify(buzz));
 
+    /* ---------- a whole little game, conducted the way the app should ---------- */
+    const game = await page.evaluate(async () => {
+      const F = window.__fx;
+      F.Fx.clear(); F.Fx.stats(true);
+      F.use("2d");
+      F.fire.game();
+      const t0 = Date.now();
+      while (!F.gameOver && Date.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => setTimeout(r, 200));
+      return { over: F.gameOver, toppled: F.R.toppled ? F.R.toppled.sq : -1, peak: F.Fx.stats().peak,
+               ms: Date.now() - t0 };
+    });
+    ok("a little game plays through: the men set out, a capture lands, the mated king goes over",
+       game.over && game.toppled === 0x74 && game.peak > 60, JSON.stringify(game));
+
     /* ---------- and then it all stops ---------- */
     await page.evaluate(() => { window.__fx.fire.captureQueen(); window.__fx.fire.mateWin(); window.__fx.fire.fireworks(); window.__fx.fire.sparkle(); });
     const wentQuiet = await quiet(page, 15000);
-    await settle(page, 8000);
+    await settle(page);
     const asleep = await page.evaluate(async (INKSRC) => {
       const ink = eval(INKSRC);
       const f0 = window.__fx.Fx.stats().frames;

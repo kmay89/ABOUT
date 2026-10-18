@@ -590,7 +590,7 @@ function create(canvas) {
        drawn through it. At rest at 1 it costs nothing at all. */
     var v = R.view;
     if (v.z !== 1 || v.target !== 1) {
-      var ts = now / 1000, dts = v.last ? Math.min(0.1, ts - v.last) : 1 / 60;
+      var ts = now / 1000, dts = v.last ? Math.min(0.25, ts - v.last) : 1 / 60;
       v.last = ts;
       var spr = Move.spring(v.z, v.v, v.target, dts, 5.5);
       v.z = spr.x; v.v = spr.v;
