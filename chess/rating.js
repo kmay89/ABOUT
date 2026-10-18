@@ -76,7 +76,11 @@
    sound six- and eight-ply lines out of the lichess opening table, each
    opening twice with the colours swapped, the clock frozen and the dice
    seeded, adjudicated once both searches agree for ten plies that one
-   side is ten pawns up.
+   side is ten pawns up. (These games shared one search table across
+   each game; rungs now start every move from an empty one, which
+   replayed on the same positions changed no move of the five weakest
+   rungs and one to three in twenty-four of the others', and the
+   neighbour matches in engine-check --slow still go the stronger way.)
 
      pair              games  score         self-play gap   on the ladder
      Sprout – Acorn       32   28      88%   +338 ±87      +176
@@ -151,11 +155,19 @@ function levelIndex(id) {
   return -1;
 }
 /* exactly what to hand Brain.search for a rung — nothing the engine
-   does not read, so a level and its calibration cannot drift apart */
+   does not read, so a level and its calibration cannot drift apart.
+   `fresh` empties the engine's table first. The worker shares one table
+   between the coach, the hints and the reviews, and a shallow rung that
+   inherits a hint's six-ply leftovers plays far above its rating: along
+   one Italian game, a depth-5 review run just before the reply changed
+   between a quarter and two-thirds of the moves of every rung below
+   Pine. Starting from an empty table instead of the rung's own last
+   search — which is how the calibration ran — changed none of the five
+   weakest rungs' moves, and one to three in twenty-four of the others'. */
 function searchOpts(idOrLevel) {
   var L = typeof idOrLevel === "string" ? levelById(idOrLevel) : idOrLevel;
   if (!L) return null;
-  var o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, nodes: L.nodes };
+  var o = { ms: L.ms, maxDepth: L.maxDepth, noise: L.noise, nodes: L.nodes, fresh: true };
   if (L.rankDepth) o.rankDepth = L.rankDepth;
   return o;
 }
@@ -200,8 +212,9 @@ function stdev(xs) {
   for (i = 0; i < n; i++) v += (xs[i] - m) * (xs[i] - m);
   return Math.sqrt(v / n);
 }
-/* moves: [{ best, played }] in centipawns, the player's moves only, in
-   order. Returns 0..100 to one decimal, or null with too little to judge.
+/* moves: [{ best, played[, ply] }] in centipawns, the player's moves
+   only, in order. Returns 0..100 to one decimal, or null with too little
+   to judge.
 
    Two means, averaged, the way lichess does it. The weighted mean counts
    a move by how turbulent the game was around it — the standard
@@ -214,14 +227,23 @@ function stdev(xs) {
    resignation would read as 100%, and the table below would turn that
    into a grandmaster; eight moves of your own is the least this will put
    a number on. (Lichess shows accuracy for any length; it does not then
-   tell you what rating you played at.) */
-var ACCURACY_MIN_MOVES = 8;
+   tell you what rating you played at.)
+
+   The opening is left out when a move says which ply it was. The table
+   below was fitted with the first six or eight plies handed to both
+   sides from a book, so they were nobody's accuracy; measuring a person
+   with their opening moves in would be measuring with a different
+   ruler, and an opening most people play from memory is a few easy
+   points that would read as a few hundred rating points on the steep
+   parts of the table. */
+var ACCURACY_MIN_MOVES = 8, ACCURACY_FROM_PLY = 8;
 function gameAccuracy(moves) {
   if (!moves || typeof moves.length !== "number") return null;
   var accs = [], wins = [], i, m, a;
   for (i = 0; i < moves.length && i < 2000; i++) {
     m = moves[i];
     if (!m || typeof m !== "object") continue;
+    if (typeof m.ply === "number" && m.ply < ACCURACY_FROM_PLY) continue;
     a = moveAccuracy(m.best, m.played);
     if (a === null) continue;
     accs.push(a); wins.push(winPct(m.best));
@@ -631,7 +653,8 @@ function summary(state) {
 var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
-  REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, PERF_ABOVE: PERF_ABOVE,
+  REVIEW_DEPTH: REVIEW_DEPTH, ACCURACY_MIN_MOVES: ACCURACY_MIN_MOVES, ACCURACY_FROM_PLY: ACCURACY_FROM_PLY,
+  PERF_ABOVE: PERF_ABOVE,
   levelById: levelById, searchOpts: searchOpts,
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,

@@ -784,6 +784,15 @@ function allocTT(bits) {
 }
 allocTT(16);
 var TT_EXACT = 1, TT_LOWER = 2, TT_UPPER = 3;
+/* An empty table, on request. One table serves every search the worker
+   runs — the coach's reply, a hint, the review of your last move — and a
+   probe takes any entry deep enough, whoever wrote it. That is right for
+   a hint and wrong for a practice level: a level that reads two plies,
+   searching just after a six-ply hint, chooses with six plies of
+   knowledge and plays well above the rating it carries. A level asks
+   for `fresh` so its move depends on the position and nothing else.
+   An emptied slot has flag 0, which no probe acts on. */
+function emptyTT() { ttHi.fill(0); ttMove.fill(0); ttScore.fill(0); ttDepth.fill(0); ttFlag.fill(0); }
 
 /* moves pack into one int so the table and the killer slots can hold
    them without keeping the move objects alive */
@@ -1181,7 +1190,9 @@ var rootBest = null;
    opts: { ms, maxDepth, noise (cp of random slack for a weaker, more
    human opponent), rank (score every root move properly for the coach),
    nodes (optional: stop at this many nodes as well as at ms — whichever
-   comes first) }
+   comes first), fresh (optional: start from an empty transposition
+   table, so nothing an earlier search left behind can change the
+   answer) }
    Returns { move, score, depth, nodes, ranked, pv }. */
 function search(g, opts) {
   opts = opts || {};
@@ -1205,6 +1216,7 @@ function search(g, opts) {
   searchNodes = 0; searchAborted = false;
   searchNodeCap = nodeBudget - rankNodes;
   clearTables();
+  if (opts.fresh) emptyTT();
   loadHistory(g);
 
   var best = rootMoves[0], bestScore = 0, depth = 0, i, pv = [];

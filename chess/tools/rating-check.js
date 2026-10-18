@@ -14,10 +14,21 @@
    monotone and agrees with the calibration it came from, and storage
    survives anything a browser or a stranger could hand it.
 
-   Pure node, no engine, a fraction of a second.
+   Then, if a browser is to hand, it plays every rung the way the room
+   will: rating.js loaded beside the real page, each level's recipe sent
+   through Brain to the coach's worker. A rung only carries its rating if
+   its node budget and its empty table survive the trip to the other
+   thread, and nothing in node can see that trip.
 
-   Run: node chess/tools/rating-check.js                                */
+   The arithmetic is pure node and a fraction of a second; the browser
+   half wants playwright-core and chromium, takes a few seconds more, and
+   is skipped with a note when either is missing.
+
+   Run: node chess/tools/rating-check.js [--node]                       */
 "use strict";
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
 const Rating = require("../rating.js");
 
 let failed = 0;
@@ -110,9 +121,10 @@ function sane(s) {
      gaps.every((g) => g >= 120 && g <= 330), gaps.join(", "));
   ok("the first rung is anchored where a newcomer starts (≈400)", L[0].elo >= 300 && L[0].elo <= 500, L[0].elo);
   const o = Rating.searchOpts("club");
-  ok("searchOpts hands the engine the rung's recipe and nothing else",
+  ok("searchOpts hands the engine the rung's recipe, an empty table, and nothing else",
      o && o.ms === Rating.levelById("club").ms && o.nodes === Rating.levelById("club").nodes &&
-     Object.keys(o).every((k) => ["ms", "maxDepth", "noise", "nodes", "rankDepth"].indexOf(k) >= 0),
+     o.fresh === true &&
+     Object.keys(o).every((k) => ["ms", "maxDepth", "noise", "nodes", "rankDepth", "fresh"].indexOf(k) >= 0),
      JSON.stringify(o));
   ok("searchOpts for an unknown rung is null", Rating.searchOpts("nope") === null);
 })();
@@ -289,6 +301,16 @@ function sane(s) {
   const few = perfect.slice(0, Rating.ACCURACY_MIN_MOVES - 1);
   ok(`fewer than ${Rating.ACCURACY_MIN_MOVES} moves of your own is too few to judge`,
      Rating.gameAccuracy(few) === null && Rating.gameAccuracy(perfect.slice(0, Rating.ACCURACY_MIN_MOVES)) === 100);
+  /* the opening is nobody's accuracy, as it was nobody's in the
+     calibration: a howler on move two, marked with its ply, is left out,
+     and the same howler later in the game is not */
+  const withPly = (moves, from) => moves.map((m, i) => Object.assign({ ply: from + 2 * i }, m));
+  const early = withPly([{ best: 30, played: -600 }].concat(perfect.slice(0, 12)), 2);
+  const late = withPly(perfect.slice(0, 12).concat([{ best: 30, played: -600 }]), 2);
+  ok("moves played before the calibration's opening ended are left out of accuracy",
+     Rating.gameAccuracy(early) === 100 && Rating.gameAccuracy(late) < 100 &&
+     Rating.gameAccuracy(early.map((m) => ({ best: m.best, played: m.played }))) < 100,
+     `${Rating.gameAccuracy(early)} / ${Rating.gameAccuracy(late)}`);
 
   /* The blend, written out again from lichess's description rather than
      from rating.js: per-move accuracy from the win-chance drop, a window
@@ -617,6 +639,101 @@ function sane(s) {
      (() => { const m = Rating.summary(many); m.history.length = 0; m.vs.club[0] = -1; return many.history.length === 200 && many.vs.club[0] >= 0; })());
 })();
 
-console.log(failed ? `\n${failed} problem${failed > 1 ? "s" : ""} with the score`
-                   : "\nthe score is honest: it moves the right way, weighs help kindly, and survives anything");
-process.exit(failed ? 1 : 0);
+const verdict = (browserToo) => {
+  console.log(failed ? `\n${failed} problem${failed > 1 ? "s" : ""} with the score`
+                     : "\nthe score is honest: it moves the right way, weighs help kindly, and survives anything" +
+                       (browserToo ? " — and every rung plays its recipe off the page's thread" : ""));
+  process.exit(failed ? 1 : 0);
+};
+
+/* ================= the ladder, on the coach's own thread ================= */
+const ROOT = path.join(__dirname, "..", "..");
+const CHROME = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  "/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome"].filter((p) => fs.existsSync(p))[0] || null;
+let pw = null;
+try { pw = require("playwright-core"); } catch (e) { pw = null; }
+if (process.argv.includes("--node") || !CHROME || !pw) {
+  if (!process.argv.includes("--node")) {
+    console.log((CHROME ? "playwright-core is not installed" : "no chromium on this machine") +
+                " — the arithmetic is checked, the ladder off-thread is not.");
+  }
+  verdict(false);
+} else {
+  const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json",
+    ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml",
+    ".css": "text/css", ".ico": "image/x-icon" };
+  const server = http.createServer((req, res) => {
+    let p = decodeURIComponent(req.url.split("?")[0]);
+    if (p.endsWith("/")) p += "index.html";
+    const file = path.join(ROOT, p);
+    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404); res.end("not found"); return;
+    }
+    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
+    fs.createReadStream(file).pipe(res);
+  });
+
+  /* every rung, from one middlegame position, through the real worker */
+  const PLAY = `async (fen) => {
+    const out = [];
+    for (const L of Rating.LEVELS) {
+      const g = Chess.create(fen);
+      const r = await Brain.search(g, Rating.searchOpts(L.id));
+      const legal = !!(r && r.move && Brain.resolve(g, r.move));
+      out.push({ id: L.id, legal, nodes: r ? r.nodes : -1, depth: r ? r.depth : -1, budget: L.nodes, maxDepth: L.maxDepth });
+    }
+    return { offThread: Brain.offThread(), out };
+  }`;
+  /* a rung's ranked list, then a hint's deep look at the position one
+     move earlier, then the rung again: with its table emptied first, the
+     rung must not be able to tell the hint happened */
+  const AFTER_HINT = `async (fens) => {
+    const opts = Object.assign({}, Rating.searchOpts("club"), { noise: 0, rank: true });
+    const rank = (r) => r.ranked.map((x) => x.move.from + "-" + x.move.to + ":" + x.score + (x.shallow ? "s" : "")).join(" ");
+    const a = await Brain.search(Chess.create(fens.after), opts);
+    await Brain.search(Chess.create(fens.before), { ms: 1500, maxDepth: 6, nodes: 150000, rank: true, rankDepth: 6 });
+    const b = await Brain.search(Chess.create(fens.after), opts);
+    return { a: rank(a), b: rank(b), na: a.nodes, nb: b.nodes };
+  }`;
+
+  (async () => {
+    await new Promise((r) => server.listen(0, r));
+    const base = "http://127.0.0.1:" + server.address().port;
+    const browser = await pw.chromium.launch({ executablePath: CHROME,
+      args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio"] });
+    const page = await browser.newPage();
+    const errs = [];
+    page.on("pageerror", (e) => errs.push("" + e.message));
+    try {
+      await page.goto(base + "/chess/", { waitUntil: "domcontentloaded" });
+      await page.waitForFunction("typeof Chess !== 'undefined' && typeof Brain !== 'undefined'");
+      /* the page does not load the score yet; it is added the way the
+         page will add it, as a plain script beside the others */
+      await page.addScriptTag({ url: base + "/chess/rating.js" });
+      ok("rating.js loads in the real page beside everything else",
+         await page.evaluate("typeof Rating === 'object' && Rating.LEVELS.length > 0"));
+
+      const res = await page.evaluate(`(${PLAY})(${JSON.stringify("r1bq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 w - - 0 9")})`);
+      ok("the coach thinks on its own thread", res.offThread);
+      const bad = res.out.filter((x) => !x.legal).map((x) => x.id);
+      ok("every rung answers with a legal move through the worker", !bad.length, bad.join(", "));
+      const over = res.out.filter((x) => x.nodes > x.budget + 3000 || x.depth > x.maxDepth)
+                      .map((x) => `${x.id} ${x.nodes}/${x.budget} d${x.depth}`);
+      ok("…inside its own budget of positions and plies", !over.length, over.join(", "));
+
+      const before = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2PP1N2/PP3PPP/RNBQK2R b KQkq - 0 5";
+      const after = "r1bqk2r/ppp2ppp/2np1n2/2b1p3/2B1P3/2PP1N2/PP3PPP/RNBQK2R w KQkq - 0 6";
+      const h = await page.evaluate(`(${AFTER_HINT})(${JSON.stringify({ before, after })})`);
+      ok("a rung plays the same move after a hint as before it (its table is emptied off-thread too)",
+         h.a === h.b && h.na === h.nb, `${h.na} vs ${h.nb} nodes`);
+      ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
+    } catch (e) {
+      ok("the ladder ran in the browser", false, e.message);
+    } finally {
+      await browser.close();
+      server.close();
+    }
+    verdict(true);
+  })();
+}

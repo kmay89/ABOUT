@@ -16,6 +16,9 @@
      • a won position is not thrown away by repetition;
      • a search never returns an illegal move and never overruns its
        time budget, which is what the clock and the coach's turn rely on;
+     • a budget in positions is kept too, and the same budget gives the
+       same answer every time, which is what a practice level's rating
+       relies on;
      • the ranked list the coaching is built from agrees with the move
        the search actually chose;
      • and the practice levels, read from rating.js, really are a
@@ -189,6 +192,62 @@ function forcedMate(g, n) {
   }
   ok("search always returns a legal move", !illegal, illegal);
   ok("search keeps inside its time budget", worstOver <= 0, worstOver > 0 ? `overran by ${worstOver | 0}ms` : "");
+}
+
+/* ---- a budget in positions, kept like one ----
+   The practice levels count positions rather than milliseconds so that a
+   level plays the same game on any machine — which is only true if the
+   count is kept (the ranked list the slack chooses from included), and
+   if, once the count is what binds, the same position and the same
+   budget give the same answer every time. The clock is given far more
+   than the count needs, so the count is what stops it (if the count were
+   ignored, the clock would stop it and both checks would fail). The
+   slack is the margin the checks are made at: every 1024 positions, in
+   the search and again in the ranking, plus the quick look given to any
+   move the ranking had no positions left for. */
+{
+  const fens = [
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+    "r1bq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 b - - 0 1"
+  ];
+  let over = null, differ = null;
+  for (const fen of fens) {
+    for (const nodes of [4000, 30000]) {
+      for (const rank of [false, true]) {
+        C.setHashBits(16);
+        const a = C.search(C.create(fen), { ms: 4000, nodes, rank });
+        C.setHashBits(16);
+        const b = C.search(C.create(fen), { ms: 4000, nodes, rank });
+        if (a.nodes > nodes + 3000) over = over || `${fen.slice(0, 16)}… ${a.nodes} of ${nodes}${rank ? " ranked" : ""}`;
+        if (a.move.from !== b.move.from || a.move.to !== b.move.to || a.nodes !== b.nodes || a.score !== b.score) {
+          differ = differ || `${fen.slice(0, 16)}… ${nodes}: ${C.toSAN(C.create(fen), a.move)} vs ${C.toSAN(C.create(fen), b.move)}`;
+        }
+      }
+    }
+  }
+  ok("a node budget is kept, ranking and all", !over, over);
+  ok("the same position and the same node budget give the same answer", !differ, differ);
+
+  /* …and the same answer whatever was searched before. The worker keeps
+     one table for the coach, the hints and the reviews; a level that
+     asks for a fresh table must rank its moves exactly as it would on a
+     newly started engine, even straight after a deep look at the
+     position one move earlier (which is what a hint is). */
+  const line = ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5", "c3", "Nf6", "d3", "d6", "O-O", "O-O", "Re1"];
+  const before = C.create();
+  for (const san of line.slice(0, -1)) C.play(before, C.fromSAN(before, san));
+  const after = C.create(C.fen(before));
+  C.play(after, C.fromSAN(after, line[line.length - 1]));
+  const level = { ms: 4000, maxDepth: 2, nodes: 30000, rank: true, fresh: true };
+  const ranking = (r) => r.ranked.map((x) => x.move.from + "-" + x.move.to + ":" + x.score + (x.shallow ? "s" : "")).join(" ");
+  C.setHashBits(16);
+  const clean = C.search(C.create(C.fen(after)), level);
+  C.search(C.create(C.fen(before)), { ms: 4000, maxDepth: 6, nodes: 150000, rank: true, rankDepth: 6 });
+  const afterHint = C.search(C.create(C.fen(after)), level);
+  ok("a level that asks for a fresh table ranks its moves as if nothing had been searched before",
+     ranking(clean) === ranking(afterHint) && clean.nodes === afterHint.nodes,
+     `${clean.nodes} vs ${afterHint.nodes} nodes`);
 }
 
 /* ---- the ranked list agrees with the move chosen ---- */
