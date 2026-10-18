@@ -356,6 +356,49 @@ const DAY = 86400000, t0 = 1750000000000;
   const corrupt = JSON.parse('{"v":1,"concepts":null,"lessons":{}}');
   ok("the playtest's corrupt save opens with a fresh slate", Learn.stats(corrupt).solved === 0 &&
      Learn.next(corrupt) === Learn.LESSONS[0] && Learn.mastery(corrupt, "fork") === 0);
+
+  /* …and through the door the browser actually uses. In node, load()
+     never touches storage, so learn.js is run here the way a page runs
+     it — no `module`, a `self`, and a localStorage — and the junk goes in
+     as the raw text a browser would hand back, including text that
+     isn't JSON at all and a storage that refuses to be read. */
+  const vm = require("vm"), fs = require("fs"), path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "..", "learn.js"), "utf8");
+  function browserLearn(storage) {
+    const ctx = { Chess, Teach: require("../teach.js"), localStorage: storage, Date, JSON, Math };
+    ctx.self = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx, { filename: "learn.js" });
+    return ctx.Learn;
+  }
+  const store = {};
+  const fake = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+  const B = browserLearn(fake);
+  let broke = "";
+  for (const text of hostile.concat(["{not json", "", "{\"v\":1,\"concepts\":", "\u0000\u0001"])) {
+    store[B.KEY] = text;
+    try {
+      const p = B.load();
+      B.stats(p); B.mastery(p, "fork"); B.next(p); B.due(p);
+      /* the app reads p.lessons[id] directly, so that has to be safe too */
+      const solved = (p.lessons[B.LESSONS[0].id] || {}).solved;
+      if (solved !== undefined && typeof solved !== "number") throw new Error("lessons entry not numeric");
+      B.grade(p, B.LESSONS[0], true, "sure", t0);
+      B.save(p);
+      const back = B.load();
+      if (!back.lessons[B.LESSONS[0].id] || back.lessons[B.LESSONS[0].id].solved < 1) throw new Error("a fresh success didn't survive save/load");
+    } catch (e) { broke = broke || JSON.stringify(text) + " → " + e.message; }
+  }
+  ok("the browser's own load(): junk text, half-written JSON and non-JSON all open, grade, save and load back", !broke, broke);
+  const refusing = browserLearn({ getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } });
+  let survived = false;
+  try {
+    const p = refusing.load();
+    refusing.grade(p, refusing.LESSONS[0], true, "sure", t0);
+    refusing.save(p);
+    survived = refusing.stats(p).solved === 1;
+  } catch (e) { survived = false; }
+  ok("…and storage that throws (private mode, blocked site data) still gives a working Academy", survived);
 }
 
 console.log(failed
