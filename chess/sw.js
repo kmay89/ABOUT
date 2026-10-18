@@ -98,9 +98,13 @@ function atOrBefore(v, w) {
   }
   return true;
 }
+/* Every one of those old workers was date-stamped, so only a date-stamped
+   cache can be one of them: a later release that names its cache some
+   other way still waits for its tap rather than counting as "old". */
+const DATED = /^chessroom-\d{4}\.\d+\.\d+\.\d+/;
 async function replacingNetworkFirst() {
   const keys = await caches.keys();
-  return keys.some((k) => k.startsWith('chessroom-') && k !== CACHE &&
+  return keys.some((k) => DATED.test(k) && k !== CACHE &&
                           atOrBefore(k.slice('chessroom-'.length), LAST_NETWORK_FIRST));
 }
 

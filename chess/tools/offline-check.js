@@ -119,6 +119,7 @@ const whoWaits = (async () => {
     ["the room's very first worker (2026.07.25.3)", ["chessroom-2026.07.25.3"], true],
     ["a worker that already serves whole releases (2026.10.18.2)", ["chessroom-2026.10.18.2"], false],
     ["a later whole-release worker (2026.11.2.1)", ["chessroom-2026.11.2.1"], false],
+    ["a later worker that names its cache another way (v7)", ["chessroom-v7"], false],
     ["nothing but other rooms' caches", ["sudokuroom-2026.07.26.1", "domino-v2", "well-v6"], false]
   ];
   for (const [who, keys, want] of cases) {
