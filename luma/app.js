@@ -2,9 +2,10 @@ import { buildMesh, binarySTL, estimateGrid } from './mesh.js';
 import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution, clamp,
   MATERIALS, COLOURS, LIGHTS, absorption, transmissionRGB, recommendedRange, contrastWords } from './image-processing.js';
 import { LithophanePreview } from './preview.js';
+import { ACCESSORIES } from './accessories.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { shape:'flat', rotation:0, mirror:false, autoTone:true, colour:'white', levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
+const state = { accessory:{ flat:'none', curved:'none', cylinder:'none' }, accessoryParts:[], shape:'flat', rotation:0, mirror:false, autoTone:true, colour:'white', levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
 const fieldIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput','fitSelect','cropX','cropY','zoomInput','brightnessInput','contrastInput','borderInput','minThicknessInput','maxThicknessInput','detailSelect','detailInput','materialSelect','lightColourSelect','standSelect'];
 // Fields added after the first project format: an older project simply lacks them.
 const optionalFields = { detailInput:'0', materialSelect:'pla', lightColourSelect:'warm', standSelect:'bottom' };
@@ -131,6 +132,7 @@ function render(resetView=false) {
     const mesh=buildMesh({...p,values:photo.values,nx:photo.nx,ny:photo.ny});
     state.mesh=mesh;
     if(preview&&!preview.failed)preview.update(mesh,resetView);
+    updateAccessory(s);
     drawPhotoCanvas(photo);
     if(!preview||preview.failed)drawFallback(photo,s);
     // The preview stands as it hangs; the fit check uses the way it will print.
@@ -245,6 +247,64 @@ function drawStripKey() {
   }));
 }
 
+/* ---------- frames and bases ---------- */
+function accessoryChoice() {
+  const options=ACCESSORIES[state.shape]||[];
+  return options.find(o=>o.id===state.accessory[state.shape])||null;
+}
+
+function drawAccessoryCards() {
+  const options=ACCESSORIES[state.shape]||[],chosen=state.accessory[state.shape];
+  const card=(id,name,blurb)=>{
+    const b=document.createElement('button');b.type='button';b.className='accessory-card';b.setAttribute('role','radio');
+    b.setAttribute('aria-checked',String(chosen===id));b.dataset.id=id;
+    b.innerHTML=`<strong></strong><span></span>`;b.querySelector('strong').textContent=name;b.querySelector('span').textContent=blurb;
+    b.addEventListener('click',()=>{if(state.busy)return;state.accessory[state.shape]=id;drawAccessoryCards();render();});
+    return b;
+  };
+  $('accessoryCards').replaceChildren(card('none','Just the picture','Nothing extra'),...options.map(o=>card(o.id,o.name,o.blurb)));
+}
+
+/** Build the chosen frame or base for these settings, show it, and offer its files. */
+function updateAccessory(s) {
+  const choice=accessoryChoice();
+  $('accessoryOptions').hidden=!choice;$('depthField').hidden=choice?.id!=='lightbox';
+  $('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;
+  state.accessoryParts=[];
+  if(!choice){preview?.setAccessories?.([]);return;}
+  try {
+    const made=choice.make({...s,depth:Number($('boxDepthInput').value)});
+    state.accessoryParts=made.parts;
+    $('accessoryNotes').textContent=made.notes;
+    const show=$('accessoryPreview').checked;
+    preview?.setAccessories?.(show?made.parts.map(({mesh})=>{
+      const v=new Float32Array(mesh.vertices.length);
+      for(let i=0;i<v.length;i+=3)v.set(mesh.place([mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]]),i);
+      return {vertices:v,indices:mesh.indices};
+    }):[]);
+    const pr=printer(),material=MATERIALS[$('materialSelect').value]||MATERIALS.pla;
+    $('accessoryDownloads').replaceChildren(...made.parts.map(part=>{
+      const [x,y,z]=part.mesh.size,fit=printerFit({x,y,z},5,pr.bed);
+      const b=document.createElement('button');b.type='button';b.className='button button-small accessory-download';
+      b.disabled=!fit.objectFits;
+      b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg><span></span>';
+      b.querySelector('span').textContent=fit.objectFits
+        ?`${part.name} · ${fmt(x,0)} × ${fmt(y,0)} × ${fmt(z,0)} mm · about ${fmt(part.mesh.volume/1000*material.density,0)} g`
+        :`${part.name} is too large for the ${pr.name}`;
+      b.addEventListener('click',()=>downloadAccessory(part));
+      return b;
+    }));
+  } catch(error) {
+    $('accessoryNotes').textContent=error.message;$('accessoryDownloads').replaceChildren();preview?.setAccessories?.([]);
+  }
+}
+
+function downloadAccessory(part) {
+  const base=(state.sample?'luma-photo':state.name.replace(/\.[^.]+$/,'')).normalize('NFKD').replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'').slice(0,50)||'luma-photo';
+  saveBlob(new Blob([binarySTL(part.mesh,{header:`Luma ${part.name} | units: mm | print as it arrives`})],{type:'model/stl'}),`${base}-${part.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')}.stl`);
+  toast(`${part.name} saved. Print it exactly as it arrives — no supports needed.`);
+}
+
 /** Turn a flat panel to portrait or landscape by swapping its sides. */
 function setOrientation(orientation) {
   const w=Number($('widthInput').value),h=Number($('heightInput').value);
@@ -271,6 +331,7 @@ function setShape(shape,reset=true) {
   for(const name of SHAPES)$(`shape-${name}`).setAttribute('aria-pressed',String(shape===name));
   $('flatFields').hidden=shape!=='flat';$('orientField').hidden=shape!=='flat';$('standField').hidden=shape!=='flat';$('curvedFields').hidden=shape==='flat';
   $('angleField').hidden=shape!=='curved';
+  drawAccessoryCards();
   $('curveHelp').textContent=shape==='cylinder'
     ?'A closed lamp shade that stands over an LED tea light or puck light. Measure your light and allow a few millimetres all round. Use LED lights only.'
     :'Measure your light first. The shade is an open curved panel; a lamp mount is not included.';
@@ -505,7 +566,7 @@ function installGuide() {
       <li><strong>Open your STL in your slicer</strong> — Bambu Studio, OrcaSlicer, PrusaSlicer or Cura. Choose your printer, the nozzle actually installed, your build plate and your white PLA. Keep the size at <strong>100%</strong> (the file is in millimetres) and print it <strong>standing up, exactly as it arrives</strong>: the layers then follow the picture, and the light comes through cleanly.</li>
       <li><strong>Start with these settings.</strong> With a 0.4 mm nozzle: <strong>0.12 mm layers</strong>, <strong>4 or more wall loops</strong>, <strong>100% infill</strong> (rectilinear), an <strong>8 mm brim</strong>, and about <strong>40 mm/s</strong> on outer walls. Use your filament profile for temperatures and leave supports off. Every bit of it should be solid plastic — that is what makes thickness into shade.</li>
       <li><strong>Check the slice, then print.</strong> Scrub through the layer preview: the panel should be solid all the way through, the bottom border should sit flat on the plate, and the brim should stay on the plate. A lamp stands on its bottom rim and needs no brim on most printers, but a brim never hurts a tall one.</li>
-      <li><strong>Add the light.</strong> Use an LED light and follow its instructions. A flat picture looks best a few centimetres in front of an even light — an LED panel, a light box, or a strip in a deep frame. A lamp sits over an LED tea light or puck light. Never use a candle or a hot bulb.</li>
+      <li><strong>Add the light.</strong> Use an LED light and follow its instructions. A flat picture looks best a few centimetres in front of an even light — an LED panel, or a strip or puck light in Luma’s light box. A lamp sits over an LED tea light or puck light in its base. Never use a candle or a hot bulb.</li>
     </ol>
     <div class="guide-note"><strong>Starting settings, ready to tune.</strong> They are good starting points, not a certified profile for any one printer. Every brand of white lets through a slightly different amount of light, so the 20-minute test strip is the quickest way to dial yours in.</div>
     <h3>Why standing up — and on its long edge?</h3>
@@ -598,6 +659,8 @@ function init() {
   $('printerSelect').addEventListener('change',()=>{ try { localStorage.setItem('luma-printer',$('printerSelect').value); } catch(error) {} render(); });
   $('autoToneBtn').addEventListener('click',()=>{state.autoTone=!state.autoTone;changed();});
   $('snapshotBtn').addEventListener('click',saveSnapshot);
+  $('boxDepthInput').addEventListener('input',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),80);$('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;});
+  $('accessoryPreview').addEventListener('change',()=>render());
   $('rotateBtn').addEventListener('click',()=>{state.rotation=(state.rotation+90)%360;$('cropX').value='0';$('cropY').value='0';changed();});
   $('mirrorBtn').addEventListener('click',()=>{state.mirror=!state.mirror;changed();});
   $('resetToneBtn').addEventListener('click',()=>{resetTone();changed();});

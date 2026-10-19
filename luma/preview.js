@@ -141,6 +141,22 @@ export class LithophanePreview {
     this.render();
   }
 
+  /** Frames and bases, already placed beside the picture: [{vertices, indices}]. */
+  setAccessories(meshes) {
+    if (this.extras) { this.scene.remove(this.extras); this.extras.children.forEach(m => m.geometry.dispose()); }
+    this.extras = new THREE.Group();
+    this.accessoryMaterial ||= new THREE.MeshStandardMaterial({ color: 0x3a322b, roughness: 0.62, metalness: 0, side: THREE.DoubleSide, flatShading: true });
+    for (const mesh of meshes) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(mesh.vertices, 3));
+      geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
+      geometry.computeVertexNormals();
+      this.extras.add(new THREE.Mesh(geometry, this.accessoryMaterial));
+    }
+    this.scene.add(this.extras);
+    this.render();
+  }
+
   setLight(value) { this.power = value; this.updateColors(); this.render(); }
   /** Filament absorption per channel (see absorption()) and the light's colour. */
   setFilament(k, light, surface) {

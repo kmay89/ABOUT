@@ -73,6 +73,29 @@ binary STL in a worker (or on the page if workers are blocked).
   step that's solid and bright, the first that looks almost black — set
   the range from the real print.
 
+## Frames and bases
+
+"Frame it, light it" makes printable extras sized from the picture's own
+settings, shown in the 3D preview beside it and downloaded as their own
+STLs, in their print orientation, needing no supports (`accessories.js`):
+
+- **Light box** (flat): a frame the picture presses into flush from the
+  front, resting on a ledge behind its border, with a 20–60 mm hollow for
+  an LED strip or puck light and a rabbet for a back cover with a cable
+  notch. Prints face down.
+- **Desk stand** (flat): a slotted foot the picture stands in.
+- **Tea-light base** (lamp): a cup with a groove the lamp stands in, room
+  for an LED tea light, and a hole underneath to reach its switch.
+- **Nightlight stand** (curved shade): a curved rim with a groove the shade
+  stands in, on a round floor for an LED puck or tea light.
+
+Every part is a 2D cross-section swept round a rectangle, round a circle,
+along an arc, or straight, so each comes out a closed, outward-wound solid
+with no booleans; the one two-shape part overlaps its shells, which slicers
+union. `accessories.test.mjs` checks each is closed with the expected
+topology, sits on the plate, writes as STL, and fits the picture it was
+made for.
+
 ## Making sure it prints
 
 - The printer picker holds published build volumes (Bambu Lab P2S, X1 /
