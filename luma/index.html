@@ -167,6 +167,25 @@
           </div>
           <p id="colourVerdict" class="colour-verdict" data-verdict="best" aria-live="polite"></p>
 
+          <div class="light-calc" aria-labelledby="calcTitle">
+            <p id="calcTitle" class="calc-title"><strong>Match your light</strong><span>Tell Luma what will shine through it, and where it will live.</span></p>
+            <div class="dimensions-fields">
+              <div class="field"><label for="lightSource">The light</label><div class="select-wrap"><select id="lightSource"></select></div></div>
+              <div class="field"><label for="roomSelect">The room</label><div class="select-wrap"><select id="roomSelect"></select></div></div>
+            </div>
+            <div class="dimensions-fields">
+              <div class="field"><label for="lightAmount" id="lightAmountLabel">Brightness</label><div class="number-with-unit"><input id="lightAmount" type="number" min="1" max="20000" step="1" inputmode="numeric"><span id="lightAmountUnit">lm</span></div></div>
+              <div class="field" id="lightDistanceField"><label for="lightDistance">Distance behind it</label><div class="number-with-unit"><input id="lightDistance" type="number" min="5" max="1000" step="1" inputmode="numeric"><span>mm</span></div></div>
+            </div>
+            <p id="lightHint" class="field-help"></p>
+            <div id="calcResult" class="calc-result" data-look="good" aria-live="polite">
+              <p class="calc-headline" id="calcHeadline"></p>
+              <p class="calc-numbers">Lightest <strong id="calcMin">0.8</strong> mm · Darkest <strong id="calcMax">3.2</strong> mm</p>
+              <ul id="calcTips" class="calc-tips"></ul>
+              <button id="calcApplyBtn" class="button button-small" type="button">Use these thicknesses</button>
+            </div>
+          </div>
+
           <div class="thickness-explainer">
             <div class="dimensions-fields">
               <div class="field"><label for="minThicknessInput">Lightest areas</label><div class="number-with-unit"><input id="minThicknessInput" type="number" min="0.4" max="2" step="0.1" value="0.8" inputmode="decimal"><span>mm</span></div></div>

@@ -73,6 +73,31 @@ binary STL in a worker (or on the page if workers are blocked).
   step that's solid and bright, the first that looks almost black — set
   the range from the real print.
 
+## Matching the light
+
+"Match your light" (`light.js`) turns a light and a room into a thickness
+range. Seven lights carry typical figures from manufacturers' listings
+(LED tea light ~4 lm, plug-in nightlight ~10 lm, puck light ~45 lm, LED
+strip in a light box, LED bulb ~800 lm, light pad and window ~5,000 lux),
+all editable. From brightness and distance it estimates the light on the
+back of the picture (inverse square for small lights; for a light box,
+half the strip's light over the picture's area), runs it through the same
+absorption model as the preview, and picks:
+
+- the **thinnest** areas: 0.8 mm unless the highlights would land far from
+  a comfortable brightness for the room (dark ~120, dim ~400, bright ~900
+  cd/m²), then whichever of 0.6–1.2 mm comes closest;
+- the **thickest**: shadows about 1/15th of the highlights, as seen through
+  the room light reflected off the front, never below the point where the
+  eye loses them in black, capped at 4 mm.
+
+Calibrated so a light pad in a dim room gives the well-tried 0.8–3.2 mm.
+It says when a light is too faint, too strong, or the room too bright,
+adds placement tips (bright spots from a small light too close), and
+"Use these thicknesses" also sets the preview's backlight to match.
+`light.test.mjs` checks the calibration, the inverse square, that more
+light never thins the shadows, and the warnings.
+
 ## Frames and bases
 
 "Frame it, light it" makes printable extras sized from the picture's own
