@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics */
 (function () {
 "use strict";
 
@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park" };
+var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park" };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -44,6 +44,7 @@ var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, 
      renderer has never heard of */
   if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
   if (["plain", "brief"].indexOf(prefs.coachVoice) < 0) prefs.coachVoice = "plain";
+  prefs.haptics = prefs.haptics !== false;
   if (typeof Scenes === "undefined" || !Scenes.has(prefs.scene)) prefs.scene = "park";
   if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
   Object.keys(prefs.lastClock).forEach(function (k) {
@@ -90,6 +91,7 @@ function snd(kind, opts) {
 /* a piece being lifted off the board: not a move yet, but the first
    thing you hear when you touch one */
 function sndPickUp(piece) {
+  hap("select");
   if (!prefs.sound || typeof Sound === "undefined") return;
   Sound.pickUp(piece);
 }
@@ -101,6 +103,49 @@ function sndMove(desc, plan, captured) {
   if (!prefs.sound || typeof Sound === "undefined" || !plan) return;
   Sound.move(desc, plan, { captured: captured || 0 });
 }
+
+/* ===== touch (haptics.js) =====
+   The hand's half of every moment, on the same instants as the eye's and
+   the ear's: a move is felt as it lands, not when it is decided. It has
+   its own switch, apart from sound — plenty of people play muted and
+   still want to feel the board, and the other way round. Your own moves
+   are felt in full and the other side's softly: the point is to put you
+   in the game, not to jolt you every time the coach replies. */
+var HAP = typeof Haptics !== "undefined";
+function hap(kind, opts) { return HAP && prefs.haptics ? Haptics.play(kind, opts) : false; }
+function hapAt(kind, ms, opts) { if (HAP && prefs.haptics) Haptics.at(kind, ms, opts); }
+/* a man (or a clock) that belongs to whoever is across the table. Two
+   people on one screen are both "you"; a story playing itself is nobody's. */
+function hapTheirs(piece) {
+  if (mode === "tour") return true;
+  var me = mode === "coach" ? humanSide : mode === "lan" ? lanSide : (mode === "lesson" && lesson) ? lesson.side : 0;
+  return !!me && (piece > 0 ? 1 : -1) !== me;
+}
+/* a move, timed off the very plan the board is animating: the knock as
+   it lands, the rook and then the king of a castle, the rising triplet
+   with the promotion's pillar. A capture in a game is felt at
+   fxCapture's instant instead; elsewhere (a lesson) it is felt here. */
+function hapMove(desc, plan, took, withCapture) {
+  if (!HAP || !prefs.haptics || !desc) return;
+  var soft = hapTheirs(desc.piece), dur = plan ? plan.dur : 0;
+  var landAt = plan ? dur * plan.travel : 0;
+  if (desc.rookFrom != null) {
+    var rookAt = plan ? dur * plan.rookOut : 0;
+    hapAt("castle", Math.min(rookAt, landAt), { gap: Math.abs(landAt - rookAt), soft: soft });
+    return;
+  }
+  if (desc.promo) hapAt("promote", dur * 0.3, { soft: soft });
+  if (took) { if (withCapture) hapAt("capture", landAt, { power: FX ? Fx.powerOf(took) : 0.5, soft: soft }); return; }
+  if (!desc.promo) hapAt("land", landAt, { piece: desc.piece, soft: soft });
+}
+/* Buttons answer a press with a tick, the way a real one clicks under
+   the thumb — once, on the way down, for the presses that do something.
+   Anything that already has its own feel says so with data-feel="own". */
+var TAP_FEEL = ".bigbtn, .abtn, .lchip, .playBtn, .chip, .stPick, .preset, .rung, .tile, .tact, #askRow button, #promoRow button";
+document.addEventListener("pointerdown", function (e) {
+  var b = e.target && e.target.closest ? e.target.closest(TAP_FEEL) : null;
+  if (b && !b.disabled && b.getAttribute("data-feel") !== "own") hap("tick");
+}, { passive: true });
 
 /* ===== the big moments (fx.js) =====
    The board's half (a struck square, a king laid down, a camera that
@@ -131,7 +176,7 @@ function fxCapture(desc, took, plan) {
     if (R.impact) { R.impact(sq, power); needFrame(); }
     if (!FX) return;
     Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
-    if (prefs.sound) Fx.haptic("capture");
+    hap("capture", { power: power, soft: hapTheirs(desc.piece) });
   }, plan ? plan.dur * plan.travel : 0);
 }
 function fxPromote(desc, plan) {
@@ -144,7 +189,7 @@ function fxPromote(desc, plan) {
 function fxCheck(kingSq) {
   if (!FX || kingSq == null || kingSq < 0) return;
   Fx.check(kingSq, { color: skin.marks.check });
-  if (prefs.sound) Fx.haptic("check");
+  hap("check");
 }
 /* win: true (you delivered it), false (it was delivered to you), null
    (two people on one board — a mate is everyone's moment) */
@@ -160,7 +205,7 @@ function fxMate(kingSq, attackerSq, win) {
   needFrame();
   if (!FX) return;
   Fx.mate(kingSq, { win: win });
-  if (prefs.sound) Fx.haptic(win === false ? "loss" : "mate");
+  hap(win === false ? "mateLoss" : "mateWin");
 }
 /* the board was redrawn under a finished game — a switch between 2D and
    3D, a return from looking back — so he is laid down again, without the
@@ -189,6 +234,8 @@ function mateMood(result) {
 function sndArrival(fresh) {
   var landings = R && R.flourishPlan ? R.flourishPlan() : [];
   if (!fresh) return;
+  var felt = {};
+  landings.forEach(function (l) { if (!felt[l.wave]) { felt[l.wave] = true; hapAt("arrive", l.t); } });
   if (!landings.length) { snd("start"); return; }
   if (!prefs.sound || typeof Sound === "undefined") return;
   var seen = {}, at = gameTicket;
@@ -456,6 +503,7 @@ function clockTick(now) {
       clock.lowTicked = sec;
       /* the last five seconds are a heartbeat, quickening, not a ticking */
       if (sec <= 5) snd("low-time", { left: sec }); else snd("tick");
+      if (sec <= 5 && !hapTheirs(clock.run)) hap("heartbeat");
     }
   }
   if (ms <= 0) flagFall(clock.run);
@@ -821,6 +869,7 @@ function commitMove(m, source, animOpts) {
     }
   });
   sndMove(desc, plan, took);
+  hapMove(desc, plan, took);
   fxCapture(desc, took, plan);
   fxPromote(desc, plan);
   needFrame();
@@ -1482,6 +1531,7 @@ function replayLast() {
 /* ===== undo / takeback ===== */
 function undoPly(n) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  if (HAP) Haptics.cancel();     /* …and so is every buzz still waiting to land */
   if (!G || !G.played.length) return;
   if (mode === "lan") return; /* LAN goes through the polite request */
   clearTimeout(coachTimer); thinking = false;
@@ -1782,6 +1832,7 @@ function popStar(i, live) {
   if (!el || (live && !live())) return;
   el.classList.add("on", "pop");
   sting("lesson-right");                 /* each star lands with the ding of a right answer */
+  hap("star");
   if (FX) Fx.sparkle(el, { count: 18 });
 }
 function renderEndRating(rs, cardAt) {
@@ -1832,9 +1883,11 @@ function renderEndRating(rs, cardAt) {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
       if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick && live()) Sound.countTick(k, n, after >= before);
+      if (live()) hap("count");
     }).then(function () {
       dEl.classList.add("show");
       if (live()) sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+      if (live() && after > before) hap("success");
       rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si, live); }, 380 + k * 420); });
       var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
       if (mile || up2) {
@@ -1847,6 +1900,7 @@ function renderEndRating(rs, cardAt) {
                                : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
           m.classList.remove("hide");
           sting(mile ? "milestone" : "levelup");
+          hap("success");
           if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
         }, 500 + rs.newStars.length * 420);
       }
@@ -2020,6 +2074,7 @@ function showProfile() {
 /* ===== game start / end ===== */
 function startGame(newMode, opts) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  if (HAP) Haptics.cancel();     /* …and so is every buzz still waiting to land */
   Brain.cancel();                /* …and stops, rather than holding up the next one */
   opts = opts || {};
   stopTour();
@@ -2084,6 +2139,7 @@ function endGame(result, reason, taught) {
   var iLost = (result === "white" && mySide === -1) || (result === "black" && mySide === 1);
   var mated = reason === "checkmate";
   snd(result === "draw" ? "draw" : iLost ? (mated ? "mate-lose" : "lose") : (mated ? "mate-win" : "win"));
+  if (result === "draw") hap("draw");
   var em = "🤝", title = "A draw!", sub = "";
   if (result === "draw") {
     sub = cap(reason) + ". Draws are real results — half a point each, and often the fairest one.";
@@ -3063,6 +3119,7 @@ function buildOpeningList() {
    thinking or waiting to speak about the last game may follow it in */
 function quietBoard() {
   brainTicket++; gameTicket++;
+  if (HAP) Haptics.cancel();
   Brain.cancel();
   clearTimeout(coachTimer); thinking = false; hintPending = false;
   closePromo(); hideToast(); clearLines();
@@ -3635,6 +3692,7 @@ function lessonAttempt(m) {
       celebrateLesson(verdict);
     });
     sndMove(desc, okPlan, m.capt);
+    hapMove(desc, okPlan, m.capt, true);
     needFrame();
     return;
   }
@@ -3645,6 +3703,7 @@ function lessonAttempt(m) {
   var say = Learn.critique(lesson, G, m);
   var tryPlan = R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
     snd("lesson-wrong");
+    hap("lessonWrong");
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
@@ -3659,11 +3718,13 @@ function lessonAttempt(m) {
     })]);
   });
   sndMove(desc, tryPlan, m.capt);
+  hapMove(desc, tryPlan, m.capt, true);
   needFrame();
 }
 
 function celebrateLesson(verdict) {
   snd("lesson-right");
+  hap("lessonRight");
   var why = verdict.best ? lesson.why : (lesson.alsoWhy || lesson.why);
   if (lessonRevealed) {
     /* it was shown first, and the schedule has already heard so: asking
@@ -4192,6 +4253,9 @@ function wireInput() {
       var legal = false;
       for (var i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === over) { legal = true; break; }
       if (R.dragHover) R.dragHover(legal ? over : -1);
+      /* the detent: once per square it can go to, as it crosses onto it */
+      if (legal && over !== carry.felt) hap("hover");
+      carry.felt = legal ? over : -1;
       needFrame();
       return;
     }
@@ -4212,6 +4276,10 @@ function wireInput() {
         var r = stage.getBoundingClientRect();
         var to = R.setDrag ? R.setDrag(c.from, last.x - r.left, last.y - r.top) : R.screenToSquare(last.x - r.left, last.y - r.top);
         dropCarry();
+        /* let go on a square it cannot reach (and not on another of its
+           own men, which simply picks that one up instead): a head shake */
+        if (to >= 0 && to !== c.from && sel === c.from && !ownMan(to) &&
+            !legalMoves.some(function (lm) { return lm.to === to; })) hap("nope");
         if (to >= 0 && to !== c.from && sel === c.from) tapSquare(to);
       } else {
         dropCarry();
@@ -4272,6 +4340,10 @@ function syncSettingsUI() {
   if (typeof Sound !== "undefined") Sound.enable(prefs.sound);
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
+  if (HAP) Haptics.setEnabled(prefs.haptics);
+  $("setHaptics").classList.toggle("sel", prefs.haptics);
+  $("setHaptics").textContent = prefs.haptics ? "On" : "Off";
+  $("setHapticsNote").classList.toggle("hide", HAP && Haptics.supported() !== "none");
   $("setHelpers").classList.toggle("sel", prefs.helpers);
   $("setHelpers").textContent = prefs.helpers ? "On" : "Off";
   $("ckSimple").classList.toggle("sel", prefs.clockSkin === "simple");
@@ -4428,6 +4500,10 @@ function wireUI() {
     /* the switch is a click, which is the gesture a browser wants
        before it will start an audio clock at all */
     if (prefs.sound) { Sound.wake(); Sound.tap(6, 0.8); }
+  });
+  $("setHaptics").addEventListener("click", function () {
+    prefs.haptics = !prefs.haptics; savePrefs(); syncSettingsUI();
+    hap("select");      /* switched on, it says so the only way it can */
   });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
