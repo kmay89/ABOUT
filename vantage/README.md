@@ -40,7 +40,7 @@ photographs of the new park from March to October 2026, lined up and turned
 into curtains and scrubs. It lives in a private project repo; to refresh it,
 rebuild there with `vantage build --release` and copy `dist/aurora-park/site/`
 over this folder, then put back `share.jpg` (March | October split with the
-curtain handle and the MKSK logo, 1200 × 630) and update its size and hash in
+curtain handle over a navy band with the Aurora Park logo, 1200 × 630) and update its size and hash in
 `sw.js` (`["share.jpg", <bytes>, "<first 16 hex of sha256>"]`).
 
 ## The demo is simulated
