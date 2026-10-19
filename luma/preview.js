@@ -1,0 +1,144 @@
+import * as THREE from './vendor/three.module.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+/** Interactive view of the very same solid used for STL export. Units are mm. */
+export class LithophanePreview {
+  constructor(container, onFailure, onRestore) {
+    this.container = container;
+    this.mode = 'lit';
+    this.power = 1;
+    this.failed = false;
+    this.onFailure = onFailure;
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 4000);
+    this.camera.up.set(0, 0, 1);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    const canvas = this.renderer.domElement;
+    canvas.setAttribute('aria-label', 'Interactive 3D lithophane. Drag to rotate; pinch or scroll to zoom.');
+    canvas.setAttribute('role', 'img');
+    canvas.tabIndex = 0;
+    canvas.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;outline-offset:-5px;';
+    container.append(canvas);
+    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls.enableDamping = false;
+    this.controls.enablePan = false;
+    this.controls.minPolarAngle = 0.12;
+    this.controls.maxPolarAngle = Math.PI * 0.92;
+    this.controls.minDistance = 40;
+    this.controls.maxDistance = 1200;
+    this.controls.addEventListener('change', () => this.render());
+    canvas.addEventListener('keydown', (e) => {
+      if (e.key === 'Home') { this.resetView(); e.preventDefault(); }
+      else if (e.key === '+' || e.key === '=') { this.zoom(0.9); e.preventDefault(); }
+      else if (e.key === '-') { this.zoom(1.1); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const v = this.camera.position.clone().sub(this.controls.target);
+        v.applyAxisAngle(new THREE.Vector3(0, 0, 1), e.key === 'ArrowLeft' ? 0.12 : -0.12);
+        this.camera.position.copy(this.controls.target).add(v); this.controls.update(); e.preventDefault();
+      }
+    });
+    this.scene.add(new THREE.HemisphereLight(0xfff3de, 0x786653, 2));
+    const key = new THREE.DirectionalLight(0xffefd7, 3.2);
+    key.position.set(-180, -240, 280); this.scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc7d9e5, 1.2);
+    fill.position.set(170, -80, 140); this.scene.add(fill);
+    const back = new THREE.DirectionalLight(0xffcd89, 2);
+    back.position.set(0, 220, 190); this.scene.add(back);
+    this.litMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.FrontSide });
+    this.litMaterial.toneMapped = false;
+    this.solidMaterial = new THREE.MeshStandardMaterial({ color: 0xf1ede3, roughness: 0.83, metalness: 0 });
+    this.observer = new ResizeObserver(() => this.resize());
+    this.observer.observe(container);
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault(); this.failed = true; this.onFailure?.();
+    });
+    canvas.addEventListener('webglcontextrestored', () => { this.failed = false; canvas.hidden = false; onRestore?.(); this.render(); });
+    this.resize();
+  }
+
+  zoom(multiplier) {
+    const delta = this.camera.position.clone().sub(this.controls.target).multiplyScalar(multiplier);
+    if (delta.length() < this.controls.minDistance || delta.length() > this.controls.maxDistance) return;
+    this.camera.position.copy(this.controls.target).add(delta); this.controls.update();
+  }
+
+  resize() {
+    const { width, height } = this.container.getBoundingClientRect();
+    if (!width || !height) return;
+    this.renderer.setSize(width, height, false);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    if (this.data && !this.userFramed) this.resetView();
+    this.render();
+  }
+
+  update(mesh, reset = false) {
+    if (this.model) { this.scene.remove(this.model); this.model.geometry.dispose(); }
+    this.data = mesh;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(mesh.vertices, 3));
+    geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
+    geometry.computeVertexNormals();
+    this.model = new THREE.Mesh(geometry, this.mode === 'lit' ? this.litMaterial : this.solidMaterial);
+    this.scene.add(this.model);
+    this.updateColors();
+    if (reset || !this.hasView) this.resetView();
+    this.render();
+  }
+
+  updateColors() {
+    if (!this.data || !this.model) return;
+    const mesh = this.data, s = mesh.settings;
+    const color = new Float32Array(mesh.vertexCount * 3);
+    // Front/back grids have equal shape and share physical thickness, so the image
+    // is visible through either side of the panel.
+    const half = mesh.vertexCount / 2;
+    for (let i = 0; i < half; i++) {
+      const j = i * 3, k = (i + half) * 3;
+      const t = mesh.thicknesses[i];
+      const transmission = Math.max(0.015, Math.min(1, this.power * 0.97 * Math.exp(-1.18 * (t - s.minThickness))));
+      // The numbers are linear light; the renderer supplies display color conversion.
+      for (const index of [j, k]) {
+        color[index] = transmission;
+        color[index + 1] = transmission * 0.79;
+        color[index + 2] = transmission * 0.53;
+      }
+    }
+    this.model.geometry.setAttribute('color', new THREE.BufferAttribute(color, 3));
+  }
+
+  resetView() {
+    if (!this.data) return;
+    const v = this.data.vertices;
+    let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < v.length; i += 3) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], v[i+a]); hi[a] = Math.max(hi[a], v[i+a]); }
+    const target = new THREE.Vector3(0, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2);
+    const width = hi[0]-lo[0], height = hi[2]-lo[2], depth = hi[1]-lo[1];
+    const fov = this.camera.fov * Math.PI / 180;
+    const distance = Math.max(height, width / this.camera.aspect, depth) / (2 * Math.tan(fov/2)) * 1.34;
+    this.controls.target.copy(target);
+    this.camera.position.copy(target).add(new THREE.Vector3(distance * 0.16, -distance, distance * 0.13));
+    this.controls.minDistance = Math.max(width, height) * 0.65;
+    this.controls.maxDistance = Math.max(distance * 4, 600);
+    this.camera.near = 0.1;
+    this.camera.far = Math.max(4000, distance*8);
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+    this.hasView = true;
+    this.render();
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    if (this.model) this.model.material = mode === 'lit' ? this.litMaterial : this.solidMaterial;
+    this.render();
+  }
+
+  setLight(value) { this.power = value; this.updateColors(); this.render(); }
+  render() { if (!this.failed) this.renderer.render(this.scene, this.camera); }
+}

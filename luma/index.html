@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="Turn a favorite photo into a softly glowing, 3D printable lithophane — flat picture panels, curved nightlight shades and full-circle lamps. Free, in your browser; your photo never leaves your device.">
+  <title>Luma — Lithophane Studio · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/luma/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Luma — Lithophane Studio">
+  <meta property="og:description" content="A photo, a little light, something special. Turn any photo into a 3D printable lithophane — a picture for the wall, a nightlight shade, or a lamp. Free, private, in your browser.">
+  <meta property="og:url" content="https://kmay89.com/luma/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Luma, Lithophane Studio home">
+      <svg class="brand-mark" viewBox="0 0 36 40" aria-hidden="true"><path d="M5 32V12L12 8V35"/><path d="M15 35V7L22 3V35"/><path d="M25 35V15L32 11V32"/></svg>
+      <span class="brand-name">Luma<span class="brand-description">LITHOPHANE STUDIO</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Studio help">
+      <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>Print guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> A PHOTO. A LITTLE LIGHT. SOMETHING SPECIAL.</p>
+        <h1 id="pageTitle">Your memories,<br>in a different <em>light.</em></h1>
+      </div>
+      <div class="intro-note">
+        <p>Turn a photo into a glowing keepsake.<br>A picture for your wall. A little warmth by your bed.</p>
+        <span class="intro-steps">Upload a photo <span>→</span> Make it yours <span>→</span> Print &amp; illuminate</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="preview-pane" aria-label="Your lithophane preview">
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <div class="segmented preview-mode" role="group" aria-label="Preview appearance">
+              <button id="preview-lit" type="button" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.1"/><path d="M10 1.5v2m0 13v2M1.5 10h2m13 0h2M4 4l1.4 1.4m9.2 9.2L16 16M4 16l1.4-1.4m9.2-9.2L16 4"/></svg>Light on</button>
+              <button id="preview-solid" type="button" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 7 4v8l-7 4-7-4V6zm0 0v8m7-4-7 4-7-4m7 4v8"/></svg>Material</button>
+            </div>
+            <div class="stage-actions">
+              <button id="snapshotBtn" class="icon-button stage-reset" type="button" title="Save this preview as a picture to share" aria-label="Save this preview as a picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.6-2.5h6.8L17 7.5h3v12H4z"/><circle cx="12" cy="13" r="3.6"/></svg></button>
+              <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+            </div>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom.">
+            <canvas id="fallbackCanvas" width="1200" height="900" hidden aria-label="Lithophane preview"></canvas>
+          </div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Building your preview</span>
+          </div>
+        </div>
+
+        <div class="preview-light-row">
+          <div class="light-control">
+            <label for="lightInput"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.8 13.3a5.3 5.3 0 1 1 6.4 0L13 16H7zm.7 5h5"/></svg>Backlight</label>
+            <input id="lightInput" type="range" min="0.5" max="1.5" step="0.05" value="1" aria-label="Preview backlight brightness">
+            <output id="lightValue" for="lightInput">100%</output>
+          </div>
+          <span class="preview-label">LIVE PREVIEW</span>
+        </div>
+        <p id="previewCaption" class="preview-caption">Preview is an approximation. Filament and your light affect the printed result.</p>
+
+        <div class="model-details" aria-label="Model dimensions">
+          <div><span class="metric-label">Finished size</span><strong id="dimensionLabel">100 × 150 mm</strong></div>
+          <div><span class="metric-label">Photo area</span><strong id="photoAreaLabel">94 × 144 mm</strong></div>
+          <div><span class="metric-label">Shape &amp; depth</span><strong id="radiusLabel">3 mm border included · 3 mm maximum depth</strong></div>
+        </div>
+
+        <div class="fit-card" aria-live="polite">
+          <span id="fitBadge" class="fit-badge"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3.2 3.2L15 6.5"/></svg>Fits your P2S</span>
+          <p id="fitMessage">Sized for your Bambu Lab P2S. Export an STL, then open it in Bambu Studio.</p>
+        </div>
+
+        <div class="making-note">
+          <div class="making-note-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M10 20.4a9 9 0 1 1 12 0L21 25H11zm2 9h8M16 7v8m-4-4 4 4 4-4"/></svg></div>
+          <div><h2>It’s all in the thickness.</h2><p>Thin areas let the light through. Thicker areas hold the shadows. Your photo becomes a picture you can feel.</p></div>
+        </div>
+      </section>
+
+      <aside class="editor-panel" aria-label="Lithophane settings">
+        <section class="editor-section photo-section" aria-labelledby="photoHeading">
+          <div class="section-heading"><h2 id="photoHeading"><span class="step-number">01</span>Your photo</h2><button id="sampleBtn" class="text-button" type="button">Try the sample</button></div>
+          <input id="photoInput" class="visually-hidden" type="file" accept="image/*,.heic,.heif" tabindex="-1" aria-label="Choose a photo">
+          <div id="dropZone" class="drop-zone">
+            <span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><rect x="3.5" y="5" width="21" height="19" rx="3"/><circle cx="10" cy="11.5" r="2"/><path d="m4 20 5-5 4 3 5-6 6 7M20 1v7m-3-4 3-3 3 3"/></svg></span>
+            <div class="upload-copy"><button id="uploadBtn" class="upload-button" type="button">Choose a photo <span aria-hidden="true">↗</span></button><p>or drop or paste an image here</p></div>
+            <span class="upload-formats">JPG · PNG · WEBP · HEIC</span>
+          </div>
+          <div class="file-row"><span class="tiny-photo-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="m2 11 4-4 3 3 2-2 3 3"/></svg></span><span id="fileName">Sample · golden retriever</span><span class="local-dot" title="Processed in this browser"></span></div>
+          <div class="project-actions"><button id="projectOpenBtn" class="text-button muted" type="button">Open project</button><span aria-hidden="true">·</span><button id="projectSaveBtn" class="text-button muted" type="button">Save project</button></div>
+          <input id="projectInput" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Open a saved Luma project">
+        </section>
+
+        <section class="editor-section" aria-labelledby="shapeHeading">
+          <div class="section-heading"><h2 id="shapeHeading"><span class="step-number">02</span>Make it yours</h2></div>
+          <div class="shape-picker" role="group" aria-label="Lithophane shape">
+            <button id="shape-flat" class="shape-card" type="button" aria-pressed="true"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><path d="m22 6 27 2v33l-27 2z"/><path d="m22 6-4 3v31l4 3M26 12l18 1v23l-18 1z"/><path class="shape-image" d="m27 30 5-7 5 4 6-10M29 18h.1"/></svg><strong>Flat picture</strong><span>For a lighted frame</span><i class="selection-dot" aria-hidden="true"></i></button>
+            <button id="shape-curved" class="shape-card" type="button" aria-pressed="false"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><path d="M19 10c10-8 24-8 34 0v28c-10-8-24-8-34 0z"/><path d="M23 13c8-5 18-5 26 0v18c-8-5-18-5-26 0z"/><path class="shape-image" d="m25 25 7-10 6 7 8-6"/></svg><strong>Curved shade</strong><span>Around a nightlight</span><i class="selection-dot" aria-hidden="true"></i></button>
+            <button id="shape-cylinder" class="shape-card" type="button" aria-pressed="false"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><ellipse cx="36" cy="9" rx="15" ry="5"/><path d="M21 9v29c0 2.8 6.7 5 15 5s15-2.2 15-5V9"/><path class="shape-image" d="m26 31 6-8 5 5 6-9 4 5"/></svg><strong>Lamp</strong><span>All the way round</span><i class="selection-dot" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="field preset-field"><label for="presetSelect">Start with a size</label><div class="select-wrap"><select id="presetSelect"><option value="custom" selected>Custom size</option><option value="4x6">4 × 6 in picture</option><option value="5x7">5 × 7 in picture</option><option value="square">Square picture</option><option value="nightlight">Nightlight shade</option><option value="lamp">Tea-light lamp</option><option value="lantern">Tall lantern</option></select></div></div>
+
+          <div id="flatFields" class="dimensions-fields">
+            <div class="field"><label for="widthInput">Width</label><div class="number-with-unit"><input id="widthInput" type="number" min="20" max="320" step="0.1" value="100" inputmode="decimal"><span>mm</span></div></div>
+            <div class="field"><label for="heightInput">Height</label><div class="number-with-unit"><input id="heightInput" type="number" min="20" max="320" step="0.1" value="150" inputmode="decimal"><span>mm</span></div></div>
+          </div>
+
+          <div id="curvedFields" hidden>
+            <div class="dimensions-fields">
+              <div class="field"><label for="diameterInput">Inner diameter</label><div class="number-with-unit"><input id="diameterInput" type="number" min="20" max="240" step="0.1" value="90" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="curveHeightInput">Height</label><div class="number-with-unit"><input id="curveHeightInput" type="number" min="20" max="320" step="0.1" value="115" inputmode="decimal"><span>mm</span></div></div>
+            </div>
+            <div id="angleField" class="slider-field curve-slider"><div class="label-value"><label for="angleInput">Curve angle</label><output id="angleValue" for="angleInput">120°</output></div><input id="angleInput" type="range" min="30" max="180" step="5" value="120"><div class="range-endpoints"><span>Gentle curve</span><span>Half circle</span></div></div>
+            <p id="curveHelp" class="field-help">Measure your light first. The shade is an open curved panel; a lamp mount is not included.</p>
+          </div>
+        </section>
+
+        <section class="editor-section image-section" aria-labelledby="imageHeading">
+          <div class="section-heading"><h2 id="imageHeading"><span class="step-number">03</span>Find the right light</h2><button id="resetToneBtn" class="text-button" type="button">Reset tone</button></div>
+          <div class="crop-workspace">
+            <div class="photo-preview"><canvas id="photoCanvas" width="280" height="280" aria-label="Your photo with the selected crop and tonal adjustments"></canvas><span>PHOTO CROP</span></div>
+            <div class="crop-tools">
+              <div class="field"><label for="fitSelect">Photo fit</label><div class="select-wrap"><select id="fitSelect"><option value="cover" selected>Fill &amp; crop</option><option value="contain">Fit whole photo</option></select></div></div>
+              <div class="transform-buttons"><button id="rotateBtn" class="button button-small" type="button" title="Rotate photo 90 degrees"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8a7 7 0 1 1 2 8M3 2v6h6"/></svg>Rotate</button><button id="mirrorBtn" class="button button-small" type="button" aria-pressed="false" title="Mirror photo horizontally"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v2m0 3v2m0 3v2m0 3v1M7 5 2 15h5zm6 0 5 10h-5z"/></svg>Mirror</button></div>
+            </div>
+          </div>
+          <p class="crop-hint">Drag the photo to move it · scroll or pinch it to zoom · double-click to re-centre</p>
+          <div class="crop-sliders">
+            <div class="compact-slider"><label for="zoomInput">Zoom</label><input id="zoomInput" type="range" min="1" max="3" step="0.05" value="1"><span class="slider-symbol" aria-hidden="true">＋</span></div>
+            <div class="compact-slider"><label for="cropX">Horizontal</label><input id="cropX" type="range" min="-100" max="100" step="1" value="0"><span class="slider-symbol" aria-hidden="true">↔</span></div>
+            <div class="compact-slider"><label for="cropY">Vertical</label><input id="cropY" type="range" min="-100" max="100" step="1" value="0"><span class="slider-symbol" aria-hidden="true">↕</span></div>
+          </div>
+          <div class="tone-controls">
+            <button id="autoToneBtn" class="auto-tone" type="button" aria-pressed="true"><span class="auto-tone-switch" aria-hidden="true"></span><span><strong>Auto-enhance</strong><span>Stretches your photo’s tones to the full range of light</span></span></button>
+            <div class="slider-field"><div class="label-value"><label for="detailInput">Detail</label><output id="detailValue" for="detailInput">35%</output></div><input id="detailInput" type="range" min="0" max="100" step="5" value="35"><div class="range-endpoints"><span>Soft</span><span>Crisp edges</span></div></div>
+            <div class="slider-field"><div class="label-value"><label for="brightnessInput">Brightness</label><output id="brightnessValue" for="brightnessInput">0</output></div><input id="brightnessInput" type="range" min="-40" max="40" step="1" value="0"></div>
+            <div class="slider-field"><div class="label-value"><label for="contrastInput">Contrast</label><output id="contrastValue" for="contrastInput">100%</output></div><input id="contrastInput" type="range" min="50" max="150" step="1" value="100"></div>
+          </div>
+        </section>
+
+        <details class="print-tuning editor-section">
+          <summary><span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h4m4 0h6M3 15h8m4 0h2M7 2v6m4 4v6"/></svg>Print tuning</span><span class="summary-note">Good defaults, ready to go</span><svg class="disclosure-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg></summary>
+          <div class="tuning-content">
+            <div class="slider-field"><div class="label-value"><label for="borderInput">Border width</label><output id="borderValue" for="borderInput">3 mm</output></div><input id="borderInput" type="range" min="0" max="8" step="0.5" value="3"></div>
+            <div class="dimensions-fields">
+              <div class="field"><label for="minThicknessInput">Lightest areas</label><div class="number-with-unit"><input id="minThicknessInput" type="number" min="0.4" max="2" step="0.1" value="0.8" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="maxThicknessInput">Darkest areas</label><div class="number-with-unit"><input id="maxThicknessInput" type="number" min="1.5" max="5" step="0.1" value="3" inputmode="decimal"><span>mm</span></div></div>
+            </div>
+            <div class="field"><label for="detailSelect">Surface detail</label><div class="select-wrap"><select id="detailSelect"><option value="0.3" selected>Standard · 0.30 mm</option><option value="0.2">Fine · 0.20 mm</option><option value="0.15">Ultra · 0.15 mm</option></select></div><p class="field-help">Smaller spacing makes a larger STL. This controls the model’s surface, not your printer’s layer height.</p></div>
+            <div class="test-strip"><p>New filament or a different light? A small thickness test helps you choose the right range.</p><button id="calibrationBtn" class="button button-small" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 6h16v9H2zm4 0v4m4-4v3m4-3v4"/></svg>Make a test strip</button></div>
+          </div>
+        </details>
+
+        <div class="export-area">
+          <p id="modelStats" class="model-stats" aria-live="polite">Preparing a print-ready model…</p>
+          <div id="exportProgress" class="export-progress" hidden><label for="progressBar">Preparing your STL</label><progress id="progressBar" max="100" value="0">0%</progress></div>
+          <div class="export-shelf">
+            <button id="exportBtn" class="export-button" type="button"><span class="export-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></span><span class="export-button-copy"><strong id="exportLabel">Download STL</strong><span id="exportSubtext">Ready for Bambu Studio</span></span><span class="export-arrow" aria-hidden="true">↗</span></button>
+          </div>
+          <p class="export-note"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>Your photo stays in this browser.</p>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="site-footer"><span class="footer-brand">A little light, made by you.</span><span><a href="/">Karl Meves</a> <span class="footer-dot">·</span> <a href="https://errerlabs.com"><strong>ERRERLabs</strong></a> <span class="footer-dot">·</span> <a href="/privacy/">Privacy</a></span></footer>
+  </main>
+
+  <dialog id="printGuide" class="guide-dialog" aria-labelledby="guideTitle">
+    <div class="dialog-heading"><div><p class="eyebrow">FROM PHOTO TO FINISHED PRINT</p><h2 id="guideTitle">A little guidance.</h2></div><button id="guideCloseBtn" class="icon-button" type="button" aria-label="Close print guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+    <div id="guideContent" class="guide-content"><p>Export your STL and open it in Bambu Studio. Use white filament and a cool LED light for your first lithophane. A test strip lets you check your filament and light before a full-size print.</p></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
