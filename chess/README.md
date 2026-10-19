@@ -213,6 +213,14 @@ fx.js               the big moments, as light: a layer over the board for
                     per step, a shake, a buzz. Procedural sprites, 400
                     particles at most, asleep and a pixel big when idle,
                     nothing at all under reduced motion
+haptics.js          what the game feels like in the hand: a vocabulary of
+                    named moments (a pick-up, a detent, a landing weighted
+                    by the man, a capture weighted by what it took, a
+                    castle, a check, a mate…) written down as vibration
+                    patterns, played through navigator.vibrate on Android
+                    or as ticks of one hidden system switch on an iPhone,
+                    never two ticks close enough to smear, and every buzz
+                    still waiting taken back when the game moves on
 room.js             the shared front door: four-letter room codes over the
                     site's mailbox, the link heartbeat, the healing loop,
                     and the keepsake a reload comes back to. Byte-identical
@@ -314,6 +322,18 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  haptics-check.js  every moment the game asks for is written down and
+                    sane (whole positive milliseconds, pulse to pulse, no
+                    gap a tick could smear across, all over in under a
+                    second and a quarter); the shapes say what they mean
+                    (a queen lands heavier than a pawn, a big capture
+                    leaves a dying after-rumble, the other side is softer,
+                    a mate builds); a flood of ticks is dropped, anything
+                    that matters waits its turn; off, a hidden tab and no
+                    motor are all silence; a scheduled moment lands on
+                    time and can be taken back, one or all; and on the
+                    iPhone path, one tick per beat. Node, a fake motor and
+                    a fake clock — no browser
   touch-check.js    plays a whole game by thumb on a phone-sized screen,
                     in 3D and in 2D, and fails on a single page error —
                     every other check moves pieces through the dev
@@ -1153,6 +1173,82 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## The feel
+
+Polished phone games are felt as much as seen, and almost none of that
+is buzzing. It is the little detent of a picker wheel, the knock of a
+thing set down, a heavier thump when something big is hit — short,
+crisp, and at exactly the instant the eye sees it. A buzz on every touch
+is noise, and noise is the first thing anyone switches off. So
+`haptics.js` is a small vocabulary rather than a rumble, and it is mostly
+restraint.
+
+A phone's motor cannot be asked how hard to push, only for how long. Six
+to twelve milliseconds reads as a click; twenty or thirty as weight;
+longer as a rumble. Every moment is written down as data in those terms:
+
+- **Picking a man up** is one light tick under your finger.
+- **Carrying him onto a square he can go to** is the lightest tick there
+  is, once per square as he crosses onto it: the detent. You can feel
+  your way across the board.
+- **Setting him down** is a knock, timed to the landing off the same plan
+  the board animates and the synth plays — a pawn a little lighter than
+  a queen or a king.
+- **A capture** is a real hit, harder the more was taken, at the same
+  instant the sparks fly. Take a rook or a queen and the table shakes a
+  moment afterwards, dying away.
+- **A castle** is two ticks: the rook, then the king, as far apart as the
+  board really sets them down.
+- **A check** is two sharp beats. **A promotion** rises: three beats, each
+  heavier, with the pillar of light. **A mate you gave** builds, beat on
+  beat; **a mate you took** is one long, low one; **a draw** is two even,
+  soft beats.
+- **Letting go where a man cannot go** is a little head shake: two quick,
+  soft buzzes, and he goes home.
+- **The last five seconds on your clock** beat with the heartbeat you
+  hear, lub-dub.
+- **The men arriving** at a new game are barely there, one per rank as it
+  lands. **The end card** ticks as your rating counts up, pops as each
+  star lands, and gives a small fanfare for a rating gained or a level
+  outgrown. **A lesson** nods when you get it and gently shakes its head
+  when you don't.
+- **Buttons** go down the instant a finger lands — a touch smaller, a
+  shade darker — and come back up with a small spring past where they
+  started, with a light tick on the way down. Only on a press, never on
+  hover; only scale and brightness, which move nothing around them; and
+  no movement at all under reduced motion.
+
+Your own moves are felt in full; the other side's are felt softly. The
+point is to put you in the game, not to jolt you every time the coach
+replies. Two people sharing one screen are both "you".
+
+Ticks never smear. Two closer than about a thirtieth of a second run
+together into a buzz, so nothing is ever played that close: the floods
+(the detents, a number counting) are dropped when they crowd, never
+queued, because a queue of stale ticks is worse than a missing one, and
+anything that matters waits the few milliseconds it needs. A new game, a
+take-back or a hidden tab takes every buzz still waiting with it.
+
+It has its own switch in Settings, separate from sound — plenty of people
+play muted and still want to feel the board.
+
+**On an iPhone** there is no `navigator.vibrate` at all. But since Safari
+17.4 a checkbox with the `switch` attribute is drawn as a system switch,
+and toggling one gives the same small tick the system's own switches do.
+So the room keeps one, hidden — off-screen, out of reach of Tab, a
+screen reader and a finger, taking no room — and plays a pattern as
+ticks at its beats. Strength cannot be varied that way, so a heavier
+moment gets an extra tick or two instead. It is a trick rather than an
+API, and Apple may change it; if it stops working the room loses a
+little seasoning and nothing else, because every moment here is also
+seen and, if you like, heard. A device with nothing to buzz (a laptop, a
+desktop) says so under the switch, and everything else still works.
+
+`haptics-check.js` plays the whole vocabulary in node against a fake
+motor and a fake clock: every pattern sane, the throttle dropping and
+holding as it should, off really off, and one tick per beat on the
+iPhone path.
+
 ## The room's music
 
 The pieces were modelled; everything else was a sine beep. A beep can
@@ -1587,6 +1683,7 @@ node chess/tools/gfx-check.js      # the room lights up, every tier, every skin 
 node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
 node chess/tools/feel-check.js     # the board has weight, and comes to rest
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
+node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
@@ -1601,7 +1698,7 @@ Or from the repo root, in three groups by how long they take:
 ```
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # pieces, engine, brain, offline, touch, play, rating,
-                               # sound, motion
+                               # sound, motion, haptics
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over
 ```
