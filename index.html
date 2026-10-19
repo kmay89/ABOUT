@@ -46,6 +46,7 @@
     --c-chili:#ff7454;
     --c-vantage:#4fd6c4;
     --c-well:#9aa8ff;
+    --c-luma:#ffcf8a;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -332,6 +333,16 @@
   .iso-obj[data-id="well"]:hover ~ #wellNight > g,
   .iso-obj[data-id="well"]:focus-visible ~ #wellNight > g,
   .iso-obj[data-id="well"].picked ~ #wellNight > g{transform:translateY(-8px)}
+  /* the lithophane on the wall is lit from behind, so it outlasts the lamp
+     too (see lumaNight in the scene), and lifts with its frame */
+  #lumaNight{opacity:0;transition:opacity 1.1s ease .35s}
+  body.lights-out #lumaNight{opacity:1}
+  #lumaNight > g{transition:transform .3s cubic-bezier(.2,.9,.3,1.35)}
+  .iso-obj[data-id="luma"]:hover ~ #lumaNight > g,
+  .iso-obj[data-id="luma"]:focus-visible ~ #lumaNight > g,
+  .iso-obj[data-id="luma"].picked ~ #lumaNight > g{transform:translateY(-8px)}
+  .lumaglow{animation:lumaBreathe 7s ease-in-out infinite}
+  @keyframes lumaBreathe{0%,100%{opacity:.85}50%{opacity:1}}
   .era-now{display:none}
   #iso.now .era-now{display:inline}
   #iso.now .era-old{display:none}
@@ -789,6 +800,8 @@
     .wellglow,.wellsink{animation:none}
     .wellmote{animation:none;opacity:.4;transform:translateY(-8px)}   /* held up in the light, not sitting on the stone */
     #wellNight,#wellNight > g{transition:none}
+    #lumaNight,#lumaNight > g{transition:none}
+    .lumaglow{animation:none}
     #moon{transition:none}
     html{scroll-behavior:auto}
   }
@@ -828,6 +841,7 @@
     <button data-id="prism" style="--a:var(--c-pri)">The light bench</button>
     <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
     <button data-id="vantage" style="--a:var(--c-vantage)">Vantage</button>
+    <button data-id="luma" style="--a:var(--c-luma)">Luma</button>
     <span class="legend-sep" aria-hidden="true"></span>
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
     <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
@@ -953,6 +967,7 @@
     <a href="/library/">The reading room</a>
     <a href="/chili/">The chili</a>
     <a href="/vantage/">Vantage</a>
+    <a href="/luma/">Luma — lithophanes</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1334,6 +1349,41 @@
       '<g stroke="rgba(255,255,255,.25)" stroke-width="1.4" fill="none">' +
         '<path d="M330 22 L330 108"/><path d="M296 62 L364 78"/><path d="M300 92 L360 50"/></g></g>';
   S.push(wrapObj("offhours","Tie-dye — off the clock","#e0a458",gRight(-30,400,190,tee)));
+
+  /* ---------- wall B: a lithophane, lit from behind (Luma) ----------
+     The one bare stretch of wall left is the far end of wall B, above the
+     bike: y 290–398, z 122–196, clear of the back wheel by about fifteen
+     units. A lithophane is a picture made only of thickness — thin plastic
+     glows, thick plastic holds the shadow — so it is drawn as nothing but
+     warm light and brown: a moon over hills and still water, with a pine
+     in front, in a dark frame with a gilt lip and a little LED behind it
+     breathing on the wall. It is lit from behind, which means the light
+     switch can't put it out: a copy of the glowing panel is drawn after the
+     darkness (lumaNight, below). LITHO is shared by both. */
+  var LITHO =
+    '<defs><radialGradient id="lithoSky" gradientUnits="userSpaceOnUse" cx="72" cy="18" r="70">' +
+      '<stop offset="0" stop-color="#fff8e6"/><stop offset=".3" stop-color="#f7dcab"/>' +
+      '<stop offset=".75" stop-color="#d6a96d"/><stop offset="1" stop-color="#b48452"/></radialGradient>' +
+    '<linearGradient id="lithoWater" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#e9c48c"/><stop offset="1" stop-color="#a87a48"/></linearGradient></defs>' +
+    '<rect width="100" height="64" fill="url(#lithoSky)"/>' +
+    '<circle cx="72" cy="18" r="6.5" fill="#fffcf2"/>' +
+    '<polygon points="0,40 12,29 22,34 38,19 52,31 64,25 80,36 92,30 100,33 100,64 0,64" fill="#c99b62"/>' +
+    '<polygon points="0,49 16,41 31,46 50,38 68,47 84,42 100,46 100,64 0,64" fill="#8f6136"/>' +
+    '<rect y="52" width="100" height="12" fill="url(#lithoWater)"/>' +
+    '<g fill="#fff1d2" opacity=".85"><rect x="68.5" y="53.5" width="7" height="1.4"/><rect x="69.5" y="56.5" width="5" height="1.2"/>' +
+      '<rect x="70.5" y="59.5" width="3" height="1"/></g>' +
+    '<g fill="#4b2c14"><polygon points="22,18 28,31 25.5,31 31,41 27.5,41 33,51 11,51 16.5,41 13,41 18.5,31 16,31"/>' +
+      '<rect x="20.6" y="51" width="2.8" height="4"/>' +
+      '<polygon points="9,36 12.5,43 11,43 14,49 4,49 7,43 5.5,43"/></g>' +
+    '<rect width="100" height="64" fill="none" stroke="rgba(60,32,12,.35)" stroke-width="1.6"/>';
+  var LITHO_HALO = '<g class="lumaglow"><ellipse cx="50" cy="32" rx="86" ry="56" fill="#ffcf8a" opacity=".3" filter="url(#soft)"/></g>';
+  var litho = LITHO_HALO.replace('opacity=".3"','opacity=".14"') +
+    '<rect x="-7" y="-7" width="114" height="78" fill="#3a2515" stroke="rgba(20,10,4,.6)" stroke-width="2"/>' +
+    '<rect x="-2" y="-2" width="104" height="68" fill="none" stroke="#9b7843" stroke-width="1.4"/>' +
+    LITHO +
+    '<rect x="-7" y="-7" width="114" height="78" fill="transparent"/>';     // the whole frame is the hit area
+  S.push(wrapObj("luma","Luma — a lithophane glowing on the wall: turn any photo into one you can 3D print","#ffcf8a",gRight(-30,394,190,litho)));
 
   /* ---------- wall A: a polaroid of me, waving hi ---------- */
   var pol = '<g transform="rotate(4)">' +
@@ -2533,6 +2583,13 @@
   S.push('<g id="wellNight" aria-hidden="true" style="pointer-events:none"><g>' +
     WL_POOL + '<g class="wellglow">' + WL_RISE + "</g></g></g>");
 
+  /* The lithophane, again, for when the lamp is off: its own LED is still on,
+     so the panel and the glow it throws on the wall come through the dark —
+     a little brighter than by lamplight, the way a backlit picture is. */
+  S.push('<g id="lumaNight" aria-hidden="true" style="pointer-events:none"><g>' +
+    gRight(-30,394,190,LITHO_HALO + LITHO.replace(/id="litho(Sky|Water)"/g,'id="lithoN$1"').replace(/url\(#litho(Sky|Water)\)/g,"url(#lithoN$1)")) +
+    "</g></g>");
+
   /* what the dark writes on the wall, in the plane of the wall itself */
   S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
     gLeft(284,-30,184,
@@ -2676,6 +2733,16 @@
         {label:"🚁 Fly over — Vantage", href:"/vantage/", cta:true, sameTab:true},
         {label:"🌳 Aurora Park at Geauga Lake", href:"/vantage/aurora-park/", sameTab:true},
         {label:"github.com/kmay89/timelapse_drone", href:"https://github.com/kmay89/timelapse_drone"}
+      ]
+    },
+    luma: {
+      kicker: "Luma · New",
+      title: "Luma — Your Photo, in a Different Light",
+      story: "A lithophane is a picture made of nothing but thickness. Thin plastic lets the light through, thick plastic holds the shadow, and when you put a light behind it a photo appears out of a plain white tile — the trick porcelain makers worked out two hundred years ago, which a home 3D printer can now do overnight. Luma makes the file. Drop in a photo and it becomes a picture for a frame, a curved nightlight shade, or a lamp that goes all the way round a tea light, with a live 3D preview lit from behind so you see the glow before you print a thing. Auto-enhance stretches a dull photo to the full range of light, Detail keeps eyes and fur crisp through the plastic, and a seven-step test strip tells you how your own filament and your own light behave. It checks the model fits your printer, tells you how much plastic it takes, and hands you a guide to the slicer. Your photo never leaves your device — the page has nowhere to send it. The one on the wall is lit from behind, so it's the last thing to go dark.",
+      chips: ["Pictures, shades & lamps","Live lit 3D preview","Auto-enhance & Detail","Fits-your-printer check","Thickness test strip","Save a preview to share","iPhone HEIC photos","Your photo stays on your device"],
+      links: [
+        {label:"💡 Make one — Luma", href:"/luma/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
       ]
     },
     well: {
@@ -2853,6 +2920,13 @@
       noise({filter:"lowpass", freq:520, at:0.66, dur:0.05, g:0.11});
       tone(2400, {type:"sine", at:0.70, dur:0.05, g:0.025});
     },
+    luma: function(){ // the little click of an LED behind the frame, and a warm chord coming up with the light
+      noise({filter:"bandpass", freq:3200, q:3, dur:0.02, g:0.08});
+      tone(523.25, {type:"sine", at:0.04, dur:0.9, g:0.035});
+      tone(659.25, {type:"sine", at:0.10, dur:0.8, g:0.028});
+      tone(783.99, {type:"sine", at:0.16, dur:0.75, g:0.022});
+      tone(1046.5, {type:"sine", at:0.22, dur:0.6, g:0.012});
+    },
     well: function(){ // a drop falls a long way, the stone answers low, and the echo comes back up
       tone(1174.66, {type:"sine", dur:0.07, g:0.075, end:2349.3});        // the plink: a drop's rising chirp, D6 to D7
       tone(73.42,   {type:"sine", at:0.03, dur:1.5, g:0.055});           // the shaft rings on a low D
@@ -2938,7 +3012,8 @@
     series:[10,25,10], scqcs:[25,60,25], vinyl:[8,90,8,90,8], cam:[18],
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
     utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18],
-    well:[6,90,24]                    // the drop, then the stone
+    well:[6,90,24],                   // the drop, then the stone
+    luma:[8,60,30]                    // the click, then the glow
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }
@@ -3132,6 +3207,8 @@
      glyph:'<path d="M18 8 h8 M20 8 l0 12 q0 2 -1.5 3.5 l-4 4 a7.4 7.4 0 1 0 15 0 l-4 -4 q-1.5 -1.5 -1.5 -3.5 l0 -12" fill="none" stroke="#6ecbe8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 28 h13" stroke="#6ecbe8" stroke-width="2.2"/><circle cx="20" cy="32" r="1.3" fill="#6ecbe8"/><circle cx="25" cy="34.5" r="1.1" fill="#6ecbe8"/>'},
     {name:"kmay89.com/vantage", href:"/vantage/", a:"#4fd6c4", tg:"linear-gradient(150deg,#0f3a35,#08201d)",
      glyph:'<g fill="none" stroke="#4fd6c4" stroke-width="2.2"><circle cx="11" cy="11" r="6.5"/><circle cx="33" cy="11" r="6.5"/><circle cx="11" cy="33" r="6.5"/><circle cx="33" cy="33" r="6.5"/></g><path d="M15.5 15.5 L28.5 28.5 M28.5 15.5 L15.5 28.5" stroke="#4fd6c4" stroke-width="3" stroke-linecap="round"/><rect x="16" y="17" width="12" height="10" rx="3" fill="#4fd6c4"/><circle cx="22" cy="22" r="2" fill="#08201d"/>'},
+    {name:"kmay89.com/luma", href:"/luma/", a:"#ffcf8a", tg:"linear-gradient(150deg,#3d2c16,#1f160a)",
+     glyph:'<rect x="8" y="9" width="28" height="26" rx="2" fill="none" stroke="#ffcf8a" stroke-width="2.5"/><circle cx="28" cy="17" r="3" fill="#ffcf8a"/><path d="M9 30 l8 -9 6 5 5 -4 7 8" fill="none" stroke="#ffcf8a" stroke-width="2" stroke-linejoin="round"/><circle cx="22" cy="22" r="17" fill="#ffcf8a" opacity=".12"/>'},
     {name:"kmay89.com — you are here", href:"https://kmay89.com", a:"#ffc97a", tg:"linear-gradient(150deg,#3a2a14,#1c1408)",
      glyph:'<rect x="6" y="9" width="32" height="22" rx="3" fill="none" stroke="#ffc97a" stroke-width="2.5"/><rect x="12" y="14" width="20" height="12" rx="2" fill="none" stroke="#ffc97a" stroke-width="1.8"/><rect x="17" y="17.5" width="10" height="5" rx="1.2" fill="#ffc97a"/><path d="M17 35 h10" stroke="#ffc97a" stroke-width="2.5" stroke-linecap="round"/>'}
   ];

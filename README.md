@@ -31,7 +31,11 @@ beside the tapes; in 1999 it's a stack of aerial prints with a loupe on
 top); and [*well*](https://kmay89.com/well/) — falling blocks down a
 lit stone shaft, where every move plays a note and nothing ever asks
 for one more go (a small stone well sits on the desk with a faint glow
-coming up out of it).
+coming up out of it); and [Luma](https://kmay89.com/luma/) — a
+lithophane studio that turns any photo into a 3D printable picture made
+only of thickness, for a frame, a nightlight shade or a lamp (it hangs
+on the wall above the bike, lit from behind, and it is the last thing in
+the room to go dark when you throw the switch).
 
 **Live:** <https://kmay89.com>
 
@@ -161,6 +165,18 @@ coming up out of it).
   with `vantage/sync-demo.sh`, never by hand. The engine is
   [kmay89/timelapse_drone](https://github.com/kmay89/timelapse_drone);
   notes in `vantage/README.md`.
+- `luma/` — Luma, a lithophane studio. Drop in a photo and it becomes a
+  3D printable panel whose thickness is the picture: a flat insert for a
+  frame, a curved nightlight shade, or a lamp that goes all the way round
+  an LED tea light. A live Three.js preview lights it from behind;
+  Auto-enhance stretches the photo's own black and white points to the
+  full thickness range, Detail is an unsharp mask with a radius in
+  millimetres so preview and export agree, and the fit check knows the
+  plates of the common printers. The geometry is one closed indexed solid
+  per model (a lamp is a ring, genus one) written as binary STL in a
+  worker, and the photo never leaves the browser. Notes and checks in
+  `luma/README.md`; `npm run check:luma` runs the geometry and image
+  suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
@@ -323,6 +339,7 @@ If you touch any of the game rooms, run the checks first:
 npm run check        # parity, the well's promises, the mailbox, the chess room
 npm run check:rules  # replays tens of thousands of games of every new room
 npm run check:well   # just the well: names, colours, skies, help lines, shell
+npm run check:luma   # the lithophane studio's geometry and image maths
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
 npm run icons        # redraws every new room's icons from scratch
