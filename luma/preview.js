@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { absorption, transmissionRGB, LIGHTS } from './image-processing.js';
 
 /** Interactive view of the very same solid used for STL export. Units are mm. */
 export class LithophanePreview {
@@ -7,6 +8,8 @@ export class LithophanePreview {
     this.container = container;
     this.mode = 'lit';
     this.power = 1;
+    this.k = absorption('pla', 'white');
+    this.light = LIGHTS.warm.rgb;
     this.failed = false;
     this.onFailure = onFailure;
     this.scene = new THREE.Scene();
@@ -93,20 +96,19 @@ export class LithophanePreview {
 
   updateColors() {
     if (!this.data || !this.model) return;
-    const mesh = this.data, s = mesh.settings;
+    const mesh = this.data;
     const color = new Float32Array(mesh.vertexCount * 3);
     // Front/back grids have equal shape and share physical thickness, so the image
     // is visible through either side of the panel.
     const half = mesh.vertexCount / 2;
     for (let i = 0; i < half; i++) {
       const j = i * 3, k = (i + half) * 3;
-      const t = mesh.thicknesses[i];
-      const transmission = Math.max(0.015, Math.min(1, this.power * 0.97 * Math.exp(-1.18 * (t - s.minThickness))));
+      const [r, g, b] = transmissionRGB(mesh.thicknesses[i], this.k, this.light, this.power);
       // The numbers are linear light; the renderer supplies display color conversion.
       for (const index of [j, k]) {
-        color[index] = transmission;
-        color[index + 1] = transmission * 0.79;
-        color[index + 2] = transmission * 0.53;
+        color[index] = r;
+        color[index + 1] = g;
+        color[index + 2] = b;
       }
     }
     this.model.geometry.setAttribute('color', new THREE.BufferAttribute(color, 3));
@@ -140,5 +142,11 @@ export class LithophanePreview {
   }
 
   setLight(value) { this.power = value; this.updateColors(); this.render(); }
+  /** Filament absorption per channel (see absorption()) and the light's colour. */
+  setFilament(k, light, surface) {
+    this.k = k; this.light = light;
+    if (surface) this.solidMaterial.color.setRGB(surface[0] * 0.95, surface[1] * 0.93, surface[2] * 0.89, THREE.SRGBColorSpace);
+    this.updateColors(); this.render();
+  }
   render() { if (!this.failed) this.renderer.render(this.scene, this.camera); }
 }

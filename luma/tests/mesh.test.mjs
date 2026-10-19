@@ -261,3 +261,16 @@ test('a lamp is one closed ring: exact inside radius, borders only top and botto
   const stl = new DataView(binarySTL(mesh));
   assert.equal(stl.getUint32(80, true), mesh.triangleCount);
 });
+
+test('a flat panel laid on its long edge is the same solid, turned a quarter, still on the plate', () => {
+  const options = { shape: 'flat', width: 60, height: 90, border: 3, resolution: 1.5, ...field };
+  const upright = buildMesh(options), turned = buildMesh({ ...options, turn: true });
+  assert.equal(turned.triangleCount, upright.triangleCount);
+  near(turned.signedVolume, upright.signedVolume, upright.signedVolume * 1e-6, 'Same volume');
+  near(turned.bounds.size[0], 90, 1e-4); near(turned.bounds.size[1], upright.bounds.size[1], 1e-6); near(turned.bounds.size[2], 60, 1e-4);
+  near(turned.bounds.min[2], 0, 1e-4, 'Sits on the plate');
+  // Winding stays outward: the independent volume from vertex normals is still positive.
+  const stl = new DataView(binarySTL(turned));
+  assert.equal(stl.getUint32(80, true), turned.triangleCount);
+  assert.ok(turned.signedVolume > 0);
+});

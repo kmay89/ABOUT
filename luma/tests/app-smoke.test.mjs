@@ -329,6 +329,8 @@ test('photo-to-STL application flow in a DOM simulation', { timeout: 90_000 }, a
 
   await t.test('exports a full Standard 4×6 STL with correct size, grayscale and image orientation', async () => {
     assert.equal($('detailSelect').value, '0.3');
+    // Standing as it hangs, so the image can be checked in place; the long-edge turn is checked below.
+    set('standSelect', 'bottom'); await settled();
     const w = 101.6, h = 152.4, b = 3, light = 0.8, dark = 3;
     const target = (name, u, v, gray) => ({ name, x: -w / 2 + b + (w - 2 * b) * u,
       z: b + (h - 2 * b) * v, thickness: light + (dark - light) * (1 - gray) });
@@ -350,6 +352,11 @@ test('photo-to-STL application flow in a DOM simulation', { timeout: 90_000 }, a
     set('brightnessInput', 1); await settled();
     assert.equal($('downloadResult').hidden, true); assert.equal(objects.has(file.url), false, 'Editing invalidates old export');
     set('brightnessInput', 0); await settled();
+    set('standSelect', 'long'); await settled();
+    assert.equal($('tuningNote').textContent, 'Prints on its long edge');
+    const turned = await inspectSTL((await download('exportBtn')).blob);
+    for (const [axis, expected] of [h, dark, w].entries()) near(turned.size[axis], expected, 2e-5);
+    assert.match($('downloadDetails').textContent, /long edge/);
     t.diagnostic(`Standard 4×6: ${result.count.toLocaleString()} triangles, ${(file.blob.size / 1e6).toFixed(2)} MB, ${result.size.map(v => v.toFixed(2)).join(' × ')} mm.`);
   });
 
@@ -377,13 +384,15 @@ test('photo-to-STL application flow in a DOM simulation', { timeout: 90_000 }, a
 
   await t.test('exports a seven-step calibration strip with its matching thickness key', async () => {
     const targets = Array.from({ length: 7 }, (_, i) => ({ name: `Calibration step ${i + 1}`,
-      x: -35 + 1.5 + (i + 0.5) * 67 / 7, z: 12.5, thickness: 0.8 + 2.2 * i / 6 }));
+      x: -35 + 1.5 + (i + 0.5) * 67 / 7, z: 12.5, thickness: 0.6 + 0.5 * i }));
     const file = await download('calibrationBtn'), result = await inspectSTL(file.blob, targets);
-    assert.equal(file.name, 'luma-thickness-test-0.8-to-3.0mm.stl');
-    for (const [axis, expected] of [70, 3, 25].entries()) near(result.size[axis], expected);
-    assert.match($('calibrationInfo').textContent, /0\.8, 1\.17, 1\.53, 1\.9, 2\.27, 2\.63, 3 mm/);
-    assert.equal($('printGuide').hasAttribute('open'), true);
-    event('guideCloseBtn'); assert.equal($('printGuide').hasAttribute('open'), false);
+    assert.equal(file.name, 'luma-thickness-test-0.6-to-3.6mm.stl');
+    for (const [axis, expected] of [70, 3.6, 25].entries()) near(result.size[axis], expected);
+    assert.match($('calibrationInfo').textContent, /0\.6, 1\.1, 1\.6, 2\.1, 2\.6, 3\.1, 3\.6 mm/);
+    // Reading the strip back sets the range.
+    set('stripLight', '1.1', 'change'); set('stripDark', '2.6', 'change'); event('stripApplyBtn'); await settled();
+    assert.equal($('minThicknessInput').value, '1.1'); assert.equal($('maxThicknessInput').value, '2.6');
+    set('minThicknessInput', '0.8'); set('maxThicknessInput', '3'); await settled();
   });
 
   await t.test('rejects non-photo and corrupt-image uploads while preserving the active photo', async () => {

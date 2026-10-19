@@ -1,14 +1,18 @@
 import { buildMesh, binarySTL, estimateGrid } from './mesh.js';
-import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution, clamp } from './image-processing.js';
+import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution, clamp,
+  MATERIALS, COLOURS, LIGHTS, absorption, transmissionRGB, recommendedRange, contrastWords } from './image-processing.js';
 import { LithophanePreview } from './preview.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { shape:'flat', rotation:0, mirror:false, autoTone:true, levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
-const fieldIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput','fitSelect','cropX','cropY','zoomInput','brightnessInput','contrastInput','borderInput','minThicknessInput','maxThicknessInput','detailSelect','detailInput'];
+const state = { shape:'flat', rotation:0, mirror:false, autoTone:true, colour:'white', levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
+const fieldIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput','fitSelect','cropX','cropY','zoomInput','brightnessInput','contrastInput','borderInput','minThicknessInput','maxThicknessInput','detailSelect','detailInput','materialSelect','lightColourSelect','standSelect'];
 // Fields added after the first project format: an older project simply lacks them.
-const optionalFields = { detailInput:'0' };
+const optionalFields = { detailInput:'0', materialSelect:'pla', lightColourSelect:'warm', standSelect:'bottom' };
+// The test strip always spans the same useful range, so its key never changes.
+const STRIP_STEPS = [0.6,1.1,1.6,2.1,2.6,3.1,3.6];
+const linearToSRGB = v => Math.round(255*clamp(v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055,0,1));
 const sizeIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput'];
-const transformIds = ['rotateBtn','mirrorBtn','resetToneBtn','autoToneBtn','shape-flat','shape-curved','shape-cylinder','sampleBtn','uploadBtn','projectOpenBtn','projectSaveBtn','calibrationBtn'];
+const transformIds = ['rotateBtn','mirrorBtn','resetToneBtn','autoToneBtn','orient-portrait','orient-landscape','filamentResetBtn','stripApplyBtn','shape-flat','shape-curved','shape-cylinder','sampleBtn','uploadBtn','projectOpenBtn','projectSaveBtn','calibrationBtn'];
 const SHAPES = ['flat','curved','cylinder'];
 /* Build volumes from each maker's published specifications, in mm. The upright
    panel stands on its edge, so its height uses the printer's Z. */
@@ -22,7 +26,6 @@ const PRINTERS = [
   { id:'k1', name:'Creality K1 · Ender-3 V3', short:'your Creality', bed:{ x:220, y:220, z:250 } },
   { id:'big', name:'A large printer · 300 mm', short:'your printer', bed:{ x:300, y:300, z:300 } },
 ];
-const PLA_DENSITY = 1.24;   // g/cm³, for the filament estimate
 const DETAIL_RADIUS_MM = 1.2;
 let preview, renderTimer, toastTimer, photoLoadId = 0, exportId = 0, disabledBefore = new Set();
 const fmt = (value, digits = 1) => Number(value).toLocaleString(undefined,{maximumFractionDigits:digits});
@@ -52,7 +55,9 @@ function settings() {
   if (maxThickness<=minThickness) throw new Error('Dark-area thickness must be greater than bright-area thickness.');
   if (2*border>=height-2 || (state.shape!=='cylinder' && 2*border>=width-2)) throw new Error('This border leaves too little room for the photo. Reduce the border or increase the panel size.');
   const requested=numeric('detailSelect',0.15,0.3), resolution=safeResolution(width,height,requested);
-  return { shape:state.shape,width,height,angleDeg,diameter,minThickness,maxThickness,border,borderThickness:maxThickness,resolution,requestedResolution:requested };
+  // A tall flat panel prints on its long edge unless asked otherwise (see mesh.js).
+  const turn=state.shape==='flat'&&$('standSelect').value==='long'&&height>width;
+  return { shape:state.shape,width,height,angleDeg,diameter,minThickness,maxThickness,border,borderThickness:maxThickness,resolution,requestedResolution:requested,turn };
 }
 
 function adjustments() {
@@ -98,6 +103,11 @@ function displayLabels() {
   $('contrastValue').textContent=`${$('contrastInput').value}%`;
   $('detailValue').textContent=`${$('detailInput').value}%`;
   $('autoToneBtn').setAttribute('aria-pressed',String(state.autoTone));
+  const w=Number($('widthInput').value),h=Number($('heightInput').value);
+  $('orient-portrait').setAttribute('aria-pressed',String(h>w));$('orient-landscape').setAttribute('aria-pressed',String(w>h));
+  const min=Number($('minThicknessInput').value),max=Number($('maxThicknessInput').value);
+  if(max>min){const c=contrastWords(min,max,filamentK());$('contrastBadge').textContent=c.word;$('contrastBadge').dataset.level=c.word.toLowerCase().replace(' ','-');$('contrastNote').textContent=c.note;}
+  drawStripKey();
   $('borderValue').textContent=`${fmt($('borderInput').value)} mm`;
   $('lightValue').textContent=`${Math.round(Number($('lightInput').value)*100)}%`;
   $('fileName').textContent=state.name;
@@ -115,7 +125,7 @@ function render(resetView=false) {
   if(!state.source)return;
   try {
     const s=settings();
-    const p={...s,resolution:Math.max(0.5,s.width/(s.shape==='cylinder'?320:220),s.height/280)};
+    const p={...s,turn:false,resolution:Math.max(0.5,s.width/(s.shape==='cylinder'?320:220),s.height/280)};
     const photo=imageField(s,1100);
     state.photo=photo;
     const mesh=buildMesh({...p,values:photo.values,nx:photo.nx,ny:photo.ny});
@@ -123,10 +133,12 @@ function render(resetView=false) {
     if(preview&&!preview.failed)preview.update(mesh,resetView);
     drawPhotoCanvas(photo);
     if(!preview||preview.failed)drawFallback(photo,s);
-    const dimensions={x:mesh.bounds.size[0],y:mesh.bounds.size[1],z:mesh.bounds.size[2]};
+    // The preview stands as it hangs; the fit check uses the way it will print.
+    const dimensions=s.turn?{x:mesh.bounds.size[2],y:mesh.bounds.size[1],z:mesh.bounds.size[0]}:{x:mesh.bounds.size[0],y:mesh.bounds.size[1],z:mesh.bounds.size[2]};
     const pr=printer(),bed=pr.bed,fit=printerFit(dimensions,8,bed);
     const {iw,ih}=photoSize(s);
     $('dimensionLabel').textContent=state.shape==='flat'?`${fmt(s.width)} × ${fmt(s.height)} mm`:state.shape==='cylinder'?`Ø ${fmt(dimensions.x)} × ${fmt(s.height)} mm`:`${fmt(dimensions.x)} × ${fmt(s.height)} mm`;
+    $('tuningNote').textContent=state.shape!=='flat'?'Prints standing up':s.turn||s.width>=s.height?'Prints on its long edge':'Prints on its bottom edge';
     $('photoAreaLabel').textContent=`Photo ${fmt(iw)} × ${fmt(ih)} mm${state.shape==='curved'?' along curve':state.shape==='cylinder'?' all the way round':''}`;
     const theta=s.angleDeg*Math.PI/180,insideDiameter=2*s.width/theta;
     $('radiusLabel').textContent=state.shape==='curved'?`Ø ${fmt(insideDiameter)} mm inside · ${fmt(insideDiameter*Math.sin(theta/2))} mm opening · ${fmt(s.width)} mm arc · ${fmt(dimensions.y)} mm depth`:state.shape==='cylinder'?`Ø ${fmt(s.diameter)} mm inside — room for a light up to about Ø ${fmt(Math.max(0,s.diameter-6))} mm · ${fmt(s.border)} mm rims top and bottom`:`${fmt(s.border)} mm border included · ${fmt(s.maxThickness)} mm maximum depth`;
@@ -138,7 +150,8 @@ function render(resetView=false) {
     const estimate=estimateGrid(s);
     const approxMB=estimate.stlBytes/1e6;
     const volumeCM3=mesh.signedVolume/1000;
-    $('modelStats').textContent=`About ${fmt(volumeCM3*PLA_DENSITY,0)} g of PLA · ${fmt(s.resolution,2)} mm detail · ${fmt(approxMB,1)} MB STL${s.resolution>s.requestedResolution?' · detail adjusted for this size':''}`;
+    const material=MATERIALS[$('materialSelect').value]||MATERIALS.pla;
+    $('modelStats').textContent=`About ${fmt(volumeCM3*material.density,0)} g of ${material.name} · ${fmt(s.resolution,2)} mm detail · ${fmt(approxMB,1)} MB STL${s.resolution>s.requestedResolution?' · detail adjusted for this size':''}`;
     $('exportSubtext').textContent=`${fmt(s.minThickness)}–${fmt(s.maxThickness)} mm · upright · millimeters`;
     $('exportBtn').disabled=state.busy||!fit.objectFits;
     $('viewerStatus').textContent=preview&&!preview.failed?'Drag to rotate · pinch to zoom':'2D preview · 3D is unavailable on this device';
@@ -170,14 +183,11 @@ function drawFallback(photo,s) {
   let display=photo.canvas;
   if(state.mode==='lit') {
     display=document.createElement('canvas');display.width=photo.nx;display.height=photo.ny;
-    const lightCtx=display.getContext('2d'),pixels=lightCtx.createImageData(photo.nx,photo.ny),power=Number($('lightInput').value);
+    const lightCtx=display.getContext('2d'),pixels=lightCtx.createImageData(photo.nx,photo.ny),power=Number($('lightInput').value),k=filamentK(),light=lightRGB();
     for(let i=0,j=0;i<photo.values.length;i++,j+=4){
       const t=s.minThickness+(1-photo.values[i])*(s.maxThickness-s.minThickness);
-      const transmission=clamp(power*0.97*Math.exp(-1.18*(t-s.minThickness)),0.015,1);
-      for(let channel=0;channel<3;channel++){
-        const linear=transmission*[1,0.79,0.53][channel];
-        pixels.data[j+channel]=Math.round(255*(linear<=0.0031308?12.92*linear:1.055*Math.pow(linear,1/2.4)-0.055));
-      }
+      const rgb=transmissionRGB(t,k,light,power);
+      for(let channel=0;channel<3;channel++)pixels.data[j+channel]=linearToSRGB(rgb[channel]);
       pixels.data[j+3]=255;
     }
     lightCtx.putImageData(pixels,0,0);
@@ -192,10 +202,74 @@ function clearReady() {
   $('exportLabel').textContent='Download STL';
 }
 
+function filamentK() { return absorption($('materialSelect').value,state.colour); }
+function lightRGB() { return (LIGHTS[$('lightColourSelect').value]||LIGHTS.warm).rgb; }
+
+const VERDICTS = {
+  best:'Best choice. White spreads the light evenly and shows the most detail.',
+  good:'Works beautifully — a slightly warmer, softer glow than white.',
+  soft:'Very bright but soft. Clear plastic shows the print’s inner walls and lines, and highlights can glare, so it needs a thicker range.',
+  dim:'Works, but dimmer: grey plastic soaks up light. Use a bright light and the thinner range below.',
+  tint:'Works as a tinted picture: the whole photo glows {colour}, and it’s dimmer than white. Use a bright light and the thinner range below.',
+  poor:'Mostly a {colour} silhouette: only {colour} light gets through, so faces and detail fade. Not recommended.',
+  none:'Won’t work. Almost no light gets through, so the picture stays dark even with a bright light. Use white.',
+};
+
+/** A filament change: re-colour the preview, explain the choice, and (when
+ * asked) set the thickness range that suits it. */
+function applyFilament(setRange) {
+  const colour=COLOURS[state.colour]||COLOURS.white,material=MATERIALS[$('materialSelect').value]||MATERIALS.pla;
+  for(const b of $('colourSwatches').children){const on=b.dataset.colour===state.colour;b.setAttribute('aria-checked',String(on));b.tabIndex=on?0:-1;}
+  $('colourVerdict').dataset.verdict=colour.verdict;
+  $('colourVerdict').textContent=VERDICTS[colour.verdict].replaceAll('{colour}',colour.name.toLowerCase());
+  if(setRange&&colour.verdict!=='none') {
+    const [min,max]=recommendedRange($('materialSelect').value,state.colour);
+    $('minThicknessInput').value=String(min);$('maxThicknessInput').value=String(max);
+    toast(`Thickness set to ${fmt(min)}–${fmt(max)} mm for ${colour.name.toLowerCase()} ${material.name}. A test strip can fine-tune it.`);
+  }
+  preview?.setFilament(filamentK(),lightRGB(),colour.rgb);
+  try { localStorage.setItem('luma-filament',JSON.stringify({material:$('materialSelect').value,colour:state.colour,light:$('lightColourSelect').value})); } catch(error) {}
+  if(setRange)changed();else{displayLabels();if((!preview||preview.failed)&&state.photo)drawFallback(state.photo,settings());}
+}
+
+/** What each step of the test strip should look like with this filament and light. */
+function drawStripKey() {
+  const key=$('stripKey');if(!key)return;
+  const k=filamentK(),light=lightRGB();
+  key.replaceChildren(...STRIP_STEPS.map((t,i)=>{
+    const rgb=transmissionRGB(t,k,light,1).map(linearToSRGB),cell=document.createElement('span');
+    cell.style.background=`rgb(${rgb.join(',')})`;cell.style.color=rgb[1]>140?'#3a3020':'#f3ead7';
+    cell.textContent=`${i+1}`;cell.title=`Step ${i+1}: ${fmt(t)} mm`;
+    const mm=document.createElement('small');mm.textContent=`${fmt(t)}`;cell.append(mm);
+    return cell;
+  }));
+}
+
+/** Turn a flat panel to portrait or landscape by swapping its sides. */
+function setOrientation(orientation) {
+  const w=Number($('widthInput').value),h=Number($('heightInput').value);
+  if((orientation==='landscape')===(w>h)||w===h)return false;
+  $('widthInput').value=String(h);$('heightInput').value=String(w);
+  return true;
+}
+
+/** Is the photo, as currently rotated, wider than it is tall? */
+function photoIsLandscape() {
+  if(!state.source)return false;
+  const rotated=state.rotation%180!==0,w=rotated?state.source.height:state.source.width,h=rotated?state.source.width:state.source.height;
+  return w>h*1.05;
+}
+
+/** A standard print size follows the photo: a wide photo gets a 6 × 4, a tall one a 4 × 6. */
+function orientPresetToPhoto(announce) {
+  if(state.shape!=='flat'||!['4x6','5x7'].includes($('presetSelect').value))return;
+  if(setOrientation(photoIsLandscape()?'landscape':'portrait')&&announce)toast(`Turned to ${photoIsLandscape()?'landscape':'portrait'} to match your photo. Use the Portrait / Landscape buttons to change it.`);
+}
+
 function setShape(shape,reset=true) {
   state.shape=shape;
   for(const name of SHAPES)$(`shape-${name}`).setAttribute('aria-pressed',String(shape===name));
-  $('flatFields').hidden=shape!=='flat';$('curvedFields').hidden=shape==='flat';
+  $('flatFields').hidden=shape!=='flat';$('orientField').hidden=shape!=='flat';$('standField').hidden=shape!=='flat';$('curvedFields').hidden=shape==='flat';
   $('angleField').hidden=shape!=='curved';
   $('curveHelp').textContent=shape==='cylinder'
     ?'A closed lamp shade that stands over an LED tea light or puck light. Measure your light and allow a few millimetres all round. Use LED lights only.'
@@ -255,7 +329,7 @@ async function loadPhoto(file) {
     }
     if(loadId!==photoLoadId)return;
     setSource(normalizeImage(img));state.name=file.name||'Pasted photo';state.sample=false;state.rotation=0;state.mirror=false;
-    resetPhotoControls();changed(true);toast('Photo added. Choose the shape and size, then download your STL.');
+    resetPhotoControls();toast('Photo added. Choose the shape and size, then download your STL.');orientPresetToPhoto(true);changed(true);
   } catch(error) {toast(error.message||'That photo could not be opened. Try a JPEG copy.');}
   finally {URL.revokeObjectURL(url);setBusy(false);$('photoInput').value='';}
 }
@@ -342,7 +416,7 @@ async function exportSTL() {
     state.ready={url,name,revision:exportRevision};
     $('downloadReady').href=url;$('downloadReady').download=name;$('downloadReady').textContent=`Save STL · ${fmt(blob.size/1e6,1)} MB`;
     $('downloadResult').hidden=false;
-    $('downloadDetails').textContent=`${fmt(actual.x)} × ${fmt(actual.y)} × ${fmt(actual.z)} mm · ${fmt(result.triangleCount,0)} triangles · about ${fmt(result.volume/1000*PLA_DENSITY,0)} g of PLA. Open it in your slicer at 100% scale and print it standing up, exactly as it arrives.`;
+    $('downloadDetails').textContent=`${fmt(actual.x)} × ${fmt(actual.y)} × ${fmt(actual.z)} mm · ${fmt(result.triangleCount,0)} triangles · about ${fmt(result.volume/1000*(MATERIALS[$('materialSelect').value]||MATERIALS.pla).density,0)} g of plastic. Open it in your slicer at 100% scale and print it standing up, exactly as it arrives${s.turn?' — lying on its long edge, with the picture sideways. That’s on purpose: it’s steadier':''}.`;
     triggerDownload(url,name);
     toast('STL created. Open it in your slicer — the print guide has starting settings.');
   } catch(error) {toast(error.message||'Export failed. Try Standard detail.');}
@@ -353,7 +427,8 @@ async function exportCalibration() {
   if(state.busy)return;
   try {
     const current=settings();
-    const s={...current,shape:'flat',width:70,height:25,border:1.5,resolution:0.25};
+    const lo=STRIP_STEPS[0],hi=STRIP_STEPS[STRIP_STEPS.length-1];
+    const s={...current,shape:'flat',width:70,height:25,border:1.5,resolution:0.25,minThickness:lo,maxThickness:hi,borderThickness:hi,turn:false};
     // Seven flat plateaus run left (bright/thin) to right (dark/thick).
     const nx=281,ny=2,values=new Float32Array(nx*ny);
     for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)values[y*nx+x]=1-Math.min(6,Math.floor(x/(nx-1)*7))/6;
@@ -364,23 +439,22 @@ async function exportCalibration() {
     const testName=`luma-thickness-test-${s.minThickness.toFixed(1)}-to-${s.maxThickness.toFixed(1)}mm.stl`;
     $('calibrationDownload').href=state.calibrationURL;$('calibrationDownload').download=testName;$('calibrationDownload').hidden=false;
     triggerDownload(state.calibrationURL,testName);
-    const steps=Array.from({length:7},(_,i)=>fmt(s.minThickness+(s.maxThickness-s.minThickness)*i/6,2));
-    $('calibrationInfo').textContent=`Your 70 × 25 mm strip runs from thin to thick. Left to right, facing the relief: ${steps.join(', ')} mm. Print with the same filament and settings as your photo, then hold it against your actual light. The outer border is ${fmt(s.maxThickness)} mm thick.`;
-    openGuide();toast('Test strip created. Its thickness key is in the guide.');
+    $('calibrationInfo').textContent=`Your 70 × 25 mm strip runs from thin to thick. Left to right, facing the bumpy side: ${STRIP_STEPS.map(t=>fmt(t)).join(', ')} mm. Print it with the same filament and settings as your photo, hold it in front of the light you’ll really use, and choose under “Read your strip” (section 04).`;
+    toast('Test strip created. When it’s printed, choose what you see under “Read your strip”.');
   } catch(error){toast(error.message||'Could not create the test strip.');}
   finally{setBusy(false);$('exportLabel').textContent=state.ready?'Download STL again':'Download STL';}
 }
 
 function saveProject() {
   if(!state.source||state.busy)return;
-  const data={format:'luma-lithophane',version:1,created:new Date().toISOString(),name:state.name,sample:state.sample,shape:state.shape,rotation:state.rotation,mirror:state.mirror,autoTone:state.autoTone,fields:Object.fromEntries(fieldIds.map(id=>[id,$(id).value])),image:state.source.toDataURL('image/jpeg',0.95)};
+  const data={format:'luma-lithophane',version:1,created:new Date().toISOString(),name:state.name,sample:state.sample,shape:state.shape,rotation:state.rotation,mirror:state.mirror,autoTone:state.autoTone,colour:state.colour,fields:Object.fromEntries(fieldIds.map(id=>[id,$(id).value])),image:state.source.toDataURL('image/jpeg',0.95)};
   saveBlob(new Blob([JSON.stringify(data)],{type:'application/json'}),'luma-project.json');toast('Project saved with the photo and settings. Open it here to continue later.');
 }
 
 async function openProject(file) {
   if(!file||state.busy)return;
   if(file.size>25*1024*1024){toast('That project is too large. Choose a Luma project under 25 MB.');return;}
-  const previous={source:state.source,levels:state.levels,name:state.name,sample:state.sample,rotation:state.rotation,mirror:state.mirror,autoTone:state.autoTone,shape:state.shape,fields:Object.fromEntries(fieldIds.map(id=>[id,$(id).value]))};
+  const previous={source:state.source,levels:state.levels,name:state.name,sample:state.sample,rotation:state.rotation,mirror:state.mirror,autoTone:state.autoTone,colour:state.colour,shape:state.shape,fields:Object.fromEntries(fieldIds.map(id=>[id,$(id).value]))};
   try {
     photoLoadId++;
     setBusy(true);
@@ -397,11 +471,11 @@ async function openProject(file) {
     }
     setShape(data.shape,false);settings();
     const image=await decodeImage(data.image);
-    setSource(normalizeImage(image));state.name=String(data.name||'Saved photo').slice(0,150);state.sample=!!data.sample;state.rotation=data.rotation;state.mirror=data.mirror;state.autoTone=data.autoTone??false;
+    setSource(normalizeImage(image));state.name=String(data.name||'Saved photo').slice(0,150);state.sample=!!data.sample;state.rotation=data.rotation;state.mirror=data.mirror;state.autoTone=data.autoTone??false;state.colour=COLOURS[data.colour]?data.colour:'white';applyFilament(false);
     changed(true);toast('Project opened. Your photo, crop, and print settings are restored.');
   } catch(error) {
-    Object.assign(state,{source:previous.source,levels:previous.levels,name:previous.name,sample:previous.sample,rotation:previous.rotation,mirror:previous.mirror,autoTone:previous.autoTone});
-    for(const id of fieldIds)$(id).value=previous.fields[id];setShape(previous.shape,false);displayLabels();
+    Object.assign(state,{source:previous.source,levels:previous.levels,name:previous.name,sample:previous.sample,rotation:previous.rotation,mirror:previous.mirror,autoTone:previous.autoTone,colour:previous.colour});
+    for(const id of fieldIds)$(id).value=previous.fields[id];setShape(previous.shape,false);applyFilament(false);
     toast(error.message||'This project could not be read.');
   } finally {setBusy(false);$('projectInput').value='';}
 }
@@ -433,7 +507,13 @@ function installGuide() {
       <li><strong>Check the slice, then print.</strong> Scrub through the layer preview: the panel should be solid all the way through, the bottom border should sit flat on the plate, and the brim should stay on the plate. A lamp stands on its bottom rim and needs no brim on most printers, but a brim never hurts a tall one.</li>
       <li><strong>Add the light.</strong> Use an LED light and follow its instructions. A flat picture looks best a few centimetres in front of an even light — an LED panel, a light box, or a strip in a deep frame. A lamp sits over an LED tea light or puck light. Never use a candle or a hot bulb.</li>
     </ol>
-    <div class="guide-note"><strong>Starting settings, ready to tune.</strong> They are good starting points, not a certified profile for any one printer. The 0.8–3.0 mm default thickness range suits most white PLA; a translucent “lithophane” white can go thicker, a dense white thinner. The test strip settles it in twenty minutes.</div>
+    <div class="guide-note"><strong>Starting settings, ready to tune.</strong> They are good starting points, not a certified profile for any one printer. Every brand of white lets through a slightly different amount of light, so the 20-minute test strip is the quickest way to dial yours in.</div>
+    <h3>Why standing up — and on its long edge?</h3>
+    <p>The picture lives in the plastic’s thickness. Standing up, the nozzle draws that thickness with its fine side-to-side movement, so tones are smooth. Printed lying flat, the thickness has to be built from stacked layers — every 0.12 mm becomes a visible step, and the picture bands. A tall picture arrives <strong>lying on its long edge</strong>: it’s shorter, so it wobbles less, needs fewer layers and prints faster. Turn it in your slicer if you prefer, but keep it standing.</p>
+    <h3>PLA or PETG?</h3>
+    <p><strong>White PLA</strong> is the easiest and most predictable. <strong>White PETG</strong> works well too: it usually lets a little more light through, so Luma suggests a slightly thicker range (0.8–3.2 mm), and it copes better with warmth, which is nice for lamps. Print PETG with its own filament profile, a little slower, and expect some stringing.</p>
+    <h3>What about other colours?</h3>
+    <p>Light has to pass through the plastic, so the colour matters. <strong>White</strong> is best. <strong>Ivory</strong> works and glows warmer. <strong>Light colours</strong> (yellow, pink, sky blue) give a tinted, dimmer picture — use a thinner range and a bright light. <strong>Red and dark colours</strong> show little more than a silhouette, and <strong>black won’t work at all</strong>. <strong>Clear</strong> plastic is bright but shows the print’s inner lines. Tap a colour under “Your filament” to see it in the preview.</p>
     <h3>Which side faces out?</h3>
     <p>The picture reads correctly from the <strong>textured side</strong>, so hang it textured side towards you and the light behind. If you would rather show the smooth back, press <strong>Mirror</strong> before you download — the picture will then read correctly from the smooth side.</p>
     <h3>Getting a stunning print</h3>
@@ -447,7 +527,7 @@ function installGuide() {
     <h3>Fitting your frame or light</h3>
     <p>Flat sizes include the border: a 4 × 6 inch preset makes a 101.6 × 152.4 mm insert. Measure the frame opening and allow the clearance it needs. Curved shades and lamps use the <strong>inside diameter</strong>; for a lamp, leave a few millimetres around your light. No mounting clip is included.</p>
     <h3>Your thickness test</h3>
-    <p id="calibrationInfo">Use “Make a test strip” (under Print tuning) to create a 70 × 25 mm panel with seven thickness steps between your current bright and dark settings. Look from the relief side: thin is left, thick is right.</p>
+    <p id="calibrationInfo">“Make a test strip” (section 04) creates a 70 × 25 mm strip with seven steps, 0.6 to 3.6 mm, thin on the left. Print it with your photo’s filament and settings and hold it in front of the light you’ll use. Pick the <strong>thinnest step that’s solid and glows bright</strong> (no gaps or holes) and the <strong>first step that looks almost black</strong>. Choose those under “Read your strip” and Luma uses them. If every step still glows, your light is strong — keep the darkest step. If several on the right look equally black, the first of them is enough.</p>
     <a id="calibrationDownload" class="ready-link" hidden download>Save thickness-test STL</a>
     <h3>Photos and projects</h3>
     <p>Your photo is processed on your device and is never uploaded — this page has nowhere to send it. JPG, PNG, WebP and iPhone HEIC photos work, and you can paste a photo straight from your clipboard. “Save project” downloads your photo and settings together; “Open project” restores them. The page keeps nothing after you close it, apart from remembering which printer you chose.</p>
@@ -482,8 +562,36 @@ function init() {
     const value=$('presetSelect').value;
     const round={nightlight:['curved',90,115,120],lamp:['cylinder',80,100],lantern:['cylinder',100,150]}[value];
     if(round) {setShape(round[0],false);$('diameterInput').value=String(round[1]);$('curveHeightInput').value=String(round[2]);if(round[3])$('angleInput').value=String(round[3]);}
-    else if(value!=='custom') {setShape('flat',false);const sizes={'4x6':[101.6,152.4],'5x7':[127,177.8],square:[150,150]};const size=sizes[value];if(size){$('widthInput').value=String(size[0]);$('heightInput').value=String(size[1]);}}
+    else if(value!=='custom') {setShape('flat',false);const sizes={'4x6':[101.6,152.4],'5x7':[127,177.8],square:[150,150]};const size=sizes[value];if(size){$('widthInput').value=String(size[0]);$('heightInput').value=String(size[1]);}orientPresetToPhoto(false);}
     changed(true);
+  });
+  for(const o of ['portrait','landscape'])$(`orient-${o}`).addEventListener('click',()=>{if(state.busy)return;if(setOrientation(o))changed(true);});
+  // Filament: plastic, colour swatches, and the colour of the light behind it.
+  for(const [id,c] of Object.entries(COLOURS)) {
+    const b=document.createElement('button');b.type='button';b.className='swatch';b.dataset.colour=id;b.setAttribute('role','radio');
+    b.setAttribute('aria-label',c.name);b.title=c.name;b.style.setProperty('--swatch',`rgb(${c.rgb.map(v=>Math.round(255*v)).join(',')})`);
+    if(c.clear)b.classList.add('clear');
+    b.addEventListener('click',()=>{if(state.busy)return;state.colour=id;applyFilament(true);});
+    $('colourSwatches').append(b);
+  }
+  $('colourSwatches').addEventListener('keydown',e=>{
+    const ids=Object.keys(COLOURS),step={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];if(!step||state.busy)return;
+    e.preventDefault();state.colour=ids[(ids.indexOf(state.colour)+step+ids.length)%ids.length];applyFilament(true);
+    $('colourSwatches').querySelector(`[data-colour="${state.colour}"]`).focus();
+  });
+  try { const saved=JSON.parse(localStorage.getItem('luma-filament')||'null');
+    if(saved){ if(MATERIALS[saved.material])$('materialSelect').value=saved.material; if(COLOURS[saved.colour])state.colour=saved.colour; if(LIGHTS[saved.light])$('lightColourSelect').value=saved.light;
+      if(saved.material!=='pla'||saved.colour!=='white'){const [min,max]=recommendedRange($('materialSelect').value,state.colour);$('minThicknessInput').value=String(min);$('maxThicknessInput').value=String(max);} } } catch(error) {}
+  $('materialSelect').addEventListener('change',()=>applyFilament(true));
+  $('lightColourSelect').addEventListener('change',()=>applyFilament(false));
+  $('filamentResetBtn').addEventListener('click',()=>applyFilament(true));
+  for(const [i,t] of STRIP_STEPS.entries())for(const id of ['stripLight','stripDark']){const o=document.createElement('option');o.value=String(t);o.textContent=`${i+1} · ${fmt(t)} mm`;$(id).append(o);}
+  $('stripLight').value=String(STRIP_STEPS[1]);$('stripDark').value=String(STRIP_STEPS[5]);
+  $('stripApplyBtn').addEventListener('click',()=>{
+    const light=Number($('stripLight').value),dark=Number($('stripDark').value);
+    if(dark-light<1){toast('The dark step needs to be at least two steps to the right of the bright one — otherwise there’s no room for the picture’s tones.');return;}
+    $('minThicknessInput').value=String(light);$('maxThicknessInput').value=String(dark);changed();
+    toast(`Using ${fmt(light)}–${fmt(dark)} mm, from your test strip.`);
   });
   for(const p of PRINTERS){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;$('printerSelect').append(option);}
   try { const saved=localStorage.getItem('luma-printer'); if(PRINTERS.some(p=>p.id===saved))$('printerSelect').value=saved; } catch(error) {}
@@ -533,7 +641,7 @@ function init() {
   photoCanvas.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,[e.clientX,e.clientY]);if(pinch&&touches.size===2&&!state.busy){const [a,b]=[...touches.values()];$('zoomInput').value=String(clamp(pinch.z*Math.hypot(a[0]-b[0],a[1]-b[1])/Math.max(1,pinch.d),1,3));changed();}});
   for(const name of ['pointerup','pointercancel'])photoCanvas.addEventListener(name,e=>{touches.delete(e.pointerId);if(touches.size<2)pinch=null;});
   window.addEventListener('beforeunload',()=>{if(state.ready)URL.revokeObjectURL(state.ready.url);if(state.calibrationURL)URL.revokeObjectURL(state.calibrationURL);});
-  displayLabels();setShape('flat',false);loadSample();
+  applyFilament(false);setShape('flat',false);loadSample();
 }
 
 init();
