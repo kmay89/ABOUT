@@ -198,6 +198,18 @@
           </div>
         </section>
 
+        <section class="editor-section accessory-section" aria-labelledby="accessoryHeading">
+          <div class="section-heading"><h2 id="accessoryHeading"><span class="step-number">05</span>Frame it, light it</h2></div>
+          <p class="field-help">Printable extras, sized to fit this exact picture. Print them in any colour — they don’t need to let light through.</p>
+          <div id="accessoryCards" class="accessory-cards" role="radiogroup" aria-label="Add a frame or base"></div>
+          <div id="accessoryOptions" hidden>
+            <div id="depthField" class="slider-field"><div class="label-value"><label for="boxDepthInput">Light box depth</label><output id="boxDepthValue" for="boxDepthInput">30 mm</output></div><input id="boxDepthInput" type="range" min="20" max="60" step="1" value="30"><div class="range-endpoints"><span>Slim · LED strip</span><span>Deep · puck light</span></div></div>
+            <p id="accessoryNotes" class="accessory-notes"></p>
+            <label class="check-row"><input id="accessoryPreview" type="checkbox" checked> Show it in the preview</label>
+            <div id="accessoryDownloads" class="accessory-downloads"></div>
+          </div>
+        </section>
+
         <details class="print-tuning editor-section">
           <summary><span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h4m4 0h6M3 15h8m4 0h2M7 2v6m4 4v6"/></svg>More print options</span><span id="tuningNote" class="summary-note">Prints on its long edge</span><svg class="disclosure-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg></summary>
           <div class="tuning-content">
