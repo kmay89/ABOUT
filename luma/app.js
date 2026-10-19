@@ -3,6 +3,7 @@ import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, 
   MATERIALS, COLOURS, LIGHTS, absorption, transmissionRGB, recommendedRange, contrastWords } from './image-processing.js';
 import { LithophanePreview } from './preview.js';
 import { ACCESSORIES } from './accessories.js';
+import { LIGHT_SOURCES, ROOMS, recommendThickness } from './light.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { accessory:{ flat:'none', curved:'none', cylinder:'none' }, accessoryParts:[], shape:'flat', rotation:0, mirror:false, autoTone:true, colour:'white', levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
@@ -109,6 +110,7 @@ function displayLabels() {
   const min=Number($('minThicknessInput').value),max=Number($('maxThicknessInput').value);
   if(max>min){const c=contrastWords(min,max,filamentK());$('contrastBadge').textContent=c.word;$('contrastBadge').dataset.level=c.word.toLowerCase().replace(' ','-');$('contrastNote').textContent=c.note;}
   drawStripKey();
+  updateCalculator();
   $('borderValue').textContent=`${fmt($('borderInput').value)} mm`;
   $('lightValue').textContent=`${Math.round(Number($('lightInput').value)*100)}%`;
   $('fileName').textContent=state.name;
@@ -247,6 +249,41 @@ function drawStripKey() {
   }));
 }
 
+/* ---------- the light calculator ---------- */
+const SHAPE_LIGHT = { flat:'strip', curved:'nightlight', cylinder:'tealight' };
+let calcTouched = false, calcResult = null;
+
+/** Put a light's typical brightness and distance in the fields. */
+function setLightDefaults() {
+  const src=LIGHT_SOURCES[$('lightSource').value];
+  $('lightAmount').value=String(src.lux??src.lumens);
+  $('lightAmountUnit').textContent=src.lux!==undefined?'lux':'lm';
+  $('lightAmountLabel').textContent=src.lux!==undefined?'Brightness on its surface':'Brightness';
+  $('lightDistanceField').hidden=!src.point;
+  const d=src.distance==='radius'?Number($('diameterInput').value)/2:src.distance==='depth'?Number($('boxDepthInput').value):src.distance;
+  if(typeof d==='number'&&Number.isFinite(d))$('lightDistance').value=String(Math.round(d));
+  $('lightHint').textContent=src.hint;
+}
+
+/** Recompute the advice from the light, the room, the shape and the filament. */
+function updateCalculator() {
+  if(!$('lightSource').value)return;
+  if(!calcTouched)setLightDefaults();      // follow the picture's size until the fields are edited
+  const src=LIGHT_SOURCES[$('lightSource').value],amount=Number($('lightAmount').value);
+  const flat=state.shape==='flat',d=Number($('diameterInput').value);
+  const width=flat?Number($('widthInput').value):state.shape==='cylinder'?Math.PI*d:d/2*Number($('angleInput').value)*Math.PI/180;
+  const height=flat?Number($('heightInput').value):Number($('curveHeightInput').value);
+  if(!(amount>0)||!(width>0)||!(height>0)){$('calcHeadline').textContent='Enter how bright the light is.';return;}
+  calcResult=recommendThickness({source:$('lightSource').value,room:$('roomSelect').value,k:filamentK(),shape:state.shape,width,height,
+    lumens:src.lux===undefined?amount:undefined,lux:src.lux!==undefined?amount:undefined,distance:Number($('lightDistance').value)||40});
+  $('calcResult').dataset.look=calcResult.look;
+  $('calcHeadline').textContent=calcResult.headline;
+  $('calcMin').textContent=fmt(calcResult.min);$('calcMax').textContent=fmt(calcResult.max);
+  $('calcTips').replaceChildren(...calcResult.tips.map(t=>{const li=document.createElement('li');li.textContent=t;return li;}));
+  const same=Number($('minThicknessInput').value)===calcResult.min&&Number($('maxThicknessInput').value)===calcResult.max;
+  $('calcApplyBtn').textContent=same?'✓ Using these thicknesses':'Use these thicknesses';
+}
+
 /* ---------- frames and bases ---------- */
 function accessoryChoice() {
   const options=ACCESSORIES[state.shape]||[];
@@ -332,6 +369,7 @@ function setShape(shape,reset=true) {
   $('flatFields').hidden=shape!=='flat';$('orientField').hidden=shape!=='flat';$('standField').hidden=shape!=='flat';$('curvedFields').hidden=shape==='flat';
   $('angleField').hidden=shape!=='curved';
   drawAccessoryCards();
+  if(!calcTouched&&$('lightSource').options.length){$('lightSource').value=SHAPE_LIGHT[shape];setLightDefaults();}
   $('curveHelp').textContent=shape==='cylinder'
     ?'A closed lamp shade that stands over an LED tea light or puck light. Measure your light and allow a few millimetres all round. Use LED lights only.'
     :'Measure your light first. The shade is an open curved panel; a lamp mount is not included.';
@@ -587,6 +625,8 @@ function installGuide() {
     </ul>
     <h3>Fitting your frame or light</h3>
     <p>Flat sizes include the border: a 4 × 6 inch preset makes a 101.6 × 152.4 mm insert. Measure the frame opening and allow the clearance it needs. Curved shades and lamps use the <strong>inside diameter</strong>; for a lamp, leave a few millimetres around your light. No mounting clip is included.</p>
+    <h3>Matching your light</h3>
+    <p>“Match your light” (section 04) works out a starting range from the light and the room. It estimates how much light reaches the back of the picture — from the brightness on the light’s box and how far away it is — then picks the thinnest areas so highlights glow comfortably for the room, and the thickest so shadows are about a fifteenth as bright. Dim lights get a thinner range, bright ones a thicker one, and it tells you when a light is too weak, too strong, or the room too bright. It’s an estimate from typical figures; the test strip confirms it.</p>
     <h3>Your thickness test</h3>
     <p id="calibrationInfo">“Make a test strip” (section 04) creates a 70 × 25 mm strip with seven steps, 0.6 to 3.6 mm, thin on the left. Print it with your photo’s filament and settings and hold it in front of the light you’ll use. Pick the <strong>thinnest step that’s solid and glows bright</strong> (no gaps or holes) and the <strong>first step that looks almost black</strong>. Choose those under “Read your strip” and Luma uses them. If every step still glows, your light is strong — keep the darkest step. If several on the right look equally black, the first of them is enough.</p>
     <a id="calibrationDownload" class="ready-link" hidden download>Save thickness-test STL</a>
@@ -659,6 +699,17 @@ function init() {
   $('printerSelect').addEventListener('change',()=>{ try { localStorage.setItem('luma-printer',$('printerSelect').value); } catch(error) {} render(); });
   $('autoToneBtn').addEventListener('click',()=>{state.autoTone=!state.autoTone;changed();});
   $('snapshotBtn').addEventListener('click',saveSnapshot);
+  for(const [id,src] of Object.entries(LIGHT_SOURCES)){const o=document.createElement('option');o.value=id;o.textContent=src.name;$('lightSource').append(o);}
+  for(const [id,room] of Object.entries(ROOMS)){const o=document.createElement('option');o.value=id;o.textContent=room.name;$('roomSelect').append(o);}
+  $('roomSelect').value='dim';$('lightSource').value=SHAPE_LIGHT.flat;setLightDefaults();
+  $('lightSource').addEventListener('change',()=>{calcTouched=true;setLightDefaults();updateCalculator();});
+  for(const id of ['roomSelect','lightAmount','lightDistance'])$(id).addEventListener('input',()=>{calcTouched=true;updateCalculator();});
+  $('calcApplyBtn').addEventListener('click',()=>{
+    if(!calcResult||state.busy)return;
+    $('minThicknessInput').value=String(calcResult.min);$('maxThicknessInput').value=String(calcResult.max);
+    $('lightInput').value=String(Math.round(calcResult.previewPower*20)/20);preview?.setLight(Number($('lightInput').value));
+    changed();toast(`Using ${fmt(calcResult.min)}–${fmt(calcResult.max)} mm for your light (${LIGHT_SOURCES[$('lightSource').value].name}). The preview’s backlight now matches it.`);
+  });
   $('boxDepthInput').addEventListener('input',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),80);$('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;});
   $('accessoryPreview').addEventListener('change',()=>render());
   $('rotateBtn').addEventListener('click',()=>{state.rotation=(state.rotation+90)%360;$('cropX').value='0';$('cropY').value='0';changed();});

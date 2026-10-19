@@ -634,3 +634,19 @@ progress::-moz-progress-bar { background: #bea054; border-radius: 5px; }
 .accessory-downloads { display: grid; gap: 8px; }
 .accessory-download { justify-content: flex-start; width: 100%; text-align: left; white-space: normal; line-height: 1.4; }
 .accessory-download svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+
+/* ---------- the light calculator ---------- */
+.light-calc { display: grid; gap: 11px; padding: 14px; border: 1px solid #e6dcc2; border-radius: 12px; background: linear-gradient(180deg, #fdf8ec, #faf5e8); }
+.calc-title { margin: 0; display: grid; gap: 2px; }
+.calc-title strong { font-size: 13px; color: #6e5520; }
+.calc-title span { font-size: 12px; color: #8a7f62; }
+.light-calc .field-help { margin: -4px 0 0; }
+.calc-result { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: #fff; border: 1px solid #ece4cf; }
+.calc-headline { margin: 0; font-weight: 600; font-size: 13px; color: #4f6340; }
+.calc-result[data-look="soft"] .calc-headline { color: #7a6332; }
+.calc-result[data-look="glaring"] .calc-headline, .calc-result[data-look="faint"] .calc-headline, .calc-result[data-look="washed"] .calc-headline { color: #8a3d26; }
+.calc-numbers { margin: 0; font-size: 13px; color: #5f6452; }
+.calc-numbers strong { font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.calc-tips { margin: 0; padding-left: 17px; font-size: 12px; line-height: 1.55; color: #5f6452; }
+.calc-tips:empty { display: none; }
+.calc-tips li { margin-bottom: 4px; }
