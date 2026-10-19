@@ -23,6 +23,7 @@ export const DEFAULTS = Object.freeze({
   border: 3,
   borderThickness: 3,
   resolution: 0.25,
+  turn: false,
 });
 
 export const MAX_VERTICES = 1_200_000;
@@ -331,6 +332,16 @@ export function buildMesh(options = {}) {
     const c = b + columns;
     triangle(b, b + layerSize, c + layerSize);
     triangle(b, c + layerSize, c);
+  }
+  // A flat panel can be laid on its long edge for printing: a quarter turn
+  // about Y (a proper rotation, so the winding stays outward), then back
+  // onto Z = 0. The picture is sideways on the plate and still faces -Y.
+  if (s.turn && s.shape === 'flat') {
+    for (let i = 0; i < vertices.length; i += 3) {
+      const x = vertices[i], z = vertices[i + 2];
+      vertices[i] = z - s.height / 2;
+      vertices[i + 2] = s.width / 2 - x;
+    }
   }
   const measurement = measure(vertices, indices);
   const { values, ...settings } = s;

@@ -7,7 +7,7 @@ async function moduleFile(relative) {
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 }
 
-const { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution } = await moduleFile('../image-processing.js');
+const { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution, absorption, transmissionRGB, recommendedRange, contrastWords, COLOURS } = await moduleFile('../image-processing.js');
 const { buildMesh, estimateGrid, MAX_VERTICES } = await moduleFile('../mesh.js');
 
 function near(actual, expected, tolerance = 1e-6) {
@@ -180,4 +180,30 @@ test('detail keeps flat areas flat, sharpens an edge, and stays within range', (
   assert.ok(edge[row + nx / 2] > before[row + nx / 2], 'Light side brightens');
   assert.ok(edge.every(v => v >= 0 && v <= 1));
   near(edge[row], 0.2, 1e-6, 'Far from the edge nothing changes');
+});
+
+test('filament model: white glows fully at 0.8 mm, colours tint and dim, black blocks, ranges keep white\'s contrast', () => {
+  const neutral = [1, 1, 1];
+  const white = transmissionRGB(0.8, absorption('pla', 'white'), neutral);
+  assert.ok(white.every(v => Math.abs(v - 0.97) < 1e-9));
+  const pink = transmissionRGB(0.8, absorption('pla', 'pink'), neutral);
+  assert.ok(pink[0] > pink[1] && pink[0] > pink[2], 'Pink passes red best');
+  assert.ok(transmissionRGB(0.8, absorption('pla', 'black'), neutral).every(v => v < 0.1), 'Black lets almost nothing through');
+  assert.ok(transmissionRGB(3, absorption('petg', 'white'), neutral)[0] > transmissionRGB(3, absorption('pla', 'white'), neutral)[0], 'PETG is more translucent');
+  assert.deepEqual(recommendedRange('pla', 'white'), [0.8, 3]);
+  assert.deepEqual(recommendedRange('petg', 'white'), [0.8, 3.2]);
+  const rich = contrastWords(0.8, 3, absorption('pla', 'white'));
+  for (const colour of ['ivory', 'grey', 'yellow', 'pink', 'blue']) {
+    const [min, max] = recommendedRange('pla', colour);
+    assert.ok(min < max && max <= 3, `${colour} gets a thinner range`);
+    assert.equal(contrastWords(min, max, absorption('pla', colour)).word, rich.word, `${colour} keeps white's contrast`);
+  }
+  assert.equal(contrastWords(0.8, 1.6, absorption('pla', 'white')).word, 'Flat');
+  assert.equal(Object.keys(COLOURS).length, 9);
+});
+
+test('a tall panel laid on its long edge is bounded the way it prints', () => {
+  const panel = { shape: 'flat', width: 101.6, height: 152.4, border: 3, minThickness: 0.8, maxThickness: 3, resolution: 1 };
+  assert.deepEqual(estimateBounds({ ...panel, turn: true }), { x: 152.4, y: 3, z: 101.6 });
+  assert.equal(printerFit(estimateBounds({ ...panel, turn: true }), 8, { x: 180, y: 180, z: 180 }).brimFits, true);
 });

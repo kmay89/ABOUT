@@ -71,6 +71,7 @@
             <input id="lightInput" type="range" min="0.5" max="1.5" step="0.05" value="1" aria-label="Preview backlight brightness">
             <output id="lightValue" for="lightInput">100%</output>
           </div>
+          <div class="select-wrap light-colour"><select id="lightColourSelect" aria-label="Colour of your light"><option value="warm" selected>Warm white</option><option value="neutral">Neutral</option><option value="cool">Cool white</option></select></div>
           <span class="preview-label">LIVE PREVIEW</span>
         </div>
         <p id="previewCaption" class="preview-caption">Preview is an approximation. Filament and your light affect the printed result.</p>
@@ -116,6 +117,10 @@
 
           <div class="field preset-field"><label for="presetSelect">Start with a size</label><div class="select-wrap"><select id="presetSelect"><option value="custom" selected>Custom size</option><option value="4x6">4 × 6 in picture</option><option value="5x7">5 × 7 in picture</option><option value="square">Square picture</option><option value="nightlight">Nightlight shade</option><option value="lamp">Tea-light lamp</option><option value="lantern">Tall lantern</option></select></div></div>
 
+          <div id="orientField" class="orient-toggle" role="group" aria-label="Orientation">
+            <button id="orient-portrait" type="button" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5.5" y="2.5" width="9" height="15" rx="1.5"/></svg>Portrait</button>
+            <button id="orient-landscape" type="button" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="9" rx="1.5"/></svg>Landscape</button>
+          </div>
           <div id="flatFields" class="dimensions-fields">
             <div class="field"><label for="widthInput">Width</label><div class="number-with-unit"><input id="widthInput" type="number" min="20" max="320" step="0.1" value="100" inputmode="decimal"><span>mm</span></div></div>
             <div class="field"><label for="heightInput">Height</label><div class="number-with-unit"><input id="heightInput" type="number" min="20" max="320" step="0.1" value="150" inputmode="decimal"><span>mm</span></div></div>
@@ -154,16 +159,51 @@
           </div>
         </section>
 
-        <details class="print-tuning editor-section">
-          <summary><span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h4m4 0h6M3 15h8m4 0h2M7 2v6m4 4v6"/></svg>Print tuning</span><span class="summary-note">Good defaults, ready to go</span><svg class="disclosure-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg></summary>
-          <div class="tuning-content">
-            <div class="slider-field"><div class="label-value"><label for="borderInput">Border width</label><output id="borderValue" for="borderInput">3 mm</output></div><input id="borderInput" type="range" min="0" max="8" step="0.5" value="3"></div>
+        <section class="editor-section filament-section" aria-labelledby="filamentHeading">
+          <div class="section-heading"><h2 id="filamentHeading"><span class="step-number">04</span>Your filament</h2><button id="filamentResetBtn" class="text-button" type="button">Use recommended</button></div>
+          <div class="field"><label for="materialSelect">Plastic</label><div class="select-wrap"><select id="materialSelect"><option value="pla" selected>PLA</option><option value="petg">PETG</option></select></div></div>
+          <div class="field colour-field"><span class="field-label" id="colourLabel">Colour</span>
+            <div id="colourSwatches" class="colour-swatches" role="radiogroup" aria-labelledby="colourLabel"></div>
+          </div>
+          <p id="colourVerdict" class="colour-verdict" data-verdict="best" aria-live="polite"></p>
+
+          <div class="thickness-explainer">
             <div class="dimensions-fields">
               <div class="field"><label for="minThicknessInput">Lightest areas</label><div class="number-with-unit"><input id="minThicknessInput" type="number" min="0.4" max="2" step="0.1" value="0.8" inputmode="decimal"><span>mm</span></div></div>
               <div class="field"><label for="maxThicknessInput">Darkest areas</label><div class="number-with-unit"><input id="maxThicknessInput" type="number" min="1.5" max="5" step="0.1" value="3" inputmode="decimal"><span>mm</span></div></div>
             </div>
+            <p class="contrast-line"><span id="contrastBadge" class="contrast-badge">Rich</span><span id="contrastNote">Deep shadows and clear highlights — right for most lights.</span></p>
+            <details class="explain">
+              <summary>What these two numbers do</summary>
+              <ul>
+                <li><strong>Lightest areas</strong> is the thinnest plastic — where your photo glows brightest. <strong>0.6–0.8 mm</strong> is the sweet spot. Thinner glows brighter but can print with gaps and glare; thicker makes highlights dimmer and greyer.</li>
+                <li><strong>Darkest areas</strong> is the thickest plastic — where light is held back for shadows. <strong>About 3 mm</strong> suits white PLA. Thicker gives deeper shadows but a dimmer picture and a longer print; thinner is brighter but shadows wash out.</li>
+                <li><strong>Match your light.</strong> A bright LED panel or light box can take more (3.2–3.6 mm). A tea light or dim nightlight looks better with less (2.2–2.6 mm).</li>
+              </ul>
+            </details>
+          </div>
+
+          <div class="test-strip">
+            <p><strong>Not sure? Print the test strip first.</strong> Seven steps from 0.6 to 3.6 mm, about 20 minutes. Hold it in front of the light you’ll really use, then tell Luma what you saw.</p>
+            <button id="calibrationBtn" class="button button-small" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 6h16v9H2zm4 0v4m4-4v3m4-3v4"/></svg>Make a test strip</button>
+            <div class="strip-reader">
+              <p class="strip-title">Read your strip <span>— thin end on the left, facing the bumpy side</span></p>
+              <div id="stripKey" class="strip-key" aria-hidden="true"></div>
+              <div class="dimensions-fields">
+                <div class="field"><label for="stripLight">Thinnest step that’s solid and bright</label><div class="select-wrap"><select id="stripLight"></select></div></div>
+                <div class="field"><label for="stripDark">First step that looks almost black</label><div class="select-wrap"><select id="stripDark"></select></div></div>
+              </div>
+              <button id="stripApplyBtn" class="button button-small" type="button">Use these thicknesses</button>
+            </div>
+          </div>
+        </section>
+
+        <details class="print-tuning editor-section">
+          <summary><span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h4m4 0h6M3 15h8m4 0h2M7 2v6m4 4v6"/></svg>More print options</span><span id="tuningNote" class="summary-note">Prints on its long edge</span><svg class="disclosure-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg></summary>
+          <div class="tuning-content">
+            <div id="standField" class="field"><label for="standSelect">Print it standing on</label><div class="select-wrap"><select id="standSelect"><option value="long" selected>Its long edge — steadier (recommended)</option><option value="bottom">Its bottom edge — the way it hangs</option></select></div><p class="field-help">Lithophanes print best standing up. On its long edge a tall picture is shorter and steadier, so it wobbles less and prints faster; it arrives sideways on the plate — that’s on purpose.</p></div>
+            <div class="slider-field"><div class="label-value"><label for="borderInput">Border width</label><output id="borderValue" for="borderInput">3 mm</output></div><input id="borderInput" type="range" min="0" max="8" step="0.5" value="3"></div>
             <div class="field"><label for="detailSelect">Surface detail</label><div class="select-wrap"><select id="detailSelect"><option value="0.3" selected>Standard · 0.30 mm</option><option value="0.2">Fine · 0.20 mm</option><option value="0.15">Ultra · 0.15 mm</option></select></div><p class="field-help">Smaller spacing makes a larger STL. This controls the model’s surface, not your printer’s layer height.</p></div>
-            <div class="test-strip"><p>New filament or a different light? A small thickness test helps you choose the right range.</p><button id="calibrationBtn" class="button button-small" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 6h16v9H2zm4 0v4m4-4v3m4-3v4"/></svg>Make a test strip</button></div>
           </div>
         </details>
 

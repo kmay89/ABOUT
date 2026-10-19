@@ -74,7 +74,9 @@ export function enhanceDetail(values, nx, ny, radiusPx, amount) {
 
 export function estimateBounds(settings) {
   const thickness = Math.max(settings.maxThickness, settings.borderThickness || 0);
-  if (settings.shape === 'flat') return { x:settings.width, y:thickness, z:settings.height };
+  if (settings.shape === 'flat') return settings.turn
+    ? { x:settings.height, y:thickness, z:settings.width }
+    : { x:settings.width, y:thickness, z:settings.height };
   if (settings.shape === 'cylinder') {
     const outside = settings.width/Math.PI + 2*thickness;
     return { x:outside, y:outside, z:settings.height };
@@ -99,4 +101,70 @@ export function safeResolution(width,height,requested,maxVertices = 1050000) {
   let step=requested;
   while (2*(Math.ceil(width/step)+10)*(Math.ceil(height/step)+10)>maxVertices) step=Math.ceil((step+0.01)*100)/100;
   return step;
+}
+
+/* ---------- filament and light ----------
+   The backlit preview models plastic as an absorber: light falls off as
+   exp(-k·t) through t mm of it. k is a starting estimate, not a measurement
+   of any one brand — which is why the test strip exists. A coloured
+   filament absorbs more of the colours it is not, so each channel gets its
+   own k: white passes all three equally, pink starves green and blue, black
+   starves everything. Transmission is relative to white PLA at 0.8 mm,
+   which shows as full brightness at 100% backlight. */
+export const MATERIALS = Object.freeze({
+  pla:  { name:'PLA',  k:1.18, range:[0.8,3.0], density:1.24 },
+  petg: { name:'PETG', k:1.0,  range:[0.8,3.2], density:1.27 },   // usually a little more translucent than PLA
+});
+
+export const COLOURS = Object.freeze({
+  white:   { name:'White',            rgb:[1,1,1],          verdict:'best' },
+  natural: { name:'Natural / clear',  rgb:[1,1,1],          verdict:'soft', clear:true },
+  ivory:   { name:'Ivory or cream',   rgb:[1,0.94,0.8],     verdict:'good' },
+  grey:    { name:'Light grey',       rgb:[0.7,0.7,0.7],    verdict:'dim' },
+  yellow:  { name:'Yellow',           rgb:[1,0.9,0.35],     verdict:'tint' },
+  pink:    { name:'Pink',             rgb:[1,0.66,0.78],    verdict:'tint' },
+  blue:    { name:'Sky blue',         rgb:[0.58,0.8,1],     verdict:'tint' },
+  red:     { name:'Red',              rgb:[0.85,0.12,0.1],  verdict:'poor' },
+  black:   { name:'Black',            rgb:[0.04,0.04,0.04], verdict:'none' },
+});
+
+export const LIGHTS = Object.freeze({
+  warm:    { name:'Warm white', rgb:[1,0.79,0.53] },
+  neutral: { name:'Neutral',    rgb:[1,0.9,0.78] },
+  cool:    { name:'Cool white', rgb:[0.9,0.95,1] },
+});
+
+const K_REFERENCE = MATERIALS.pla.k * 0.8;
+
+/** Per-channel absorption, 1/mm, for a material and colour. */
+export function absorption(material = 'pla', colour = 'white') {
+  const m = MATERIALS[material] || MATERIALS.pla, c = COLOURS[colour] || COLOURS.white;
+  return c.rgb.map(r => m.k * (c.clear ? 0.55 : 1) * (1 + 4 * (1 - r)));
+}
+
+/** Linear-light RGB that comes through t mm, for preview colouring. */
+export function transmissionRGB(t, k, light = LIGHTS.warm.rgb, power = 1) {
+  return k.map((kc, i) => clamp(power * 0.97 * Math.exp(K_REFERENCE - kc * t), 0.004, 1) * light[i]);
+}
+
+/** A sensible starting range for a filament, in mm. A colour absorbs more,
+ * so its darkest areas need less plastic; clear plastic absorbs less, so it
+ * needs more, and a thicker minimum to stop the highlights glaring. */
+export function recommendedRange(material = 'pla', colour = 'white') {
+  const [min, max] = (MATERIALS[material] || MATERIALS.pla).range, c = COLOURS[colour] || COLOURS.white;
+  if (c.clear) return [1.0, 4.0];
+  const k = absorption(material, colour), kWhite = absorption(material, 'white');
+  const mean = k.reduce((a, b) => a + b, 0) / 3, white = kWhite.reduce((a, b) => a + b, 0) / 3;
+  if (mean < white * 1.05) return [min, max];
+  // Keep the same light-to-dark ratio white would have, from a thinner start.
+  return [0.6, Math.max(1.6, Math.round((0.6 + (max - min) * white / mean) * 10) / 10)];
+}
+
+/** How far apart the brightest and darkest areas glow, as words. */
+export function contrastWords(min, max, k) {
+  const kMean = k.reduce((a, b) => a + b, 0) / 3, ratio = Math.exp(kMean * (max - min));
+  if (ratio < 4) return { ratio, word:'Flat', note:'Shadows will look washed out. Raise “Darkest areas”.' };
+  if (ratio < 9) return { ratio, word:'Soft', note:'Gentle and bright — good for a dim nightlight or tea light.' };
+  if (ratio < 25) return { ratio, word:'Rich', note:'Deep shadows and clear highlights — right for most lights.' };
+  return { ratio, word:'Very deep', note:'Shadows go black unless the light is bright. Lower “Darkest areas” for a dim light.' };
 }

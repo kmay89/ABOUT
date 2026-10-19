@@ -42,6 +42,37 @@ binary STL in a worker (or on the page if workers are blocked).
   mirror (to view from the smooth side), and a seven-step **thickness test
   strip** generated from your own bright/dark settings.
 
+## Orientation and how it prints
+
+- 4 × 6 and 5 × 7 follow the photo: a wide photo gets 6 × 4, a tall one
+  4 × 6, and the Portrait / Landscape buttons swap it either way.
+- Every model prints **standing up**: the picture is the plastic's
+  thickness, and standing up the nozzle draws that thickness with its fine
+  X/Y motion. Printed flat, each 0.12 mm layer becomes a visible tone step.
+- A tall flat panel arrives **lying on its long edge** (a proper quarter
+  turn about Y, `turn` in `mesh.js`): shorter, steadier, fewer layers. The
+  preview still shows it as it hangs. "Its bottom edge" in More print
+  options keeps it upright as it hangs.
+
+## Filament, thickness and the test strip
+
+- Pick **PLA or PETG** and a **colour**. The preview models plastic as an
+  absorber, `exp(-k·t)` per colour channel, relative to white PLA at
+  0.8 mm: PETG is a little more translucent (k 1.0 vs 1.18), a coloured
+  filament absorbs the colours it isn't (pink starves green and blue),
+  black blocks nearly everything, clear absorbs about half as much. Each
+  choice explains itself and sets a starting range that keeps white's
+  light-to-dark ratio (white PLA 0.8–3.0, white PETG 0.8–3.2, light
+  colours thinner, clear 1.0–4.0). The light can be warm, neutral or cool.
+- A contrast word (Flat / Soft / Rich / Very deep) under the thickness
+  inputs says what the range will look like, and "What these two numbers
+  do" explains them in three lines.
+- The **test strip** is always 0.6 → 3.6 mm in seven 0.5 mm steps, so its
+  key never changes. "Read your strip" shows what each step should look
+  like with the chosen filament and light, and two pickers — the thinnest
+  step that's solid and bright, the first that looks almost black — set
+  the range from the real print.
+
 ## Making sure it prints
 
 - The printer picker holds published build volumes (Bambu Lab P2S, X1 /
