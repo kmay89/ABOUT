@@ -2384,6 +2384,11 @@ function create(canvas, opts) {
       var want = Math.min(0.30, vl * 0.028), gx = vl ? vx / vl * want : 0, gz = vl ? vz / vl * want : 0;
       var sx = Move.spring(drag.lx || 0, drag.lvx || 0, gx, dt, 16), sz = Move.spring(drag.lz || 0, drag.lvz || 0, gz, dt, 16);
       drag.lx = sx.x; drag.lvx = sx.v; drag.lz = sz.x; drag.lvz = sz.v;
+      /* upright is upright: the last thousandth snaps, so a still hand
+         means a still picture and the loop can sleep */
+      if (!gx && !gz && Math.hypot(drag.lx, drag.lz) < 0.002 && Math.hypot(drag.lvx, drag.lvz) < 0.02) {
+        drag.lx = drag.lz = drag.lvx = drag.lvz = 0;
+      }
     }
     drag.lt = now;
     drag.wx = nx;
