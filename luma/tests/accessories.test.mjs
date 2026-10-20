@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const load = async name => import(`data:text/javascript;base64,${Buffer.from(await readFile(new URL(`../${name}`, import.meta.url), 'utf8')).toString('base64')}`);
-const { lightBox, deskStand, lampBase, shadeStand, triangulate, ACCESSORIES } = await load('accessories.js');
+const { lightBox, boardBox, deskStand, lampBase, shadeStand, triangulate, ACCESSORIES } = await load('accessories.js');
 const { binarySTL } = await load('mesh.js');
 
 /** Every shell closed, every edge used once each way, wound outward, and writable as STL. */
@@ -76,7 +76,23 @@ test('nightlight stand: a capped curved rim and a round floor, overlapping', () 
 });
 
 test('each shape offers its own extras', () => {
-  assert.deepEqual(ACCESSORIES.flat.map(a => a.id), ['lightbox', 'stand']);
+  assert.deepEqual(ACCESSORIES.flat.map(a => a.id), ['lightbox', 'ledboard', 'stand']);
   assert.deepEqual(ACCESSORIES.cylinder.map(a => a.id), ['base']);
   assert.deepEqual(ACCESSORIES.curved.map(a => a.id), ['stand']);
+});
+
+test('LED board box: holds a 156 × 120 board behind a 4 × 6, in either orientation, with a retainer that snaps under its lip', () => {
+  for (const [w, h] of [[101.6, 152.4], [152.4, 101.6]]) {
+    const { parts } = boardBox({ width: w, height: h, maxThickness: 3, border: 3, gap: 12 });
+    const box = parts[0].mesh, retainer = parts[1].mesh;
+    assertSolid(box, 0); assertSolid(retainer, 0);
+    const [bw, bh] = w < h ? [120, 156] : [156, 120];
+    // The board pocket is the board plus 0.3 a side; the walls add 2.4.
+    assert.ok(Math.abs(box.size[0] - (bw + 0.6 + 4.8)) < 1e-3 && Math.abs(box.size[1] - (bh + 0.6 + 4.8)) < 1e-3);
+    // Picture pocket 3.2, lip 1.6, the gap, the board and its seat 1.2, the retainer's rabbet 2.6.
+    assert.ok(Math.abs(box.size[2] - (3.2 + 1.6 + 12 + 1.2 + 2.6)) < 1e-3);
+    // The retainer is wider than the snap lip's opening (pocket less 0.35 a side), and fits the pocket.
+    assert.ok(retainer.size[0] > bw + 0.6 - 0.7 && retainer.size[0] < bw + 0.6);
+  }
+  assert.throws(() => boardBox({ width: 127, height: 177.8, maxThickness: 3, border: 3 }), /larger than/);
 });

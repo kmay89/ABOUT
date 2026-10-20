@@ -31,6 +31,8 @@ export const LIGHT_SOURCES = Object.freeze({
                hint:'Usually 30–65 lm.' },
   strip:     { name:'LED strip (box)',    lumens:150,  distance:'depth', box:true,
                hint:'Roughly the strip’s lumens per metre × the length you use.' },
+  board:     { name:'LED backlight board', lumens:150,  distance:'gap', box:true,
+               hint:'156 × 120 mm USB-C boards are bright — roughly 300–500 lm flat out. 150 lm is a middle setting; turn it down if highlights glare.' },
   bulb:      { name:'LED bulb lamp',      lumens:800,  distance:150, point:true,
                hint:'A “60 W equivalent” bulb is about 800 lm.' },
   pad:       { name:'LED light pad',      lux:5000,
@@ -130,7 +132,8 @@ export function recommendThickness(o) {
     const even = Math.round(Math.min(o.width, o.height) * 0.4 / 5) * 5;
     if (o.distance < even) tips.push(`A small light this close makes a bright spot. Set it at least ${even} mm behind the picture, or put a sheet of paper between them to spread it.`);
   }
-  if (s.box) tips.push('Run the strip round the inside edge of the box rather than straight behind the picture — the light spreads more evenly.');
+  if (o.source === 'strip') tips.push('Run the strip round the inside edge of the box rather than straight behind the picture — the light spreads more evenly.');
+  if (o.source === 'board') tips.push('These boards dim: if the highlights glare, turn it down a step rather than reprinting. Keep it at least 10 mm behind the picture so the LEDs don’t show as dots.');
   if (o.source === 'tealight') tips.push('Stand the tea light in the middle so every side glows the same.');
   result.tips = tips;
   // The preview's backlight that shows this brightness (1 = the reference glow).
