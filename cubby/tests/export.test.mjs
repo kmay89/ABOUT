@@ -57,7 +57,7 @@ test('a 3MF is a ZIP with the three parts a slicer looks for, one object per uni
   const objects = model.match(/<object /g).length, items = model.match(/<item /g).length;
   assert.equal(items, packing.plates[0].items.length);
   assert.equal(objects, new Set(packing.plates[0].items.map(i => i.part.key)).size);
-  assert.match(model, /name="Bin 1×1"/);
+  for (const it of packing.plates[0].items) assert.ok(model.includes(`name="${it.part.title}"`), `names ${it.part.title}`);
   // Every triangle index points at a vertex of its object.
   for (const obj of model.matchAll(/<object[^>]*>(.*?)<\/object>/gs)) {
     const vertexCount = (obj[1].match(/<vertex /g) || []).length;

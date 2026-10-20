@@ -168,3 +168,65 @@ test('every space has a favourite cell size that gives a sensible grid', () => {
     assert.ok(Math.abs(g.pitchX - SPACES[space].cell) < SPACES[space].cell / 2 + 1, 'near the favourite size');
   }
 });
+
+test('parts keep clear of the corner Bambu Studio reserves, and the strip in front of a wide part is still used', () => {
+  const design = newDesign({ width: 480, depth: 240, height: 60, space: 'kitchen', recipe: 'utensils' });
+  const list = partsList(design);
+  const printer = PRINTERS.find(p => p.id === 'p2s');
+  const packing = packPlates(list.parts, printer);
+  assert.deepEqual(packing.exclude, [18, 28]);
+  for (const plate of packing.plates) for (const it of plate.items) {
+    const inCorner = it.x < 18 && it.y < 28;
+    assert.ok(!inCorner, `${it.part.title} at ${it.x},${it.y} sits in the reserved corner`);
+    assert.ok(it.x >= 0 && it.y >= 0 && it.x + it.w <= 256 + 1e-9 && it.y + it.d <= 256 + 1e-9, 'inside the bed');
+  }
+  // A lane wider than the room beside the corner starts above it, and clips fill the strip in front.
+  const first = packing.plates[0].items;
+  const wide = first.find(it => it.w > 256 - 4 - 24);
+  if (wide) {
+    assert.ok(wide.y >= 28, 'the wide part sits above the corner');
+    assert.ok(first.some(it => it.part.kind === 'clip' && it.y < 28 && it.x >= 24), 'clips use the strip in front of it');
+  }
+});
+
+test('a lane longer than the plate prints on the diagonal, alone, pointing away from the reserved corner', () => {
+  const design = newDesign({ width: 120, depth: 280, height: 40, space: 'other', recipe: 'empty' });
+  design.cols = 2; design.rows = 5;
+  placeBin(design, { c: 0, r: 0, w: 1, h: 5 });
+  const list = partsList(design), printer = PRINTERS.find(p => p.id === 'p2s');
+  const lane = list.parts.find(p => p.kind === 'bin');
+  assert.ok(lane.mesh.size[1] > 256, 'longer than the plate');
+  assert.equal(L.plateFit(lane.mesh.size[0], lane.mesh.size[1], printer), 'diagonal');
+  const packing = packPlates(list.parts, printer);
+  assert.equal(packing.tooBig.length, 0);
+  const plate = packing.plates.find(p => p.diagonal);
+  assert.ok(plate && plate.items.length === 1, 'alone on its plate');
+  const it = plate.items[0];
+  assert.equal(it.rot, 45, 'its long side (Y) turned to run from front-right to back-left');
+  assert.ok(it.x >= 0 && it.y >= 0 && it.x + it.w <= 256 && it.y + it.d <= 256, 'the turned footprint is inside the bed');
+  // Turned by 45° the part's own corner (0, 0) is its lowest point, at (tx, ty); the
+  // long side runs up and to the left from there, so it is well right of the reserved corner.
+  assert.ok(it.tx > 18 + 100 && it.ty >= 4, 'misses the reserved corner');
+  assert.equal(L.plateFit(60, 400, printer), null, 'and a 400 mm lane fits no way');
+});
+
+test('starting layouts split lanes that would not fit the plate, carrying what they were for', () => {
+  const design = newDesign({ width: 400, depth: 400, height: 60, space: 'kitchen', recipe: 'cutlery' });
+  const g = grid(design);
+  for (const bin of design.bins) {
+    const rect = binRect(design, bin, g);
+    assert.ok(L.plateFit(rect.width, rect.depth, PRINTERS[0]) !== 'diagonal' && L.plateFit(rect.width, rect.depth, PRINTERS[0]) !== null, 'every piece lies square on the plate');
+  }
+  assert.ok(design.bins.length > g.cols, 'the lanes were split');
+  assert.equal(occupancy(design).cells.filter(Boolean).length, g.cols * g.rows, 'and still fill the drawer');
+  // A user-drawn lane is left alone (it prints on the diagonal if it can) until asked.
+  const own = newDesign({ width: 400, depth: 400, height: 60, space: 'other', recipe: 'empty' });
+  own.cols = 4; own.rows = 4;
+  const lane = placeBin(own, { c: 0, r: 0, w: 1, h: 4 }, { items: ['knife', 'fork'] });
+  assert.equal(own.bins.length, 1);
+  assert.ok(L.splitToFit(own, PRINTERS.find(p => p.id === 'p2s')));
+  assert.equal(own.bins.length, 2);
+  assert.deepEqual(own.bins.map(b => b.h), [2, 2]);
+  assert.deepEqual(own.bins[1].items, ['knife', 'fork']);
+  assert.ok(own.bins.some(b => b.id === lane.id), 'the first piece keeps its id');
+});

@@ -7,8 +7,9 @@
 import {
   newDesign, restoreDesign, grid, binRect, partsList, packPlates, fillEmpty, placeBin, trimToGrid, applyRecipe,
   RECIPES, SPACES, PRINTERS, FILAMENTS, SETTINGS_DEFAULTS, SETTINGS_LIMITS, clampSetting, binHeights, maxCount,
-  suggestedCount, fmt, binSpec, MIN_CELL,
+  suggestedCount, fmt, MIN_CELL, binInside, insideFor, itemFitsBin, splitToFit, plateFit, plateTotals, occupancy,
 } from './layout.js';
+import { ITEMS, ITEM_BY_ID, cellsFor, arrange, fit as itemFit } from './items.js';
 import { threeMF, bundle, partSTL, partFileName, zipStore } from './export.js';
 import { DrawerPreview } from './preview.js';
 
@@ -34,10 +35,13 @@ const el = {
   wall: $('wallInput'), floor: $('floorInput'), radius: $('radiusInput'), divider: $('dividerInput'),
   clearance: $('clearanceInput'), gap: $('gapInput'), rimGap: $('rimGapInput'), clips: $('clipsToggle'), clipFit: $('clipFitSelect'),
   resetSettings: $('resetSettingsBtn'), toast: $('toast'), settingsDetails: $('settingsDetails'),
+  itemSpace: $('itemSpace'), itemSpace2: $('itemSpace2'), binItems: $('binItems'), itemsNote: $('itemsNote'),
+  sizeItems: $('sizeItems'), sizeNote: $('sizeNote'), plateList: $('plateList'), platesSummary: $('platesSummary'),
 };
 
 const state = {
   design: null, selected: null, undo: [], units: 'mm', list: null, packing: null, previewTimer: 0,
+  itemSpace: null, sizeItem: null,
 };
 
 /* ---------- small helpers ---------- */
@@ -117,6 +121,14 @@ for (const [id, s] of Object.entries(SPACES)) {
   b.type = 'button'; b.dataset.space = id; b.textContent = s.name; b.setAttribute('aria-pressed', 'false');
   b.addEventListener('click', () => setSpace(id));
   el.spaceChips.append(b);
+}
+for (const sel of [el.itemSpace, el.itemSpace2]) {
+  for (const [id, s] of Object.entries(SPACES)) {
+    if (id === 'other') continue;
+    const o = document.createElement('option'); o.value = id; o.textContent = s.name; sel.append(o);
+  }
+  const all = document.createElement('option'); all.value = 'all'; all.textContent = 'Everything'; sel.append(all);
+  sel.addEventListener('change', () => { state.itemSpace = sel.value; renderBinForm(); });
 }
 
 
@@ -245,7 +257,7 @@ function renderBinForm() {
   const bin = selectedBin();
   el.binEmpty.hidden = !!bin;
   el.binForm.hidden = !bin;
-  if (!bin) return;
+  if (!bin) { renderSizeItems(); return; }
   const part = state.list?.parts.find(p => p.bins.includes(bin.id));
   el.binTitle.textContent = part ? part.title : 'Bin';
   el.binSize.textContent = part ? `${part.size}${part.error ? ' — ' + part.error : ''}` : '';
@@ -257,6 +269,108 @@ function renderBinForm() {
   el.heightNote.textContent = `${fmt(h.full)} mm, or ${fmt(h.low)} mm low`;
   el.scoop.checked = !!bin.scoop;
   el.splitBtn.disabled = bin.w * bin.h <= 1;
+  renderItems(bin);
+}
+
+/* ---------- things that go in it ---------- */
+
+function itemSpace() {
+  const d = state.design.drawer.space;
+  return state.itemSpace || (d === 'other' ? 'all' : d);
+}
+function itemsFor(space) {
+  return space === 'all' ? ITEMS : ITEMS.filter(i => i.spaces.includes(space));
+}
+function fitWords(f, item) {
+  if (!f) return 'does not fit';
+  const how = f.how === 'flat' ? (f.angle ? 'fits, turned across' : 'fits flat') : `fits on the diagonal (${f.angle}°)`;
+  return f.tall ? `${how}, standing ${fmt(item.h)} mm tall above the rim` : how;
+}
+
+/** Chips for the selected bin: each coloured by whether the thing fits. */
+function renderItems(bin) {
+  const space = itemSpace();
+  el.itemSpace.value = space;
+  const g = grid(state.design);
+  el.binItems.replaceChildren(...itemsFor(space).map(item => {
+    const f = itemFitsBin(state.design, bin, item, g);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = !f ? 'miss' : f.how === 'flat' && !f.tall ? 'fits' : f.how === 'diagonal' ? 'diagonal' : 'tall';
+    b.setAttribute('aria-pressed', String((bin.items || []).includes(item.id)));
+    b.innerHTML = `<span class="mark" aria-hidden="true">${!f ? '×' : f.how === 'flat' && !f.tall ? '✓' : '◇'}</span>${item.name}`;
+    b.title = `${item.name}: ${item.l} × ${item.w} × ${item.h} mm${item.note ? ' — ' + item.note : ''}. ${fitWords(f, item)}.`;
+    b.addEventListener('click', () => {
+      const bin = selectedBin();
+      if (!bin) return;
+      pushUndo();
+      bin.items = bin.items || [];
+      bin.items = bin.items.includes(item.id) ? bin.items.filter(i => i !== item.id) : [...bin.items, item.id].slice(0, 12);
+      update();
+      noteFor(item, f);
+    });
+    b.addEventListener('mouseenter', () => noteFor(item, f));
+    b.addEventListener('focus', () => noteFor(item, f));
+    return b;
+  }));
+  const named = (bin.items || []).map(id => ITEM_BY_ID[id]?.name).filter(Boolean);
+  el.itemsNote.innerHTML = named.length ? `For: <strong>${named.join(', ')}</strong>. Hover a thing to see how it fits.` : 'Hover a thing to see how it fits; press it to note what this bin is for.';
+  function noteFor(item, f) {
+    let text = `<strong>${item.name}</strong>, ${item.l} × ${item.w} × ${item.h} mm${item.note ? ` (${item.note})` : ''}: ${fitWords(f, item)}.`;
+    if (!f || f.how !== 'flat') {
+      const need = cellsFor(item, g.cols, g.rows, (w, h) => insideFor(state.design, w, h, g), state.design.settings.rimGap);
+      text += need ? ` Flat, it needs a ${need.w}×${need.h} bin.` : ' No bin on this grid takes it flat.';
+    }
+    el.itemsNote.innerHTML = text;
+  }
+}
+
+/** With nothing selected: pick a thing, see the smallest bin for it, add one. */
+function renderSizeItems() {
+  const space = itemSpace();
+  el.itemSpace2.value = space;
+  el.sizeItems.replaceChildren(...itemsFor(space).map(item => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(state.sizeItem === item.id));
+    b.innerHTML = `<span class="mark" aria-hidden="true">${item.l}</span>${item.name}`;
+    b.title = `${item.name}: ${item.l} × ${item.w} × ${item.h} mm${item.note ? ' — ' + item.note : ''}`;
+    b.addEventListener('click', () => { state.sizeItem = state.sizeItem === item.id ? null : item.id; renderSizeItems(); });
+    return b;
+  }));
+  const item = ITEM_BY_ID[state.sizeItem];
+  if (!item) { el.sizeNote.textContent = 'Typical sizes; the fit leaves 2 mm of room. Pens and cutlery want a lane as deep as the drawer.'; return; }
+  const g = grid(state.design);
+  const need = cellsFor(item, g.cols, g.rows, (w, h) => insideFor(state.design, w, h, g), state.design.settings.rimGap);
+  if (!need) {
+    const anyRow = itemFit(insideFor(state.design, g.cols, g.rows, g), item, state.design.settings.rimGap);
+    el.sizeNote.innerHTML = `<strong>${item.name}</strong> is ${item.l} × ${item.w} × ${item.h} mm${item.note ? ` (${item.note})` : ''}. ${anyRow ? 'It only fits this drawer on the diagonal.' : 'It does not fit this drawer flat; it may be too tall or too long.'}`;
+    return;
+  }
+  const inside = insideFor(state.design, need.w, need.h, g);
+  el.sizeNote.innerHTML = `<strong>${item.name}</strong> is ${item.l} × ${item.w} × ${item.h} mm${item.note ? ` (${item.note})` : ''}. The smallest bin that takes it flat is <strong>${need.w}×${need.h}</strong> (${fmt(inside.w)} × ${fmt(inside.d)} mm inside).`;
+  const add = document.createElement('button');
+  add.type = 'button'; add.textContent = `Add a ${need.w}×${need.h} bin`;
+  add.addEventListener('click', () => {
+    const occ = occupancy(state.design);
+    const free = (c, r) => c < occ.cols && r < occ.rows && !occ.cells[r * occ.cols + c];
+    let spot = null;
+    for (const [w, h] of [[need.w, need.h], [need.h, need.w]]) {
+      for (let r = 0; r < occ.rows && !spot; r++) for (let c = 0; c < occ.cols && !spot; c++) {
+        let ok = true;
+        for (let rr = r; rr < r + h && ok; rr++) for (let cc = c; cc < c + w && ok; cc++) if (!free(cc, rr)) ok = false;
+        if (ok) spot = { c, r, w, h };
+      }
+      if (spot) break;
+    }
+    if (!spot) { toast(`No free ${need.w}×${need.h} space on the plan; remove a bin first, or draw over one.`); return; }
+    pushUndo();
+    const bin = placeBin(state.design, spot, { items: [item.id] });
+    state.selected = bin?.id || null;
+    update();
+    toast(`Added a bin for ${item.name.toLowerCase()}.`);
+  });
+  el.sizeNote.append(' ', add);
 }
 
 function editBin(change) {
@@ -280,7 +394,7 @@ el.splitBtn.addEventListener('click', () => {
   const d = state.design;
   d.bins = d.bins.filter(b => b.id !== bin.id);
   for (let r = bin.r; r < bin.r + bin.h; r++) for (let c = bin.c; c < bin.c + bin.w; c++) {
-    placeBin(d, { c, r, w: 1, h: 1 }, { cx: 1, cy: 1, low: bin.low, scoop: false });
+    placeBin(d, { c, r, w: 1, h: 1 }, { cx: 1, cy: 1, low: bin.low, scoop: false, items: [...(bin.items || [])] });
   }
   state.selected = null;
   update();
@@ -309,9 +423,9 @@ const plan = { pointer: null, ghost: null, cellRects: [] };
 
 function renderPlan() {
   const d = state.design, g = grid(d), { width: W, depth: D } = d.drawer;
-  const M = 16, below = 14;
+  const M = 16, below = 14, dimGap = Math.max(8, Math.min(14, W * 0.03));
   const s = el.planSvg;
-  s.setAttribute('viewBox', `${-M} ${-M} ${W + 2 * M} ${D + 2 * M + below}`);
+  s.setAttribute('viewBox', `${-M} ${-M - dimGap} ${W + 2 * M + dimGap} ${D + 2 * M + below + dimGap}`);
   s.replaceChildren();
   const toY = (y, h = 0) => D - y - h;        // the front of the drawer is at the bottom of the plan
   s.append(svg('rect', { class: 'drawer', x: -1.5, y: -1.5, width: W + 3, height: D + 3, rx: 4 }));
@@ -347,16 +461,41 @@ function renderPlan() {
       const sw = rect.width * 0.6, x0 = rect.x + rect.width / 2 - sw / 2, yf = toY(rect.y);
       group.append(svg('path', { class: 'scoop-mark', d: `M ${x0} ${yf} Q ${rect.x + rect.width / 2} ${yf - Math.min(8, rect.depth * 0.25)} ${x0 + sw} ${yf}` }));
     }
+    // what goes in it, drawn to size in the first compartment
+    const items = (bin.items || []).filter(id => ITEM_BY_ID[id]);
+    if (items.length) {
+      const inside = binInside(d, bin, g);
+      const x0 = rect.x + wall, y0 = rect.y + wall;
+      for (const p of arrange(inside, items, d.settings.rimGap)) {
+        const px = x0 + p.x, py = y0 + p.y;
+        const node = svg('rect', { class: `thing${p.loose ? ' loose' : ''}`, x: px, y: toY(py, p.w), width: p.l, height: p.w, rx: Math.min(2, p.w / 3) });
+        if (p.loose) node.setAttribute('transform', `rotate(${-p.angle} ${px} ${toY(py)})`);
+        group.append(node);
+      }
+    }
     const midX = rect.x + rect.width / 2, midY = toY(rect.y, rect.depth) + rect.depth / 2;
-    const label = `${bin.w}×${bin.h}`;
-    const sub = [cx * cy > 1 ? `${cx * cy} inside` : '', bin.low ? 'low' : '', bin.scoop ? 'scoop' : ''].filter(Boolean).join(' · ');
-    group.append(svg('text', { class: 'label', x: midX, y: midY + (sub ? -fontSize * 0.1 : fontSize * 0.35), 'font-size': fontSize }, label));
+    const names = items.map(id => ITEM_BY_ID[id].name);
+    const label = names.length ? names[0] + (names.length > 1 ? ` +${names.length - 1}` : '') : `${bin.w}×${bin.h}`;
+    const sub = [names.length ? `${bin.w}×${bin.h}` : '', cx * cy > 1 ? `${cx * cy} inside` : '', bin.low ? 'low' : '', bin.scoop ? 'scoop' : ''].filter(Boolean).join(' · ');
+    const labelSize = names.length ? Math.min(fontSize, Math.max(4.5, rect.width * 1.6 / Math.max(6, label.length))) : fontSize;
+    group.append(svg('text', { class: `label${names.length ? ' named' : ''}`, x: midX, y: midY + (sub ? -fontSize * 0.1 : fontSize * 0.35), 'font-size': labelSize }, label));
     if (sub) group.append(svg('text', { class: 'sublabel', x: midX, y: midY + fontSize * 1.05, 'font-size': fontSize * 0.68 }, sub));
-    group.append(svg('title', {}, `${label} bin${sub ? ' · ' + sub : ''}. Click to change it.`));
+    group.append(svg('title', {}, `${bin.w}×${bin.h} bin${names.length ? ' for ' + names.join(', ') : ''}${sub ? ' · ' + sub : ''}. Click to change it.`));
     bins.append(group);
   }
   s.append(bins);
   s.append(svg('text', { class: 'front-mark', x: W / 2, y: D + M * 0.8, 'font-size': Math.max(5, Math.min(9, W * 0.02)) }, 'FRONT OF THE DRAWER'));
+  // dimensions: width along the top, depth down the right
+  const dimFont = Math.max(5, Math.min(8, W * 0.018)), tick = dimGap * 0.3;
+  const dims = svg('g', { class: 'dims' });
+  const yd = -dimGap * 0.55, xd = W + dimGap * 0.55;
+  dims.append(svg('path', { class: 'dim', d: `M0 ${yd} H${W} M0 ${yd - tick} V${yd + tick} M${W} ${yd - tick} V${yd + tick}`, fill: 'none' }));
+  dims.append(svg('rect', { x: W / 2 - dimFont * 2.6, y: yd - dimFont * 0.7, width: dimFont * 5.2, height: dimFont * 1.4, fill: '#ece8dc' }));
+  dims.append(svg('text', { class: 'dim-text', x: W / 2, y: yd + dimFont * 0.38, 'font-size': dimFont }, `${fmt(W)} mm`));
+  dims.append(svg('path', { class: 'dim', d: `M${xd} 0 V${D} M${xd - tick} 0 H${xd + tick} M${xd - tick} ${D} H${xd + tick}`, fill: 'none' }));
+  dims.append(svg('rect', { x: xd - dimFont * 0.7, y: D / 2 - dimFont * 2.6, width: dimFont * 1.4, height: dimFont * 5.2, fill: '#ece8dc' }));
+  dims.append(svg('text', { class: 'dim-text', x: xd, y: D / 2, 'font-size': dimFont, transform: `rotate(-90 ${xd} ${D / 2})`, dy: dimFont * 0.38 }, `${fmt(D)} mm`));
+  s.append(dims);
   plan.ghost = svg('rect', { class: 'ghost', x: 0, y: 0, width: 0, height: 0, rx: 2, visibility: 'hidden' });
   s.append(plan.ghost);
 
@@ -366,7 +505,9 @@ function renderPlan() {
   el.clearBtn.disabled = d.bins.length === 0;
 }
 
-function cellAt(event) {
+/** The cell under the pointer; null outside the drawer unless `clamp`
+ * (a drag that wanders off the plan keeps its nearest cell). */
+function cellAt(event, clamp = false) {
   const d = state.design, g = grid(d);
   const pt = el.planSvg.createSVGPoint();
   pt.x = event.clientX; pt.y = event.clientY;
@@ -374,6 +515,7 @@ function cellAt(event) {
   if (!ctm) return null;
   const p = pt.matrixTransform(ctm.inverse());
   const x = p.x, y = d.drawer.depth - p.y;
+  if (!clamp && (x < 0 || x > d.drawer.width || y < 0 || y > d.drawer.depth)) return null;
   const c = Math.max(0, Math.min(g.cols - 1, Math.floor((x - g.originX) / g.pitchX)));
   const r = Math.max(0, Math.min(g.rows - 1, Math.floor((y - g.originY) / g.pitchY)));
   return { c, r };
@@ -401,7 +543,7 @@ el.planSvg.addEventListener('pointerdown', (e) => {
 el.planSvg.addEventListener('pointermove', (e) => {
   const p = plan.pointer;
   if (!p || e.pointerId !== p.id) return;
-  const cell = cellAt(e);
+  const cell = cellAt(e, true);
   if (!cell) return;
   p.current = cell;
   if (cell.c !== p.start.c || cell.r !== p.start.r) p.dragging = true;
@@ -466,7 +608,7 @@ function renderParts() {
     const what = document.createElement('div'); what.className = 'what';
     const title = document.createElement('strong'); title.textContent = part.title;
     const meta = document.createElement('span');
-    meta.textContent = part.error ? part.error : `${part.size} · ${fmt(part.grams)} g · ~${minutes(part.minutes)} each`;
+    meta.textContent = part.error ? part.error : `${part.size} · ${fmt(part.grams)} g · ~${minutes(part.minutes)} each${part.contents?.length ? ' · for ' + part.contents.join(', ') : ''}`;
     what.append(title, meta);
     li.append(qty, what);
     if (part.mesh) {
@@ -487,15 +629,57 @@ function renderParts() {
     : 'Draw a bin on the plan to start the parts list.';
   const warnings = [];
   if (d.bins.length === 0) warnings.push(['note', 'The plan is empty. Drag across cells, click a cell, or pick a starting layout.']);
-  for (const p of pk.tooBig) warnings.push(['error', `${p.title} (${p.size}) is too big for the ${pr.short}'s ${pr.bed[0]} × ${pr.bed[1]} mm plate. Add columns or rows so the cells are smaller, split it, or choose a bigger printer.`]);
+  for (const p of pk.tooBig) {
+    const bins = d.bins.filter(b => p.bins.includes(b.id));
+    const splittable = bins.some(b => Math.max(b.w, b.h) > 1);
+    warnings.push(['error', `${p.title} (${p.size}) is too big for the ${pr.short}'s ${pr.bed[0]} × ${pr.bed[1]} mm plate, even on the diagonal.${splittable ? ' Split it into shorter bins joined by a clip, or' : ' Add columns or rows so the cells are smaller, or'} choose a bigger printer.`, splittable ? { label: 'Split it to fit', run: () => { pushUndo(); splitToFit(d, pr); update(); toast('Split into bins that fit the plate; a clip joins them.'); } } : null]);
+  }
+  for (const plate of pk.plates) if (plate.diagonal) { warnings.push(['note', `${plate.items[0].part.title} is longer than the plate, so it prints on the diagonal, alone on plate ${plate.index}.`]); break; }
   for (const p of list.parts) if (p.error) warnings.push(['error', `${p.title}: ${p.error}`]);
   const g = list.grid;
   if (g.tooBig) warnings.push(['note', `Cells over 120 mm make big, floppy bins; add columns or rows.`]);
   const heights = list.heights;
   if (d.drawer.height - d.settings.rimGap < 8) warnings.push(['error', 'The drawer is too shallow for the room left below its top; lower that setting or check the height.']);
   if (heights.full >= pr.bed[2] - 2) warnings.push(['note', `Bins are capped at ${fmt(heights.full)} mm, the tallest the ${pr.short} prints.`]);
-  el.warnings.replaceChildren(...warnings.map(([kind, text]) => { const p = document.createElement('p'); if (kind === 'note') p.className = 'note'; p.textContent = text; return p; }));
+  el.warnings.replaceChildren(...warnings.map(([kind, text, action]) => {
+    const p = document.createElement('p'); if (kind === 'note') p.className = 'note'; p.textContent = text;
+    if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.addEventListener('click', action.run); p.append(b); }
+    return p;
+  }));
   el.download3mf.disabled = el.downloadZip.disabled = pk.plates.length === 0;
+  renderPlates();
+}
+
+/** Every plate as the slicer will open it: the bed, the reserved corner, each part in place. */
+function renderPlates() {
+  const pk = state.packing, pr = printer();
+  const [bx, by] = pk.bed, [exX, exY] = pk.exclude || [0, 0];
+  el.platesSummary.textContent = pk.plates.length ? `${pk.plates.length} plate${pk.plates.length === 1 ? '' : 's'} on the ${pr.short}` : 'Plates';
+  el.plateList.replaceChildren(...pk.plates.map(plate => {
+    const fig = document.createElement('figure'); fig.className = 'plate';
+    const s = svg('svg', { viewBox: `-2 -2 ${bx + 4} ${by + 4}`, role: 'img', 'aria-label': `Plate ${plate.index}` });
+    // plate coordinates have the back at +Y; flip so the back is at the top, as in the slicer
+    const flip = svg('g', { transform: `translate(0 ${by}) scale(1 -1)` });
+    flip.append(svg('rect', { class: 'bed', x: 0, y: 0, width: bx, height: by, rx: 3 }));
+    if (exX) flip.append(svg('rect', { class: 'exclude', x: 0, y: 0, width: exX, height: exY }));
+    for (const it of plate.items) {
+      const [w0, d0] = it.part.mesh.size;
+      flip.append(svg('rect', { class: `part${it.part.kind === 'clip' ? ' clip' : ''}`, x: 0, y: 0, width: w0, height: d0, rx: Math.min(3, d0 / 3), transform: `translate(${it.tx} ${it.ty}) rotate(${it.rot})` }));
+    }
+    s.append(flip);
+    for (const it of plate.items) {
+      if (it.part.kind === 'clip' || Math.min(it.w, it.d) < 28) continue;
+      const short = it.part.title.replace(/^Bin /, '').split(' · ')[0];
+      s.append(svg('text', { class: 'part-label', x: it.x + it.w / 2, y: by - (it.y + it.d / 2), 'font-size': Math.max(7, Math.min(11, Math.min(it.w, it.d) / 4)) }, short));
+    }
+    const counts = new Map();
+    for (const it of plate.items) counts.set(it.part.title, (counts.get(it.part.title) || 0) + 1);
+    const t = plateTotals(plate);
+    const cap = document.createElement('figcaption');
+    cap.innerHTML = `<strong>Plate ${plate.index}</strong> · ${Math.round(t.grams)} g · ~${minutes(t.minutes)}${plate.diagonal ? ' · on the diagonal' : ''}<br>${[...counts].map(([title, n]) => `${n} × ${title}`).join(', ')}`;
+    fig.append(s, cap);
+    return fig;
+  }));
 }
 
 function setSetting(key, value) {

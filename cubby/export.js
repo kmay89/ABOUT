@@ -103,11 +103,11 @@ export function threeMF(plate, { title = 'Cubby drawer organizer', bed } = {}) {
   for (const it of plate.items) {
     if (!objects.has(it.part.key)) objects.set(it.part.key, { id: id++, part: it.part });
     const obj = objects.get(it.part.key);
-    // A quarter turn about Z maps (x, y) to (-y, x); shift so the part still
-    // starts at its packed corner.
-    const t = it.rot === 90
-      ? `0 1 0 -1 0 0 0 0 1 ${num(it.x + it.part.mesh.size[1])} ${num(it.y)} 0`
-      : `1 0 0 0 1 0 0 0 1 ${num(it.x)} ${num(it.y)} 0`;
+    // 3MF transforms are row-major, applied to row vectors: x' = x·m00 + y·m10 + m30.
+    // A turn by `rot` about Z, then the shift the packer worked out so the
+    // turned footprint sits where it was placed.
+    const a = (it.rot || 0) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+    const t = `${num(c)} ${num(sn)} 0 ${num(-sn)} ${num(c)} 0 0 0 1 ${num(it.tx ?? it.x)} ${num(it.ty ?? it.y)} 0`;
     items.push(`<item objectid="${obj.id}" transform="${t}" partnumber="${esc(it.part.title)}"/>`);
   }
   const model = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -160,15 +160,18 @@ export function printSheet(design, list, packing) {
   ];
   for (const p of list.parts) {
     lines.push(`${String(p.qty).padStart(3)} ×  ${p.title.padEnd(34)} ${p.size.padEnd(28)} ${p.error ? 'could not be built: ' + p.error : `${fmt(p.grams)} g each, about ${minutes(p.minutes)} each`}`);
+    if (p.contents && p.contents.length) lines.push(`${''.padStart(7)}for: ${p.contents.join(', ')}`);
   }
   lines.push('', `${list.totals.parts} parts, about ${Math.round(list.totals.grams)} g of ${FILAMENTS[s.filament].name}, roughly ${minutes(list.totals.minutes)} of printing (a rough estimate; your slicer knows better).`);
   if (packing) {
     lines.push('', 'PLATES', '');
     for (const plate of packing.plates) {
       const counts = new Map();
-      for (const it of plate.items) counts.set(it.part.title, (counts.get(it.part.title) || 0) + 1);
-      lines.push(`Plate ${plate.index}: ${[...counts].map(([t, n]) => `${n} × ${t}`).join(', ')}`);
+      let mins = 0, grams = 0;
+      for (const it of plate.items) { counts.set(it.part.title, (counts.get(it.part.title) || 0) + 1); mins += it.part.minutes || 0; grams += it.part.grams || 0; }
+      lines.push(`Plate ${plate.index}: ${[...counts].map(([t, n]) => `${n} × ${t}`).join(', ')} — about ${Math.round(grams)} g, ${minutes(mins)}${plate.diagonal ? ' (laid on the diagonal, alone, so it fits)' : ''}`);
     }
+    if (packing.exclude && packing.exclude[0]) lines.push(`Parts keep ${packing.margin} mm from the plate's edge, ${packing.spacing} mm from each other, and clear of the ${packing.exclude[0]} × ${packing.exclude[1]} mm front-left corner Bambu Studio reserves for the purge line.`);
     for (const p of packing.tooBig) lines.push(`Too big for this plate: ${p.title} (${p.size}). Pick a bigger printer, or split it across more cells.`);
   }
   lines.push('', 'SLICER SETTINGS (Bambu Studio / OrcaSlicer / PrusaSlicer)', '',
