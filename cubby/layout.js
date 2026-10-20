@@ -10,6 +10,7 @@
  * that join neighbours, and packs everything onto the printer's plates.
  */
 import { JOINT, CLIP_FITS, buildBin, buildClip } from './geometry.js';
+import { ITEM_BY_ID, fit as itemFit } from './items.js';
 
 export const VERSION = 1;
 export const MIN_CELL = 18;      // mm — a channel, two corners and room for a finger
@@ -23,12 +24,16 @@ export const SPACES = Object.freeze({
   other: { name: 'Anywhere', cell: 55, blurb: 'A plain grid to arrange as you like.' },
 });
 
+/** Build volumes from the makers' published figures. `exclude` is the
+ * front-left corner Bambu Studio keeps clear for the nozzle wipe and purge
+ * line (its profiles' bed_exclude_area, 18 × 28 mm); parts are packed
+ * around it so a plate slices exactly as laid out. */
 export const PRINTERS = Object.freeze([
-  { id: 'p2s', name: 'Bambu Lab P2S', short: 'P2S', bed: [256, 256, 256] },
-  { id: 'p1x1', name: 'Bambu Lab X1 · P1 series', short: 'X1 / P1', bed: [256, 256, 256] },
-  { id: 'a1', name: 'Bambu Lab A1', short: 'A1', bed: [256, 256, 256] },
-  { id: 'a1mini', name: 'Bambu Lab A1 mini', short: 'A1 mini', bed: [180, 180, 180] },
-  { id: 'h2d', name: 'Bambu Lab H2D', short: 'H2D', bed: [350, 320, 325] },
+  { id: 'p2s', name: 'Bambu Lab P2S', short: 'P2S', bed: [256, 256, 256], exclude: [18, 28] },
+  { id: 'p1x1', name: 'Bambu Lab X1 · P1 series', short: 'X1 / P1', bed: [256, 256, 256], exclude: [18, 28] },
+  { id: 'a1', name: 'Bambu Lab A1', short: 'A1', bed: [256, 256, 256], exclude: [18, 28] },
+  { id: 'a1mini', name: 'Bambu Lab A1 mini', short: 'A1 mini', bed: [180, 180, 180], exclude: [18, 28] },
+  { id: 'h2d', name: 'Bambu Lab H2D', short: 'H2D', bed: [350, 320, 325], exclude: [18, 28] },
   { id: 'mk4s', name: 'Prusa MK4S', short: 'MK4S', bed: [250, 210, 220] },
   { id: 'coreone', name: 'Prusa CORE One', short: 'CORE One', bed: [250, 220, 270] },
   { id: 'mini', name: 'Prusa MINI+', short: 'MINI', bed: [180, 180, 180] },
@@ -154,7 +159,7 @@ export function placeBin(design, rect, extra = {}) {
   const c1 = Math.min(g.cols - 1, Math.max(rect.c, rect.c + rect.w - 1)), r1 = Math.min(g.rows - 1, Math.max(rect.r, rect.r + rect.h - 1));
   if (c1 < c0 || r1 < r0) return null;
   const overlaps = b => !(b.c + b.w - 1 < c0 || b.c > c1 || b.r + b.h - 1 < r0 || b.r > r1);
-  const bin = { id: newId(), c: c0, r: r0, w: c1 - c0 + 1, h: r1 - r0 + 1, cx: 1, cy: 1, low: false, scoop: false, ...extra };
+  const bin = { id: newId(), c: c0, r: r0, w: c1 - c0 + 1, h: r1 - r0 + 1, cx: 1, cy: 1, low: false, scoop: false, items: [], ...extra };
   design.bins = design.bins.filter(b => !overlaps(b)).concat(bin);
   return bin;
 }
@@ -165,7 +170,7 @@ export function fillEmpty(design) {
   let added = 0;
   for (let r = 0; r < occ.rows; r++) for (let c = 0; c < occ.cols; c++) {
     if (occ.cells[r * occ.cols + c]) continue;
-    design.bins.push({ id: newId(), c, r, w: 1, h: 1, cx: 1, cy: 1, low: false, scoop: false });
+    design.bins.push({ id: newId(), c, r, w: 1, h: 1, cx: 1, cy: 1, low: false, scoop: false, items: [] });
     added++;
   }
   return added;
@@ -204,7 +209,7 @@ function tile(cols, rows, pick) {
     let h = 1; while (h < (want.h || 1) && Array.from({ length: w }, (_, i) => free(c + i, r + h)).every(Boolean)) h++;
     for (let rr = r; rr < r + h; rr++) for (let cc = c; cc < c + w; cc++) taken.add(`${cc},${rr}`);
     const { w: _w, h: _h, ...extra } = want;
-    bins.push({ id: newId(), c, r, w, h, cx: 1, cy: 1, low: false, scoop: false, ...extra });
+    bins.push({ id: newId(), c, r, w, h, cx: 1, cy: 1, low: false, scoop: false, items: [], ...extra });
   }
   return bins;
 }
@@ -273,7 +278,76 @@ export function applyRecipe(design, id) {
   const g = grid(design);
   design.bins = recipe.make(g.cols, g.rows);
   design.recipe = recipe.id;
+  splitToFit(design);
   return design;
+}
+
+/** The inside of one compartment of a bin: what a thing has to fit. */
+export function binInside(design, bin, g = grid(design)) {
+  const rect = binRect(design, bin, g), s = design.settings, heights = binHeights(design);
+  const cx = bin.cx || 1, cy = bin.cy || 1;
+  return {
+    w: (rect.width - 2 * s.wall - (cx - 1) * s.divider) / cx,
+    d: (rect.depth - 2 * s.wall - (cy - 1) * s.divider) / cy,
+    h: (bin.low ? heights.low : heights.full) - s.floor,
+  };
+}
+
+/** The inside a bin of w × h cells would have (one compartment). */
+export function insideFor(design, w, h, g = grid(design)) {
+  return binInside(design, { c: 0, r: 0, w, h, cx: 1, cy: 1, low: false }, g);
+}
+
+/** Does a thing fit this bin? See items.js. */
+export function itemFitsBin(design, bin, item, g = grid(design)) {
+  return itemFit(binInside(design, bin, g), item, design.settings.rimGap);
+}
+
+/* ---------- the plate ---------- */
+
+export const PLATE_MARGIN = 4;    // mm kept clear at the plate's edge
+export const PLATE_SPACING = 6;   // mm between parts
+
+/** How a footprint goes on the printer's plate: as it is, turned a quarter,
+ * on the diagonal (alone on its plate), or not at all. */
+export function plateFit(w, d, printer) {
+  const maxW = printer.bed[0] - 2 * PLATE_MARGIN, maxD = printer.bed[1] - 2 * PLATE_MARGIN;
+  if (w <= maxW && d <= maxD) return 'axis';
+  if (d <= maxW && w <= maxD) return 'turned';
+  // At 45° a w × d rectangle's shadow is (w + d) / √2 on each axis.
+  const shadow = (w + d) / Math.SQRT2;
+  if (shadow <= maxW && shadow <= maxD) return 'diagonal';
+  return null;
+}
+
+/**
+ * Split any bin too long for the plate into the fewest pieces along its long
+ * axis that fit square on, so a utensil lane deeper than the plate becomes
+ * two lanes joined by a clip. Pieces are as even as the cells allow. A bin
+ * whose single cell is already too big is left for the warning.
+ */
+export function splitToFit(design, printer = PRINTERS.find(p => p.id === design.settings.printer) || PRINTERS[0]) {
+  const g = grid(design), out = [];
+  let changed = false;
+  for (const bin of design.bins) {
+    const rect = binRect(design, bin, g), how = plateFit(rect.width, rect.depth, printer);
+    if (how === 'axis' || how === 'turned') { out.push(bin); continue; }
+    const alongX = rect.width >= rect.depth, cells = alongX ? bin.w : bin.h, pitch = alongX ? g.pitchX : g.pitchY;
+    const maxLen = Math.max(printer.bed[0], printer.bed[1]) - 2 * PLATE_MARGIN;
+    const perPiece = Math.floor((maxLen + design.settings.gap) / pitch);
+    if (perPiece < 1 || cells <= 1) { out.push(bin); continue; }
+    const pieces = Math.ceil(cells / perPiece), base = Math.floor(cells / pieces), extra = cells % pieces;
+    let at = 0;
+    for (let i = 0; i < pieces; i++) {
+      const n = base + (i < extra ? 1 : 0);
+      out.push({ ...bin, id: i === 0 ? bin.id : newId(), items: [...(bin.items || [])],
+        c: alongX ? bin.c + at : bin.c, r: alongX ? bin.r : bin.r + at, w: alongX ? n : bin.w, h: alongX ? bin.h : n });
+      at += n;
+    }
+    changed = true;
+  }
+  design.bins = out;
+  return changed;
 }
 
 /** Read a saved design, however old, into a valid one. */
@@ -293,7 +367,8 @@ export function restoreDesign(saved) {
     if (!ok(b.c) || !ok(b.r) || !ok(b.w) || !ok(b.h) || b.w < 1 || b.h < 1) continue;
     design.bins.push({ id: typeof b.id === 'string' ? b.id : newId(), c: b.c, r: b.r, w: b.w, h: b.h,
       cx: ok(b.cx) && b.cx >= 1 ? Math.min(b.cx, 12) : 1, cy: ok(b.cy) && b.cy >= 1 ? Math.min(b.cy, 12) : 1,
-      low: !!b.low, scoop: !!b.scoop });
+      low: !!b.low, scoop: !!b.scoop,
+      items: Array.isArray(b.items) ? [...new Set(b.items.filter(id => typeof id === 'string' && ITEM_BY_ID[id]))].slice(0, 12) : [] });
   }
   return trimToGrid(design);
 }
@@ -348,18 +423,19 @@ export function partsList(design) {
   for (const bin of design.bins) {
     const spec = binSpec(design, bin, g), key = binKey(spec);
     if (!parts.has(key)) {
-      const part = { key, kind: 'bin', qty: 0, bins: [], spec, ...describeBin(bin, spec), mesh: null, error: null };
+      const part = { key, kind: 'bin', qty: 0, bins: [], spec, ...describeBin(bin, spec), contents: [], mesh: null, error: null };
       try { part.mesh = buildBin(spec); } catch (error) { part.error = error.message; }
       parts.set(key, part);
     }
     const part = parts.get(key);
     part.qty++; part.bins.push(bin.id);
+    for (const id of bin.items || []) if (ITEM_BY_ID[id] && !part.contents.includes(ITEM_BY_ID[id].name)) part.contents.push(ITEM_BY_ID[id].name);
   }
   const list = [...parts.values()].sort((p, q) => q.spec.width * q.spec.depth - p.spec.width * p.spec.depth);
   const fit = CLIP_FITS[design.settings.clipFit] ?? CLIP_FITS.normal;
   for (const { length, qty } of clipPlan(design)) {
     const spec = { length, gap: design.settings.gap, fit, joint: JOINT };
-    const part = { key: `clip|${length}`, kind: 'clip', qty, bins: [], spec, title: `Clip ${length} mm`, size: `${length} × ${fmt(JOINT.base)} × ${fmt(2 * JOINT.depth + design.settings.gap)} mm`, bits: ['joins two bins'], mesh: null, error: null };
+    const part = { key: `clip|${length}`, kind: 'clip', qty, bins: [], contents: [], spec, title: `Clip ${length} mm`, size: `${length} × ${fmt(JOINT.base)} × ${fmt(2 * JOINT.depth + design.settings.gap)} mm`, bits: ['joins two bins'], mesh: null, error: null };
     try { part.mesh = buildClip(spec); } catch (error) { part.error = error.message; }
     list.push(part);
   }
@@ -382,13 +458,27 @@ export function partsList(design) {
 
 /* ---------- plates ---------- */
 
+/** Where a part's corner goes so its footprint, turned by `rot` degrees
+ * about its own origin, sits with its bounding box at (x, y). */
+function placement(part, rot, x, y) {
+  const [w0, d0] = part.mesh.size, a = rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const corners = [[0, 0], [w0, 0], [w0, d0], [0, d0]].map(([px, py]) => [px * c - py * s, px * s + py * c]);
+  const mx = Math.min(...corners.map(p => p[0])), my = Math.min(...corners.map(p => p[1]));
+  const w = Math.max(...corners.map(p => p[0])) - mx, d = Math.max(...corners.map(p => p[1])) - my;
+  return { part, rot, x, y, w, d, tx: x - mx, ty: y - my };
+}
+
 /**
  * Pack the parts onto plates of the printer's size, in shelves: biggest
- * footprint first, turned a quarter when that fits a shelf better. Returns
- * plates of placements; a part larger than the plate is reported, not placed.
+ * footprint first, turned a quarter when that fits a shelf better, kept
+ * out of the corner Bambu Studio reserves for the purge line. A part too
+ * long to lie square goes alone on a plate at 45°, pointing from the
+ * front-right corner to the back-left so it misses that reserved corner.
+ * A part that fits no way is reported, not placed.
  */
-export function packPlates(parts, printer, spacing = 6, margin = 4) {
-  const [bedX, bedY] = printer.bed;
+export function packPlates(parts, printer, spacing = PLATE_SPACING, margin = PLATE_MARGIN) {
+  const [bedX, bedY] = printer.bed, ex = printer.exclude || [0, 0];
+  const maxW = bedX - 2 * margin, maxD = bedY - 2 * margin;
   const items = [];
   for (const part of parts) {
     if (!part.mesh) continue;
@@ -396,39 +486,65 @@ export function packPlates(parts, printer, spacing = 6, margin = 4) {
   }
   items.sort((p, q) => q.w * q.d - p.w * p.d);
   const plates = [], tooBig = [];
-  const fitsAt = (w, d) => w <= bedX - 2 * margin && d <= bedY - 2 * margin;
+  const fitsAt = (w, d) => w <= maxW && d <= maxD;
+  const startX = y => y < ex[1] ? Math.max(margin, ex[0] + spacing) : margin;
   for (const item of items) {
-    const turned = { w: item.d, d: item.w };
-    if (!fitsAt(item.w, item.d) && !fitsAt(turned.w, turned.d)) { if (!tooBig.includes(item.part)) tooBig.push(item.part); continue; }
+    const ways = [[item.w, item.d, 0], [item.d, item.w, 90]].filter(([w, d]) => fitsAt(w, d));
+    if (!ways.length) {
+      const how = plateFit(item.w, item.d, printer);
+      if (how === 'diagonal') {
+        // Long side along the front-right to back-left diagonal.
+        const rot = item.w >= item.d ? 135 : 45;
+        const p = placement(item.part, rot, 0, 0);
+        plates.push({ shelves: null, diagonal: true, items: [placement(item.part, rot, (bedX - p.w) / 2, (bedY - p.d) / 2)] });
+      } else if (!tooBig.includes(item.part)) tooBig.push(item.part);
+      continue;
+    }
     let placed = false;
     for (const plate of plates) {
+      if (!plate.shelves) continue;
       for (const shelf of plate.shelves) {
-        for (const [w, d, rot] of [[item.w, item.d, 0], [turned.w, turned.d, 90]]) {
-          if (shelf.x + w <= bedX - margin && d <= shelf.height + 1e-9 && fitsAt(w, d)) {
-            plate.items.push({ part: item.part, x: shelf.x, y: shelf.y, w, d, rot });
+        for (const [w, d, rot] of ways) {
+          if (shelf.x + w <= bedX - margin && d <= shelf.height + 1e-9) {
+            plate.items.push(placement(item.part, rot, shelf.x, shelf.y));
             shelf.x += w + spacing; placed = true; break;
           }
         }
         if (placed) break;
       }
       if (placed) break;
-      // a new shelf on this plate
-      const top = plate.shelves.length ? plate.shelves[plate.shelves.length - 1].y + plate.shelves[plate.shelves.length - 1].height + spacing : margin;
-      for (const [w, d, rot] of [[item.w, item.d, 0], [turned.w, turned.d, 90]].sort((p, q) => p[1] - q[1])) {
-        if (top + d <= bedY - margin && fitsAt(w, d)) {
-          plate.shelves.push({ y: top, height: d, x: margin + w + spacing });
-          plate.items.push({ part: item.part, x: margin, y: top, w, d, rot });
-          placed = true; break;
-        }
-      }
-      if (placed) break;
+      if (openShelf(plate, item, ways)) { placed = true; break; }
     }
     if (!placed) {
-      const [w, d, rot] = [[item.w, item.d, 0], [turned.w, turned.d, 90]].filter(([w, d]) => fitsAt(w, d)).sort((p, q) => p[1] - q[1])[0];
-      plates.push({ shelves: [{ y: margin, height: d, x: margin + w + spacing }], items: [{ part: item.part, x: margin, y: margin, w, d, rot }] });
+      const plate = { shelves: [], items: [] };
+      openShelf(plate, item, ways);
+      plates.push(plate);
     }
   }
-  return { plates: plates.map((p, i) => ({ index: i + 1, items: p.items })), tooBig, bed: [bedX, bedY] };
+  /** Start a new shelf on a plate for the first way the part fits, lowest
+   * first. A part too wide to sit beside the reserved corner starts above
+   * it, and the strip in front stays open as a shelf for small parts. */
+  function openShelf(plate, item, ways) {
+    const last = plate.shelves[plate.shelves.length - 1];
+    const top = last ? last.y + last.height + spacing : margin;
+    for (const [w, d, rot] of [...ways].sort((p, q) => p[1] - q[1])) {
+      for (const y of top < ex[1] ? [top, ex[1] + spacing] : [top]) {
+        const x0 = startX(y);
+        if (y + d > bedY - margin || x0 + w > bedX - margin) continue;
+        if (y > top) plate.shelves.push({ y: top, height: y - spacing - top, x: startX(top) });
+        plate.shelves.push({ y, height: d, x: x0 + w + spacing });
+        plate.items.push(placement(item.part, rot, x0, y));
+        return true;
+      }
+    }
+    return false;
+  }
+  return { plates: plates.map((p, i) => ({ index: i + 1, items: p.items, diagonal: !!p.diagonal })), tooBig, bed: [bedX, bedY], exclude: ex, margin, spacing };
+}
+
+/** The time and plastic a plate takes. */
+export function plateTotals(plate) {
+  return plate.items.reduce((t, it) => ({ grams: t.grams + (it.part.grams || 0), minutes: t.minutes + (it.part.minutes || 0) }), { grams: 0, minutes: 0 });
 }
 
 /** One line per bin: what each is, in plain words, for the print sheet. */

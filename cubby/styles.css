@@ -35,6 +35,9 @@ a { color: inherit; }
 button, input, select { outline-offset: 4px; }
 :focus-visible { outline: 3px solid #94611e; outline-offset: 4px; }
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+/* The rule above dresses icons; drawings set their own strokes and their text has none. */
+.plan svg, .plate svg, .measure-figure { stroke: none; stroke-width: 1; stroke-linecap: butt; stroke-linejoin: miter; }
+.plan text, .plate text, .measure-figure text { stroke: none; }
 button svg { pointer-events: none; }
 h1, h2, h3, p, ul { margin: 0; }
 .page-width { width: min(1440px, calc(100% - 88px)); margin-inline: auto; }
@@ -201,6 +204,49 @@ h1 em { color: #957332; font-weight: 400; }
 .setting-row .field { width: 112px; }
 .setting-row select { min-height: 40px; border: 1px solid var(--line); border-radius: 9px; padding: 6px 8px; background: #fff; font-size: 12.5px; max-width: 200px; }
 .setting p { color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+/* ---------- things that go in it ---------- */
+.items-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.items-head select { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: #fff; font-size: 12px; }
+.items { display: flex; flex-wrap: wrap; gap: 5px; max-height: 190px; overflow: auto; padding: 2px; margin: 0 -2px; scrollbar-width: thin; }
+.items button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 5px 10px 5px 8px; font-size: 11.5px; line-height: 1.2; transition: background .15s, border-color .15s; }
+.items button:hover { background: #f6f3ea; border-color: #c8cabc; }
+.items button .mark { width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 9px; font-weight: 700; background: #e6e3d8; color: #8a8b80; }
+.items button.fits .mark { background: #dbe9d4; color: #3d6b33; }
+.items button.diagonal .mark { background: #f1e3b8; color: #7a5a12; }
+.items button.tall .mark { background: #f1e3b8; color: #7a5a12; }
+.items button.miss { color: #9a9b90; }
+.items button.miss .mark { background: #f1e0da; color: #a3432f; }
+.items button[aria-pressed="true"] { background: var(--ink); color: #fbf8ef; border-color: var(--ink); }
+.items button[aria-pressed="true"] .mark { background: #fbf8ef; color: var(--ink); }
+.items-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; min-height: 1.5em; }
+.items-note strong { color: #55584f; }
+.items-note button { margin-left: 6px; border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 9px; font-size: 11px; font-weight: 600; }
+.items-note button:hover { background: #f1efe5; }
+.plan .thing { fill: rgba(96, 110, 90, .12); stroke: #6f7f68; stroke-width: .9; stroke-dasharray: 2.2 1.6; pointer-events: none; }
+.plan .thing.loose { stroke: #a3432f; fill: rgba(163, 67, 47, .08); }
+.plan .dim { stroke: #a09a88; stroke-width: .8; }
+.plan .dim-text { font-family: var(--sans); fill: #7d7868; text-anchor: middle; font-weight: 600; }
+.plan .label.named { font-weight: 700; }
+.measure-figure { width: 100%; height: auto; display: block; margin: 2px 0 -2px; }
+.measure-figure text { font-family: var(--sans); font-size: 9px; font-weight: 600; fill: #6c6f66; }
+
+/* ---------- plates ---------- */
+.plates { display: grid; gap: 10px; }
+.plates summary { font-size: 13px; font-weight: 600; padding: 6px 0; cursor: pointer; }
+.plates summary small { font-weight: 400; color: var(--muted); display: block; font-size: 11.5px; }
+.plate-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.plate { display: grid; gap: 5px; }
+.plate svg { width: 100%; height: auto; display: block; border-radius: 8px; background: #2b2f2a; border: 1px solid #3d433d; }
+.plate .bed { fill: #3a403a; stroke: #6b746a; stroke-width: 1; }
+.plate .exclude { fill: rgba(240, 184, 74, .18); stroke: rgba(240, 184, 74, .5); stroke-width: .8; stroke-dasharray: 2 2; }
+.plate .part { fill: #ece6d6; stroke: #8a8470; stroke-width: .8; }
+.plate .part.clip { fill: #c9b78a; }
+.plate .part-label { font-family: var(--sans); fill: #3a3a32; text-anchor: middle; dominant-baseline: middle; font-weight: 600; }
+.plate figcaption { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.plate figcaption strong { color: var(--ink); }
+.warnings button { margin-left: 8px; border: 1px solid #d9b4a8; background: #fff; border-radius: 7px; padding: 4px 9px; font-size: 11px; font-weight: 600; color: #7d3a2a; }
+.warnings button:hover { background: #fbf2ef; }
 
 /* ---------- guide ---------- */
 .guide { border: 0; border-radius: var(--radius); padding: 0; width: min(760px, calc(100% - 32px)); max-height: calc(100vh - 40px); background: var(--card); color: var(--ink); box-shadow: 0 30px 80px #0005; }
