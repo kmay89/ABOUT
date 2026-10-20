@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>The Workshop — tools for the 3D printer on kmay89.com</title>
-<meta name="description" content="Free, open-source tools for a home 3D printer, in the browser: Luma turns a photo into a lithophane; Hollow turns any STL into a printable mold for concrete, plaster, resin, wax or soap. No accounts, no uploads, nothing tracked; they work offline.">
+<meta name="description" content="Free, open-source tools for a home 3D printer, in the browser: Luma turns a photo into a lithophane; Hollow turns any STL into a printable mold for concrete, plaster, resin, wax or soap; Cubby designs a drawer organizer that fits to the millimetre. No accounts, no uploads, nothing tracked; they work offline.">
 <meta name="theme-color" content="#14110e">
 <link rel="canonical" href="https://kmay89.com/workshop/">
 <link rel="icon" href="/apple-touch-icon.png" type="image/png">
 <meta property="og:title" content="The Workshop">
-<meta property="og:description" content="Tools for the 3D printer: a lithophane studio and a mold studio. Free, open source, private, offline.">
+<meta property="og:description" content="Tools for the 3D printer: a lithophane studio, a mold studio and a drawer-organizer studio. Free, open source, private, offline.">
 <meta property="og:url" content="https://kmay89.com/workshop/">
 <meta property="og:image" content="https://kmay89.com/og-image.png">
 <style>
@@ -67,8 +67,8 @@
 <body>
 <main>
   <h1>The Workshop</h1>
-  <p class="lede">Tools for the 3D printer, in the browser. No accounts, no uploads, nothing tracked, and both work with the aeroplane mode on.</p>
-  <p class="rule">Each one takes something you already have — a photo, a model — and hands back a file your slicer opens at 100 % scale, checked against your printer's plate (the <b>Bambu Lab P2S</b> by default, with the others in a menu). Nothing you drop in leaves your device: there is no server behind these pages to send it to. Both are open source, MIT, in <a href="https://github.com/kmay89/ABOUT">kmay89/ABOUT</a>.</p>
+  <p class="lede">Tools for the 3D printer, in the browser. No accounts, no uploads, nothing tracked, and they work with the aeroplane mode on.</p>
+  <p class="rule">Each one takes something you already have — a photo, a model — and hands back a file your slicer opens at 100 % scale, checked against your printer's plate (the <b>Bambu Lab P2S</b> by default, with the others in a menu). Nothing you drop in leaves your device: there is no server behind these pages to send it to. All of them are open source, MIT, in <a href="https://github.com/kmay89/ABOUT">kmay89/ABOUT</a>.</p>
 
   <h2>Tools</h2>
   <div class="grid">
@@ -84,11 +84,17 @@
       <small>Turn a photo into a 3D printable picture made of nothing but thickness: a flat panel for a lighted frame, a curved nightlight shade, or a lamp that goes all the way round a tea light. A live preview lit from behind, a thickness test strip for your own filament and light, and printable frames and bases.</small>
       <span class="tags"><span class="tag">Photos</span><span class="tag">Lamps &amp; frames</span></span></span>
     </a>
+    <a class="tool" href="/cubby/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#f4f2eb"/><g fill="none" stroke="#b88b32" stroke-width="4" stroke-linejoin="round"><rect x="10" y="10" width="19" height="19" rx="4"/><rect x="35" y="10" width="19" height="19" rx="4"/><rect x="10" y="35" width="44" height="19" rx="4"/></g></svg>
+      <span class="tx"><b>Cubby — Drawer Organizers</b>
+      <small>Type the inside of any drawer, drag bins across a grid that fills it to the millimetre, and download one file with every part placed on the plate. The bins fit each other and the drawer: no screws, no glue.</small>
+      <span class="tags"><span class="tag">Kitchen · desk · garage</span><span class="tag">3MF per plate</span></span></span>
+    </a>
   </div>
 
   <section class="bench">
     <h2>On the bench</h2>
-    <p>Both tools are hand-written static pages: ES modules, a vendored copy of Three.js for the 3D view, and a web worker for the heavy geometry so the page stays alive while it thinks. There is no build step — clone the repo, serve the folder, and they run. Each has a README that explains the maths and a test suite that proves the files it writes are closed solids: <code>npm run check:luma</code>, <code>npm run check:hollow</code>.</p>
+    <p>These tools are hand-written static pages: ES modules, a vendored copy of Three.js for the 3D view, and a web worker for the heavy geometry so the page stays alive while it thinks. There is no build step — clone the repo, serve the folder, and they run. Each has a README that explains the maths and a test suite that proves the files it writes are closed solids: <code>npm run check:luma</code>, <code>npm run check:hollow</code>, <code>npm run check:cubby</code>.</p>
     <p>They print on a Bambu Lab P2S here, but the files are ordinary STL and 3MF at 100 % scale, and the printer menu knows the plates of the common machines. If a tool gets something wrong for your printer, the source is the place to say so.</p>
   </section>
 

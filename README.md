@@ -40,7 +40,12 @@ workshop](https://kmay89.com/workshop/) — the tools for the 3D printer,
 which the scratch-built printer on the side table opens: Luma, and
 [Hollow](https://kmay89.com/hollow/), which turns any STL into a printable
 mold for concrete or resin, with keys, a spout and vents, and shows what
-will release before you print.
+will release before you print; and
+[Cubby](https://kmay89.com/cubby/) — a drawer-organizer studio for a 3D
+printer: type the inside of any drawer, drag bins across a grid that
+fills it to the millimetre, and download one file with every part
+placed on the plate, no screws, no glue (the drawer under the desk's
+near corner is pulled open, with the bins that were printed for it).
 
 **Live:** <https://kmay89.com>
 
@@ -199,7 +204,16 @@ will release before you print.
   `npm run check:hollow` runs its suites.
 - `workshop/` — the workshop: one page listing the 3D printer tools (Luma
   and Hollow), reached from the desk by the scratch-built printer on the
-  side table.
+  side table; and
+- `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
+  becomes a grid that fills it exactly; bins cover whole cells, can be
+  split inside, made low or given a finger scoop, and join each other
+  with a printed dovetail clip dropped into blind channels (or just by
+  filling the drawer). Every bin and clip is one closed solid built from
+  rings and earcut, with walls a whole number of nozzle lines; the
+  download is a 3MF per plate with every part placed and named, or a ZIP
+  with STLs and a print sheet, made in the browser with nothing uploaded.
+  Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
@@ -364,6 +378,7 @@ npm run check:rules  # replays tens of thousands of games of every new room
 npm run check:well   # just the well: names, colours, skies, help lines, shell
 npm run check:luma   # the lithophane studio's geometry and image maths
 npm run check:hollow # the mold studio: fields, surfaces, every kind of mold, the 3MF
+npm run check:cubby  # the drawer studio: closed solids, the grid, the files
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
 npm run icons        # redraws every new room's icons, and Hollow's, from scratch
