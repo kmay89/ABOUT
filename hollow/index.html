@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef0ec">
+  <meta name="description" content="Turn any STL into a 3D printable mold for concrete, plaster, resin, wax or soap — a two-part block with keys, spout and vents, an open mold for flat-backed pieces, or a silicone master. Free, open source, in your browser; your model never leaves your device.">
+  <title>Hollow — Mold Studio · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/hollow/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Hollow — Mold Studio">
+  <meta property="og:description" content="Drop in an STL, get back the hollow of it: a printable mold with alignment keys, a pour spout and air vents, checked for what will release. Concrete, resin, plaster, wax. Free and private, in your browser.">
+  <meta property="og:url" content="https://kmay89.com/hollow/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Hollow, Mold Studio home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="4" width="32" height="32" rx="7"/><path d="M12 29V17a8 8 0 0 1 16 0v12"/><path d="M12 29h16"/></svg>
+      <span class="brand-name">Hollow<span class="brand-description">MOLD STUDIO</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Studio help">
+      <a class="desk-link" href="/workshop/" title="Back to the workshop at kmay89.com"><span aria-hidden="true">←</span> The workshop</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>Print &amp; pour guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> AN STL. A BLOCK. THE HOLLOW OF IT.</p>
+        <h1 id="pageTitle">Any model,<br>cast in <em>concrete.</em></h1>
+      </div>
+      <div class="intro-note">
+        <p>Drop in a model and get back a mold you can print tonight.<br>Keys that line up, a spout that pours, vents where air would hide.</p>
+        <span class="intro-steps">Drop in an STL <span>→</span> Choose the mold <span>→</span> Print, pour, unmold</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="preview-pane" aria-label="Your mold preview">
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <div class="segmented preview-mode" role="group" aria-label="What to show">
+              <button id="view-model" type="button" aria-pressed="true">Model</button>
+              <button id="view-mold" type="button" aria-pressed="false">Mold</button>
+              <button id="view-section" type="button" aria-pressed="false">Section</button>
+              <button id="view-print" type="button" aria-pressed="false">Print</button>
+              <button id="view-pour" type="button" aria-pressed="false">Pour</button>
+            </div>
+            <div class="stage-actions">
+              <button id="snapshotBtn" class="icon-button stage-reset" type="button" title="Save this view as a picture" aria-label="Save this view as a picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.6-2.5h6.8L17 7.5h3v12H4z"/><circle cx="12" cy="13" r="3.6"/></svg></button>
+              <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+            </div>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom."></div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Building the preview…</span>
+            <div class="legend" id="legendRelease"><span><i class="swatch s-good"></i>Releases</span><span><i class="swatch s-warn"></i>Steep</span><span><i class="swatch s-bad"></i>Trapped</span></div>
+            <div class="legend" id="legendPrint" hidden><span><i class="swatch s-warn"></i>Overhang</span><span><i class="swatch s-bad"></i>Needs support</span></div>
+          </div>
+          <div id="liveProgress" class="live-progress" aria-hidden="true"></div>
+        </div>
+
+        <div class="stage-controls">
+          <p id="viewHint" class="view-hint">Green releases, amber is steep, red is trapped. The amber plane is the parting line; the arrow is the pour.</p>
+          <div id="explodeRow" class="slider-row" hidden><label for="explodeInput">Pull apart</label><input id="explodeInput" type="range" min="0" max="100" value="0"></div>
+          <div id="sectionRow" class="slider-row" hidden><label for="sectionInput">Cut at</label><input id="sectionInput" type="range" min="0" max="100" value="50"></div>
+        </div>
+
+        <div class="model-details" aria-label="Sizes and amounts">
+          <div><span class="metric-label">Model</span><strong id="modelSizeLabel">—</strong></div>
+          <div><span class="metric-label">Mold</span><strong id="moldSizeLabel">—</strong></div>
+          <div><span class="metric-label">To mix</span><strong id="castLabel">—</strong><small id="castHint"></small></div>
+          <div><span class="metric-label">To print</span><strong id="plasticLabel">—</strong><small id="plasticHint"></small></div>
+        </div>
+
+        <div class="fit-card" aria-live="polite">
+          <span id="fitBadge" class="fit-badge"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3.2 3.2L15 6.5"/></svg>Fits your P2S</span>
+          <p id="fitMessage">Sized for the Bambu Lab P2S. Export the 3MF and open it in Bambu Studio.</p>
+        </div>
+        <p id="releaseSummary" class="release-summary"></p>
+        <div class="warnings-card" hidden><ul id="warnings" class="warnings"></ul></div>
+        <p id="liveNote" class="preview-caption">Preview at draft detail; export builds finer.</p>
+
+        <div class="making-note">
+          <div class="making-note-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 26V12a11 11 0 0 1 22 0v14"/><path d="M5 26h22"/><path d="M11 26v-9a5 5 0 0 1 10 0v9"/></svg></div>
+          <div><h2>A mold is the shape of the air around a thing.</h2><p>Hollow measures your model a quarter of a millimetre at a time, wraps a block around it, and takes the model back out — then adds everything a caster wishes a mold already had.</p></div>
+        </div>
+      </section>
+
+      <aside class="editor-panel" aria-label="Mold settings">
+        <section class="editor-section" aria-labelledby="modelHeading">
+          <div class="section-heading"><h2 id="modelHeading"><span class="step-number">01</span>Your model</h2>
+            <div class="select-wrap select-small"><select id="sampleSelect" aria-label="Try a sample model"><option value="" selected>Try a sample…</option></select></div></div>
+          <input id="modelInput" class="visually-hidden" type="file" accept=".stl,.obj,model/stl,model/obj" tabindex="-1" aria-label="Choose a model file">
+          <div id="dropZone" class="drop-zone">
+            <span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="m14 3 10 5.5v11L14 25 4 19.5v-11z"/><path d="M4 8.5 14 14l10-5.5M14 14v11"/></svg></span>
+            <div class="upload-copy"><button id="uploadBtn" class="upload-button" type="button">Choose an STL <span aria-hidden="true">↗</span></button><p>or drop a file anywhere on the page</p></div>
+            <span class="upload-formats">STL · OBJ · millimetres</span>
+          </div>
+          <div class="file-row"><span class="tiny-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m8 2 6 3v6l-6 3-6-3V5z"/></svg></span><span id="fileName">River pebble.stl</span><span class="local-dot" title="Processed in this browser"></span></div>
+          <p id="modelStats" class="field-help"></p>
+          <div class="project-actions"><button id="projectOpenBtn" class="text-button muted" type="button">Open project</button><span aria-hidden="true">·</span><button id="projectSaveBtn" class="text-button muted" type="button">Save project</button></div>
+          <input id="projectInput" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Open a saved Hollow project">
+        </section>
+
+        <section class="editor-section" aria-labelledby="orientHeading">
+          <div class="section-heading"><h2 id="orientHeading"><span class="step-number">02</span>Set it down</h2><span id="sizeLabel" class="size-label">—</span></div>
+          <p class="field-help">Z is up. For a two-part mold the parting line is horizontal; for an open mold the top is the opening. Put the flat back on top for an open mold.</p>
+          <div class="orient-buttons">
+            <button id="rotX" class="button" type="button" title="Turn 90° about X"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 1 1.8 4.3M4 6v4h4"/></svg>X 90°</button>
+            <button id="rotY" class="button" type="button" title="Turn 90° about Y"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 1 1.8 4.3M4 6v4h4"/></svg>Y 90°</button>
+            <button id="rotZ" class="button" type="button" title="Turn 90° about Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 1 1.8 4.3M4 6v4h4"/></svg>Z 90°</button>
+            <button id="flipBtn" class="button" type="button" title="Turn it upside down"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14m-4-4 4 4 4-4M6 7l4-4 4 4"/></svg>Flip</button>
+            <button id="layFlatBtn" class="button" type="button" title="Put the largest flat face down"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15h14M6 15l4-9 4 9"/></svg>Lay flat</button>
+            <button id="resetOrientBtn" class="text-button" type="button">Reset</button>
+          </div>
+          <div class="field inline-field"><label for="scaleInput">Scale</label><div class="number-with-unit"><input id="scaleInput" type="number" min="1" max="10000" step="1" value="100" inputmode="decimal"><span>%</span></div><span class="field-help">Shrinkage or a resize. 100 % is the file as it came.</span></div>
+        </section>
+
+        <section class="editor-section" aria-labelledby="moldHeading">
+          <div class="section-heading"><h2 id="moldHeading"><span class="step-number">03</span>The mold</h2></div>
+          <div class="shape-picker" role="group" aria-label="Kind of mold">
+            <button id="type-two-part" class="shape-card" type="button" aria-pressed="true"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><rect x="12" y="6" width="48" height="17" rx="3"/><rect x="12" y="26" width="48" height="17" rx="3"/><path class="shape-image" d="M26 23c0-6 4-9 10-9s10 3 10 9M26 26c0 6 4 9 10 9s10-3 10-9"/><path d="M36 6v8M20 23v3M52 23v3"/></svg><strong>Two-part</strong><span>Keys, spout, vents</span><i class="selection-dot" aria-hidden="true"></i></button>
+            <button id="type-open" class="shape-card" type="button" aria-pressed="false"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><path d="M10 10h52v30a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4z"/><path class="shape-image" d="M22 10v16a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4V10"/></svg><strong>Open face</strong><span>For a flat back</span><i class="selection-dot" aria-hidden="true"></i></button>
+            <button id="type-box" class="shape-card" type="button" aria-pressed="false"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><path d="M10 12v28a3 3 0 0 0 3 3h46a3 3 0 0 0 3-3V12"/><path d="M16 36V22a6 6 0 0 1 12 0v14M36 36V18l8-4 8 4v18" class="shape-image"/><path d="M13 20h46" stroke-dasharray="2 3"/></svg><strong>Silicone master</strong><span>Pour silicone over it</span><i class="selection-dot" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="field"><label for="materialSelect">Casting in</label><div class="select-wrap"><select id="materialSelect"></select></div><p id="materialNote" class="field-help"></p></div>
+
+          <div class="dimensions-fields">
+            <div class="field" id="wallField"><label for="wallInput">Wall</label><div class="number-with-unit"><input id="wallInput" type="number" min="3" max="40" step="0.5" value="10" inputmode="decimal"><span>mm</span></div></div>
+            <div class="field"><label for="cornerInput">Corner radius</label><div class="number-with-unit"><input id="cornerInput" type="number" min="0" max="20" step="0.5" value="4" inputmode="decimal"><span>mm</span></div></div>
+            <div class="field"><label for="clearanceInput">Loosen cavity</label><div class="number-with-unit"><input id="clearanceInput" type="number" min="0" max="1" step="0.05" value="0" inputmode="decimal"><span>mm</span></div></div>
+          </div>
+
+          <div id="twoPartFields">
+            <div class="slider-field">
+              <div class="label-value"><label for="planeInput">Parting plane</label><label class="check-inline"><input id="autoPlane" type="checkbox" checked> Automatic</label></div>
+              <input id="planeInput" type="range" min="2" max="98" value="50" disabled>
+              <div class="range-endpoints"><span>Low</span><output id="planeValue" for="planeInput">—</output><span>High</span></div>
+              <p class="field-help">Automatic finds the height that traps the least surface. Drag to choose your own — the preview shows what turns red.</p>
+            </div>
+            <div class="field"><span class="field-label">Pour from</span>
+              <div class="orient-toggle four" role="group" aria-label="Which side the spout exits">
+                <button id="pour-py" type="button" aria-pressed="true">Back (+Y)</button>
+                <button id="pour-ny" type="button" aria-pressed="false">Front (−Y)</button>
+                <button id="pour-px" type="button" aria-pressed="false">Right (+X)</button>
+                <button id="pour-nx" type="button" aria-pressed="false">Left (−X)</button>
+              </div>
+              <p class="field-help">The spout leaves a small mark; choose a side that will not show.</p>
+            </div>
+            <div class="toggle-grid">
+              <label class="check-row"><input id="spoutCheck" type="checkbox" checked><span>Pour spout</span></label>
+              <div class="number-with-unit small"><input id="spoutDiameterInput" type="number" min="4" max="30" step="1" value="10" aria-label="Spout diameter at the cavity" inputmode="decimal"><span>mm in</span></div>
+              <div class="number-with-unit small"><input id="spoutMouthInput" type="number" min="4" max="50" step="1" value="18" aria-label="Spout diameter at the mouth" inputmode="decimal"><span>mm mouth</span></div>
+            </div>
+            <label class="check-row"><input id="ventsCheck" type="checkbox" checked><span>Air vents where the pour would trap bubbles</span></label>
+            <label class="check-row"><input id="pryCheck" type="checkbox" checked><span>Pry slots on the sides</span></label>
+            <div class="dimensions-fields">
+              <div class="field"><label for="keysSelect">Alignment</label><div class="select-wrap"><select id="keysSelect"><option value="cones" selected>Three tapered pegs</option><option value="rail">Rail + one peg</option><option value="none">None</option></select></div></div>
+              <div class="field"><label for="keyClearanceInput">Key clearance</label><div class="number-with-unit"><input id="keyClearanceInput" type="number" min="0.1" max="0.6" step="0.05" value="0.25" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="fastenerSelect">Hold together</label><div class="select-wrap"><select id="fastenerSelect"><option value="bands" selected>Rubber-band grooves</option><option value="bolts">M5 bolt holes</option><option value="none">Clamps or tape</option></select></div></div>
+            </div>
+          </div>
+
+          <div id="openFields" hidden>
+            <div class="dimensions-fields">
+              <div class="field"><label for="lipInput">Rim above the back</label><div class="number-with-unit"><input id="lipInput" type="number" min="0" max="10" step="0.5" value="2" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="floorInput">Floor</label><div class="number-with-unit"><input id="floorInput" type="number" min="3" max="40" step="0.5" value="8" inputmode="decimal"><span>mm</span></div></div>
+            </div>
+            <p class="field-help">A rim lets you overfill, tap the bubbles out, then strike the back flat with a straight edge.</p>
+          </div>
+
+          <div id="boxFields" hidden>
+            <div class="dimensions-fields">
+              <div class="field"><label for="gapInput">Silicone around</label><div class="number-with-unit"><input id="gapInput" type="number" min="4" max="30" step="0.5" value="10" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="boxWallInput">Tray wall</label><div class="number-with-unit"><input id="boxWallInput" type="number" min="1.2" max="6" step="0.2" value="2.4" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="boxFloorInput">Tray floor</label><div class="number-with-unit"><input id="boxFloorInput" type="number" min="1.5" max="10" step="0.5" value="3" inputmode="decimal"><span>mm</span></div></div>
+            </div>
+            <p class="field-help">The model prints standing in its own tray, as one piece. Pour silicone to the top edge, cure, peel the tray away, and cut the block open along one side.</p>
+          </div>
+        </section>
+
+        <section class="editor-section export-section" aria-labelledby="exportHeading">
+          <div class="section-heading"><h2 id="exportHeading"><span class="step-number">04</span>Print it</h2>
+            <div class="select-wrap select-small"><select id="qualitySelect" aria-label="Export detail"><option value="draft">Draft detail</option><option value="standard" selected>Standard detail</option><option value="fine">Fine detail</option></select></div></div>
+          <button id="buildBtn" class="button button-primary is-stale" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 7 4v8l-7 4-7-4V6zM3 6l7 4 7-4M10 10v8"/></svg><span>Build for export</span></button>
+          <div id="progressRow" class="progress-row" hidden><div class="progress-track"><div id="progressBar" class="progress-bar"></div></div><span id="progressText" class="progress-text">Starting…</span></div>
+          <div id="downloads" class="download-result" hidden>
+            <strong>Your mold is ready.</strong>
+            <div id="partsList" class="parts-list"></div>
+            <div class="download-row">
+              <button id="download3mfBtn" class="button button-primary" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M4 16h12"/></svg>Save 3MF · all parts on the plate</button>
+              <button id="downloadAllBtn" class="button" type="button">Every STL</button>
+            </div>
+            <p id="resultDetails"></p>
+            <button id="resultGuideBtn" type="button" class="text-button">Open the print &amp; pour guide →</button>
+          </div>
+          <p class="field-help">Standard detail is about 0.3 mm and takes a little while; Fine takes longer and is for small resin pieces. The preview updates at draft detail as you change things.</p>
+        </section>
+      </aside>
+    </div>
+
+    <section class="how-it-works page-section" aria-labelledby="howHeading">
+      <h2 id="howHeading">What a good mold has, and why Hollow adds it</h2>
+      <div class="feature-grid">
+        <article><h3>A parting plane that traps the least</h3><p>Every height is tried and the one that leaves the least surface hooked under the mold wins. What is left shows red before you print anything.</p></article>
+        <article><h3>Keys that only fit one way</h3><p>Three tapered pegs on an L, never a square, so the halves cannot go together turned round. Printed clearance you can set to your printer.</p></article>
+        <article><h3>A spout on the parting line</h3><p>The cone sits where the cavity reaches highest, half in each part, so it prints as an open trough and cleans with a thumb.</p></article>
+        <article><h3>Vents where air would hide</h3><p>The cavity is swept from the top down; every pocket that would trap a bubble gets a 2.5 mm vent straight to the top face.</p></article>
+        <article><h3>Prints flat, cavity up</h3><p>Each part arrives flat side down and parting face up — no supports where the preview is green, because a mold that releases is a mold that prints.</p></article>
+        <article><h3>Vessels get a core</h3><p>A planter or a cup comes out as a body and a core with a collar that rests on the rim at exactly the right depth.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer page-width">
+    <div class="cols">
+      <a href="/workshop/">The workshop</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/">The desk</a>
+      <a href="https://github.com/kmay89/ABOUT/tree/main/hollow">Source · MIT</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/accessibility/">Accessibility</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers. Your model never leaves your device.</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <dialog id="guideDialog" class="guide-dialog" aria-labelledby="guideTitle">
+    <div class="dialog-head"><h2 id="guideTitle">Print &amp; pour guide</h2><button class="icon-button dialog-close" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <nav class="guide-nav" aria-label="Guide sections"><a href="#guide-print">Printing</a><a href="#guide-concrete">Concrete</a><a href="#guide-resin">Resin</a><a href="#guide-other">Plaster, wax, soap</a><a href="#guide-silicone">Silicone</a><a href="#guide-how">How it works</a></nav>
+    <div class="guide-body">
+      <section id="guide-print">
+        <h3>Printing the mold</h3>
+        <p>Open the 3MF in Bambu Studio (or the STLs in any slicer) at 100 % scale. Every part arrives in its printing position: flat side on the plate, cavity facing up.</p>
+        <ul>
+          <li><strong>Filament.</strong> PLA is fine for concrete, plaster and wax, and for a handful of resin casts. PETG survives more pours and a hot summer car. For a model with undercuts (red in the preview) that you still want to cast, print the mold in TPU and it will peel off.</li>
+          <li><strong>Layers and walls.</strong> 0.2 mm layers, 3 walls, 15 % infill. Switch on <em>ironing</em> for the top surfaces if your slicer has it — the parting face seals better when it is smooth. Cavity walls are what the cast will look like, so a 0.12 mm layer height on a small resin piece is worth the time.</li>
+          <li><strong>Supports.</strong> None, where the preview is green. Where it shows red in the Print view the slicer will want supports; use tree supports with a 0.2 mm top gap and sand the marks.</li>
+          <li><strong>Seam.</strong> Set the seam to the rear, or paint it onto an outside face. A seam inside the cavity prints onto the cast.</li>
+          <li><strong>Smoothing.</strong> Layer lines show in a cast. A coat of XTC-3D or a few passes of filler primer and 400-grit paper inside the cavity gives a smooth surface; for concrete most people leave the lines, and they look intentional.</li>
+        </ul>
+      </section>
+      <section id="guide-concrete">
+        <h3>Casting concrete</h3>
+        <ul>
+          <li><strong>Mix.</strong> A fine casting mix (no gravel) or a quick-set cement picks up the most detail. About 2 g of dry mix per millilitre of cavity; the <em>To mix</em> figure already assumes 2.2 g/mL cured, so weigh 10 % extra.</li>
+          <li><strong>Release.</strong> Rigid plastic needs it: a light coat of cooking spray, wiped nearly off with a paper towel, or a paste wax buffed thin. Too much release pools in detail.</li>
+          <li><strong>Pour.</strong> For a two-part mold, close the halves on the pegs, band or bolt them, stand the mold spout up and pour slowly down one side of the spout so air leaves up the other. Tap the mold on the bench, or hold a sander against it, for a minute — bubbles rise out of the vents and spout. Top the spout up as it settles.</li>
+          <li><strong>Open molds.</strong> Overfill a little, tap, then strike the back flat with a straight edge after half an hour, when the surface has stiffened.</li>
+          <li><strong>Cure.</strong> Cover it with a bag so it does not dry out and leave it 24 hours (48 is better for thin pieces). Unmold on the pry slots, trim the spout flush with a file, and let it cure another few days before sealing.</li>
+          <li><strong>Vessels.</strong> Pour the body about two thirds full, press the core in until its collar sits on the rim, and tap; concrete rises round the core. Weigh the core down.</li>
+        </ul>
+      </section>
+      <section id="guide-resin">
+        <h3>Casting resin</h3>
+        <ul>
+          <li><strong>Release is not optional.</strong> Epoxy and polyurethane bond to PLA and PETG. Use a proper mold release spray (or a silicone spray), two light coats, dried between.</li>
+          <li><strong>Seal the seam.</strong> Resin is thinner than concrete and finds the parting line. The rail alignment keeps most of it in; a strip of tape round the outside catches the rest.</li>
+          <li><strong>Pour in a thin stream</strong> from high up, into one side of the spout. Warm resin (a few minutes in a water bath, still sealed) releases bubbles more easily. If you own a pressure pot, this is what it is for.</li>
+          <li><strong>Exotherm.</strong> Keep single pours under the volume your resin's sheet allows; a thick block cures hot enough to warp a thin PLA wall. The <em>To mix</em> figure tells you the volume.</li>
+          <li><strong>Demold</strong> when the resin is firm but not fully hard (follow the sheet); it flexes a little and comes out cleaner. Trim the spout and vents with a flush cutter and sand.</li>
+        </ul>
+      </section>
+      <section id="guide-other">
+        <h3>Plaster, wax and soap</h3>
+        <ul>
+          <li><strong>Plaster</strong> sets in minutes and expands slightly, which is why it fills detail so well and why draft matters: a rigid mold with nearly vertical walls grips a plaster cast. Soap the mold lightly first, and unmold within the hour.</li>
+          <li><strong>Wax</strong> shrinks as it cools and usually drops out on its own. Pour below 80 °C — hotter wax softens PLA. A mold printed in PETG lasts longer.</li>
+          <li><strong>Soap</strong> (melt-and-pour) wants the mold chilled for ten minutes before unmolding; a spray of alcohol knocks surface bubbles down before it skins.</li>
+          <li><strong>Chocolate and food</strong> are not what these molds are for: a printed surface is porous and cannot be properly cleaned. Make a silicone mold from a printed master instead, in food-safe silicone.</li>
+        </ul>
+      </section>
+      <section id="guide-silicone">
+        <h3>Making a silicone mold</h3>
+        <p>Choose <em>Silicone master</em> and the model prints standing in its own tray, as one piece. Fill with a 20–30 Shore A tin or platinum silicone to the top edge (the <em>To mix</em> figure is the volume), let it cure, peel the tray off, and cut the block open down one side with a wavy cut so it registers itself. Smooth the master first: every layer line becomes a ridge on every cast. Flexible molds release the undercuts a rigid one cannot, which is the whole point.</p>
+      </section>
+      <section id="guide-how">
+        <h3>How Hollow works</h3>
+        <p>The model is measured as a signed distance field: at every point of a fine grid, how far to the nearest triangle, negative inside. Inside and outside are decided by casting rays along all three axes and taking a vote, so a model with a few holes still comes out solid. A block, the spout, the keys and every other feature are simple shapes written as distances too, and combining shapes is just taking the smaller or larger distance. The result is traced into triangles with marching tetrahedra — which always gives a closed, printable surface — and then simplified so a flat face is a handful of triangles instead of a hundred thousand, while curves stay within a fiftieth of a millimetre.</p>
+        <p>The release map comes from the same grid: for every face of the model, a point just outside it is checked for model material above or below in its column, depending on which part of the mold it sits in. Air traps come from sweeping the cavity from the top of the pour downwards and noting every pocket that appears before joining the rest. All of it runs in your browser, in a worker, and nothing is uploaded — the page has nowhere to send it.</p>
+        <p>Hollow is open source under the MIT licence. The code is in <a href="https://github.com/kmay89/ABOUT/tree/main/hollow">kmay89/ABOUT</a>.</p>
+      </section>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

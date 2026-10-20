@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>The Workshop — tools for the 3D printer on kmay89.com</title>
+<meta name="description" content="Free, open-source tools for a home 3D printer, in the browser: Luma turns a photo into a lithophane; Hollow turns any STL into a printable mold for concrete, plaster, resin, wax or soap; Cubby designs a drawer organizer that fits to the millimetre. No accounts, no uploads, nothing tracked; they work offline.">
+<meta name="theme-color" content="#14110e">
+<link rel="canonical" href="https://kmay89.com/workshop/">
+<link rel="icon" href="/apple-touch-icon.png" type="image/png">
+<meta property="og:title" content="The Workshop">
+<meta property="og:description" content="Tools for the 3D printer: a lithophane studio, a mold studio and a drawer-organizer studio. Free, open source, private, offline.">
+<meta property="og:url" content="https://kmay89.com/workshop/">
+<meta property="og:image" content="https://kmay89.com/og-image.png">
+<style>
+  :root{
+    --room:#14110e; --card:#1f1a15; --card2:#2a241e; --ink:#f2ece1;
+    --soft:#a89a86; --line:#3f372e; --glow:#e8a06a; --good:#8fbf7a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{
+    margin:0; background:var(--room); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; font-size:16px;
+    padding:max(20px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
+  }
+  main{max-width:920px; margin:0 auto}
+  a{color:var(--glow)}
+  h1{font-size:clamp(1.9rem,7vw,2.8rem); letter-spacing:-.02em; margin:0 0 .2em}
+  .lede{color:var(--soft); max-width:60ch; margin:0 0 6px; font-size:1.02rem}
+  .rule{color:var(--soft); font-size:.9rem; max-width:64ch; margin:14px 0 26px}
+  .rule b{color:var(--ink)}
+  h2{font-size:.82rem; letter-spacing:.1em; text-transform:uppercase; color:var(--soft);
+     margin:32px 0 12px; font-weight:700}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px}
+  .tool{
+    display:flex; gap:16px; align-items:flex-start;
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:18px; text-decoration:none; color:inherit;
+    transition:border-color .15s, transform .09s, background .15s;
+  }
+  .tool:hover{border-color:var(--glow); background:var(--card2)}
+  .tool:active{transform:scale(.99)}
+  .tool svg{width:56px; height:56px; flex:none; display:block; border-radius:14px}
+  .tool .tx{min-width:0}
+  .tool b{display:block; font-size:1.15rem; line-height:1.3}
+  .tool small{display:block; color:var(--soft); font-size:.88rem; line-height:1.45; margin-top:5px}
+  .tool .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+  .tool .tag{
+    display:inline-block; font-size:.68rem; letter-spacing:.05em;
+    color:var(--good); border:1px solid rgba(143,191,122,.35); border-radius:999px;
+    padding:1px 8px; text-transform:uppercase; font-weight:700;
+  }
+  .tool .tag.warm{color:var(--glow); border-color:rgba(232,160,106,.4)}
+
+  .bench{margin-top:36px; padding:18px 20px; border:1px solid var(--line); border-radius:18px; background:#1a1612; color:var(--soft); font-size:.92rem}
+  .bench h2{margin:0 0 8px}
+  .bench p{margin:0 0 10px; max-width:66ch}
+  .bench p:last-child{margin:0}
+  .bench code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.85em; color:var(--ink)}
+
+  footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); color:var(--soft); font-size:.85rem}
+  footer .cols{display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>The Workshop</h1>
+  <p class="lede">Tools for the 3D printer, in the browser. No accounts, no uploads, nothing tracked, and they work with the aeroplane mode on.</p>
+  <p class="rule">Each one takes something you already have — a photo, a model — and hands back a file your slicer opens at 100 % scale, checked against your printer's plate (the <b>Bambu Lab P2S</b> by default, with the others in a menu). Nothing you drop in leaves your device: there is no server behind these pages to send it to. All of them are open source, MIT, in <a href="https://github.com/kmay89/ABOUT">kmay89/ABOUT</a>.</p>
+
+  <h2>Tools</h2>
+  <div class="grid">
+    <a class="tool" href="/hollow/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#2b2f31"/><g fill="none" stroke="#d9835a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 46V28a16 16 0 0 1 32 0v18"/><path d="M16 46h32"/><path d="M26 46V32a6 6 0 0 1 12 0v14" stroke="#eee6dc" stroke-width="3.5"/></g></svg>
+      <span class="tx"><b>Hollow — Mold Studio</b>
+      <small>Drop in an STL and get back the hollow of it: a two-part mold with alignment pegs, a pour spout and air vents; an open mold for flat-backed pieces, with a core for vessels; or a silicone master. It shows what will release and what is trapped before you print, and says how much concrete, resin or silicone to mix.</small>
+      <span class="tags"><span class="tag">Concrete</span><span class="tag">Resin</span><span class="tag">Plaster · wax · soap</span><span class="tag warm">New</span></span></span>
+    </a>
+    <a class="tool" href="/luma/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#28332b"/><g fill="none" stroke="#e7c078" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 47V25l8-5v30M29 50V17l8-5v38M43 49V28l8-5v23"/></g></svg>
+      <span class="tx"><b>Luma — Lithophane Studio</b>
+      <small>Turn a photo into a 3D printable picture made of nothing but thickness: a flat panel for a lighted frame, a curved nightlight shade, or a lamp that goes all the way round a tea light. A live preview lit from behind, a thickness test strip for your own filament and light, and printable frames and bases.</small>
+      <span class="tags"><span class="tag">Photos</span><span class="tag">Lamps &amp; frames</span></span></span>
+    </a>
+    <a class="tool" href="/cubby/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#f4f2eb"/><g fill="none" stroke="#b88b32" stroke-width="4" stroke-linejoin="round"><rect x="10" y="10" width="19" height="19" rx="4"/><rect x="35" y="10" width="19" height="19" rx="4"/><rect x="10" y="35" width="44" height="19" rx="4"/></g></svg>
+      <span class="tx"><b>Cubby — Drawer Organizers</b>
+      <small>Type the inside of any drawer, drag bins across a grid that fills it to the millimetre, and download one file with every part placed on the plate. The bins fit each other and the drawer: no screws, no glue.</small>
+      <span class="tags"><span class="tag">Kitchen · desk · garage</span><span class="tag">3MF per plate</span></span></span>
+    </a>
+  </div>
+
+  <section class="bench">
+    <h2>On the bench</h2>
+    <p>These tools are hand-written static pages: ES modules, a vendored copy of Three.js for the 3D view, and a web worker for the heavy geometry so the page stays alive while it thinks. There is no build step — clone the repo, serve the folder, and they run. Each has a README that explains the maths and a test suite that proves the files it writes are closed solids: <code>npm run check:luma</code>, <code>npm run check:hollow</code>, <code>npm run check:cubby</code>.</p>
+    <p>They print on a Bambu Lab P2S here, but the files are ordinary STL and 3MF at 100 % scale, and the printer menu knows the plates of the common machines. If a tool gets something wrong for your printer, the source is the place to say so.</p>
+  </section>
+
+  <footer>
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/games/">The games room</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/legal/">Legal</a>
+      <a href="/accessibility/">Accessibility</a>
+      <a href="https://github.com/kmay89/ABOUT">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+</main>
+</body>
+</html>

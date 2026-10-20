@@ -1,0 +1,6 @@
+{
+  "name": "hollow-mold-studio",
+  "private": true,
+  "type": "module",
+  "description": "Marks this folder's scripts as ES modules for Node (the tests and the icon tool). The studio itself has no dependencies and no build step."
+}

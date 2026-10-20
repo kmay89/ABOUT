@@ -1,0 +1,30 @@
+Hollow — Mold Studio
+Created by Karl Meves · ERRERLabs, 2026. MIT License (see LICENSE).
+
+Three.js r170, including OrbitControls
+Copyright 2010–2024 Three.js Authors
+MIT License; complete license: vendor/THREE-LICENSE.txt
+Source: https://github.com/mrdoob/three.js/tree/r170
+OrbitControls import path adjusted to use the local Three.js module.
+
+Everything else — the STL and OBJ readers, the signed distance fields, the
+marching tetrahedra, the quadric decimation, the 3MF/ZIP writer, the mold
+recipe, the samples and the icons — is written here from the published
+methods, with no other code copied in. The methods, for the curious:
+
+  Ericson, Real-Time Collision Detection (2005): closest point on a triangle.
+  Bærentzen & Aanæs, "Signed distance computation using the angle weighted
+    pseudonormal" (2005): the narrow band idea; signs here come from ray
+    parity along three axes with a vote instead.
+  Doi & Koide, "An efficient method of triangulating equi-valued surfaces by
+    using tetrahedral cells" (1991): marching tetrahedra.
+  Garland & Heckbert, "Surface simplification using quadric error metrics"
+    (1997): the decimation, run as repeated threshold passes after Forstmann.
+  Quilez, iquilezles.org: the capped-cone and rounded-box distance formulas.
+  3MF Consortium, 3D Manufacturing Format core specification 1.x.
+  PKWARE, APPNOTE.TXT: the ZIP container.
+
+Bambu Lab, Bambu Studio, Prusa and Creality are trademarks of their
+respective owners. Hollow is an independent tool, not affiliated with or
+endorsed by any of them. Meshcast is a trademark of its owner; Hollow is an
+independent, original work that offers a similar kind of tool.
