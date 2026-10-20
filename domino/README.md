@@ -59,12 +59,11 @@ feed them, and sigh when you hang them by mistake.
 it, the room asks the strongest player at the table what it would have
 done and grades yours: *Sharp*, *Good*, *Okay* or *Costly* — and for a
 costly one, Don Chuy says what he would have played and why. Forced
-plays are never graded. The record keeps a rank — from *Mirón*, watching
-from the next table, to *Leyenda de la cantina* — earned mostly by
-winning and by playing sharply, more against stronger opponents, never
-nothing for a loss; plus a handful of *logros* worth having done once.
-At the end of every hand everybody's leftover bones are laid face up and
-counted, the way they are at a real table.
+plays are never graded. Every solo match is rated, the way the chess
+room rates its games — see *The score*, below — and the record keeps a
+handful of *logros* worth having done once. At the end of every hand
+everybody's leftover bones are laid face up and counted, the way they
+are at a real table.
 
 **Two phones is the commonest table there is.** One phone taps *Host*
 and shows four big letters and a QR code; the other points its camera at
@@ -90,6 +89,88 @@ No spinner and no branching. The line has two ends and only ever two
 ends; doubles lie crosswise because that is how they lie, not because
 they open a third road. Branching belongs to the five-up family — a
 different game with a different heart.
+
+## The score
+
+The same engine the chess room uses to tell you whether you are getting
+better, carried across to a table of four. `rating.js` is pure arithmetic
+and `tools/calibrate.js` is where its numbers come from.
+
+**A ladder you can measure.** Eight parejas sit at the cantina, each a
+fixed recipe for the players in `ai.js`:
+
+| | pareja | rating | recipe | accuracy |
+|---|---|---|---|---|
+| 🐣 | **Los Pollitos** | 400 | doesn't count, lots of slack | 76.9% |
+| 🧢 | **Los Primos** | 502 | doesn't count, sheds weight and mulas | 79.1% |
+| 🌮 | **Los Taqueros** | 550 | counts and partners — 45% of the time | 81.3% |
+| 🎺 | **Los Mariachis** | 585 | the same, 70% of the time | 84.0% |
+| 🍺 | **Los Compadres** | 645 | counts, hears every paso, plays for two, some slack | 84.9% |
+| 🎩 | **Los Licenciados** | 693 | the same with no slack | 86.9% |
+| 🦉 | **Los Viejos** | 739 | plays 90 imagined deals out before every bone | 91.0% |
+| 🐍 | **Los Cabrones** | 842 | plays 1,200 out | 94.1% |
+
+Your partner is always the same pareja as the one you face, so the one
+seat that differs is yours. Recipes count imagined deals, never
+milliseconds, so a rung plays the same on every phone, and every rung
+plays the same bone for the same seed.
+
+**Measured, not guessed.** Every pair of neighbours played 600 matches
+to 100 — each deal twice, with the parejas swapped, so the cards and the
+salida cancel out — and every step up the ladder clears its own
+two-standard-error bar. The first ladder did not: a pareja playing for
+each other with plenty of slack measured *level* with one that wasn't,
+and the step from not counting to counting was a cliff wider than the
+rest of the ladder put together. A `focus` knob — how often a player
+actually brings their head to the table — fills it.
+
+The chain is short, 400 to 842, and that is the truth about dominoes
+rather than a flaw in the measuring: a match is seven or eight deals of
+bones nobody chose, and the best pareja at the table still loses a third
+of its matches to the next one down. The chess room shrinks its chain
+because an engine never has an off day; this one is left as measured,
+and the anchor at 400 is the one assumption.
+
+**The number is Glicko, for a pareja.** A team is taken at the average
+of its two ratings, so a match moves your number about half as far as a
+chess game would — half your side's play wasn't yours — and the update
+carries that half through the formulas. A newcomer starts at about 600
+with the score marked provisional (*~600?*) until it settles, no match
+moves it more than 120, and time away makes it less sure rather than
+lower. `rating-check.js` sits simulated players of known strength down
+at whatever the room suggests: after forty matches the typical miss is
+50–90 points.
+
+**Help, kindly.** Hints stay free. A match you were helped through
+counts for a little less — 92% of its weight per hint, never below a
+quarter — in both directions. A match to 50 counts for 60% of one to
+100. Starting again is free unless the rated match was already lost
+(two hands in and more than half the target behind); then the room says
+so and asks first.
+
+**Accuracy.** Every play with a real choice is read by the reviewer in
+`ai.js`: the hand played out from every bone you could have put down,
+the same imagined deals for each, from a seed — the same position always
+gets the same verdict. A play is scored by how much of your chance it
+kept (lichess's curve), the match blends a weighted and a harmonic mean,
+and the calibration's own accuracies become the table behind *"you
+played like about 660 today"* — held to 300 above the pareja you played,
+because a clean match against Los Pollitos is not a master's. Forced
+plays are never counted, and fewer than eight real choices gives no
+number at all. The per-play verdicts (*Sharp* ≥ 90, *Good* ≥ 72, *Okay*
+≥ 45) sit on the same scale, so they can never disagree with the number
+at the end.
+
+**Three stars a rung**, as in the chess room: ★ win; ★ win without a
+hint; ★ win without a hint at 80% accuracy — the one a lucky deal can't
+hand you. Titles are a cantina's: *Mirón*, *Novato*, *Aprendiz*,
+*Jugador*, *Buena pareja*, *Tahúr*, *Maestro*, *Leyenda* (beats Los
+Cabrones more often than not). Each is said once, nothing is celebrated
+while the score is provisional, and beating a pareja twice in three
+meetings while 200 above it gets you told to try the next one up.
+
+Matches with friends at the table are not rated: the ladder only
+measures the house.
 
 ## What's here
 
@@ -117,8 +198,9 @@ gfx2d.js      the canvas twin — the safety net, the small-phone option,
               and the painter of the hand in *both* modes
 sound.js      the clack, the knock on the wood for paso, the shuffle —
               all synthesized on the spot, nothing to download
-career.js     the rank ladder, the stats and the logros, pure and
-              checked in node
+rating.js     the score: the ladder of parejas as measured recipes,
+              accuracy, and Glicko for a pareja. Pure arithmetic
+career.js     the rest of the record — counts and logros
 room.js       the shared front door: four-letter room codes over the
               site's mailbox, the link heartbeat, the healing loop.
               Byte-identical in every game folder here
@@ -208,10 +290,13 @@ containing the word *passed* must be backed by a pass in the record.
   out — was measured the same way before it was kept: the same Compadre
   with and without it, 6,000 matches, 53–54% (±1.3). One piece of it
   *lost* matches when pushed harder, and stays a nudge.
-- **So is the ladder you climb.** `career-check.js` plays two long
-  careers through the rank arithmetic: a player who wins two matches in
-  three and plays sharply has to climb clearly faster than one who
-  loses two in three — and the one who loses still has to climb.
+- **So is the score.** `rating-check.js` checks the pareja Glicko
+  against a second implementation written from the formulas, help
+  weighed the same both ways, the caps, the stars and milestones said
+  once, hostile saves — and simulated players found within forty
+  matches. `calibrate.js` is not a check but the measurement; run it by
+  hand when a recipe or the players change, and paste what it prints
+  into `rating.js`.
 - **And the rollouts are measured too.** The same player against itself
   with the search as the only difference: worth 63%. That check exists
   because the first version of the playout policy was mostly noise, and
@@ -288,7 +373,9 @@ node domino/tools/bone-check.js      # the 3D bone is a solid, and wound the rig
 node domino/tools/skin-check.js      # presets, share codes, hostile input
 node domino/tools/net-check.js       # the permutation test: hands stay secret
 node domino/tools/coach-check.js     # every hint names its move and tells the truth; grades are honest
-node domino/tools/career-check.js    # the rank ladder: no corrupt saves, skill climbs faster
+node domino/tools/rating-check.js    # the score: Glicko for a pareja, accuracy, stars, a simulated season
+node domino/tools/career-check.js    # the record: counts and logros survive junk
+node domino/tools/calibrate.js       # not a check — re-measures the ladder (minutes; see its header)
 node domino/tools/ai-check.js        # the strength ladder (the slow one)
 node domino/tools/room-check.js      # opens it in a browser and plays it
 node domino/tools/make-icons.js      # redraws the icons from scratch

@@ -8,7 +8,7 @@
    from under somebody mid-hand would lose the hand, and a domino match
    is twenty minutes — so a new version waits, and the page decides when
    to take it. */
-var VERSION = "domino-v3";
+var VERSION = "domino-v4";
 
 /* Cache Storage belongs to the whole origin, not to this room: every room
    on kmay89.com keeps its offline copy in the same place. So only this
@@ -19,7 +19,7 @@ var MINE = VERSION.replace(/v\d+$/, "");
 var SHELL = [
   "./", "./index.html",
   "./rules.js", "./layout.js", "./ai.js", "./coach.js",
-  "./skins.js", "./gfx2d.js", "./gfx3d.js", "./sound.js", "./career.js",
+  "./skins.js", "./gfx2d.js", "./gfx3d.js", "./sound.js", "./career.js", "./rating.js",
   "./room.js", "./net.js", "./app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",

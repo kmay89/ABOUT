@@ -24,6 +24,8 @@ var R = (typeof require === "function" && typeof module !== "undefined")
   ? require("./rules.js") : root.Rules;
 var AI = (typeof require === "function" && typeof module !== "undefined")
   ? require("./ai.js") : root.AI;
+var Rt = (typeof require === "function" && typeof module !== "undefined")
+  ? require("./rating.js") : root.Rating;
 
 /* ---------- the suits have names ----------
    At the table nobody says "the fives". Both names are offered so the
@@ -219,42 +221,40 @@ function hint(view, analysis, opts) {
 }
 
 /* ---------- how did that play compare ----------
-   After you play, the room asks the strongest player at the table what
-   *it* would have done and lines your bone up against its list. The gaps
-   are in the AI's own units — points of expected swing, from playing the
-   hand out a few hundred times — and the bands were set from 4,300 real
-   alternatives: half of all non-best plays cost under 12, a tenth cost
-   over 31.
+   After you play, the reviewer (ai.js) plays the hand out from every
+   bone you could have put down — the same imagined deals for each — and
+   your bone is scored by how much of your chance it kept, on the same
+   accuracy scale the match is scored on (rating.js). So a run of
+   "sharp" plays really is a high-accuracy match, and the verdict and the
+   number at the end can never disagree.
 
    Forced plays are not graded. Praising somebody for playing the only
-   bone that fits teaches them nothing, and it cheapens the praise.   */
-var GRADES = [
-  { id: "sharp", max: 3,  label: "Sharp",  icon: "★" },
-  { id: "good",  max: 9,  label: "Good",   icon: "✓" },
-  { id: "ok",    max: 20, label: "Okay",   icon: "·" },
-  { id: "miss",  max: 1e9, label: "Costly", icon: "!" }
-];
-function grade(view, analysis, mv, opts) {
+   bone that fits teaches them nothing, and it cheapens the praise.
+
+   When a play was costly, the coach says which bone the reviewer liked
+   and — only when the AI's own reasons were about that same bone — why.
+   A reason borrowed from a different move would be the fluent kind of
+   untrue this file exists to avoid. */
+function grade(view, rv, mv, opts) {
   opts = opts || {};
-  if (!analysis || !analysis.ranked || analysis.ranked.length < 2 || !mv) return null;
-  var best = analysis.ranked[0], mine = null, at = -1;
-  for (var i = 0; i < analysis.ranked.length; i++) {
-    var r = analysis.ranked[i];
-    if (r.move.tile === mv.tile && r.move.end === mv.end) { mine = r; at = i; break; }
-  }
-  /* the same bone at the other end with identical ends after is the
-     same play — a double on a line showing that number both ways */
-  if (!mine) return null;
-  var gap = Math.max(0, best.score - mine.score);
-  var g = GRADES[GRADES.length - 1];
-  for (var k = 0; k < GRADES.length; k++) if (gap <= GRADES[k].max) { g = GRADES[k]; break; }
-  var out = { id: g.id, label: g.label, icon: g.icon, gap: gap, rank: at + 1, of: analysis.ranked.length };
-  if (g.id === "ok" || g.id === "miss") {
-    var h = hint(view, analysis, opts);
-    out.better = best.move;
-    out.say = "I'd have played the " + boneName(best.move.tile) + (view.left < 0 ? "" :
-      " on the " + (best.move.end === "L" ? "left" : "right")) + ".";
-    out.why = h.lines[0] || "";
+  if (!rv || rv.forced || !rv.moves || rv.moves.length < 2 || !mv) return null;
+  var played = AI.valueOf(rv, mv);
+  if (played === null) return null;
+  var acc = Rt.moveAccuracy(rv.bestValue, played);
+  var v = Rt.verdict(acc);
+  var out = { id: v.id, label: v.label, icon: v.icon, accuracy: acc,
+              best: rv.bestValue, played: played, gap: rv.bestValue - played };
+  if ((v.id === "ok" || v.id === "miss") && rv.best && !(rv.best.tile === mv.tile && rv.best.end === mv.end)) {
+    out.better = rv.best;
+    out.say = "I'd have played the " + boneName(rv.best.tile) + (view.left < 0 ? "" :
+      " on the " + (rv.best.end === "L" ? "left" : "right")) + ".";
+    var a = opts.analysis;
+    if (a && a.move && a.move.tile === rv.best.tile && a.move.end === rv.best.end) {
+      out.why = hint(view, a, opts).lines[0] || "";
+    } else {
+      out.why = "Played out from here, it comes to about " + Math.max(1, Math.round(out.gap)) +
+        " points of the hand better than yours on average.";
+    }
   }
   return out;
 }
@@ -424,7 +424,7 @@ var LESSONS = [
 var Coach = {
   SUIT: SUIT, suitName: suitName, suitBoth: suitBoth, boneName: boneName,
   SAYS: SAYS, MOMENTS: MOMENTS, LESSONS: LESSONS,
-  GRADES: GRADES, grade: grade,
+  grade: grade,
   hint: hint, readTable: readTable, moment: moment, list: list, who: who
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Coach;

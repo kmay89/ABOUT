@@ -420,6 +420,28 @@
   .stat b{display:block; font-size:1.15rem; color:var(--glow); font-variant-numeric:tabular-nums}
   .stat small{font-size:.68rem; color:var(--soft)}
 
+  /* the ladder of parejas — a strip on the splash, a list in the record */
+  .ladder{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+  .ladder.compact{flex-direction:row; overflow-x:auto; padding:2px 2px 6px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch}
+  .rung{display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"e n s" "e l s" "b b b"; column-gap:8px; align-items:center;
+    text-align:left; border:1px solid var(--line); border-radius:12px; padding:7px 10px; background:var(--card2)}
+  .ladder.compact .rung{flex:0 0 112px; grid-template-columns:1fr; grid-template-areas:"e" "n" "l" "s"; text-align:center; scroll-snap-align:center; padding:7px 6px}
+  .rung .re{grid-area:e; font-size:1.5rem; line-height:1}
+  .rung .rnm{grid-area:n; font-weight:700; font-size:.84rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rung .rel{grid-area:l; color:var(--soft); font-size:.74rem; font-variant-numeric:tabular-nums}
+  .rung .rst{grid-area:s; letter-spacing:1px; font-size:.86rem}
+  .rung .rst i, .bigStars i{font-style:normal; color:#4a3527}
+  .rung .rst i.on, .bigStars i.on{color:var(--glow); text-shadow:0 0 8px rgba(255,215,122,.5)}
+  .rung .rbl{grid-area:b; color:var(--soft); font-size:.76rem; margin-top:3px; line-height:1.35}
+  .rung .rbl b{color:var(--ink)}
+  .rung.next{border-color:var(--amber); box-shadow:inset 0 0 0 1px var(--amber)}
+  .rung.cur{background:#33241a}
+  .rung.done .rnm::after{content:" ✓"; color:var(--good)}
+  .bigStars{font-size:2rem; letter-spacing:6px; text-align:center; margin:6px 0 0}
+  .bigStars i.pop{animation:slam .5s cubic-bezier(.2,1.6,.3,1)}
+  .delta{font-weight:800; font-variant-numeric:tabular-nums}
+  .delta.up{color:var(--good)} .delta.down{color:var(--bad)}
+
   /* the hands, laid down face up when it is over */
   .reveal{display:flex; flex-direction:column; gap:6px; margin:6px 0 4px}
   .reveal .rv{display:flex; align-items:center; gap:8px; font-size:.82rem}
@@ -593,6 +615,12 @@
   </div>
 </div></div>
 
+<div class="ov hide" id="ovAsk" style="z-index:30"><div class="sheet" style="max-width:420px">
+  <h2 id="askTitle"></h2>
+  <p class="lead" id="askLead"></p>
+  <div class="row" id="askRow"></div>
+</div></div>
+
 <div class="ov hide" id="ovCareer"><div class="sheet">
   <button class="close" data-close="ovCareer">✕</button>
   <h2>My record</h2>
@@ -602,6 +630,7 @@
 <script src="rules.js"></script>
 <script src="layout.js"></script>
 <script src="ai.js"></script>
+<script src="rating.js"></script>
 <script src="coach.js"></script>
 <script src="skins.js"></script>
 <script src="gfx2d.js"></script>

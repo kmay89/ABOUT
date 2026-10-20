@@ -304,7 +304,20 @@ function serve(handler) {
       ok("and runs no game of its own underneath", chairState.st === null);
       ok("and is told the score", chairState.target === 100 && Array.isArray(chairState.scores));
 
-      /* the chair plays a bone when it comes round, and the table takes it */
+      /* the chair plays a bone when it comes round, and the table takes it.
+         The table's own seat is a person too, and the hand waits for
+         people — so the table's page plays its own turns meanwhile, or the
+         chair would only ever get to move when the deal happened to seat
+         it before the table */
+      await table.evaluate(() => {
+        window.__auto = setInterval(() => {
+          const d = window.__dt(), g = d.G;
+          if (g.st && !g.st.over && g.st.turn === g.mySeat && !g.busy) {
+            const mv = window.AI.movesFor(g.view);
+            if (mv.length) d.tryPlay(mv[0].tile, mv[0].end);
+          }
+        }, 300);
+      });
       const played = await until(chair, () => {
         const d = window.__dt(), g = d.G, v = g.view;
         if (!v) return null;
@@ -320,6 +333,7 @@ function serve(handler) {
         return st && st.line.some((p) => p.seat === 2 && p.tile === t) ? true : null;
       }, 10000, 300, played - 1);
       ok("a chair's bone goes down on the table", !!landed);
+      await table.evaluate(() => clearInterval(window.__auto));
 
       /* the chair goes into a tunnel and comes back to the same seat */
       await chair.evaluate(() => { window.__dt().Net.dc.close(); });

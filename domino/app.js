@@ -15,7 +15,7 @@
 
 var R = window.Rules, L = window.Layout, AI = window.AI, C = window.Coach,
     Sk = window.Skins, Net = window.Net, Room = window.Room,
-    Snd = window.Sound, Car = window.Career;
+    Snd = window.Sound, Car = window.Career, Rt = window.Rating;
 
 /* who this table is, as far as the shared front door is concerned
    (see room.js — the same four-letter door the chess room uses) */
@@ -73,7 +73,7 @@ function toast(msg) {
 /* ---------- what we remember ---------- */
 var SAVE = "dominotable.v1";
 var P = {
-  name: "", skin: null, view3d: true, level: "compadre",
+  name: "", skin: null, view3d: true, level: null, rating: null,
   pace: "relaxed",
   rules: { target: 100, capicua: 25, countAll: false, trancaTie: "closer", firstSalida: "mula" },
   seen: {}, coach: true, sound: true, grade: true,
@@ -86,7 +86,7 @@ function load() {
     if (raw && raw.v === 1) {
       P.name = Net.cleanName(raw.name || "");
       P.view3d = raw.view3d !== false;
-      P.level = AI.LEVELS[raw.level] ? raw.level : "compadre";
+      P.level = Rt.migrate(raw.level) || null;
       P.pace = PACES[raw.pace] ? raw.pace : "relaxed";
       P.coach = raw.coach !== false;
       P.sound = raw.sound !== false;
@@ -101,9 +101,15 @@ function load() {
   if (!P.skin) P.skin = Sk.clean(Sk.PRESETS[0]);
   if (!P.name) P.name = "";
   if (!P.career) P.career = Car.fresh();
+  P.rating = Rt.load(function (k) { return localStorage.getItem(k); });
+  /* a newcomer is seated against the pareja the score suggests */
+  if (!P.level) P.level = Rt.suggestLevel(P.rating);
   if (!P.id) P.id = (Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 12);
   Snd.on = P.sound;
   Net.id = P.id;
+}
+function saveRating() {
+  Rt.save(P.rating, function (k, v) { localStorage.setItem(k, v); return true; });
 }
 function save() {
   try {
@@ -155,7 +161,7 @@ function botName(seat, taken) {
   }
   return "Seat " + (seat + 1);
 }
-function freshHandStats() { return { sharp: 0, graded: 0, feeds: 0, hangs: 0 }; }
+function freshHandStats() { return { sharp: 0, graded: 0, feeds: 0, hangs: 0, moves: [] }; }
 
 /* ---------- the canvas ---------- */
 var tableCv = $("table"), overCv = $("overlay");
@@ -406,20 +412,36 @@ function tryPlay(tile, end) {
   doPlay(G.mySeat, { tile: tile, end: end });
 }
 
-/* ---------- grading your plays ---------- */
+/* ---------- reviewing your plays ----------
+   Every play with a real choice is read by the reviewer — the same
+   imagined deals for every bone you could have played — whether or not
+   the verdict is shown: the match's accuracy, and with it the rated
+   score's second opinion, must not depend on a display setting. */
 var gradeT = 0;
 function judge(mv) {
-  if (!G.view || !P.grade) return;
+  if (!G.view) return;
   var v = G.view;
   if (AI.movesFor(v).length < 2) return;
-  var a;
-  try { a = AI.analyse(v, { level: "maestro" }); } catch (e) { return; }
-  var gr = C.grade(v, a, mv, { names: G.names });
-  if (!gr) return;
+  var rv;
+  try { rv = AI.review(v); } catch (e) { return; }
+  var played = AI.valueOf(rv, mv);
+  if (played === null) return;
+  var acc = Rt.moveAccuracy(rv.bestValue, played);
+  var mark = { best: rv.bestValue, played: played };
+  if (G.mm) G.mm.moves.push(mark);
   if (!G.hs) G.hs = freshHandStats();
+  G.hs.moves.push(mark);
   G.hs.graded++;
   record({ k: "graded" });
-  if (gr.id === "sharp") { G.hs.sharp++; record({ k: "sharp" }); }
+  var vd = Rt.verdict(acc);
+  if (vd.id === "sharp") { G.hs.sharp++; record({ k: "sharp" }); }
+  if (!P.grade) return;
+  /* the words for a costly play are only worth the AI's time when they
+     will actually be said */
+  var opts = { names: G.names };
+  if (vd.id === "miss" && P.coach) { try { opts.analysis = AI.analyse(v, { level: "maestro" }); } catch (e) {} }
+  var gr = C.grade(v, rv, mv, opts);
+  if (!gr) return;
   var el = $("grade");
   el.className = gr.id;
   el.textContent = gr.icon + " " + gr.label + (gr.id === "sharp" && G.hs.sharp > 1 ? " ×" + G.hs.sharp : "");
@@ -430,9 +452,7 @@ function judge(mv) {
   if (gr.id === "sharp") Snd.good();
   /* a costly play is worth a sentence, but not every time — a coach who
      comments on everything is a coach you stop reading */
-  if (gr.id === "miss" && P.coach && gr.say) {
-    chuy(gr.say, gr.why);
-  }
+  if (gr.id === "miss" && P.coach && gr.say) chuy(gr.say, gr.why);
 }
 
 /* ---------- the hand, on the host or solo ---------- */
@@ -625,7 +645,7 @@ function scheduleTurn() {
     /* beat two: the play */
     if (!R.canPlay(G.st, seat)) { doPass(seat); return; }
     var v = R.publicView(G.st, seat);
-    var a = AI.analyse(v, { level: P.level });
+    var a = AI.analyse(v, { level: Rt.aiLevel(P.level) });
     if (a.move) doPlay(seat, a.move); else doPass(seat);
   }, p.think + Math.random() * p.spread);
 }
@@ -650,14 +670,53 @@ function refreshView() {
 }
 
 /* ---------- a hand begins ---------- */
-function newMatch() {
+function newMatch(level) {
   /* the hand is dealt: the table stops advertising itself but keeps its
      four letters, because that is the address latecomers — and anyone
      whose phone locked — come back to */
   if (G.mode === "host") Net.roomStarted();
+  if (level && Rt.levelById(level)) { P.level = level; save(); }
   G.match = R.newMatch({ seed: (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0, rules: P.rules });
   G.handNo = 0;
+  /* Every solo match is rated against the pareja across the table. A
+     table with friends at it is not — half of it is people, and the
+     ladder only measures the house. */
+  G.mm = { level: P.level, rated: G.mode === "solo", hints: 0, moves: [] };
   nextHand(true);
+}
+/* Starting again over a match still in progress. Free while the match is
+   young or close; a match left behind that was already lost is the loss
+   it was, said first (rating.js, abandonResult). */
+function leaving() {
+  if (!G.mm || !G.mm.rated || !G.match || G.match.over) return null;
+  var us = R.team(G.mySeat);
+  return Rt.abandonResult({ hands: G.match.handNo, us: G.match.scores[us], them: G.match.scores[1 - us], target: G.match.rules.target });
+}
+function freshMatch(level, why) {
+  var res = leaving();
+  if (res === 0) {
+    ask("This one counts as a loss", "You're well behind in a rated match, so starting again resigns it.",
+      [["Resign and start again", function () { rate(0); newMatch(level); if (why) toast(why); }],
+       ["Keep playing", null]]);
+    return;
+  }
+  newMatch(level);
+  if (why) toast(why);
+}
+/* a small question above everything; the last answer is the gentle one */
+function ask(title, lead, answers) {
+  $("askTitle").textContent = title;
+  $("askLead").textContent = lead;
+  var row = $("askRow");
+  row.innerHTML = "";
+  answers.forEach(function (a, i) {
+    var b = document.createElement("button");
+    b.className = "btn" + (i === 0 ? " primary wide" : "");
+    b.textContent = a[0];
+    row.appendChild(b);
+    press(b, function () { shut("ovAsk"); if (a[1]) a[1](); });
+  });
+  open("ovAsk");
 }
 function nextHand(first) {
   clearTimeout(turnT);
@@ -793,7 +852,10 @@ function showEnd(pack) {
   }
   rows += "</table>";
   if (G.hs && G.hs.graded) {
-    rows += "<p class='note'>Your plays this hand: <b>" + G.hs.sharp + "</b> sharp of " + G.hs.graded + " with a real choice" +
+    var hacc = 0;
+    G.hs.moves.forEach(function (m) { hacc += Rt.moveAccuracy(m.best, m.played); });
+    hacc = Math.round(hacc / G.hs.moves.length);
+    rows += "<p class='note'>Your plays this hand: <b>" + G.hs.sharp + "</b> sharp of " + G.hs.graded + " with a real choice, about <b>" + hacc + "%</b> accurate" +
       (G.hs.feeds ? " · fed your partner " + G.hs.feeds + "×" : "") +
       (G.hs.hangs ? " · hung them " + G.hs.hangs + "×" : "") + ".</p>";
   }
@@ -816,21 +878,29 @@ function showEnd(pack) {
 
   /* the record — once per hand per phone, however many times the
      message arrives */
-  var xpHtml = "";
+  var recHtml = "";
   if (pack.key && G.endKey !== pack.key) {
     G.endKey = pack.key;
-    var res = [];
-    res.push(record({ k: "hand", won: won, mine: r.winner === G.mySeat, how: r.how, capicua: r.capicua,
-                      points: r.points, sharp: G.hs ? G.hs.sharp : 0, friends: G.mode !== "solo" }, true));
+    var got = [];
+    got = got.concat(record({ k: "hand", won: won, mine: r.winner === G.mySeat, how: r.how, capicua: r.capicua,
+                              sharp: G.hs ? G.hs.sharp : 0, friends: G.mode !== "solo" }, true).badges);
     if (pack.over) {
-      var lvlForXp = G.mode === "solo" ? P.level : (G.mode === "host" ? P.level : "compadre");
-      res.push(record({ k: "match", won: pack.champion === us, level: lvlForXp, zapatero: pack.zapatero && pack.champion === us }, true));
+      got = got.concat(record({ k: "match", won: pack.champion === us, level: G.mm ? G.mm.level : P.level,
+                                zapatero: pack.zapatero && pack.champion === us }, true).badges);
+      if (G.mm && G.mm.rated) recHtml += ratingBlock(rate(pack.champion === us ? 1 : 0));
+      else if (G.mode !== "solo") recHtml += "<p class='note'>Matches with friends at the table aren't rated — the ladder only measures the house.</p>";
     }
-    xpHtml = xpBlock(res);
+    got.forEach(function (b) {
+      recHtml += "<div class='badge new' style='margin-top:8px'><b>🏅 " + esc(b.name) + "</b><small>" + esc(b.note) + "</small></div>";
+    });
   }
-  $("endXP").innerHTML = xpHtml;
+  $("endXP").innerHTML = recHtml;
   var bar = $("endXP").querySelector(".bar i");
   if (bar) setTimeout(function () { bar.style.width = bar.getAttribute("data-w"); }, 60);
+  var stars = $("endXP").querySelectorAll(".bigStars i[data-new]");
+  Array.prototype.forEach.call(stars, function (el, i) {
+    setTimeout(function () { el.classList.add("on", "pop"); Snd.good(); }, 700 + i * 450);
+  });
 
   sayMoment({ k: "end", res: r });
   if (pack.over && pack.zapatero) sayMoment({ k: "match", zapatero: true });
@@ -887,75 +957,166 @@ function record(e, quiet) {
     pendingBadges = pendingBadges.concat(out.badges);
     if (!quiet) out.badges.forEach(function (b) { toast("🏅 " + b.name + " — " + b.note); });
   }
-  if (out.rankUp && !quiet) rankUp(out.rankUp);
   return out;
 }
-function rankUp(rank) {
-  Snd.rank();
-  confetti(200);
-  banner("¡" + rank.name + "!", "You moved up — " + rank.note, 2600, true);
+
+/* ---------- the score ----------
+   A finished rated match goes to rating.js with what it needs — the
+   pareja it was against, the result, the accuracy of your real choices,
+   how many hints you took, how long the match was — and a new score
+   comes back. The score is read from storage first, so a second tab
+   cannot write over a match this one finished. */
+function rate(result) {
+  if (!G.mm || !G.mm.rated) return null;
+  P.rating = Rt.load(function (k) { return localStorage.getItem(k); });
+  var acc = Rt.gameAccuracy(G.mm.moves);
+  var u = Rt.update(P.rating, { level: G.mm.level, result: result, at: Date.now(), accuracy: acc,
+                                assisted: { hints: G.mm.hints }, target: G.match ? G.match.rules.target : 100 });
+  P.rating = u.state;
+  saveRating();
+  G.mm.rated = false;            /* a match is counted once */
+  u.level = Rt.levelById(G.mm.level);
+  return u;
 }
-function xpBlock(res) {
-  var lines = [], badges = [], up = null, rank = null;
-  res.forEach(function (o) {
-    lines = lines.concat(o.gain); badges = badges.concat(o.badges);
-    if (o.rankUp) up = o.rankUp; rank = o.rank;
-  });
-  rank = Car.rankOf(P.career.xp);
-  var html = "<div class='rankCard' style='width:100%;margin-top:12px'>" + rankHead(rank);
-  if (lines.length) {
-    html += "<ul class='xpList'>";
-    lines.forEach(function (l, i) {
-      html += "<li style='animation-delay:" + (0.15 + i * 0.12).toFixed(2) + "s'><span>" + esc(l.why) + "</span><b>+" + l.xp + "</b></li>";
-    });
-    html += "</ul>";
+function ratingBlock(u) {
+  if (!u || !u.rated) return "";
+  var L = u.level, st = P.rating.stars[L.id] || [0, 0, 0];
+  var html = "<div class='rankCard' style='width:100%;margin-top:12px'>" +
+    "<div class='rt'><span class='rn'>" + esc(Rt.display(P.rating)) + "</span>" +
+    "<span class='delta " + (u.delta >= 0 ? "up" : "down") + "'>" + (u.delta >= 0 ? "+" : "−") + Math.abs(u.delta) + "</span>" +
+    "<span class='rx'>vs " + esc(L.label) + " · " + L.elo + "</span></div>" +
+    "<div class='bigStars'>";
+  for (var i = 0; i < 3; i++) {
+    var fresh = u.newStars.indexOf(i) >= 0;
+    html += "<i" + (st[i] && !fresh ? " class='on'" : "") + (fresh ? " data-new='1'" : "") + ">★</i>";
   }
-  html += "</div>";
-  if (up) {
-    html += "<div class='rankUp'>¡Subiste! You are now " + esc(up.name) + "<small>" + esc(up.note) + "</small></div>";
-    setTimeout(function () { rankUp(up); }, 500);
+  html += "</div><div class='rnote'>★ win · ★ win without a hint · ★ and play " + Rt.STAR_ACC + "% accurate</div>";
+  var lines = [];
+  if (u.accuracy !== null) {
+    lines.push("You played <b>" + u.accuracy.toFixed(0) + "%</b> accurate — like about <b>" + u.perf + "</b> today.");
+  } else {
+    lines.push("Too few real choices this match to measure your accuracy.");
   }
-  badges.forEach(function (b) {
-    html += "<div class='badge new' style='margin-top:8px'><b>🏅 " + esc(b.name) + "</b><small>" + esc(b.note) + "</small></div>";
-  });
+  if (u.weight < 0.999) lines.push("Counted as " + Math.round(u.weight * 100) + "% of a match (hints, or a short match).");
+  if (u.wasProvisional && u.provisional) lines.push("Your score is still finding its level — a few more matches.");
+  html += "<ul class='xpList'>" + lines.map(function (l, k) {
+    return "<li style='animation-delay:" + (0.2 + k * 0.15).toFixed(2) + "s'><span>" + l + "</span></li>";
+  }).join("") + "</ul></div>";
+  if (u.milestone) {
+    var m = u.milestone;
+    html += "<div class='rankUp'>" + esc(m.emoji) + " " + (m.kind === "settled" ? "Your score has settled: " + esc(m.name)
+      : m.kind === "title" ? "¡Subiste! You are now " + esc(m.name) : esc(m.name) + " — " + m.rating) +
+      "<small>" + esc(Rt.title(m.rating).blurb) + "</small></div>";
+    setTimeout(function () { Snd.rank(); confetti(180); }, 600);
+  }
+  if (u.levelUp && u.next) {
+    var nx = Rt.levelById(u.next);
+    html += "<div class='row'><button class='btn wide' id='endUp'>You've outgrown them — try " + esc(nx.label) + "</button></div>";
+    setTimeout(function () {
+      var b = $("endUp");
+      if (b) press(b, function () { shut("ovEnd"); newMatch(nx.id); });
+    }, 0);
+  }
   return html;
 }
-function rankHead(rk) {
-  return "<div class='rt'><span class='rn'>" + esc(rk.rank.name) + "</span>" +
-    "<span class='rx'>" + P.career.xp + (rk.next ? " / " + rk.next.xp + " xp" : " xp") + "</span></div>" +
-    "<div class='rnote'>" + esc(rk.next ? "Next: " + rk.next.name : rk.rank.note) + "</div>" +
-    "<div class='bar'><i data-w='" + Math.round(rk.frac * 100) + "%' style='width:" + Math.round(rk.frac * 100) + "%'></i></div>";
+
+/* ---------- the ladder ----------
+   Eight parejas, each with its measured rating and three stars to earn —
+   the chess room's coaches, at a domino table. Tap one to sit down
+   against it. */
+function ladderHTML(compact) {
+  var sug = Rt.suggestLevel(P.rating), html = "<div class='ladder" + (compact ? " compact" : "") + "'>";
+  Rt.LEVELS.forEach(function (L) {
+    var st = P.rating.stars[L.id] || [0, 0, 0], vs = P.rating.vs[L.id];
+    html += "<button class='rung" + (L.id === sug ? " next" : "") + (st[0] + st[1] + st[2] === 3 ? " done" : "") +
+      (L.id === P.level ? " cur" : "") + "' data-rung='" + L.id + "'>" +
+      "<span class='re'>" + L.emoji + "</span><span class='rnm'>" + esc(L.name) + "</span>" +
+      "<span class='rel'>" + L.elo + "</span>" +
+      "<span class='rst'>" + [0, 1, 2].map(function (i) { return "<i" + (st[i] ? " class='on'" : "") + ">★</i>"; }).join("") + "</span>" +
+      (compact ? "" : "<span class='rbl'>" + esc(L.blurb) + (vs ? " <b>" + vs[0] + "–" + vs[1] + "</b>" : "") + "</span>") +
+      "</button>";
+  });
+  return html + "</div>";
+}
+function wireLadder(box, onPick) {
+  Array.prototype.forEach.call(box.querySelectorAll("[data-rung]"), function (b) {
+    press(b, function () { onPick(b.getAttribute("data-rung")); });
+  });
+}
+function ratingHead() {
+  var sm = Rt.summary(P.rating), t = sm.title;
+  var html = "<div class='rt'><span class='rn'>" + esc(t.emoji) + " " + esc(sm.display) + "</span>" +
+    "<span class='rx'>" + esc(t.name) + "</span></div>" +
+    "<div class='rnote'>" + (sm.games ? sm.wins + " of " + sm.games + " rated matches won" +
+      (sm.streak.kind === "win" && sm.streak.n > 1 ? " · " + sm.streak.n + " in a row" : "") +
+      " · " + sm.stars + "/" + sm.maxStars + " ★"
+      : "Every solo match is rated against the pareja you face.") + "</div>";
+  if (t.next) {
+    var span = t.next.floor - t.floor, into = Math.max(0, sm.rating - t.floor);
+    html += "<div class='bar'><i data-w='" + Math.round(Math.min(1, into / span) * 100) + "%' style='width:" +
+      Math.round(Math.min(1, into / span) * 100) + "%'></i></div><div class='rnote'>Next: " + esc(t.next.emoji + " " + t.next.name) + " at " + t.next.floor + "</div>";
+  }
+  return html;
+}
+/* the score's line, drawn small */
+function chart(cv, hist) {
+  var dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 300, h = 70;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.height = h + "px";
+  var g = cv.getContext("2d"); g.scale(dpr, dpr);
+  var pts = [Rt.START_R].concat(hist.map(function (e) { return e.r; }));
+  if (pts.length < 2) return;
+  var lo = Math.min.apply(null, pts) - 20, hi = Math.max.apply(null, pts) + 20;
+  g.strokeStyle = "rgba(255,215,122,.9)"; g.lineWidth = 2; g.beginPath();
+  pts.forEach(function (p, i) {
+    var x = 4 + i / (pts.length - 1) * (w - 8), y = h - 4 - (p - lo) / (hi - lo) * (h - 8);
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  });
+  g.stroke();
 }
 function showCareer() {
-  var c = P.career, rk = Car.rankOf(c.xp);
+  var c = P.career, sm = Rt.summary(P.rating);
   var pct = function (a, b) { return b ? Math.round(a / b * 100) + "%" : "—"; };
-  var html = "<div class='rankCard' style='width:100%'>" + rankHead(rk) + "</div>" +
+  var html = "<div class='rankCard' style='width:100%'>" + ratingHead() + "<canvas id='rChart' style='width:100%;display:block;margin-top:6px'></canvas></div>" +
     "<div class='stats'>" +
-    stat(c.matchWins + "/" + c.matches, "matches won") +
+    stat(sm.wins + "–" + sm.losses, "rated matches") +
+    stat(sm.best === null ? "—" : sm.best, "best score") +
+    stat(sm.recentAccuracy === null ? "—" : sm.recentAccuracy + "%", "recent accuracy") +
     stat(pct(c.handWins, c.hands), "hands won") +
-    stat(pct(c.sharp, c.graded), "sharp plays") +
-    stat(c.dominos, "dominós") + stat(c.capicuas, "capicúas") + stat(c.best, "best streak") +
-    "</div><h3 style='margin-top:14px;font-size:1rem'>Logros</h3><div class='badges'>";
+    stat(c.dominos, "dominós") + stat(c.capicuas, "capicúas") +
+    "</div><h3 style='margin-top:14px;font-size:1rem'>The ladder</h3>" +
+    "<p class='note' style='margin-top:0'>Each pareja's rating is measured — 600 seat-swapped matches against its neighbours. Your partner is always the same pareja as the one you face. Tap one to play it.</p>" +
+    ladderHTML(false) +
+    "<h3 style='margin-top:14px;font-size:1rem'>Logros</h3><div class='badges'>";
   Car.BADGES.forEach(function (b) {
     html += "<div class='badge" + (c.badges[b.id] ? "" : " off") + "'><b>" + (c.badges[b.id] ? "🏅 " : "") + esc(b.name) + "</b><small>" + esc(b.note) + "</small></div>";
   });
-  html += "</div><h3 style='margin-top:14px;font-size:1rem'>The ladder</h3><div class='badges'>";
-  Car.RANKS.forEach(function (r, i) {
-    html += "<div class='badge" + (i <= rk.i ? "" : " off") + (i === rk.i ? " new" : "") + "'><b>" + esc(r.name) + "</b><small>" + r.xp + " xp · " + esc(r.note) + "</small></div>";
-  });
-  var sug = Car.suggestLevel(c);
-  html += "</div><p class='note'>Opponents now: <b>" + esc(AI.level(P.level).label) + "</b>." +
-    (sug !== P.level ? " At your rank the table would suggest <b>" + esc(AI.level(sug).label) + "</b> — change it in House rules." : "") +
-    " Wins pay more against stronger players.</p>";
+  html += "</div><h3 style='margin-top:14px;font-size:1rem'>How the score works</h3><p class='note' style='margin-top:0'>" +
+    "It's Glicko, the system chess sites use, with one change for a table of four: you and your partner are taken at the average of your two ratings, so a match moves your number about half as far as a chess game would — half your side's play wasn't yours. " +
+    "Hints are always allowed; each one makes the match count a little less, in both directions. A match left behind while it is already well lost counts as the loss it was. " +
+    "Accuracy is how much of your chance each play kept, checked by playing the hand out from every bone you could have played.</p>";
   $("careerBody").innerHTML = html;
+  wireLadder($("careerBody"), function (id) { shut("ovCareer"); goRung(id); });
   open("ovCareer");
+  setTimeout(function () { var cv = $("rChart"); if (cv) chart(cv, sm.history); }, 30);
 }
 function stat(v, l) { return "<div class='stat'><b>" + esc(v) + "</b><small>" + esc(l) + "</small></div>"; }
+/* sit down against a rung, from wherever the player is */
+function goRung(id) {
+  if ($("splash").style.display !== "none") { P.level = id; save(); begin("solo"); return; }
+  if (G.mode !== "solo") { toast("The ladder is for solo matches — the table with friends keeps its own game."); return; }
+  freshMatch(id, "Sitting down with " + Rt.levelById(id).label + ".");
+}
 function splashRank() {
   var el = $("splashRank");
   if (!el) return;
-  var c = P.career, rk = Car.rankOf(c.xp);
-  el.innerHTML = rankHead(rk) + (c.matches ? "<div class='rnote' style='margin-top:4px'>" + c.matchWins + " of " + c.matches + " matches won" + (c.streak > 1 ? " · on a streak of " + c.streak : "") + "</div>" : "");
+  el.innerHTML = ratingHead() + ladderHTML(true);
+  wireLadder(el, goRung);
+  var sug = Rt.levelById(P.level) || Rt.levelById(Rt.suggestLevel(P.rating));
+  $("goSolo").innerHTML = "Play " + esc(sug.label) + " <small style='opacity:.75;font-weight:500'>· " + sug.elo + "</small>";
+  setTimeout(function () {
+    var cur = el.querySelector(".rung.cur") || el.querySelector(".rung.next");
+    if (cur && cur.scrollIntoView) { var lad = cur.parentNode; lad.scrollLeft = cur.offsetLeft - lad.clientWidth / 2 + cur.clientWidth / 2; }
+  }, 50);
 }
 
 /* ---------- confetti, for the moments that earn it ---------- */
@@ -1015,6 +1176,8 @@ press($("chuyClose"), function () { $("chuy").classList.add("off"); });
 function giveHint() {
   if (!G.view) return;
   if (G.view.turn !== G.mySeat) { chuy("Not your turn yet — watch what they play.", "", 3000); return; }
+  /* hints stay free; a rated match helped through counts for a little less */
+  if (G.mm && G.mm.rated) G.mm.hints++;
   var a = AI.analyse(G.view, { level: "maestro" });
   var h = C.hint(G.view, a, { names: G.names });
   chuy(h.title, h.lines.join(" "));
@@ -1187,7 +1350,7 @@ function nameOf(s) { return G.names[s] || ("Seat " + s); }
 function showMenu() {
   $("menuState").textContent = G.match
     ? ("To " + G.match.rules.target + " · hand " + (G.match.handNo + 1) + " · " +
-       AI.level(P.level).label + " opponents")
+       Rt.levelById(P.level).label + " · " + Rt.levelById(P.level).elo + (G.mm && G.mm.rated ? " · rated" : ""))
     : "No match yet.";
   $("mView").textContent = P.view3d ? "Switch to 2D" : "Switch to 3D";
   $("mSound").textContent = P.sound ? "🔊 Sound on" : "🔇 Sound off";
@@ -1200,7 +1363,7 @@ function showMenu() {
 press($("mNew"), function () {
   shut("ovMenu");
   if (G.mode === "guest") { toast(nameOf(0) + "'s phone deals — ask them."); return; }
-  newMatch();
+  freshMatch(null);
 });
 press($("mLook"), function () { shut("ovMenu"); showLook(); });
 press($("mRules"), function () { shut("ovMenu"); showRules(); });
@@ -1241,7 +1404,7 @@ var RULE_FORM = [
   { k: "capicua", label: "Capicúa pays", opts: [[0, "nothing"], [25, "25 — the usual"], [50, "50"]] },
   { k: "countAll", label: "The winner counts", opts: [[false, "the other side's bones"], [true, "everyone's, partner included"]] },
   { k: "trancaTie", label: "A tied shut game", opts: [["closer", "goes to whoever shut it"], ["nobody", "goes to nobody"]] },
-  { k: "level", label: "The others play", opts: [["novato", "Novato"], ["compadre", "Compadre"], ["maestro", "Maestro"], ["cabron", "Cabrón"]] },
+  { k: "level", label: "Across the table", opts: Rt.LEVELS.map(function (L) { return [L.id, L.emoji + " " + L.name + " · " + L.elo]; }) },
   { k: "pace", label: "The table moves", opts: [["slow", "Unhurried"], ["relaxed", "Relaxed"], ["brisk", "Brisk"], ["quick", "Quick"]] }
 ];
 function showRules() {
@@ -1260,7 +1423,7 @@ function showRules() {
     }
     html += "</div></div>";
   }
-  html += "<p class='note'>" + esc(AI.level(P.level).note) + " · " + esc(pace().note) + "</p>";
+  html += "<p class='note'>" + esc(Rt.levelById(P.level).blurb) + " · " + esc(pace().note) + "</p>";
   $("rulesForm").innerHTML = html;
   var btns = $("rulesForm").querySelectorAll("[data-rk]");
   for (var b = 0; b < btns.length; b++) press(btns[b], onRulePick);
@@ -1269,7 +1432,7 @@ function showRules() {
 function onRulePick(e) {
   var el = e.currentTarget || e.target;
   var k = el.getAttribute("data-rk"), raw = el.getAttribute("data-rv");
-  if (k === "level") P.level = raw;
+  if (k === "level") P.level = Rt.levelById(raw) ? raw : P.level;
   else if (k === "pace") P.pace = PACES[raw] ? raw : "relaxed";
   else if (k === "countAll") P.rules.countAll = (raw === "true");
   else if (k === "trancaTie") P.rules.trancaTie = raw;
@@ -1281,7 +1444,7 @@ function onRulePick(e) {
 press($("rulesApply"), function () {
   shut("ovRules");
   if (G.mode === "guest") { toast("Saved — the table's phone sets the rules for this game."); return; }
-  newMatch(); toast("Fresh match, new rules.");
+  freshMatch(null, "Fresh match, new rules.");
 });
 
 /* ---------- the colours ---------- */

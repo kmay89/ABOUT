@@ -58,7 +58,8 @@ function level(id) {
       id: id.id || "custom", label: id.label || "Custom", note: id.note || "",
       rollouts: id.rollouts | 0,
       noise: typeof id.noise === "number" ? id.noise : 0,
-      counts: !!id.counts, partner: !!id.partner
+      counts: !!id.counts, partner: !!id.partner,
+      focus: typeof id.focus === "number" ? Math.max(0, Math.min(1, id.focus)) : 1
     };
   }
   return LEVELS[id] || LEVELS.compadre;
@@ -489,6 +490,15 @@ function analyse(view, opts) {
   var rand = opts.rand || Math.random;
   var mv = movesFor(view);
   if (!mv.length) return { move: null, ranked: [], stuck: true, level: lv };
+  /* `focus` is how often a player actually brings their head to the
+     table. The rest of the time they play the bone that looks right —
+     heavy, a mula, something that still leaves them a play — without
+     counting anything. It is the knob that fills the cliff between a
+     player who counts and one who does not, which on its own is the
+     widest single step in the whole ladder (rating.js). */
+  if (lv.focus !== undefined && lv.focus < 1 && rand() >= lv.focus) {
+    lv = { id: lv.id, label: lv.label, note: lv.note, rollouts: 0, noise: lv.noise, counts: false, partner: false, focus: 1 };
+  }
 
   var bel = lv.counts ? beliefs(view) : null;
   var ranked = [], i;
@@ -552,6 +562,59 @@ function analyse(view, opts) {
   };
 }
 
+/* ---------- the reviewer ----------
+   The one question a coach actually asks: how much worse was that than
+   the best you had? `analyse` cannot answer it honestly — its scores mix
+   the playouts with heuristic weights and a level's noise, which is right
+   for choosing a move and wrong for judging one. So the reviewer is the
+   playouts alone, on a fixed budget of imagined deals, every candidate
+   asked about the *same* deals with the same luck, from a seed — so the
+   same position always gets the same verdict, on every phone, however
+   busy it is. (The chess room's review() counts positions rather than
+   milliseconds for exactly this reason.)
+
+   Values are in the playouts' own unit: points of the hand, from the
+   mover's side, with a win worth its count plus twenty and a loss the
+   same against. rating.js turns those into accuracy. */
+var REVIEW_DEALS = 120;
+function review(view, opts) {
+  opts = opts || {};
+  var mv = movesFor(view);
+  if (mv.length < 2) return { moves: mv.map(function (m) { return { move: m, value: 0 }; }), best: mv[0] || null, forced: true };
+  var nDeals = opts.deals || REVIEW_DEALS;
+  var rand = R.rng(opts.seed !== undefined ? opts.seed : reviewSeed(view));
+  var deals = [], seeds = [], k, i;
+  for (k = 0; k < nDeals; k++) { deals.push(sample(view, rand)); seeds.push((rand() * 0xffffffff) >>> 0); }
+  var out = [];
+  for (i = 0; i < mv.length; i++) {
+    var sum = 0, n = 0;
+    for (k = 0; k < nDeals; k++) {
+      var v = playOut(deals[k], view, mv[i], R.rng(seeds[k]));
+      if (v !== null) { sum += v; n++; }
+    }
+    out.push({ move: mv[i], value: n ? sum / n : 0 });
+  }
+  var best = out[0];
+  for (i = 1; i < out.length; i++) if (out[i].value > best.value) best = out[i];
+  return { moves: out, best: best.move, bestValue: best.value, forced: false };
+}
+/* the same position, the same verdict: the seed is the position itself */
+function reviewSeed(view) {
+  var h = 2166136261 >>> 0, i;
+  function mix(x) { h = Math.imul(h ^ (x & 255), 16777619) >>> 0; }
+  for (i = 0; i < view.hand.length; i++) mix(view.hand[i]);
+  for (i = 0; i < view.line.length; i++) { mix(view.line[i].tile); mix(view.line[i].end === "L" ? 1 : 2); }
+  mix(view.seat); mix(view.passes);
+  return h;
+}
+function valueOf(rv, mv) {
+  for (var i = 0; i < rv.moves.length; i++) {
+    var m = rv.moves[i].move;
+    if (m.tile === mv.tile && m.end === mv.end) return rv.moves[i].value;
+  }
+  return null;
+}
+
 /* the legal moves, from the view rather than the state */
 function movesFor(view) {
   var out = [], i;
@@ -593,7 +656,7 @@ var AI = {
   LEVELS: LEVELS, level: level,
   beliefs: beliefs, pVoid: pVoid, pStuck: pStuck, sample: sample,
   evaluate: evaluate, analyse: analyse, movesFor: movesFor, endsAfter: endsAfter, reads: reads,
-  shown: shown,
+  shown: shown, review: review, valueOf: valueOf, REVIEW_DEALS: REVIEW_DEALS,
   feasible: feasible
 };
 if (typeof module !== "undefined" && module.exports) module.exports = AI;
