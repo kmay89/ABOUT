@@ -31,6 +31,13 @@
 
 var LEN = 2, WID = 1;               /* a bone, in half-tiles */
 
+/* the two halves of a tile, without needing rules.js: tiles are numbered
+   0..27 running a = 0..6, b = a..6, exactly as rules.js deals them */
+var HA = [], HB = [];
+(function () { for (var a = 0; a <= 6; a++) for (var b = a; b <= 6; b++) { HA.push(a); HB.push(b); } })();
+function half(t, which) { return which ? HB[t] : HA[t]; }
+function otherHalf(t, n) { return HA[t] === n ? HB[t] : HA[t]; }
+
 /* How far apart two rows sit. Not a taste decision — it is the tightest
    spacing that provably cannot overlap, and it is set by the corner
    rather than by the rows.
@@ -131,6 +138,9 @@ function table(line, opts) {
   }
 
   var first = line[0], fa = along(first.dbl);
+  /* The open number at each end, tracked here alongside the geometry so
+     every bone knows which of its halves touches the line. See `rec`. */
+  var openL = half(first.tile, 0), openR = half(first.tile, 1);
   /* The salida lies in the middle of the table and the line grows both
      ways from it. Its heading is *along the line* even when it is a
      mula — `rot` is what turns a mula crosswise, and `along`/`across`
@@ -138,7 +148,7 @@ function table(line, opts) {
      instead (an early mistake) laid the opening mula flat across two
      units of the line and both ends started on top of it. */
   var p0 = { x: 0, y: 0, h: 0, dbl: first.dbl };
-  out.bones.push(rec(first, p0, 0));
+  out.bones.push(rec(first, p0, 0, openL, openR));
 
   var R = cursor(fa / 2, 0, 0, 1);     /* the right end folds downward */
   var L = cursor(-fa / 2, 0, 2, -1);   /* the left end folds upward    */
@@ -147,7 +157,10 @@ function table(line, opts) {
     var pl = line[i];
     var cur = (pl.end === "L") ? L : R;
     var place = advance(cur, pl.dbl, bound);
-    out.bones.push(rec(pl, place, i));
+    var join = (pl.end === "L") ? openL : openR;
+    var far = otherHalf(pl.tile, join);
+    out.bones.push(rec(pl, place, i, join, far));
+    if (pl.end === "L") openL = far; else openR = far;
   }
 
   /* the bounding box, with a little air so nothing touches the edge */
@@ -169,10 +182,28 @@ function table(line, opts) {
   return out;
 }
 
-function rec(pl, place, idx) {
+/* Which number is drawn on which half.
+
+   A bone is drawn in its own frame lying along local +x, then turned by
+   `rot`. For a plain bone `rot` is the heading, so local +x points *away*
+   from the bone it joins and local -x points back at it. That makes the
+   rule one line: the first half (local -x) carries the number that was
+   matched, `inner`, and the second half carries the new open end, `outer`.
+   The salida has nothing to join, so it reads low-to-high left to right,
+   which is also what the two open ends say it is.
+
+   This used to be worked out from `flip`, a flag recorded by the rules
+   whose meaning differed between the two ends — and so every bone played
+   on the right-hand end of the line was drawn back to front, its matching
+   half facing out and its new number pressed against the bone it joined.
+   Tracking the open ends here, next to the geometry, removes the question.
+   `tools/layout-check.js` walks every bone and checks that the half
+   touching its neighbour really is the number they share. */
+function rec(pl, place, idx, inner, outer) {
   return {
     idx: idx, tile: pl.tile, end: pl.end, flip: !!pl.flip, dbl: !!pl.dbl, seat: pl.seat,
     x: place.x, y: place.y, h: place.h,
+    inner: inner, outer: outer,
     /* the angle to draw it at: a bone lies along its heading, a double
        lies across it */
     rot: (place.h * 90 + (pl.dbl ? 90 : 0)) % 360
@@ -251,8 +282,11 @@ function fit(bbox, w, h, pad) {
   };
 }
 
+/* the two numbers in drawing order: local -x half first */
+function faces(b) { return [b.inner, b.outer]; }
+
 var Layout = {
-  LEN: LEN, WID: WID, ROW: ROW, DX: DX, DY: DY,
+  LEN: LEN, WID: WID, ROW: ROW, DX: DX, DY: DY, faces: faces,
   along: along, across: across, boxOf: boxOf,
   table: table, fit: fit, handRow: handRow, hitHand: hitHand
 };

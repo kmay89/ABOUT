@@ -1,14 +1,14 @@
 /* sw.js — the room works on a bus.
 
    Cache-first over a fixed shell, because none of it changes between
-   releases: the whole game is eight scripts and a page. Bump VERSION on
+   releases: the whole game is a dozen scripts and a page. Bump VERSION on
    every release or installed players keep the old one forever.
 
    The update is announced rather than forced. Swapping the code out
    from under somebody mid-hand would lose the hand, and a domino match
    is twenty minutes — so a new version waits, and the page decides when
    to take it. */
-var VERSION = "domino-v2";
+var VERSION = "domino-v4";
 
 /* Cache Storage belongs to the whole origin, not to this room: every room
    on kmay89.com keeps its offline copy in the same place. So only this
@@ -19,7 +19,8 @@ var MINE = VERSION.replace(/v\d+$/, "");
 var SHELL = [
   "./", "./index.html",
   "./rules.js", "./layout.js", "./ai.js", "./coach.js",
-  "./skins.js", "./gfx2d.js", "./gfx3d.js", "./room.js", "./net.js", "./app.js",
+  "./skins.js", "./gfx2d.js", "./gfx3d.js", "./sound.js", "./career.js", "./rating.js",
+  "./room.js", "./net.js", "./app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",
   "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"

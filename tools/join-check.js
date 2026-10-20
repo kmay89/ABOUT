@@ -35,11 +35,11 @@ function ok(what, cond, detail) {
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 /* poll rather than sleep: a handshake takes as long as it takes */
-async function until(page, fn, ms, every) {
+async function until(page, fn, ms, every, arg) {
   const end = Date.now() + (ms || 20000);
   while (Date.now() < end) {
     let v = null;
-    try { v = await page.evaluate(fn); } catch (e) { /* mid-navigation */ }
+    try { v = await page.evaluate(fn, arg); } catch (e) { /* mid-navigation */ }
     if (v) return v;
     await wait(every || 250);
   }
@@ -285,6 +285,55 @@ function serve(handler) {
         return Object.keys(n).some((k) => n[k] === "Lupe");
       }, 15000);
       ok("the table knows their name", !!seen);
+      ok("the first friend sits across the table, as a partner", seat === 2, "seat " + seat);
+
+      /* the table deals everybody in, and the chair is shown the game —
+         its own bones, the score, the names — and runs no game of its own */
+      await table.click("#pDeal");
+      const dealt = await until(chair, () => {
+        const d = window.__dt(), v = d.G.view;
+        return v && v.hand.length === 7 && v.line.length === 0 ? true : null;
+      }, 15000);
+      ok("dealing in reaches the chair", !!dealt);
+      const chairState = await chair.evaluate(() => {
+        const d = window.__dt();
+        return { host: d.G.names[0], st: d.G.st, target: d.G.match && d.G.match.rules.target,
+                 scores: d.G.match && d.G.match.scores };
+      });
+      ok("the chair knows whose table it is", chairState.host === "Chuy", chairState.host);
+      ok("and runs no game of its own underneath", chairState.st === null);
+      ok("and is told the score", chairState.target === 100 && Array.isArray(chairState.scores));
+
+      /* the chair plays a bone when it comes round, and the table takes it.
+         The table's own seat is a person too, and the hand waits for
+         people — so the table's page plays its own turns meanwhile, or the
+         chair would only ever get to move when the deal happened to seat
+         it before the table */
+      await table.evaluate(() => {
+        window.__auto = setInterval(() => {
+          const d = window.__dt(), g = d.G;
+          if (g.st && !g.st.over && g.st.turn === g.mySeat && !g.busy) {
+            const mv = window.AI.movesFor(g.view);
+            if (mv.length) d.tryPlay(mv[0].tile, mv[0].end);
+          }
+        }, 300);
+      });
+      const played = await until(chair, () => {
+        const d = window.__dt(), g = d.G, v = g.view;
+        if (!v) return null;
+        if (window.__played) return window.__played;
+        if (v.turn === g.mySeat && !g.busy) {
+          const mv = window.AI.movesFor(v);
+          if (mv.length) { d.tryPlay(mv[0].tile, mv[0].end); window.__played = mv[0].tile + 1; }
+        }
+        return null;
+      }, 40000, 300);
+      const landed = played && await until(table, (t) => {
+        const st = window.__dt().G.st;
+        return st && st.line.some((p) => p.seat === 2 && p.tile === t) ? true : null;
+      }, 10000, 300, played - 1);
+      ok("a chair's bone goes down on the table", !!landed);
+      await table.evaluate(() => clearInterval(window.__auto));
 
       /* the chair goes into a tunnel and comes back to the same seat */
       await chair.evaluate(() => { window.__dt().Net.dc.close(); });

@@ -24,8 +24,6 @@
 
 var L = (typeof require === "function" && typeof module !== "undefined")
   ? require("./layout.js") : root.Layout;
-var Rl = (typeof require === "function" && typeof module !== "undefined")
-  ? require("./rules.js") : root.Rules;
 var Sk = (typeof require === "function" && typeof module !== "undefined")
   ? require("./skins.js") : root.Skins;
 
@@ -719,41 +717,76 @@ Gfx3D.prototype.draw = function (scene, now) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.useProgram(this.pr);
 
-  /* Frame the whole line of play, however long it has become — worked
-     from the field of view rather than guessed, so one bone fills the
-     table and twenty still fit.
-
-     At distance d the camera sees 2·d·tan(fov/2) of world height, and
-     that times the aspect ratio across. Invert it for the span we have
-     to cover, take the tighter of the two axes, and add a little air.
-     The distance eases rather than jumps, so the table pulls back as
-     the line grows instead of snapping. */
+  /* Layout runs y *down* the screen, as the flat table draws it. This
+     camera sits on the near side looking across, so world +y runs *away*
+     from you — up the screen. Handing it layout coordinates unchanged
+     mirrored the whole table top to bottom: the line folded the other way
+     from the 2D table, and every bone your partner played flew in from
+     your own side while yours arrived from across the table. So the 3D
+     world is layout with y negated, and a turn negated with it. That
+     happens in one place — below, as each bone is placed — and
+     `pointOnTable` undoes it. */
   var bb = scene.table.bbox;
-  var spanX = Math.max(3, bb.x1 - bb.x0) + 0.9, spanY = Math.max(2, bb.y1 - bb.y0) + 0.9;
+  var cx = (bb.x0 + bb.x1) / 2, cy = -(bb.y0 + bb.y1) / 2;
   var asp = this.w / Math.max(1, this.h);
-  var vis = 2 * Math.tan(0.86 / 2);
-  /* The table is seen at a slant, so its depth foreshortens by sin of
-     the pitch. Taken from the pitch rather than written down as a
-     number: it used to be a hard 0.68 next to a comment calling it
-     sin(pitch) when the pitch was 0.94 and its sine 0.81, so the two
-     had already drifted apart, and lowering the camera would have
-     silently mis-framed every long line. */
-  var fore = Math.max(0.35, Math.sin(this.orbit.pitch));
-  var need = Math.max(spanX / (vis * Math.max(0.35, asp)), spanY / (vis * fore));
-  this.orbit.dist += (Math.min(42, Math.max(7, need * 1.06)) - this.orbit.dist) * 0.10;
-  var cx = (bb.x0 + bb.x1) / 2, cy = (bb.y0 + bb.y1) / 2;
+  var pitch = this.orbit.pitch, yaw = this.orbit.yaw;
 
-  /* The camera sits on the near side of the table — smaller y — and
-     looks across it. Which side matters: put it on the far side with
-     the same "up" and the whole table is mirrored left to right, so the
-     bone you play on the left end appears on the right. */
-  var pitch = this.orbit.pitch, yaw = this.orbit.yaw, d = this.orbit.dist;
-  var eye = [cx + Math.sin(yaw) * d * 0.35,
-             cy - Math.cos(pitch) * d,
-             Math.sin(pitch) * d];
-  var at = [cx, cy, 0];
-  var proj = persp(0.86, asp, 0.6, 140);
-  var view = lookAt(eye, at, [0, 0, 1]);
+  /* Frame the whole line of play, however long it has become — and frame
+     it in the part of the screen nobody is covering. The seat bar sits
+     over the top of the canvas and your hand over the bottom, so fitting
+     the line to the whole canvas put its ends under your own bones and
+     ran long lines off the sides once perspective widened the near row.
+
+     So the fit is measured rather than estimated: project the corners of
+     the line's box through the real camera, see how much of the free
+     rectangle they use, and scale the distance by that — three passes
+     settle it, because on-screen size goes as one over distance. The
+     projection is then shifted so the line's projected middle sits in the
+     middle of the free rectangle. Both ease, so the table pulls back as
+     the line grows instead of snapping. */
+  var top = Math.max(0, scene.topPad || 0), bot = Math.max(0, scene.botPad || 0);
+  var freeH = Math.max(60, this.h - top - bot);
+  var fy0 = 1 - 2 * top / this.h, fy1 = 1 - 2 * (this.h - bot) / this.h;   /* NDC top, bottom */
+  var fcy = (fy0 + fy1) / 2, fhy = (fy0 - fy1) / 2 * 0.90;
+  var fhx = 1 - 2 * 14 / Math.max(1, this.w);
+  var proj0 = persp(0.86, asp, 0.6, 140);
+  var corners = [[bb.x0 - 0.4, -bb.y0 + 0.4], [bb.x1 + 0.4, -bb.y0 + 0.4],
+                 [bb.x0 - 0.4, -bb.y1 - 0.4], [bb.x1 + 0.4, -bb.y1 - 0.4]];
+  var camAt = function (d) {
+    var e = [cx + Math.sin(yaw) * d * 0.35, cy - Math.cos(pitch) * d, Math.sin(pitch) * d];
+    return { eye: e, view: lookAt(e, [cx, cy, 0], [0, 0, 1]) };
+  };
+  var spread = function (d) {
+    var c = camAt(d), vp = mul(proj0, c.view), x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+    for (var k = 0; k < corners.length; k++) {
+      for (var zz = 0; zz < 2; zz++) {
+        var q = xform(vp, [corners[k][0], corners[k][1], zz * 0.34, 1]);
+        if (!q) continue;
+        if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
+        if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1];
+      }
+    }
+    return { x0: x0, x1: x1, y0: y0, y1: y1 };
+  };
+  var want = Math.max(9, this.orbit.dist), sp = null;
+  for (var it = 0; it < 3; it++) {
+    sp = spread(want);
+    var need = Math.max((sp.x1 - sp.x0) / 2 / fhx, (sp.y1 - sp.y0) / 2 / fhy);
+    want = Math.min(60, Math.max(9, want * need));
+  }
+  sp = spread(want);
+  this.orbit.dist += (want - this.orbit.dist) * 0.10;
+  var shX = -(sp.x0 + sp.x1) / 2, shY = fcy - (sp.y0 + sp.y1) / 2;
+  if (this.orbit.shX === undefined) { this.orbit.shX = shX; this.orbit.shY = shY; }
+  this.orbit.shX += (shX - this.orbit.shX) * 0.10;
+  this.orbit.shY += (shY - this.orbit.shY) * 0.10;
+
+  var d = this.orbit.dist;
+  var cam = camAt(d), eye = cam.eye, at = [cx, cy, 0], view = cam.view;
+  /* the shift is a translation in clip space, applied after projecting */
+  var shift = m4(); shift[12] = this.orbit.shX; shift[13] = this.orbit.shY;
+  var proj = mul(shift, proj0);
+  this.freeMid = { x: this.w / 2, y: top + freeH / 2 };
   gl.uniformMatrix4fv(u.uProj, false, proj);
   gl.uniformMatrix4fv(u.uView, false, view);
   gl.uniform3f(u.uEye, eye[0], eye[1], eye[2]);
@@ -798,13 +831,13 @@ Gfx3D.prototype.draw = function (scene, now) {
   var t = scene.table, place = [], shade = [];
   for (i = 0; i < t.bones.length; i++) {
     var b = t.bones[i];
-    var px = b.x, py = b.y, rot = b.rot * Math.PI / 180, z = 0;
+    var px = b.x, py = -b.y, rot = -b.rot * Math.PI / 180, z = 0;
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     if (anim) {
       var k = Math.min(1, anim.t), e = 1 - Math.pow(1 - k, 3);
-      px = anim.fromX + (px - anim.fromX) * e;
-      py = anim.fromY + (py - anim.fromY) * e;
-      rot = (anim.fromRot + (b.rot - anim.fromRot) * e) * Math.PI / 180;
+      px = anim.fromX + (b.x - anim.fromX) * e;
+      py = -(anim.fromY + (b.y - anim.fromY) * e);
+      rot = -(anim.fromRot + (b.rot - anim.fromRot) * e) * Math.PI / 180;
       /* the arc of a bone being brought down on the table, and the
          small bounce of the slam at the end of it */
       z = Math.sin(k * Math.PI) * 2.4 + (k > 0.86 ? Math.sin((k - 0.86) / 0.14 * Math.PI) * 0.16 : 0);
@@ -851,9 +884,8 @@ Gfx3D.prototype.draw = function (scene, now) {
 
   for (i = 0; i < place.length; i++) {
     var p = place[i];
-    var a1 = Rl.A(p.b.tile), b1 = Rl.B(p.b.tile);
-    if (p.b.flip) { var tmp = a1; a1 = b1; b1 = tmp; }
-    this.setFace(a1, b1);
+    var fc = L.faces(p.b);
+    this.setFace(fc[0], fc[1]);
     gl.uniformMatrix4fv(u.uModel, false, trs(p.x, p.y, p.z, p.rot, 1, 1, 1));
     gl.drawElements(gl.TRIANGLES, this.bone.count, gl.UNSIGNED_SHORT, 0);
   }
@@ -865,14 +897,33 @@ Gfx3D.prototype.draw = function (scene, now) {
     var slots = [];
     for (i = 0; i < scene.ghosts.length; i++) {
       var gh = scene.ghosts[i];
-      slots.push({ x: gh.x, y: gh.y, z: -0.158,
+      slots.push({ x: gh.x, y: -gh.y, z: -0.158,
                    rot: (gh.h % 2 === 0 ? 0 : Math.PI / 2), s: 0.97, a: pulse });
     }
     this.marks(proj, view, this.slotTex, hex3(sk.marks.ghost), slots);
   }
 
+  /* The bone that just landed, picked out on the felt for a moment. The
+     flat table always outlined it; the round one showed nothing at all,
+     so a play you blinked through was a play you had to hunt for. The
+     glow fades over a couple of seconds and never fights the slots. */
+  if (scene.lastIdx >= 0 && scene.lastIdx < place.length && !scene.anim && !(scene.ghosts && scene.ghosts.length)) {
+    var lp = place[scene.lastIdx], age = scene.lastAge || 0;
+    var fade = Math.max(0, 1 - age / 2600);
+    if (fade > 0) {
+      this.marks(proj, view, this.slotTex, hex3(sk.marks.last), [{
+        x: lp.x, y: lp.y, z: -0.16, rot: lp.rot,
+        s: (lp.b.dbl ? 1.0 : 1.12) + 0.10 * Math.sin(now / 260), a: 0.30 + 0.45 * fade
+      }]);
+    }
+  }
+
   /* remember the camera so a tap can be turned back into table coords */
-  this.lastCam = { eye: eye, at: at, proj: proj, view: view, cx: cx, cy: cy };
+  /* cx/cy in layout coordinates, the frame every caller works in; `mid`
+     is where on screen that point is drawn (the middle of the free area,
+     not of the canvas) */
+  this.lastCam = { eye: eye, at: at, proj: proj, view: view, cx: cx, cy: -cy,
+                   mid: this.freeMid };
 };
 
 /* ---------- turning a tap back into a place on the table ----------
@@ -892,7 +943,8 @@ Gfx3D.prototype.pointOnTable = function (px, py) {
   if (Math.abs(dz) < 1e-6) return null;
   var t = (0 - n[2]) / dz;
   if (t < 0) return null;
-  return { x: n[0] + (f[0] - n[0]) * t, y: n[1] + (f[1] - n[1]) * t };
+  /* back into layout coordinates — see the note on `W` in draw() */
+  return { x: n[0] + (f[0] - n[0]) * t, y: -(n[1] + (f[1] - n[1]) * t) };
 };
 
 function xform(m, v) {

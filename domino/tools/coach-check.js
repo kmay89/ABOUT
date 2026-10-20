@@ -230,7 +230,49 @@ function ok(name, cond, detail) {
     ids[l.id] = 1;
     if (!l.title || !l.body || l.body.length < 80) bad++;
   }
-  ok("the short course is five real cards", C.LESSONS.length === 5 && bad === 0);
+  ok("the short course is eight real cards", C.LESSONS.length === 8 && bad === 0 &&
+     Object.keys(ids).length === 8);
+})();
+
+/* ---------- grading a play ----------
+   The verdict after each of your plays comes from the reviewer, on the
+   match's own accuracy scale. Its own promises: the reviewer's best play
+   is always sharp, a play with no alternative is never graded, a better
+   bone when named is legal and not the one you played — and the scale
+   gets used, or it is not saying anything. */
+(function () {
+  var n = 0, bestBad = 0, forcedGraded = 0, betterBad = 0, seen = {}, whyBad = 0;
+  for (var g = 0; g < 16; g++) {
+    var st = R.newHand({ seed: 4000 + g }), rand = R.rng(g + 11), guard = 0;
+    while (!st.over && guard++ < 200) {
+      if (!R.canPlay(st, st.turn)) { R.pass(st); continue; }
+      var v = R.publicView(st, st.turn);
+      var rv = AI.review(v), legal = AI.movesFor(v);
+      if (legal.length < 2) { if (C.grade(v, rv, legal[0])) forcedGraded++; }
+      else {
+        n++;
+        var gb = C.grade(v, rv, rv.best);
+        if (!gb || gb.id !== "sharp") bestBad++;
+        legal.forEach(function (m) {
+          var gr = C.grade(v, rv, m, { analysis: AI.analyse(v, { level: "maestro", rand: rand }) });
+          if (!gr) return;
+          seen[gr.id] = 1;
+          if (gr.better) {
+            var isLegal = legal.some(function (x) { return x.tile === gr.better.tile && x.end === gr.better.end; });
+            if (!isLegal || (gr.better.tile === m.tile && gr.better.end === m.end)) betterBad++;
+            if (!gr.why || /<|>/.test(gr.why + gr.say)) whyBad++;
+          }
+        });
+      }
+      R.play(st, AI.analyse(v, { level: "compadre", rand: rand }).move);
+    }
+  }
+  ok("the reviewer's own choice is graded sharp", bestBad === 0, bestBad + " of " + n);
+  ok("a forced play is never graded", forcedGraded === 0, forcedGraded + " graded");
+  ok("a better bone, when named, is legal and different", betterBad === 0, betterBad + " bad");
+  ok("and comes with a plain reason", whyBad === 0, whyBad + " without");
+  ok("and the scale gets used", Object.keys(seen).length >= 3, Object.keys(seen).join(","));
+  console.log("      " + n + " positions graded; verdicts used: " + Object.keys(seen).join(", "));
 })();
 
 console.log("\n" + (fail === 0

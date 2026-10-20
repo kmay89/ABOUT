@@ -171,14 +171,32 @@ Gfx2D.prototype.resize = function (w, h, dpr) {
   this.pat = null;
 };
 
-/* one bone, at a position and angle, in table units already scaled */
+/* one bone, at a position and angle, in table units already scaled.
+
+   `w`×`h` is the bone in its own frame and `a` is the half at its local
+   -x end (or the top, for an upright bone). When `rot` is a quarter turn
+   — every bone at rest — the body, the edge and the bevel are drawn in
+   *screen* space and only the pips are turned. Rotating the whole
+   drawing used to rotate the lighting with it: a bone heading left had
+   its thick front edge along the top and its lit bevel on the bottom, so
+   half the line looked lit from below. A bone in mid-air during the slam
+   is at an arbitrary angle, and there the whole thing turns — nobody can
+   read the light on something moving that fast. */
 Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
   var g = this.g, sk = this.skin;
   opts = opts || {};
+  var q = ((Math.round(rot) % 360) + 360) % 360;
+  var square = Math.abs(rot - Math.round(rot / 90) * 90) < 0.01;
+  /* in square mode, the body is drawn unrotated at its screen footprint */
+  var sw = w, sh = h, turn = 0;
+  if (square) {
+    turn = q;
+    if (q === 90 || q === 270) { sw = h; sh = w; }
+  }
   g.save();
   g.translate(x, y);
-  g.rotate(rot * Math.PI / 180);
-  var hw = w / 2, hh = h / 2, r = Math.min(w, h) * 0.16;
+  if (!square) g.rotate(rot * Math.PI / 180);
+  var hw = sw / 2, hh = sh / 2, r = Math.min(sw, sh) * 0.16;
 
   if (opts.lift) {
     g.shadowColor = "rgba(0,0,0,.5)";
@@ -193,32 +211,32 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
      offset down by the bone's thickness, drawn under the face, and the
      sliver left showing along the bottom is an edge. It costs one fill
      and it is the same trick the eye is being offered in 3D. */
-  var thick = Math.max(1.5, Math.min(w, h) * 0.075);
+  var thick = Math.max(1.5, Math.min(sw, sh) * 0.075);
   var edgeCol = opts.faceDown ? sk.bones.back : sk.bones.face;
-  rr(g, -hw, -hh + thick, w, h, r);
+  rr(g, -hw, -hh + thick, sw, sh, r);
   g.fillStyle = mix(edgeCol, "#000000", 0.42);
   g.fill();
   g.shadowColor = "transparent";
 
   /* the body */
   if (opts.faceDown) {
-    rr(g, -hw, -hh, w, h, r);
+    rr(g, -hw, -hh, sw, sh, r);
     var gd = g.createLinearGradient(-hw, -hh, hw, hh);
     gd.addColorStop(0, mix(sk.bones.back, "#ffffff", 0.16));
     gd.addColorStop(1, mix(sk.bones.back, "#000000", 0.22));
     g.fillStyle = gd; g.fill();
     g.shadowColor = "transparent";
-    g.strokeStyle = alpha("#000000", 0.35); g.lineWidth = Math.max(1, w * 0.03); g.stroke();
+    g.strokeStyle = alpha("#000000", 0.35); g.lineWidth = Math.max(1, sw * 0.03); g.stroke();
     /* a small mark so a face-down bone is not a blank lozenge */
     g.strokeStyle = alpha(sk.bones.face, 0.30);
-    g.lineWidth = Math.max(1, w * 0.05);
-    rr(g, -hw * 0.55, -hh * 0.72, w * 0.55, h * 0.72, r * 0.7);
+    g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.05);
+    rr(g, -hw * 0.55, -hh * 0.72, sw * 0.55, sh * 0.72, r * 0.7);
     g.stroke();
     g.restore();
     return;
   }
 
-  rr(g, -hw, -hh, w, h, r);
+  rr(g, -hw, -hh, sw, sh, r);
   var face = g.createLinearGradient(-hw, -hh, hw, hh);
   face.addColorStop(0, mix(sk.bones.face, "#ffffff", 0.20 + sk.bones.shine * 0.22));
   face.addColorStop(0.55, sk.bones.face);
@@ -229,35 +247,39 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
 
   /* the bevel: a light top-left edge and a dark bottom-right one */
   g.save();
-  rr(g, -hw, -hh, w, h, r); g.clip();
+  rr(g, -hw, -hh, sw, sh, r); g.clip();
   g.strokeStyle = alpha("#ffffff", 0.30 + sk.bones.rim * 0.45);
-  g.lineWidth = Math.max(1, w * 0.07);
+  g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.07);
   g.beginPath(); g.moveTo(-hw, hh); g.lineTo(-hw, -hh); g.lineTo(hw, -hh); g.stroke();
   g.strokeStyle = alpha("#000000", 0.22);
   g.beginPath(); g.moveTo(hw, -hh); g.lineTo(hw, hh); g.lineTo(-hw, hh); g.stroke();
   g.restore();
 
   g.strokeStyle = alpha(sk.bones.pip, 0.28);
-  g.lineWidth = Math.max(1, w * 0.028);
-  rr(g, -hw, -hh, w, h, r); g.stroke();
+  g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.028);
+  rr(g, -hw, -hh, sw, sh, r); g.stroke();
 
-  /* the divider across the middle, and the two halves of pips */
+  /* the divider and the pips, in the bone's own frame — turned by the
+     quarter turns the body was spared */
+  if (turn) g.rotate(turn * Math.PI / 180);
   var longAxis = h >= w;
+  var hw2 = w / 2, hh2 = h / 2;
   g.strokeStyle = alpha(sk.bones.pip, 0.55);
   g.lineWidth = Math.max(1, Math.min(w, h) * 0.045);
   g.beginPath();
-  if (longAxis) { g.moveTo(-hw * 0.78, 0); g.lineTo(hw * 0.78, 0); }
-  else { g.moveTo(0, -hh * 0.78); g.lineTo(0, hh * 0.78); }
+  if (longAxis) { g.moveTo(-hw2 * 0.78, 0); g.lineTo(hw2 * 0.78, 0); }
+  else { g.moveTo(0, -hh2 * 0.78); g.lineTo(0, hh2 * 0.78); }
   g.stroke();
 
   var half = longAxis ? { w: w, h: h / 2 } : { w: w / 2, h: h };
   this.pips(longAxis ? 0 : -half.w / 2, longAxis ? -half.h / 2 : 0, half.w, half.h, a);
   this.pips(longAxis ? 0 : half.w / 2, longAxis ? half.h / 2 : 0, half.w, half.h, b);
+  if (turn) g.rotate(-turn * Math.PI / 180);
 
   if (opts.glow) {
     g.strokeStyle = opts.glow;
-    g.lineWidth = Math.max(2, w * 0.10);
-    rr(g, -hw, -hh, w, h, r);
+    g.lineWidth = Math.max(2, Math.min(sw, sh) * 0.10);
+    rr(g, -hw, -hh, sw, sh, r);
     g.stroke();
   }
   g.restore();
@@ -285,7 +307,10 @@ Gfx2D.prototype.pips = function (cx, cy, w, h, n) {
        light — the near wall is the one in its own shadow. The highlight
        used to sit up and to the left, on the same side as the bevel's
        lit edge, which is how you shade a dome. Every pip in the hand was
-       reading as a bump while the table drew holes. */
+       reading as a bump while the table drew holes. (The gradient is in
+       whatever frame the pips are drawn in, so on a turned bone the lit
+       wall turns with it — a degree of wrongness nobody can see at the
+       size of a pip.) */
     g.save();
     g.beginPath(); g.arc(px, py, rad, 0, Math.PI * 2); g.clip();
     var bore = g.createLinearGradient(px - rad, py - rad, px + rad, py + rad);
@@ -374,11 +399,12 @@ Gfx2D.prototype.drawTable = function (scene, now) {
   /* the line of play */
   for (i = 0; i < t.bones.length; i++) {
     var b = t.bones[i];
-    var bw = (b.rot % 180 === 0 ? L.LEN : L.WID) * unit;
-    var bh = (b.rot % 180 === 0 ? L.WID : L.LEN) * unit;
-    var a = Rl.A(b.tile), c = Rl.B(b.tile);
-    /* `flip` says which half points outward along the line */
-    if (b.flip) { var tmp = a; a = c; c = tmp; }
+    /* The bone is sized in its own frame — always long along local x —
+       and `rot` turns it. Sizing it by the screen-space footprint as well
+       turned every upright bone and every crosswise mula twice, so they
+       lay flat along the line in 2D while the 3D table stood them up. */
+    var bw = L.LEN * unit, bh = L.WID * unit;
+    var fc = L.faces(b), a = fc[0], c = fc[1];
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     var px = ox + b.x * unit, py = oy + b.y * unit, lift = 0, rot = b.rot;
     if (anim) {
@@ -391,8 +417,20 @@ Gfx2D.prototype.drawTable = function (scene, now) {
     }
     this.bone(px, py, bw, bh, rot, a, c, {
       lift: lift,
-      glow: (b.idx === scene.lastIdx && !anim) ? alpha(sk.marks.last, 0.75) : null
+      glow: (b.idx === scene.lastIdx && !anim) ? alpha(sk.marks.last, 0.45 + 0.4 * Math.max(0, 1 - (scene.lastAge || 0) / 2600)) : null
     });
+    /* a ring that spreads out from a bone the moment it lands — the eye
+       goes to movement, and this is the movement that says "here" */
+    if (b.idx === scene.lastIdx && !anim && (scene.lastAge || 0) < 700) {
+      var rk = (scene.lastAge || 0) / 700;
+      g.save();
+      g.strokeStyle = alpha(sk.marks.last, 0.6 * (1 - rk));
+      g.lineWidth = 3;
+      var rw = (b.rot % 180 === 0 ? bw : bh) + unit * rk * 1.6, rh = (b.rot % 180 === 0 ? bh : bw) + unit * rk * 1.6;
+      rr(g, px - rw / 2, py - rh / 2, rw, rh, Math.min(rw, rh) * 0.25);
+      g.stroke();
+      g.restore();
+    }
   }
 
   g.restore();
@@ -411,13 +449,24 @@ Gfx2D.prototype.drawHand = function (scene, now) {
   if (scene.seats) this.seats(scene);
 
   this.hand = L.handRow(scene.hand.length, this.w, this.h, { pad: 10 });
+  /* each bone eases towards how high it should sit rather than jumping:
+     lifting one out of your hand should feel like picking it up */
+  if (!this.lifts) this.lifts = {};
+  var dt = this.lastHandT ? Math.min(0.1, (now - this.lastHandT) / 1000) : 0;
+  this.lastHandT = now;
   for (i = 0; i < scene.hand.length; i++) {
     var r = this.hand[i], tile = scene.hand[i];
     var playable = scene.playable && scene.playable[tile];
     var sel = scene.selected === tile;
-    var y = r.y - (sel ? 14 : (playable ? 5 : 0));
+    var goal = sel ? 18 : (playable ? 6 : 0);
+    var cur = this.lifts[tile] === undefined ? goal : this.lifts[tile];
+    cur += (goal - cur) * Math.min(1, dt * 14);
+    this.lifts[tile] = cur;
+    /* the bones you can play breathe, very slightly, on your turn */
+    var bob = (playable && !sel && scene.yourTurn) ? Math.sin(now / 420 + i * 0.7) * 1.2 : 0;
+    var y = r.y - cur - bob;
     this.bone(r.x + r.w / 2, y + r.h / 2, r.w, r.h, 0, Rl.A(tile), Rl.B(tile), {
-      lift: sel ? 1.2 : (playable ? 0.5 : 0.2),
+      lift: 0.2 + cur / 18,
       glow: sel ? sk.marks.playable : (playable ? alpha(sk.marks.playable, 0.55) : null)
     });
     if (!playable && scene.yourTurn) {
