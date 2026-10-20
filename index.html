@@ -968,6 +968,8 @@
     <a href="/chili/">The chili</a>
     <a href="/vantage/">Vantage</a>
     <a href="/luma/">Luma — lithophanes</a>
+    <a href="/hollow/">Hollow — molds</a>
+    <a href="/workshop/">The workshop</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -2784,9 +2786,12 @@
     offhours: {
       kicker: "Off the Clock",
       title: "The Maker Hours",
-      story: "The same hands, off duty. I ride, run, garden, cook, and bake sourdough that gets scored like sheet metal. The house is one long DIY project that never quite admits it's finished. And because buying a 3D printer felt like skipping the good part, I built my own from scratch around a Merlin board — then gave my Ender 3 Pro v2 a full set of home-grown upgrades anyway. There's a pool back there too, kept balanced the engineer way: pool-test-app.com is my water-chemistry lab for it — test science, readings, and maintenance math. Off hours is also where the writing happens, and the movies, and the music.",
-      chips: ["Bike rides","Running","Gardening","Sourdough","Cooking","Home DIY","Scratch-built Merlin 3D printer","Ender 3 Pro v2 upgrades","Pool chemistry","Writing","Movies","Music"],
-      links: [{label:"pool-test-app.com", href:"https://pool-test-app.com"}]
+      story: "The same hands, off duty. I ride, run, garden, cook, and bake sourdough that gets scored like sheet metal. The house is one long DIY project that never quite admits it's finished. And because buying a 3D printer felt like skipping the good part, I built my own from scratch around a Merlin board — then gave my Ender 3 Pro v2 a full set of home-grown upgrades anyway. The printer on the side table opens the workshop: the tools I wrote for it, Luma for lithophanes and Hollow for molds, both free and both running entirely in your browser. There's a pool back there too, kept balanced the engineer way: pool-test-app.com is my water-chemistry lab for it — test science, readings, and maintenance math. Off hours is also where the writing happens, and the movies, and the music.",
+      chips: ["Bike rides","Running","Gardening","Sourdough","Cooking","Home DIY","Scratch-built Merlin 3D printer","Ender 3 Pro v2 upgrades","The workshop: Luma & Hollow","Pool chemistry","Writing","Movies","Music"],
+      links: [
+        {label:"🖨 Open — the workshop", href:"/workshop/", cta:true, sameTab:true},
+        {label:"pool-test-app.com", href:"https://pool-test-app.com"}
+      ]
     },
     outside: {
       kicker: "Field Notes",
@@ -3209,6 +3214,8 @@
      glyph:'<g fill="none" stroke="#4fd6c4" stroke-width="2.2"><circle cx="11" cy="11" r="6.5"/><circle cx="33" cy="11" r="6.5"/><circle cx="11" cy="33" r="6.5"/><circle cx="33" cy="33" r="6.5"/></g><path d="M15.5 15.5 L28.5 28.5 M28.5 15.5 L15.5 28.5" stroke="#4fd6c4" stroke-width="3" stroke-linecap="round"/><rect x="16" y="17" width="12" height="10" rx="3" fill="#4fd6c4"/><circle cx="22" cy="22" r="2" fill="#08201d"/>'},
     {name:"kmay89.com/luma", href:"/luma/", a:"#ffcf8a", tg:"linear-gradient(150deg,#3d2c16,#1f160a)",
      glyph:'<rect x="8" y="9" width="28" height="26" rx="2" fill="none" stroke="#ffcf8a" stroke-width="2.5"/><circle cx="28" cy="17" r="3" fill="#ffcf8a"/><path d="M9 30 l8 -9 6 5 5 -4 7 8" fill="none" stroke="#ffcf8a" stroke-width="2" stroke-linejoin="round"/><circle cx="22" cy="22" r="17" fill="#ffcf8a" opacity=".12"/>'},
+    {name:"kmay89.com/hollow", href:"/hollow/", a:"#d9835a", tg:"linear-gradient(150deg,#3a2419,#1d110b)",
+     glyph:'<path d="M11 33V20a11 11 0 0 1 22 0v13" fill="none" stroke="#d9835a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 33h22" stroke="#d9835a" stroke-width="3" stroke-linecap="round"/><path d="M18 33v-9a4 4 0 0 1 8 0v9" fill="none" stroke="#eee6dc" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'},
     {name:"kmay89.com — you are here", href:"https://kmay89.com", a:"#ffc97a", tg:"linear-gradient(150deg,#3a2a14,#1c1408)",
      glyph:'<rect x="6" y="9" width="32" height="22" rx="3" fill="none" stroke="#ffc97a" stroke-width="2.5"/><rect x="12" y="14" width="20" height="12" rx="2" fill="none" stroke="#ffc97a" stroke-width="1.8"/><rect x="17" y="17.5" width="10" height="5" rx="1.2" fill="#ffc97a"/><path d="M17 35 h10" stroke="#ffc97a" stroke-width="2.5" stroke-linecap="round"/>'}
   ];

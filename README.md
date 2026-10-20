@@ -35,7 +35,12 @@ coming up out of it); and [Luma](https://kmay89.com/luma/) — a
 lithophane studio that turns any photo into a 3D printable picture made
 only of thickness, for a frame, a nightlight shade or a lamp (it hangs
 on the wall above the bike, lit from behind, and it is the last thing in
-the room to go dark when you throw the switch).
+the room to go dark when you throw the switch); and [the
+workshop](https://kmay89.com/workshop/) — the tools for the 3D printer,
+which the scratch-built printer on the side table opens: Luma, and
+[Hollow](https://kmay89.com/hollow/), which turns any STL into a printable
+mold for concrete or resin, with keys, a spout and vents, and shows what
+will release before you print.
 
 **Live:** <https://kmay89.com>
 
@@ -177,6 +182,24 @@ the room to go dark when you throw the switch).
   worker, and the photo never leaves the browser. Notes and checks in
   `luma/README.md`; `npm run check:luma` runs the geometry and image
   suites.
+- `hollow/` — Hollow, a mold studio. Drop in an STL and get back the hollow
+  of it: a two-part mold with three tapered alignment pegs on an L (so the
+  halves only go together one way), a pour spout on the parting line, air
+  vents wherever the pour would trap a bubble, band grooves or bolt holes
+  and pry slots; an open mold for flat-backed pieces, which turns a hollow
+  model into a body and a core with a collar; or a silicone master that
+  prints standing in its own tray. The parting plane is chosen by trying
+  every height and keeping the one that traps the least surface, and the
+  preview paints what releases, what is steep and what is trapped before
+  anything prints. Everything is a signed distance field traced by marching
+  tetrahedra and simplified by quadric decimation, so every part is a closed
+  solid, and it all runs in a worker in the browser — the model never leaves
+  the device. Exports one STL per part or a 3MF with every part laid out on
+  the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
+  `npm run check:hollow` runs its suites.
+- `workshop/` — the workshop: one page listing the 3D printer tools (Luma
+  and Hollow), reached from the desk by the scratch-built printer on the
+  side table.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
@@ -340,9 +363,10 @@ npm run check        # parity, the well's promises, the mailbox, the chess room
 npm run check:rules  # replays tens of thousands of games of every new room
 npm run check:well   # just the well: names, colours, skies, help lines, shell
 npm run check:luma   # the lithophane studio's geometry and image maths
+npm run check:hollow # the mold studio: fields, surfaces, every kind of mold, the 3MF
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
-npm run icons        # redraws every new room's icons from scratch
+npm run icons        # redraws every new room's icons, and Hollow's, from scratch
 ```
 
 `check:rules` is not a smoke test: it replays tens of thousands of games
