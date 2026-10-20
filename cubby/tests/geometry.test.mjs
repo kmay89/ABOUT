@@ -139,7 +139,9 @@ test('bins refuse sizes that cannot print', () => {
   assert.throws(() => buildBin({ width: 40, depth: 40, height: 3 }), /taller than its floor/);
   assert.throws(() => buildBin({ width: 40, depth: 40, height: 50, wall: 0.4 }), /thinner than 0.8/);
   assert.throws(() => buildBin({ width: 40, depth: 40, height: 50, compartmentsX: 9 }), /narrower than 5 mm/);
-  assert.throws(() => buildBin({ width: 20, depth: 20, height: 20, radius: 8, channels: { front: [10] } }), /does not fit on this wall/);
+  const tight = buildBin({ width: 20, depth: 20, height: 20, radius: 8, channels: { front: [10] } });
+  assert.ok(tight.settings.radius < 8, 'a corner gives way to a channel rather than failing');
+  assert.throws(() => buildBin({ width: 20, depth: 20, height: 20, radius: 0, channels: { front: [1] } }), /does not fit on this wall/);
   assert.throws(() => buildBin({ width: 40, depth: 40, height: 20, channels: { front: [18, 22] } }), /overlap/);
 });
 

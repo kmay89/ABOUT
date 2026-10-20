@@ -27,6 +27,7 @@
     </a>
     <nav class="header-actions" aria-label="Studio help">
       <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <button id="soundBtn" class="printer-chip sound-chip" type="button" aria-pressed="true" title="Little sounds as you work"><span class="status-dot"></span><span>Sound: on</span></button>
       <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
       <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>Print guide</span></button>
     </nav>
@@ -50,7 +51,7 @@
           <div class="plan-head">
             <div>
               <h2>The plan</h2>
-              <p class="plan-hint" id="planHint">Drag across cells to make a bin. Click a bin to change it.</p>
+              <p class="plan-hint" id="planHint">Drag across cells to make a bin. Click a bin to change it. <span class="keys"><kbd>⌫</kbd> removes · <kbd>⌘Z</kbd> undoes · <kbd>Esc</kbd> deselects</span></p>
             </div>
             <div class="plan-actions">
               <button id="undoBtn" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>

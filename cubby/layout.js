@@ -376,8 +376,9 @@ export function restoreDesign(saved) {
 /* ---------- parts ---------- */
 
 function binKey(spec) {
+  // Everything that shapes the solid, so a changed wall or floor is a new part (and a fresh preview mesh).
   return ['bin', spec.width, spec.depth, spec.height, spec.compartmentsX, spec.compartmentsY, spec.scoop ? 's' : '',
-    spec.channels.front.length, spec.channels.left.length].join('|');
+    spec.channels.front.length, spec.channels.left.length, spec.wall, spec.floor, spec.radius, spec.divider].join('|');
 }
 
 export function describeBin(bin, spec) {

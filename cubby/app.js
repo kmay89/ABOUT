@@ -12,6 +12,7 @@ import {
 import { ITEMS, ITEM_BY_ID, cellsFor, arrange, fit as itemFit } from './items.js';
 import { threeMF, bundle, partSTL, partFileName, zipStore } from './export.js';
 import { DrawerPreview } from './preview.js';
+import * as sound from './sound.js';
 
 const $ = id => document.getElementById(id);
 const STORAGE = 'cubby.design.v1';
@@ -34,7 +35,7 @@ const el = {
   download3mf: $('download3mf'), downloadZip: $('downloadZip'), copyLink: $('copyLinkBtn'), save: $('saveBtn'), open: $('openInput'),
   wall: $('wallInput'), floor: $('floorInput'), radius: $('radiusInput'), divider: $('dividerInput'),
   clearance: $('clearanceInput'), gap: $('gapInput'), rimGap: $('rimGapInput'), clips: $('clipsToggle'), clipFit: $('clipFitSelect'),
-  resetSettings: $('resetSettingsBtn'), toast: $('toast'), settingsDetails: $('settingsDetails'),
+  resetSettings: $('resetSettingsBtn'), toast: $('toast'), settingsDetails: $('settingsDetails'), soundBtn: $('soundBtn'),
   itemSpace: $('itemSpace'), itemSpace2: $('itemSpace2'), binItems: $('binItems'), itemsNote: $('itemsNote'),
   sizeItems: $('sizeItems'), sizeNote: $('sizeNote'), plateList: $('plateList'), platesSummary: $('platesSummary'),
 };
@@ -156,6 +157,7 @@ function update(reason = '') {
 }
 
 function select(id) {
+  if (id && id !== state.selected) sound.tick();
   state.selected = id;
   renderBinForm();
   for (const g of el.planSvg.querySelectorAll('.bin-group')) g.classList.toggle('selected', g.dataset.bin === id);
@@ -198,6 +200,7 @@ function setSpace(space) {
   applyRecipe(d, RECIPES[space][0].id);
   state.selected = null;
   update();
+  sound.settle(d.bins.length);
 }
 
 for (const [input, key] of [[el.width, 'width'], [el.depth, 'depth'], [el.height, 'height']]) {
@@ -224,6 +227,7 @@ el.recipe.addEventListener('change', () => {
   applyRecipe(state.design, el.recipe.value);
   state.selected = null;
   update();
+  sound.settle(state.design.bins.length);
 });
 
 /* ---------- grid card ---------- */
@@ -243,6 +247,7 @@ function stepGrid(which, delta) {
   const d = state.design;
   d[which] = Math.max(1, d[which] + delta);
   update();
+  sound.toggle();
 }
 el.colsMinus.addEventListener('click', () => stepGrid('cols', -1));
 el.colsPlus.addEventListener('click', () => stepGrid('cols', 1));
@@ -363,11 +368,12 @@ function renderSizeItems() {
       }
       if (spot) break;
     }
-    if (!spot) { toast(`No free ${need.w}×${need.h} space on the plan; remove a bin first, or draw over one.`); return; }
+    if (!spot) { toast(`No free ${need.w}×${need.h} space on the plan; remove a bin first, or draw over one.`); sound.nope(); return; }
     pushUndo();
     const bin = placeBin(state.design, spot, { items: [item.id] });
     state.selected = bin?.id || null;
     update();
+    sound.place();
     toast(`Added a bin for ${item.name.toLowerCase()}.`);
   });
   el.sizeNote.append(' ', add);
@@ -379,6 +385,7 @@ function editBin(change) {
   pushUndo();
   change(bin);
   update();
+  sound.toggle();
 }
 el.cxMinus.addEventListener('click', () => editBin(b => { b.cx = Math.max(1, b.cx - 1); }));
 el.cxPlus.addEventListener('click', () => editBin(b => { b.cx = Math.min(12, b.cx + 1); }));
@@ -398,6 +405,7 @@ el.splitBtn.addEventListener('click', () => {
   }
   state.selected = null;
   update();
+  sound.settle(bin.w * bin.h);
 });
 function deleteSelected() {
   const bin = selectedBin();
@@ -406,6 +414,7 @@ function deleteSelected() {
   state.design.bins = state.design.bins.filter(b => b.id !== bin.id);
   state.selected = null;
   update();
+  sound.remove();
 }
 el.deleteBtn.addEventListener('click', deleteSelected);
 
@@ -439,12 +448,16 @@ function renderPlan() {
   }
   s.append(cells);
   const bins = svg('g', { class: 'bins' });
+  const known = plan.known;
+  let freshCount = 0;
   const errored = new Set(state.list.parts.filter(p => p.error).flatMap(p => p.bins));
   const tooBig = new Set(state.packing.tooBig.flatMap(p => p.bins));
   const fontSize = Math.max(5, Math.min(13, Math.min(g.cellW, g.cellD) * 0.24));
   for (const bin of d.bins) {
     const rect = binRect(d, bin, g);
-    const group = svg('g', { class: `bin-group${bin.id === state.selected ? ' selected' : ''}`, 'data-bin': bin.id });
+    const fresh = !known || !known.has(bin.id);
+    const group = svg('g', { class: `bin-group${bin.id === state.selected ? ' selected' : ''}${fresh ? ' new' : ''}`, 'data-bin': bin.id });
+    if (fresh) group.style.animationDelay = `${Math.min(600, freshCount++ * (known ? 30 : 18))}ms`;
     const classes = ['bin', bin.low ? 'low' : '', errored.has(bin.id) || tooBig.has(bin.id) ? 'error' : ''].filter(Boolean).join(' ');
     group.append(svg('rect', { class: classes, x: rect.x, y: toY(rect.y, rect.depth), width: rect.width, height: rect.depth, rx: Math.min(d.settings.radius, 6) }));
     // dividers
@@ -484,6 +497,7 @@ function renderPlan() {
     bins.append(group);
   }
   s.append(bins);
+  plan.known = new Set(d.bins.map(b => b.id));
   s.append(svg('text', { class: 'front-mark', x: W / 2, y: D + M * 0.8, 'font-size': Math.max(5, Math.min(9, W * 0.02)) }, 'FRONT OF THE DRAWER'));
   // dimensions: width along the top, depth down the right
   const dimFont = Math.max(5, Math.min(8, W * 0.018)), tick = dimGap * 0.3;
@@ -560,6 +574,7 @@ function endPointer(e) {
     const bin = placeBin(state.design, { c: Math.min(p.start.c, p.current.c), r: Math.min(p.start.r, p.current.r), w: Math.abs(p.current.c - p.start.c) + 1, h: Math.abs(p.current.r - p.start.r) + 1 });
     state.selected = bin?.id || null;
     update();
+    sound.place();
   } else if (p.onBin) {
     select(p.onBin === state.selected ? null : p.onBin);
   } else {
@@ -567,6 +582,7 @@ function endPointer(e) {
     const bin = placeBin(state.design, { ...p.start, w: 1, h: 1 });
     state.selected = bin?.id || null;
     update();
+    sound.place();
   }
 }
 el.planSvg.addEventListener('pointerup', endPointer);
@@ -576,8 +592,8 @@ el.planSvg.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') select(null);
 });
 
-el.fillBtn.addEventListener('click', () => { pushUndo(); fillEmpty(state.design); update(); });
-el.clearBtn.addEventListener('click', () => { pushUndo(); state.design.bins = []; state.selected = null; update(); });
+el.fillBtn.addEventListener('click', () => { pushUndo(); const n = fillEmpty(state.design); update(); sound.settle(n); });
+el.clearBtn.addEventListener('click', () => { pushUndo(); state.design.bins = []; state.selected = null; update(); sound.remove(); });
 el.undoBtn.addEventListener('click', () => {
   const last = state.undo.pop();
   if (!last) return;
@@ -585,6 +601,7 @@ el.undoBtn.addEventListener('click', () => {
   state.selected = null;
   el.undoBtn.disabled = state.undo.length === 0;
   update();
+  sound.toggle();
 });
 document.addEventListener('keydown', (e) => {
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
@@ -686,6 +703,7 @@ function setSetting(key, value) {
   pushUndo();
   state.design.settings[key] = value;
   update();
+  sound.toggle();
 }
 for (const sel of [el.printer, el.printer2]) sel.addEventListener('change', () => setSetting('printer', sel.value));
 el.filament.addEventListener('change', () => setSetting('filament', el.filament.value));
@@ -719,15 +737,18 @@ el.download3mf.addEventListener('click', () => {
   if (pk.plates.length === 1) {
     download('cubby-plate.3mf', threeMF(pk.plates[0], { bed: pk.bed, title: 'Cubby drawer organizer' }), 'model/3mf');
     toast('One plate. Open it in Bambu Studio, choose a filament, slice.');
+    sound.chime();
   } else {
     const files = pk.plates.map(p => ({ name: `cubby-plate-${p.index}-of-${pk.plates.length}.3mf`, data: threeMF(p, { bed: pk.bed, title: `Cubby plate ${p.index}` }) }));
     download('cubby-plates.zip', zipStore(files), 'application/zip');
     toast(`${pk.plates.length} plates, one 3MF each, in a ZIP.`);
+    sound.chime();
   }
 });
 el.downloadZip.addEventListener('click', () => {
   download('cubby-drawer.zip', bundle(state.design, state.list, state.packing), 'application/zip');
   toast('Plates, STLs, the print sheet and your design, zipped.');
+  sound.chime();
 });
 el.copyLink.addEventListener('click', async () => {
   const hash = '#d=' + b64url.encode(JSON.stringify(state.design));
@@ -747,11 +768,23 @@ el.open.addEventListener('change', async () => {
     state.design = design; state.selected = null;
     update();
     toast(`Opened ${file.name}.`);
+    sound.settle(design.bins.length);
   } catch (error) {
     toast(`Could not open that: ${error.message}`);
+    sound.nope();
   }
   el.open.value = '';
 });
+
+/* ---------- sound ---------- */
+
+function renderSound() {
+  el.soundBtn.setAttribute('aria-pressed', String(sound.isOn()));
+  el.soundBtn.lastElementChild.textContent = `Sound: ${sound.isOn() ? 'on' : 'off'}`;
+}
+el.soundBtn.addEventListener('click', () => { sound.setOn(!sound.isOn()); renderSound(); });
+for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, () => sound.wake(), { once: true, capture: true });
+renderSound();
 
 /* ---------- the guide ---------- */
 
