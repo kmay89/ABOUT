@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="Design a 3D printed organizer for any drawer — kitchen, desk, garage, bathroom — in your browser. Type the drawer's size, drag bins across a grid, and download a file your printer is ready for. No screws, no glue: the bins fit each other and the drawer.">
+  <title>Cubby — Drawer Organizer Studio · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/cubby/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Cubby — Drawer Organizer Studio">
+  <meta property="og:description" content="Every drawer, exactly organized. Measure it, arrange bins on a grid, print. Free, private, in your browser — made for Bambu Lab printers and any other.">
+  <meta property="og:url" content="https://kmay89.com/cubby/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Cubby, Drawer Organizer Studio home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="3" width="15" height="15" rx="3"/><rect x="22" y="3" width="15" height="15" rx="3"/><rect x="3" y="22" width="34" height="15" rx="3"/></svg>
+      <span class="brand-name">Cubby<span class="brand-description">DRAWER ORGANIZER STUDIO</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Studio help">
+      <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>Print guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> MEASURE. ARRANGE. PRINT.</p>
+        <h1 id="pageTitle">Every drawer,<br><em>exactly</em> organized.</h1>
+      </div>
+      <div class="intro-note">
+        <p>Type the inside of a drawer. Drag bins across a grid.<br>Download a file your printer is ready for. No screws, no glue — the bins fit each other, and the drawer.</p>
+        <span class="intro-steps">Measure the drawer <span>→</span> Arrange the bins <span>→</span> Print &amp; drop in</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="stage-pane" aria-label="Your drawer">
+        <div class="plan-card">
+          <div class="plan-head">
+            <div>
+              <h2>The plan</h2>
+              <p class="plan-hint" id="planHint">Drag across cells to make a bin. Click a bin to change it.</p>
+            </div>
+            <div class="plan-actions">
+              <button id="undoBtn" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
+              <button id="fillBtn" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><path d="M17 14v6m-3-3h6"/></svg>Fill empty cells</button>
+              <button id="clearBtn" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Clear</button>
+            </div>
+          </div>
+          <div id="plan" class="plan">
+            <svg id="planSvg" role="application" aria-label="Drawer plan. Drag across cells to make a bin; click a bin to select it. Delete removes the selected bin." tabindex="0"></svg>
+          </div>
+          <div class="plan-foot" id="planStats" aria-live="polite"></div>
+        </div>
+
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <span class="stage-label">In 3D — the very solids that print</span>
+            <div class="stage-actions">
+              <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+            </div>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom; click a bin to select it.">
+            <p id="viewerFallback" class="viewer-fallback" hidden>3D preview needs WebGL, which this browser has turned off. The plan above and every download still work.</p>
+          </div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Building your drawer</span>
+            <span class="orbit-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6"/></svg>Drag to orbit · scroll to zoom · click a bin</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Design controls">
+        <section class="card" aria-labelledby="drawerTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="drawerTitle">Your drawer</h2></div>
+          <div class="chips" id="spaceChips" role="group" aria-label="What is this drawer for?"></div>
+          <p class="help" id="spaceBlurb"></p>
+          <div class="measure">
+            <div class="field"><label for="widthInput">Width</label><input id="widthInput" type="number" inputmode="decimal" min="30" step="0.5"><span class="unit" data-unit></span></div>
+            <div class="field"><label for="depthInput">Depth</label><input id="depthInput" type="number" inputmode="decimal" min="30" step="0.5"><span class="unit" data-unit></span></div>
+            <div class="field"><label for="heightInput">Height</label><input id="heightInput" type="number" inputmode="decimal" min="12" step="0.5"><span class="unit" data-unit></span></div>
+            <div class="segmented units" role="group" aria-label="Units">
+              <button id="unitMm" type="button" aria-pressed="true">mm</button>
+              <button id="unitIn" type="button" aria-pressed="false">in</button>
+            </div>
+          </div>
+          <p class="help">Measure <strong>inside</strong> the drawer: width across the front, depth front to back, height from the floor to the top of the side. Bins stop a little below that so the drawer closes.</p>
+          <div class="field wide"><label for="recipeSelect">Start from</label><select id="recipeSelect"></select></div>
+          <p class="help" id="recipeBlurb"></p>
+        </section>
+
+        <section class="card" aria-labelledby="gridTitle">
+          <div class="card-head"><span class="step">2</span><h2 id="gridTitle">The grid</h2></div>
+          <p class="help">Every bin covers whole cells, and the cells fill the drawer exactly, so the pitch comes from your drawer. More columns means smaller cells.</p>
+          <div class="stepper-row">
+            <span class="stepper-label">Columns</span>
+            <div class="stepper"><button id="colsMinus" type="button" aria-label="Fewer columns">−</button><output id="colsValue">6</output><button id="colsPlus" type="button" aria-label="More columns">+</button></div>
+            <span class="stepper-note" id="colsNote"></span>
+          </div>
+          <div class="stepper-row">
+            <span class="stepper-label">Rows</span>
+            <div class="stepper"><button id="rowsMinus" type="button" aria-label="Fewer rows">−</button><output id="rowsValue">6</output><button id="rowsPlus" type="button" aria-label="More rows">+</button></div>
+            <span class="stepper-note" id="rowsNote"></span>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="binTitleHead" id="binCard">
+          <div class="card-head"><span class="step">✎</span><h2 id="binTitleHead">This bin</h2></div>
+          <p class="help" id="binEmpty">Click a bin in the plan or in 3D to give it compartments, make it low, or add a finger scoop.</p>
+          <div id="binForm" hidden>
+            <p class="bin-title"><strong id="binTitle"></strong><span id="binSize"></span></p>
+            <div class="stepper-row">
+              <span class="stepper-label">Across</span>
+              <div class="stepper"><button id="cxMinus" type="button" aria-label="Fewer compartments across">−</button><output id="cxValue">1</output><button id="cxPlus" type="button" aria-label="More compartments across">+</button></div>
+              <span class="stepper-note">compartments side by side</span>
+            </div>
+            <div class="stepper-row">
+              <span class="stepper-label">Deep</span>
+              <div class="stepper"><button id="cyMinus" type="button" aria-label="Fewer compartments deep">−</button><output id="cyValue">1</output><button id="cyPlus" type="button" aria-label="More compartments deep">+</button></div>
+              <span class="stepper-note">compartments front to back</span>
+            </div>
+            <div class="stepper-row">
+              <span class="stepper-label">Height</span>
+              <div class="segmented inline" role="group" aria-label="Bin height">
+                <button id="heightFull" type="button" aria-pressed="true">Full</button>
+                <button id="heightLow" type="button" aria-pressed="false">Low</button>
+              </div>
+              <span class="stepper-note" id="heightNote"></span>
+            </div>
+            <label class="toggle"><input id="scoopToggle" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>Finger scoop on the front edge<small>A dip in the front wall, so the bin lifts out and small things reach the fingers.</small></span></label>
+            <div class="bin-actions">
+              <button id="splitBtn" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M3 12h18"/></svg>Split into cells</button>
+              <button id="deleteBtn" class="button button-danger" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Remove</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="printTitle">
+          <div class="card-head"><span class="step">3</span><h2 id="printTitle">Print</h2></div>
+          <div class="two-fields">
+            <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+            <div class="field wide"><label for="filamentSelect">Filament</label><select id="filamentSelect"></select></div>
+          </div>
+          <ul class="parts" id="partsList" aria-label="Parts to print"></ul>
+          <p class="totals" id="totalsLine"></p>
+          <div class="warnings" id="warnings" role="status"></div>
+          <div class="downloads">
+            <button id="download3mf" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — every part placed on the plate</small></span></button>
+            <button id="downloadZip" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5V4h16v16H4v-3.5"/><path d="M2 10h9v4H2z"/></svg><span>Download everything <small>.zip — 3MF plates, an STL per part, the print sheet</small></span></button>
+          </div>
+          <div class="minor-actions">
+            <button id="copyLinkBtn" class="button button-quiet" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/></svg>Copy a link to this design</button>
+            <button id="saveBtn" class="button button-quiet" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>Save design</button>
+            <label class="button button-quiet file-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h5l2 2h9v10H4z"/></svg>Open design<input id="openInput" type="file" accept="application/json,.json" class="visually-hidden"></label>
+          </div>
+
+          <details class="settings" id="settingsDetails">
+            <summary><span>Fine settings</span><small>Walls, floor, clearances, the clips — every one explained</small></summary>
+            <div class="setting">
+              <div class="setting-row"><label for="wallInput">Wall thickness</label><div class="field"><input id="wallInput" type="number" step="0.2" min="1.2" max="3.2"><span class="unit">mm</span></div></div>
+              <p>1.6 mm is four lines of a 0.4 mm nozzle: stiff enough for a drawer and quick to print. Go to 2.0 for garage bins that get thrown about, 1.2 for tiny cups. Any value prints solid — the slicer's walls fill it.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="floorInput">Floor thickness</label><div class="field"><input id="floorInput" type="number" step="0.2" min="0.8" max="3"><span class="unit">mm</span></div></div>
+              <p>1.2 mm is six 0.2 mm layers; it never flexes under a drawer's worth of things. The clips rest on the floor's top, so a thicker floor shortens them slightly.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="radiusInput">Corner radius</label><div class="field"><input id="radiusInput" type="number" step="0.5" min="0" max="8"><span class="unit">mm</span></div></div>
+              <p>Rounded outside corners look finished, slide into the drawer without catching, and are easier to wipe clean. 3 mm suits most; 0 for crisp boxes.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="dividerInput">Divider thickness</label><div class="field"><input id="dividerInput" type="number" step="0.2" min="0.8" max="3"><span class="unit">mm</span></div></div>
+              <p>The walls between compartments inside a bin. 1.2 mm (three lines) is plenty; they are braced by the floor and the outer wall.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="clearanceInput">Room at the drawer's sides</label><div class="field"><input id="clearanceInput" type="number" step="0.1" min="0" max="3"><span class="unit">mm</span></div></div>
+              <p>Space between the bins and each side of the drawer. 0.5 mm covers a printer's usual error and a drawer that is not quite square. Measured a drawer twice and trust it? 0.3. Rough plywood drawer? 1.0.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="gapInput">Gap between bins</label><div class="field"><input id="gapInput" type="number" step="0.1" min="0.2" max="2"><span class="unit">mm</span></div></div>
+              <p>Neighbouring bins sit this far apart, so they slide in and out without rubbing. The clips' necks are made to this gap. 0.4 mm is right for almost everyone.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="rimGapInput">Below the drawer's top</label><div class="field"><input id="rimGapInput" type="number" step="0.5" min="0" max="20"><span class="unit">mm</span></div></div>
+              <p>Bins stop this far below the drawer's top edge, so nothing catches when the drawer closes under a worktop or a desk. 3 mm is safe; set it higher if the drawer sits under a lip.</p>
+            </div>
+            <div class="setting">
+              <label class="toggle"><input id="clipsToggle" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>Clips between bins<small>Every bin gets a dovetail channel on each wall at the centre of each cell, and printed clips drop in between neighbours to hold them as one. A drawer filled edge to edge holds itself even without them, so turn this off for the plainest bins.</small></span></label>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="clipFitSelect">Clip fit</label><select id="clipFitSelect"><option value="snug">Snug — 0.10 mm a side</option><option value="normal" selected>Normal — 0.18 mm a side</option><option value="loose">Loose — 0.28 mm a side</option></select></div>
+              <p>How much smaller than its channel each clip is printed. Normal slides in by hand and stays put. If your first clips are stiff, print the clips again on loose; if they rattle, snug. Only the clips change, never the bins.</p>
+            </div>
+            <button id="resetSettingsBtn" class="button button-quiet" type="button">Back to the defaults</button>
+          </details>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="guide" class="guide" aria-labelledby="guideTitle">
+    <div class="guide-inner">
+      <div class="guide-head">
+        <h2 id="guideTitle">The print guide</h2>
+        <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <section>
+        <h3>1. Measure the drawer</h3>
+        <ul>
+          <li><strong>Width</strong> across the front, inside the drawer, at the narrowest point you can find (drawers are rarely square; check front and back).</li>
+          <li><strong>Depth</strong> from the inside of the front to the inside of the back.</li>
+          <li><strong>Height</strong> from the drawer's floor to the top of its side. Bins stop 3 mm below that by default, so the drawer closes under a desk or a worktop.</li>
+          <li>A steel rule or a tape is fine; the bins leave half a millimetre at each side, so you do not need calipers. If the drawer floor bows, measure the height at its highest.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>2. Arrange the bins</h3>
+        <ul>
+          <li>Pick what the drawer is for and a starting layout, then make it yours: <strong>drag across cells</strong> to join them into one bin, click a bin to <strong>split it inside</strong>, make it <strong>low</strong>, or give it a <strong>finger scoop</strong>.</li>
+          <li>The grid's cell size comes from your drawer, so whatever you draw fills it edge to edge. Columns and rows are the only knobs: fewer means bigger cells.</li>
+          <li>Keep anything that must lie flat (pens, knives, brushes) in a lane as deep as the drawer. Put low bins at the front so you can see over them.</li>
+          <li>Identical bins print as one part with a quantity, so repeating a size keeps the parts list short and the plates full.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>3. Slice and print</h3>
+        <ul>
+          <li><strong>The 3MF</strong> opens in Bambu Studio, OrcaSlicer or PrusaSlicer with every part already standing on the plate, named, in print orientation. One file per plate. Open it, choose a filament, slice, print.</li>
+          <li><strong>Layer height</strong> 0.2 mm. <strong>Walls</strong> 4 loops or more: the wall is designed to print solid, and the default Arachne wall generator fills whatever is left. <strong>Top and bottom</strong> 5 and 4 layers. Infill does not matter; there is almost nothing to fill.</li>
+          <li><strong>No supports.</strong> Every part prints as placed; the steepest overhang is the back of a clip at about 30°. <strong>No brim</strong> on a textured plate. A smooth plate and a tall bin: 3 mm of brim.</li>
+          <li><strong>Elephant foot compensation</strong> at the slicer's default (0.15 mm) keeps the first layer flush, so bins sit square and clips fit.</li>
+          <li><strong>Filament.</strong> PLA for the house. PETG for a bathroom or a garage that gets hot (PLA softens in a car, or in a sunlit garage in summer). Matte filaments hide layer lines beautifully in a drawer.</li>
+          <li>Bambu's P2S, P1 and X1 plates are 256 mm square; the A1 mini's is 180. Anything the packer cannot fit is listed under the parts, and the fix is more columns (smaller cells) or a bigger printer.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>4. Put it together</h3>
+        <ul>
+          <li>Bins drop into the drawer in the order of the plan. They should go in with a little room, never forced; if one binds, the drawer is narrower than measured — raise <em>Room at the drawer's sides</em> and reprint that row.</li>
+          <li><strong>Clips.</strong> Where two bins touch, their channels face each other. Hold the bins together and slide a clip down from the top; it stops on the floor. A clip is a bowtie: two dovetail keys back to back, as long as the gap between the bins is wide. Three fits: Normal for nearly everyone; Snug for a well-tuned printer and a drawer you carry around; Loose if the first ones are stiff. Changing the fit reprints only the clips.</li>
+          <li>Clips are optional. A drawer filled edge to edge holds itself. They earn their keep in a half-filled drawer, or when you lift a block of bins out as one — a tray of screws that goes to the job.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>How the bins are engineered</h3>
+        <ul>
+          <li><strong>Walls</strong> are a whole number of nozzle lines, so the slicer prints them solid with no gap-fill wiggles. The <strong>floor</strong> is a whole number of layers. Both are the minimum that does not flex, so bins print fast and light.</li>
+          <li><strong>The dovetail channel</strong> is 1.4 mm deep, 3 mm wide at the mouth and 4.6 at the back. Behind it the wall thickens inward just where the channel is, so there is always 1.6 mm of solid plastic behind the joint and the rest of the wall stays thin. The channel is blind — it ends at the floor — so a clip can never drop through.</li>
+          <li><strong>Corners</strong> are rounded outside and in: stronger, easier to clean, and the first layer sticks better with no sharp corner to lift.</li>
+          <li><strong>Scoops</strong> are a cosine dip, never deeper than three-tenths of the bin, so the front wall stays stiff and the clip beneath still has its full hold.</li>
+          <li>Every part is one closed, outward-facing solid, checked by the tests that come with the page: no slicer repair, no "non-manifold" warnings.</li>
+        </ul>
+      </section>
+      <p class="guide-foot">Cubby runs entirely in your browser. Nothing is uploaded; a saved design is a small text file. Measurements in the sheet are millimetres. Bambu Lab, Bambu Studio and Prusa are trademarks of their owners; Cubby is an independent tool.</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="page-width site-footer">
+    <span>Cubby by Karl Meves · ERRER Labs — free, no account, nothing uploaded.</span>
+    <span><a href="/">The desk</a> · <a href="/privacy/">Privacy</a> · <a href="https://github.com/kmay89/ABOUT">Source</a></span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

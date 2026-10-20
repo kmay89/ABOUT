@@ -47,6 +47,7 @@
     --c-vantage:#4fd6c4;
     --c-well:#9aa8ff;
     --c-luma:#ffcf8a;
+    --c-cubby:#ffb65c;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -842,6 +843,7 @@
     <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
     <button data-id="vantage" style="--a:var(--c-vantage)">Vantage</button>
     <button data-id="luma" style="--a:var(--c-luma)">Luma</button>
+    <button data-id="cubby" style="--a:var(--c-cubby)">Cubby</button>
     <span class="legend-sep" aria-hidden="true"></span>
     <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
     <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
@@ -968,6 +970,7 @@
     <a href="/chili/">The chili</a>
     <a href="/vantage/">Vantage</a>
     <a href="/luma/">Luma — lithophanes</a>
+    <a href="/cubby/">Cubby — drawer organizers</a>
   </div>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
@@ -1450,6 +1453,41 @@
   S.push(box(510,50,-180,20,280,152,"#6b4527"));
   S.push(box(50,60,-160,460,14,90,"#5d3a20"));
   S.push(box(0,0,-28,560,380,28,"#8a5734",{top:"url(#wood)"}));
+
+  /* ---------- under the desk: a drawer pulled open, and tidy inside ---------- */
+  /* Cubby. A pedestal hangs under the near-right of the slab, flush with
+     the leg's outer face so it never fights the leg for depth, and its
+     drawer is out far enough past the desk's edge to show what is in it:
+     cream bins printed to fit it, a few things in them. The one place on
+     this desk nothing is piled, because the bins were made for it. Both
+     years have it; a tidy drawer is not a technology. */
+  var CBX = 410, CBY = 240, CBZ = -76, CBW = 120, CBD = 130, CBH = 48;    // the pedestal, top flush under the slab
+  var CDX = CBX + 4, CDY = CBY + CBD, CDZ = CBZ + 4, CDW = CBW - 8, CDOUT = 38, CDH = 40;   // the drawer, out past the edge
+  var cubby = box(CBX, CBY, CBZ, CBW, CBD, CBH, "#6e4626", { top: "#5a3a1f" });
+  cubby += box(CDX, CDY, CDZ, CDW, CDOUT, CDH, "#7d5433", { top: "#4a2f18" });
+  /* the inside: a dark well 3 deep, and the bins standing in it */
+  var CBT = CDZ + CDH, cbIn = "";
+  cbIn += '<rect x="3" y="3" width="' + (CDW - 6) + '" height="' + (CDOUT - 6) + '" fill="#2f1c0f"/>';
+  function cbBin(u, v, w, d, inner) {
+    return '<rect x="' + u + '" y="' + v + '" width="' + w + '" height="' + d + '" rx="1.6" fill="#efe7d4" stroke="rgba(60,38,16,.45)" stroke-width=".6"/>' +
+      '<rect x="' + (u + 1.8) + '" y="' + (v + 1.8) + '" width="' + (w - 3.6) + '" height="' + (d - 3.6) + '" rx=".9" fill="#d7cdb4"/>' + (inner || "");
+  }
+  /* a long bin along the back (mostly under the slab) and four cups at the front */
+  cbIn += cbBin(4, 4, CDW - 8, 10,
+    '<rect x="12" y="7.6" width="60" height="2.6" rx="1.3" fill="#e2b93a"/><rect x="70" y="7.6" width="3" height="2.6" fill="#f0c6a0"/>' +
+    '<rect x="78" y="7.4" width="22" height="3" rx="1.5" fill="#4a5a9c"/>');
+  var cbU = 4, cbW = (CDW - 8 - 3 * 2) / 4;
+  cbIn += cbBin(cbU, 16, cbW, 18, '<g fill="#8d9096"><circle cx="' + (cbU + 7) + '" cy="24" r="1.6"/><circle cx="' + (cbU + 13) + '" cy="27" r="1.6"/><circle cx="' + (cbU + 16) + '" cy="21" r="1.6"/><circle cx="' + (cbU + 9) + '" cy="30" r="1.6"/></g>');
+  cbU += cbW + 2;
+  cbIn += cbBin(cbU, 16, cbW, 18, '<rect x="' + (cbU + 5) + '" y="21" width="14" height="7" rx="1.5" fill="#f28ba8" transform="rotate(-12 ' + (cbU + 12) + ' 24.5)"/>');
+  cbU += cbW + 2;
+  cbIn += cbBin(cbU, 16, cbW, 18, '<g fill="none" stroke="#9aa0a8" stroke-width="1.1"><rect x="' + (cbU + 5) + '" y="22" width="4" height="9" rx="2"/><rect x="' + (cbU + 11) + '" y="20" width="4" height="9" rx="2" transform="rotate(20 ' + (cbU + 13) + ' 24.5)"/></g>');
+  cbU += cbW + 2;
+  cbIn += cbBin(cbU, 16, cbW, 18, '<rect x="' + (cbU + 4) + '" y="23" width="16" height="3.4" rx="1.2" fill="#2a2d33"/><rect x="' + (cbU + 5) + '" y="24" width="4" height="1.4" fill="#5cc8a8"/>');
+  cubby += gTop(CDX, CDY, CBT - 3, cbIn);
+  /* the drawer front: a brass pull, and the hairline of the lamp along its top */
+  cubby += gLeft(CDX, CDY + CDOUT, CBT, '<rect x="' + (CDW / 2 - 12) + '" y="17" width="24" height="3.2" rx="1.6" fill="#c9a35a" stroke="rgba(40,24,8,.5)" stroke-width=".6"/>' +
+    '<rect x="' + (CDW / 2 - 9) + '" y="15.4" width="2.4" height="2" fill="#8e6f34"/><rect x="' + (CDW / 2 + 6.6) + '" y="15.4" width="2.4" height="2" fill="#8e6f34"/>');
   S.push(gTop(0,0,0,'<rect width="560" height="380" fill="#fff" filter="url(#woodTex)" style="mix-blend-mode:multiply" opacity=".6"/>'));
   // wood grain + a couple of knots
   S.push(gTop(0,0,0,
@@ -2617,6 +2655,10 @@
     '<rect x="-9" y="-9" width="36" height="48" fill="transparent"/>';          // a hit area worth aiming at
   S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
 
+  /* The drawer under the desk goes in last: it is the nearest thing in the
+     room, and nothing on the desk may paint over it or catch its clicks. */
+  S.push(wrapObj("cubby","Cubby — the drawer under the desk, pulled open: bins 3D printed to fit it exactly, and the studio that designs them for any drawer","#ffb65c",cubby));
+
   document.getElementById("iso").innerHTML = S.join("");
 
   /* ================================================================
@@ -2742,6 +2784,16 @@
       chips: ["Pictures, shades & lamps","Live lit 3D preview","Auto-enhance & Detail","Fits-your-printer check","Thickness test strip","Save a preview to share","iPhone HEIC photos","Your photo stays on your device"],
       links: [
         {label:"💡 Make one — Luma", href:"/luma/", cta:true, sameTab:true},
+        {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
+      ]
+    },
+    cubby: {
+      kicker: "Cubby · New",
+      title: "Cubby — Every Drawer, Exactly Organized",
+      story: "Every desk has the drawer. The one with the batteries and the hex keys, the four pens that work and the nine that don't. I kept buying organizers that almost fit, so I made the one that does. Cubby is a drawer-organizer studio for a 3D printer: type the inside of any drawer — kitchen, desk, garage, bathroom — and it lays a grid across it that fills it to the millimetre. Drag across cells to make a bin; click one to split it inside, make it low, or give it a finger scoop. The very solids that will print turn in 3D as you work, and when you are done you download one file that opens in Bambu Studio with every part already standing on the plate, named and the right way up, no supports. No screws, no glue, no magnets: the bins hold each other with a printed dovetail clip, or simply by filling the drawer edge to edge. Every wall is a whole number of nozzle lines and every floor a whole number of layers, so they print fast and come out solid, and every setting says what it does and why. The drawer under this desk was the first one it tidied.",
+      chips: ["Any drawer, to the millimetre","Drag to draw bins","Compartments, low bins, scoops","One 3MF, ready to slice","No screws, no glue","Printed dovetail clips","Every setting explained","Nothing uploaded"],
+      links: [
+        {label:"🗂 Design one — Cubby", href:"/cubby/", cta:true, sameTab:true},
         {label:"github.com/kmay89/ABOUT", href:"https://github.com/kmay89/ABOUT"}
       ]
     },

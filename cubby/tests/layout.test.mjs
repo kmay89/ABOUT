@@ -1,0 +1,170 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+const L = await import('../layout.js');
+const { newDesign, restoreDesign, grid, binRect, binSpec, partsList, packPlates, fillEmpty, placeBin, trimToGrid,
+  applyRecipe, occupancy, clipPlan, RECIPES, SPACES, PRINTERS, SETTINGS_DEFAULTS, maxCount, MIN_CELL, binHeights } = L;
+
+function near(actual, expected, tolerance = 1e-6, message = '') {
+  assert.ok(Math.abs(actual - expected) <= tolerance, `${message} Expected ${expected}, received ${actual}`);
+}
+
+test('the grid fills the drawer exactly, whatever the drawer', () => {
+  for (const [width, depth] of [[400, 400], [297.5, 513], [120, 90], [900, 600]]) {
+    const design = newDesign({ width, depth, height: 70, space: 'kitchen' });
+    const g = grid(design), s = design.settings;
+    near(g.originX + g.cols * g.pitchX - s.gap + s.clearance, width, 1e-9, `${width} wide`);
+    near(g.originY + g.rows * g.pitchY - s.gap + s.clearance, depth, 1e-9, `${depth} deep`);
+    assert.ok(g.cellW >= MIN_CELL - 1e-9 && g.cellD >= MIN_CELL - 1e-9, 'cells are never too small to print');
+    const rect = binRect(design, { c: g.cols - 1, r: g.rows - 1, w: 1, h: 1 }, g);
+    near(rect.x + rect.width, width - s.clearance, 1e-9, 'the last bin ends at the clearance');
+  }
+});
+
+test('columns are capped so a cell never drops below the minimum', () => {
+  const design = newDesign({ width: 100, depth: 100, height: 50 });
+  design.cols = 40; design.rows = 40;
+  const g = grid(design);
+  assert.equal(g.cols, maxCount(100, design.settings));
+  assert.ok(g.cellW >= MIN_CELL - 1e-9);
+});
+
+test('every starting layout tiles the grid without overlap', () => {
+  for (const [space, recipes] of Object.entries(RECIPES)) for (const recipe of recipes) {
+    for (const [cols, rows] of [[1, 1], [2, 3], [7, 7], [12, 4]]) {
+      const design = newDesign({ width: 60 + 50 * cols, depth: 60 + 50 * rows, height: 60, space });
+      design.cols = cols; design.rows = rows;
+      applyRecipe(design, recipe.id);
+      const occ = occupancy(design);
+      const covered = design.bins.reduce((n, b) => n + b.w * b.h, 0);
+      assert.equal(occ.cells.filter(Boolean).length, covered, `${space}/${recipe.id} ${cols}×${rows}: no two bins share a cell`);
+      if (recipe.id !== 'empty') assert.equal(covered, cols * rows, `${space}/${recipe.id} ${cols}×${rows}: every cell has a bin`);
+      for (const b of design.bins) assert.ok(b.c + b.w <= cols && b.r + b.h <= rows, 'inside the grid');
+    }
+  }
+});
+
+test('placing a bin takes the place of whatever it covers; filling adds one-cell bins', () => {
+  const design = newDesign({ width: 300, depth: 300, height: 50, space: 'other', recipe: 'cells' });
+  const { cols, rows } = grid(design);
+  assert.equal(design.bins.length, cols * rows);
+  const bin = placeBin(design, { c: 0, r: 0, w: 2, h: 2 });
+  assert.equal(design.bins.length, cols * rows - 4 + 1);
+  assert.equal(bin.w, 2);
+  design.bins = design.bins.filter(b => b.id !== bin.id);
+  assert.equal(fillEmpty(design), 4);
+  assert.equal(occupancy(design).cells.filter(Boolean).length, cols * rows);
+  assert.equal(placeBin(design, { c: 99, r: 99, w: 1, h: 1 }), null, 'off the grid is nothing');
+});
+
+test('shrinking the grid trims bins instead of leaving them hanging', () => {
+  const design = newDesign({ width: 300, depth: 300, height: 50, space: 'other', recipe: 'cells' });
+  const { cols, rows } = grid(design);
+  placeBin(design, { c: cols - 2, r: rows - 2, w: 2, h: 2 });
+  design.cols = cols - 1; design.rows = rows - 1;
+  trimToGrid(design);
+  const occ = occupancy(design);
+  assert.ok(design.bins.every(b => b.c + b.w <= occ.cols && b.r + b.h <= occ.rows));
+  assert.equal(new Set(occ.cells.filter(Boolean)).size, design.bins.length, 'no bin lost its cells to another');
+});
+
+test('a bin spec carries a channel at the centre of each cell it covers', () => {
+  const design = newDesign({ width: 400, depth: 400, height: 60, space: 'other', recipe: 'cells' });
+  const g = grid(design);
+  const spec = binSpec(design, { c: 1, r: 0, w: 2, h: 3, cx: 1, cy: 1 }, g);
+  assert.equal(spec.channels.front.length, 2);
+  assert.equal(spec.channels.left.length, 3);
+  near(spec.channels.front[0], g.pitchX / 2 - design.settings.gap / 2, 1e-9, 'first channel is mid-cell');
+  near(spec.channels.front[1] - spec.channels.front[0], g.pitchX, 1e-9, 'one pitch apart');
+  near(spec.width, 2 * g.pitchX - design.settings.gap, 1e-3, 'rounded to a thousandth');
+  assert.equal(spec.height, binHeights(design).full);
+  design.settings.clips = false;
+  assert.equal(binSpec(design, { c: 0, r: 0, w: 1, h: 1 }, g).channels.front.length, 0, 'no clips, no channels');
+});
+
+test('bin heights leave room under the drawer top and never exceed the printer', () => {
+  const design = newDesign({ width: 300, depth: 300, height: 60 });
+  assert.equal(binHeights(design).full, 57);
+  assert.equal(binHeights(design).low, 29);
+  design.drawer.height = 300; design.settings.printer = 'a1mini';
+  assert.equal(binHeights(design).full, 178);
+});
+
+test('the parts list groups identical bins and counts one clip per shared cell edge', () => {
+  const design = newDesign({ width: 300, depth: 300, height: 50, space: 'other', recipe: 'cells' });
+  const { cols, rows } = grid(design);
+  const list = partsList(design);
+  const binParts = list.parts.filter(p => p.kind === 'bin');
+  assert.equal(binParts.length, 1, 'every cell bin is the same part');
+  assert.equal(binParts[0].qty, cols * rows);
+  assert.ok(binParts[0].mesh && !binParts[0].error);
+  const clips = list.parts.filter(p => p.kind === 'clip');
+  assert.equal(clips.length, 1);
+  assert.equal(clips[0].qty, (cols - 1) * rows + (rows - 1) * cols, 'one per neighbouring pair');
+  assert.equal(list.totals.parts, cols * rows + clips[0].qty);
+  assert.ok(list.totals.grams > 0 && list.totals.minutes > 0);
+  design.settings.clips = false;
+  assert.equal(clipPlan(design).length, 0);
+});
+
+test('a low bin beside a full one gets the shorter clip', () => {
+  const design = newDesign({ width: 200, depth: 100, height: 60, space: 'other', recipe: 'empty' });
+  design.cols = 2; design.rows = 1;
+  const a = placeBin(design, { c: 0, r: 0, w: 1, h: 1 });
+  const b = placeBin(design, { c: 1, r: 0, w: 1, h: 1 });
+  b.low = true;
+  const [clip] = clipPlan(design);
+  assert.equal(clip.qty, 1);
+  assert.equal(clip.length, Math.round(0.6 * (binHeights(design).low - design.settings.floor)));
+  a.low = true;
+  assert.equal(clipPlan(design)[0].length, clip.length);
+});
+
+test('plates pack every part inside the bed, turning parts when that helps', () => {
+  const design = newDesign({ width: 500, depth: 240, height: 60, space: 'kitchen', recipe: 'utensils' });
+  const list = partsList(design);
+  const printer = PRINTERS.find(p => p.id === 'p2s');
+  const packing = packPlates(list.parts, printer);
+  assert.equal(packing.tooBig.length, 0);
+  const placed = packing.plates.reduce((n, p) => n + p.items.length, 0);
+  assert.equal(placed, list.totals.parts, 'every copy of every part is on a plate');
+  for (const plate of packing.plates) {
+    for (const it of plate.items) {
+      assert.ok(it.x >= 0 && it.y >= 0 && it.x + it.w <= printer.bed[0] && it.y + it.d <= printer.bed[1], 'inside the bed');
+      for (const other of plate.items) {
+        if (other === it) continue;
+        const apart = it.x + it.w <= other.x || other.x + other.w <= it.x || it.y + it.d <= other.y || other.y + other.d <= it.y;
+        assert.ok(apart, 'no two parts overlap');
+      }
+    }
+  }
+  // A 240 mm deep lane only fits the A1 mini's plate turned on neither axis.
+  const mini = packPlates(list.parts, PRINTERS.find(p => p.id === 'a1mini'));
+  assert.ok(mini.tooBig.length > 0, 'the lanes are reported, not silently dropped');
+});
+
+test('a saved design comes back whole, and a damaged one comes back safe', () => {
+  const design = newDesign({ width: 350, depth: 420, height: 65, space: 'garage', recipe: 'screws' });
+  design.settings.wall = 2; design.settings.clipFit = 'snug';
+  const back = restoreDesign(JSON.parse(JSON.stringify(design)));
+  assert.deepEqual(back.bins.map(b => [b.c, b.r, b.w, b.h, b.cx, b.cy, b.low, b.scoop]), design.bins.map(b => [b.c, b.r, b.w, b.h, b.cx, b.cy, b.low, b.scoop]));
+  assert.equal(back.settings.wall, 2);
+  assert.equal(back.settings.clipFit, 'snug');
+  const hurt = restoreDesign({ drawer: { width: 'x', depth: -5, height: 1e9, space: 'moon' }, settings: { wall: 99, printer: 'toaster', clipFit: 'weird' }, cols: 'a', bins: [{ c: -1, r: 0, w: 1, h: 1 }, { c: 0, r: 0, w: 2, h: 2, cx: 99 }, 'junk'] });
+  assert.equal(hurt.drawer.space, 'other');
+  assert.equal(hurt.settings.wall, 3.2);
+  assert.equal(hurt.settings.printer, SETTINGS_DEFAULTS.printer);
+  assert.equal(hurt.settings.clipFit, 'normal');
+  assert.equal(hurt.bins.length, 1);
+  assert.equal(hurt.bins[0].cx, 12);
+  assert.throws(() => restoreDesign('nope'), TypeError);
+});
+
+test('every space has a favourite cell size that gives a sensible grid', () => {
+  for (const space of Object.keys(SPACES)) {
+    const design = newDesign({ width: 420, depth: 380, height: 60, space });
+    const g = grid(design);
+    assert.ok(g.cols >= 3 && g.cols <= 12, `${space}: ${g.cols} columns`);
+    assert.ok(Math.abs(g.pitchX - SPACES[space].cell) < SPACES[space].cell / 2 + 1, 'near the favourite size');
+  }
+});

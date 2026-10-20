@@ -35,7 +35,12 @@ coming up out of it); and [Luma](https://kmay89.com/luma/) — a
 lithophane studio that turns any photo into a 3D printable picture made
 only of thickness, for a frame, a nightlight shade or a lamp (it hangs
 on the wall above the bike, lit from behind, and it is the last thing in
-the room to go dark when you throw the switch).
+the room to go dark when you throw the switch); and
+[Cubby](https://kmay89.com/cubby/) — a drawer-organizer studio for a 3D
+printer: type the inside of any drawer, drag bins across a grid that
+fills it to the millimetre, and download one file with every part
+placed on the plate, no screws, no glue (the drawer under the desk's
+near corner is pulled open, with the bins that were printed for it).
 
 **Live:** <https://kmay89.com>
 
@@ -177,6 +182,15 @@ the room to go dark when you throw the switch).
   worker, and the photo never leaves the browser. Notes and checks in
   `luma/README.md`; `npm run check:luma` runs the geometry and image
   suites.
+- `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
+  becomes a grid that fills it exactly; bins cover whole cells, can be
+  split inside, made low or given a finger scoop, and join each other
+  with a printed dovetail clip dropped into blind channels (or just by
+  filling the drawer). Every bin and clip is one closed solid built from
+  rings and earcut, with walls a whole number of nozzle lines; the
+  download is a 3MF per plate with every part placed and named, or a ZIP
+  with STLs and a print sheet, made in the browser with nothing uploaded.
+  Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
@@ -340,6 +354,7 @@ npm run check        # parity, the well's promises, the mailbox, the chess room
 npm run check:rules  # replays tens of thousands of games of every new room
 npm run check:well   # just the well: names, colours, skies, help lines, shell
 npm run check:luma   # the lithophane studio's geometry and image maths
+npm run check:cubby  # the drawer studio: closed solids, the grid, the files
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
 npm run icons        # redraws every new room's icons from scratch
