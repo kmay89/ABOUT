@@ -246,6 +246,72 @@ function overlaps(a, b) {
      L.hitHand(o, seam, o[3].y + 10) === 4 || L.hitHand(o, seam, o[3].y + 10) === 3);
 })();
 
+/* ---------- the right half faces the right way ----------
+   The bug this exists for: every bone played on the right-hand end was
+   drawn back to front — its matching half facing outward and its new
+   number pressed against the bone it joined — in both renderers, for the
+   life of the room. Every check above passed throughout, because every
+   check above is about rectangles, and a bone drawn the wrong way round
+   occupies exactly the right rectangle.
+
+   So this one reads the drawing the way a player does. For every pair of
+   neighbours it finds the half of each bone that is nearest the other —
+   using the same `faces` order and the same local -x-first convention
+   the renderers draw with — and requires those two halves to show the
+   same number. A mula is one number on both halves, so it only ever has
+   to agree with its neighbour. */
+(function () {
+  function halves(b) {
+    var r = b.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), f = L.faces(b);
+    /* local -x half first; each half's centre is half a unit from the middle */
+    return [{ n: f[0], x: b.x - 0.5 * c, y: b.y - 0.5 * s },
+            { n: f[1], x: b.x + 0.5 * c, y: b.y + 0.5 * s }];
+  }
+  function near(b, to) {
+    var h = halves(b), d0 = Math.hypot(h[0].x - to.x, h[0].y - to.y), d1 = Math.hypot(h[1].x - to.x, h[1].y - to.y);
+    return Math.abs(d0 - d1) < 1e-9 ? null : (d0 < d1 ? h[0] : h[1]);
+  }
+  var pairs = 0, wrong = 0, sample = "", rightSide = 0, ends = 0;
+  for (var g = 0; g < 400; g++) {
+    var st = R.newHand({ seed: 77000 + g }), rand = R.rng(g + 3);
+    while (!st.over) {
+      var mv = R.moves(st);
+      if (!mv.length) { R.pass(st); continue; }
+      R.play(st, mv[Math.floor(rand() * mv.length)]);
+    }
+    [5, 8, 12].forEach(function (bound) {
+      var t = L.table(st.line, { bound: bound });
+      var lastOn = { L: t.bones[0], R: t.bones[0] };
+      for (var i = 1; i < t.bones.length; i++) {
+        var b = t.bones[i], prev = lastOn[b.end];
+        var mine = near(b, prev), theirs = near(prev, b);
+        pairs++;
+        if (b.end === "R") rightSide++;
+        /* a mula's halves sit side by side across the line — equally near */
+        var ok1 = b.dbl || (mine && mine.n === b.inner);
+        var ok2 = prev.dbl || (theirs && theirs.n === b.inner);
+        if (!ok1 || !ok2) {
+          wrong++;
+          if (!sample) sample = "bone " + i + " (" + R.name(b.tile) + " on " + b.end + ") shows " +
+            (mine ? mine.n : "?") + " to a neighbour showing " + (theirs ? theirs.n : "?");
+        }
+        lastOn[b.end] = b;
+      }
+      /* and the open ends really are the outer halves of the end bones */
+      var lb = lastOn.L, rb = lastOn.R;
+      if (t.bones.length > 1) {
+        ends++;
+        if (lb !== t.bones[0] && lb.outer !== st.left) wrong++;
+        if (rb !== t.bones[0] && rb.outer !== st.right) wrong++;
+      }
+    });
+  }
+  ok("touching halves always show the same number", wrong === 0, wrong + " of " + pairs + " — " + sample);
+  ok("including along the right-hand end", rightSide > 1000, rightSide + " right-hand pairs");
+  ok("and the end bones show the open numbers", ends > 0);
+  console.log("      " + pairs + " neighbouring pairs read, " + rightSide + " of them on the right-hand end");
+})();
+
 console.log("\n" + (fail === 0
   ? "the table lies flat — " + pass + " checks passed"
   : fail + " of " + (pass + fail) + " checks FAILED"));

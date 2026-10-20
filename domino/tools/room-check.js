@@ -199,9 +199,12 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
     "    const k=((Y+j)*cv.width+(X+i))*4; a+=0.299*px[k]+0.587*px[k+1]+0.114*px[k+2]; }" +
     "  return a/9; }" +
     "const out=[];" +
+    /* the 3D world is layout with y negated and every turn negated with
+       it (see gfx3d.js draw) — the check has to place the bone where the
+       renderer did, or it reads felt */
     "for (const b of s.table.bones){" +
-    "  const r=b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r);" +
-    "  const to=(lx,ly,lz)=>[b.x+lx*C-ly*S, b.y+lx*S+ly*C, lz];" +
+    "  const r=-b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r), by=-b.y;" +
+    "  const to=(lx,ly,lz)=>[b.x+lx*C-ly*S, by+lx*S+ly*C, lz];" +
     "  const top=lum(to(0,0,hz));" +
     "  let best=null,bd=-2;" +
     "  for (const w of [[0,-hy,0,-1],[0,hy,0,1],[-hx,0,-1,0],[hx,0,1,0]]){" +
@@ -272,10 +275,10 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   ok("bones keep going down while you watch", beats.n >= 2, beats.n + " plays seen");
   if (beats.gaps.length) {
     var quickest = Math.min.apply(null, beats.gaps);
-    /* relaxed is 900ms of thinking plus up to 700 of spread plus 750 to
-       settle, so the tightest honest gap is about 1.6s; under a second
-       means the beats are not being waited on at all */
-    ok("and never faster than a person could follow", quickest > 950,
+    /* relaxed is 1150ms of thinking plus up to 800 of spread plus 1050 to
+       settle, so the tightest honest gap is about 2.2s; under 1.6s means
+       the beats are not being waited on at all */
+    ok("and never faster than a person could follow", quickest > 1600,
        "quickest gap " + Math.round(quickest) + "ms");
     console.log("      gaps between plays: " +
                 beats.gaps.map(function (g) { return Math.round(g) + "ms"; }).join(", "));
@@ -317,7 +320,10 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
     "(()=>{const d=window.__dt(); if(d.gfx.kind!=='3d') return null;" +
     "const c=d.gfx.lastCam; if(!c) return null;" +
     "const at=(fx,fy)=>{const p=d.gfx.pointOnTable(d.gfx.w*fx, d.gfx.h*fy); return p?[p.x,p.y]:null;};" +
-    "return {mid:at(0.5,0.5), left:at(0.2,0.5), right:at(0.8,0.5), up:at(0.5,0.3)," +
+    /* the line is framed in the free part of the screen between the plates
+       and the hand, so "the middle" is the middle of that, not of the canvas */
+    "const my=c.mid?c.mid.y/d.gfx.h:0.5;" +
+    "return {mid:at(0.5,my), left:at(0.2,my), right:at(0.8,my), up:at(0.5,my-0.2)," +
     " cx:c.cx, cy:c.cy};})()");
   ok("the middle of the screen unprojects onto the table", !!(aim && aim.mid));
   if (aim && aim.mid && aim.left && aim.right && aim.up) {
@@ -443,7 +449,7 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.click("#mLearn");
   await page.waitForTimeout(300);
   var cards = await page.evaluate("document.querySelectorAll('#lessons .opt').length");
-  ok("the short course is there", cards === 5, cards + " cards");
+  ok("the short course is there", cards === 8, cards + " cards");
   await page.click("[data-close=ovLearn]");
 
   /* ---------- it survives being resized ---------- */

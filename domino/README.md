@@ -4,8 +4,9 @@
 across from you, seven bones each and nothing in the boneyard. A real 3D
 table (with a flat one that is not a consolation prize), an opponent who
 counts what is left and remembers every *paso*, a coach who explains
-what he can see and admits when he cannot, and four phones joined by
-holding them up to each other.
+what he can see and admits when he cannot, a rank to climb, and two or
+four phones joined with four letters — or by pointing a camera at a QR
+code.
 
 No accounts, no server, no ads, nothing tracked. Installable, works on a
 bus. Part of [The Solving Room](../). No libraries, no build step, MIT.
@@ -32,9 +33,46 @@ Mexican cantina set.
 deciding as fast as a machine can decide is not a game you can follow:
 bones appear and you are left working out backwards who put them there.
 So a turn is three beats rather than one pause — the seat whose turn it
-is says it is thinking, the bone lands, and there is a moment to look at
-it before the next player starts. *Relaxed* is the default; *Brisk* is a
-table in a hurry, *Quick* is for when you just want the hand over.
+is says it is thinking, the bone is carried to the table from that
+seat's side and lands with a clack, and there is a moment to look at it
+(it glows for a couple of seconds) before the next player starts.
+*Relaxed* — about three seconds a turn — is the default; *Unhurried* is
+slower still, *Brisk* is a table in a hurry, *Quick* is for when you
+just want the hand over. A pass is two raps on the wood and a red
+*¡Paso!* under that player's name, because at a real table that is how
+you hear it.
+
+**You are playing for two.** Your partner sits across from you, on the
+plate at the top; the opponents sit to either side, where the play
+actually goes round. Table talk is not allowed, so a pareja talks with
+bones: the salida says what you are long in, every bone after picks the
+number left showing, and a good partner feeds those numbers back and
+takes away the other side's. The players at the table do exactly that —
+they read what each seat has *shown*, not just what it has passed on —
+and Don Chuy tells you when your partner has just asked for something.
+When anybody is down to a bone or two, the table changes gear: an
+opponent about to go out gets shut out at almost any cost, a partner
+about to go out gets left a door. Your partner will thank you when you
+feed them, and sigh when you hang them by mistake.
+
+**Getting better is the point.** After each play with a real choice in
+it, the room asks the strongest player at the table what it would have
+done and grades yours: *Sharp*, *Good*, *Okay* or *Costly* — and for a
+costly one, Don Chuy says what he would have played and why. Forced
+plays are never graded. The record keeps a rank — from *Mirón*, watching
+from the next table, to *Leyenda de la cantina* — earned mostly by
+winning and by playing sharply, more against stronger opponents, never
+nothing for a loss; plus a handful of *logros* worth having done once.
+At the end of every hand everybody's leftover bones are laid face up and
+counted, the way they are at a real table.
+
+**Two phones is the commonest table there is.** One phone taps *Host*
+and shows four big letters and a QR code; the other points its camera at
+the code (or taps *Join* and types the letters) and is sitting down — as
+your partner, across the table, because two friends want to be a pareja
+against the house. Empty chairs are played by the house, a third and
+fourth friend can sit down mid-hand, and a phone that locks comes back
+to the same chair and the same bones.
 
 **The table is lit like a table**, which took three lights rather than
 one. A single bulb overhead makes every top face the same white and
@@ -77,6 +115,10 @@ gfx3d.js      raw WebGL 1: chamfered bones, a generated pip atlas, one
               warm bulb, an orbit camera that frames the whole line
 gfx2d.js      the canvas twin — the safety net, the small-phone option,
               and the painter of the hand in *both* modes
+sound.js      the clack, the knock on the wood for paso, the shuffle —
+              all synthesized on the spot, nothing to download
+career.js     the rank ladder, the stats and the logros, pure and
+              checked in node
 room.js       the shared front door: four-letter room codes over the
               site's mailbox, the link heartbeat, the healing loop.
               Byte-identical in every game folder here
@@ -136,6 +178,22 @@ containing the word *passed* must be backed by a pass in the record.
   checks that nobody ever passes holding a playable bone, that the
   twenty-eight are conserved every ply, and that the count is right
   every time.
+- **Every bone faces the right way.** For the life of the room, every
+  bone played on the right-hand end of the line was drawn back to front
+  — its matching half facing out, its new number pressed against the
+  bone it joined — in both renderers, and every geometry check passed,
+  because a bone drawn the wrong way round occupies exactly the right
+  rectangle. `layout-check.js` now reads the table the way a player
+  does: for every pair of neighbours it finds the half of each that
+  touches the other and requires them to show the same number. Put the
+  old drawing back and it fails at once.
+- **The round table is not a mirror.** The 3D camera looked at the
+  layout from the side that turned it upside down: the line folded the
+  opposite way from the flat table, and your partner's bones flew in
+  from your own side of the table while yours arrived from across it.
+  The 3D world is now the layout with y negated, done in one place, and
+  the camera frames the line in the part of the screen between the seat
+  plates and your hand instead of behind them.
 - **The table cannot draw on top of itself.** The fold is the part that
   goes wrong, and it did: at a row spacing of 2, the first crosswise
   double laid after a corner landed on the corner bone, in about one
@@ -143,9 +201,17 @@ containing the word *passed* must be backed by a pass in the record.
   see `ROW` — and 4,000 games at four different screen shapes produce
   zero overlaps and zero bones that move once they are down.
 - **The players are measured against each other.** A strength ladder is
-  the only honest test of a game AI: Compadre takes ~93% of matches off
-  Novato, Maestro ~72% off Compadre, over 100 matches a rung with the
-  seats swapped every other match and a two-standard-error bar.
+  the only honest test of a game AI: Compadre takes ~86% of matches off
+  Novato, Maestro ~69% off Compadre, over 100 matches a rung with the
+  seats swapped every other match and a two-standard-error bar. The
+  partnership play — feeding, starving, blocking somebody about to go
+  out — was measured the same way before it was kept: the same Compadre
+  with and without it, 6,000 matches, 53–54% (±1.3). One piece of it
+  *lost* matches when pushed harder, and stays a nudge.
+- **So is the ladder you climb.** `career-check.js` plays two long
+  careers through the rank arithmetic: a player who wins two matches in
+  three and plays sharply has to climb clearly faster than one who
+  loses two in three — and the one who loses still has to climb.
 - **And the rollouts are measured too.** The same player against itself
   with the search as the only difference: worth 63%. That check exists
   because the first version of the playout policy was mostly noise, and
@@ -221,7 +287,8 @@ node domino/tools/layout-check.js    # no overlaps, nothing moves, the hand stay
 node domino/tools/bone-check.js      # the 3D bone is a solid, and wound the right way out
 node domino/tools/skin-check.js      # presets, share codes, hostile input
 node domino/tools/net-check.js       # the permutation test: hands stay secret
-node domino/tools/coach-check.js     # every hint names its move and tells the truth
+node domino/tools/coach-check.js     # every hint names its move and tells the truth; grades are honest
+node domino/tools/career-check.js    # the rank ladder: no corrupt saves, skill climbs faster
 node domino/tools/ai-check.js        # the strength ladder (the slow one)
 node domino/tools/room-check.js      # opens it in a browser and plays it
 node domino/tools/make-icons.js      # redraws the icons from scratch

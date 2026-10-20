@@ -51,39 +51,82 @@
   #app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
   #stage{position:relative; flex:1; min-height:0; overflow:hidden}
   canvas.surface{position:absolute; inset:0; display:block}
-  #overlay{pointer-events:none}
+  #overlay{pointer-events:none; z-index:2}
 
-  /* ---------- the seat strip along the top ---------- */
-  #seats{
-    position:absolute; top:6px; left:6px; right:6px; z-index:4;
-    display:flex; gap:6px; justify-content:center; flex-wrap:wrap; pointer-events:none;
+  /* ---------- the other three, where they sit ----------
+     Laid out the way the table is: your partner across the top, the
+     player on your right at the top right, the one on your left at the
+     top left, and you at the bottom with your bones. Play runs to the
+     right — you, then right, then across, then left — so the plates read
+     in turn order round the table. A row of four identical chips did not
+     say who was where, and the face-down stacks the canvas drew at the
+     sides lay on top of long lines. */
+  /* the plates, the score and the commentary stack in one column, so a
+     plate that grows a line can never slide under the score */
+  #top{
+    position:absolute; top:6px; left:6px; right:6px; z-index:4; pointer-events:none;
+    display:flex; flex-direction:column; align-items:stretch; gap:5px;
   }
-  .seat{
-    background:rgba(20,14,10,.74); backdrop-filter:blur(7px);
-    border:1px solid var(--line); border-radius:12px;
-    padding:4px 10px; font-size:.82rem; font-weight:650;
-    display:flex; align-items:center; gap:6px; max-width:31vw;
-    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-    transition:box-shadow .2s, border-color .2s, transform .2s;
+  #hud{
+    position:relative; z-index:2;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;
   }
-  .seat .bones{font-weight:400; color:var(--soft); font-variant-numeric:tabular-nums}
-  .seat.us{border-color:#5c8f6a}
-  .seat.them{border-color:#8f5c5c}
-  .seat.turn{box-shadow:0 0 0 2px var(--good); transform:translateY(1px)}
-  .seat.you .nm{color:var(--glow)}
-  .seat.gone{opacity:.5}
-  .seat .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:none}
-  /* the seat that is deciding, so three machines never move at once
-     without the table being able to see which one is up */
-  .seat.thinking{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,168,60,.35)}
-  .seat.thinking .dot{background:var(--amber); animation:blink 1s ease-in-out infinite}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-  .seat.gone .dot{background:transparent;box-shadow:inset 0 0 0 1.5px var(--soft)}
-  .seat.bot .dot{background:var(--blue)}
+  .plate{
+    position:relative; min-width:0;
+    background:rgba(20,14,10,.78); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+    border:1px solid var(--line); border-radius:14px; padding:5px 7px 5px 5px;
+    display:flex; align-items:center; gap:7px;
+    transition:box-shadow .25s, border-color .25s, transform .25s;
+  }
+  .plate .av{
+    flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:.92rem; color:#1b120b; background:#8f5c5c; position:relative;
+  }
+  .plate.us .av{background:#5fa878}
+  .plate.us{border-color:#3f6b4c}
+  .plate.them{border-color:#6b3f3f}
+  .plate .pi{min-width:0; flex:1}
+  .plate .nm{font-size:.8rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.15}
+  .plate .role{font-size:.62rem; color:var(--soft); font-weight:600; letter-spacing:.03em; text-transform:uppercase; line-height:1.25;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .plate.low .role{color:#ff9b86}
+  .plate.us .role{color:#8fd1a4}
+  .plate .mini{display:flex; gap:2px; margin-top:3px; height:9px}
+  .plate .mini i{width:5px; height:9px; border-radius:1.5px; background:var(--soft); opacity:.75; transition:opacity .3s, transform .3s}
+  .plate .mini i.out{opacity:0; transform:translateY(-4px)}
+  .plate.low .mini i{background:var(--bad); opacity:1}
+  .plate.turn{box-shadow:0 0 0 2px var(--good), 0 4px 18px rgba(62,207,142,.25); transform:translateY(1px)}
+  .plate.thinking{box-shadow:0 0 0 2px var(--amber), 0 4px 18px rgba(240,168,60,.25)}
+  .plate.thinking .av::after{
+    content:""; position:absolute; inset:-4px; border-radius:50%;
+    border:2px solid transparent; border-top-color:var(--amber); animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .plate .tag{position:absolute; right:5px; top:4px; font-size:.6rem; color:var(--blue)}
+  .plate.gone{opacity:.55}
+
+  /* what a seat just said — paso, a bone, a word to their partner */
+  .bubble{
+    position:absolute; left:50%; top:calc(100% + 7px); transform:translate(-50%,-4px) scale(.9);
+    background:#fff6e4; color:#2a1a0e; font-weight:750; font-size:.82rem; white-space:nowrap;
+    padding:4px 10px; border-radius:12px; box-shadow:0 4px 14px rgba(0,0,0,.45);
+    opacity:0; transition:opacity .2s, transform .25s cubic-bezier(.2,1.5,.4,1); pointer-events:none; z-index:7;
+  }
+  .bubble::before{
+    content:""; position:absolute; left:50%; top:-5px; margin-left:-5px;
+    border:5px solid transparent; border-top:0; border-bottom-color:#fff6e4;
+  }
+  .bubble.on{opacity:1; transform:translate(-50%,0) scale(1)}
+  .bubble.paso{background:var(--bad); color:#fff}
+  .bubble.paso::before{border-bottom-color:var(--bad)}
+  .bubble.big{font-size:1rem; padding:6px 14px}
+  #meBubble{top:auto; bottom:calc(var(--handH, 120px) + 10px); position:absolute; z-index:7}
+  #meBubble::before{top:auto; bottom:-5px; border-bottom:0; border-top:5px solid #fff6e4}
+  #meBubble.paso::before{border-top-color:var(--bad)}
 
   /* the running commentary — who is deciding, and what they just did */
   #lastPlay{
-    position:absolute; top:38px; left:0; right:0; z-index:4; text-align:center;
+    position:relative; z-index:1; text-align:center;
     font-size:.8rem; pointer-events:none; min-height:1.2em;
     text-shadow:0 1px 6px rgba(0,0,0,.85);
   }
@@ -91,17 +134,49 @@
   #lastPlay.them{color:var(--bad)}
   #lastPlay.thinking{color:var(--amber); font-style:italic}
 
-  /* ---------- the score, top corners ---------- */
+  /* ---------- the score, under the plates ---------- */
   #scoreRail{
-    position:absolute; top:60px; left:8px; right:8px; z-index:4;
-    display:flex; justify-content:space-between; pointer-events:none; font-size:.78rem;
+    position:relative; z-index:1;
+    display:flex; justify-content:center; align-items:center; gap:8px; pointer-events:none; font-size:.78rem;
   }
   .score{
     background:rgba(20,14,10,.7); border:1px solid var(--line); border-radius:10px;
-    padding:3px 9px; font-variant-numeric:tabular-nums;
+    padding:2px 9px; font-variant-numeric:tabular-nums; transition:transform .3s;
   }
   .score b{font-size:1.15em; color:var(--glow)}
   .score.lead b{color:var(--good)}
+  .score.bump{animation:bump .6s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.25)}100%{transform:scale(1)}}
+  #toWhat{color:var(--soft); font-size:.7rem}
+
+  /* how that play compared — a badge that floats up and goes */
+  #grade{
+    position:absolute; left:50%; bottom:calc(var(--handH, 120px) + 46px); z-index:7;
+    transform:translate(-50%,10px); opacity:0; pointer-events:none;
+    font-weight:800; font-size:.95rem; padding:5px 14px; border-radius:999px;
+    background:rgba(20,14,10,.9); border:1px solid var(--line); white-space:nowrap;
+    transition:opacity .25s, transform .35s cubic-bezier(.2,1.4,.4,1);
+  }
+  #grade.on{opacity:1; transform:translate(-50%,0)}
+  #grade.sharp{color:var(--glow); border-color:var(--amber); box-shadow:0 0 22px rgba(240,168,60,.35)}
+  #grade.good{color:var(--good); border-color:#3f6b4c}
+  #grade.ok{color:var(--ink)}
+  #grade.miss{color:var(--bad); border-color:#6b3f3f}
+
+  /* when the lifted bone fits both ends: say which, in numbers */
+  #endPick{
+    position:absolute; left:8px; right:8px; bottom:calc(var(--handH, 120px) + 8px); z-index:6;
+    display:flex; gap:8px; justify-content:center;
+  }
+  #endPick .btn{flex:0 1 170px; min-height:44px; background:rgba(44,32,25,.95); border-color:var(--amber)}
+
+  /* your turn, felt along the bottom edge of the table */
+  #stage::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:var(--handH,120px); z-index:1; pointer-events:none;
+    background:radial-gradient(ellipse at 50% 120%, rgba(62,207,142,.22), rgba(62,207,142,0) 70%);
+    opacity:0; transition:opacity .5s;
+  }
+  #stage.myTurn::after{opacity:1}
 
   /* ---------- the control tray ---------- */
   #tray{
@@ -145,14 +220,16 @@
   @keyframes slam{0%{transform:scale(2.4) rotate(-7deg); opacity:0}60%{transform:scale(.94)}100%{transform:none}}
 
   /* ---------- Don Chuy ---------- */
+  /* under the plates, never over your bones — the panel used to sit on
+     top of the hand, so reading his advice meant not being able to act on it */
   #chuy{
-    position:absolute; left:8px; right:8px; bottom:8px; z-index:5;
+    position:absolute; left:8px; right:8px; top:var(--hudH, 112px); z-index:5; max-width:560px; margin:0 auto;
     background:rgba(26,18,12,.93); backdrop-filter:blur(9px);
     border:1px solid var(--line); border-left:3px solid var(--amber);
     border-radius:13px; padding:9px 12px; font-size:.88rem;
     box-shadow:var(--shadow); transition:transform .25s, opacity .25s;
   }
-  #chuy.off{opacity:0; transform:translateY(14px); pointer-events:none}
+  #chuy.off{opacity:0; transform:translateY(-10px); pointer-events:none}
   #chuy .head{display:flex; align-items:center; gap:7px; font-weight:700; color:var(--amber); font-size:.8rem; letter-spacing:.04em}
   #chuy .head .x{margin-left:auto; color:var(--soft); font-weight:400; padding:2px 6px}
   #chuy p{margin:.35em 0 0}
@@ -301,7 +378,7 @@
 
   /* the link's own pulse, at the table */
   #netChip{
-    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    position:absolute; bottom:calc(var(--handH, 120px) + 8px); left:8px;
     background:rgba(12,9,5,.82); border:1px solid var(--line); border-radius:999px;
     padding:3px 12px; font-size:.72rem; color:var(--soft); z-index:6; white-space:nowrap;
     display:flex; align-items:center; gap:7px;
@@ -313,6 +390,59 @@
   #netChip.waiting .pulse{background:var(--soft)}
   #netChip.healing,#netChip.lost{color:var(--ink); border-color:var(--amber)}
   @keyframes blip{0%,100%{opacity:.25} 50%{opacity:1}}
+
+  /* ---------- rank ---------- */
+  .rankCard{
+    width:min(360px,100%); background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:10px 12px; margin:0 0 6px; text-align:left;
+  }
+  .rankCard .rt{display:flex; align-items:baseline; gap:8px}
+  .rankCard .rn{font-weight:800; color:var(--glow); font-size:1.05rem}
+  .rankCard .rx{margin-left:auto; color:var(--soft); font-size:.78rem; font-variant-numeric:tabular-nums}
+  .rankCard .rnote{color:var(--soft); font-size:.8rem}
+  .bar{height:8px; border-radius:99px; background:#120c08; border:1px solid var(--line); overflow:hidden; margin-top:6px}
+  .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,#d2841f,#ffd77a); border-radius:99px; transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+  .xpList{list-style:none; padding:0; margin:8px 0 0; font-size:.86rem}
+  .xpList li{display:flex; justify-content:space-between; padding:2px 0; opacity:0; transform:translateY(4px); animation:xpIn .4s forwards}
+  .xpList li b{color:var(--glow)}
+  @keyframes xpIn{to{opacity:1; transform:none}}
+  .rankUp{margin-top:10px; padding:10px 12px; border-radius:12px; background:linear-gradient(135deg,#3a2612,#5a3a12);
+    border:1px solid var(--amber); text-align:center; font-weight:800; color:var(--glow); animation:slam .6s cubic-bezier(.2,1.6,.3,1)}
+  .rankUp small{display:block; font-weight:500; color:var(--ink); opacity:.85}
+  .badges{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:7px; margin-top:8px}
+  .badge{border:1px solid var(--line); border-radius:11px; padding:7px 9px; background:var(--card2); font-size:.8rem}
+  .badge b{display:block; font-size:.86rem}
+  .badge small{color:var(--soft)}
+  .badge.off{opacity:.38; filter:grayscale(1)}
+  .badge.new{border-color:var(--amber); box-shadow:inset 0 0 0 1px var(--amber)}
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px}
+  .stat{background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:6px; text-align:center}
+  .stat b{display:block; font-size:1.15rem; color:var(--glow); font-variant-numeric:tabular-nums}
+  .stat small{font-size:.68rem; color:var(--soft)}
+
+  /* the hands, laid down face up when it is over */
+  .reveal{display:flex; flex-direction:column; gap:6px; margin:6px 0 4px}
+  .reveal .rv{display:flex; align-items:center; gap:8px; font-size:.82rem}
+  .reveal .rv .who{flex:0 0 74px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650}
+  .reveal .rv.us .who{color:var(--good)}
+  .reveal .rv.them .who{color:#e59a8a}
+  .reveal .rv canvas{height:30px; flex:1; min-width:0}
+  .reveal .rv .pts{flex:0 0 auto; color:var(--soft); font-variant-numeric:tabular-nums}
+  .reveal .rv.out .pts{color:var(--good)}
+  .bigPts{font-size:2.2rem; font-weight:800; color:var(--glow); text-align:center; font-variant-numeric:tabular-nums; line-height:1.1}
+
+  /* the door, made obvious */
+  .door{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px}
+  .door .btn{flex-direction:column; min-height:96px; gap:4px}
+  .door .btn .k{font-size:1.8rem}
+  .door .btn small{font-weight:500; font-size:.76rem; opacity:.85}
+  #qr4{display:block; margin:6px auto 2px; width:min(190px,52vw); height:auto; border-radius:12px; background:#fff; padding:6px}
+  .seatList{display:flex; flex-direction:column; gap:5px; margin:10px 0 2px}
+  .seatRow{display:flex; align-items:center; gap:8px; font-size:.86rem; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,.22); border:1px solid var(--line)}
+  .seatRow .sd{width:9px; height:9px; border-radius:50%; background:var(--soft); flex:none}
+  .seatRow.here .sd{background:var(--good)}
+  .seatRow .sr{margin-left:auto; color:var(--soft); font-size:.76rem}
+  .seatRow.us .sr{color:#8fd1a4}
 </style>
 </head>
 <body>
@@ -322,12 +452,26 @@
     <canvas id="table" class="surface"></canvas>
     <canvas id="overlay" class="surface"></canvas>
 
-    <div id="seats"></div>
-    <div id="lastPlay"></div>
-    <div id="scoreRail">
-      <div class="score" id="scoreUs">Nosotros <b>0</b></div>
-      <div class="score" id="scoreThem">Ellos <b>0</b></div>
+    <div id="top">
+      <div id="hud">
+        <div class="plate" id="plate3"></div>
+        <div class="plate" id="plate2"></div>
+        <div class="plate" id="plate1"></div>
+      </div>
+      <div id="scoreRail">
+        <div class="score" id="scoreUs">Nosotros <b>0</b></div>
+        <span id="toWhat">a 100</span>
+        <div class="score" id="scoreThem">Ellos <b>0</b></div>
+      </div>
+      <div id="lastPlay"></div>
     </div>
+    <div id="meBubble" class="bubble"></div>
+    <div id="grade"></div>
+    <div id="endPick" class="hide">
+      <button class="btn" id="pickL">on the <b>·</b></button>
+      <button class="btn" id="pickR">on the <b>·</b></button>
+    </div>
+    <canvas id="confetti" class="surface" style="pointer-events:none;z-index:9"></canvas>
 
     <div id="netChip" class="hide"><span class="pulse"></span><span id="netChipTx">linked</span></div>
     <div id="banner"><div class="big"></div><div class="sub"></div></div>
@@ -353,9 +497,12 @@
   <canvas id="splashCv" width="600" height="220"></canvas>
   <div class="title">The Domino Table</div>
   <div class="sub">Dominó the way it is actually played: four seats, your partner across from you, and nothing in the boneyard.</div>
+  <div id="splashRank" class="rankCard"></div>
   <div class="row">
     <button class="btn primary wide" id="goSolo">Play a match</button>
-    <button class="btn" id="goParty">Four phones</button>
+  </div>
+  <div class="row">
+    <button class="btn wide" id="goParty">📱 Play with friends</button>
   </div>
   <div class="row">
     <button class="btn" id="goLearn">How it's played</button>
@@ -377,8 +524,15 @@
     <button class="btn" id="mLearn">How it's played</button>
   </div>
   <div class="row">
-    <button class="btn" id="mParty">Four phones</button>
+    <button class="btn" id="mParty">📱 Play with friends</button>
+    <button class="btn" id="mCareer">My record</button>
+  </div>
+  <div class="row">
     <button class="btn" id="mView">Switch to 2D</button>
+    <button class="btn" id="mSound">Sound on</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mCoach">Coach tips on</button>
   </div>
   <p class="note" id="menuNote"></p>
 </div></div>
@@ -409,7 +563,7 @@
 <div class="ov hide" id="ovLearn"><div class="sheet">
   <button class="close" data-close="ovLearn">✕</button>
   <h2>How it's played</h2>
-  <p class="lead">Not a rulebook — the five things that separate someone who knows the rules from someone who can play.</p>
+  <p class="lead">Not a rulebook — the things that separate someone who knows the rules from someone who can play.</p>
   <div id="lessons"></div>
 </div></div>
 
@@ -422,7 +576,7 @@
 
 <div class="ov hide" id="ovParty"><div class="sheet">
   <button class="close" data-close="ovParty">✕</button>
-  <h2>Four phones, one table</h2>
+  <h2>Play with friends</h2>
   <div id="partyBody"></div>
 </div></div>
 
@@ -430,11 +584,19 @@
   <button class="close" data-close="ovEnd">✕</button>
   <h2 id="endTitle"></h2>
   <p class="lead" id="endLead"></p>
+  <div id="endHands"></div>
   <div id="endBody"></div>
+  <div id="endXP"></div>
   <div class="row">
     <button class="btn primary wide" id="endNext">Next hand</button>
-    <button class="btn" id="endLesson">Teach me that</button>
+    <button class="btn" id="endLesson">Teach me</button>
   </div>
+</div></div>
+
+<div class="ov hide" id="ovCareer"><div class="sheet">
+  <button class="close" data-close="ovCareer">✕</button>
+  <h2>My record</h2>
+  <div id="careerBody"></div>
 </div></div>
 
 <script src="rules.js"></script>
@@ -444,6 +606,8 @@
 <script src="skins.js"></script>
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>
+<script src="sound.js"></script>
+<script src="career.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
 <script src="app.js"></script>

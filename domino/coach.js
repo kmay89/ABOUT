@@ -119,6 +119,36 @@ var SAYS = {
         "Play the " + w.num + "|" + w.num + " while the " + suitName(w.num) + " are still open.";
     }
   },
+  danger: {
+    rank: 1,
+    say: function (w, view, names) {
+      var nm = who(view, w.seat, names);
+      return cap(nm) + " is down to " + (w.n === 1 ? "their last bone" : "two bones") +
+        ". Nothing matters more than leaving ends they cannot answer — by the count about " +
+        Math.round(w.p * 100) + " in 100 they cannot after this.";
+    }
+  },
+  mateOut: {
+    rank: 2,
+    say: function (w, view, names) {
+      return cap(who(view, w.seat, names)) + " has " + (w.n === 1 ? "one bone" : "two bones") +
+        " left. Leave a door open and let them go out for both of you.";
+    }
+  },
+  feedMate: {
+    rank: 3,
+    say: function (w, view, names) {
+      return "It puts " + suitName(w.num) + " back on the table — " + who(view, w.seat, names) +
+        " has been showing " + suitName(w.num) + " all hand. Give your partner what they ask for; that is how a pareja talks without talking.";
+    }
+  },
+  starveOpp: {
+    rank: 4,
+    say: function (w, view, names) {
+      return "It takes the " + suitName(w.num) + " away from " + who(view, w.seat, names) +
+        ", who keeps putting them down. Close the suits the other side is long in.";
+    }
+  },
   heavy: {
     rank: 7,
     say: function (w) {
@@ -127,6 +157,8 @@ var SAYS = {
     }
   }
 };
+
+function cap(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
 
 /* ---------- the hint ----------
    `analysis` is whatever `AI.analyse` returned for this view. The coach
@@ -184,6 +216,47 @@ function hint(view, analysis, opts) {
     close: close,
     shrug: false
   };
+}
+
+/* ---------- how did that play compare ----------
+   After you play, the room asks the strongest player at the table what
+   *it* would have done and lines your bone up against its list. The gaps
+   are in the AI's own units — points of expected swing, from playing the
+   hand out a few hundred times — and the bands were set from 4,300 real
+   alternatives: half of all non-best plays cost under 12, a tenth cost
+   over 31.
+
+   Forced plays are not graded. Praising somebody for playing the only
+   bone that fits teaches them nothing, and it cheapens the praise.   */
+var GRADES = [
+  { id: "sharp", max: 3,  label: "Sharp",  icon: "★" },
+  { id: "good",  max: 9,  label: "Good",   icon: "✓" },
+  { id: "ok",    max: 20, label: "Okay",   icon: "·" },
+  { id: "miss",  max: 1e9, label: "Costly", icon: "!" }
+];
+function grade(view, analysis, mv, opts) {
+  opts = opts || {};
+  if (!analysis || !analysis.ranked || analysis.ranked.length < 2 || !mv) return null;
+  var best = analysis.ranked[0], mine = null, at = -1;
+  for (var i = 0; i < analysis.ranked.length; i++) {
+    var r = analysis.ranked[i];
+    if (r.move.tile === mv.tile && r.move.end === mv.end) { mine = r; at = i; break; }
+  }
+  /* the same bone at the other end with identical ends after is the
+     same play — a double on a line showing that number both ways */
+  if (!mine) return null;
+  var gap = Math.max(0, best.score - mine.score);
+  var g = GRADES[GRADES.length - 1];
+  for (var k = 0; k < GRADES.length; k++) if (gap <= GRADES[k].max) { g = GRADES[k]; break; }
+  var out = { id: g.id, label: g.label, icon: g.icon, gap: gap, rank: at + 1, of: analysis.ranked.length };
+  if (g.id === "ok" || g.id === "miss") {
+    var h = hint(view, analysis, opts);
+    out.better = best.move;
+    out.say = "I'd have played the " + boneName(best.move.tile) + (view.left < 0 ? "" :
+      " on the " + (best.move.end === "L" ? "left" : "right")) + ".";
+    out.why = h.lines[0] || "";
+  }
+  return out;
 }
 
 /* ---------- what the table has told us ----------
@@ -257,6 +330,41 @@ var MOMENTS = [
       return "Good — the mulas are the bones that strand you. Only the " +
         suitName(R.A(e.tile)) + " will ever take that one.";
     } },
+  { id: "tutTurn", once: true,
+    when: function (e) { return e.k === "yourTurn"; },
+    say: function () {
+      return "Your turn. The bones that glow fit an open end — tap one to play it. " +
+        "If it fits both ends, tap it and then pick the end. The dimmed ones can wait.";
+    } },
+  { id: "tutMate", once: true,
+    when: function (e) { return e.k === "play" && e.seat === R.partner(e.you); },
+    say: function (e, names, view) {
+      return cap(who(view, e.seat, names)) + " sits across from you and plays for your side. " +
+        "Watch the numbers they leave showing — those are the ones they are long in. Feed them back.";
+    } },
+  { id: "mateLead", once: false,
+    when: function (e) { return e.k === "salida" && e.seat === R.partner(e.you); },
+    say: function (e, names, view) {
+      var a = R.A(e.tile), b = R.B(e.tile);
+      return cap(who(view, e.seat, names)) + " opened with the " + boneName(e.tile) + ". In a pareja the salida is a message: " +
+        (a === b ? "a mula says “I am long in " + suitName(a) + ".”" : "they are strong in " + suitName(a) + " or " + suitName(b) + ".") +
+        " Keep those on the table for them.";
+    } },
+  { id: "mateHung", once: true,
+    when: function (e) { return e.k === "hung" && e.seat === R.partner(e.you) && e.by === e.you; },
+    say: function (e, names, view) {
+      return "Ouch — " + who(view, e.seat, names) + " had nothing for the ends you left. Before you play, look at what they have been showing, and what they have passed on.";
+    } },
+  { id: "youHung", once: false,
+    when: function (e) { return e.k === "hung" && e.by === e.you && R.isOpponent(e.seat, e.you); },
+    say: function (e, names, view) {
+      return "That is ahorcar — " + who(view, e.seat, names) + " had nothing for the ends you left. A free turn for your side.";
+    } },
+  { id: "tutCount", once: true,
+    when: function (e) { return e.k === "yourTurn" && e.line >= 6; },
+    say: function () {
+      return "Lost track of what is out? Tap 👁 — it shows how many of each number you have not seen yet, and who has passed on what.";
+    } },
   { id: "zapatero", once: false,
     when: function (e) { return e.k === "match" && e.zapatero; },
     say: function () {
@@ -276,7 +384,7 @@ function moment(e, seen, names, view) {
 }
 
 /* ---------- the short course ----------
-   Five cards. Not a rulebook — the five things that separate somebody
+   Eight cards. Not a rulebook — the things that separate somebody
    who knows the rules from somebody who can play, in the order they
    become useful. Shown on request, and one is offered at the end of a
    hand you lost badly. */
@@ -297,6 +405,16 @@ var LESSONS = [
     body: "Your partner sits across from you and their points are your points. Your first bone tells " +
           "them what you are long in — lead your strongest suit and they will feed it back to you. " +
           "And never open a number your partner has passed on; you are hanging your own side." },
+  { id: "senas", title: "Reading your partner",
+    body: "Talking about your hand is not allowed, so a pareja talks with bones. The salida is the loudest " +
+          "thing anyone says: you open with what you are long in, and a mula opening says it twice. After that, " +
+          "every bone someone plays picks the number left showing — and people leave numbers they can answer." },
+  { id: "dar", title: "Feeding your partner — dar agua",
+    body: "When your partner has been putting down fives, put fives back on the table for them. When the other " +
+          "side has been putting down fours, take the fours away. Most of good partnership play is just those two sentences." },
+  { id: "cerrar", title: "When somebody is about to go out",
+    body: "Count the bones in every hand, every turn. An opponent down to one or two has to be shut out now — leave ends " +
+          "they cannot answer even if it costs you a heavy bone. A partner down to one or two needs the opposite: a door left open." },
   { id: "peso", title: "Weight is a debt",
     body: "If the game shuts, whatever you are still holding is counted and handed to the other side. " +
           "A 6|6 in your hand at the end is thirteen points you paid for keeping. Shed the heavy " +
@@ -306,6 +424,7 @@ var LESSONS = [
 var Coach = {
   SUIT: SUIT, suitName: suitName, suitBoth: suitBoth, boneName: boneName,
   SAYS: SAYS, MOMENTS: MOMENTS, LESSONS: LESSONS,
+  GRADES: GRADES, grade: grade,
   hint: hint, readTable: readTable, moment: moment, list: list, who: who
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Coach;

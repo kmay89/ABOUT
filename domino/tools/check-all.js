@@ -17,6 +17,7 @@ var CHECKS = [
   ["skin-check.js", [], "the settings"],
   ["net-check.js", [], "the link"],
   ["coach-check.js", [], "the coach"],
+  ["career-check.js", [], "the rank ladder"],
   ["ai-check.js", QUICK ? ["--quick"] : [], "the players"],
   ["room-check.js", [], "the room in a browser"]
 ];

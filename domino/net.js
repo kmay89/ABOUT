@@ -310,6 +310,7 @@ var Net = {
   onRejoin: null,       /* a guest's link came back by itself               */
   lastHeard: 0,
   code: null,           /* the four letters, when we came in that way       */
+  id: "",               /* this phone, so a returning chair is recognised   */
   vitals: null,
   everSat: false        /* has this guest ever been at the table?           */
 };
@@ -370,15 +371,49 @@ function seatTaken(s) {
    remembered by, so a player whose phone locked, or whose train went
    into a tunnel, comes back to the same seat and the same bones rather
    than to whichever chair happened to be free. */
-function seatFor(name) {
+/* The order empty chairs are offered in: across the table first. Two
+   phones is the commonest table there is, and two friends at one table
+   want to be a pareja against the house — not to spend the evening
+   trying to beat each other with a machine for a partner. */
+var SEAT_ORDER = [2, 1, 3];
+function seatFor(name, id) {
   var i;
-  for (i = 0; i < Net.roster.length; i++) {
-    if (Net.roster[i].name && Net.roster[i].name === name && !seatTaken(Net.roster[i].seat)) {
-      return Net.roster[i].seat;
+  /* the same phone coming back, by the id it carries */
+  if (id) {
+    for (i = 0; i < Net.roster.length; i++) {
+      if (Net.roster[i].id && Net.roster[i].id === id && !seatTaken(Net.roster[i].seat)) return Net.roster[i].seat;
     }
   }
-  for (i = 1; i < SEATS; i++) if (!seatTaken(i)) return i;
+  /* the same name coming back, from a phone too old to carry an id */
+  for (i = 0; i < Net.roster.length; i++) {
+    var r = Net.roster[i];
+    if (r.name && r.name === name && (!r.id || !id || r.id === id) && !seatTaken(r.seat)) return r.seat;
+  }
+  for (i = 0; i < SEAT_ORDER.length; i++) if (!seatTaken(SEAT_ORDER[i]) && !heldFor(SEAT_ORDER[i])) return SEAT_ORDER[i];
+  for (i = 0; i < SEAT_ORDER.length; i++) if (!seatTaken(SEAT_ORDER[i])) return SEAT_ORDER[i];
   return -1;
+}
+/* the roster as the other phones see it — without the ids, which are
+   what a chair is reclaimed with and so are nobody else's business */
+function publicRoster() {
+  return Net.roster.map(function (r) { return { seat: r.seat, name: r.name, here: r.here, bot: r.bot }; });
+}
+/* a chair whose owner dropped out keeps their name on it for a while,
+   so a newcomer is offered a truly empty chair before a held one */
+function heldFor(s) { return !!(Net.roster[s] && Net.roster[s].name && !Net.roster[s].here); }
+/* two different phones saying the same name — two people who both left
+   it blank, say — are two people, and the second gets a number */
+function uniqueName(nm, id) {
+  var taken = function (n) {
+    for (var i = 0; i < Net.roster.length; i++) {
+      var r = Net.roster[i];
+      if (r.name === n && r.here && (!id || !r.id || r.id !== id)) return true;
+    }
+    return n === Net.name;
+  };
+  if (!taken(nm)) return nm;
+  for (var k = 2; k < 10; k++) { var c = nm.slice(0, 12) + " " + k; if (!taken(c)) return c; }
+  return nm;
 }
 
 function wireHostChannel(slot) {
@@ -400,26 +435,37 @@ function wireHostChannel(slot) {
       /* the greeting is sent more than once on purpose — a channel-open
          race must not be able to eat the name a seat is keyed on, so
          this has to be idempotent */
-      if (slot.claimed) { sendTo(slot, { k: "seat", seat: slot.seat, roster: Net.roster }); return; }
+      if (slot.claimed) { sendTo(slot, { k: "seat", seat: slot.seat, roster: publicRoster() }); return; }
       var nm = cleanName(msg.name);
-      /* somebody arriving under a name that is already sitting down is
-         that same person coming back on a new link — the older one is a
-         corpse the host simply hasn't buried yet. Newest connection wins,
-         or they'd be shown to a different chair with different bones. */
+      var id = typeof msg.id === "string" ? msg.id.replace(/[^a-z0-9]/gi, "").slice(0, 16) : "";
+      /* Somebody arriving who is already sitting down is that same person
+         coming back on a new link — the older one is a corpse the host
+         simply hasn't buried yet. Newest connection wins, or they'd be
+         shown to a different chair with different bones.
+
+         "The same person" is decided by the phone's id where it sends one.
+         Deciding it by name alone meant two friends who both left the
+         name box empty arrived as two "Jugador"s, and each one's arrival
+         threw the other off the table. */
       for (var p = Net.peers.length - 1; p >= 0; p--) {
-        if (Net.peers[p] !== slot && Net.peers[p].name === nm) dropSlot(Net.peers[p]);
+        var q = Net.peers[p];
+        if (q === slot) continue;
+        if (id ? q.id === id : (!q.id && q.name === nm)) dropSlot(q);
       }
-      var seat = seatFor(nm);
+      var seat = seatFor(nm, id);
       if (seat < 0) { sendTo(slot, { k: "full" }); return; }
+      var heldName = Net.roster[seat] && Net.roster[seat].name;
+      if (!(heldName && heldName === nm)) nm = uniqueName(nm, id);
       slot.claimed = true;
       slot.seat = seat;
       slot.name = nm;
+      slot.id = id;
       Net.peers.push(slot);
       var idx = Net.pool.indexOf(slot);
       if (idx >= 0) Net.pool.splice(idx, 1);
-      Net.roster[seat] = { seat: seat, name: nm, here: true, bot: false };
-      sendTo(slot, { k: "seat", seat: seat, roster: Net.roster });
-      Net.broadcast({ k: "lob", roster: Net.roster });
+      Net.roster[seat] = { seat: seat, name: nm, here: true, bot: false, id: id };
+      sendTo(slot, { k: "seat", seat: seat, roster: publicRoster() });
+      Net.broadcast({ k: "lob", roster: publicRoster() });
       if (Net.onRoster) Net.onRoster(Net.roster);
       if (Net.onLink) Net.onLink(seat, nm);
       return;
@@ -442,9 +488,9 @@ function dropSlot(slot) {
   /* the chair does not disappear — it goes back to being played by the
      house, and keeps the name so its owner can take it back */
   if (seat >= 1 && seat < SEATS) {
-    Net.roster[seat] = { seat: seat, name: Net.roster[seat].name, here: false, bot: true };
+    Net.roster[seat] = { seat: seat, name: Net.roster[seat].name, here: false, bot: true, id: Net.roster[seat].id };
   }
-  Net.broadcast({ k: "lob", roster: Net.roster });
+  Net.broadcast({ k: "lob", roster: publicRoster() });
   if (Net.onRoster) Net.onRoster(Net.roster);
   if (Net.onDrop) Net.onDrop(seat);
 }
@@ -499,7 +545,7 @@ function wireGuestChannel(dc) {
     Net.everSat = true;
     /* said three times, a beat apart: the host keys a seat on this name
        and a lost greeting would put the player in the wrong chair */
-    var say = function () { rawSend({ k: "hi", name: Net.name }); };
+    var say = function () { rawSend({ k: "hi", name: Net.name, id: Net.id || "" }); };
     say();
     setTimeout(say, 220);
     setTimeout(say, 700);
