@@ -13,7 +13,7 @@
     "check:well": "node tools/well-check.js",
     "check:guide": "node tools/guide-check.js",
     "check:luma": "node --test luma/tests/mesh.test.mjs luma/tests/image-processing.test.mjs luma/tests/export-worker.test.mjs luma/tests/accessories.test.mjs luma/tests/light.test.mjs",
-    "check:hollow": "node --test hollow/tests/mesh.test.mjs hollow/tests/sdf.test.mjs hollow/tests/surface.test.mjs hollow/tests/threemf.test.mjs hollow/tests/mold.test.mjs",
+    "check:hollow": "node --test hollow/tests/mesh.test.mjs hollow/tests/sdf.test.mjs hollow/tests/surface.test.mjs hollow/tests/threemf.test.mjs hollow/tests/mold.test.mjs hollow/tests/verdict.test.mjs",
     "check:cubby": "node --test cubby/tests/geometry.test.mjs cubby/tests/layout.test.mjs cubby/tests/items.test.mjs cubby/tests/export.test.mjs cubby/tests/fuzz.test.mjs",
     "icons": "node tools/make-game-icons.js && node hollow/tools/make-icons.js",
     "check:chess": "node chess/tools/perft.js && node chess/tools/book-check.js && node chess/tools/teach-check.js && node chess/tools/lesson-check.js && node chess/tools/skin-check.js && node chess/tools/pieces-check.js && node chess/tools/engine-check.js && node chess/tools/brain-check.js && node chess/tools/offline-check.js && node chess/tools/touch-check.js && node chess/tools/play-check.js && node chess/tools/rating-check.js && node chess/tools/sound-check.js && node chess/tools/motion-check.js",

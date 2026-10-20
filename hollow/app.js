@@ -3,6 +3,8 @@ import { MoldViewer } from './viewer.js';
 import { SAMPLES } from './samples.js';
 import { DEFAULTS, QUALITY, MATERIALS, castEstimate, pourAxis } from './mold.js';
 import { write3MF } from './threemf.js';
+import { verdict } from './verdict.js';
+import { Sounds } from './sounds.js';
 
 /* ---------- printers, as in Luma ---------- */
 const PRINTERS = [
@@ -36,6 +38,66 @@ const state = {
   projectName: 'hollow-mold',
 };
 let viewer, liveTimer, toastTimer;
+const sounds = new Sounds();
+
+/* ---------- recommended settings per material ---------- */
+const RECOMMENDED = {
+  concrete: { wall: 12, spout: [14, 24], keys: 'cones', keyClearance: 0.25, fasteners: 'bands', clearance: 0.1, lip: 3, floor: 10 },
+  plaster: { wall: 10, spout: [12, 20], keys: 'cones', keyClearance: 0.25, fasteners: 'bands', clearance: 0.1, lip: 2, floor: 8 },
+  resin: { wall: 8, spout: [8, 16], keys: 'rail', keyClearance: 0.2, fasteners: 'bands', clearance: 0, lip: 2, floor: 6 },
+  wax: { wall: 8, spout: [10, 18], keys: 'cones', keyClearance: 0.25, fasteners: 'bands', clearance: 0, lip: 2, floor: 6 },
+  soap: { wall: 10, spout: [12, 20], keys: 'cones', keyClearance: 0.25, fasteners: 'bands', clearance: 0.05, lip: 3, floor: 8 },
+};
+function applyRecommended() {
+  const r = RECOMMENDED[$('materialSelect').value] || RECOMMENDED.concrete;
+  const mesh = orientedMesh();
+  const longest = mesh ? Math.max(...bounds(mesh).size) : 60;
+  const wall = longest < 50 ? Math.max(7, r.wall - 3) : longest > 160 ? r.wall + 2 : r.wall;
+  $('wallInput').value = String(wall);
+  $('spoutDiameterInput').value = String(r.spout[0]); $('spoutMouthInput').value = String(r.spout[1]);
+  $('keysSelect').value = wall < 8 && r.keys === 'cones' ? 'rail' : r.keys;
+  $('keyClearanceInput').value = String(r.keyClearance);
+  $('fastenerSelect').value = r.fasteners;
+  $('clearanceInput').value = String(r.clearance);
+  $('lipInput').value = String(r.lip); $('floorInput').value = String(r.floor);
+  $('spoutCheck').checked = true; $('ventsCheck').checked = true; $('pryCheck').checked = true;
+  $('autoPlane').checked = true; $('planeInput').disabled = true;
+  changed();
+  toast(`Set for ${MATERIALS[$('materialSelect').value].name.toLowerCase()}: a ${wall} mm wall, a ${r.spout[0]} mm spout, ${$('keysSelect').value === 'rail' ? 'a locating rail' : 'three pegs'} and rubber-band grooves.`);
+}
+
+/* ---------- the verdict card ---------- */
+function renderVerdict(result) {
+  const bed = printer().bed;
+  const layout = viewer.printLayout || [];
+  const together = layout.every(p => p.at[0] + p.size[0] <= bed.x + 0.01 && p.at[1] + p.size[1] <= bed.y + 0.01);
+  const v = verdict(result, { material: $('materialSelect').value, bed, printerName: `your ${printer().short}`, fitsTogether: together });
+  const card = $('verdictCard');
+  card.className = `verdict-card is-${v.grade}`;
+  $('verdictBadge').textContent = v.grade === 'good' ? 'Good to go' : v.grade === 'care' ? 'With care' : 'Not yet';
+  $('verdictHeadline').textContent = v.headline;
+  $('verdictOutlook').textContent = v.outlook || 'Fix the red items and the verdict will change.';
+  const list = $('verdictList'); list.innerHTML = '';
+  const expanded = $('verdictToggle').getAttribute('aria-expanded') === 'true';
+  let hiddenCount = 0;
+  v.items.forEach((item, i) => {
+    const li = document.createElement('li'); li.className = `is-${item.level}`;
+    const showByDefault = item.level !== 'ok' || i === 0 || v.items.every(x => x.level === 'ok');
+    if (!showByDefault && !expanded) { li.classList.add('is-hidden'); hiddenCount++; }
+    li.style.animationDelay = `${Math.min(i, 8) * 40}ms`;
+    li.innerHTML = `<span class="mark" aria-hidden="true">${item.level === 'ok' ? '✓' : item.level === 'warn' ? '!' : '✕'}</span><div><strong>${item.title}</strong><p>${item.detail}</p>${item.fix ? `<span class="fix">${item.fix}</span>` : ''}</div>`;
+    list.append(li);
+  });
+  const toggle = $('verdictToggle');
+  toggle.hidden = hiddenCount === 0 && !expanded;
+  toggle.textContent = expanded ? 'Show fewer' : `Show every check (${hiddenCount} more)`;
+  state.lastVerdict = v;
+  return v;
+}
+function pendingVerdict() {
+  const card = $('verdictCard'); card.className = 'verdict-card is-pending';
+  $('verdictBadge').textContent = 'Checking…';
+}
 
 /* ---------- small helpers ---------- */
 function toast(message) {
@@ -157,7 +219,9 @@ function workerBuild(model, options, onProgress) {
 }
 
 function changed() {
+  sounds.tick();
   state.finalStale = true;
+  pendingVerdict();
   $('buildBtn').classList.add('is-stale');
   $('downloads').hidden = true;
   refreshOrientation();
@@ -178,9 +242,13 @@ async function liveBuild() {
     state.live = result;
     showResult(result, mesh, false);
     status.innerHTML = `<span class="status-dot"></span>Preview at ${result.h.toFixed(2)} mm detail · drag to orbit`;
+    sounds.preview();
+    if (viewer.view === 'mold') { viewer.setExplode(0); viewer.animateExplode(+$('explodeInput').value / 100, 900); }
+    if (viewer.view === 'pour') { viewer.playPour(); sounds.pour(); }
   } catch (error) {
     if (error.message && /terminated|could not start|worker failed/i.test(error.message)) return;
     status.innerHTML = `<span class="status-dot"></span>${error.message}`;
+    sounds.error();
     toast(error.message);
   } finally {
     status.classList.remove('is-busy'); state.building = false; $('liveProgress').style.width = '0%';
@@ -199,9 +267,10 @@ async function finalBuild() {
     btn.classList.remove('is-stale');
     showResult(result, mesh, true);
     renderDownloads(result);
+    sounds.built();
     toast(`Built at ${result.h.toFixed(2)} mm detail. Save the STLs or the 3MF below.`);
   } catch (error) {
-    if (!/terminated/i.test(error.message || '')) toast(error.message);
+    if (!/terminated/i.test(error.message || '')) { sounds.error(); toast(error.message); }
   } finally {
     btn.disabled = false; $('progressRow').hidden = true; $('progressBar').style.width = '0%';
   }
@@ -264,6 +333,7 @@ function showResult(result, mesh, isFinal) {
   }
   list.parentElement.hidden = !list.children.length;
   fitCheck(result);
+  renderVerdict(result);
   $('legendRelease').hidden = a?.mode !== 'release';
   $('legendPrint').hidden = a?.mode !== 'print';
   $('liveNote').textContent = isFinal ? `Shown at export detail (${result.h.toFixed(2)} mm).` : `Preview at draft detail (${result.h.toFixed(2)} mm); export builds finer.`;
@@ -420,14 +490,14 @@ async function openProject(file) {
 
 /* ---------- wiring ---------- */
 function init() {
-  viewer = new MoldViewer($('viewer'), {
+  viewer = window.hollowViewer = new MoldViewer($('viewer'), {
     onFailure: () => { $('viewerStatus').textContent = 'The 3D view lost its graphics context. Reload the page to bring it back.'; },
   });
   // printers
   const sel = $('printerSelect');
   for (const p of PRINTERS) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name; sel.append(o); }
   try { const saved = localStorage.getItem('hollow-printer'); if (PRINTERS.some(p => p.id === saved)) sel.value = saved; } catch { /* private mode */ }
-  sel.addEventListener('change', () => { try { localStorage.setItem('hollow-printer', sel.value); } catch { /* ignore */ } viewer.setPlate(printer().bed); if (state.live) fitCheck(state.final && !state.finalStale ? state.final : state.live); });
+  sel.addEventListener('change', () => { try { localStorage.setItem('hollow-printer', sel.value); } catch { /* ignore */ } viewer.setPlate(printer().bed); const r = state.final && !state.finalStale ? state.final : state.live; if (r) { fitCheck(r); renderVerdict(r); } });
   viewer.setPlate(printer().bed);
   // materials
   const mat = $('materialSelect');
@@ -480,10 +550,16 @@ function init() {
     $(id).addEventListener('change', changed);
   }
   // views
-  for (const v of ['model', 'mold', 'section', 'print', 'pour']) $(`view-${v}`).addEventListener('click', () => {
-    for (const w of ['model', 'mold', 'section', 'print', 'pour']) $(`view-${w}`).setAttribute('aria-pressed', String(w === v));
+  const VIEWS = ['model', 'mold', 'section', 'print', 'pour'];
+  const showView = (v) => {
+    const was = viewer.view;
+    for (const w of VIEWS) $(`view-${w}`).setAttribute('aria-pressed', String(w === v));
     viewer.setView(v);
-    $('explodeRow').hidden = v !== 'mold'; $('sectionRow').hidden = v !== 'section';
+    if (was !== v) sounds.click();
+    $('orbitHint').classList.add('is-gone');
+    $('explodeRow').hidden = v !== 'mold'; $('sectionRow').hidden = v !== 'section'; $('pourRow').hidden = v !== 'pour';
+    if (v === 'mold' && was !== v) { const to = Math.max(0.45, +$('explodeInput').value / 100); $('explodeInput').value = String(Math.round(to * 100)); viewer.setExplode(0); viewer.animateExplode(to, 900); }
+    if (v === 'pour' && was !== v) { setTimeout(() => { viewer.playPour(); sounds.pour(); }, 450); }
     $('viewHint').textContent = {
       model: 'Green releases, amber is steep, red is trapped. The amber plane is the parting line; the arrow is the pour.',
       mold: 'The printed parts around the cast. Pull them apart with the slider.',
@@ -491,11 +567,34 @@ function init() {
       print: 'Every part on your plate, in printing position. Red marks overhangs steeper than 45°.',
       pour: state.type === 'two-part' ? 'The mold standing to be poured, spout up, with the cast inside.' : state.type === 'box' ? 'The master with the silicone level at the top of the tray.' : 'The open mold with the cast inside.',
     }[v];
+  };
+  for (const v of VIEWS) $(`view-${v}`).addEventListener('click', () => showView(v));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, select, textarea, [contenteditable]') || e.altKey || e.ctrlKey || e.metaKey) return;
+    const i = parseInt(e.key, 10);
+    if (i >= 1 && i <= 5) { showView(VIEWS[i - 1]); e.preventDefault(); }
   });
+  $('pourPlayBtn').addEventListener('click', () => { viewer.playPour(); sounds.pour(); });
+  for (const name of ['iso', 'front', 'side', 'top']) $(`cam-${name}`).addEventListener('click', () => { viewer.preset(name); sounds.click(); $('orbitHint').classList.add('is-gone'); });
+  $('spinBtn').addEventListener('click', () => { const on = $('spinBtn').getAttribute('aria-pressed') !== 'true'; $('spinBtn').setAttribute('aria-pressed', String(on)); viewer.setAutoRotate(on); sounds.click(); });
+  viewer.onSpinStop = () => $('spinBtn').setAttribute('aria-pressed', 'false');
+  $('viewer').addEventListener('pointerdown', () => $('orbitHint').classList.add('is-gone'), { once: true });
+  setTimeout(() => $('orbitHint').classList.add('is-gone'), 9000);
+  $('verdictToggle').addEventListener('click', () => {
+    const t = $('verdictToggle'); t.setAttribute('aria-expanded', String(t.getAttribute('aria-expanded') !== 'true'));
+    const r = state.final && !state.finalStale ? state.final : state.live; if (r) renderVerdict(r);
+  });
+  $('recommendBtn').addEventListener('click', () => { sounds.click(); applyRecommended(); });
+  const soundBtn = $('soundBtn');
+  const syncSound = () => { soundBtn.setAttribute('aria-pressed', String(sounds.enabled)); soundBtn.title = sounds.enabled ? 'Sounds on' : 'Sounds off'; soundBtn.setAttribute('aria-label', sounds.enabled ? 'Turn sounds off' : 'Turn sounds on'); };
+  syncSound();
+  soundBtn.addEventListener('click', () => { sounds.setEnabled(!sounds.enabled); syncSound(); });
+  document.addEventListener('pointerdown', () => sounds.ready(), { once: true, capture: true });
   $('explodeInput').addEventListener('input', () => viewer.setExplode(+$('explodeInput').value / 100));
   $('sectionInput').addEventListener('input', () => viewer.setSection(+$('sectionInput').value / 100));
-  $('resetViewBtn').addEventListener('click', () => { viewer.userFramed = false; viewer.resetView(); });
+  $('resetViewBtn').addEventListener('click', () => { viewer.userFramed = false; viewer.resetView(550); sounds.click(); });
   $('snapshotBtn').addEventListener('click', () => {
+    sounds.snap();
     const url = viewer.snapshot();
     fetch(url).then(r => r.blob()).then(blob => saveBlob(blob, `${slug(state.projectName)}-hollow-${viewer.view}.png`));
   });
