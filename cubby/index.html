@@ -86,6 +86,24 @@
           <div class="card-head"><span class="step">1</span><h2 id="drawerTitle">Your drawer</h2></div>
           <div class="chips" id="spaceChips" role="group" aria-label="What is this drawer for?"></div>
           <p class="help" id="spaceBlurb"></p>
+          <svg class="measure-figure" viewBox="0 0 332 98" aria-hidden="true">
+            <g fill="none" stroke="#a08a5f" stroke-width="1.6" stroke-linejoin="round">
+              <path d="M40 40 L150 22 L270 40 L270 70 L150 90 L40 70 Z" fill="#f3ead6"/>
+              <path d="M40 40 L150 58 L270 40"/><path d="M150 58 L150 90"/>
+              <path d="M58 44 L150 58 L252 44 L252 60 L150 74 L58 60 Z" fill="#e6dcc3" stroke-width="1"/>
+            </g>
+            <g stroke="#7d7868" stroke-width="1" fill="none">
+              <path d="M58 82 L150 96 M150 96 L252 82" stroke-dasharray="2 2" opacity=".0"/>
+              <path d="M60 78 L148 92" marker-start="url(#mA)" marker-end="url(#mA)"/>
+              <path d="M152 92 L250 78" marker-start="url(#mA)" marker-end="url(#mA)"/>
+              <path d="M282 42 L282 68" marker-start="url(#mA)" marker-end="url(#mA)"/>
+            </g>
+            <defs><marker id="mA" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="5" markerHeight="5"><circle cx="3" cy="3" r="2" fill="#7d7868"/></marker></defs>
+            <text x="96" y="94" text-anchor="middle">WIDTH, inside</text>
+            <text x="212" y="94" text-anchor="middle">DEPTH, inside</text>
+            <text x="288" y="58" text-anchor="start">HEIGHT</text>
+            <text x="150" y="16" text-anchor="middle" fill="#9a9382">the back</text>
+          </svg>
           <div class="measure">
             <div class="field"><label for="widthInput">Width</label><input id="widthInput" type="number" inputmode="decimal" min="30" step="0.5"><span class="unit" data-unit></span></div>
             <div class="field"><label for="depthInput">Depth</label><input id="depthInput" type="number" inputmode="decimal" min="30" step="0.5"><span class="unit" data-unit></span></div>
@@ -117,7 +135,12 @@
 
         <section class="card" aria-labelledby="binTitleHead" id="binCard">
           <div class="card-head"><span class="step">✎</span><h2 id="binTitleHead">This bin</h2></div>
-          <p class="help" id="binEmpty">Click a bin in the plan or in 3D to give it compartments, make it low, or add a finger scoop.</p>
+          <div id="binEmpty">
+            <p class="help">Click a bin in the plan or in 3D to give it compartments, make it low, or add a finger scoop. Or start from what has to go in it:</p>
+            <div class="items-head"><strong style="font-size:13px">Size a bin for…</strong><label><span class="visually-hidden">Show things for</span><select id="itemSpace2"></select></label></div>
+            <div class="items" id="sizeItems" role="group" aria-label="Common things with typical sizes. Press one to see the smallest bin that takes it."></div>
+            <p class="items-note" id="sizeNote">Typical sizes; the fit leaves 2 mm of room. Pens and cutlery want a lane as deep as the drawer.</p>
+          </div>
           <div id="binForm" hidden>
             <p class="bin-title"><strong id="binTitle"></strong><span id="binSize"></span></p>
             <div class="stepper-row">
@@ -139,6 +162,9 @@
               <span class="stepper-note" id="heightNote"></span>
             </div>
             <label class="toggle"><input id="scoopToggle" type="checkbox"><span class="toggle-track" aria-hidden="true"></span><span>Finger scoop on the front edge<small>A dip in the front wall, so the bin lifts out and small things reach the fingers.</small></span></label>
+            <div class="items-head"><strong style="font-size:13px">What goes in it</strong><label><span class="visually-hidden">Show things for</span><select id="itemSpace"></select></label></div>
+            <div class="items" id="binItems" role="group" aria-label="Things that go in this bin: green fits flat, amber fits on the diagonal or stands above the rim, red does not fit. Press to note it as this bin's contents."></div>
+            <p class="items-note" id="itemsNote"></p>
             <div class="bin-actions">
               <button id="splitBtn" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M3 12h18"/></svg>Split into cells</button>
               <button id="deleteBtn" class="button button-danger" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>Remove</button>
@@ -155,6 +181,10 @@
           <ul class="parts" id="partsList" aria-label="Parts to print"></ul>
           <p class="totals" id="totalsLine"></p>
           <div class="warnings" id="warnings" role="status"></div>
+          <details class="plates" id="platesDetails">
+            <summary><span id="platesSummary">Plates</span><small>How the parts lie on the plate — what the 3MF opens as</small></summary>
+            <div class="plate-list" id="plateList"></div>
+          </details>
           <div class="downloads">
             <button id="download3mf" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — every part placed on the plate</small></span></button>
             <button id="downloadZip" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5V4h16v16H4v-3.5"/><path d="M2 10h9v4H2z"/></svg><span>Download everything <small>.zip — 3MF plates, an STL per part, the print sheet</small></span></button>
@@ -231,6 +261,7 @@
           <li>The grid's cell size comes from your drawer, so whatever you draw fills it edge to edge. Columns and rows are the only knobs: fewer means bigger cells.</li>
           <li>Keep anything that must lie flat (pens, knives, brushes) in a lane as deep as the drawer. Put low bins at the front so you can see over them.</li>
           <li>Identical bins print as one part with a quantity, so repeating a size keeps the parts list short and the plates full.</li>
+          <li><strong>Start from what goes in it.</strong> With no bin selected, <em>Size a bin for…</em> lists common things with typical sizes (a dinner fork is 200 × 25 mm, a AA battery 51 × 15, a tape measure 75 × 75 × 38) and tells you the smallest bin that takes one; with a bin selected, the same list shows what fits it — green flat, amber on the diagonal or standing above the rim, red not at all. Press a thing to note it as the bin's contents: the plan draws it in, the bin is named for it, and the print sheet says what each bin is for.</li>
         </ul>
       </section>
       <section>
@@ -241,7 +272,8 @@
           <li><strong>No supports.</strong> Every part prints as placed; the steepest overhang is the back of a clip at about 30°. <strong>No brim</strong> on a textured plate. A smooth plate and a tall bin: 3 mm of brim.</li>
           <li><strong>Elephant foot compensation</strong> at the slicer's default (0.15 mm) keeps the first layer flush, so bins sit square and clips fit.</li>
           <li><strong>Filament.</strong> PLA for the house. PETG for a bathroom or a garage that gets hot (PLA softens in a car, or in a sunlit garage in summer). Matte filaments hide layer lines beautifully in a drawer.</li>
-          <li>Bambu's P2S, P1 and X1 plates are 256 mm square; the A1 mini's is 180. Anything the packer cannot fit is listed under the parts, and the fix is more columns (smaller cells) or a bigger printer.</li>
+          <li>Bambu's P2S, P1, X1 and A1 plates are 256 mm square; the A1 mini's is 180; the H2D's is 350 × 320. Parts keep 4 mm from the edge, 6 mm from each other, and clear of the 18 × 28 mm front-left corner Bambu Studio reserves for the purge line, so the plate slices exactly as laid out. The <em>Plates</em> panel shows every plate before you download it.</li>
+          <li>A bin longer than the plate goes on the diagonal, alone on its plate (a 256 mm plate takes about 320 mm that way). Longer than that, the starting layouts split it into two bins joined by a clip, and the warning under the parts offers to split one you drew yourself. If Bambu Studio says the file "is not from Bambu Lab" and offers to load the geometry only, say yes: the parts land where the plan put them.</li>
         </ul>
       </section>
       <section>

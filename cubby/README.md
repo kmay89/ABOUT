@@ -28,6 +28,30 @@ HTTP(S) — ES modules do not run from `file://`.
 A design is saved in the browser as you work, can be saved and opened as a
 small JSON file, and fits in a link (**Copy a link to this design**).
 
+**What goes in it.** `items.js` holds a hundred common things with typical
+sizes — cutlery, utensils, pens, batteries, cables, tools, bits, makeup,
+brushes — each marked for the spaces it belongs to. With nothing selected,
+*Size a bin for…* names the smallest bin on the grid that takes a thing flat
+and adds one in the first free spot. With a bin selected, the same list is
+coloured by fit: green lies flat, amber only on the diagonal or standing
+above the rim, red not at all (hover for the numbers and the cells it would
+need). Press a thing to note it as the bin's contents: the plan draws it to
+size in the bin, names the bin for it, and the print sheet says what each
+part is for. The fit keeps 2 mm of ease and checks height against the bin
+plus the room under the drawer's top, so a stapler that stands above the
+rim still counts if the drawer will close over it.
+
+**Plates.** Parts are packed for the chosen printer's plate: 4 mm from the
+edge, 6 mm apart, and clear of the 18 × 28 mm front-left corner Bambu
+Studio reserves for its purge line (its profiles' `bed_exclude_area`), so
+the 3MF slices exactly as laid out. A part too long to lie square goes on
+the diagonal, alone on its plate, pointing from the front-right corner to
+the back-left so it misses that corner (a 256 mm plate takes about 320 mm
+that way). Longer than that, the starting layouts split lanes into pieces
+joined by a clip, and the warning under the parts offers to split a bin you
+drew yourself. The *Plates* panel draws every plate as the slicer will open
+it, with its weight and time.
+
 ## The system
 
 - **Bins** are open boxes with rounded corners, a wall that is a whole
@@ -60,7 +84,10 @@ small JSON file, and fits in a link (**Copy a link to this design**).
 - `geometry.js` — the bin and the clip as closed solids, the STL writer.
   No DOM; runs in a page, a worker or Node.
 - `layout.js` — the drawer, the grid, bins on it, starting layouts, the
-  parts list with quantities and clips, plate packing, estimates. No DOM.
+  parts list with quantities and clips, plate fit and packing, estimates.
+  No DOM.
+- `items.js` — the common things, their sizes, and the fit, sizing and
+  arranging maths. No DOM.
 - `export.js` — a stored ZIP writer, the 3MF writer, file names, the print
   sheet, the all-in-one bundle. No DOM.
 - `preview.js` — the Three.js orbit preview: the drawer, the bins, click
@@ -97,7 +124,11 @@ clearance, and that bad sizes are refused with a reason.
 `layout.test.mjs` covers the grid filling the drawer exactly, the minimum
 cell, every starting layout tiling without overlap, placing and trimming
 bins, channel positions, clip counts and lengths, plate packing inside the
-bed without overlap, and reading damaged saved designs safely.
+bed without overlap and clear of the reserved corner, diagonal placement,
+splitting to fit the plate, and reading damaged saved designs safely.
+`items.test.mjs` checks the library, the fit (flat, turned, diagonal, too
+tall), the smallest-bin search, the drawn arrangement, and a bin's inside
+against its walls, dividers and floor.
 `export.test.mjs` reads the ZIP writer's output back (and has the system's
 `unzip` test it where present), checks the 3MF's parts, objects, items and
 rotations, STL sizes and names, and the print sheet.
