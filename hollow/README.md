@@ -57,6 +57,31 @@ which opens in Bambu Studio as a ready project.
   model with a few holes still fills, because inside and outside are decided
   by a vote of three ray directions.
 
+## For someone who has never made a mold
+
+- **The verdict.** Every build ends in plain words: *Good to go*, *With
+  care* or *Not yet*, a headline, what the cast will look like, and a list
+  of checks — the model is closed, it fits your printer, everything
+  releases, the piece is sturdy enough for the material, the spout is wide
+  enough for the mix, air vents, keys, a resin pour that would run hot —
+  each with a "Try:" line saying what to change. The rules live in
+  `verdict.js` and are tested on their own.
+- **Thickness.** The verdict knows how much of the piece is thinner than
+  1.5, 3 and 5 mm (a point is thin when no ball of that size fits inside the
+  model around it, measured on the distance field), and what each material
+  forgives: concrete and soap want 5 mm, plaster and wax 3, resin 1.5.
+- **Recommended settings.** One button sets the wall, spout, keys,
+  fasteners, rim and cavity clearance for the chosen material and the
+  model's size. The rarely needed settings sit under "More".
+- **Easier to look at.** Camera presets (iso, front, side, top), a slow
+  turntable, a first-visit hint for the mouse, gliding camera moves instead
+  of jumps, keys 1–5 for the views, the parts pulling apart when the Mold
+  view opens, and in the Pour view the cast filling from the bottom up.
+- **Sounds.** A tick for a change, a click for a view, a rising note when
+  the preview is ready, a chime when the export is built, a hush while the
+  pour fills. All synthesised in the page; the speaker button mutes them and
+  remembers. Animations stop for anyone who prefers reduced motion.
+
 ## How it works
 
 Everything is a signed distance field on a grid a few tenths of a millimetre
@@ -88,7 +113,9 @@ nozzle resolves. Fine detail is for small resin pieces.
 
 - `index.html`, `styles.css` — the interface.
 - `app.js` — state, model import, orientation, settings, the worker, the
-  numbers, downloads, projects, the guide.
+  numbers, the verdict card, downloads, projects, the guide.
+- `verdict.js` — the plain-words verdict. No DOM.
+- `sounds.js` — the synthesised sounds.
 - `viewer.js` — the Three.js stage: model with release map, mold assembled
   or exploded, a clipping-plane section, parts on the plate with overhang
   shading, and the mold standing to be poured.
@@ -126,7 +153,10 @@ shows trapped surface and an automatic one that does not, an open mold with
 nothing above the opening, a vessel that becomes body and core, a master with
 the model fused to its floor, and print placements that put every part flat
 on the plate. `threemf.test.mjs` reads the ZIP back, inflates it, checks the
-CRCs and the model XML.
+CRCs and the model XML. `verdict.test.mjs` checks the words: a convex pebble
+is good to go, a narrow spout is flagged for concrete but not resin, a bad
+parting plane fails with a fix, a 3 mm plate is fragile in concrete and fine
+in resin, a part too big for the plate is a hard stop.
 
 None of this replaces a test pour. Print the mold, cast one, and look at it.
 

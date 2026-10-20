@@ -239,6 +239,48 @@ function airTraps(inside, grid, pour) {
   return births.map(toWorld);
 }
 
+/* ---------- how thick the model is ---------- */
+
+/** What share of the model is thinner than about 1.5, 3 and 5 mm. A point is "thin" when no
+ * ball of the given radius fits inside the model around it — measured by looking, from a sample
+ * of inside nodes, for a node within that radius that lies that deep (sdf ≤ −r). A solid pebble
+ * has none; a 3 mm plate is nothing else. A cast that is mostly thin breaks in a brittle
+ * material; the page turns these into plain words per material. */
+function thicknessMap(sdf, inside, grid) {
+  const { nx, ny, nz, h } = grid;
+  const insideNodes = [];
+  for (let i = 0; i < inside.length; i++) if (inside[i]) insideNodes.push(i);
+  const total = insideNodes.length;
+  if (!total) return { under1_5mm: 0, under3mm: 0, under5mm: 0 };
+  const samples = Math.min(total, 4000);
+  const stride = total / samples;
+  const result = {};
+  for (const [key, mm] of [['under1_5mm', 1.5], ['under3mm', 3], ['under5mm', 5]]) {
+    const r = mm / 2, rc = Math.ceil(r / h), deep = -(r - 0.5 * h);
+    let thin = 0;
+    for (let n = 0; n < samples; n++) {
+      const idx = insideNodes[Math.floor(n * stride)];
+      if (sdf[idx] <= deep) continue; // deep enough itself
+      const i = idx % nx, j = Math.floor(idx / nx) % ny, k = Math.floor(idx / (nx * ny));
+      let covered = false;
+      for (let dk = -rc; dk <= rc && !covered; dk++) {
+        const kk = k + dk; if (kk < 0 || kk >= nz) continue;
+        for (let dj = -rc; dj <= rc && !covered; dj++) {
+          const jj = j + dj; if (jj < 0 || jj >= ny) continue;
+          for (let di = -rc; di <= rc; di++) {
+            const ii = i + di; if (ii < 0 || ii >= nx) continue;
+            if ((di * di + dj * dj + dk * dk) * h * h > r * r) continue;
+            if (sdf[(kk * ny + jj) * nx + ii] <= deep) { covered = true; break; }
+          }
+        }
+      }
+      if (!covered) thin++;
+    }
+    result[key] = thin / samples;
+  }
+  return result;
+}
+
 /* ---------- the block ---------- */
 
 function blockFor(type, mb, s) {
@@ -303,7 +345,8 @@ export function buildMold(model, options = {}, progress = () => {}) {
   const margin = 1.5;
   const h = Math.max(0.2, spacingFor(blockSize, QUALITY[s.quality].nodes, 0.3, margin));
   const grid = gridFor(block.min, block.max, h, margin + h);
-  const band = Math.max(3 * h, s.clearance + 3 * h, 1.2);
+  // The band is at least 3 mm so the thickness map below can tell a 5 mm wall from a thin one.
+  const band = Math.max(3 * h, s.clearance + 3 * h, 3);
   let step = 0; const steps = s.type === 'two-part' ? 9 : 6;
   const tick = (message) => progress(Math.min(0.95, (step++) / steps), message);
 
@@ -316,8 +359,9 @@ export function buildMold(model, options = {}, progress = () => {}) {
   for (let i = 0; i < sdf.length; i++) if (inside[i]) sdf[i] = -sdf[i];
   const columns = columnExtremes(inside, grid);
   const release = releaseData(working, grid, columns);
+  const thickness = thicknessMap(sdf, inside, grid);
 
-  const result = { settings: s, h, grid: { nx: grid.nx, ny: grid.ny, nz: grid.nz, nodes: grid.count }, model: { bounds: mb, volumeMm3: modelVolume, areaMm2: modelArea, closed: tight.closed, boundaryEdges: tight.boundaryEdges }, block, parts: [], warnings, features: {} };
+  const result = { settings: s, h, grid: { nx: grid.nx, ny: grid.ny, nz: grid.nz, nodes: grid.count }, model: { bounds: mb, volumeMm3: modelVolume, areaMm2: modelArea, closed: tight.closed, boundaryEdges: tight.boundaryEdges, thickness }, block, parts: [], warnings, features: {} };
 
   if (s.type === 'two-part') buildTwoPart(working, s, grid, sdf, inside, columns, release, block, result, tick);
   else if (s.type === 'open') buildOpen(working, s, grid, sdf, inside, release, block, result, tick);

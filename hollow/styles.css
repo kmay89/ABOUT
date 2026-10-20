@@ -293,3 +293,60 @@ h1 em { color: var(--accent-dark); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- second pass: for people who have never made a mold ---------- */
+.sound-button { width: 40px; height: 40px; }
+.sound-button .sound-off { display: none; }
+.sound-button[aria-pressed="false"] .sound-wave { display: none; }
+.sound-button[aria-pressed="false"] .sound-off { display: block; }
+.cam-presets { background: rgba(14, 20, 17, .5); border: 1px solid rgba(242, 243, 224, .08); backdrop-filter: blur(10px); }
+.cam-presets button { padding: 8px 9px; min-height: 36px; font-size: 10.5px; }
+.stage-reset[aria-pressed="true"] { background: #efe3d9; color: #4a3328; }
+.orbit-hint-card { position: absolute; z-index: 3; left: 50%; bottom: 52px; transform: translateX(-50%); display: flex; gap: 14px; padding: 9px 14px; border-radius: 10px; background: rgba(14, 20, 17, .62); border: 1px solid rgba(242, 243, 224, .1); color: #d8dccf; font-size: 10.5px; backdrop-filter: blur(10px); pointer-events: none; transition: opacity .5s; white-space: nowrap; }
+.orbit-hint-card b { color: #f3ecd9; font-weight: 600; }
+.orbit-hint-card.is-gone { opacity: 0; }
+.verdict-card { margin-top: 22px; padding: 18px 20px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); transition: border-color .3s, background .3s; }
+.verdict-card.is-good { border-color: #b9d4ae; background: #eef5ea; }
+.verdict-card.is-care { border-color: #e6cf9a; background: #f9f3e3; }
+.verdict-card.is-no { border-color: #e6b3a3; background: #f9e9e3; }
+.verdict-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.verdict-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 30px; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; background: #e4e7df; color: #5c655c; }
+.verdict-card.is-good .verdict-badge { background: var(--good); color: #fff; }
+.verdict-card.is-care .verdict-badge { background: var(--warn); color: #fff; }
+.verdict-card.is-no .verdict-badge { background: var(--bad); color: #fff; }
+.verdict-card.is-pending .verdict-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.1s ease-in-out infinite; }
+.verdict-head h2 { font-family: var(--serif); font-size: 20px; font-weight: 400; letter-spacing: -.3px; }
+.verdict-outlook { margin-top: 8px; font-size: 12px; line-height: 1.6; color: #4f564f; }
+.verdict-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.verdict-list li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(255, 255, 255, .55); font-size: 11.5px; line-height: 1.55; animation: rise .35s ease both; }
+.verdict-list li.is-hidden { display: none; }
+.verdict-list .mark { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; margin-top: 1px; }
+.verdict-list .is-ok .mark { background: var(--good); } .verdict-list .is-warn .mark { background: var(--warn); } .verdict-list .is-bad .mark { background: var(--bad); }
+.verdict-list strong { display: block; font-weight: 600; }
+.verdict-list p { color: #5c635b; margin-top: 2px; }
+.verdict-list .fix { display: block; margin-top: 4px; color: var(--accent-dark); }
+.verdict-list .fix::before { content: 'Try: '; font-weight: 600; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.recommend-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.recommend-row .button { color: var(--accent-dark); border-color: #e6c9b8; background: #fbf3ee; }
+.recommend-row .button:hover { background: var(--accent-light); }
+.recommend-row .button svg { width: 15px; height: 15px; }
+.recommend-row .field-help { margin: 0; flex: 1 1 160px; }
+.more-options { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #f5f6f2; padding: 0 14px; }
+.more-options summary { cursor: pointer; padding: 10px 0; font-size: 11px; font-weight: 600; color: #5a615a; list-style: none; display: flex; align-items: center; gap: 8px; }
+.more-options summary::before { content: ''; width: 6px; height: 6px; border-right: 1.5px solid #777; border-bottom: 1.5px solid #777; transform: rotate(-45deg); transition: transform .2s; }
+.more-options[open] summary::before { transform: rotate(45deg); }
+.more-options summary::-webkit-details-marker { display: none; }
+.more-options > :not(summary) { margin-bottom: 12px; }
+.model-details { animation: rise .4s ease both; }
+.download-result { animation: rise .4s ease both; }
+.button-primary.is-stale { animation: nudge 2.4s ease-in-out infinite; }
+@keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(200, 101, 58, .35); } 50% { box-shadow: 0 0 0 7px rgba(200, 101, 58, 0); } }
+@media (max-width: 720px) {
+  .cam-presets { display: none; }
+  .orbit-hint-card { display: none; }
+  .stage-actions { gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .button-primary.is-stale { animation: none; }
+}

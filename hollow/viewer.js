@@ -116,6 +116,8 @@ export class MoldViewer {
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(container);
     this.rendering = false;
+    this.reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    this.controls.addEventListener('start', () => { this.tween = null; if (this.controls.autoRotate) { this.controls.autoRotate = false; this.onSpinStop?.(); } });
     this.animate = this.animate.bind(this);
     this.resize();
     requestAnimationFrame(this.animate);
@@ -123,9 +125,84 @@ export class MoldViewer {
 
   /* ---------- plumbing ---------- */
   animate() {
+    const now = performance.now();
+    if (this.tween) {
+      const t = Math.min(1, (now - this.tween.start) / this.tween.ms);
+      const e = 1 - Math.pow(1 - t, 3); // ease out
+      this.camera.position.lerpVectors(this.tween.fromPos, this.tween.toPos, e);
+      this.controls.target.lerpVectors(this.tween.fromTarget, this.tween.toTarget, e);
+      if (t >= 1) { this.tween = null; if (this.pendingSpin) { this.controls.autoRotate = true; this.pendingSpin = false; } }
+      this.needsRender = true;
+    }
+    if (this.explodeTween) {
+      const t = Math.min(1, (now - this.explodeTween.start) / this.explodeTween.ms);
+      const e = 1 - Math.pow(1 - t, 3);
+      this.applyExplode(this.explodeTween.from + (this.explodeTween.to - this.explodeTween.from) * e);
+      if (t >= 1) { this.explodeTween = null; }
+      this.needsRender = true;
+    }
+    if (this.pourTween) {
+      const t = Math.min(1, (now - this.pourTween.start) / this.pourTween.ms);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // ease in-out
+      this.pourPlane.constant = this.pourTween.from + (this.pourTween.to - this.pourTween.from) * e;
+      if (t >= 1) { const done = this.pourTween.resolve; this.pourTween = null; done?.(); }
+      this.needsRender = true;
+    }
+    if (this.controls.autoRotate) this.needsRender = true;
     this.controls.update();
     if (this.needsRender) { this.needsRender = false; this.renderer.render(this.scene, this.camera); }
     requestAnimationFrame(this.animate);
+  }
+  /** Glide the camera somewhere instead of jumping. */
+  flyTo(position, target, ms = 550) {
+    if (this.reducedMotion || ms === 0) { this.camera.position.copy(position); this.controls.target.copy(target); this.controls.update(); this.requestRender(); return; }
+    this.tween = { start: performance.now(), ms, fromPos: this.camera.position.clone(), toPos: position.clone(), fromTarget: this.controls.target.clone(), toTarget: target.clone() };
+  }
+  /** Slowly turn the model on a turntable until the user takes hold of it. */
+  setAutoRotate(on) {
+    this.spinWanted = on;
+    this.controls.autoRotate = on && !this.tween;
+    this.pendingSpin = on && !!this.tween;
+    this.controls.autoRotateSpeed = 1.1;
+    this.requestRender();
+  }
+  /** The box the current view is about: the plate when printing, else the mold or the model. */
+  frameBox() {
+    if (this.view === 'print') return new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(this.plate.x, this.plate.y, Math.max(40, ...(this.printLayout || []).map(p => p.size[2]))));
+    if (this.view === 'pour' && this.groups.pour.children.length) return new THREE.Box3().setFromObject(this.groups.pour);
+    return this.helperBox || this.bounds || null;
+  }
+  /** Camera presets: iso, front (looking along +Y), side (looking along −X), top. */
+  preset(name, ms = 550) {
+    const box = this.frameBox(); if (!box) return;
+    const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(size.length() / 2, 10);
+    const d = radius / Math.sin(this.camera.fov * Math.PI / 360) * 1.15;
+    const dir = { iso: [-0.55, -0.72, 0.5], front: [0, -1, 0.08], side: [1, 0, 0.08], top: [0, -0.0001, 1] }[name] || [-0.55, -0.72, 0.5];
+    const v = new THREE.Vector3(...dir).normalize().multiplyScalar(d);
+    this.userFramed = name !== 'iso';
+    this.flyTo(centre.clone().add(v), centre, ms);
+  }
+  /** Fill the cast from the bottom up in the Pour view. Resolves when full. */
+  playPour(ms = 2200) {
+    return new Promise((resolve) => {
+      const cast = this.pourCast;
+      if (!cast) { resolve(); return; }
+      cast.updateWorldMatrix(true, false);
+      const box = new THREE.Box3().setFromObject(cast);
+      if (!this.pourPlane) this.pourPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+      cast.material.clippingPlanes = [this.pourPlane];
+      cast.material.needsUpdate = true;
+      if (this.reducedMotion) { this.pourPlane.constant = box.max.z + 1; this.requestRender(); resolve(); return; }
+      this.pourPlane.constant = box.min.z - 1;
+      this.pourTween = { start: performance.now(), ms, from: box.min.z - 1, to: box.max.z + 1, resolve };
+    });
+  }
+  /** Pull the parts apart or together over time. */
+  animateExplode(to, ms = 700) {
+    if (this.reducedMotion) { this.setExplode(to); return; }
+    this.explodeTween = { start: performance.now(), ms, from: this.explode, to };
+    this.explode = to;
   }
   requestRender() { this.needsRender = true; }
   resize() {
@@ -213,6 +290,7 @@ export class MoldViewer {
     this.lastParts = [parts, meta];
     this.parts = parts; this.meta = { ...this.meta, ...meta };
     for (const name of ['mold', 'section', 'print', 'pour']) this.clear(this.groups[name]);
+    this.pourCast = null; this.pourTween = null;
     this.clear(this.helpers); this.drawHelpers(this.meta);
     if (!parts || !parts.length) { this.requestRender(); return; }
     const castColour = new THREE.Color(CAST_COLOURS[this.material] || CAST_COLOURS.concrete);
@@ -249,7 +327,7 @@ export class MoldViewer {
     if (this.meta.type === 'two-part' && this.meta.pour) {
       const g = new THREE.Group();
       parts.forEach((part) => g.add(new THREE.Mesh(geometryFrom(part.mesh), partMaterial(part.role, { transparent: true, opacity: 0.32, depthWrite: false }))));
-      const cast = castMesh(1); if (cast) g.add(cast);
+      const cast = castMesh(1); if (cast) { g.add(cast); this.pourCast = cast; }
       const { axis, sign } = this.meta.pour;
       // rotate so the pour axis (+d) becomes +Z, pivoting about the block centre
       g.position.copy(centre.clone().negate());
@@ -264,7 +342,7 @@ export class MoldViewer {
       stand.rotation.x = Math.PI / 2; stand.position.set(centre.x, centre.y, (block ? block.min[2] : 0) - 2); stand.visible = false; this.groups.pour.add(stand);
     } else if (this.meta.type === 'open' || this.meta.type === 'box') {
       parts.forEach((part) => this.groups.pour.add(new THREE.Mesh(geometryFrom(part.mesh), partMaterial(part.role, { transparent: true, opacity: 0.32, depthWrite: false }))));
-      const cast = castMesh(1); if (cast) { if (this.meta.type === 'box') cast.material.color.set('#b9c0b4'); this.groups.pour.add(cast); }
+      const cast = castMesh(1); if (cast) { if (this.meta.type === 'box') cast.material.color.set('#b9c0b4'); this.groups.pour.add(cast); this.pourCast = this.meta.type === 'box' ? null : cast; }
     }
     this.setView(this.view);
   }
@@ -303,8 +381,8 @@ export class MoldViewer {
 
   setPlate(plate) { this.plate = { ...plate }; if (this.parts) this.layoutPrint(this.parts); this.requestRender(); }
 
-  setExplode(amount) {
-    this.explode = amount;
+  setExplode(amount) { this.explodeTween = null; this.explode = amount; this.applyExplode(amount); }
+  applyExplode(amount) {
     for (const t of this.explodeTargets || []) t.mesh.position.copy(t.dir.clone().multiplyScalar(t.distance * amount));
     if (this.castInMold) this.castInMold.visible = amount > 0.15;
     this.requestRender();
@@ -321,31 +399,27 @@ export class MoldViewer {
   }
 
   setView(view) {
+    const changed = view !== this.view;
     this.view = view;
     for (const [name, g] of Object.entries(this.groups)) g.visible = name === view;
     this.helpers.visible = view === 'model' || view === 'mold' || view === 'section';
-    if (view === 'print') this.framePrint(); else if (!this.userFramed) this.resetView();
+    if (view === 'print') this.framePrint(changed ? 550 : 0); else if (!this.userFramed || changed) this.resetView(changed ? 550 : 0);
     this.requestRender();
   }
 
-  framePrint() {
+  framePrint(ms = 0) {
     const p = this.plate;
-    this.controls.target.set(p.x / 2, p.y / 2, 20);
-    this.camera.position.set(p.x / 2 - p.x * 0.5, p.y / 2 - p.y * 1.25, p.z * 0.9);
-    this.controls.update();
+    this.flyTo(new THREE.Vector3(p.x / 2 - p.x * 0.5, p.y / 2 - p.y * 1.25, p.z * 0.9), new THREE.Vector3(p.x / 2, p.y / 2, 20), ms);
   }
 
-  resetView() {
+  resetView(ms = 0) {
     this.userFramed = false;
-    const box = this.view === 'pour' && this.groups.pour.children.length ? new THREE.Box3().setFromObject(this.groups.pour) : (this.helperBox || this.bounds);
+    const box = this.frameBox();
     if (!box) return;
     const size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
     const radius = Math.max(size.length() / 2, 10);
     const distance = radius / Math.sin(this.camera.fov * Math.PI / 360) * 1.15;
-    this.controls.target.copy(centre);
-    this.camera.position.set(centre.x - distance * 0.55, centre.y - distance * 0.72, centre.z + distance * 0.5);
     this.camera.near = Math.max(0.5, distance / 200); this.camera.far = distance * 20; this.camera.updateProjectionMatrix();
-    this.controls.update();
-    this.requestRender();
+    this.flyTo(new THREE.Vector3(centre.x - distance * 0.55, centre.y - distance * 0.72, centre.z + distance * 0.5), centre, ms);
   }
 }
