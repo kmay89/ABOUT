@@ -29,6 +29,7 @@
     <nav class="header-actions" aria-label="Studio help">
       <a class="desk-link" href="/workshop/" title="Back to the workshop at kmay89.com"><span aria-hidden="true">←</span> The workshop</a>
       <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="soundBtn" class="icon-button sound-button" type="button" aria-pressed="true" title="Sounds on" aria-label="Turn sounds off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L13 5v14l-5.5-4.5H4z"/><path class="sound-wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="sound-off" d="m17 10 4 4m0-4-4 4"/></svg></button>
       <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>Print &amp; pour guide</span></button>
     </nav>
   </header>
@@ -41,7 +42,7 @@
       </div>
       <div class="intro-note">
         <p>Drop in a model and get back a mold you can print tonight.<br>Keys that line up, a spout that pours, vents where air would hide.</p>
-        <span class="intro-steps">Drop in an STL <span>→</span> Choose the mold <span>→</span> Print, pour, unmold</span>
+        <span class="intro-steps">Drop in an STL <span>→</span> Say what you're casting <span>→</span> Read the verdict <span>→</span> Print, pour, unmold</span>
       </div>
     </section>
 
@@ -57,11 +58,19 @@
               <button id="view-pour" type="button" aria-pressed="false">Pour</button>
             </div>
             <div class="stage-actions">
+              <div class="segmented cam-presets" role="group" aria-label="Camera angle">
+                <button id="cam-iso" type="button" title="From the corner">Iso</button>
+                <button id="cam-front" type="button" title="From the front">Front</button>
+                <button id="cam-side" type="button" title="From the side">Side</button>
+                <button id="cam-top" type="button" title="From above">Top</button>
+              </div>
+              <button id="spinBtn" class="icon-button stage-reset" type="button" aria-pressed="false" title="Turn it slowly" aria-label="Turn the model slowly"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 8 2 8 4.5S17 14 12 14s-8-2-8-4.5"/><path d="m6 6.5-2 3 3 1"/><path d="M12 14v5"/></svg></button>
               <button id="snapshotBtn" class="icon-button stage-reset" type="button" title="Save this view as a picture" aria-label="Save this view as a picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.6-2.5h6.8L17 7.5h3v12H4z"/><circle cx="12" cy="13" r="3.6"/></svg></button>
               <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
             </div>
           </div>
           <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom."></div>
+          <div id="orbitHint" class="orbit-hint-card" aria-hidden="true"><span><b>Drag</b> to turn</span><span><b>Scroll</b> or pinch to zoom</span><span><b>Right-drag</b> to slide</span><span>Keys <b>1–5</b> switch views</span></div>
           <div class="stage-bottom">
             <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Building the preview…</span>
             <div class="legend" id="legendRelease"><span><i class="swatch s-good"></i>Releases</span><span><i class="swatch s-warn"></i>Steep</span><span><i class="swatch s-bad"></i>Trapped</span></div>
@@ -74,7 +83,18 @@
           <p id="viewHint" class="view-hint">Green releases, amber is steep, red is trapped. The amber plane is the parting line; the arrow is the pour.</p>
           <div id="explodeRow" class="slider-row" hidden><label for="explodeInput">Pull apart</label><input id="explodeInput" type="range" min="0" max="100" value="0"></div>
           <div id="sectionRow" class="slider-row" hidden><label for="sectionInput">Cut at</label><input id="sectionInput" type="range" min="0" max="100" value="50"></div>
+          <div id="pourRow" class="slider-row" hidden><button id="pourPlayBtn" class="button button-small" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z"/></svg>Pour it again</button><span class="field-help">Watch the cast fill from the bottom; air leaves through the spout and vents at the top.</span></div>
         </div>
+
+        <section id="verdictCard" class="verdict-card is-pending" aria-live="polite" aria-labelledby="verdictHeadline">
+          <div class="verdict-head">
+            <span id="verdictBadge" class="verdict-badge">Checking…</span>
+            <h2 id="verdictHeadline">Will this work?</h2>
+          </div>
+          <p id="verdictOutlook" class="verdict-outlook">Hollow is measuring the model.</p>
+          <ul id="verdictList" class="verdict-list"></ul>
+          <button id="verdictToggle" class="text-button" type="button" aria-expanded="false">Show every check</button>
+        </section>
 
         <div class="model-details" aria-label="Sizes and amounts">
           <div><span class="metric-label">Model</span><strong id="modelSizeLabel">—</strong></div>
@@ -135,12 +155,11 @@
             <button id="type-box" class="shape-card" type="button" aria-pressed="false"><svg class="shape-illustration" viewBox="0 0 72 48" aria-hidden="true"><path d="M10 12v28a3 3 0 0 0 3 3h46a3 3 0 0 0 3-3V12"/><path d="M16 36V22a6 6 0 0 1 12 0v14M36 36V18l8-4 8 4v18" class="shape-image"/><path d="M13 20h46" stroke-dasharray="2 3"/></svg><strong>Silicone master</strong><span>Pour silicone over it</span><i class="selection-dot" aria-hidden="true"></i></button>
           </div>
 
-          <div class="field"><label for="materialSelect">Casting in</label><div class="select-wrap"><select id="materialSelect"></select></div><p id="materialNote" class="field-help"></p></div>
+          <div class="field"><label for="materialSelect">What are you casting?</label><div class="select-wrap"><select id="materialSelect"></select></div><p id="materialNote" class="field-help"></p></div>
+          <div class="recommend-row"><button id="recommendBtn" class="button" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2 2.2 4.8 5.3.6-3.9 3.6 1 5.2L10 13.6 5.4 16.2l1-5.2L2.5 7.4l5.3-.6z"/></svg>Use the recommended settings</button><span class="field-help">Sets the wall, keys, spout and fasteners for this material and size. You can still change anything.</span></div>
 
           <div class="dimensions-fields">
             <div class="field" id="wallField"><label for="wallInput">Wall</label><div class="number-with-unit"><input id="wallInput" type="number" min="3" max="40" step="0.5" value="10" inputmode="decimal"><span>mm</span></div></div>
-            <div class="field"><label for="cornerInput">Corner radius</label><div class="number-with-unit"><input id="cornerInput" type="number" min="0" max="20" step="0.5" value="4" inputmode="decimal"><span>mm</span></div></div>
-            <div class="field"><label for="clearanceInput">Loosen cavity</label><div class="number-with-unit"><input id="clearanceInput" type="number" min="0" max="1" step="0.05" value="0" inputmode="decimal"><span>mm</span></div></div>
           </div>
 
           <div id="twoPartFields">
@@ -165,12 +184,16 @@
               <div class="number-with-unit small"><input id="spoutMouthInput" type="number" min="4" max="50" step="1" value="18" aria-label="Spout diameter at the mouth" inputmode="decimal"><span>mm mouth</span></div>
             </div>
             <label class="check-row"><input id="ventsCheck" type="checkbox" checked><span>Air vents where the pour would trap bubbles</span></label>
-            <label class="check-row"><input id="pryCheck" type="checkbox" checked><span>Pry slots on the sides</span></label>
-            <div class="dimensions-fields">
-              <div class="field"><label for="keysSelect">Alignment</label><div class="select-wrap"><select id="keysSelect"><option value="cones" selected>Three tapered pegs</option><option value="rail">Rail + one peg</option><option value="none">None</option></select></div></div>
-              <div class="field"><label for="keyClearanceInput">Key clearance</label><div class="number-with-unit"><input id="keyClearanceInput" type="number" min="0.1" max="0.6" step="0.05" value="0.25" inputmode="decimal"><span>mm</span></div></div>
-              <div class="field"><label for="fastenerSelect">Hold together</label><div class="select-wrap"><select id="fastenerSelect"><option value="bands" selected>Rubber-band grooves</option><option value="bolts">M5 bolt holes</option><option value="none">Clamps or tape</option></select></div></div>
-            </div>
+            <details class="more-options" id="moreTwoPart">
+              <summary>More: keys, fasteners, pry slots</summary>
+              <label class="check-row"><input id="pryCheck" type="checkbox" checked><span>Pry slots on the sides</span></label>
+              <div class="dimensions-fields">
+                <div class="field"><label for="keysSelect">Alignment</label><div class="select-wrap"><select id="keysSelect"><option value="cones" selected>Three tapered pegs</option><option value="rail">Rail + one peg</option><option value="none">None</option></select></div></div>
+                <div class="field"><label for="keyClearanceInput">Key clearance</label><div class="number-with-unit"><input id="keyClearanceInput" type="number" min="0.1" max="0.6" step="0.05" value="0.25" inputmode="decimal"><span>mm</span></div></div>
+                <div class="field"><label for="fastenerSelect">Hold together</label><div class="select-wrap"><select id="fastenerSelect"><option value="bands" selected>Rubber-band grooves</option><option value="bolts">M5 bolt holes</option><option value="none">Clamps or tape</option></select></div></div>
+              </div>
+              <p class="field-help">Pegs bind? Add 0.05 mm of clearance. Rattle? Take it away. Rubber bands are the easiest way to hold a mold shut.</p>
+            </details>
           </div>
 
           <div id="openFields" hidden>
@@ -189,6 +212,15 @@
             </div>
             <p class="field-help">The model prints standing in its own tray, as one piece. Pour silicone to the top edge, cure, peel the tray away, and cut the block open along one side.</p>
           </div>
+
+          <details class="more-options" id="moreShape">
+            <summary>More: corners and fit</summary>
+            <div class="dimensions-fields">
+              <div class="field"><label for="cornerInput">Corner radius</label><div class="number-with-unit"><input id="cornerInput" type="number" min="0" max="20" step="0.5" value="4" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="clearanceInput">Loosen cavity</label><div class="number-with-unit"><input id="clearanceInput" type="number" min="0" max="1" step="0.05" value="0" inputmode="decimal"><span>mm</span></div></div>
+            </div>
+            <p class="field-help">Loosening grows the cavity a hair all over, which helps a tight cast let go; it also makes the piece that much bigger.</p>
+          </details>
         </section>
 
         <section class="editor-section export-section" aria-labelledby="exportHeading">
