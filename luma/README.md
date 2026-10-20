@@ -108,6 +108,15 @@ STLs, in their print orientation, needing no supports (`accessories.js`):
   front, resting on a ledge behind its border, with a 20–60 mm hollow for
   an LED strip or puck light and a rabbet for a back cover with a cable
   notch. Prints face down.
+- **LED board box** (flat): built round a ready-made 156 × 120 mm USB-C
+  backlight board (Bambu Lab's CMYK board and the boards that copy its
+  size), turned to match the picture. The picture presses into the front;
+  the board drops in from the back onto a seat a set gap behind it (6–30
+  mm, 12 by default, so the LEDs blend rather than show as dots); an open
+  retainer snaps under a 0.35 mm lip behind the board and leaves its back,
+  port and cable free. The box is the board's size, so a smaller picture
+  gets wider margins at the sides than the ends — `rectSweep` sweeps a
+  profile whose offsets differ on the long and short sides.
 - **Desk stand** (flat): a slotted foot the picture stands in.
 - **Tea-light base** (lamp): a cup with a groove the lamp stands in, room
   for an LED tea light, and a hole underneath to reach its switch.

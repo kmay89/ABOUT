@@ -260,7 +260,7 @@ function setLightDefaults() {
   $('lightAmountUnit').textContent=src.lux!==undefined?'lux':'lm';
   $('lightAmountLabel').textContent=src.lux!==undefined?'Brightness on its surface':'Brightness';
   $('lightDistanceField').hidden=!src.point;
-  const d=src.distance==='radius'?Number($('diameterInput').value)/2:src.distance==='depth'?Number($('boxDepthInput').value):src.distance;
+  const d=src.distance==='radius'?Number($('diameterInput').value)/2:src.distance==='depth'||src.distance==='gap'?Number($('boxDepthInput').value):src.distance;
   if(typeof d==='number'&&Number.isFinite(d))$('lightDistance').value=String(Math.round(d));
   $('lightHint').textContent=src.hint;
 }
@@ -303,14 +303,28 @@ function drawAccessoryCards() {
 }
 
 /** Build the chosen frame or base for these settings, show it, and offer its files. */
+/* One slider, two meanings: how deep a plain light box is, or how far an LED board sits behind the picture. */
+const SLIDERS = {
+  lightbox:{ label:'Light box depth', min:20, max:60, value:30, ends:['Slim · LED strip','Deep · puck light'] },
+  ledboard:{ label:'Gap from LEDs to picture', min:6, max:30, value:12, ends:['Slim · may show LED dots','Deeper · smoother glow'] },
+};
+let sliderFor=null;
+
 function updateAccessory(s) {
-  const choice=accessoryChoice();
-  $('accessoryOptions').hidden=!choice;$('depthField').hidden=choice?.id!=='lightbox';
+  const choice=accessoryChoice(),slider=SLIDERS[choice?.id];
+  $('accessoryOptions').hidden=!choice;$('depthField').hidden=!slider;
+  if(slider&&sliderFor!==choice.id) {
+    if(sliderFor&&SLIDERS[sliderFor])SLIDERS[sliderFor].value=Number($('boxDepthInput').value);
+    sliderFor=choice.id;
+    const input=$('boxDepthInput');input.min=String(slider.min);input.max=String(slider.max);input.value=String(slider.value);
+    $('depthField').querySelector('label').textContent=slider.label;
+    const ends=$('depthField').querySelectorAll('.range-endpoints span');ends[0].textContent=slider.ends[0];ends[1].textContent=slider.ends[1];
+  }
   $('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;
   state.accessoryParts=[];
   if(!choice){preview?.setAccessories?.([]);return;}
   try {
-    const made=choice.make({...s,depth:Number($('boxDepthInput').value)});
+    const made=choice.make({...s,depth:Number($('boxDepthInput').value),gap:Number($('boxDepthInput').value)});
     state.accessoryParts=made.parts;
     $('accessoryNotes').textContent=made.notes;
     const show=$('accessoryPreview').checked;

@@ -46,5 +46,5 @@ test('a small light close behind a flat picture warns of a bright spot; coloured
   assert.match(close.tips.join(' '), /bright spot/);
   const pink = recommendThickness({ ...flat, k: absorption('pla', 'pink'), source: 'pad', room: 'dim' });
   assert.ok(pink.max < 3.2);
-  assert.equal(Object.keys(LIGHT_SOURCES).length, 7);
+  assert.equal(Object.keys(LIGHT_SOURCES).length, 8);
 });

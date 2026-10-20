@@ -84,6 +84,30 @@ function sweep(path, profile, closed) {
   return orient({ vertices, indices: Uint32Array.from(tris.flat()) });
 }
 
+/**
+ * A ring round a rectangle whose cross-section may sit at a different offset
+ * on the long sides than on the short ones: profile [[dx, dy, z], …], where
+ * dx moves the left and right sides out and dy the top and bottom. Each side
+ * is still a planar strip and the corners still meet, so it is one closed
+ * solid. Both readings of the profile, (dx, z) and (dy, z), must run
+ * counter-clockwise without crossing themselves.
+ */
+function rectSweep(halfW, halfH, profile) {
+  for (const axis of [0, 1]) {
+    if (area(profile.map(p => [p[axis], p[2]])) <= 0) throw new RangeError('A profile must run counter-clockwise.');
+  }
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]], P = profile.length;
+  const vertices = new Float32Array(4 * P * 3);
+  corners.forEach(([sx, sy], k) => profile.forEach(([dx, dy, z], i) => {
+    vertices.set([sx * (halfW + dx), sy * (halfH + dy), z], (k * P + i) * 3);
+  }));
+  const tris = [], id = (k, i) => (k % 4) * P + (i % P);
+  for (let k = 0; k < 4; k++) for (let i = 0; i < P; i++) {
+    tris.push([id(k, i), id(k + 1, i), id(k + 1, i + 1)], [id(k, i), id(k + 1, i + 1), id(k, i + 1)]);
+  }
+  return orient({ vertices, indices: Uint32Array.from(tris.flat()) });
+}
+
 /** Extrude a counter-clockwise outline in XY from z = 0 to z = height. */
 function extrude(outline, height) {
   if (area(outline) <= 0) throw new RangeError('An outline must run counter-clockwise.');
@@ -200,6 +224,48 @@ export function lightBox({ width, height, maxThickness, border, depth = 30 }) {
   };
 }
 
+/**
+ * A light box built round a ready-made LED backlight board — the 156 × 120 mm
+ * USB-C boards made for lithophanes (Bambu Lab's CMYK board and the many
+ * that copy its size). The picture presses into the front as in lightBox;
+ * the board drops in from the back, LEDs facing the picture, onto a ledge
+ * that keeps it a set distance behind; and an open frame clips in behind the
+ * board to hold it, leaving its back — and its USB-C port, wherever it is —
+ * free for the cable. The box is the board's size, so the margins round a
+ * smaller picture are wider at the sides than at the top and bottom.
+ */
+export function boardBox({ width, height, maxThickness, border, gap = 12, board = [120, 156], boardThickness = 1 }) {
+  // Turn the board to the picture: a landscape picture gets a landscape board.
+  const [bw, bh] = (width > height) === (board[0] > board[1]) ? board : [board[1], board[0]];
+  const T = maxThickness + 0.2, ledge = Math.max(1.2, border - 0.5), lip = 1.6, back = 2.6, seat = 2, snap = 0.35;
+  const halfW = bw / 2 + 0.3, halfH = bh / 2 + 0.3;              // the board's pocket
+  const px = width / 2 + CLEAR - halfW, py = height / 2 + CLEAR - halfH;   // the picture's pocket, relative
+  // The picture's pocket may be a little bigger than the board's, but must leave a millimetre of wall.
+  if (px > WALL - 1 || py > WALL - 1) {
+    throw new RangeError(`This picture is larger than a ${bw} × ${bh} mm board. Make it ${bw} × ${bh} mm or smaller, or use the plain light box.`);
+  }
+  const zBoard = T + lip + gap, depth = zBoard + boardThickness + 0.2 + back;
+  // At the back, a 0.35 mm lip with a lead-in: the retainer pushes past it and clicks under it.
+  const profile = [
+    [px, py, 0], [WALL, WALL, 0], [WALL, WALL, depth], [0, 0, depth], [-snap, -snap, depth - snap],
+    [-snap, -snap, depth - 0.6], [0, 0, depth - 0.8], [0, 0, zBoard],
+    [-seat, -seat, zBoard], [-seat, -seat, T + lip], [px - ledge, py - ledge, T + lip], [px - ledge, py - ledge, T], [px, py, T],
+  ];
+  const frame = finish(rectSweep(halfW, halfH, profile), { place: ([x, y, z]) => [x, z - maxThickness, y + height / 2] });
+  // The retainer: an open frame, a snug fit in the pocket, that holds the board's edges under the snap lip.
+  const rim = 6, thick = back - 1, retainer = finish(rectSweep(halfW - 0.15, halfH - 0.15, [[-rim, -rim, 0], [0, 0, 0], [0, 0, thick], [-rim, -rim, thick]]), {
+    place: ([x, y, z]) => [x, depth - back - maxThickness + z, y + height / 2],
+  });
+  const sides = (2 * halfW + 2 * WALL - width) / 2, ends = (2 * halfH + 2 * WALL - height) / 2;
+  return {
+    parts: [
+      { id: 'frame', name: 'LED board box', mesh: frame },
+      { id: 'retainer', name: 'Board retainer', mesh: retainer },
+    ],
+    notes: `Built round a ${bw} × ${bh} mm LED board. Press the picture into the front (a dot of glue in each corner holds it). Drop the board in from the back, LEDs facing the picture — it rests ${gap} mm behind it so the LEDs blend into an even glow — then press the open retainer in behind it until it clicks under the lip (a dot of hot glue works too). Its open middle leaves the USB-C port and cable free wherever the port is. The box is ${(2 * halfW + 2 * WALL).toFixed(0)} × ${(2 * halfH + 2 * WALL).toFixed(0)} × ${depth.toFixed(0)} mm, with a ${sides.toFixed(1)} mm margin at the sides and ${ends.toFixed(1)} mm top and bottom. Print the box face down, no supports.`,
+  };
+}
+
 /** Desk stand for a flat picture: a foot with a slot the picture stands in. */
 export function deskStand({ width, maxThickness, border }) {
   const slot = maxThickness + 0.3, deep = Math.min(8, Math.max(4, border + 1)), base = 3.5, half = slot / 2 + 3.5;
@@ -248,6 +314,7 @@ export function shadeStand({ width, angleDeg, maxThickness, border }) {
 /** The accessories that suit a shape, for the picker. */
 export const ACCESSORIES = Object.freeze({
   flat: [{ id: 'lightbox', name: 'Light box', blurb: 'A frame with a back — add an LED and it glows on a shelf or wall', make: lightBox },
+    { id: 'ledboard', name: 'LED board box', blurb: 'Fits a 156 × 120 mm USB-C backlight board (Bambu CMYK board and lookalikes)', make: boardBox },
     { id: 'stand', name: 'Desk stand', blurb: 'A slotted foot, to stand it in front of a light', make: deskStand }],
   cylinder: [{ id: 'base', name: 'Tea-light base', blurb: 'A cup it stands in, hiding an LED tea light', make: lampBase }],
   curved: [{ id: 'stand', name: 'Nightlight stand', blurb: 'A round base that holds the shade and a light', make: shadeStand }],
