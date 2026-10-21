@@ -522,9 +522,9 @@ function pickBone(tile) {
      quick and also the commonest way to play a bone you had not meant
      to. Tapping the lifted bone again puts it back. */
   G.sel = (G.sel === tile) ? null : tile;
-  if (G.sel === null) { G.hint = null; G.lean = null; }
-  else { if (ends.length === 2) leanFor(tile); else G.lean = null; sayMoment({ k: "pickedUp", you: G.mySeat, ends: ends.length }); }
-  Snd.tick();
+  var hi = G.view.hand.indexOf(tile);
+  if (G.sel === null) { G.hint = null; G.lean = null; Snd.note(hi, G.view.hand.length, true); }
+  else { if (ends.length === 2) leanFor(tile); else G.lean = null; Snd.note(hi, G.view.hand.length); sayMoment({ k: "pickedUp", you: G.mySeat, ends: ends.length }); }
   syncAll();
 }
 
@@ -581,17 +581,36 @@ function judge(mv) {
   G.pendingGrade = gr;
 }
 var FEEL = { sharp: "¡Eso! A great play", good: "A good play", ok: "It works", miss: "There was a better one" };
+/* ---------- how a play is answered ----------
+   The verdict is immediate, musical and warm. A streak of sharp plays
+   grows — ×2, ×3 — with a longer run of notes each time and a small
+   shower of paper at three, because a reward that is sometimes bigger
+   is the one people chase. Firsts are marked once and then never again:
+   the first sharp play, the first streak. A costly play is answered as a
+   shrug, with Don Chuy's better one, never as a buzzer. */
 function showGrade(gr) {
   var el = $("grade");
-  el.className = gr.id;
-  mood(G.mySeat, gr.id === "sharp" ? "grin" : gr.id === "miss" ? "ouch" : "happy", 2200);
-  el.innerHTML = "<b>" + esc(gr.icon + " " + gr.label + (gr.id === "sharp" && G.hs && G.hs.sharp > 1 ? " ×" + G.hs.sharp : "")) +
-    "</b><small>" + esc(FEEL[gr.id] || "") + "</small>";
+  var sharp = gr.id === "sharp";
+  G.streak = sharp ? (G.streak || 0) + 1 : 0;
+  var first = sharp && !P.seen.firstSharp, firstRun = G.streak === 3 && !P.seen.firstStreak;
+  if (first) { P.seen.firstSharp = 1; save(); }
+  if (firstRun) { P.seen.firstStreak = 1; save(); }
+  el.className = gr.id + (G.streak >= 2 ? " streak" : "") + (first || firstRun ? " first" : "");
+  mood(G.mySeat, sharp ? "grin" : gr.id === "miss" ? "ouch" : "happy", 2200);
+  var head = gr.icon + " " + gr.label + (G.streak >= 2 ? " ×" + G.streak : "");
+  var feel = first ? "Your first Sharp — remember what that felt like" :
+             firstRun ? "¡Racha! Three sharp in a row" :
+             G.streak >= 2 ? "¡Sigue así! Keep it going" : (FEEL[gr.id] || "");
+  el.innerHTML = "<b>" + esc(head) + "</b><small>" + esc(feel) + "</small>";
   void el.offsetWidth;
   el.classList.add("on");
   clearTimeout(gradeT);
-  gradeT = setTimeout(function () { el.classList.remove("on"); }, 2300);
-  if (gr.id === "sharp") Snd.good();
+  gradeT = setTimeout(function () { el.classList.remove("on"); }, first || firstRun ? 3200 : 2300);
+  Snd.verdict(gr.id, G.streak);
+  if (first || G.streak === 3) { confetti(first ? 60 : 40); }
+  if (sharp && G.mode === "solo" && Math.random() < (G.streak >= 2 ? 0.7 : 0.35)) {
+    chatter(R.partner(G.mySeat), G.streak >= 2 ? ["¡Órale!", "¡Eso es!", "¡Qué racha!"] : ["¡Bien!", "¡Eso!", "Así, compa"], 300);
+  }
   /* a costly play is worth a sentence, but not every time — a coach who
      comments on everything is a coach you stop reading */
   if (gr.id === "miss" && P.coach && gr.say) chuy(gr.say, gr.why);
@@ -677,6 +696,8 @@ function happen(ev) {
       if (ev.by === me && hungOpp) {
         if (!G.hs) G.hs = freshHandStats();
         if (G.hs.hangs < 3) { G.hs.hangs++; record({ k: "hang" }); }
+        /* the thing the tip taught, done: a different chime from a verdict */
+        if (P.seen.theyPaso) Snd.lesson();
         if (Math.random() < 0.6) chatter(mate, ["¡Eso!", "¡Ahorcado!", "Je je", "¡Así se juega!"], 500);
       } else if (ev.by === me && ev.seat === mate) {
         chatter(mate, ["Ay, compadre…", "Uy…", "¿Y yo qué?"], 400);
@@ -1007,7 +1028,7 @@ function ask(title, lead, answers) {
 function nextHand(first) {
   clearTimeout(turnT);
   G.sel = null; G.hint = null; G.anim = null; G.lastIdx = -1; G.lastNote = null; G.thinking = -1;
-  G.drag = null; G.press = null; G.lean = null; G.rv = null; G.moods = {}; tipQ.length = 0;
+  G.drag = null; G.press = null; G.lean = null; G.rv = null; G.moods = {}; tipQ.length = 0; G.streak = 0;
   G.hs = freshHandStats();
   G.st = R.dealHand(G.match);
   refreshView();
@@ -1640,6 +1661,7 @@ function syncAll() {
     $("pickR").classList.toggle("rec", two && rec === "R");
   }
   $("stage").classList.toggle("myTurn", mine);
+  if (Snd.music && Snd.music.quiet) Snd.music.quiet(mine && !!mv.length);
   mePlate(v, mine);
   measureHud();
 }

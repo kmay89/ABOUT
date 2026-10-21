@@ -201,6 +201,11 @@
   }
   #grade.on{opacity:1; transform:translate(-50%,0)}
   #grade b{display:block; font-size:1.15rem}
+  #grade.streak b{font-size:1.35rem}
+  #grade.first{padding:9px 20px; border-color:var(--glow); box-shadow:0 0 0 2px var(--glow), 0 0 36px rgba(255,215,122,.5)}
+  #grade.first b{font-size:1.5rem}
+  #grade.first.on{animation:slam .55s cubic-bezier(.2,1.6,.3,1)}
+  @media (prefers-reduced-motion:reduce){ #grade.first.on{animation:none} }
   #grade small{display:block; font-weight:500; font-size:.78rem; color:var(--soft); margin-top:1px}
   #grade.sharp{color:var(--glow); border-color:var(--amber); box-shadow:0 0 22px rgba(240,168,60,.35)}
   #grade.good{color:var(--good); border-color:#3f6b4c}
