@@ -34,8 +34,8 @@ function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
 ok("the bone is built", P.length > 0 && I.length > 0);
 ok("a normal for every corner", N.length === P.length);
-/* two faces, four chamfers mitred at their corners, four sides, a back */
-ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " quads");
+/* two faces, three bands of rounding mitred at their corners, four sides, a back */
+ok("nineteen quads make a bone", P.length / 3 === 19 * 4, (P.length / 3 / 4) + " quads");
 
 /* ---------- and it is closed ----------
    The bone is a solid, and a solid has no holes. The test is the vector
@@ -119,7 +119,7 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
   ok("twice as long as it is wide", Math.abs(w / d - 2) < 1e-6, w + " × " + d);
   /* a jumbo set: a little under half as thick as it is wide, and no more
      — past that it stops being a domino and starts being a block */
-  ok("and thinner than it is wide, as a jumbo bone is", h > d * 0.3 && h < d * 0.55, "thickness " + h.toFixed(2));
+  ok("and a cantina block's thickness: a little over half its width", h > d * 0.45 && h < d * 0.62, "thickness " + h.toFixed(2));
   ok("centred on the origin",
      Math.abs(lo[0] + hi[0]) < 1e-6 && Math.abs(lo[1] + hi[1]) < 1e-6 && Math.abs(lo[2] + hi[2]) < 1e-6);
   /* The chamfer must actually cut the top edge back: nothing at full
@@ -133,7 +133,7 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
       reach = Math.max(reach, Math.abs(p[0]) / (w / 2), Math.abs(p[1]) / (d / 2));
     }
   }
-  ok("the face is inset from the edge by a chamfer", reach < 0.99,
+  ok("the face is inset from the edge by the rounding", reach < 0.99,
      "the face reaches " + (reach * 100).toFixed(0) + "% of the way out");
 })();
 
@@ -178,6 +178,19 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
   var cx = 0, cy = 0;
   for (var m = 0; m < t.cloth.P.length; m += 3) { cx = Math.max(cx, Math.abs(t.cloth.P[m])); cy = Math.max(cy, Math.abs(t.cloth.P[m + 1])); }
   ok("the cloth is as big as it was asked for", cx === 10 && cy === 13, cx + " × " + cy);
+})();
+
+/* ---------- the perno ---------- */
+(function () {
+  var q = Gfx3D.pinGeometry(), wrong = 0, top = -1, base = 1e9, rmax = 0;
+  for (var t = 0; t < q.I.length; t += 3) {
+    var a = [q.P[q.I[t] * 3], q.P[q.I[t] * 3 + 1], q.P[q.I[t] * 3 + 2]], b = [q.P[q.I[t + 1] * 3], q.P[q.I[t + 1] * 3 + 1], q.P[q.I[t + 1] * 3 + 2]], c = [q.P[q.I[t + 2] * 3], q.P[q.I[t + 2] * 3 + 1], q.P[q.I[t + 2] * 3 + 2]];
+    var f = cross(sub(b, a), sub(c, a)), n = [q.N[q.I[t] * 3], q.N[q.I[t] * 3 + 1], q.N[q.I[t] * 3 + 2]];
+    if (Math.hypot(f[0], f[1], f[2]) > 1e-9 && dot(f, n) <= 0) wrong++;
+  }
+  for (var i = 0; i < q.P.length; i += 3) { top = Math.max(top, q.P[i + 2]); base = Math.min(base, q.P[i + 2]); rmax = Math.max(rmax, Math.hypot(q.P[i], q.P[i + 1])); }
+  ok("the perno is turned the right way out", wrong === 0, wrong + " backwards");
+  ok("and stands a hair proud of the face, small, in the middle", base === 0 && top > 0.03 && top < 0.08 && rmax < 0.12, "top " + top + " r " + rmax);
 })();
 
 console.log("\n" + (fail === 0

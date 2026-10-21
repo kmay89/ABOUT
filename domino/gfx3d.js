@@ -227,7 +227,12 @@ function compile(gl, type, src) {
    at the camera's angle reads as a tile. The felt sits at -HZ so a bone
    rests *on* it rather than hovering a hundredth above — which is what a
    contact shadow needs in order to be believable. */
-var HZ = 0.24, CHAMFER = 0.075;
+/* A cantina jumbo: 5.5 × 2.7 × 1.5 cm, so the thickness is 56% of the
+   width — a block, not a card — with edges rounded rather than cut, and a
+   brass pin (the perno) raised in the exact middle of the face. HZ is half
+   the thickness; CHAMFER is the radius of the rounding, which the top
+   face and the pip atlas are inset by. */
+var HZ = 0.278, CHAMFER = 0.09;
 /* Hand-laid, not machine-set. Every bone on the table is nudged a hair
    off its slot and turned a degree or so, the same way every time for the
    same bone, so the line reads as something people put down. Small enough
@@ -236,15 +241,17 @@ function jit(tile) {
   return { dx: (nrand(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand(tile * 3 + 3) - 0.5) * 0.05 };
 }
 function boneGeometry() {
-  /* The chamfer was 0.055: about a millimetre and a half, too fine to
-     catch the light at any size the table is ever drawn. At 0.09 the
-     bevel is a band you can see, and a bevel you can see is most of what
-     makes an edge look like an edge. */
-  var hx = L.LEN / 2, hy = L.WID / 2, hz = HZ, c = CHAMFER;
+  var hx = L.LEN / 2, hy = L.WID / 2, hz = HZ, R = CHAMFER;
   var P = [], N = [], U = [], I = [];
+  /* a quad with a stated normal, wound the way the normal says: a corner
+     order that disagrees is reversed on the spot, so the checks below can
+     hold the shape to the rule without a typo ever culling a face */
   function quad(a, b, cc, d, n, uvs) {
-    var base = P.length / 3, i;
-    var vs = [a, b, cc, d];
+    var vs = [a, b, cc, d], i;
+    var e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [cc[0] - a[0], cc[1] - a[1], cc[2] - a[2]];
+    var f = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (f[0] * n[0] + f[1] * n[1] + f[2] * n[2] < 0) { vs = [a, d, cc, b]; uvs = uvs && [uvs[0], uvs[3], uvs[2], uvs[1]]; }
+    var base = P.length / 3;
     for (i = 0; i < 4; i++) {
       P.push(vs[i][0], vs[i][1], vs[i][2]);
       N.push(n[0], n[1], n[2]);
@@ -252,40 +259,60 @@ function boneGeometry() {
     }
     I.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
-  /* the two top halves. UVs are filled per-draw by rewriting the buffer
-     region, so the mesh stays one upload. */
-  var ix = hx - c, iy = hy - c;
+  /* the two top halves, inset by the rounding. UVs are filled per-draw by
+     rewriting the buffer region, so the mesh stays one upload. */
+  var ix = hx - R, iy = hy - R;
   quad([-ix, -iy, hz], [0, -iy, hz], [0, iy, hz], [-ix, iy, hz], [0, 0, 1],
        [[0, 1], [1, 1], [1, 0], [0, 0]]);
   quad([0, -iy, hz], [ix, -iy, hz], [ix, iy, hz], [0, iy, hz], [0, 0, 1],
        [[0, 1], [1, 1], [1, 0], [0, 0]]);
-  /* The chamfer: four flat cuts around the top edge, **mitred** at the
-     corners — each cut runs out to the bone's true corner at (±hx, ±hy),
-     so adjacent cuts share a whole edge and meet like a picture frame.
-
-     The obvious alternative stops each cut short by the chamfer width,
-     and it does not close: adjacent cuts then touch at a single point
-     with an open triangle between them, and the side walls below them
-     leave an open vertical sliver at each corner besides. At a 0.055
-     bevel those holes were a pixel or two and went unseen for the life
-     of the room. Widening the bevel so the edges would read turned all
-     four into notches bitten out of the silhouette with the felt
-     showing through — and patching them with corner triangles fixes
-     only the top half, while breaking convexity against the square
-     back. Mitring costs nothing and closes both. */
-  var d = 0.7071;
-  quad([-ix, -iy, hz], [-ix, iy, hz], [-hx, hy, hz - c], [-hx, -hy, hz - c], [-d, 0, d]);
-  quad([ix, -iy, hz], [hx, -hy, hz - c], [hx, hy, hz - c], [ix, iy, hz], [d, 0, d]);
-  quad([-ix, -iy, hz], [-hx, -hy, hz - c], [hx, -hy, hz - c], [ix, -iy, hz], [0, -d, d]);
-  quad([-ix, iy, hz], [ix, iy, hz], [hx, hy, hz - c], [-hx, hy, hz - c], [0, d, d]);
-  /* the four sides, full width, straight down to the felt */
-  quad([-hx, -hy, hz - c], [-hx, hy, hz - c], [-hx, hy, -hz], [-hx, -hy, -hz], [-1, 0, 0]);
-  quad([hx, -hy, hz - c], [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz - c], [1, 0, 0]);
-  quad([-hx, -hy, hz - c], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz - c], [0, -1, 0]);
-  quad([-hx, hy, hz - c], [hx, hy, hz - c], [hx, hy, -hz], [-hx, hy, -hz], [0, 1, 0]);
+  /* The rounding: a quarter-circle of radius R from the top face down to
+     the side wall, in three bands, **mitred** at the corners — every band
+     runs out to the bone's true corner, so adjacent bands share a whole
+     edge and the surface closes. (A single cut was the first version; it
+     read as a bevel, and a cantina bone is rounded, not bevelled.) */
+  var A = [0, Math.PI / 6, Math.PI / 3, Math.PI / 2];
+  function ring(a) { return { x: hx - R + R * Math.sin(a), y: hy - R + R * Math.sin(a), z: hz - R + R * Math.cos(a) }; }
+  for (var k = 0; k < 3; k++) {
+    var r0 = ring(A[k]), r1 = ring(A[k + 1]), am = (A[k] + A[k + 1]) / 2, sn = Math.sin(am), cs = Math.cos(am);
+    quad([r0.x, -r0.y, r0.z], [r0.x, r0.y, r0.z], [r1.x, r1.y, r1.z], [r1.x, -r1.y, r1.z], [sn, 0, cs]);
+    quad([-r0.x, -r0.y, r0.z], [-r0.x, r0.y, r0.z], [-r1.x, r1.y, r1.z], [-r1.x, -r1.y, r1.z], [-sn, 0, cs]);
+    quad([-r0.x, r0.y, r0.z], [r0.x, r0.y, r0.z], [r1.x, r1.y, r1.z], [-r1.x, r1.y, r1.z], [0, sn, cs]);
+    quad([-r0.x, -r0.y, r0.z], [r0.x, -r0.y, r0.z], [r1.x, -r1.y, r1.z], [-r1.x, -r1.y, r1.z], [0, -sn, cs]);
+  }
+  /* the four sides, full width, from the foot of the rounding to the felt */
+  var zt = hz - R;
+  quad([-hx, -hy, zt], [-hx, hy, zt], [-hx, hy, -hz], [-hx, -hy, -hz], [-1, 0, 0]);
+  quad([hx, -hy, zt], [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, zt], [1, 0, 0]);
+  quad([-hx, -hy, zt], [-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, zt], [0, -1, 0]);
+  quad([-hx, hy, zt], [hx, hy, zt], [hx, hy, -hz], [-hx, hy, -hz], [0, 1, 0]);
   /* and the back */
   quad([-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz], [hx, -hy, -hz], [0, 0, -1]);
   return { P: P, N: N, U: U, I: I };
+}
+
+/* The perno: the brass pin in the middle of the face, a short turned
+   stud with a domed head, raised a hair above the bone. Twelve facets
+   round; its profile is a few radius-height pairs turned about the axis. */
+var PIN = [[0.080, 0], [0.080, 0.026], [0.058, 0.040], [0.030, 0.049], [0, 0.052]];
+function pinGeometry() {
+  var P = [], N = [], I = [], SEG = 12, i, k;
+  function v(r, z, i) { var a = i / SEG * Math.PI * 2; return [r * Math.cos(a), r * Math.sin(a), z]; }
+  for (k = 0; k < PIN.length - 1; k++) {
+    var p = PIN[k], q = PIN[k + 1];
+    /* the outward normal of this stretch of the profile */
+    var dr = q[0] - p[0], dz = q[1] - p[1], nl = Math.hypot(dr, dz) || 1, nr = dz / nl, nz = -dr / nl;
+    for (i = 0; i < SEG; i++) {
+      var a0 = i / SEG * Math.PI * 2, a1 = (i + 1) / SEG * Math.PI * 2;
+      var base = P.length / 3;
+      var pts = [v(p[0], p[1], i), v(p[0], p[1], i + 1), v(q[0], q[1], i + 1), v(q[0], q[1], i)];
+      var ns = [[nr * Math.cos(a0), nr * Math.sin(a0), nz], [nr * Math.cos(a1), nr * Math.sin(a1), nz],
+                [nr * Math.cos(a1), nr * Math.sin(a1), nz], [nr * Math.cos(a0), nr * Math.sin(a0), nz]];
+      for (var j = 0; j < 4; j++) { P.push(pts[j][0], pts[j][1], pts[j][2]); N.push(ns[j][0], ns[j][1], ns[j][2]); }
+      I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  return { P: P, N: N, U: new Array(P.length / 3 * 2).fill(0), I: I };
 }
 
 function boneMesh(gl) {
@@ -773,6 +800,7 @@ function Gfx3D(canvas) {
   }, this);
 
   this.bone = boneMesh(gl);
+  this.pin = upload(gl, pinGeometry());
   /* the floor: 800 units across, a tile every 12 (about 30cm), and
      the texture carries two tiles a side */
   this.plane = planeMesh(gl, 400, 800 / 24);
@@ -1149,6 +1177,20 @@ Gfx3D.prototype.draw = function (scene, now) {
     gl.drawElements(gl.TRIANGLES, this.bone.count, gl.UNSIGNED_SHORT, 0);
   }
   if (s.translucent) gl.disable(gl.BLEND);
+  /* the pernos: brass, hard-lit, one on every face */
+  this.bind(this.pin);
+  gl.uniform3f(u.uColor, 0.80, 0.62, 0.28);
+  gl.uniform1f(u.uSpec, 0.95);
+  gl.uniform1f(u.uPower, 48);
+  gl.uniform1f(u.uRim, 0.25);
+  gl.uniform1f(u.uTex, 0);
+  gl.uniform1f(u.uAlpha, 1);
+  gl.uniform1f(u.uAmb, 0.18);
+  for (i = 0; i < place.length; i++) {
+    var pp = place[i];
+    gl.uniformMatrix4fv(u.uModel, false, trs(pp.x, pp.y, pp.z + HZ, pp.rot, 1, 1, 1));
+    gl.drawElements(gl.TRIANGLES, this.pin.count, gl.UNSIGNED_SHORT, 0);
+  }
 
   /* the open ends, marked on the felt itself */
   if (scene.ghosts && scene.ghosts.length) {
@@ -1293,6 +1335,7 @@ Gfx3D.prototype.destroy = function () {
 /* exposed so `tools/bone-check.js` can check the winding in node, where
    there is no WebGL to upload it to */
 Gfx3D.boneGeometry = boneGeometry;
+Gfx3D.pinGeometry = pinGeometry;
 Gfx3D.HZ = HZ;
 Gfx3D.CHAMFER = CHAMFER;
 Gfx3D.jit = jit;
