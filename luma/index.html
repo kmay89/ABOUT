@@ -105,6 +105,10 @@
           <div class="file-row"><span class="tiny-photo-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="m2 11 4-4 3 3 2-2 3 3"/></svg></span><span id="fileName">Sample · golden retriever</span><span class="local-dot" title="Processed in this browser"></span></div>
           <div class="project-actions"><button id="projectOpenBtn" class="text-button muted" type="button">Open project</button><span aria-hidden="true">·</span><button id="projectSaveBtn" class="text-button muted" type="button">Save project</button></div>
           <input id="projectInput" class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-label="Open a saved Luma project">
+          <details id="patternDetails" class="patterns">
+            <summary>Or start from a pattern <span>for the other sides of a lantern, or a pane of its own</span></summary>
+            <div id="patternTiles" class="pattern-tiles" role="group" aria-label="Patterns"></div>
+          </details>
         </section>
 
         <section class="editor-section" aria-labelledby="shapeHeading">
@@ -157,6 +161,21 @@
             <div class="slider-field"><div class="label-value"><label for="brightnessInput">Brightness</label><output id="brightnessValue" for="brightnessInput">0</output></div><input id="brightnessInput" type="range" min="-40" max="40" step="1" value="0"></div>
             <div class="slider-field"><div class="label-value"><label for="contrastInput">Contrast</label><output id="contrastValue" for="contrastInput">100%</output></div><input id="contrastInput" type="range" min="50" max="150" step="1" value="100"></div>
           </div>
+          <details id="wordsDetails" class="words">
+            <summary>Add words <span>names, a date, a line you love</span></summary>
+            <div class="words-body">
+              <div class="field"><label for="wordsLine1">First line</label><input id="wordsLine1" class="text-input" type="text" maxlength="60" placeholder="Grandma &amp; Grandpa" autocomplete="off"></div>
+              <div class="field"><label for="wordsLine2">Second line <span class="optional">(smaller)</span></label><input id="wordsLine2" class="text-input" type="text" maxlength="60" placeholder="Fifty summers · 1974–2024" autocomplete="off"></div>
+              <div class="field"><span class="field-label" id="fontLabel">Lettering</span><div id="fontTiles" class="font-tiles" role="radiogroup" aria-labelledby="fontLabel"></div><input id="wordsFont" type="hidden" value="cormorant"></div>
+              <div class="slider-field"><div class="label-value"><label for="wordsSize">Letter height</label><output id="wordsSizeValue" for="wordsSize">10 mm</output></div><input id="wordsSize" type="range" min="4" max="30" step="1" value="10"></div>
+              <div class="dimensions-fields">
+                <div class="field"><label for="wordsPosition">Place</label><div class="select-wrap"><select id="wordsPosition"><option value="bottom" selected>Bottom</option><option value="top">Top</option><option value="middle">Middle</option></select></div></div>
+                <div class="field"><label for="wordsStyle">Letters</label><div class="select-wrap"><select id="wordsStyle"><option value="glow" selected>Glowing</option><option value="dark">Dark</option></select></div></div>
+              </div>
+              <div class="field"><label for="wordsBand">Behind the words</label><div class="select-wrap"><select id="wordsBand"><option value="on" selected>A soft band (clearest)</option><option value="off">Nothing</option></select></div></div>
+              <p class="field-help">Letters print best at 6 mm or taller, and in the bolder styles. Glowing letters on a soft dark band read best when the light is on.</p>
+            </div>
+          </details>
         </section>
 
         <section class="editor-section filament-section" aria-labelledby="filamentHeading">
@@ -222,7 +241,19 @@
           <p class="field-help">Printable extras, sized to fit this exact picture. Print them in any colour — they don’t need to let light through.</p>
           <div id="accessoryCards" class="accessory-cards" role="radiogroup" aria-label="Add a frame or base"></div>
           <div id="accessoryOptions" hidden>
+            <div id="frameLightField" class="field"><label for="frameLight">The light inside</label><div class="select-wrap"><select id="frameLight"><option value="board" selected>LED board · 156 × 120</option><option value="own">My own light (strip, puck)</option></select></div></div>
             <div id="depthField" class="slider-field"><div class="label-value"><label for="boxDepthInput">Light box depth</label><output id="boxDepthValue" for="boxDepthInput">30 mm</output></div><input id="boxDepthInput" type="range" min="20" max="60" step="1" value="30"><div class="range-endpoints"><span>Slim · LED strip</span><span>Deep · puck light</span></div></div>
+            <div id="storageField" class="slider-field"><div class="label-value"><label for="storageInput">Spare pictures stored behind</label><output id="storageValue" for="storageInput">4</output></div><input id="storageInput" type="range" min="1" max="6" step="1" value="4"><div class="range-endpoints"><span>One spare</span><span>Six — a whole year</span></div></div>
+            <div id="frameLookField" class="dimensions-fields">
+              <div class="field"><label for="frameMargin">Border</label><div class="select-wrap"><select id="frameMargin"><option value="0">Slim</option><option value="6" selected>Gallery</option><option value="14">Wide</option></select></div></div>
+              <div class="field"><label for="frameStyle">Window</label><div class="select-wrap"><select id="frameStyle"><option value="bevel" selected>Bevelled</option><option value="flat">Square</option></select></div></div>
+            </div>
+            <div class="dimensions-fields">
+              <div id="fitField" class="field"><label for="fitSelect">Fit</label><div class="select-wrap"><select id="fitSelect"><option value="snug">Snug</option><option value="standard" selected>Standard</option><option value="loose">Loose</option></select></div></div>
+              <div class="field"><label for="frameColour">Preview in</label><div class="select-wrap"><select id="frameColour"><option value="#4a3426">Walnut</option><option value="#1f1d1b">Black</option><option value="#ebe6dc">White</option><option value="#b08453">Oak</option><option value="#7f9278">Sage</option><option value="#b9925a">Gold</option></select></div></div>
+            </div>
+            <p id="fitHelp" class="field-help"></p>
+            <label id="coverField" class="check-row"><input id="frameCover" type="checkbox"> Add a slide-in back cover</label>
             <p id="accessoryNotes" class="accessory-notes"></p>
             <label class="check-row"><input id="accessoryPreview" type="checkbox" checked> Show it in the preview</label>
             <div id="accessoryDownloads" class="accessory-downloads"></div>

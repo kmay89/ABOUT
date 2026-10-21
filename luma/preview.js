@@ -141,19 +141,29 @@ export class LithophanePreview {
     this.render();
   }
 
-  /** Frames and bases, already placed beside the picture: [{vertices, indices}]. */
+  /** Frames and bases, already placed beside the picture: [{vertices, indices, kind?}].
+   * kind 'board' is an LED board and 'pane' another picture, both shown but not printed. */
   setAccessories(meshes) {
     if (this.extras) { this.scene.remove(this.extras); this.extras.children.forEach(m => m.geometry.dispose()); }
     this.extras = new THREE.Group();
-    this.accessoryMaterial ||= new THREE.MeshStandardMaterial({ color: 0x3a322b, roughness: 0.62, metalness: 0, side: THREE.DoubleSide, flatShading: true });
+    this.accessoryMaterial ||= new THREE.MeshStandardMaterial({ color: this.frameColour || 0x4a3426, roughness: 0.55, metalness: 0, side: THREE.DoubleSide, flatShading: true });
+    this.boardMaterial ||= new THREE.MeshStandardMaterial({ color: 0xf1f1ea, roughness: 0.5, emissive: 0xfff4dc, emissiveIntensity: 0.35, side: THREE.DoubleSide });
+    this.paneMaterial ||= Object.assign(new THREE.MeshBasicMaterial({ color: 0xf0d6a4, side: THREE.DoubleSide, transparent: true, opacity: 0.92 }), { toneMapped: false });
     for (const mesh of meshes) {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(mesh.vertices, 3));
       geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
       geometry.computeVertexNormals();
-      this.extras.add(new THREE.Mesh(geometry, this.accessoryMaterial));
+      const material = mesh.kind === 'board' ? this.boardMaterial : mesh.kind === 'pane' ? this.paneMaterial : this.accessoryMaterial;
+      this.extras.add(new THREE.Mesh(geometry, material));
     }
     this.scene.add(this.extras);
+    this.render();
+  }
+
+  setFrameColour(hex) {
+    this.frameColour = new THREE.Color(hex).getHex();
+    if (this.accessoryMaterial) this.accessoryMaterial.color.set(hex);
     this.render();
   }
 

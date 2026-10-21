@@ -98,37 +98,70 @@ adds placement tips (bright spots from a small light too close), and
 `light.test.mjs` checks the calibration, the inverse square, that more
 light never thins the shadows, and the warnings.
 
-## Frames and bases
+## Frames, a showcase, and a lantern
 
 "Frame it, light it" makes printable extras sized from the picture's own
-settings, shown in the 3D preview beside it and downloaded as their own
-STLs, in their print orientation, needing no supports (`accessories.js`):
+settings, shown in the 3D preview beside it (in walnut, black, white, oak,
+sage or gold) and downloaded as their own STLs, in their print orientation,
+needing no supports (`frames.js`, `accessories.js`, listed in `extras.js`):
 
-- **Light box** (flat): a frame the picture presses into flush from the
-  front, resting on a ledge behind its border, with a 20–60 mm hollow for
-  an LED strip or puck light and a rabbet for a back cover with a cable
-  notch. Prints face down.
-- **LED board box** (flat): built round a ready-made 156 × 120 mm USB-C
-  backlight board (Bambu Lab's CMYK board and the boards that copy its
-  size), turned to match the picture. The picture presses into the front;
-  the board drops in from the back onto a seat a set gap behind it (6–30
-  mm, 12 by default, so the LEDs blend rather than show as dots); an open
-  retainer snaps under a 0.35 mm lip behind the board and leaves its back,
-  port and cable free. The box is the board's size, so a smaller picture
-  gets wider margins at the sides than the ends — `rectSweep` sweeps a
-  profile whose offsets differ on the long and short sides.
+- **Gallery frame** (flat): the picture, and the light behind it, slide
+  down into grooves on the left, right and bottom; a lid presses on top
+  and closes it. Nothing flexes or snaps, so nothing wears out, and the
+  picture changes in seconds. The border is the same width on every side,
+  measured from the photo's edge, whatever the picture and board sizes —
+  Slim, Gallery (+6 mm) or Wide (+14 mm) — and the window has a 45° bevel
+  like a cut mat (or a square edge). The light is either a 156 × 120 mm
+  USB-C backlight board (Bambu Lab's CMYK board and the boards that copy
+  its size), held 6–30 mm behind the picture so its LEDs blend, or your own
+  LED strip or puck in a 15–60 mm hollow, with a slide-in back cover.
+- **Showcase frame** (flat): the gallery frame with 1–6 more slots behind
+  the light, so a year of pictures lives in the frame — lift the lid and
+  swap the one on show with the seasons.
+- **Lantern** (flat pictures): four pictures round a light, standing in the
+  slots of four corner posts on a grooved base, with a ring on top. The
+  base has an opening for a cable or a tea light's switch. The other sides
+  can be more photos or patterns (below).
 - **Desk stand** (flat): a slotted foot the picture stands in.
-- **Tea-light base** (lamp): a cup with a groove the lamp stands in, room
-  for an LED tea light, and a hole underneath to reach its switch.
-- **Nightlight stand** (curved shade): a curved rim with a groove the shade
-  stands in, on a round floor for an LED puck or tea light.
+- **Tea-light base** (lamp) and **nightlight stand** (curved shade).
 
-Every part is a 2D cross-section swept round a rectangle, round a circle,
-along an arc, or straight, so each comes out a closed, outward-wound solid
-with no booleans; the one two-shape part overlaps its shells, which slicers
-union. `accessories.test.mjs` checks each is closed with the expected
-topology, sits on the plate, writes as STL, and fits the picture it was
-made for.
+One **fit** setting — snug, standard, loose — sets every clearance, so a
+printer that runs tight or loose is fixed in one place; the lid is the
+quick test piece.
+
+### How they print
+
+The frames are swept cross-sections, like everything else here: a U (left,
+bottom, right) whose section can sit at a different offset on the sides
+than on the bottom (`axisSweep`), plus a front lip across the top. They
+print face down, which decides the shape as much as looks do: going up the
+print, the inside edge may step outward freely but inward by no more than
+2.5 mm before it needs a 45° slope. So the LED board, wider than the
+picture, sits in a wider hollow and its slot is only a millimetre deep;
+anything behind it steps back in on a slope. The top behind the front lip
+is open, and the lid's fins fill it between the slots — printed standing
+up, so there is no bridge anywhere. `frames.test.mjs` walks every
+cross-section and fails on any unsupported step, and checks that every
+part is closed, sits on the plate, and fits what goes in it.
+
+## Patterns and words
+
+- **Patterns** (`decor.js`) are pictures drawn rather than photographed, for
+  the other sides of a lantern, a showcase's spare slots, or a pane of their
+  own: starry night, moonlit pines, snowfall, vines and blossoms, waves,
+  falling leaves, hearts, an art deco sunburst, honeycomb, a soft glow and a
+  bordered card for words. Every shape is bold enough to survive becoming
+  plastic, they are seeded so the same choice is always the same picture,
+  and they are redrawn whenever the picture changes shape, so they are
+  never stretched.
+- **Words** go on top of any picture — a first line and a smaller second
+  line, glowing or dark letters, top, middle or bottom, with an optional
+  soft band behind them — in seven open-licence fonts bundled in `fonts/`
+  (Cormorant Garamond, Playfair Display, Great Vibes, Dancing Script,
+  Cinzel, Josefin Sans, Montserrat, at bold weights; see `fonts/OFL.txt`).
+  They are drawn in millimetres onto the picture before it becomes
+  thickness, so they glow like the rest of it, and they mirror with the
+  picture when it is mirrored to be read from the smooth side.
 
 ## Making sure it prints
 
@@ -170,6 +203,11 @@ were saved.
 - `preview.js` — the Three.js orbit preview, lit and material modes, with
   a 2D fallback when WebGL is missing.
 - `export-worker.js` — builds the STL off the main thread.
+- `light.js` — the light calculator.
+- `accessories.js`, `frames.js`, `extras.js` — the stands, bases, frames
+  and lantern, and the list the picker shows.
+- `decor.js` — patterns and words.
+- `fonts/` — seven OFL fonts (Latin subsets) and their licence.
 - `vendor/` — Three.js r170 and heic2any, with their MIT licences.
 - `tests/` — the checks below.
 
