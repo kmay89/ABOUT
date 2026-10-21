@@ -8,6 +8,7 @@ import {
   newDesign, restoreDesign, grid, binRect, partsList, packPlates, fillEmpty, placeBin, trimToGrid, applyRecipe,
   RECIPES, SPACES, PRINTERS, FILAMENTS, SETTINGS_DEFAULTS, SETTINGS_LIMITS, clampSetting, binHeights, maxCount,
   suggestedCount, fmt, MIN_CELL, binInside, insideFor, itemFitsBin, splitToFit, plateFit, plateTotals, occupancy,
+  PROFILES, profileOf, applyProfile,
 } from './layout.js';
 import { ITEMS, ITEM_BY_ID, cellsFor, arrange, fit as itemFit } from './items.js';
 import { threeMF, bundle, partSTL, partFileName, zipStore } from './export.js';
@@ -36,6 +37,8 @@ const el = {
   wall: $('wallInput'), floor: $('floorInput'), radius: $('radiusInput'), divider: $('dividerInput'),
   clearance: $('clearanceInput'), gap: $('gapInput'), rimGap: $('rimGapInput'), clips: $('clipsToggle'), clipFit: $('clipFitSelect'),
   resetSettings: $('resetSettingsBtn'), toast: $('toast'), settingsDetails: $('settingsDetails'), soundBtn: $('soundBtn'),
+  edge: $('edgeInput'), chamfer: $('chamferInput'), joint: $('jointSelect'), channelsWhere: $('channelsSelect'),
+  finishChips: $('finishChips'), finishBlurb: $('finishBlurb'), finishCustom: $('finishCustom'),
   itemSpace: $('itemSpace'), itemSpace2: $('itemSpace2'), binItems: $('binItems'), itemsNote: $('itemsNote'),
   sizeItems: $('sizeItems'), sizeNote: $('sizeNote'), plateList: $('plateList'), platesSummary: $('platesSummary'),
 };
@@ -123,6 +126,18 @@ for (const [id, s] of Object.entries(SPACES)) {
   b.addEventListener('click', () => setSpace(id));
   el.spaceChips.append(b);
 }
+for (const [id, p] of Object.entries(PROFILES)) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.profile = id; b.textContent = p.name; b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => {
+    if (state.design.settings.profile === id) return;
+    pushUndo();
+    applyProfile(state.design, id);
+    update();
+    sound.settle(3);
+  });
+  el.finishChips.append(b);
+}
 for (const sel of [el.itemSpace, el.itemSpace2]) {
   for (const [id, s] of Object.entries(SPACES)) {
     if (id === 'other') continue;
@@ -188,6 +203,10 @@ function renderDrawer() {
   el.recipe.value = list.some(r => r.id === state.design.recipe) ? state.design.recipe : '';
   const recipe = list.find(r => r.id === el.recipe.value);
   el.recipeBlurb.textContent = recipe ? recipe.blurb : 'Your own arrangement. Pick a layout above to start again from one.';
+  const profile = state.design.settings.profile;
+  for (const b of el.finishChips.children) b.setAttribute('aria-pressed', String(b.dataset.profile === profile));
+  el.finishCustom.hidden = profile !== 'custom';
+  el.finishBlurb.textContent = PROFILES[profile] ? PROFILES[profile].blurb : 'Pick a finish to go back to one of the two, or keep tuning in Fine settings.';
 }
 
 function setSpace(space) {
@@ -702,6 +721,7 @@ function renderPlates() {
 function setSetting(key, value) {
   pushUndo();
   state.design.settings[key] = value;
+  state.design.settings.profile = profileOf(state.design.settings);
   update();
   sound.toggle();
 }
@@ -713,6 +733,8 @@ function renderSettings() {
   for (const key of Object.keys(SETTINGS_LIMITS)) if (document.activeElement !== el[key]) el[key].value = s[key];
   el.clips.checked = s.clips;
   el.clipFit.value = s.clipFit;
+  el.joint.value = s.joint;
+  el.channelsWhere.value = s.channelsWhere;
 }
 for (const key of Object.keys(SETTINGS_LIMITS)) {
   el[key].addEventListener('change', () => {
@@ -722,11 +744,14 @@ for (const key of Object.keys(SETTINGS_LIMITS)) {
   });
 }
 el.clips.addEventListener('change', () => setSetting('clips', el.clips.checked));
+el.joint.addEventListener('change', () => setSetting('joint', el.joint.value));
+el.channelsWhere.addEventListener('change', () => setSetting('channelsWhere', el.channelsWhere.value));
 el.clipFit.addEventListener('change', () => setSetting('clipFit', el.clipFit.value));
 el.resetSettings.addEventListener('click', () => {
   pushUndo();
   const keep = { printer: state.design.settings.printer, filament: state.design.settings.filament };
   state.design.settings = { ...SETTINGS_DEFAULTS, ...keep };
+  state.design.settings.profile = profileOf(state.design.settings);
   update();
   toast('Settings are back to the defaults.');
 });

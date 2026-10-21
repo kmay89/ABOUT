@@ -117,6 +117,11 @@
           <p class="help">Measure <strong>inside</strong> the drawer: width across the front, depth front to back, height from the floor to the top of the side. Bins stop a little below that so the drawer closes.</p>
           <div class="field wide"><label for="recipeSelect">Start from</label><select id="recipeSelect"></select></div>
           <p class="help" id="recipeBlurb"></p>
+          <div class="finish">
+            <div class="finish-head"><strong>Finish</strong><span class="help" id="finishCustom" hidden>Custom — your own fine settings</span></div>
+            <div class="chips" id="finishChips" role="group" aria-label="How the bins are built"></div>
+            <p class="help" id="finishBlurb"></p>
+          </div>
         </section>
 
         <section class="card" aria-labelledby="gridTitle">
@@ -215,6 +220,22 @@
               <p>The walls between compartments inside a bin. 1.2 mm (three lines) is plenty; they are braced by the floor and the outer wall.</p>
             </div>
             <div class="setting">
+              <div class="setting-row"><label for="edgeInput">Rim rounding</label><div class="field"><input id="edgeInput" type="number" step="0.1" min="0" max="1.5"><span class="unit">mm</span></div></div>
+              <p>The outside edge of the top rim, rounded over. 0.6 mm turns a printed box into a finished object and gives a clip's channel a lead-in; 0 is a square rim. It cannot be deeper than the wall left behind a channel, so a thin wall with the deep joint keeps a square rim.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="chamferInput">Foot chamfer</label><div class="field"><input id="chamferInput" type="number" step="0.1" min="0" max="1.5"><span class="unit">mm</span></div></div>
+              <p>The bottom edge cut back at 45°. 0.5 mm hides elephant's foot, slides into the drawer without catching, and lifts the bin off its shadow. 0 is square.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="jointSelect">Joint</label><select id="jointSelect"><option value="slim">Slim — 1.0 mm deep, hides in a 2 mm wall</option><option value="deep">Deep — 1.4 mm deep, with a rib behind it</option></select></div>
+              <p>The dovetail channel a clip drops into. Slim leaves 1 mm of wall behind it in a 2 mm wall, with nothing added inside the bin. Deep holds harder in a thin wall, and the wall thickens inward behind it in a short rib. Clips match whichever is chosen.</p>
+            </div>
+            <div class="setting">
+              <div class="setting-row"><label for="channelsSelect">Channels</label><select id="channelsSelect"><option value="neighbours">Only where bins meet</option><option value="everywhere">On every wall</option></select></div>
+              <p>Where bins meet, a channel is needed on both sides; against the drawer it is not. Cutting them only where bins meet gives the edge bins a plain outside face, at the cost of a few more distinct parts (the list says which sides each joins). On every wall makes every bin of a size identical, so any can go anywhere.</p>
+            </div>
+            <div class="setting">
               <div class="setting-row"><label for="clearanceInput">Room at the drawer's sides</label><div class="field"><input id="clearanceInput" type="number" step="0.1" min="0" max="3"><span class="unit">mm</span></div></div>
               <p>Space between the bins and each side of the drawer. 0.5 mm covers a printer's usual error and a drawer that is not quite square. Measured a drawer twice and trust it? 0.3. Rough plywood drawer? 1.0.</p>
             </div>
@@ -288,6 +309,7 @@
       <section>
         <h3>How the bins are engineered</h3>
         <ul>
+          <li><strong>Two finishes.</strong> <em>Designer</em> is one wall thickness (2 mm walls and dividers) with nothing inside but the box: the slim joint hides in the wall, channels are cut only where bins meet, the rim is rounded and the foot chamfered. <em>Light</em> is the fastest print: 1.6 mm walls with a short rib behind each channel, channels on every wall so any bin goes anywhere, square edges. Fine settings tune either; change one and the finish reads Custom.</li>
           <li><strong>Walls</strong> are a whole number of nozzle lines, so the slicer prints them solid with no gap-fill wiggles. The <strong>floor</strong> is a whole number of layers. Both are the minimum that does not flex, so bins print fast and light.</li>
           <li><strong>The dovetail channel</strong> is 1.4 mm deep, 3 mm wide at the mouth and 4.6 at the back. Behind it the wall thickens inward just where the channel is, so there is always 1.6 mm of solid plastic behind the joint and the rest of the wall stays thin. The channel is blind — it ends at the floor — so a clip can never drop through.</li>
           <li><strong>Corners</strong> are rounded outside and in: stronger, easier to clean, and the first layer sticks better with no sharp corner to lift.</li>

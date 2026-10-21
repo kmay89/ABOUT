@@ -38,6 +38,9 @@ function randomDesign(r, i) {
   const settings = {};
   for (const [key, [lo, hi]] of Object.entries(SETTINGS_LIMITS)) settings[key] = Math.round((lo + r() * (hi - lo)) * 10) / 10;
   settings.clips = r() < 0.75;
+  settings.joint = r() < 0.5 ? 'slim' : 'deep';
+  settings.channelsWhere = r() < 0.5 ? 'neighbours' : 'everywhere';
+  settings.scoopStyle = r() < 0.5 ? 'soft' : 'deep';
   settings.clipFit = ['snug', 'normal', 'loose'][Math.floor(r() * 3)];
   settings.printer = PRINTERS[Math.floor(r() * PRINTERS.length)].id;
   const recipes = RECIPES[space];

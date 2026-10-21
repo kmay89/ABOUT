@@ -180,3 +180,42 @@ test('binary STL carries every triangle and its unit normal', () => {
   near(Math.hypot(view.getFloat32(84, true), view.getFloat32(88, true), view.getFloat32(92, true)), 1, 1e-6, 'unit normal');
   assert.equal(new TextDecoder().decode(new Uint8Array(buffer, 0, 4)), 'test');
 });
+
+const { JOINTS } = await import('../geometry.js');
+
+test('a rounded rim and a chamfered foot keep the bin closed and its outside size', () => {
+  for (const spec of [
+    { width: 60, depth: 60, height: 50, wall: 2, radius: 4.5, edge: 0.6, chamfer: 0.5 },
+    { width: 59.6, depth: 59.6, height: 50, wall: 2, divider: 2, radius: 4.5, edge: 0.6, chamfer: 0.5, joint: JOINTS.slim, channels: channels(60, 60, 60) },
+    { width: 119.6, depth: 59.6, height: 50, wall: 2, divider: 2, radius: 4.5, edge: 0.6, chamfer: 0.5, joint: JOINTS.slim, compartmentsX: 3, compartmentsY: 2, scoop: { depth: 10, width: 84 }, channels: channels(120, 60, 60) },
+    { width: 40, depth: 40, height: 30, wall: 2, radius: 0, edge: 0.8, chamfer: 0.6 },
+    { width: 17.6, depth: 17.6, height: 200, wall: 2, radius: 4.5, edge: 0.6, chamfer: 0.5, joint: JOINTS.slim, channels: channels(18, 18, 18) },
+  ]) {
+    const mesh = buildBin(spec);
+    assertSolid(mesh);
+    near(mesh.size[0], spec.width, 1e-4); near(mesh.size[1], spec.depth, 1e-4); near(mesh.size[2], spec.height, 1e-4);
+    assert.equal(mesh.settings.edge, spec.edge, 'the rounding asked for was possible');
+    assert.equal(mesh.settings.chamfer, spec.chamfer);
+    const plain = buildBin({ ...spec, edge: 0, chamfer: 0 });
+    assert.ok(mesh.volume < plain.volume, 'rounding and chamfering take plastic off');
+    assert.ok(mesh.volume > plain.volume * 0.97, 'but only a little');
+  }
+});
+
+test('the slim joint needs no rib in a 2 mm wall; the deep one does in a thin wall', () => {
+  const slim = buildBin({ width: 59.6, depth: 59.6, height: 40, wall: 2, joint: JOINTS.slim, channels: channels(60, 60, 60) });
+  assert.equal(slim.ribDepth, 0);
+  const deep = buildBin({ width: 59.6, depth: 59.6, height: 40, wall: 1.6, joint: JOINTS.deep, channels: channels(60, 60, 60) });
+  assert.equal(deep.ribDepth, 1.4);
+  assertSolid(buildClip({ length: 30, joint: JOINTS.slim }));
+  near(buildClip({ length: 30, joint: JOINTS.slim }).size[1], JOINTS.slim.base - 2 * CLIP_FITS.normal, 1e-6);
+});
+
+test('the rim rounding gives way to the wall a channel needs', () => {
+  const thin = buildBin({ width: 59.6, depth: 59.6, height: 40, wall: 1.6, edge: 0.8, joint: JOINTS.deep, channels: channels(60, 60, 60) });
+  assert.equal(thin.settings.edge, 0, 'a deep channel in a thin wall leaves nothing to round');
+  const some = buildBin({ width: 59.6, depth: 59.6, height: 40, wall: 2, edge: 1.5, joint: JOINTS.slim, channels: channels(60, 60, 60) });
+  near(some.settings.edge, 0.7, 1e-9, 'capped to what the wall behind the channel allows');
+  const shallow = buildBin({ width: 40, depth: 40, height: 20, floor: 0.8, chamfer: 1.5 });
+  near(shallow.settings.chamfer, 0.5, 1e-9, 'the chamfer stays under the floor');
+});

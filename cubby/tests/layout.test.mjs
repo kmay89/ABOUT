@@ -70,6 +70,7 @@ test('shrinking the grid trims bins instead of leaving them hanging', () => {
 
 test('a bin spec carries a channel at the centre of each cell it covers', () => {
   const design = newDesign({ width: 400, depth: 400, height: 60, space: 'other', recipe: 'cells' });
+  L.applyProfile(design, 'light');                      // channels on every wall
   const g = grid(design);
   const spec = binSpec(design, { c: 1, r: 0, w: 2, h: 3, cx: 1, cy: 1 }, g);
   assert.equal(spec.channels.front.length, 2);
@@ -92,6 +93,7 @@ test('bin heights leave room under the drawer top and never exceed the printer',
 
 test('the parts list groups identical bins and counts one clip per shared cell edge', () => {
   const design = newDesign({ width: 300, depth: 300, height: 50, space: 'other', recipe: 'cells' });
+  L.applyProfile(design, 'light');                      // every same-size bin identical
   const { cols, rows } = grid(design);
   const list = partsList(design);
   const binParts = list.parts.filter(p => p.kind === 'bin');
@@ -229,4 +231,54 @@ test('starting layouts split lanes that would not fit the plate, carrying what t
   assert.deepEqual(own.bins.map(b => b.h), [2, 2]);
   assert.deepEqual(own.bins[1].items, ['knife', 'fork']);
   assert.ok(own.bins.some(b => b.id === lane.id), 'the first piece keeps its id');
+});
+
+test('two finishes: Designer hides the joint in the wall and cuts channels only where bins meet', () => {
+  const design = newDesign({ width: 400, depth: 400, height: 60, space: 'desk' });
+  assert.equal(design.settings.profile, 'designer');
+  assert.equal(L.profileOf(design.settings), 'designer');
+  const list = partsList(design);
+  assert.equal(list.totals.errors, 0);
+  for (const p of list.parts) if (p.kind === 'bin') {
+    assert.equal(p.mesh.ribDepth, 0, `${p.title}: no rib inside`);
+    assert.equal(p.spec.joint.depth, 1.0);
+    assert.ok(p.mesh.settings.edge > 0 && p.mesh.settings.chamfer > 0, 'rounded rim, chamfered foot');
+  }
+  const g = grid(design), occ = occupancy(design);
+  for (const bin of design.bins) {
+    const spec = binSpec(design, bin, g, occ);
+    if (bin.c === 0) assert.equal(spec.channels.left.length, 0, 'nothing joins the drawer wall');
+    if (bin.r === 0) assert.equal(spec.channels.front.length, 0);
+    if (bin.c + bin.w === g.cols) assert.equal(spec.channels.right.length, 0);
+    if (bin.r + bin.h === g.rows) assert.equal(spec.channels.back.length, 0);
+  }
+  // every shared cell edge has a channel on both sides
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c + 1 < g.cols; c++) {
+    const a = occ.cells[r * g.cols + c], b = occ.cells[r * g.cols + c + 1];
+    if (!a || !b || a === b) continue;
+    const binA = design.bins.find(x => x.id === a), binB = design.bins.find(x => x.id === b);
+    const right = binSpec(design, binA, g, occ).channels.right, left = binSpec(design, binB, g, occ).channels.left;
+    const y = (r - binA.r + 0.5) * g.pitchY - design.settings.gap / 2, y2 = (r - binB.r + 0.5) * g.pitchY - design.settings.gap / 2;
+    assert.ok(right.some(v => Math.abs(v - y) < 1e-6) && left.some(v => Math.abs(v - y2) < 1e-6), 'both sides of a seam are channelled');
+  }
+  const titles = list.parts.filter(p => p.kind === 'bin').map(p => p.title);
+  assert.equal(new Set(titles).size, titles.length, 'variants are told apart by which sides they join');
+  assert.ok(titles.some(t => /joins/.test(t)));
+  // Light: ribs, channels everywhere, square edges, every same-size bin identical
+  L.applyProfile(design, 'light');
+  assert.equal(design.settings.profile, 'light');
+  const light = partsList(design);
+  for (const p of light.parts) if (p.kind === 'bin') {
+    assert.equal(p.mesh.ribDepth, 1.4);
+    assert.equal(p.mesh.settings.edge, 0);
+    assert.ok(!/joins/.test(p.title));
+  }
+  assert.ok(light.parts.length < list.parts.length, 'fewer distinct parts');
+  design.settings.wall = 2.4;
+  assert.equal(L.profileOf(design.settings), 'custom');
+  const back = restoreDesign(JSON.parse(JSON.stringify(design)));
+  assert.equal(back.settings.profile, 'custom');
+  assert.equal(back.settings.joint, 'deep');
+  const old = restoreDesign({ drawer: { width: 300, depth: 300, height: 50 }, settings: { wall: 1.6, floor: 1.2, radius: 3, divider: 1.2 }, cols: 5, rows: 5, bins: [] });
+  assert.equal(old.settings.profile, 'light', 'a design saved before finishes existed is the Light one it was');
 });

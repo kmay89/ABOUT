@@ -28,6 +28,13 @@ import earcut from './vendor/earcut.js';
  * holds; backing is the solid wall left behind the channel. */
 export const JOINT = Object.freeze({ depth: 1.4, neck: 3.0, base: 4.6, backing: 1.6 });
 
+/** The two joints. `deep` needs a rib behind it in a thin wall; `slim`
+ * sits inside a 2 mm wall with nothing added, for a clean interior. */
+export const JOINTS = Object.freeze({
+  deep: JOINT,
+  slim: Object.freeze({ depth: 1.0, neck: 2.4, base: 3.6, backing: 1.0 }),
+});
+
 export const CLIP_FITS = Object.freeze({
   snug: 0.10,     // per flank, for a well-tuned printer
   normal: 0.18,   // slides in by hand, holds by friction
@@ -41,6 +48,8 @@ export const BIN_DEFAULTS = Object.freeze({
   channels: { front: [], back: [], left: [], right: [] },
   scoop: null,          // { depth, width } — a finger dip in the front wall's top edge
   joint: JOINT,
+  edge: 0,              // radius rounding the outside of the top rim
+  chamfer: 0,           // the bottom edge, cut back at 45° so the bin sits clean
 });
 
 const ARC_SEGMENTS = 6;      // per 90° outside corner
@@ -86,10 +95,13 @@ function runPoints(L, rStart, rEnd, feats) {
   for (let i = 1; i < spans.length; i++) {
     if (spans[i].lo <= spans[i - 1].hi + 0.05) throw new RangeError('Two channels overlap on one wall; make the cells bigger.');
   }
+  // Samples keep well clear of a channel: when the rim is rounded, the
+  // channel's mouth corners move sideways by up to twice the radius, and
+  // must not overtake a sample.
   const items = spans.map(sp => ({ s: sp.s, pts: sp.pts }));
   for (const s of points) {
     if (s <= s0 + 0.05 || s >= s1 - 0.05) continue;
-    if (spans.some(sp => s > sp.lo - 0.05 && s < sp.hi + 0.05)) continue;
+    if (spans.some(sp => s > sp.lo - 3.2 && s < sp.hi + 3.2)) continue;
     items.push({ s, pts: [[s, 0, false]] });
   }
   items.sort((p, q) => p.s - q.s);
@@ -219,6 +231,25 @@ export function triangulateRings(rings, up = true) {
   return tris;
 }
 
+/* ---------- offsetting an outline ---------- */
+
+/** The outline moved into the solid by `d`: each point along the bisector
+ * of its two edge normals, far enough that both edges move by `d` (the
+ * mitre). Points keep their order and their `inside` mark. */
+function inset(pts, d) {
+  const n = pts.length;
+  return pts.map((p, i) => {
+    const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    const e1 = [p.x - a.x, p.y - a.y], e2 = [b.x - p.x, b.y - p.y];
+    const l1 = Math.hypot(...e1) || 1, l2 = Math.hypot(...e2) || 1;
+    // left-hand normals of a counter-clockwise outline point into the solid
+    const n1 = [-e1[1] / l1, e1[0] / l1], n2 = [-e2[1] / l2, e2[0] / l2];
+    const dot = Math.max(-0.9, n1[0] * n2[0] + n1[1] * n2[1]);
+    const k = d / (1 + dot);
+    return { x: p.x + k * (n1[0] + n2[0]), y: p.y + k * (n1[1] + n2[1]), inside: p.inside };
+  });
+}
+
 /* ---------- mesh assembly ---------- */
 
 class Builder {
@@ -275,6 +306,7 @@ function normalizeBin(options) {
   if (!Number.isInteger(s.compartmentsX) || !Number.isInteger(s.compartmentsY) || s.compartmentsX < 1 || s.compartmentsY < 1) {
     throw new RangeError('Compartments must be whole numbers of one or more.');
   }
+  for (const k of ['edge', 'chamfer']) if (!(finite(s[k], k) >= 0)) throw new RangeError(`${k} cannot be negative.`);
   if (s.wall < 0.8) throw new RangeError('Walls thinner than 0.8 mm do not print well.');
   if (s.floor < 0.6) throw new RangeError('A floor thinner than 0.6 mm will flex.');
   if (s.height <= s.floor + 4) throw new RangeError('The bin needs to be at least 4 mm taller than its floor.');
@@ -377,19 +409,48 @@ export function buildBin(options = {}) {
     holes.push(h);
   }
 
+  // Finishing. The bottom chamfer must leave floor above it; the rim's
+  // rounding moves the outline into the wall, so with a channel it must
+  // leave wall behind the channel's mouth at the top.
+  // Neither may approach a rounded corner's radius: an arc moved in by its
+  // radius collapses to a point, and further turns inside out. A sharp
+  // corner mitres instead and needs no cap.
+  const arcCap = R >= 0.05 ? 0.8 * R : Infinity;
+  const chamfer = Math.min(s.chamfer, Math.max(0, floor - 0.3), 1.5, arcCap);
+  const hasChannels = Object.values(s.channels).some(list => list.length);
+  const edge = Math.min(s.edge, 1.5, hasChannels ? Math.max(0, wall - d - 0.3) : wall - 0.3, (H - floor) / 3, arcCap);
+
   const m = new Builder();
   const plain = outer.filter(p => !p.inside);
-  const bottom = plain.map(p => m.vertex(p.x, p.y, 0));
+  const bottom = (chamfer >= 0.1 ? inset(plain, chamfer) : plain).map(p => m.vertex(p.x, p.y, 0));
   const plainFloor = plain.map(p => m.vertex(p.x, p.y, floor));
   // The notched ring at floor height shares the plain ring's vertices and
   // adds the channel's inner corners; the ledge between them is the channel's end.
   const notchedFloor = [];
   let k = 0;
   for (const p of outer) notchedFloor.push(p.inside ? m.vertex(p.x, p.y, floor) : plainFloor[k++]);
-  const top = outer.map(p => m.vertex(p.x, p.y, topZ(p.x, p.y)));
+  // The rim: from the wall's top, a quarter round of `edge` into the top plane.
+  const STEPS = 4;
+  const rim = [];
+  let topOutline = outer;
+  if (edge >= 0.1) {
+    rim.push(outer.map(p => m.vertex(p.x, p.y, topZ(p.x, p.y) - edge)));
+    for (let i = 1; i <= STEPS; i++) {
+      const th = Math.PI / 2 * i / STEPS, ring = inset(outer, edge * (1 - Math.cos(th)));
+      rim.push(ring.map((p, q) => m.vertex(p.x, p.y, topZ(outer[q].x, outer[q].y) - edge + edge * Math.sin(th))));
+      if (i === STEPS) topOutline = ring;
+    }
+  }
+  const top = rim.length ? rim[rim.length - 1] : outer.map(p => m.vertex(p.x, p.y, topZ(p.x, p.y)));
 
-  m.cap([plain], [bottom], false);
-  m.walls(bottom, plainFloor, true);
+  m.cap([chamfer >= 0.1 ? inset(plain, chamfer) : plain], [bottom], false);
+  if (chamfer >= 0.1) {
+    const lip = plain.map(p => m.vertex(p.x, p.y, chamfer));
+    m.walls(bottom, lip, true);
+    m.walls(lip, plainFloor, true);
+  } else {
+    m.walls(bottom, plainFloor, true);
+  }
   for (let i = 0; i < outer.length; i++) {
     if (!outer[i].inside || outer[(i + 1) % outer.length].inside) continue;
     // i is the second inner corner of a notch; the ledge is [i-2, i-1, i, i+1] in ring order
@@ -397,17 +458,22 @@ export function buildBin(options = {}) {
     const pts = [i - 2, i - 1, i, i + 1].map(q => outer[(q + outer.length) % outer.length]);
     m.cap([pts], [ids], true);
   }
-  m.walls(notchedFloor, top, true);
+  if (rim.length) {
+    m.walls(notchedFloor, rim[0], true);
+    for (let i = 1; i < rim.length; i++) m.walls(rim[i - 1], rim[i], true);
+  } else {
+    m.walls(notchedFloor, top, true);
+  }
 
   const holeFloor = holes.map(h => h.map(p => m.vertex(p.x, p.y, floor)));
   const holeTop = holes.map(h => h.map(p => m.vertex(p.x, p.y, topZ(p.x, p.y))));
-  m.cap([outer, ...holes], [top, ...holeTop], true);
+  m.cap([topOutline, ...holes], [top, ...holeTop], true);
   holes.forEach((h, q) => {
     m.walls(holeFloor[q], holeTop[q], false);
     m.cap([h], [holeFloor[q]], true);
   });
 
-  const mesh = m.finish({ settings: { ...s, radius: R }, ribDepth, bandEnd });
+  const mesh = m.finish({ settings: { ...s, radius: R, edge, chamfer }, ribDepth, bandEnd });
   if (!(mesh.volume > 0)) throw new RangeError('The bin came out inside out.');
   return mesh;
 }
