@@ -50,8 +50,9 @@ function nrand(i) {
 }
 function nrand2(i) { var x = Math.sin(i * 127.1 + 1.7) * 43758.5453; return x - Math.floor(x); }
 /* the same nudge off the slot the round table gives each bone (gfx3d.js) */
-function jit(tile) {
-  return { dx: (nrand2(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand2(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.05 };
+function jit(tile, h) {
+  var across = (nrand2(tile * 3 + 2) - 0.5) * 0.045, horiz = (h === 0 || h === 2 || h === undefined);
+  return { dx: horiz ? 0 : across, dy: horiz ? across : 0, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.018 };
 }
 
 /* ---------- pips ----------
@@ -525,7 +526,7 @@ Gfx2D.prototype.drawTable = function (scene, now) {
     var fc = L.faces(b), a = fc[0], c = fc[1];
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     /* hand-laid: the same hair off the slot the round table gives it */
-    var jj = jit(b.tile);
+    var jj = jit(b.tile, b.h);
     var px = ox + (b.x + jj.dx) * unit, py = oy + (b.y + jj.dy) * unit, lift = 0, rot = b.rot + jj.dr * 57.3;
     if (anim) {
       var k = Math.min(1, anim.t);

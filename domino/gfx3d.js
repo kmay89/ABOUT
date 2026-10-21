@@ -233,12 +233,16 @@ function compile(gl, type, src) {
    the thickness; CHAMFER is the radius of the rounding, which the top
    face and the pip atlas are inset by. */
 var HZ = 0.278, CHAMFER = 0.09;
-/* Hand-laid, not machine-set. Every bone on the table is nudged a hair
-   off its slot and turned a degree or so, the same way every time for the
-   same bone, so the line reads as something people put down. Small enough
-   that neighbours still touch and the pips still read. */
-function jit(tile) {
-  return { dx: (nrand(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand(tile * 3 + 3) - 0.5) * 0.05 };
+/* Hand-laid, not machine-set. Every bone lies flat on the cloth, exactly
+   where the line puts it *along* the line — neighbours still touch — and
+   is nudged a hair *across* it and turned half a degree, the same way
+   every time for the same bone. The first version nudged along the line
+   too and turned more, and corners pushed into the next bone, which read
+   as one bone riding up on another. `h` is the heading the bone travels
+   (layout.js); the nudge is perpendicular to it. */
+function jit(tile, h) {
+  var across = (nrand(tile * 3 + 2) - 0.5) * 0.045, horiz = (h === 0 || h === 2 || h === undefined);
+  return { dx: horiz ? 0 : across, dy: horiz ? across : 0, dr: (nrand(tile * 3 + 3) - 0.5) * 0.018 };
 }
 function boneGeometry() {
   var hx = L.LEN / 2, hy = L.WID / 2, hz = HZ, R = CHAMFER;
@@ -971,7 +975,7 @@ Gfx3D.prototype.draw = function (scene, now) {
   var pitch = this.orbit.pitch, yaw = this.orbit.yaw;
   /* a camera held by a person, not bolted down: the slowest of sways,
      a fraction of a degree, off for anyone who asked for less motion */
-  if (scene.breathe) { yaw += Math.sin(now / 5200) * 0.014; pitch += Math.sin(now / 7300 + 1) * 0.006; }
+  if (scene.breathe) yaw += Math.sin(now / 5200) * 0.008;
 
   /* Frame the whole line of play, however long it has become — and frame
      it in the part of the screen nobody is covering. The seat bar sits
@@ -1117,7 +1121,7 @@ Gfx3D.prototype.draw = function (scene, now) {
   var t = scene.table, place = [], shade = [];
   for (i = 0; i < t.bones.length; i++) {
     var b = t.bones[i];
-    var jj = jit(b.tile);
+    var jj = jit(b.tile, b.h);
     var px = b.x + jj.dx, py = -(b.y + jj.dy), rot = -(b.rot + jj.dr * 57.3) * Math.PI / 180, z = 0;
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     if (anim) {
