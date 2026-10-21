@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const { ITEMS, ITEM_BY_ID, fit, cellsFor, arrange, EASE } = await import('../items.js');
-const { newDesign, grid, binInside, insideFor, itemFitsBin, placeBin, SPACES } = await import('../layout.js');
+const L = await import('../layout.js');
+const { newDesign, grid, binInside, insideFor, itemFitsBin, placeBin, SPACES } = L;
 
 test('every thing has a sensible size, lies flat, and belongs to a real space', () => {
   const ids = new Set();
@@ -55,6 +56,7 @@ test('arrange lays things left to right, front to back, as many as fit in one la
 
 test('a bin\'s inside accounts for walls, dividers and the floor, and the fit uses the rim', () => {
   const design = newDesign({ width: 300, depth: 300, height: 60, space: 'other', recipe: 'empty' });
+  L.applyProfile(design, 'light');                      // the thin-walled finish these figures were worked out for
   design.cols = 3; design.rows = 3;
   const g = grid(design);
   const bin = placeBin(design, { c: 0, r: 0, w: 1, h: 3 }, { cx: 1, cy: 2 });

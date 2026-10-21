@@ -9,7 +9,7 @@
  * it is marked low. The parts list groups identical bins, counts the clips
  * that join neighbours, and packs everything onto the printer's plates.
  */
-import { JOINT, CLIP_FITS, buildBin, buildClip } from './geometry.js';
+import { JOINT, JOINTS, CLIP_FITS, buildBin, buildClip } from './geometry.js';
 import { ITEM_BY_ID, fit as itemFit } from './items.js';
 
 export const VERSION = 1;
@@ -47,11 +47,31 @@ export const FILAMENTS = Object.freeze({
   abs: { name: 'ABS / ASA', density: 1.05 },
 });
 
+/**
+ * Two finishes. Designer is one wall thickness with nothing inside but the
+ * box: the slim joint hides in a 2 mm wall with no rib, channels are cut
+ * only where bins meet, the rim is rounded and the foot chamfered. Light
+ * is the fastest print: thin walls with a rib behind each channel, channels
+ * on every wall so every bin is interchangeable, square edges. Fine
+ * settings can change any value; a design that matches neither is Custom.
+ */
+export const PROFILES = Object.freeze({
+  designer: {
+    name: 'Designer',
+    blurb: 'One wall thickness, a rounded rim, a chamfered foot, the joint hidden in the wall, channels only where bins meet. About a quarter more plastic.',
+    settings: { wall: 2, divider: 2, floor: 1.4, radius: 4.5, joint: 'slim', edge: 0.6, chamfer: 0.5, channelsWhere: 'neighbours', scoopStyle: 'soft' },
+  },
+  light: {
+    name: 'Light',
+    blurb: 'The fastest print: thin walls with a rib behind each channel, channels on every wall so any bin goes anywhere, square edges.',
+    settings: { wall: 1.6, divider: 1.2, floor: 1.2, radius: 3, joint: 'deep', edge: 0, chamfer: 0, channelsWhere: 'everywhere', scoopStyle: 'deep' },
+  },
+});
+export const PROFILE_KEYS = Object.freeze(Object.keys(PROFILES.designer.settings));
+
 export const SETTINGS_DEFAULTS = Object.freeze({
-  wall: 1.6,        // four lines of a 0.4 mm nozzle
-  floor: 1.2,       // six 0.2 mm layers
-  radius: 3,        // outside corners
-  divider: 1.2,     // walls between compartments
+  profile: 'designer',
+  ...PROFILES.designer.settings,
   clearance: 0.5,   // between the bins and the drawer, each side
   gap: 0.4,         // between neighbouring bins
   rimGap: 3,        // from the top of a bin to the top of the drawer
@@ -63,8 +83,32 @@ export const SETTINGS_DEFAULTS = Object.freeze({
 
 export const SETTINGS_LIMITS = Object.freeze({
   wall: [1.2, 3.2], floor: [0.8, 3], radius: [0, 8], divider: [0.8, 3],
-  clearance: [0, 3], gap: [0.2, 2], rimGap: [0, 20],
+  clearance: [0, 3], gap: [0.2, 2], rimGap: [0, 20], edge: [0, 1.5], chamfer: [0, 1.5],
 });
+
+/** Which finish a set of settings is: a profile's name, or 'custom'. */
+export function profileOf(settings) {
+  for (const [id, p] of Object.entries(PROFILES)) {
+    if (PROFILE_KEYS.every(k => typeof p.settings[k] === 'number' ? Math.abs(p.settings[k] - settings[k]) < 1e-9 : p.settings[k] === settings[k])) return id;
+  }
+  return 'custom';
+}
+
+/** Put a finish's settings on a design. */
+export function applyProfile(design, id) {
+  const p = PROFILES[id];
+  if (!p) return design;
+  Object.assign(design.settings, p.settings);
+  design.settings.profile = id;
+  return design;
+}
+
+/** The scoop a bin gets, by finish: Designer's is wider and shallower. */
+export function scoopFor(settings, width, height) {
+  return settings.scoopStyle === 'soft'
+    ? { depth: Math.min(10, 0.22 * height), width: 0.7 * width }
+    : { depth: Math.min(12, 0.28 * height), width: 0.6 * width };
+}
 
 /* ---------- the design ---------- */
 
@@ -123,19 +167,37 @@ export function binRect(design, bin, g = grid(design)) {
 }
 
 /** Everything buildBin needs for one bin of the design. */
-export function binSpec(design, bin, g = grid(design)) {
+export function binSpec(design, bin, g = grid(design), occ = null) {
   const { settings } = design, rect = binRect(design, bin, g), heights = binHeights(design);
-  const centres = (n, pitch) => Array.from({ length: n }, (_, i) => (i + 0.5) * pitch - settings.gap / 2);
-  const channels = settings.clips
-    ? { front: centres(bin.w, g.pitchX), back: centres(bin.w, g.pitchX), left: centres(bin.h, g.pitchY), right: centres(bin.h, g.pitchY) }
-    : { front: [], back: [], left: [], right: [] };
+  const centre = (i, pitch) => (i + 0.5) * pitch - settings.gap / 2;
+  let channels = { front: [], back: [], left: [], right: [] };
+  if (settings.clips && settings.channelsWhere !== 'neighbours') {
+    channels = {
+      front: Array.from({ length: bin.w }, (_, i) => centre(i, g.pitchX)), back: Array.from({ length: bin.w }, (_, i) => centre(i, g.pitchX)),
+      left: Array.from({ length: bin.h }, (_, i) => centre(i, g.pitchY)), right: Array.from({ length: bin.h }, (_, i) => centre(i, g.pitchY)),
+    };
+  } else if (settings.clips) {
+    // A channel only where another bin is on the other side of that cell's edge.
+    const o = occ || occupancy(design);
+    const other = (c, r) => c >= 0 && r >= 0 && c < o.cols && r < o.rows && o.cells[r * o.cols + c] && o.cells[r * o.cols + c] !== bin.id;
+    for (let i = 0; i < bin.w; i++) {
+      if (other(bin.c + i, bin.r - 1)) channels.front.push(centre(i, g.pitchX));
+      if (other(bin.c + i, bin.r + bin.h)) channels.back.push(centre(i, g.pitchX));
+    }
+    for (let j = 0; j < bin.h; j++) {
+      if (other(bin.c - 1, bin.r + j)) channels.left.push(centre(j, g.pitchY));
+      if (other(bin.c + bin.w, bin.r + j)) channels.right.push(centre(j, g.pitchY));
+    }
+  }
   const height = bin.low ? heights.low : heights.full;
   return {
     width: Math.round(rect.width * 1000) / 1000, depth: Math.round(rect.depth * 1000) / 1000, height,
     wall: settings.wall, floor: settings.floor, radius: settings.radius, divider: settings.divider,
     compartmentsX: bin.cx || 1, compartmentsY: bin.cy || 1,
     channels,
-    scoop: bin.scoop ? { depth: Math.min(12, 0.28 * height), width: 0.6 * rect.width } : null,
+    scoop: bin.scoop ? scoopFor(settings, rect.width, height) : null,
+    joint: JOINTS[settings.joint] || JOINT,
+    edge: settings.edge, chamfer: settings.chamfer,
   };
 }
 
@@ -356,11 +418,17 @@ export function restoreDesign(saved) {
   const settings = { ...SETTINGS_DEFAULTS };
   for (const key of Object.keys(SETTINGS_LIMITS)) if (saved.settings && key in saved.settings) settings[key] = clampSetting(key, Number(saved.settings[key]));
   if (saved.settings) {
+    settings.joint = JOINTS[saved.settings.joint] ? saved.settings.joint : (saved.settings.profile ? SETTINGS_DEFAULTS.joint : 'deep');
+    settings.channelsWhere = saved.settings.channelsWhere === 'neighbours' ? 'neighbours' : saved.settings.profile ? SETTINGS_DEFAULTS.channelsWhere : 'everywhere';
+    settings.scoopStyle = saved.settings.scoopStyle === 'soft' ? 'soft' : saved.settings.profile ? SETTINGS_DEFAULTS.scoopStyle : 'deep';
+    if (!('edge' in saved.settings)) settings.edge = saved.settings.profile ? SETTINGS_DEFAULTS.edge : 0;
+    if (!('chamfer' in saved.settings)) settings.chamfer = saved.settings.profile ? SETTINGS_DEFAULTS.chamfer : 0;
     settings.clips = saved.settings.clips !== false;
     settings.clipFit = CLIP_FITS[saved.settings.clipFit] !== undefined ? saved.settings.clipFit : 'normal';
     settings.printer = PRINTERS.some(p => p.id === saved.settings.printer) ? saved.settings.printer : SETTINGS_DEFAULTS.printer;
     settings.filament = FILAMENTS[saved.settings.filament] ? saved.settings.filament : 'pla';
   }
+  settings.profile = profileOf(settings);
   const design = { version: VERSION, drawer: normalizeDrawer(saved.drawer), settings, cols: Number(saved.cols) || 1, rows: Number(saved.rows) || 1, bins: [], recipe: saved.recipe || null };
   const ok = n => Number.isInteger(n) && n >= 0 && n < 1000;
   for (const b of Array.isArray(saved.bins) ? saved.bins : []) {
@@ -377,17 +445,25 @@ export function restoreDesign(saved) {
 
 function binKey(spec) {
   // Everything that shapes the solid, so a changed wall or floor is a new part (and a fresh preview mesh).
+  const ch = ['front', 'back', 'left', 'right'].map(k => spec.channels[k].map(v => Math.round(v * 10)).join(',')).join('/');
   return ['bin', spec.width, spec.depth, spec.height, spec.compartmentsX, spec.compartmentsY, spec.scoop ? 's' : '',
-    spec.channels.front.length, spec.channels.left.length, spec.wall, spec.floor, spec.radius, spec.divider].join('|');
+    ch, spec.wall, spec.floor, spec.radius, spec.divider, spec.joint.depth, spec.edge, spec.chamfer].join('|');
 }
 
-export function describeBin(bin, spec) {
+export function describeBin(bin, spec, settings = null) {
   const comps = (bin.cx || 1) * (bin.cy || 1);
   const bits = [`${bin.w} × ${bin.h} cell${bin.w * bin.h > 1 ? 's' : ''}`];
   if (comps > 1) bits.push(`${comps} compartments`);
   if (bin.low) bits.push('low');
   if (bin.scoop) bits.push('scoop');
-  return { title: `Bin ${bin.w}×${bin.h}${comps > 1 ? ` · ${bin.cx}×${bin.cy} inside` : ''}${bin.low ? ' · low' : ''}${bin.scoop ? ' · scoop' : ''}`,
+  // With channels only where bins meet, same-size bins differ by which sides join.
+  let joins = '';
+  if (settings && settings.clips && settings.channelsWhere === 'neighbours') {
+    const sides = ['front', 'back', 'left', 'right'].filter(k => spec.channels[k].length);
+    joins = sides.length === 4 ? ' · joins all round' : sides.length ? ` · joins ${sides.join(', ')}` : ' · stands alone';
+    bits.push(joins.slice(3));
+  }
+  return { title: `Bin ${bin.w}×${bin.h}${comps > 1 ? ` · ${bin.cx}×${bin.cy} inside` : ''}${bin.low ? ' · low' : ''}${bin.scoop ? ' · scoop' : ''}${joins}`,
     size: `${fmt(spec.width)} × ${fmt(spec.depth)} × ${fmt(spec.height)} mm`, bits };
 }
 
@@ -420,11 +496,11 @@ export function clipPlan(design) {
  * estimates and the files. A part that cannot be built carries its error.
  */
 export function partsList(design) {
-  const g = grid(design), parts = new Map(), heights = binHeights(design);
+  const g = grid(design), parts = new Map(), heights = binHeights(design), occ = occupancy(design);
   for (const bin of design.bins) {
-    const spec = binSpec(design, bin, g), key = binKey(spec);
+    const spec = binSpec(design, bin, g, occ), key = binKey(spec);
     if (!parts.has(key)) {
-      const part = { key, kind: 'bin', qty: 0, bins: [], spec, ...describeBin(bin, spec), contents: [], mesh: null, error: null };
+      const part = { key, kind: 'bin', qty: 0, bins: [], spec, ...describeBin(bin, spec, design.settings), contents: [], mesh: null, error: null };
       try { part.mesh = buildBin(spec); } catch (error) { part.error = error.message; }
       parts.set(key, part);
     }
@@ -433,10 +509,10 @@ export function partsList(design) {
     for (const id of bin.items || []) if (ITEM_BY_ID[id] && !part.contents.includes(ITEM_BY_ID[id].name)) part.contents.push(ITEM_BY_ID[id].name);
   }
   const list = [...parts.values()].sort((p, q) => q.spec.width * q.spec.depth - p.spec.width * p.spec.depth);
-  const fit = CLIP_FITS[design.settings.clipFit] ?? CLIP_FITS.normal;
+  const fit = CLIP_FITS[design.settings.clipFit] ?? CLIP_FITS.normal, joint = JOINTS[design.settings.joint] || JOINT;
   for (const { length, qty } of clipPlan(design)) {
-    const spec = { length, gap: design.settings.gap, fit, joint: JOINT };
-    const part = { key: `clip|${length}`, kind: 'clip', qty, bins: [], contents: [], spec, title: `Clip ${length} mm`, size: `${length} × ${fmt(JOINT.base)} × ${fmt(2 * JOINT.depth + design.settings.gap)} mm`, bits: ['joins two bins'], mesh: null, error: null };
+    const spec = { length, gap: design.settings.gap, fit, joint };
+    const part = { key: `clip|${length}|${joint.depth}`, kind: 'clip', qty, bins: [], contents: [], spec, title: `Clip ${length} mm`, size: `${length} × ${fmt(joint.base)} × ${fmt(2 * joint.depth + design.settings.gap)} mm`, bits: ['joins two bins'], mesh: null, error: null };
     try { part.mesh = buildClip(spec); } catch (error) { part.error = error.message; }
     list.push(part);
   }
@@ -556,5 +632,6 @@ export function designSummary(design) {
     grid: `${g.cols} × ${g.rows} cells of ${fmt(g.cellW)} × ${fmt(g.cellD)} mm`,
     height: `bins ${fmt(heights.full)} mm tall (low bins ${fmt(heights.low)} mm)`,
     space: SPACES[design.drawer.space].name,
+    finish: PROFILES[design.settings.profile] ? PROFILES[design.settings.profile].name : 'Custom',
   };
 }

@@ -54,18 +54,29 @@ it, with its weight and time.
 
 ## The system
 
+- **Two finishes.** *Designer* (the default) is one wall thickness with
+  nothing inside but the box: 2 mm walls and dividers, 1.4 mm floor, 4.5 mm
+  corners, the slim joint hidden in the wall with no rib, channels cut
+  only where bins meet (so edge bins have a plain outside face), a 0.6 mm
+  rounded rim, a 0.5 mm chamfered foot and a wider, shallower scoop. About
+  a quarter more plastic. *Light* is the fastest print: 1.6 mm walls with a
+  short rib behind each deep channel, channels on every wall so any bin of
+  a size goes anywhere, square edges. Fine settings tune either; a design
+  that matches neither reads Custom, and a design saved before finishes
+  existed opens as the Light one it was.
 - **Bins** are open boxes with rounded corners, a wall that is a whole
-  number of nozzle lines (1.6 mm = four lines of 0.4) and a floor that is a
-  whole number of layers (1.2 mm = six of 0.2), so they print solid, fast
-  and light. Compartments are equal cells behind 1.2 mm dividers. A low bin
-  is half height. A finger scoop is a cosine dip in the front wall, never
-  deeper than three-tenths of the bin.
-- **The joint** is a vertical dovetail channel on every outside wall at the
-  centre of each grid cell the bin covers: 1.4 mm deep, 3 mm at the mouth,
-  4.6 mm at the back. Behind it the wall thickens inward just there, so
-  there is always 1.6 mm of solid plastic behind the joint and the rest of
-  the wall stays thin. The channel is blind — it ends at the floor — so a
-  clip can never drop through.
+  number of nozzle lines and a floor that is a whole number of layers, so
+  they print solid, fast and light. Compartments are equal cells behind
+  dividers. A low bin is half height. A finger scoop is a cosine dip in the
+  front wall, never deeper than three-tenths of the bin.
+- **The joint** is a vertical dovetail channel on an outside wall at the
+  centre of a grid cell. The slim one (Designer) is 1.0 mm deep, 2.4 at
+  the mouth and 3.6 at the back, and sits inside a 2 mm wall with 1 mm
+  behind it. The deep one (Light) is 1.4 deep, 3 at the mouth and 4.6 at
+  the back; behind it a thin wall thickens inward just there, so there is
+  always 1.6 mm of plastic behind the joint. Either is blind — it ends at
+  the floor — so a clip can never drop through, and a rounded rim gives it
+  a lead-in at the top.
 - **The clip** is a bowtie: two dovetail keys back to back with a neck as
   long as the gap between bins. It drops in from the top and holds two
   neighbours as one. Three fits (snug, normal, loose; 0.10 / 0.18 / 0.28 mm
@@ -109,10 +120,14 @@ honours `prefers-reduced-motion`.
 ## How the geometry is built
 
 Every solid is made from rings: closed outlines walked counter-clockwise,
-lifted to a height and joined by walls. A bin is a bottom ring, a plain ring
+lifted to a height and joined by walls. A bin is a bottom ring (moved into the solid
+by the foot chamfer, each point along the mitre of its two edge normals),
+a plain ring at the chamfer's height, a plain ring
 at floor height, the same ring with the channels notched into it (the
 ledges between the two are the channels' ends), and a top ring whose points
-carry the scoop's height; inside, one ring per compartment with the ribs
+carry the scoop's height, followed by four more rings stepping a quarter
+circle in and up for the rounded rim (the channel's mouth widens with it,
+which is why the rounding is capped at the wall left behind a channel); inside, one ring per compartment with the ribs
 behind the channels pushed into it. A compartment's corners against the
 outside wall are concentric with it (one wall thickness all the way round,
 so they always sit inside it); against a divider they take a 1 mm fillet,
