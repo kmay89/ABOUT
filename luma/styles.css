@@ -628,7 +628,7 @@ progress::-moz-progress-bar { background: #bea054; border-radius: 5px; }
 .accessory-card strong { font-size: 12px; font-weight: 600; }
 .accessory-card span { font-size: 11px; line-height: 1.45; color: #8e917f; }
 #accessoryOptions { display: grid; gap: 12px; }
-.accessory-notes { margin: 0; padding: 10px 12px; border-radius: 9px; background: #f1f2e8; font-size: 12px; line-height: 1.55; color: #5f6750; }
+.accessory-notes { margin: 0; padding: 10px 12px; border-radius: 9px; background: #f1f2e8; font-size: 12px; line-height: 1.55; color: #5f6750; white-space: pre-line; }
 .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5f6452; cursor: pointer; }
 .check-row input { width: 16px; height: 16px; accent-color: #c69a42; }
 .accessory-downloads { display: grid; gap: 8px; }
