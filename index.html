@@ -198,6 +198,8 @@
      A switch screwed to a wall shouldn't hop when you point at it, so this one
      opts out of the lift and answers with its own toggle instead. */
   .iso-obj.wallsw:hover > *,.iso-obj.wallsw:focus-visible > *{transform:none}
+  /* the drawer under the desk slides out a little rather than lifting: it is in a desk */
+  .iso-obj[data-id="cubby"]:hover > *,.iso-obj[data-id="cubby"]:focus-visible > *,.iso-obj[data-id="cubby"].picked > *{transform:translate(-7px,3.5px)}
   #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
   body.lights-out #swLever{transform:translate(0,9px)}
   /* the glow-in-the-dark plate ring — the whole point of buying those */
@@ -1454,16 +1456,16 @@
   S.push(box(30,50,-180,20,280,152,"#6b4527"));
   S.push(box(510,50,-180,20,280,152,"#6b4527"));
   S.push(box(50,60,-160,460,14,90,"#5d3a20"));
-  S.push(box(0,0,-28,560,380,28,"#8a5734",{top:"url(#wood)"}));
 
   /* ---------- under the desk: a drawer pulled open, and tidy inside ---------- */
-  /* Cubby. A pedestal hangs under the near-right of the slab, flush with
-     the leg's outer face so it never fights the leg for depth, and its
-     drawer is out far enough past the desk's edge to show what is in it:
+  /* Cubby. A pedestal hangs under the near-right of the slab, its front
+     flush with the desk's edge and its side with the leg's, so it reads as
+     part of the desk; its drawer is out far enough to show what is in it:
      cream bins printed to fit it, a few things in them. The one place on
      this desk nothing is piled, because the bins were made for it. Both
-     years have it; a tidy drawer is not a technology. */
-  var CBX = 410, CBY = 240, CBZ = -76, CBW = 120, CBD = 130, CBH = 48;    // the pedestal, top flush under the slab
+     years have it; a tidy drawer is not a technology. It is drawn before
+     the slab: it is under the desk, and the slab must cover its top. */
+  var CBX = 410, CBY = 250, CBZ = -76, CBW = 120, CBD = 130, CBH = 48;    // the pedestal: top under the slab, front flush with its edge, side flush with the leg
   var CDX = CBX + 4, CDY = CBY + CBD, CDZ = CBZ + 4, CDW = CBW - 8, CDOUT = 38, CDH = 40;   // the drawer, out past the edge
   var cubby = box(CBX, CBY, CBZ, CBW, CBD, CBH, "#6e4626", { top: "#5a3a1f" });
   cubby += box(CDX, CDY, CDZ, CDW, CDOUT, CDH, "#7d5433", { top: "#4a2f18" });
@@ -1490,6 +1492,10 @@
   /* the drawer front: a brass pull, and the hairline of the lamp along its top */
   cubby += gLeft(CDX, CDY + CDOUT, CBT, '<rect x="' + (CDW / 2 - 12) + '" y="17" width="24" height="3.2" rx="1.6" fill="#c9a35a" stroke="rgba(40,24,8,.5)" stroke-width=".6"/>' +
     '<rect x="' + (CDW / 2 - 9) + '" y="15.4" width="2.4" height="2" fill="#8e6f34"/><rect x="' + (CDW / 2 + 6.6) + '" y="15.4" width="2.4" height="2" fill="#8e6f34"/>');
+  S.push(wrapObj("cubby","Cubby — the drawer under the desk, pulled open: bins 3D printed to fit it exactly, and the studio that designs them for any drawer","#ffb65c",cubby));
+
+  /* the slab, over the drawer */
+  S.push(box(0,0,-28,560,380,28,"#8a5734",{top:"url(#wood)"}));
   S.push(gTop(0,0,0,'<rect width="560" height="380" fill="#fff" filter="url(#woodTex)" style="mix-blend-mode:multiply" opacity=".6"/>'));
   // wood grain + a couple of knots
   S.push(gTop(0,0,0,
@@ -2656,10 +2662,6 @@
     "</g>" +
     '<rect x="-9" y="-9" width="36" height="48" fill="transparent"/>';          // a hit area worth aiming at
   S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
-
-  /* The drawer under the desk goes in last: it is the nearest thing in the
-     room, and nothing on the desk may paint over it or catch its clicks. */
-  S.push(wrapObj("cubby","Cubby — the drawer under the desk, pulled open: bins 3D printed to fit it exactly, and the studio that designs them for any drawer","#ffb65c",cubby));
 
   document.getElementById("iso").innerHTML = S.join("");
 
