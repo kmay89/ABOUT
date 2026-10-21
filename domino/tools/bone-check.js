@@ -117,7 +117,9 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
   }
   var w = hi[0] - lo[0], d = hi[1] - lo[1], h = hi[2] - lo[2];
   ok("twice as long as it is wide", Math.abs(w / d - 2) < 1e-6, w + " × " + d);
-  ok("and much thinner than it is wide", h < d * 0.4, "thickness " + h.toFixed(2));
+  /* a jumbo set: a little under half as thick as it is wide, and no more
+     — past that it stops being a domino and starts being a block */
+  ok("and thinner than it is wide, as a jumbo bone is", h > d * 0.3 && h < d * 0.55, "thickness " + h.toFixed(2));
   ok("centred on the origin",
      Math.abs(lo[0] + hi[0]) < 1e-6 && Math.abs(lo[1] + hi[1]) < 1e-6 && Math.abs(lo[2] + hi[2]) < 1e-6);
   /* The chamfer must actually cut the top edge back: nothing at full

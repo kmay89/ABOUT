@@ -220,18 +220,27 @@ function compile(gl, type, src) {
    into the far inner wall, which read as grey wedges hanging off both
    ends of every bone at once. Both ends: impossible for a solid box, and
    the tell that this was winding and not lighting. */
+/* Half the thickness of a bone. A real double-six is about 50 × 25 × 9mm,
+   a thickness a third of the width; the bones here are a jumbo set, a
+   little under half as thick as they are wide (0.48 against 1.0), because
+   a bone you can see the side of is a bone you believe in, and a thin one
+   at the camera's angle reads as a tile. The felt sits at -HZ so a bone
+   rests *on* it rather than hovering a hundredth above — which is what a
+   contact shadow needs in order to be believable. */
+var HZ = 0.24, CHAMFER = 0.075;
+/* Hand-laid, not machine-set. Every bone on the table is nudged a hair
+   off its slot and turned a degree or so, the same way every time for the
+   same bone, so the line reads as something people put down. Small enough
+   that neighbours still touch and the pips still read. */
+function jit(tile) {
+  return { dx: (nrand(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand(tile * 3 + 3) - 0.5) * 0.05 };
+}
 function boneGeometry() {
-  /* A real double-six bone is about 50 x 25 x 9mm, so the thickness is
-     a bit over a third of the width — 0.34 against 1.0 here. It was
-     0.32, which is close, but the chamfer was 0.055: about a millimetre
-     and a half, too fine to catch the light at any size the table is
-     ever drawn. At 0.09 the bevel is a band you can see, and a bevel
-     you can see is most of what makes an edge look like an edge.
-
-     hz is exactly half the felt's offset below the origin, so the bone
-     rests *on* the table rather than hovering a hundredth above it —
-     which is what a contact shadow needs in order to be believable. */
-  var hx = L.LEN / 2, hy = L.WID / 2, hz = 0.17, c = 0.062;
+  /* The chamfer was 0.055: about a millimetre and a half, too fine to
+     catch the light at any size the table is ever drawn. At 0.09 the
+     bevel is a band you can see, and a bevel you can see is most of what
+     makes an edge look like an edge. */
+  var hx = L.LEN / 2, hy = L.WID / 2, hz = HZ, c = CHAMFER;
   var P = [], N = [], U = [], I = [];
   function quad(a, b, cc, d, n, uvs) {
     var base = P.length / 3, i;
@@ -932,6 +941,9 @@ Gfx3D.prototype.draw = function (scene, now) {
   var cx = (bb.x0 + bb.x1) / 2, cy = -(bb.y0 + bb.y1) / 2;
   var asp = this.w / Math.max(1, this.h);
   var pitch = this.orbit.pitch, yaw = this.orbit.yaw;
+  /* a camera held by a person, not bolted down: the slowest of sways,
+     a fraction of a degree, off for anyone who asked for less motion */
+  if (scene.breathe) { yaw += Math.sin(now / 5200) * 0.014; pitch += Math.sin(now / 7300 + 1) * 0.006; }
 
   /* Frame the whole line of play, however long it has become — and frame
      it in the part of the screen nobody is covering. The seat bar sits
@@ -962,7 +974,7 @@ Gfx3D.prototype.draw = function (scene, now) {
     var c = camAt(d), vp = mul(proj0, c.view), x0 = 9, x1 = -9, y0 = 9, y1 = -9;
     for (var k = 0; k < corners.length; k++) {
       for (var zz = 0; zz < 2; zz++) {
-        var q = xform(vp, [corners[k][0], corners[k][1], zz * 0.34, 1]);
+        var q = xform(vp, [corners[k][0], corners[k][1], zz * HZ * 2, 1]);
         if (!q) continue;
         if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
         if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1];
@@ -1033,7 +1045,7 @@ Gfx3D.prototype.draw = function (scene, now) {
      built round the origin, so a long line folds towards the rim the
      way it does at a real table rather than the table sliding under it. */
   var tb = this.tableFor(scene.bound || 9, bb);
-  var tz = -0.17;
+  var tz = -HZ;
   gl.uniform1f(u.uRim, 0);
   gl.uniform1f(u.uAlpha, 1);
   gl.uniform1f(u.uTex, 1);
@@ -1077,13 +1089,14 @@ Gfx3D.prototype.draw = function (scene, now) {
   var t = scene.table, place = [], shade = [];
   for (i = 0; i < t.bones.length; i++) {
     var b = t.bones[i];
-    var px = b.x, py = -b.y, rot = -b.rot * Math.PI / 180, z = 0;
+    var jj = jit(b.tile);
+    var px = b.x + jj.dx, py = -(b.y + jj.dy), rot = -(b.rot + jj.dr * 57.3) * Math.PI / 180, z = 0;
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     if (anim) {
       var k = Math.min(1, anim.t), e = 1 - Math.pow(1 - k, 3);
-      px = anim.fromX + (b.x - anim.fromX) * e;
-      py = -(anim.fromY + (b.y - anim.fromY) * e);
-      rot = -(anim.fromRot + (b.rot - anim.fromRot) * e) * Math.PI / 180;
+      px = anim.fromX + (b.x + jj.dx - anim.fromX) * e;
+      py = -(anim.fromY + (b.y + jj.dy - anim.fromY) * e);
+      rot = -(anim.fromRot + (b.rot + jj.dr * 57.3 - anim.fromRot) * e) * Math.PI / 180;
       /* the arc of a bone being brought down on the table, and the
          small bounce of the slam at the end of it */
       z = Math.sin(k * Math.PI) * 2.4 + (k > 0.86 ? Math.sin((k - 0.86) / 0.14 * Math.PI) * 0.16 : 0);
@@ -1105,7 +1118,7 @@ Gfx3D.prototype.draw = function (scene, now) {
     var lift = Math.min(1, z / 2.4);
     var reach = 0.10 + lift * 1.5;
     shade.push({
-      x: px + ox / od * reach, y: py + oy / od * reach, z: -0.163, rot: rot,
+      x: px + ox / od * reach, y: py + oy / od * reach, z: -HZ + 0.007, rot: rot,
       s: 1 + lift * 0.45, a: (1 - lift * 0.66) * 0.95
     });
   }
@@ -1144,7 +1157,7 @@ Gfx3D.prototype.draw = function (scene, now) {
     for (i = 0; i < scene.ghosts.length; i++) {
       var gh = scene.ghosts[i];
       var grot = gh.rot === undefined ? gh.h * 90 : gh.rot;
-      var mk = { x: gh.x, y: -gh.y, z: -0.158, rot: -grot * Math.PI / 180, s: 0.97, a: pulse };
+      var mk = { x: gh.x, y: -gh.y, z: -HZ + 0.012, rot: -grot * Math.PI / 180, s: 0.97, a: pulse };
       if (scene.hover === gh.end) { mk.a = 1; mk.s = 1.08; hot.push(mk); }
       else if (scene.lean === gh.end) { mk.a = 0.55 + 0.35 * Math.sin(now / 220); mk.s = 1.04; leanM.push(mk); }
       else slots.push(mk);
@@ -1168,7 +1181,7 @@ Gfx3D.prototype.draw = function (scene, now) {
     var fade = Math.max(0, 1 - age / 2600);
     if (fade > 0) {
       this.marks(proj, view, this.slotTex, hex3(sk.marks.last), [{
-        x: lp.x, y: lp.y, z: -0.16, rot: lp.rot,
+        x: lp.x, y: lp.y, z: -HZ + 0.01, rot: lp.rot,
         s: (lp.b.dbl ? 1.0 : 1.12) + 0.10 * Math.sin(now / 260), a: 0.30 + 0.45 * fade
       }]);
     }
@@ -1280,6 +1293,9 @@ Gfx3D.prototype.destroy = function () {
 /* exposed so `tools/bone-check.js` can check the winding in node, where
    there is no WebGL to upload it to */
 Gfx3D.boneGeometry = boneGeometry;
+Gfx3D.HZ = HZ;
+Gfx3D.CHAMFER = CHAMFER;
+Gfx3D.jit = jit;
 Gfx3D.tableGeometry = tableGeometry;
 
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx3D;

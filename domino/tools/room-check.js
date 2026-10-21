@@ -92,7 +92,7 @@ async function settle(page) {
    real hit tests, in whichever renderer is on. */
 async function dragOne(page, label) {
   var waited = 0;
-  while (waited < 14000) {
+  while (waited < 30000) {
     var mine = await page.evaluate("(()=>{const g=window.__dt().G;return g.view && g.view.turn === g.mySeat && !g.busy && window.AI.movesFor(g.view).length > 0;})()");
     if (mine) break;
     /* a turn with nothing to play is said for us; otherwise wait —
@@ -100,7 +100,7 @@ async function dragOne(page, label) {
     await settle(page);
     await page.waitForTimeout(300); waited += 300;
   }
-  if (waited >= 14000) { ok(label + ": a turn with a playable bone comes round", false, "waited " + waited + "ms"); return; }
+  if (waited >= 30000) { ok(label + ": a turn with a playable bone comes round", false, "waited " + waited + "ms"); return; }
   var spot = await page.evaluate(
     "(()=>{const d=window.__dt(),s=d.scene(),L=window.Layout;" +
     "const r=L.handRow(s.hand.length, d.over.w, d.over.h, {pad:10});" +
@@ -152,15 +152,20 @@ var READBACK = "(()=>{" +
   "if (g.kind==='3d'){ const gl=cv.getContext('webgl'); px=new Uint8Array(W*H*4); gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,px); flip=true; }" +
   "else { px=cv.getContext('2d').getImageData(0,0,W,H).data; flip=false; }" +
   "const lum=(X,Y)=>{ X=Math.round(X); Y=Math.round(Y); if(X<0||Y<0||X>=W||Y>=H) return null; if(flip) Y=H-1-Y; const k=(Y*W+X)*4; return 0.299*px[k]+0.587*px[k+1]+0.114*px[k+2]; };" +
-  "const dpr=g.dpr||1; let toScreen, unit;" +
-  "if (g.kind==='3d'){ toScreen=(x,y)=>{ const p=g.screenOf(x,y,0.17); return p?{x:p.x*dpr,y:p.y*dpr}:null; }; }" +
+  "const dpr=g.dpr||1; let toScreen, unit, geo;" +
+  /* where the pips are on each renderer's face: the round table maps the
+     atlas onto the face *inside* the chamfer, so its halves and pips sit
+     a little nearer the middle than the flat table's */
+  "if (g.kind==='3d'){ const c=window.Gfx3D.CHAMFER, ix=1-c, iy=0.5-c; geo={hc:ix/2, sa:0.29*ix, sc:0.29*2*iy};" +
+  "  toScreen=(x,y)=>{ const p=g.screenOf(x,y,window.Gfx3D.HZ); return p?{x:p.x*dpr,y:p.y*dpr}:null; }; }" +
   "else { const ed=g.edges(), top=s.topPad, bot=s.botPad; const fit=L.fit(s.table.bbox, g.w-ed.all*2, g.h-top-bot, 10); unit=fit.scale;" +
-  "  toScreen=(x,y)=>({x:(fit.ox+ed.all+x*unit)*dpr, y:(fit.oy+top+y*unit)*dpr}); }" +
+  "  geo={hc:0.5, sa:0.30, sc:0.30}; toScreen=(x,y)=>({x:(fit.ox+ed.all+x*unit)*dpr, y:(fit.oy+top+y*unit)*dpr}); }" +
   "const out=[];" +
-  "for (const b of s.table.bones){ const r=b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r), f=L.faces(b);" +
-  "  const halves=[[-0.5,f[0]],[0.5,f[1]]]; const got=[];" +
+  "for (const b0 of s.table.bones){ const jj=window.Gfx3D.jit(b0.tile); const b={x:b0.x+jj.dx, y:b0.y+jj.dy, rot:b0.rot+jj.dr*57.3, tile:b0.tile, end:b0.end, inner:b0.inner, outer:b0.outer};" +
+  "  const r=b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r), f=L.faces(b);" +
+  "  const halves=[[-geo.hc,f[0]],[geo.hc,f[1]]]; const got=[];" +
   "  for (const [hx,n] of halves){ const vals=[];" +
-  "    for (let i=0;i<3;i++) for (let j=0;j<3;j++){ const lx=hx+(i-1)*0.30, ly=(j-1)*0.30;" +
+  "    for (let i=0;i<3;i++) for (let j=0;j<3;j++){ const lx=hx+(i-1)*geo.sa, ly=(j-1)*geo.sc;" +
   "      const x=b.x+lx*C-ly*S, y=b.y+lx*S+ly*C; const p=toScreen(x,y); const v=p?lum(p.x,p.y):null; if(v!==null) vals.push(v); }" +
   "    if (vals.length<9){ got.push(-1); continue; }" +
   "    const mx=Math.max(...vals), mn=Math.min(...vals); const dark=(mx-mn)<60?0:vals.filter(v=>v<(mx+mn)/2).length;" +
@@ -232,12 +237,12 @@ async function readback(page, label) {
      one with a bone to play: a turn with nothing that fits is said for
      us (paso) and comes round again */
   var waited = 0;
-  while (waited < 16000) {
+  while (waited < 30000) {
     var mine = await page.evaluate("(()=>{const g=window.__dt().G;return g.view.turn === g.mySeat && !g.busy && window.AI.movesFor(g.view).length > 0;})()");
     if (mine) break;
     await page.waitForTimeout(300); waited += 300;
   }
-  ok("the turn comes round to you", waited < 16000, "waited " + waited + "ms");
+  ok("the turn comes round to you", waited < 30000, "waited " + waited + "ms");
 
   var before = await page.evaluate("window.__dt().G.view.hand.length");
   /* tap the first playable bone where it actually is on screen */
@@ -311,7 +316,7 @@ async function readback(page, label) {
     "(() => {" +
     "const d = window.__dt(), g = d.gfx, s = d.scene(), cam = g.lastCam, L = window.Layout;" +
     "if (!cam) return {err:'no camera'};" +
-    "const hx = L.LEN/2, hy = L.WID/2, hz = 0.17;" +
+    "const hx = L.LEN/2, hy = L.WID/2, hz = window.Gfx3D.HZ;" +
     "const cv = document.getElementById('table'), gl = cv.getContext('webgl');" +
     "const px = new Uint8Array(cv.width*cv.height*4);" +
     "gl.readPixels(0,0,cv.width,cv.height,gl.RGBA,gl.UNSIGNED_BYTE,px);" +
@@ -380,7 +385,7 @@ async function readback(page, label) {
     const stamps = [];
     let last = d.G.view.line.length;
     const t0 = performance.now();
-    while (performance.now() - t0 < 14000 && stamps.length < 4) {
+    while (performance.now() - t0 < 24000 && stamps.length < 4) {
       await new Promise(r => setTimeout(r, 30));
       /* Keep the hand moving. It is the player's turn a quarter of the
          time and the room is quite right to sit there waiting — but a
@@ -415,7 +420,7 @@ async function readback(page, label) {
   /* and the table says who is doing what */
   var sawThinking = await page.evaluate(`(async () => {
     const t0 = performance.now();
-    while (performance.now() - t0 < 8000) {
+    while (performance.now() - t0 < 12000) {
       const el = document.getElementById('lastPlay');
       if (el && /thinking/.test(el.className)) return el.textContent;
       await new Promise(r => setTimeout(r, 40));
@@ -428,7 +433,7 @@ async function readback(page, label) {
      the play and reading it at the wrong instant proves nothing */
   var sawPlay = await page.evaluate(`(async () => {
     const t0 = performance.now();
-    while (performance.now() - t0 < 8000) {
+    while (performance.now() - t0 < 14000) {
       const t = document.getElementById('lastPlay').textContent || "";
       if (/played the|paso/i.test(t)) return t;
       await new Promise(r => setTimeout(r, 40));
@@ -436,6 +441,30 @@ async function readback(page, label) {
     return document.getElementById('lastPlay').textContent;
   })()`);
   ok("and says what they did", /played the \d\|\d|paso/i.test(sawPlay || ""), sawPlay);
+
+  /* ---------- a person's pace ----------
+     The think is scaled by the choice: one bone that fits goes down
+     quickly, four take a look at the table. Measured on the real
+     function with a real hand, many times, since it is random by design. */
+  var think = await page.evaluate("(()=>{const d=window.__dt(), R=window.Rules; const st=R.newHand({seed:5}); let forced=0, open=0, n=0;" +
+    "for (let i=0;i<60;i++){ for (let s2=0;s2<4;s2++){ const m=R.moves(st,s2).length; const t=d.thinkFor(st,s2); if(m<=1) forced+=t; else if(m>=3) open+=t; } n++; }" +
+    "const cnt={f:0,o:0}; for (let s2=0;s2<4;s2++){ const m=R.moves(st,s2).length; if(m<=1) cnt.f++; else if(m>=3) cnt.o++; }" +
+    "return {forced: cnt.f? forced/(n*cnt.f):null, open: cnt.o? open/(n*cnt.o):null, pace:d.P.pace};})()");
+  ok("a forced bone goes down sooner than a real choice", think.forced === null || think.open === null || think.forced < think.open,
+     "forced " + Math.round(think.forced || 0) + "ms, open " + Math.round(think.open || 0) + "ms (" + think.pace + ")");
+
+  /* ---------- the moment a hand ends ----------
+     Whoever went out, big, and what it was worth — before the sheet. */
+  await page.evaluate("(()=>{const d=window.__dt(); d.finale({res:{how:'domino', team:0, winner:2, points:23, capicua:false, pipsBySeat:[0,5,8,10]}," +
+    " scores:[23,0], over:false, history:[], target:100, hands:[[],[1,2],[],[4,5]], key:'cheer:test'});})()");
+  await page.waitForTimeout(700);
+  var ch = await page.evaluate("(()=>{const c=document.getElementById('cheer'); return {on:c.classList.contains('on'), txt:c.textContent, faces:c.querySelectorAll('svg').length, won:c.classList.contains('won')};})()");
+  ok("a hand ending is celebrated before it is counted", ch.on && /Dominó/.test(ch.txt) && ch.faces >= 1, ch.txt.slice(0, 60));
+  ok("with who went out and what it was worth", /went out/.test(ch.txt) && /to us/.test(ch.txt) && ch.won);
+  await page.waitForTimeout(2300);
+  ok("and then the count", await page.isVisible("#ovEnd"));
+  await page.click("[data-close=ovEnd]");
+  await page.waitForTimeout(200);
 
   /* ---------- a tap on the 3D table lands where it looks ----------
      `pointOnTable` inverts the view-projection to turn a pixel back
@@ -670,7 +699,7 @@ async function readback(page, label) {
   var handoff = await page.evaluate(`(async () => {
     const d = window.__dt(); const t0 = performance.now();
     let curtains = 0, switched = 0, leaked = 0, handWhenCovered = null;
-    while (performance.now() - t0 < 30000 && curtains < 2) {
+    while (performance.now() - t0 < 50000 && curtains < 2) {
       await new Promise(r => setTimeout(r, 60));
       const g = d.G; if (!g.view) continue;
       const cv = document.getElementById('ovPass');

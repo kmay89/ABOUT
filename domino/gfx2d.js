@@ -48,6 +48,11 @@ function nrand(i) {
   var x = Math.sin(i * 127.1) * 43758.5453;
   return x - Math.floor(x);
 }
+function nrand2(i) { var x = Math.sin(i * 127.1 + 1.7) * 43758.5453; return x - Math.floor(x); }
+/* the same nudge off the slot the round table gives each bone (gfx3d.js) */
+function jit(tile) {
+  return { dx: (nrand2(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand2(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.05 };
+}
 
 /* ---------- pips ----------
    The layout every domino in the world uses: a 3×3 grid on each half,
@@ -263,7 +268,7 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
      offset down by the bone's thickness, drawn under the face, and the
      sliver left showing along the bottom is an edge. It costs one fill
      and it is the same trick the eye is being offered in 3D. */
-  var thick = Math.max(1.5, Math.min(sw, sh) * 0.075);
+  var thick = Math.max(2, Math.min(sw, sh) * 0.115);
   var edgeCol = opts.faceDown ? sk.bones.back : sk.bones.face;
   rr(g, -hw, -hh + thick, sw, sh, r);
   g.fillStyle = mix(edgeCol, "#000000", 0.42);
@@ -463,6 +468,7 @@ Gfx2D.prototype.drawTable = function (scene, now) {
   var fit = L.fit(t.bbox, this.w - inset * 2, this.h - top - bot, 10);
   var unit = fit.scale;
   var ox = fit.ox + inset, oy = fit.oy + top;
+  this.lastFit = { ox: ox, oy: oy, unit: unit };
 
   /* ghost slots first, under everything */
   this.slots = [];
@@ -510,12 +516,15 @@ Gfx2D.prototype.drawTable = function (scene, now) {
     var bw = L.LEN * unit, bh = L.WID * unit;
     var fc = L.faces(b), a = fc[0], c = fc[1];
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
-    var px = ox + b.x * unit, py = oy + b.y * unit, lift = 0, rot = b.rot;
+    /* hand-laid: the same hair off the slot the round table gives it */
+    var jj = jit(b.tile);
+    var px = ox + (b.x + jj.dx) * unit, py = oy + (b.y + jj.dy) * unit, lift = 0, rot = b.rot + jj.dr * 57.3;
     if (anim) {
       var k = Math.min(1, anim.t);
       var e = 1 - Math.pow(1 - k, 3);
-      px = anim.fromX + (px - anim.fromX) * e;
-      py = anim.fromY + (py - anim.fromY) * e;
+      var fx = ox + anim.fromX * unit, fy = oy + anim.fromY * unit;
+      px = fx + (px - fx) * e;
+      py = fy + (py - fy) * e;
       rot = anim.fromRot + (rot - anim.fromRot) * e;
       lift = Math.sin(k * Math.PI) * 1.1;
     }
@@ -645,6 +654,14 @@ Gfx2D.prototype.seats = function (scene) {
     }
     g.restore();
   }
+};
+
+/* a point on the screen, back in table units — the twin of the round
+   table's pointOnTable, so a bone can be flown in from a plate */
+Gfx2D.prototype.pointOnTable = function (px, py) {
+  var f = this.lastFit;
+  if (!f || !f.unit) return null;
+  return { x: (px - f.ox) / f.unit, y: (py - f.oy) / f.unit };
 };
 
 /* which thing a tap landed on */

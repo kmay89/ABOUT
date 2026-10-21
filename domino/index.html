@@ -114,10 +114,15 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .plate.low .role{color:#ff9b86}
   .plate.us .role{color:#8fd1a4}
-  .plate .mini{display:flex; gap:2px; margin-top:3px; height:9px}
-  .plate .mini i{width:5px; height:9px; border-radius:1.5px; background:var(--soft); opacity:.75; transition:opacity .3s, transform .3s}
-  .plate .mini i.out{opacity:0; transform:translateY(-4px)}
-  .plate.low .mini i{background:var(--bad); opacity:1}
+  /* the bones they are holding: little face-down bones, and the number
+     in a size you can read across the table */
+  .plate .mini{display:flex; gap:2px; margin-top:3px; height:11px}
+  .plate .mini i{width:7px; height:11px; border-radius:2px; background:linear-gradient(180deg,#9a4a3c,#6e2a22); box-shadow:inset 0 0 0 1px rgba(255,235,210,.28), 0 1px 0 rgba(0,0,0,.4); transition:opacity .3s, transform .3s}
+  .plate .mini i.out{opacity:0; transform:translateY(-5px) scale(.6)}
+  .plate.low .mini i{background:linear-gradient(180deg,#ff8a74,#c8402c)}
+  .plate .cnt{flex:none; font-size:1.35rem; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1; min-width:1.2em; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .plate.low .cnt{color:#ff9b86}
+  .plate .cnt.tick{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   .plate.turn{box-shadow:0 0 0 2px var(--good), 0 4px 18px rgba(62,207,142,.25); transform:translateY(1px)}
   .plate.thinking{box-shadow:0 0 0 2px var(--amber), 0 4px 18px rgba(240,168,60,.25)}
   .plate.thinking .av::after{
@@ -126,6 +131,7 @@
   }
   @keyframes spin{to{transform:rotate(360deg)}}
   .plate .tag{position:absolute; right:5px; top:4px; font-size:.6rem; color:var(--blue)}
+  @media (max-width:420px){ .plate .cnt{font-size:1.15rem} }
   .plate.gone{opacity:.55}
 
   /* what a seat just said — paso, a bone, a word to their partner */
@@ -220,6 +226,33 @@
   #me .nm{font-size:.8rem; font-weight:700; max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   #me.turn{box-shadow:0 0 0 2px var(--good), 0 4px 18px rgba(62,207,142,.3)}
   @media (max-width:420px){ #me .nm{display:none} #me{padding-right:3px} }
+
+  /* the room's edges fall off into the dark, the way one bulb lights a room */
+  #vignette{position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 48%, rgba(0,0,0,.38) 100%)}
+
+  /* ---------- the moment a hand ends ---------- */
+  .cheer{
+    position:absolute; left:0; right:0; top:22%; z-index:8; text-align:center; pointer-events:none;
+    opacity:0; transform:translateY(12px) scale(.96); transition:opacity .3s, transform .45s cubic-bezier(.2,1.5,.4,1);
+  }
+  .cheer.on{opacity:1; transform:none}
+  .cheer .cfaces{display:flex; justify-content:center; align-items:flex-end; gap:10px; margin-bottom:8px}
+  .cheer .cf svg{display:block; border-radius:50%; box-shadow:0 0 0 4px var(--glow), 0 0 40px rgba(255,215,122,.45), 0 12px 30px rgba(0,0,0,.6)}
+  .cheer .cf.second svg{box-shadow:0 0 0 3px var(--good), 0 10px 24px rgba(0,0,0,.6)}
+  .cheer.lost .cf svg{box-shadow:0 0 0 4px var(--bad), 0 12px 30px rgba(0,0,0,.6)}
+  .cheer .chow{font-size:clamp(2.2rem,12vw,4.6rem); font-weight:800; letter-spacing:-.02em; color:var(--glow); line-height:1;
+    text-shadow:0 4px 30px rgba(0,0,0,.85), 0 0 60px rgba(240,168,60,.4); animation:slam .55s cubic-bezier(.2,1.6,.3,1)}
+  .cheer.lost .chow{color:#ffb3a3; text-shadow:0 4px 30px rgba(0,0,0,.85)}
+  .cheer.even .chow{color:var(--ink)}
+  .cheer .cwho{font-size:1.05rem; color:var(--ink); margin-top:.25em; text-shadow:0 2px 12px #000}
+  .cheer .cpts{margin-top:.5em; font-size:1.1rem; color:var(--ink); text-shadow:0 2px 12px #000}
+  .cheer .cpts b{display:inline-block; font-size:2.4rem; font-weight:800; color:var(--good); font-variant-numeric:tabular-nums; vertical-align:middle; margin-right:.2em;
+    text-shadow:0 0 24px rgba(62,207,142,.5), 0 2px 12px #000}
+  .cheer.lost .cpts b{color:var(--bad); text-shadow:0 0 24px rgba(224,106,82,.5), 0 2px 12px #000}
+  .cheer .cmatch{margin-top:.6em; display:inline-block; padding:6px 16px; border-radius:999px; background:linear-gradient(135deg,#3a2612,#5a3a12);
+    border:1px solid var(--amber); color:var(--glow); font-weight:800; text-shadow:0 1px 8px #000; animation:slam .7s cubic-bezier(.2,1.6,.3,1)}
+  @media (prefers-reduced-motion:reduce){ .cheer .chow,.cheer .cmatch{animation:none} }
 
   /* the curtain: nothing of the table shows through it */
   .ov.curtain{background:rgba(14,9,6,.985); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); z-index:25}
@@ -572,6 +605,8 @@
       <button class="btn" id="pickL">on the <b>·</b></button>
       <button class="btn" id="pickR">on the <b>·</b></button>
     </div>
+    <div id="vignette"></div>
+    <div id="cheer" class="cheer"></div>
     <canvas id="confetti" class="surface" style="pointer-events:none;z-index:9"></canvas>
 
     <div id="netChip" class="hide"><span class="pulse"></span><span id="netChipTx">linked</span></div>
@@ -637,6 +672,9 @@
   <div class="row">
     <button class="btn" id="mCoach">Coach tips on</button>
     <button class="btn" id="mFiesta">🎉 Fiesta on</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="mMusic">🎺 Music on</button>
   </div>
   <div class="row">
     <button class="btn" id="mFace">My face</button>

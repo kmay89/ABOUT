@@ -251,6 +251,34 @@ under reduced motion. A hand won gets a guitar: a Karplus–Strong
 string, six of them raked a few milliseconds apart the way a thumb
 does, made on the spot like everything else the room plays.
 
+**The trio in the corner.** A guitarrón, a vihuela and a trumpet play
+a slow ranchera waltz in A, made up as they go from a few rules —
+root-fifth-root under rasgueado on the two and the three, a trumpet
+phrase in the form A A′ B A over sixteen bars from a seeded stream, a
+second trumpet a third below on the long notes, a breath every fourth
+bar and a phrase sat out every eighth — so it never repeats exactly and
+never ends, at a quarter of the bones' volume. Nothing recorded; it
+starts with the first touch, stops when the tab is put away, and is a
+button in the menu.
+
+**Thick bones, laid by hand.** The set is a jumbo one, a little under
+half as thick as it is wide, so the side of a bone is something you
+see rather than something you are told about. Every bone on the table
+is nudged a hair off its slot and turned a degree, the same way every
+time for the same bone, in both renderers; the camera sways by a
+fraction of a degree over several seconds (not under reduced motion).
+A bone flies in from the plate of whoever played it, or up out of the
+place in your hand it just left, through the renderer's own camera.
+Every plate shows a big count and a row of little face-down bones.
+
+**The pace is a person's.** The default is slower than it was, and the
+think is scaled by the choice: one bone that fits goes down almost at
+once, four that fit take a look at the table first, and no two turns
+take the same time. The end of a hand is celebrated before it is
+counted — whoever went out, big, what happened in the table's own words,
+and the points counted up onto the score; a hand lost is said just as
+clearly and much more quietly.
+
 ## The people
 
 Every seat has a face: a small drawn one — round, big-eyed, a few

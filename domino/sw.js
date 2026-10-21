@@ -13,7 +13,7 @@
    The update is announced rather than forced: swapping the code out
    from under somebody mid-hand would lose the hand, so the page is told
    a new version is waiting and takes it between hands. */
-var VERSION = "domino-v5";
+var VERSION = "domino-v6";
 
 /* Cache Storage belongs to the whole origin, not to this room: every room
    on kmay89.com keeps its offline copy in the same place. So only this
