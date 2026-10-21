@@ -114,3 +114,26 @@ test('the frame prints face down without supports: no inward step over 2.5 mm un
     }
   }
 });
+
+test('read back as an STL, no part has an edge shared by more than two faces', () => {
+  // A slicer welds an STL by position, so shells that merely touch along an edge read as non-manifold.
+  const welded = mesh => {
+    const V = new Float32Array(mesh.vertices), id = new Map(), at = i => {
+      const key = `${V[i * 3]},${V[i * 3 + 1]},${V[i * 3 + 2]}`;
+      if (!id.has(key)) id.set(key, id.size);
+      return id.get(key);
+    };
+    const edges = new Map(), I = mesh.indices;
+    for (let i = 0; i < I.length; i += 3) for (let k = 0; k < 3; k++) {
+      const a = at(I[i + k]), b = at(I[i + (k + 1) % 3]), key = `${Math.min(a, b)}:${Math.max(a, b)}`;
+      edges.set(key, (edges.get(key) ?? 0) + 1);
+    }
+    return [...edges.values()].filter(n => n > 2).length;
+  };
+  const cases = [{ light: 'board' }, { light: 'own', depth: 30 }, { light: 'board', cover: true }];
+  for (let storage = 1; storage <= 6; storage++) cases.push({ light: 'board', storage }, { light: 'own', storage });
+  for (const c of cases) for (const pic of [four6, { width: 152.4, height: 101.6, maxThickness: 3.2, border: 3 }]) {
+    for (const part of galleryFrame({ ...pic, ...c }).parts) assert.equal(welded(part.mesh), 0, `${JSON.stringify(c)} ${part.id}`);
+  }
+  for (const part of lantern(four6).parts) assert.equal(welded(part.mesh), 0, part.id);
+});

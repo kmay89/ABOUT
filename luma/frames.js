@@ -185,14 +185,18 @@ export function galleryFrame(o) {
   const notch = 9;
   const lidParts = [remap(extrude([[-xOut, 0], [xOut, 0], [xOut, Z], [notch, Z], [notch, cable[0]], [-notch, cable[0]], [-notch, Z], [-xOut, Z]], lidT),
     (u, v, w) => [u, yTop + w, v])];
-  for (const s of segs.slice(1)) {
+  for (let i = 1; i < segs.length; i++) {
+    const s = segs[i];
     if (s.kind) continue;                                         // a slot, not a band
     const ix = s.inner ? s.inner[0] : Math.min(s.from[0], s.to[0]);
     const iy = s.inner ? s.inner[1] : Math.max(s.from[1], s.to[1]);
     const x = hw + ix - f, y0 = hh + iy;
     if (x <= 1 || yTop - y0 < 1) continue;
-    const cut = s.z1 > cable[0] + 1e-9 && x > notch + 1;
-    for (const [x0, x1] of cut ? [[-x, -notch], [notch, x]] : [[-x, x]]) lidParts.push(block(x0, x1, y0, yTop + 0.5, s.z0, s.z1));
+    // A slope's fin lies inside its neighbours' fins: overlap them a little so the shells share no edge.
+    const into = n => !s.inner && n && !n.kind ? 0.2 : 0;
+    const z0 = s.z0 - into(segs[i - 1]), z1 = s.z1 + into(segs[i + 1]);
+    const cut = z1 > cable[0] + 1e-9 && x > notch + 1;
+    for (const [x0, x1] of cut ? [[-x, -notch], [notch, x]] : [[-x, x]]) lidParts.push(block(x0, x1, y0, yTop + 0.5, z0, z1));
   }
   for (const s of slots) {
     const len = Math.min(6, out - s.edge[1] - 0.6);
