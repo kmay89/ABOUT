@@ -402,6 +402,10 @@ const meanHz = (sc) => {
     Sound.countTick(3, 10, true); Sound.ui("check"); Sound.ui("tick");
     ok("the room tone remembers what it was set to", Sound.ambience(0.4) === 0.4 && Sound.ambience() === 0.4);
     ok("…and off is off", Sound.ambience(0) === 0 && !Sound.ambienceLive());
+    ok("every place the board can stand in has a quiet of its own",
+       ["studio", "park", "cafe", "salon", "library"].every((p) => Sound.PLACES.indexOf(p) >= 0));
+    ok("the room tone can be told where it is, and a place nobody has heard of is the studio",
+       Sound.setPlace("cafe") === "cafe" && Sound.place() === "cafe" && Sound.setPlace("attic") === "studio");
   } catch (e) { threw = e.message; }
   ok("nothing in the music throws without an audio context", !threw, threw);
 })();
@@ -631,6 +635,7 @@ const MUSIC = `async (spec) => {
       else if (c[0] === "ui") rets.push(Sound.ui(c[1], c[2]));
       else if (c[0] === "count") Sound.countTick(c[1], c[2], c[3]);
       else if (c[0] === "ambience") Sound.ambience(c[1]);
+      else if (c[0] === "place") Sound.setPlace(c[1]);
       else if (c[0] === "enable") Sound.enable(c[1]);
       else if (c[0] === "move") Sound.move(c[1], Motion.plan(c[1], {}), c[2] || {});
       else if (c[0] === "hidden") {
@@ -652,7 +657,7 @@ const MUSIC = `async (spec) => {
   await new Promise((r) => setTimeout(r, 0));
   const ambienceLive = Sound.ambienceLive();
   delete document.hidden;
-  Sound.ambience(0); Sound.enable(true); Sound.setReduced(null);
+  Sound.ambience(0); Sound.setPlace("studio"); Sound.enable(true); Sound.setReduced(null);
 
   const chans = [];
   for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
@@ -896,6 +901,24 @@ async function musicChecks(render) {
      dB(away.windows[0]) + " then " + dB(away.windows[1]));
   ok("…and comes back when somebody does", away.windows[2] > away.windows[0] * 0.5,
      dB(away.windows[2]));
+  /* every place sounds, quietly, and like itself: the park's air is
+     higher and the grand room's lower than the studio's, and a place
+     changed under a running tone fades into the next without a click */
+  const places = {};
+  for (const id of ["studio", "park", "cafe", "salon", "library"]) {
+    places[id] = await render({ seconds: 3, calls: [["place", id], ["ambience", 0.6]], windows: [[1.5, 3]], zc: [[1.5, 3]] });
+    ok("the " + id + " has a room tone, and it is barely there",
+       places[id].windows[0] > 1e-5 && places[id].ambienceLive && places[id].loud < R("lesson-right").loud * 0.3 && places[id].peak < 0.2,
+       dB(places[id].windows[0]) + ", peak " + places[id].peak.toFixed(3));
+  }
+  ok("the grand room's fire is the lowest sound of them, and the park's air brighter than the library's hush",
+     places.salon.zc[0] < places.park.zc[0] && places.salon.zc[0] < places.cafe.zc[0] && places.library.zc[0] < places.park.zc[0],
+     JSON.stringify({ park: places.park.zc[0], cafe: places.cafe.zc[0], salon: places.salon.zc[0], library: places.library.zc[0] }));
+  const moved = await render({ seconds: 3.6, calls: [["place", "park"], ["ambience", 0.6]],
+    later: [[1.6, [["place", "salon"]]]], windows: [[1.2, 1.6], [3.0, 3.6]], steps: [[1.0, 1.6], [1.6, 2.4]] });
+  ok("moving the board to another place fades its tone into the next, without a click",
+     moved.windows[0] > 1e-5 && moved.windows[1] > 1e-5 && moved.ambienceLive && moved.steps[1] <= moved.steps[0] * 2,
+     JSON.stringify({ before: dB(moved.windows[0]), after: dB(moved.windows[1]), steps: moved.steps }));
 
   /* everything at once */
   const pile = await render({ seconds: WARM + 6,

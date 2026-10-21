@@ -27,13 +27,17 @@
    whether the reflection takes the material's own colour or the room's.
    Both descriptions of the same surface, kept side by side so neither
    renderer has to guess at the other's numbers. */
+/* sss is how far light gets into the material before it comes back
+   out — what makes ivory glow at its thin edges where plastic would not
+   — and coat is a clear lacquer over it: a second, glassier highlight
+   that a shine slider polishes up. */
 var MATERIALS = {
-  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, rough: 0.34, metal: 0.00, note: "warm, softly polished \u2014 a short mellow click" },
-  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, rough: 0.16, metal: 0.00, note: "bright and glassy-smooth \u2014 a clear tink" },
-  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, rough: 0.06, metal: 0.00, note: "you can see through it, and it rings" },
-  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, rough: 0.22, metal: 0.62, note: "hard highlights, cold, chimes like a bell" },
-  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, rough: 0.56, metal: 0.00, note: "matte, turned on a lathe \u2014 a dry knock" },
-  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, rough: 0.88, metal: 0.00, note: "flat as a printed page, and about as loud" }
+  ivory:     { label: "Ivory",     spec: 0.45, power: 34,  rim: 0.10, alpha: 1.00, rough: 0.34, metal: 0.00, sss: 0.55, coat: 0.25, note: "warm, softly polished \u2014 a short mellow click" },
+  porcelain: { label: "Porcelain", spec: 0.80, power: 70,  rim: 0.14, alpha: 1.00, rough: 0.16, metal: 0.00, sss: 0.30, coat: 0.70, note: "bright and glassy-smooth \u2014 a clear tink" },
+  glass:     { label: "Glass",     spec: 0.95, power: 100, rim: 0.30, alpha: 0.72, rough: 0.06, metal: 0.00, sss: 0.35, coat: 0.40, note: "you can see through it, and it rings" },
+  metal:     { label: "Metal",     spec: 1.00, power: 140, rim: 0.35, alpha: 1.00, rough: 0.22, metal: 0.62, sss: 0.00, coat: 0.05, note: "hard highlights, cold, chimes like a bell" },
+  wood:      { label: "Wood",      spec: 0.18, power: 14,  rim: 0.06, alpha: 1.00, rough: 0.56, metal: 0.00, sss: 0.10, coat: 0.14, note: "matte, turned on a lathe \u2014 a dry knock" },
+  ink:       { label: "Ink",       spec: 0.04, power: 8,   rim: 0.04, alpha: 1.00, rough: 0.88, metal: 0.00, sss: 0.00, coat: 0.00, note: "flat as a printed page, and about as loud" }
 };
 /* The carved 3D sets live in pieces3d.js; a skin only carries the name
    of the one it wants, so skins.js stays pure data and can be checked
@@ -198,6 +202,10 @@ function surface(skin) {
     rim: mat.rim * (0.3 + skin.pieces.rim * 2.2),
     rough: Math.max(0.045, Math.min(0.96, rough)),
     metal: mat.metal,
+    sss: mat.sss || 0,
+    /* the lacquer takes a polish: buffed, more of the highlight is the
+       coat's and less the material's own */
+    coat: Math.min(1, (mat.coat || 0) * (0.45 + skin.pieces.shine * 0.8)),
     alpha: mat.alpha,
     translucent: mat.alpha < 1
   };

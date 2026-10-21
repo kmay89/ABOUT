@@ -152,6 +152,8 @@ function derive(skin) {
     dot: rgba(m.legal, 0.48), ring: rgba(m.capture, 0.66),
     checkCore: rgba(m.check, 0.58), checkEdge: rgba(m.check, 0),
     hint: m.hint,
+    /* the marks themselves, for the soft light drawn in them */
+    legalHex: m.legal, captHex: m.capture, selectHex: m.select, lastHex: m.last, checkHex: m.check,
     wFill: p.white, wLine: shade(p.white, luma(p.white) > 0.5 ? -0.68 : -0.35),
     bFill: p.black, bLine: shade(p.black, luma(p.black) > 0.5 ? -0.7 : -0.55),
     wEdge: shade(p.white, 0.55), bEdge: shade(p.black, 0.5),
@@ -324,6 +326,21 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, ext
   ctx.scale(s * (1 + (1 - sq) * 0.42), s * sq);
   var baseAlpha = (alpha == null ? 1 : alpha);
   ctx.globalAlpha = baseAlpha;
+  /* the man in the hand, or the one just touched: lit from within at
+     his edges in the skin's own colour — his own silhouette, blurred,
+     in that colour, under him */
+  if (extra && extra.halo > 0.01) {
+    ctx.save();
+    ctx.globalAlpha = baseAlpha * Math.min(1, extra.halo * 0.9);
+    ctx.shadowColor = extra.haloColor || "#ffffff";
+    ctx.shadowBlur = extra.haloPx || 12;
+    ctx.fillStyle = extra.haloColor || "#ffffff";
+    ctx.beginPath();
+    PAINTERS[kind](ctx);
+    ctx.fill();
+    ctx.fill();
+    ctx.restore();
+  }
   /* soft ground shadow — unless the piece is lying down, when a shadow
      drawn in its own frame would stand up on end with it */
   if (!(extra && extra.noShadow)) {
@@ -404,13 +421,18 @@ function create(canvas) {
     orientation: 1,             /* 1 = white at the bottom */
     board: new Int8Array(128),
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    /* when the squares were last asked to open out, when a man was
+       last touched, when a king was last put in check and when a move
+       last landed — each a short moment of light that then holds */
+    hiAt: -1, selAt: -1, checkAt: -1, lastAt: -1,
     lines: [], net: [],
     anim: null,                 /* the move in flight */
     size: 0, cell: 0, ox: 0, oy: 0, dirty: true,
     /* the big moments: a king lying where it was mated, light under a
-       capture, the men arriving at the start of a game, and a slight
-       lean in toward a square when something is worth leaning in for */
-    toppled: null, impacts: [], cascade: null,
+       capture, the men arriving at the start of a game, the ring each
+       landing leaves, and a slight lean in toward a square when
+       something is worth leaning in for */
+    toppled: null, impacts: [], cascade: null, lands: [],
     view: { z: 1, v: 0, target: 1, px: 0, py: 0, sq: null, last: 0 }
   };
 
@@ -513,6 +535,14 @@ function create(canvas) {
      sliders feeling instant even mid-animation. */
   var boardCv = document.createElement("canvas");
   var boardCtx = boardCv.getContext("2d");
+  /* The board is painted on a canvas kept in main memory, because the
+     grain is laid on as pixels and a canvas read back more than once is
+     one the browser moves off the card — and anything drawn from such a
+     canvas every frame is uploaded every frame, until the board canvas
+     itself is moved off the card and the men lose their smooth edges.
+     So the paint happens here and is handed to boardCv once a build. */
+  var paintCv = document.createElement("canvas");
+  var paintCtx = paintCv.getContext("2d", { willReadFrequently: true });
   var boardKey = "", boardPad = 0, labels = null;
 
   /* The coordinates go over the men rather than under them. These men
@@ -592,50 +622,44 @@ function create(canvas) {
   }
 
   function paintPattern(g, x, y, cell, dark, pal, f, r) {
+    /* wood, marble and linen are fields now (grain.js), laid over the
+       squares in one pass in buildBoard; what is left to draw by hand
+       is the inlay's bright line round each square */
     var amt = pal.grain;
-    if (amt <= 0.02 || pal.pattern === "plain") return;
+    if (amt <= 0.02 || pal.pattern !== "inlay") return;
     g.save();
     g.beginPath(); g.rect(x, y, cell, cell); g.clip();
-    var seed = (f * 73 + r * 131) % 97;
-    if (pal.pattern === "wood") {
-      g.globalAlpha = 0.06 + amt * 0.16;
-      for (var i = 0; i < 5; i++) {
-        var yy = y + ((seed * 7 + i * 23) % cell);
-        g.strokeStyle = (i % 2) ? "#000" : "#fff";
-        g.globalAlpha = (0.03 + amt * 0.10) * (i % 2 ? 1 : 0.7);
-        g.lineWidth = 1 + (i % 2);
-        g.beginPath();
-        g.moveTo(x, yy);
-        g.bezierCurveTo(x + cell * 0.3, yy + 2, x + cell * 0.7, yy - 2, x + cell, yy + 1);
-        g.stroke();
-      }
-    } else if (pal.pattern === "marble") {
-      g.globalAlpha = 0.05 + amt * 0.14;
-      g.strokeStyle = dark ? "#fff" : "#000";
-      g.lineWidth = Math.max(1, cell * 0.02);
-      for (var v = 0; v < 3; v++) {
-        var sx = x + ((seed * 11 + v * 37) % cell), sy = y;
-        g.beginPath();
-        g.moveTo(sx, sy);
-        g.bezierCurveTo(sx + cell * 0.35, sy + cell * 0.3, sx - cell * 0.3, sy + cell * 0.65, sx + cell * 0.2, sy + cell);
-        g.stroke();
-      }
-    } else if (pal.pattern === "linen") {
-      g.globalAlpha = 0.04 + amt * 0.10;
-      g.strokeStyle = dark ? "#fff" : "#000";
-      g.lineWidth = 1;
-      var step = Math.max(3, cell / 7);
-      for (var t = 0; t < cell; t += step) {
-        g.beginPath(); g.moveTo(x, y + t); g.lineTo(x + cell, y + t); g.stroke();
-        g.beginPath(); g.moveTo(x + t, y); g.lineTo(x + t, y + cell); g.stroke();
-      }
-    } else if (pal.pattern === "inlay") {
-      g.globalAlpha = 0.25 + amt * 0.55;
-      g.strokeStyle = dark ? "#fff" : "#000";
-      g.lineWidth = Math.max(1, cell * 0.03);
-      g.strokeRect(x + cell * 0.08, y + cell * 0.08, cell * 0.84, cell * 0.84);
-    }
+    g.globalAlpha = 0.25 + amt * 0.55;
+    g.strokeStyle = dark ? "#fff" : "#000";
+    g.lineWidth = Math.max(1, cell * 0.03);
+    g.strokeRect(x + cell * 0.08, y + cell * 0.08, cell * 0.84, cell * 0.84);
     g.restore();
+  }
+  /* the grain itself: the same field the carved board paints its squares
+     and its relief from, so the two boards are cut from the same wood.
+     The field is in board space, a8 top-left; a board shown from Black's
+     side samples it turned round, so the grain stays on its square. */
+  var GRAIN_SEED = 1947, FRAME_SEED = 5;
+  function grainBoard(g, pal, pad, dpr) {
+    var Gr = root.Grain;
+    if (!Gr || !(pal.grain > 0.02)) return;
+    var W = paintCv.width, H = paintCv.height;
+    var frame = g.getImageData(0, 0, W, H);
+    Gr.apply(frame, Gr.field(256, { pattern: "wood", tiles: 1, seed: FRAME_SEED, lines: 30 }),
+             { x: 0, y: 0, w: W, h: H }, pal.grain * 0.6, "colour");
+    g.putImageData(frame, 0, 0);
+  }
+  function grainSquares(g, pal, pad, dpr) {
+    var Gr = root.Grain;
+    if (!Gr || !(pal.grain > 0.02)) return;
+    var x0 = Math.round(pad * dpr), w = Math.round(R.size * dpr);
+    var sq = g.getImageData(x0, x0, w, w);
+    /* seen flat and sharp rather than at a slant under a light, the
+       same cut reads louder, so the drawn board takes it at half
+       strength and with the rings a little further apart */
+    Gr.apply(sq, Gr.field(512, { pattern: pal.pattern, seed: GRAIN_SEED, lines: 7 }), { x: 0, y: 0, w: w, h: w },
+             pal.grain * 0.5, "colour", R.orientation !== 1);
+    g.putImageData(sq, x0, x0);
   }
 
   function buildBoard() {
@@ -643,31 +667,43 @@ function create(canvas) {
     var pad = Math.round(R.cell * FRAME);
     var W = R.size + pad * 2, H = W;
     boardPad = pad;
-    boardCv.width = Math.round(W * dpr);
-    boardCv.height = Math.round(H * dpr);
-    var g = boardCtx;
+    boardCv.width = paintCv.width = Math.round(W * dpr);
+    boardCv.height = paintCv.height = Math.round(H * dpr);
+    var g = paintCtx;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, H);
 
-    /* the frame the board sits in */
+    /* the frame the board sits in: one long plank */
     g.fillStyle = pal.margin;
     rr(g, 0, 0, W, H, R.cell * 0.28);
     g.fill();
+    grainBoard(g, pal, pad, dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.strokeStyle = pal.rim;
     g.lineWidth = Math.max(2, R.cell * 0.07);
     rr(g, pad * 0.45, pad * 0.45, W - pad * 0.9, H - pad * 0.9, R.cell * 0.2);
     g.stroke();
 
-    /* the sixty-four */
-    for (var r = 0; r < 8; r++) {
-      for (var f = 0; f < 8; f++) {
-        var vf = R.orientation === 1 ? f : 7 - f;
-        var vr = R.orientation === 1 ? 7 - r : r;
-        var dark = ((vf + vr) % 2) === 0;
-        var x = pad + f * R.cell, y = pad + r * R.cell;
+    /* the sixty-four, then the grain over them in one pass, each its
+       own cut of veneer */
+    var r, f, vf, vr, dark, x, y;
+    for (r = 0; r < 8; r++) {
+      for (f = 0; f < 8; f++) {
+        vf = R.orientation === 1 ? f : 7 - f;
+        vr = R.orientation === 1 ? 7 - r : r;
+        dark = ((vf + vr) % 2) === 0;
+        x = pad + f * R.cell; y = pad + r * R.cell;
         g.fillStyle = dark ? pal.dark : pal.light;
         g.fillRect(x, y, R.cell + 0.5, R.cell + 0.5);
-        paintPattern(g, x, y, R.cell, dark, pal, vf, vr);
+      }
+    }
+    grainSquares(g, pal, pad, dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (r = 0; r < 8; r++) {
+      for (f = 0; f < 8; f++) {
+        vf = R.orientation === 1 ? f : 7 - f;
+        vr = R.orientation === 1 ? 7 - r : r;
+        paintPattern(g, pad + f * R.cell, pad + r * R.cell, R.cell, ((vf + vr) % 2) === 0, pal, vf, vr);
       }
     }
 
@@ -684,7 +720,11 @@ function create(canvas) {
 
     /* the coordinates are worked out here, with the board they belong
        to, and drawn every frame over the men (see drawCoords) */
-    labels = coordLabels(pal, R.orientation, underLabels(boardCv, pad, dpr));
+    labels = coordLabels(pal, R.orientation, underLabels(paintCv, pad, dpr));
+    /* and the finished paint, once, onto the canvas the frames blit from */
+    boardCtx.setTransform(1, 0, 0, 1, 0, 0);
+    boardCtx.clearRect(0, 0, boardCv.width, boardCv.height);
+    boardCtx.drawImage(paintCv, 0, 0);
     boardKey = key();
   }
   function key() {
@@ -710,6 +750,8 @@ function create(canvas) {
     settling = null;
     R.toppled = null;
     R.cascade = null;
+    R.lands.length = 0;
+    R.lastAt = -1;
     if (o && o.flourish) {
       /* a new game starts from the player's own view, whatever the last
          one ended on */
@@ -718,7 +760,7 @@ function create(canvas) {
         var plan = Move.cascade(R.board, { orientation: R.orientation });
         var delay = {};
         for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
-        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan), rung: {} };
       }
     }
     R.dirty = true;
@@ -793,7 +835,16 @@ function create(canvas) {
     R.dirty = true;
   };
   R.setHighlights = function (hi) {
-    R.hi.selected = hi.selected != null ? hi.selected : -1;
+    var nextSel = hi.selected != null ? hi.selected : -1, now = performance.now();
+    var nextCheck = hi.check != null ? hi.check : -1;
+    /* a new touch: the man lights and his squares open out from him. The
+       same selection repeated (a redraw) keeps its clocks. */
+    if (nextSel >= 0 && nextSel !== R.hi.selected) { R.selAt = now; R.hiAt = now; }
+    else if (nextSel < 0) { R.selAt = -1; R.hiAt = -1; }
+    /* and a king newly in check breathes, as he does on the carved board */
+    if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = now;
+    else if (nextCheck < 0) R.checkAt = -1;
+    R.hi.selected = nextSel;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -889,26 +940,60 @@ function create(canvas) {
              y: Math.max(R.oy + lo, Math.min(R.oy + R.size - lo, y)) };
   }
 
+  /* the hint: the ribbon the racing line is drawn with, bent over the
+     traffic for a knight, standing still, with a brighter spine and its
+     tip lit so the eye lands where the idea does */
   function arrow(from, to, color, alpha) {
+    if (!root.Lines) return;
     var a = sqXY(from), b = sqXY(to);
-    var dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
-    if (len < 1) return;
-    var ux = dx / len, uy = dy / len, w = R.cell * 0.16, head = R.cell * 0.34;
-    var sx = a.x + ux * R.cell * 0.28, sy = a.y + uy * R.cell * 0.28;
-    var ex = b.x - ux * R.cell * 0.30, ey = b.y - uy * R.cell * 0.30;
+    var df = Math.abs(fileOf(to) - fileOf(from)), dr = Math.abs(rankOf(to) - rankOf(from));
+    var knight = (df === 1 && dr === 2) || (df === 2 && dr === 1);
     ctx.save();
     ctx.globalAlpha = alpha == null ? 0.85 : alpha;
-    ctx.strokeStyle = color; ctx.fillStyle = color;
-    ctx.lineWidth = w; ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(sx, sy); ctx.lineTo(ex - ux * head * 0.6, ey - uy * head * 0.6);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(ex, ey);
-    ctx.lineTo(ex - ux * head - uy * head * 0.55, ey - uy * head + ux * head * 0.55);
-    ctx.lineTo(ex - ux * head + uy * head * 0.55, ey - uy * head - ux * head * 0.55);
-    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = R.cell * 0.4 * (R.dpr || 1);
+    ribbon(root.Lines.build(a, b, { kind: "run", scale: R.cell, knight: knight }));
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = (alpha == null ? 0.85 : alpha) * 0.7;
+    ctx.fillStyle = shade(color, 0.55);
+    ribbon(root.Lines.build(a, b, { kind: "ghost", scale: R.cell, knight: knight }));
+    var tip = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, R.cell * 0.42);
+    tip.addColorStop(0, rgba(color, 0.45)); tip.addColorStop(1, rgba(color, 0));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = tip;
+    ctx.fillRect(b.x - R.cell * 0.42, b.y - R.cell * 0.42, R.cell * 0.84, R.cell * 0.84);
     ctx.restore();
+  }
+  /* a Lines outline, filled: the shaft and the head */
+  function ribbon(L) {
+    ctx.beginPath();
+    ctx.moveTo(L.poly[0].x, L.poly[0].y);
+    for (var i = 1; i < L.poly.length; i++) ctx.lineTo(L.poly[i].x, L.poly[i].y);
+    ctx.closePath();
+    ctx.fill();
+    if (L.head) {
+      ctx.beginPath();
+      ctx.moveTo(L.head[0].x, L.head[0].y);
+      ctx.lineTo(L.head[1].x, L.head[1].y);
+      ctx.lineTo(L.head[2].x, L.head[2].y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  /* a pool of light on a square: a disc that fades to nothing */
+  function pool(c, hex, r, alpha) {
+    var g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
+    g.addColorStop(0, rgba(hex, alpha)); g.addColorStop(0.55, rgba(hex, alpha * 0.55)); g.addColorStop(1, rgba(hex, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2);
+  }
+  /* a ring of light: brightest along its middle, soft on both sides */
+  function softRing(c, hex, r, band, alpha) {
+    var g = ctx.createRadialGradient(c.x, c.y, Math.max(0, r - band), c.x, c.y, r + band);
+    g.addColorStop(0, rgba(hex, 0)); g.addColorStop(0.5, rgba(hex, alpha)); g.addColorStop(1, rgba(hex, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r + band, 0, Math.PI * 2); ctx.fill();
   }
 
   /* one full paint; returns true if another frame is wanted */
@@ -942,32 +1027,40 @@ function create(canvas) {
     ctx.drawImage(boardCv, R.ox - pad, R.oy - pad, R.size + pad * 2, R.size + pad * 2);
 
     /* square highlights (under the pieces) */
+    var sel = R.hi.selected;
+    /* the touched man's halo, the square a move has just landed on, and
+       the king's breath: each a short moment of light that then holds */
+    var selP = sel >= 0 && R.selAt >= 0 ? Move.selectPulse(REDUCED ? Infinity : now - R.selAt) : { amount: 0, live: false };
+    var ag = R.lastAt >= 0 ? Move.afterglow(now - R.lastAt) : { amount: 0, live: false };
+    var pulse = { amount: 1, live: false };
+    if (R.hi.check >= 0 && R.checkAt >= 0) pulse = Move.checkPulse(now - R.checkAt);
+    if (selP.live || ag.live || pulse.live) animating = true;
     if (R.hi.last) {
       fillSq(R.hi.last[0], th.lastB, th);
       fillSq(R.hi.last[1], th.lastA, th);
+      var lc = sqXY(R.hi.last[1]);
+      pool(lc, th.lastHex, R.cell * 0.7, 0.16 + 0.34 * ag.amount);
     }
-    if (R.hi.selected >= 0) fillSq(R.hi.selected, th.selected, th);
-    if (R.hi.check >= 0) {
-      var c = sqXY(R.hi.check);
-      var gr = ctx.createRadialGradient(c.x, c.y, R.cell * 0.1, c.x, c.y, R.cell * 0.62);
-      gr.addColorStop(0, th.checkCore); gr.addColorStop(1, th.checkEdge);
-      ctx.fillStyle = gr;
-      ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
-    }
-    /* where a carried man would land: a breath of colour and a soft
-       edge, drawn under the men so a capture still shows what it takes */
-    if (hover >= 0) {
-      var hp = sqXY(hover), hl = Math.max(2, R.cell * 0.06);
+    if (sel >= 0) {
+      fillSq(sel, th.selected, th);
+      var sc = sqXY(sel), sl = Math.max(2, R.cell * 0.06);
+      pool(sc, th.selectHex, R.cell * 0.78, 0.2);
       ctx.save();
-      ctx.fillStyle = th.hoverFill;
-      ctx.fillRect(hp.x - R.cell / 2, hp.y - R.cell / 2, R.cell, R.cell);
       ctx.strokeStyle = th.hoverEdge;
-      ctx.lineWidth = hl;
-      rr(ctx, hp.x - R.cell / 2 + hl / 2, hp.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.lineWidth = sl;
+      ctx.globalAlpha = 0.8;
+      rr(ctx, sc.x - R.cell / 2 + sl / 2, sc.y - R.cell / 2 + sl / 2, R.cell - sl, R.cell - sl, R.cell * 0.08);
       ctx.stroke();
       ctx.restore();
     }
-
+    if (R.hi.check >= 0) {
+      var c = sqXY(R.hi.check);
+      var gr = ctx.createRadialGradient(c.x, c.y, R.cell * 0.1, c.x, c.y, R.cell * 0.62);
+      gr.addColorStop(0, rgba(th.checkHex, 0.34 + 0.3 * pulse.amount)); gr.addColorStop(1, th.checkEdge);
+      ctx.fillStyle = gr;
+      ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
+      if (pulse.amount > 0.5) softRing(c, th.checkHex, R.cell * (0.30 + 0.18 * pulse.amount), R.cell * 0.08, 0.5 * pulse.amount);
+    }
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
     for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
@@ -975,6 +1068,22 @@ function create(canvas) {
       if (!ia.live) { R.impacts.splice(ii, 1); continue; }
       animating = true;
       drawImpact(sqXY(im.sq), im.power, ia);
+    }
+    /* the ring every landing leaves: thin, pale, gone in a quarter of a
+       second, bigger for a knight dropped from his hop or a king's
+       weight than for a bishop's glide */
+    for (var ln = R.lands.length - 1; ln >= 0; ln--) {
+      var ld = R.lands[ln], la = Move.landRing(now - ld.t0, ld.k);
+      if (!la.live) { R.lands.splice(ln, 1); continue; }
+      animating = true;
+      ctx.save();
+      ctx.globalAlpha = la.alpha;
+      ctx.strokeStyle = "#fff6e8";
+      ctx.lineWidth = Math.max(1, R.cell * 0.05 * (1 - la.r / 0.9));
+      ctx.beginPath();
+      ctx.ellipse(ld.x, ld.y + R.cell * 0.3, la.r * R.cell, la.r * R.cell * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
     /* pieces (skipping any square involved in the animation) */
@@ -1017,6 +1126,7 @@ function create(canvas) {
       if (casc && casc.delay[sq2] != null) {
         var dp = Move.dropAt(cascMs - casc.delay[sq2]);
         if (dp.alpha <= 0.004) continue;
+        if (dp.landed && !casc.rung[sq2]) { casc.rung[sq2] = true; R.lands.push({ x: q.x, y: q.y, t0: now, k: 0.42 }); }
         /* the shadow waits on the square and darkens as the man comes
            down to meet it */
         groundShadow(q.x, q.y, R.cell, dp.alpha * (1 - dp.y / Move.DROP.height * 0.75), 1);
@@ -1033,7 +1143,10 @@ function create(canvas) {
                    { pivot: (fall.tilt >= 0 ? tp.dir : -tp.dir) * PIVOT_2D, noShadow: true });
         continue;
       }
-      paintPiece(ctx, piece, q.x, q.y, R.cell, th);
+      if (sq2 === sel && selP.amount > 0) {
+        paintPiece(ctx, piece, q.x, q.y, R.cell, th, 1, 1, 0, 1,
+                   { halo: selP.amount, haloColor: th.selectHex, haloPx: R.cell * 0.3 * dpr * v.z });
+      } else paintPiece(ctx, piece, q.x, q.y, R.cell, th);
     }
 
     /* the move in flight */
@@ -1044,6 +1157,19 @@ function create(canvas) {
          it rather than toward it */
       var vx = f1.x - f0.x, vy = f1.y - f0.y, vl = Math.hypot(vx, vy) || 1;
       var toRight = vx / vl >= 0 ? 1 : -1;
+      /* the moment he touches down, a ring runs out from under him — and
+         from under the rook of a castle at its own moment. A promotion
+         has a ceremony of its own and gets no ring. */
+      if (!REDUCED && !a.m.promo && !a.landed && prog >= pl.travel) {
+        a.landed = true;
+        R.lands.push({ x: f1.x, y: f1.y, t0: now, k: Move.landPower(pl) });
+      }
+      if (!REDUCED && a.m.rookFrom != null && !a.rookLanded && prog >= pl.rookOut) {
+        a.rookLanded = true;
+        var rl = sqXY(a.m.rookTo);
+        R.lands.push({ x: rl.x, y: rl.y, t0: now, k: 0.5 });
+      }
+      if (R.lands.length > 40) R.lands.splice(0, R.lands.length - 40);
 
       /* whatever was taken is pushed over, not deleted */
       var captPiece = a.m.epSq != null ? R.board[a.m.epSq] : R.board[a.m.to];
@@ -1098,22 +1224,38 @@ function create(canvas) {
       if (prog >= 1) {
         R.board.set(a.after);
         R.anim = null;
+        if (!REDUCED) R.lastAt = now;
         if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
       }
     }
 
     drawCoords();
 
-    /* legal-move markers (over the pieces so rings show on captures) */
-    ctx.fillStyle = th.dot;
-    for (var li = 0; li < R.hi.legal.length; li++) {
-      var lp = sqXY(R.hi.legal[li]);
-      ctx.beginPath(); ctx.arc(lp.x, lp.y, R.cell * 0.14, 0, Math.PI * 2); ctx.fill();
+    /* legal-move markers (over the pieces so rings show on captures):
+       the squares a touched man can go to open out from under him, the
+       nearest first, each a pool of light with a bright heart — and a
+       ring of light round whatever he could take */
+    var rvAt = R.hiAt;
+    function revealOf(sq) {
+      if (REDUCED || rvAt < 0) return { scale: 1, alpha: 1, live: false };
+      var d = sel >= 0 ? Math.max(Math.abs(fileOf(sq) - fileOf(sel)), Math.abs(rankOf(sq) - rankOf(sel))) : 0;
+      return Move.reveal(now - rvAt - d * Move.REVEAL.step);
     }
-    ctx.strokeStyle = th.ring; ctx.lineWidth = Math.max(2, R.cell * 0.07);
+    for (var li = 0; li < R.hi.legal.length; li++) {
+      var lp = sqXY(R.hi.legal[li]), lr = revealOf(R.hi.legal[li]);
+      if (lr.live) animating = true;
+      if (lr.scale < 0.01) continue;
+      pool(lp, th.legalHex, R.cell * 0.26 * lr.scale, 0.55 * lr.alpha);
+      ctx.fillStyle = rgba(th.legalHex, 0.85 * lr.alpha);
+      ctx.beginPath(); ctx.arc(lp.x, lp.y, R.cell * 0.095 * lr.scale, 0, Math.PI * 2); ctx.fill();
+    }
     for (var ci = 0; ci < R.hi.legalCapt.length; ci++) {
-      var cp = sqXY(R.hi.legalCapt[ci]);
-      ctx.beginPath(); ctx.arc(cp.x, cp.y, R.cell * 0.42, 0, Math.PI * 2); ctx.stroke();
+      var cp = sqXY(R.hi.legalCapt[ci]), cr = revealOf(R.hi.legalCapt[ci]);
+      if (cr.live) animating = true;
+      if (cr.scale < 0.01) continue;
+      softRing(cp, th.captHex, R.cell * 0.40 * cr.scale, R.cell * 0.09, 0.75 * cr.alpha);
+      ctx.strokeStyle = rgba(th.captHex, 0.5 * cr.alpha); ctx.lineWidth = Math.max(1, R.cell * 0.03);
+      ctx.beginPath(); ctx.arc(cp.x, cp.y, R.cell * 0.40 * cr.scale, 0, Math.PI * 2); ctx.stroke();
     }
 
     /* the mate net: squares the king cannot use, marked rather than drawn
@@ -1151,7 +1293,8 @@ function create(canvas) {
         if (up < 1) animating = true;
         var grow = dragGrow(now).grow, at = dragAt();
         liftedShadow(ctx, held, at.x, at.y, R.cell, grow * up, dpr * v.z);
-        paintPiece(ctx, held, at.x, at.y, R.cell, th, 1, grow, 0, 1, { noShadow: true });
+        paintPiece(ctx, held, at.x, at.y, R.cell, th, 1, grow, 0, 1,
+                   { noShadow: true, halo: 0.8, haloColor: th.selectHex, haloPx: R.cell * 0.3 * dpr * v.z });
       }
     }
 
