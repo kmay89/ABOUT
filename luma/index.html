@@ -249,11 +249,17 @@
               <div class="field"><label for="frameStyle">Window</label><div class="select-wrap"><select id="frameStyle"><option value="bevel" selected>Bevelled</option><option value="flat">Square</option></select></div></div>
             </div>
             <div class="dimensions-fields">
-              <div id="fitField" class="field"><label for="fitSelect">Fit</label><div class="select-wrap"><select id="fitSelect"><option value="snug">Snug</option><option value="standard" selected>Standard</option><option value="loose">Loose</option></select></div></div>
+              <div id="fitField" class="field"><label for="frameFit">Fit</label><div class="select-wrap"><select id="frameFit"><option value="snug">Snug</option><option value="standard" selected>Standard</option><option value="loose">Loose</option></select></div></div>
               <div class="field"><label for="frameColour">Preview in</label><div class="select-wrap"><select id="frameColour"><option value="#4a3426">Walnut</option><option value="#1f1d1b">Black</option><option value="#ebe6dc">White</option><option value="#b08453">Oak</option><option value="#7f9278">Sage</option><option value="#b9925a">Gold</option></select></div></div>
             </div>
             <p id="fitHelp" class="field-help"></p>
-            <label id="coverField" class="check-row"><input id="frameCover" type="checkbox"> Add a slide-in back cover</label>
+            <div id="portField" class="dimensions-fields">
+              <div class="field"><label for="framePort">Board’s USB-C port</label><div class="select-wrap"><select id="framePort"><option value="bottom" selected>Bottom edge</option><option value="left">Left edge</option><option value="right">Right edge</option></select></div></div>
+              <div class="field"><label for="framePlug">Cable plug</label><div class="select-wrap"><select id="framePlug"><option value="angled" selected>Right-angle (90°)</option><option value="straight">Straight</option></select></div></div>
+            </div>
+            <div id="portAtField" class="field" hidden><label for="portAtInput">Port centre, up from the board’s bottom corner</label><div class="number-with-unit"><input id="portAtInput" type="number" min="15" max="141" step="1" value="78" inputmode="decimal"><span>mm</span></div></div>
+            <p id="portHelp" class="field-help">Turn the board so its port is at the bottom if you can: anywhere along that edge fits, in a bay walled off from the light. Left and right are as you face the picture. A right-angle cable keeps the border slim.</p>
+            <label id="footField" class="check-row"><input id="frameFoot" type="checkbox" checked> Add a desk foot — holds it upright and clips the cable</label>
             <p id="accessoryNotes" class="accessory-notes"></p>
             <label class="check-row"><input id="accessoryPreview" type="checkbox" checked> Show it in the preview</label>
             <div id="accessoryDownloads" class="accessory-downloads"></div>

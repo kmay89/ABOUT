@@ -105,19 +105,23 @@ settings, shown in the 3D preview beside it (in walnut, black, white, oak,
 sage or gold) and downloaded as their own STLs, in their print orientation,
 needing no supports (`frames.js`, `accessories.js`, listed in `extras.js`):
 
-- **Gallery frame** (flat): the picture, and the light behind it, slide
-  down into grooves on the left, right and bottom; a lid presses on top
-  and closes it. Nothing flexes or snaps, so nothing wears out, and the
-  picture changes in seconds. The border is the same width on every side,
-  measured from the photo's edge, whatever the picture and board sizes —
-  Slim, Gallery (+6 mm) or Wide (+14 mm) — and the window has a 45° bevel
-  like a cut mat (or a square edge). The light is either a 156 × 120 mm
-  USB-C backlight board (Bambu Lab's CMYK board and the boards that copy
-  its size), held 6–30 mm behind the picture so its LEDs blend, or your own
-  LED strip or puck in a 15–60 mm hollow, with a slide-in back cover.
+- **Gallery frame** (flat): the picture, the light and a back cover slide
+  down into grooves on the left, right and bottom; a lid presses on top and
+  closes it. Nothing flexes or snaps, so nothing wears out, and the picture
+  changes in seconds. The border is the same width on every side, measured
+  from the photo's edge, whatever the picture and board sizes — Slim,
+  Gallery (+6 mm) or Wide (+14 mm) — and the window has a 45° bevel like a
+  cut mat (or a square edge); the front outer edge is eased. The light is
+  either a 156 × 120 mm USB-C backlight board (Bambu Lab's CMYK board and
+  the boards that copy its size) or your own LED strip or puck in a 15–60 mm
+  hollow.
 - **Showcase frame** (flat): the gallery frame with 1–6 more slots behind
   the light, so a year of pictures lives in the frame — lift the lid and
   swap the one on show with the seasons.
+- **Desk foot** (frames): a plinth the frame stands in, deep enough that it
+  leans at least 15° before it tips (household products are tested at
+  10°; most frames alone tip at 9–13°), with a trench and two teeth
+  underneath that grip the cable, so a tug pulls the foot, not the frame.
 - **Lantern** (flat pictures): four pictures round a light, standing in the
   slots of four corner posts on a grooved base, with a ring on top. The
   base has an opening for a cable or a tea light's switch. The other sides
@@ -129,20 +133,57 @@ One **fit** setting — snug, standard, loose — sets every clearance, so a
 printer that runs tight or loose is fixed in one place; the lid is the
 quick test piece.
 
+### Light, heat, the cable and safety
+
+Inside a board frame, three spaces are kept apart:
+
+- **The light chamber** — picture in front, board behind, the frame's walls
+  and the lid's fins round it, and a ledge 4 mm deep that the board's
+  unlit margin rests on. Nothing opens out of it. When the picture is
+  bigger than the board's 144 × 108 mm of LEDs (5 × 7), the LEDs sit
+  further back (`recommendedGap`) and the chamber narrows to the board in a
+  45° funnel that throws light into the corners.
+- **The cable bay** — the board goes in with its USB-C port at the bottom
+  (or a side, with the port's position), and below that edge a bay holds
+  the plug: 14 mm for a right-angle plug, 30 mm for a straight one, so the
+  border grows to fit. It starts 3.2 mm in front of the board, for plugs
+  that stand proud of it, but only ever meets the ledge, so no light gets
+  in; the cable leaves through a gap in the floor. Anywhere along the
+  bottom edge fits, because the port's position isn't standard.
+- **The air space** — 8 mm behind the board, breathing in through low slots
+  in the back cover and out through slots in the lid, all behind the board
+  where no LED can be seen. The board draws at most 5 W; the frame's
+  outside sheds about 8 W per m² per °C, so it settles 6–9 °C above the
+  room, well short of PLA's ~55 °C softening point. Out of direct sun, or
+  in PETG, it has a wide margin.
+
+It runs on 5 V USB, with no mains voltage anywhere in the frame. The back
+cover has two keyholes for hanging (the screw heads sit in the air space)
+and a finger notch. With your own light the hollow is lit, so the lid has
+no slots: the cover's vents sit under tunnels that make the air turn a
+corner, and the light's cable leaves through a notch under the cover.
+
 ### How they print
 
 The frames are swept cross-sections, like everything else here: a U (left,
 bottom, right) whose section can sit at a different offset on the sides
-than on the bottom (`axisSweep`), plus a front lip across the top. They
-print face down, which decides the shape as much as looks do: going up the
-print, the inside edge may step outward freely but inward by no more than
-2.5 mm before it needs a 45° slope. So the LED board, wider than the
-picture, sits in a wider hollow and its slot is only a millimetre deep;
-anything behind it steps back in on a slope. The top behind the front lip
-is open, and the lid's fins fill it between the slots — printed standing
-up, so there is no bridge anywhere. `frames.test.mjs` walks every
-cross-section and fails on any unsupported step, and checks that every
-part is closed, sits on the plate, and fits what goes in it.
+than on the bottom (`axisSweep`), plus a front lip across the top. Round
+the cable bay the U stops, and the bay's stretch is swept as the pieces of
+the section that stay — in front of the bay, behind it, inside it and its
+floor — each overlapping the rest by a different amount, so no two shells
+share an edge. The lid, the cover and the foot are grids of cells
+(`gridSolid`), which makes plates with slots and keyholes one closed solid.
+
+They print face down, which decides the shape as much as looks do: going up
+the print, the inside edge may step outward freely but inward by no more
+than 2.5 mm before it needs a 45° slope. The top behind the front lip is
+open, and the lid's fins fill it between the slots — printed standing up.
+The one bridge is the cable bay's roof (14 mm, or 30 for a straight plug).
+`frames.test.mjs` walks every cross-section and fails on any unsupported
+step; checks that every part is closed, writes as an STL and has no edge a
+slicer would call non-manifold; that the bay never opens into the light
+chamber and every vent sits behind the board; that the plug has its room;
+and that the foot keeps the frame up past 15°.
 
 ## Patterns and words
 

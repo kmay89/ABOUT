@@ -8,10 +8,10 @@ import { galleryFrame, lantern } from './frames.js';
 
 export const ACCESSORIES = Object.freeze({
   flat: [
-    { id: 'gallery', name: 'Gallery frame', blurb: 'An even border, a bevelled window, and a slot for the light — slide it in, press the lid on',
-      make: o => galleryFrame(o), options: ['light', 'gap', 'style', 'margin', 'fit', 'cover'] },
+    { id: 'gallery', name: 'Gallery frame', blurb: 'An even border, a bevelled window, a sealed, vented light box behind — slide it in, press the lid on',
+      make: o => galleryFrame(o), options: ['light', 'gap', 'port', 'style', 'margin', 'fit', 'foot'] },
     { id: 'showcase', name: 'Showcase frame', blurb: 'The gallery frame with slots behind the light for 1–6 more pictures — swap them with the seasons',
-      make: o => galleryFrame({ ...o, storage: o.storage ?? 4 }), options: ['light', 'gap', 'storage', 'style', 'margin', 'fit', 'cover'] },
+      make: o => galleryFrame({ ...o, storage: o.storage ?? 4 }), options: ['light', 'gap', 'port', 'storage', 'style', 'margin', 'fit', 'foot'] },
     { id: 'lantern', name: 'Lantern', blurb: 'Four pictures round a light, held by corner posts — fill the other sides with patterns or more photos',
       make: o => lantern(o), options: ['fit'] },
     { id: 'stand', name: 'Desk stand', blurb: 'A slotted foot, to stand it in front of a light', make: deskStand, options: [] },

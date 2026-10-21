@@ -4,7 +4,7 @@ import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, 
 import { LithophanePreview } from './preview.js';
 import { ACCESSORIES } from './extras.js';
 import { printedGrams } from './accessories.js';
-import { FITS } from './frames.js';
+import { FITS, recommendedGap } from './frames.js';
 import { FONTS, PATTERNS, loadFont, patternCanvas, drawWords } from './decor.js';
 import { LIGHT_SOURCES, ROOMS, recommendThickness } from './light.js';
 
@@ -378,7 +378,7 @@ const SLIDERS = {
   own:  { label:'Depth for your light', min:15, max:60, value:30, ends:['Slim · LED strip','Deep · puck light'] },
   board:{ label:'Gap from LEDs to picture', min:6, max:30, value:12, ends:['Slim · may show LED dots','Deeper · smoother glow'] },
 };
-let sliderFor=null;
+let sliderFor=null,gapChosen=false;
 
 /** Show the options this extra has, and set the slider to mean the right thing. */
 function showAccessoryOptions(choice) {
@@ -387,7 +387,10 @@ function showAccessoryOptions(choice) {
   $('storageField').hidden=!opts.has('storage');
   $('frameLookField').hidden=!opts.has('style');
   $('fitField').hidden=!opts.has('fit');$('fitHelp').hidden=!opts.has('fit');
-  $('coverField').hidden=!opts.has('cover');
+  const board=$('frameLight').value==='board';
+  $('portField').hidden=$('portHelp').hidden=!(opts.has('port')&&board);
+  $('portAtField').hidden=!(opts.has('port')&&board&&$('framePort').value!=='bottom');
+  $('footField').hidden=!opts.has('foot');
   const which=opts.has('gap')?$('frameLight').value:null,slider=SLIDERS[which];
   $('depthField').hidden=!slider;
   if(slider&&sliderFor!==which) {
@@ -399,7 +402,7 @@ function showAccessoryOptions(choice) {
   }
   $('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;
   $('storageValue').textContent=$('storageInput').value;
-  $('fitHelp').textContent=(FITS[$('fitSelect').value]||FITS.standard).note+' Print the lid first: if its tongues are too tight or too loose in the slots, change this and print again.';
+  $('fitHelp').textContent=(FITS[$('frameFit').value]||FITS.standard).note+' Print the lid first: if its tongues are too tight or too loose in the slots, change this and print again.';
 }
 
 /** Where a part's print coordinates sit beside the picture in the preview. */
@@ -416,10 +419,16 @@ function updateAccessory(s) {
   state.accessoryParts=[];
   if(!choice){preview?.setAccessories?.([]);return;}
   try {
+    if(sliderFor==='board'&&!gapChosen) {
+      // Until the gap is chosen, it follows the picture: further back when the picture runs past the LEDs.
+      const g=String(recommendedGap(s));
+      if($('boxDepthInput').value!==g){$('boxDepthInput').value=g;$('boxDepthValue').textContent=`${g} mm`;}
+    }
     const value=Number($('boxDepthInput').value);
     const made=choice.make({...s,depth:value,gap:value,light:$('frameLight').value,storage:choice.options?.includes('storage')?Number($('storageInput').value):0,
-      fit:$('fitSelect').value,style:$('frameStyle').value,margin:Number($('frameMargin').value),
-      cover:$('frameLight').value==='own'?true:$('frameCover').checked});
+      fit:$('frameFit').value,style:$('frameStyle').value,margin:Number($('frameMargin').value),
+      port:{edge:$('framePort').value,at:Number($('portAtInput').value)||78},plug:$('framePlug').value,
+      foot:choice.options?.includes('foot')&&$('frameFoot').checked});
     state.accessoryParts=made.parts;
     $('accessoryNotes').textContent=made.notes;
     const show=$('accessoryPreview').checked;
@@ -732,6 +741,7 @@ function installGuide() {
     </ul>
     <h3>Frames, a showcase and a lantern</h3>
     <p>Under “Frame it, light it”, a <strong>gallery frame</strong> holds the picture and its light in grooves: slide them down from the top and press the lid on. The border is the same width all round, with a bevelled window like a picture mat. A <strong>showcase frame</strong> adds slots behind the light for up to six more pictures to swap with the seasons. A <strong>lantern</strong> stands four pictures round a light — fill the other sides with more photos or a pattern from step 01. Everything prints without supports. Print the lid first: if it is too tight or too loose, change <strong>Fit</strong> and print again.</p>
+    <p>With a 156 × 120 mm USB-C board, turn it so its port is at the bottom: the plug sits in a bay under the board, walled off from the light, and the cable leaves through the bottom. A <strong>right-angle (90°) cable</strong> keeps the border slim. Behind the board an air space breathes through slots in the back cover and the lid, all where no LED can be seen, so a 5 W board leaves the frame only a few degrees warm. It is 5 V USB throughout — use a plain 5 V phone charger. Hang it from the two keyholes in the back cover, or add the <strong>desk foot</strong>, which keeps it upright past 15° of lean and clips the cable so a tug pulls the foot, not the frame. Pictures bigger than the board’s LEDs, such as 5 × 7, get the LEDs set further back and a 45° funnel down to the board; a white frame throws the most light into the corners.</p>
     <h3>Words</h3>
     <p>“Add words” (step 03) puts a name, a date or a line you love on the picture, in one of seven fonts. Letters 6 mm or taller in the bolder styles print best; glowing letters on the soft band read most clearly with the light on.</p>
     <h3>Fitting your frame or light</h3>
@@ -823,9 +833,9 @@ function init() {
     $('lightInput').value=String(Math.round(calcResult.previewPower*20)/20);preview?.setLight(Number($('lightInput').value));
     changed();toast(`Using ${fmt(calcResult.min)}–${fmt(calcResult.max)} mm for your light (${LIGHT_SOURCES[$('lightSource').value].name}). The preview’s backlight now matches it.`);
   });
-  $('boxDepthInput').addEventListener('input',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),80);$('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;});
+  $('boxDepthInput').addEventListener('input',()=>{if(sliderFor==='board')gapChosen=true;clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),80);$('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;});
   $('accessoryPreview').addEventListener('change',()=>render());
-  for(const id of ['frameLight','storageInput','frameMargin','frameStyle','fitSelect','frameCover'])
+  for(const id of ['frameLight','storageInput','frameMargin','frameStyle','frameFit','framePort','framePlug','frameFoot','portAtInput'])
     $(id).addEventListener(id==='storageInput'?'input':'change',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),60);});
   $('frameColour').addEventListener('change',()=>{preview?.setFrameColour?.($('frameColour').value);try{localStorage.setItem('luma-frame-colour',$('frameColour').value);}catch(error){}});
   try{const c=localStorage.getItem('luma-frame-colour');if(c&&[...$('frameColour').options].some(o=>o.value===c)){$('frameColour').value=c;}}catch(error){}
