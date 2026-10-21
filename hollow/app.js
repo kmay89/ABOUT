@@ -4,6 +4,7 @@ import { SAMPLES } from './samples.js';
 import { DEFAULTS, QUALITY, MATERIALS, castEstimate, pourAxis } from './mold.js';
 import { write3MF } from './threemf.js';
 import { verdict } from './verdict.js';
+import { spacingFor } from './sdf.js';
 import { Sounds } from './sounds.js';
 
 /* ---------- printers, as in Luma ---------- */
@@ -66,12 +67,24 @@ function applyRecommended() {
   toast(`Set for ${MATERIALS[$('materialSelect').value].name.toLowerCase()}: a ${wall} mm wall, a ${r.spout[0]} mm spout, ${$('keysSelect').value === 'rail' ? 'a locating rail' : 'three pegs'} and rubber-band grooves.`);
 }
 
+/** The export quality, capped at Standard on a machine with little memory: Fine needs a few
+ * hundred megabytes in the worker. */
+function exportQuality() {
+  const q = $('qualitySelect').value;
+  const memory = navigator.deviceMemory; // gigabytes, Chrome only
+  if (q === 'fine' && Number.isFinite(memory) && memory < 4) return 'standard';
+  return q;
+}
+
 /* ---------- the verdict card ---------- */
 function renderVerdict(result) {
   const bed = printer().bed;
   const layout = viewer.printLayout || [];
   const together = layout.every(p => p.at[0] + p.size[0] <= bed.x + 0.01 && p.at[1] + p.size[1] <= bed.y + 0.01);
-  const v = verdict(result, { material: $('materialSelect').value, bed, printerName: `your ${printer().short}`, fitsTogether: together });
+  // the detail the export will be built at, for the chosen quality and this block
+  const blk = result.block, size = [blk.max[0] - blk.min[0], blk.max[1] - blk.min[1], blk.max[2] - blk.min[2]];
+  const exportH = Math.max(0.2, spacingFor(size, QUALITY[exportQuality()].nodes, 0.3, 1.5));
+  const v = verdict(result, { material: $('materialSelect').value, bed, printerName: `your ${printer().short}`, fitsTogether: together, exportH });
   const card = $('verdictCard');
   card.className = `verdict-card is-${v.grade}`;
   $('verdictBadge').textContent = v.grade === 'good' ? 'Good to go' : v.grade === 'care' ? 'With care' : 'Not yet';
@@ -160,9 +173,11 @@ function layFlat() {
   if (!best) return;
   const l = Math.hypot(...best.n) || 1;
   const dir = best.n.map(v => v / l);
-  state.orient = multiply3(rotationBetween(dir, [0, 0, -1]), state.orient);
+  // an open mold wants the flat back at the top (that is the opening); everything else wants it down
+  const up = state.type === 'open';
+  state.orient = multiply3(rotationBetween(dir, [0, 0, up ? 1 : -1]), state.orient);
   changed();
-  toast('The largest flat face is now at the bottom. Flip it if that face should be the open top.');
+  toast(up ? 'The largest flat face is now on top, where the open mold pours in. Flip it if that is the wrong face.' : 'The largest flat face is now at the bottom. Flip it if it should be on top.');
 }
 
 /* ---------- settings from the page ---------- */
@@ -188,6 +203,7 @@ function settings(quality) {
     s.prySlots = $('pryCheck').checked;
   } else if (type === 'open') {
     s.lip = numeric('lipInput', 0, 10, 2);
+    s.pushHole = parseFloat($('pushHoleSelect').value) || 0;
     s.floor = numeric('floorInput', 3, 40, 8);
   } else {
     s.siliconeGap = numeric('gapInput', 4, 30, 10);
@@ -258,7 +274,8 @@ async function liveBuild() {
 async function finalBuild() {
   const mesh = orientedMesh();
   if (!mesh) { toast('Add a model first.'); return; }
-  const quality = $('qualitySelect').value;
+  const quality = exportQuality();
+  if (quality !== $('qualitySelect').value) toast('Fine detail needs more memory than this device has, so this export is built at Standard.');
   const btn = $('buildBtn'); btn.disabled = true;
   $('progressRow').hidden = false;
   try {
@@ -291,6 +308,7 @@ function showResult(result, mesh, isFinal) {
   // numbers
   const mb = result.model.bounds, blk = result.block;
   $('modelSizeLabel').textContent = `${fmt(mb.size[0])} × ${fmt(mb.size[1])} × ${fmt(mb.size[2])} mm`;
+  $('modelSizeHint').textContent = `${fmt(mb.size[0] / 25.4)} × ${fmt(mb.size[1] / 25.4)} × ${fmt(mb.size[2] / 25.4)} in`;
   $('moldSizeLabel').textContent = `${fmt(blk.max[0] - blk.min[0])} × ${fmt(blk.max[1] - blk.min[1])} × ${fmt(blk.max[2] - blk.min[2])} mm · ${result.parts.length} ${result.parts.length === 1 ? 'part' : 'parts'}`;
   const est = castEstimate(result.cast.volumeMm3, $('materialSelect').value);
   if (result.settings.type === 'box') {
@@ -377,7 +395,21 @@ function renderDownloads(result) {
     });
     row.append(name, btn); list.append(row);
   });
-  $('resultDetails').textContent = `Every part arrives in its printing position: flat side down, cavity up, no supports needed where the preview shows green. Open at 100 % scale.`;
+  const grams = result.parts.reduce((s, p) => s + p.plasticGrams, 0);
+  const hours = grams / 12; // a P2S at 0.2 mm layers lays down roughly 12 g of PLA an hour on parts like these
+  $('resultDetails').textContent = `Every part arrives in its printing position: flat side down, cavity up. Open at 100 % scale. Roughly ${hours < 1 ? `${Math.round(hours * 60)} minutes` : `${fmt(hours, 1)} hours`} of printing in all at 0.2 mm layers; the slicer will know exactly.`;
+  const m = $('materialSelect').value, est = castEstimate(result.cast.volumeMm3, m);
+  const amount = est.unit === 'mL' ? `${fmt(est.mL * 1.1, 0)} mL of resin (10 % extra)` : `${fmt(est.grams * 1.1, 0)} g of ${est.material.name.toLowerCase()} mix (10 % extra)`;
+  const needs = {
+    concrete: [amount, 'a release agent: cooking spray wiped thin, or paste wax', 'a cup and a stick to mix, and a bag to cover it while it cures', result.settings.type === 'two-part' ? 'rubber bands or clamps, and a tray to catch drips' : 'a straight edge to strike the back flat'],
+    plaster: [amount, 'a little soap or release spray on the mold', 'a cup to mix in, and a sieve to sprinkle plaster into the water', result.settings.type === 'two-part' ? 'rubber bands or clamps' : 'a straight edge to strike the back'],
+    resin: [amount, 'a mold release spray — resin bonds to plastic without it', 'gloves, a mask or open window, mixing cups and sticks', result.settings.type === 'two-part' ? 'rubber bands or clamps, and tape round the seam' : 'a lighter or heat gun to pop surface bubbles'],
+    wax: [amount, 'a pot to melt it in and a thermometer (pour below 80 °C)', result.settings.type === 'two-part' ? 'rubber bands or clamps' : 'a wick and a wick holder, if it is a candle'],
+    soap: [amount, 'a microwave-safe jug to melt it in', 'rubbing alcohol in a spray bottle to clear bubbles', 'room in the freezer for ten minutes before unmolding'],
+  }[m] || [];
+  if (result.settings.type === 'box') needs.splice(0, needs.length, `${fmt(result.features.silicone.volumeMm3 / 1000 * 1.1, 0)} mL of 20–30 Shore A silicone (10 % extra)`, 'mixing cups, a stick and gloves', 'a craft knife to cut the cured block open');
+  const ul = $('needsList'); ul.innerHTML = '';
+  for (const n of needs) { const li = document.createElement('li'); li.textContent = n; ul.append(li); }
 }
 
 async function download3MF() {
@@ -470,7 +502,7 @@ function saveProject() {
   saveBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), `${slug(state.projectName)}.hollow.json`);
   toast('Project saved: the model and every setting, in one file.');
 }
-const FIELD_IDS = ['materialSelect', 'wallInput', 'cornerInput', 'clearanceInput', 'autoPlane', 'planeInput', 'spoutCheck', 'spoutDiameterInput', 'spoutMouthInput', 'ventsCheck', 'keysSelect', 'keyClearanceInput', 'fastenerSelect', 'pryCheck', 'lipInput', 'floorInput', 'gapInput', 'boxWallInput', 'boxFloorInput', 'qualitySelect'];
+const FIELD_IDS = ['materialSelect', 'wallInput', 'cornerInput', 'clearanceInput', 'pushHoleSelect', 'autoPlane', 'planeInput', 'spoutCheck', 'spoutDiameterInput', 'spoutMouthInput', 'ventsCheck', 'keysSelect', 'keyClearanceInput', 'fastenerSelect', 'pryCheck', 'lipInput', 'floorInput', 'gapInput', 'boxWallInput', 'boxFloorInput', 'qualitySelect'];
 async function openProject(file) {
   try {
     const data = JSON.parse(await file.text());
@@ -546,7 +578,7 @@ function init() {
     const b = bounds(mesh); $('planeValue').textContent = `${fmt(b.min[2] + b.size[2] * +$('planeInput').value / 100)} mm`;
   });
   $('planeInput').addEventListener('change', changed);
-  for (const id of ['wallInput', 'cornerInput', 'clearanceInput', 'spoutCheck', 'spoutDiameterInput', 'spoutMouthInput', 'ventsCheck', 'keysSelect', 'keyClearanceInput', 'fastenerSelect', 'pryCheck', 'lipInput', 'floorInput', 'gapInput', 'boxWallInput', 'boxFloorInput']) {
+  for (const id of ['wallInput', 'cornerInput', 'clearanceInput', 'pushHoleSelect', 'spoutCheck', 'spoutDiameterInput', 'spoutMouthInput', 'ventsCheck', 'keysSelect', 'keyClearanceInput', 'fastenerSelect', 'pryCheck', 'lipInput', 'floorInput', 'gapInput', 'boxWallInput', 'boxFloorInput']) {
     $(id).addEventListener('change', changed);
   }
   // views
@@ -589,7 +621,7 @@ function init() {
   const syncSound = () => { soundBtn.setAttribute('aria-pressed', String(sounds.enabled)); soundBtn.title = sounds.enabled ? 'Sounds on' : 'Sounds off'; soundBtn.setAttribute('aria-label', sounds.enabled ? 'Turn sounds off' : 'Turn sounds on'); };
   syncSound();
   soundBtn.addEventListener('click', () => { sounds.setEnabled(!sounds.enabled); syncSound(); });
-  document.addEventListener('pointerdown', () => sounds.ready(), { once: true, capture: true });
+  for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => sounds.unlock(), { once: true, capture: true });
   $('explodeInput').addEventListener('input', () => viewer.setExplode(+$('explodeInput').value / 100));
   $('sectionInput').addEventListener('input', () => viewer.setSection(+$('sectionInput').value / 100));
   $('resetViewBtn').addEventListener('click', () => { viewer.userFramed = false; viewer.resetView(550); sounds.click(); });

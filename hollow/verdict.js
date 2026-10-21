@@ -24,7 +24,7 @@ const pct = (f) => `${Math.round(f * 100)} %`;
  * @param result a buildMold result
  * @param options { material: 'concrete'|…, bed: {x,y,z}, printerName, fitsTogether }
  */
-export function verdict(result, { material = 'concrete', bed = { x: 256, y: 256, z: 256 }, printerName = 'your printer', fitsTogether = true } = {}) {
+export function verdict(result, { material = 'concrete', bed = { x: 256, y: 256, z: 256 }, printerName = 'your printer', fitsTogether = true, exportH = null } = {}) {
   const rules = MATERIAL_RULES[material] || MATERIAL_RULES.concrete;
   const mat = MATERIALS[material] || MATERIALS.concrete;
   const items = [];
@@ -65,11 +65,17 @@ export function verdict(result, { material = 'concrete', bed = { x: 256, y: 256,
     else add('ok', 'The piece is sturdy enough for ' + mat.name.toLowerCase(), `Only ${pct(thin)} of it is ${rules.thinWord}.`);
   }
 
-  // --- detail
-  const detail = result.h;
-  if (rules.detail === 'soft') add('ok', 'Detail will be a little soft, which suits this material', `${mat.name} does not hold features much finer than a millimetre anyway; the mold is built at ${detail.toFixed(2)} mm.`);
-  else if (detail > 0.45) add('warn', `Fine detail will soften at ${detail.toFixed(2)} mm`, 'This is a draft preview. Edges sharper than the grid come out gently rounded.', 'Export at Standard or Fine detail; for a small resin piece, Fine.');
-  else add('ok', `Detail is kept to about ${detail.toFixed(2)} mm`, 'About what a 0.4 mm nozzle resolves. Layer lines in the mold will still show on the cast unless you smooth the cavity.');
+  // --- detail: judged on what the export will be built at, not the draft preview
+  const detail = exportH || result.h;
+  const previewNote = exportH && exportH < result.h - 0.01 ? ` The preview you are looking at is coarser (${result.h.toFixed(2)} mm); the export is finer.` : '';
+  if (rules.detail === 'soft') add('ok', 'Detail will be a little soft, which suits this material', `${mat.name} does not hold features much finer than a millimetre anyway; the mold is built at ${detail.toFixed(2)} mm.${previewNote}`);
+  else if (detail > 0.45) add('warn', `Fine detail will soften at ${detail.toFixed(2)} mm`, `A big piece spreads the grid thin. Edges sharper than that come out gently rounded.${previewNote}`, 'Choose Fine detail for the export, or cast a smaller piece.');
+  else add('ok', `Detail is kept to about ${detail.toFixed(2)} mm`, `About what a 0.4 mm nozzle resolves. Layer lines in the mold will still show on the cast unless you smooth the cavity.${previewNote}`);
+
+  // --- printing each part
+  const needsSupport = result.parts.filter(p => (p.supportFraction || 0) > 0.02);
+  if (!needsSupport.length) add('ok', result.parts.length > 1 ? 'Every part prints without supports' : 'It prints without supports', 'Flat side on the plate, cavity facing up; nothing overhangs more than 45°.');
+  else add('warn', `${needsSupport.map(p => p.name).join(' and ')} ${needsSupport.length > 1 ? 'have' : 'has'} overhangs to print`, `${needsSupport.map(p => `${pct(p.supportFraction)} of ${p.name}`).join(', ')} overhangs more than 45° (red in the Print view) — usually a trapped part of the cavity.`, type === 'two-part' ? 'Move the parting plane so the red goes, or print with tree supports and sand the marks.' : 'Turn the model so it is widest at the top, or print with tree supports and sand the marks.');
 
   // --- pouring
   if (type === 'two-part') {
@@ -86,7 +92,8 @@ export function verdict(result, { material = 'concrete', bed = { x: 256, y: 256,
   } else if (type === 'open') {
     if (result.warnings.some(w => /wider at the bottom/.test(w))) add('bad', 'The model is upside down for an open mold', 'The opening at the top is smaller than the piece below it, so the cast would be locked in.', 'Press Flip so the flat back faces up.');
     else if (a.openingMm2) add('ok', 'The open face is the flat back', 'Pour in from the top, tap, and strike it flat.');
-    if (f.cores) add('ok', 'Hollow found the inside of a vessel', 'The mold comes as a body and a core with a collar. Pour the body two thirds full, press the core in to its collar, tap.');
+    if (f.cores) add('ok', 'Hollow found the inside of a vessel', `The mold comes as a body and a core. The core's collar drops into a recess in the rim so it cannot slide, ${f.coreHoles && f.coreHoles.length ? `and ${f.coreHoles.length} overflow hole${f.coreHoles.length > 1 ? 's' : ''} in the collar let the extra mix rise out as you press it in` : 'so pour only two thirds full and press it in slowly'}. Weigh the core down: wet mix floats it.`);
+    if (f.pushHole) add('ok', `${f.pushHole.diameter === 8 ? 'An' : 'A'} ${f.pushHole.diameter} mm push-out hole in the floor`, 'A dowel through it frees a stubborn cast. It leaves a small mark on the face against the floor; fill or sand it, or turn the hole off if that face shows.');
     if (s.lip === 0) add('warn', 'There is no rim above the back', 'Without a few millimetres to overfill, the back is hard to get flat.', 'Set the rim to 2–3 mm.');
   } else if (type === 'box') {
     const sil = f.silicone;

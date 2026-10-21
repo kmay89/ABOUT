@@ -21,8 +21,12 @@ do not run from `file://`. MIT licensed; see [LICENSE](LICENSE).
   rubber bands or four M5 bolt holes. Two pry slots on the parting line.
 - **Open mold** — one block with the cavity open at the top, for anything
   with a flat back: coasters, tiles, trays. An overfill rim above the back
-  lets you strike the piece flat. A hollow model (a planter, a cup) comes out
-  as a body and a core with a collar that rests on the rim at the right depth.
+  lets you strike the piece flat; an optional push-out hole through the
+  floor lets a dowel free a stubborn cast. A hollow model (a planter, a cup)
+  comes out as a body and a core: the body's rim has a 2 mm recess inside a
+  2.5 mm wall, the core's collar drops into it so it cannot slide, and
+  overflow holes through the collar let the displaced mix rise out as the
+  core is pressed in.
 - **Silicone master** — the model standing in its own printed tray with a
   silicone-thick gap all round, printed as one piece; pour silicone to the
   top edge, cure, cut open. The page says how much silicone that is.
@@ -46,6 +50,14 @@ which opens in Bambu Studio as a ready project.
   downwards; every pocket of cavity that begins before joining the rest is a
   place air would collect. The first is where the spout goes; the others get
   vents, deepest first, up to six.
+- **Printing.** Each part's share of surface that overhangs more than 45°
+  in its printing position (the first layer and the 6 mm bridges over the
+  band grooves do not count) — what the slicer would want supports under,
+  and almost always a trapped part of the cavity.
+- **Clashes.** The spout mouth is narrowed to stay clear of a peg on the
+  same face, a vent that would run through a peg is dropped, and the band
+  grooves move inboard (or become one groove) on a block too short for two
+  clear of the corners.
 - **Fit.** Each part, and the whole set laid out together, against the
   printer's plate (Bambu Lab P2S, X1/P1/A1, H2D, A1 mini; Prusa MK4S, CORE
   One, MINI+; Creality K1; a generic 300 mm). The choice is the one thing the
@@ -70,6 +82,9 @@ which opens in Bambu Studio as a ready project.
   1.5, 3 and 5 mm (a point is thin when no ball of that size fits inside the
   model around it, measured on the distance field), and what each material
   forgives: concrete and soap want 5 mm, plaster and wax 3, resin 1.5.
+- **Before you pour.** The downloads card lists what to have ready for
+  the chosen material — how much mix with 10 % extra, release agent, bands
+  or a straight edge — and a rough printing time.
 - **Recommended settings.** One button sets the wall, spout, keys,
   fasteners, rim and cavity clearance for the chosen material and the
   model's size. The rarely needed settings sit under "More".
