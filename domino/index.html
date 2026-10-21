@@ -317,6 +317,8 @@
     pointer-events:none; opacity:0; transition:opacity .3s;
   }
   #banner.on{opacity:1}
+  /* while a tip is being read the banner drops below it rather than onto it */
+  #stage:has(#chuy:not(.off)) #banner{top:52%}
   #banner .big{
     font-size:clamp(2rem,11vw,4.2rem); font-weight:800; letter-spacing:-.02em;
     text-shadow:0 4px 30px rgba(0,0,0,.8), 0 0 60px rgba(240,168,60,.35);

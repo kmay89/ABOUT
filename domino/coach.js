@@ -333,8 +333,8 @@ var MOMENTS = [
   { id: "welcome", once: true,
     when: function (e) { return e.k === "welcome"; },
     say: function (e, names, view) {
-      return "Welcome to the table. You sit at the bottom with your seven bones; your partner, " +
-        who(view, R.partner(e.you), names) + ", sits across from you, and the two beside you play against you both. " +
+      return "Welcome to the table. You sit at the bottom with your seven bones; " +
+        cap(who(view, R.partner(e.you), names)) + ", sits across from you, and the two beside you play against you both. " +
         "The aim: be the first to lay down all your bones. A bone goes on either end of the line if one of its numbers matches.";
     } },
   { id: "tutTurn", once: true,
