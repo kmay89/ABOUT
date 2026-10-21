@@ -76,6 +76,16 @@ it, with its weight and time.
   0.4 mm between neighbours, 3 mm below the drawer's top edge. All of it is
   in **Fine settings**, each with a line on what it does and why.
 
+## Sound and motion
+
+Small sounds are made on the spot by `sound.js` (WebAudio, no files): a
+wooden tock when a bin lands, a tick when one is picked, a two-note slide
+when one goes, a chime when a file is ready, a quick settle when a whole
+layout lands. The switch in the header turns them off and is remembered.
+In 3D, new bins drop into the drawer and the picked one lifts a little;
+on the plan a new bin pops in and the drag outline marches. Everything
+honours `prefers-reduced-motion`.
+
 ## Files
 
 - `index.html`, `styles.css` — the interface, the print guide.
@@ -91,7 +101,8 @@ it, with its weight and time.
 - `export.js` — a stored ZIP writer, the 3MF writer, file names, the print
   sheet, the all-in-one bundle. No DOM.
 - `preview.js` — the Three.js orbit preview: the drawer, the bins, click
-  to select.
+  to select, bins dropping in and lifting.
+- `sound.js` — the sounds, synthesised.
 - `vendor/` — Three.js r170 with OrbitControls (MIT) and earcut 3.0.1 (ISC).
 - `tests/` — the checks below.
 
@@ -102,10 +113,15 @@ lifted to a height and joined by walls. A bin is a bottom ring, a plain ring
 at floor height, the same ring with the channels notched into it (the
 ledges between the two are the channels' ends), and a top ring whose points
 carry the scoop's height; inside, one ring per compartment with the ribs
-behind the channels pushed into it. earcut triangulates the caps and the
-ring between the outer wall and the compartments; it drops points that sit
-exactly on a straight line (the scoop's samples), so `triangulateRings`
-fans every triangle edge that skipped such points back over them, and the
+behind the channels pushed into it. A compartment's corners against the
+outside wall are concentric with it (one wall thickness all the way round,
+so they always sit inside it); against a divider they take a 1 mm fillet,
+or go sharp where a rib runs into the divider so the wall behind a channel
+is solid through to it. earcut triangulates the caps and the ring between
+the outer wall and the compartments; it leaves out points on a straight
+line (the scoop's samples, rib ends) and can return zero-area triangles
+where rings share a line, so `triangulateRings` splits every triangle edge
+at each ring point lying on it and drops the zero-area ones, and the
 surface meets every wall edge. The clip is a section extruded along X.
 
 ## Checks
@@ -129,6 +145,13 @@ splitting to fit the plate, and reading damaged saved designs safely.
 `items.test.mjs` checks the library, the fit (flat, turned, diagonal, too
 tall), the smallest-bin search, the drawn arrangement, and a bin's inside
 against its walls, dividers and floor.
+`fuzz.test.mjs` builds sixty random drawers — any size, every setting at
+a random value within its limits, every starting layout, bins of every
+shape with random compartments, low, scoops and contents — and proves
+every part is a closed solid, every plate packs inside the bed with
+nothing overlapping or in the reserved corner, every file writes, and
+every design survives a save. It found the two bugs above, which is what
+it is for.
 `export.test.mjs` reads the ZIP writer's output back (and has the system's
 `unzip` test it where present), checks the 3MF's parts, objects, items and
 rotations, STL sizes and names, and the print sheet.

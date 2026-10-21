@@ -8,6 +8,9 @@ import { binRect, grid } from './layout.js';
  * printer, so what you see is what you get. Drag to orbit, scroll to zoom,
  * click a bin to select it. Units are mm; the drawer's front is -Y.
  */
+const easeOutCubic = t => 1 - (1 - t) ** 3;
+const easeOutBack = t => 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2;   // overshoots a touch, then settles
+
 export class DrawerPreview {
   constructor(container, { onSelect, onFailure } = {}) {
     this.container = container;
@@ -16,6 +19,10 @@ export class DrawerPreview {
     this.selected = null;
     this.binMeshes = [];
     this.geometries = new Map();
+    this.known = null;            // bin ids seen last time, so new ones can drop in
+    this.anims = [];
+    this.frame = 0;
+    this.reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(32, 1, 1, 6000);
     this.camera.up.set(0, 0, 1);
@@ -136,6 +143,9 @@ export class DrawerPreview {
       for (const id of part.bins) byId.set(id, part);
     }
     for (const [key, geom] of this.geometries) if (!keep.has(key)) { geom.dispose(); this.geometries.delete(key); }
+    // Bins the last design did not have drop in from above, a few at a time;
+    // the first design drops in whole, like emptying a box of them.
+    const fresh = [];
     for (const bin of design.bins) {
       const part = byId.get(bin.id);
       if (!part) continue;
@@ -144,8 +154,19 @@ export class DrawerPreview {
       mesh.position.set(rect.x, rect.y, 0);
       mesh.userData.binId = bin.id;
       mesh.userData.low = bin.low;
+      mesh.userData.rest = 0;
       this.binGroup.add(mesh);
       this.binMeshes.push(mesh);
+      if (!this.known || !this.known.has(bin.id)) fresh.push(mesh);
+    }
+    this.known = new Set(design.bins.map(b => b.id));
+    this.anims = [];
+    if (!this.reduceMotion && fresh.length) {
+      const step = Math.min(40, 600 / fresh.length);
+      fresh.forEach((mesh, i) => {
+        mesh.position.z = H + 40;
+        this.animate(mesh, 'z', 0, 420, i * step, easeOutBack);
+      });
     }
     const changed = !this.size || this.size.some((v, i) => Math.abs(v - [W, D, H][i]) > 0.5);
     this.size = [W, D, H];
@@ -153,10 +174,37 @@ export class DrawerPreview {
     this.select(this.selected);
   }
 
+  /** Move one axis of a mesh's position over time; frames run while any animation does. */
+  animate(mesh, axis, to, duration, delay = 0, ease = easeOutCubic) {
+    const from = mesh.position[axis];
+    this.anims = this.anims.filter(a => !(a.mesh === mesh && a.axis === axis));
+    this.anims.push({ mesh, axis, from, to, duration, ease, start: performance.now() + delay });
+    if (!this.frame) this.frame = requestAnimationFrame(() => this.step());
+  }
+
+  step() {
+    const now = performance.now();
+    this.anims = this.anims.filter(a => {
+      const t = Math.min(1, Math.max(0, (now - a.start) / a.duration));
+      a.mesh.position[a.axis] = t <= 0 ? a.from : a.from + (a.to - a.from) * a.ease(t);
+      return t < 1;
+    });
+    this.render();
+    this.frame = this.anims.length ? requestAnimationFrame(() => this.step()) : 0;
+  }
+
   select(id) {
     this.selected = id;
     for (const mesh of this.binMeshes) {
-      mesh.material = mesh.userData.binId === id ? this.selectedMaterial : mesh.userData.low ? this.lowMaterial : this.binMaterial;
+      const picked = mesh.userData.binId === id;
+      mesh.material = picked ? this.selectedMaterial : mesh.userData.low ? this.lowMaterial : this.binMaterial;
+      // the picked bin lifts a little, as if to look at it; others settle back
+      const rest = picked ? 4 : 0;
+      if (mesh.userData.rest !== rest) {
+        mesh.userData.rest = rest;
+        if (this.reduceMotion || this.anims.some(a => a.mesh === mesh)) { if (!this.anims.some(a => a.mesh === mesh)) mesh.position.z = rest; }
+        else this.animate(mesh, 'z', rest, picked ? 220 : 180);
+      }
     }
     this.render();
   }
