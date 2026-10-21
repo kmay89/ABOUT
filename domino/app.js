@@ -89,6 +89,8 @@ var P = {
   face: "",             /* the face this player picked (faces.js code), or "" for the one their name draws */
   fiesta: true,         /* the papel picado and the bulbs over the table */
   music: true,          /* the trio in the corner */
+  coachHold: true,      /* a tip stays until "Got it"; off, it fades on its own */
+  hands: 0,             /* hands this player has finished — the first two are learning */
   id: ""                /* this phone, so a chair it drops is given back to it */
 };
 function load() {
@@ -107,12 +109,17 @@ function load() {
       P.face = Net.cleanFace(raw.face);
       P.fiesta = raw.fiesta !== false;
       P.music = raw.music !== false;
+      P.coachHold = raw.coachHold !== false;
+      P.hands = Math.max(0, parseInt(raw.hands, 10) || 0);
+      P.fresh = false;
       if (typeof raw.id === "string" && /^[a-z0-9]{6,16}$/.test(raw.id)) P.id = raw.id;
       if (raw.rules) P.rules = R.houseRules(raw.rules);
       if (raw.skin) P.skin = Sk.clean(raw.skin);
     }
   } catch (e) { /* a corrupt save is quietly retired rather than fatal */ }
   if (!P.skin) P.skin = Sk.clean(Sk.PRESETS[0]);
+  /* a newcomer's table is unhurried: nothing is assumed, nothing is rushed */
+  if (P.fresh !== false) { P.fresh = true; P.pace = "slow"; }
   if (!P.name) P.name = "";
   if (!P.career) P.career = Car.fresh();
   P.rating = Rt.load(function (k) { return localStorage.getItem(k); });
@@ -132,7 +139,8 @@ function save() {
     localStorage.setItem(SAVE, JSON.stringify({
       v: 1, name: P.name, skin: P.skin, view3d: P.view3d, level: P.level, pace: P.pace,
       rules: P.rules, seen: P.seen, coach: P.coach, sound: P.sound, grade: P.grade,
-      career: P.career, id: P.id, face: P.face, fiesta: P.fiesta, music: P.music
+      career: P.career, id: P.id, face: P.face, fiesta: P.fiesta, music: P.music,
+      coachHold: P.coachHold, hands: P.hands
     }));
   } catch (e) { /* private browsing; the game still plays */ }
 }
@@ -354,6 +362,7 @@ function frame(now) {
       /* a mula slammed down is felt through the table */
       if (G.anim.hard >= 1 && gfx.kind === "3d" && gfx.kick && !reducedMotion()) gfx.kick(0.7);
       G.lastAt = performance.now();
+      if (G.anim.mine && G.pendingGrade) { var pg = G.pendingGrade; G.pendingGrade = null; setTimeout(function () { showGrade(pg); }, 120); }
     }
     if (G.anim.t >= 1) { G.anim = null; }
   }
@@ -507,12 +516,14 @@ function pickBone(tile) {
     Snd.tick();
     return;
   }
-  /* one place it can go: put it there. Two: lift it and let them
-     choose. Making somebody confirm a decision with only one possible
-     answer is the commonest way to make a game feel slow. */
-  if (ends.length === 1) { tryPlay(tile, ends[0]); return; }
+  /* Two steps, always: pick the bone up, then lay it down where you
+     mean — on the marked spot, with the button, or by carrying it. A
+     single tap used to play a bone that fitted only one end, which was
+     quick and also the commonest way to play a bone you had not meant
+     to. Tapping the lifted bone again puts it back. */
   G.sel = (G.sel === tile) ? null : tile;
-  if (G.sel === null) G.hint = null; else leanFor(tile);
+  if (G.sel === null) { G.hint = null; G.lean = null; }
+  else { if (ends.length === 2) leanFor(tile); else G.lean = null; sayMoment({ k: "pickedUp", you: G.mySeat, ends: ends.length }); }
   Snd.tick();
   syncAll();
 }
@@ -565,18 +576,26 @@ function judge(mv) {
   if (vd.id === "miss" && P.coach) { try { opts.analysis = AI.analyse(v, { level: "maestro" }); } catch (e) {} }
   var gr = C.grade(v, rv, mv, opts);
   if (!gr) return;
+  /* said when the bone lands, not when the finger lifts: the table
+     answers the play, and a play is the bone on the wood */
+  G.pendingGrade = gr;
+}
+var FEEL = { sharp: "¡Eso! A great play", good: "A good play", ok: "It works", miss: "There was a better one" };
+function showGrade(gr) {
   var el = $("grade");
   el.className = gr.id;
-  mood(G.mySeat, gr.id === "sharp" ? "grin" : gr.id === "miss" ? "ouch" : "happy", 1800);
-  el.textContent = gr.icon + " " + gr.label + (gr.id === "sharp" && G.hs.sharp > 1 ? " ×" + G.hs.sharp : "");
+  mood(G.mySeat, gr.id === "sharp" ? "grin" : gr.id === "miss" ? "ouch" : "happy", 2200);
+  el.innerHTML = "<b>" + esc(gr.icon + " " + gr.label + (gr.id === "sharp" && G.hs && G.hs.sharp > 1 ? " ×" + G.hs.sharp : "")) +
+    "</b><small>" + esc(FEEL[gr.id] || "") + "</small>";
   void el.offsetWidth;
   el.classList.add("on");
   clearTimeout(gradeT);
-  gradeT = setTimeout(function () { el.classList.remove("on"); }, 1700);
+  gradeT = setTimeout(function () { el.classList.remove("on"); }, 2300);
   if (gr.id === "sharp") Snd.good();
   /* a costly play is worth a sentence, but not every time — a coach who
      comments on everything is a coach you stop reading */
   if (gr.id === "miss" && P.coach && gr.say) chuy(gr.say, gr.why);
+  sayMoment({ k: "landed", you: G.mySeat });
 }
 
 /* ---------- the hand, on the host or solo ---------- */
@@ -788,6 +807,13 @@ function scheduleTurn() {
   var seat = st.turn;
   G.thinking = -1;
 
+  /* a newcomer reading a tip is not kept waiting by the machines */
+  if (!isHuman(seat) && P.coach && P.coachHold && learning() && coachUp()) {
+    syncAll();
+    turnT = setTimeout(scheduleTurn, 400);
+    return;
+  }
+
   if (isHuman(seat)) {
     if (!R.canPlay(st, seat)) {
       /* a human who cannot play still has to say it out loud — but
@@ -981,7 +1007,7 @@ function ask(title, lead, answers) {
 function nextHand(first) {
   clearTimeout(turnT);
   G.sel = null; G.hint = null; G.anim = null; G.lastIdx = -1; G.lastNote = null; G.thinking = -1;
-  G.drag = null; G.press = null; G.lean = null; G.rv = null; G.moods = {};
+  G.drag = null; G.press = null; G.lean = null; G.rv = null; G.moods = {}; tipQ.length = 0;
   G.hs = freshHandStats();
   G.st = R.dealHand(G.match);
   refreshView();
@@ -995,6 +1021,7 @@ function nextHand(first) {
     if (G.mode === "host") Net.dealViews(G.st, hostExtra({ start: true }));
     syncAll();
     var opener = G.st.turn;
+    if (P.hands === 0 && G.mode === "solo" && !P.seen.welcome) sayMoment({ k: "welcome", you: G.mySeat });
     if (G.st.mustLeadMula && opener === G.mySeat) {
       banner("La mula de seis", "It opens the first hand — play it", 1600);
     } else if (G.st.mustLeadMula) {
@@ -1033,6 +1060,7 @@ function endHand() {
   var st = G.st, r = st.result;
   if (!r) return;
   R.settle(G.match, st);
+  if (G.mode === "solo") { P.hands++; save(); }
   if (G.match.over) clearMatch(); else saveMatch();
   var pack = {
     res: r, scores: G.match.scores.slice(), over: G.match.over,
@@ -1468,15 +1496,33 @@ function sayMoment(e) {
   chuy(m.text, "", 9000);
 }
 var chuyT = 0;
-function chuy(say, why, ms) {
+/* While a tip is waiting to be read, the next one waits its turn behind
+   it rather than wiping it off the panel — a welcome that is replaced by
+   "your turn" before anybody has read it was the first thing a new
+   player saw. A hint the player asked for jumps the queue. */
+var tipQ = [];
+function chuy(say, why, ms, force) {
+  if (P.coachHold && coachUp() && !force) { tipQ.push([say, why, ms]); return; }
   $("chuySay").textContent = say;
   $("chuyWhy").textContent = why || "";
   $("chuy").classList.remove("off");
+  $("chuyClose").textContent = P.coachHold ? "Got it ✓" : "✕";
   clearTimeout(chuyT);
-  /* a remark goes away on its own; a hint you asked for stays put */
-  if (ms) chuyT = setTimeout(function () { $("chuy").classList.add("off"); }, ms + (why ? 3000 : 0));
+  /* a remark goes away on its own unless the player would rather read
+     at their own speed; a hint you asked for stays put either way */
+  if (ms && !P.coachHold) chuyT = setTimeout(function () { $("chuy").classList.add("off"); }, ms + (why ? 3000 : 0));
 }
-press($("chuyClose"), function () { $("chuy").classList.add("off"); });
+function coachUp() { return !$("chuy").classList.contains("off"); }
+/* the first two hands are for learning: while a tip is up and waiting
+   to be read, the table waits too. Nobody at a real table plays on
+   while the newcomer is still being told the rules. */
+function learning() { return P.hands < 2 && G.mode === "solo" && !G.hot; }
+press($("chuyClose"), function () {
+  $("chuy").classList.add("off");
+  if (tipQ.length) { var nx = tipQ.shift(); chuy(nx[0], nx[1], nx[2]); return; }
+  /* the table was waiting on this: carry on */
+  if (G.st && !G.st.over && !isHuman(G.st.turn) && G.thinking < 0) { clearTimeout(turnT); turnT = setTimeout(scheduleTurn, 500); }
+});
 
 function giveHint() {
   if (!G.view) return;
@@ -1485,7 +1531,7 @@ function giveHint() {
   if (G.mm && G.mm.rated) G.mm.hints++;
   var a = AI.analyse(G.view, { level: "maestro" });
   var h = C.hint(G.view, a, { names: G.names });
-  chuy(h.title, h.lines.join(" "));
+  chuy(h.title, h.lines.join(" "), 0, true);
   if (h.move) { G.sel = h.move.tile; G.hint = h.move.end; }
   syncAll();
 }
@@ -1571,24 +1617,27 @@ function syncAll() {
   var b = $("btnPlay");
   b.classList.toggle("pulse", mine);
   b.disabled = false;
+  var selEnds = (mine && G.sel !== null) ? endsOf(mv, G.sel) : [];
   if (v.turn < 0) b.textContent = "Waiting for " + nameOf(0) + " to deal…";
   else if (!mine) b.textContent = G.thinking >= 0 ? nameOf(G.thinking) + " is thinking…" : nameOf(v.turn) + "'s turn";
   else if (!mv.length) b.textContent = "Paso — I can't play";
-  else if (G.sel !== null) b.textContent = "Play the " + C.boneName(G.sel);
-  else b.textContent = "Your turn — tap a bone";
+  else if (G.sel !== null) b.textContent = selEnds.length === 2 ? "Tap an end for the " + C.boneName(G.sel) : "Lay the " + C.boneName(G.sel) + " down";
+  else b.textContent = "Your turn — pick up a bone";
   b.classList.toggle("primary", mine);
   $("btnHint").disabled = !mine;
 
   /* the end picker, for a lifted bone that fits both ends — with the
      room's lean starred, so either can be chosen and one is advised */
-  var two = mine && G.sel !== null && !G.drag && endsOf(mv, G.sel).length === 2;
-  $("endPick").classList.toggle("hide", !two);
-  if (two) {
-    var rec = G.hint || G.lean;
-    $("pickL").innerHTML = "◀ on the <b>" + v.left + "</b>" + (rec === "L" ? " ★" : "");
-    $("pickR").innerHTML = "on the <b>" + v.right + "</b> ▶" + (rec === "R" ? " ★" : "");
-    $("pickL").classList.toggle("rec", rec === "L");
-    $("pickR").classList.toggle("rec", rec === "R");
+  var lifted = mine && G.sel !== null && !G.drag && selEnds.length >= 1, two = lifted && selEnds.length === 2;
+  $("endPick").classList.toggle("hide", !lifted);
+  if (lifted) {
+    var rec = two ? (G.hint || G.lean) : selEnds[0];
+    $("pickL").classList.toggle("hide", selEnds.indexOf("L") < 0);
+    $("pickR").classList.toggle("hide", selEnds.indexOf("R") < 0);
+    $("pickL").innerHTML = (two ? "◀ on the <b>" : "Lay it on the <b>") + v.left + "</b>" + (two && rec === "L" ? " ★" : "");
+    $("pickR").innerHTML = (two ? "on the <b>" : "Lay it on the <b>") + v.right + "</b>" + (two ? " ▶" : "") + (two && rec === "R" ? " ★" : "");
+    $("pickL").classList.toggle("rec", two && rec === "L");
+    $("pickR").classList.toggle("rec", two && rec === "R");
   }
   $("stage").classList.toggle("myTurn", mine);
   mePlate(v, mine);
@@ -1715,6 +1764,7 @@ function showMenu() {
   $("mCoach").textContent = P.coach ? "Coach & grades on" : "Coach & grades off";
   $("mFiesta").textContent = P.fiesta ? "🎉 Fiesta on" : "Fiesta off";
   $("mMusic").textContent = P.music ? "🎺 Music on" : "Music off";
+  $("mHold").textContent = P.coachHold ? "Tips wait for me" : "Tips fade on their own";
   $("mUpdate").classList.toggle("hide", !swWaiting);
   $("menuNote").textContent = gfx && gfx.kind === "3d"
     ? "Drawn in 3D. The bones in your hand stay flat and crisp on purpose."
@@ -1728,6 +1778,7 @@ press($("mFiesta"), function () {
   showMenu();
 });
 press($("mFace"), function () { shut("ovMenu"); showFace(); });
+press($("mHold"), function () { P.coachHold = !P.coachHold; save(); if (!P.coachHold) $("chuy").classList.add("off"); showMenu(); });
 press($("mMusic"), function () {
   P.music = !P.music; save();
   if (P.music && P.sound) { Snd.unlock(); Snd.music.start(); } else Snd.music.stop();
@@ -2662,6 +2713,6 @@ window.__dt = function () {
            Room: Room, joinByCode: joinByCode, health: Net.health(), PACES: PACES,
            happen: happen, showCareer: showCareer, record: record, leanFor: leanFor, mood: mood, showFace: showFace,
            makeRenderers: makeRenderers, hotSeat: hotSeat, loadMatch: loadMatch, saveMatch: saveMatch,
-           finale: finale, thinkFor: thinkFor };
+           finale: finale, thinkFor: thinkFor, learning: learning, coachUp: coachUp, showGrade: showGrade };
 };
 })();

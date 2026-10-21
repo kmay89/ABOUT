@@ -330,11 +330,31 @@ var MOMENTS = [
       return "Good — the mulas are the bones that strand you. Only the " +
         suitName(R.A(e.tile)) + " will ever take that one.";
     } },
+  { id: "welcome", once: true,
+    when: function (e) { return e.k === "welcome"; },
+    say: function (e, names, view) {
+      return "Welcome to the table. You sit at the bottom with your seven bones; " +
+        cap(who(view, R.partner(e.you), names)) + " sits across from you, and the two beside you play against you both. " +
+        "The aim: be the first to lay down all your bones. A bone goes on either end of the line if one of its numbers matches.";
+    } },
   { id: "tutTurn", once: true,
     when: function (e) { return e.k === "yourTurn"; },
     say: function () {
-      return "Your turn. The bones that glow fit an open end — tap one to play it. " +
-        "If it fits both ends, tap it and then pick the end. The dimmed ones can wait.";
+      return "Your turn. The bones that glow fit an open end. Tap one to pick it up — " +
+        "then tap the marked spot on the table to lay it down, or carry it there. The dimmed ones can wait.";
+    } },
+  { id: "pickedUp", once: true,
+    when: function (e) { return e.k === "pickedUp"; },
+    say: function (e) {
+      return e.ends === 2
+        ? "Picked up — and it fits both ends. Tap the spot you want it on; the starred one is where I'd put it. Tap the bone again to put it back."
+        : "Picked up. Now tap the glowing spot on the table to lay it down, or carry it there. Tap the bone again to put it back.";
+    } },
+  { id: "landed", once: true,
+    when: function (e) { return e.k === "landed"; },
+    say: function () {
+      return "Down it goes. After every play where you had a real choice, the table says how it felt — " +
+        "Sharp, Good, Okay or Costly — and for a costly one I'll say what I'd have played, and why.";
     } },
   { id: "tutMate", once: true,
     when: function (e) { return e.k === "play" && e.seat === R.partner(e.you); },

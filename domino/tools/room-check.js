@@ -211,10 +211,32 @@ async function readback(page, label) {
   var mods = await page.evaluate("[!!window.Rules,!!window.Layout,!!window.AI,!!window.Coach,!!window.Skins,!!window.Gfx2D,!!window.Gfx3D,!!window.Net].every(Boolean)");
   ok("every module is on the page", mods === true);
 
+  /* ---------- a newcomer's table ----------
+     A fresh profile is unhurried, is welcomed, and is not played past
+     while a tip is up: the machines wait for "Got it". */
+  var fresh = await page.evaluate("(()=>{const d=window.__dt(); return {pace:d.P.pace, hands:d.P.hands, hold:d.P.coachHold};})()");
+  ok("a newcomer's table is unhurried", fresh.pace === "slow" && fresh.hands === 0 && fresh.hold, JSON.stringify(fresh));
+
   /* ---------- a match starts ---------- */
   await page.click("#goSolo");
-  await page.waitForTimeout(1700);
+  await page.waitForTimeout(1900);
   ok("the splash gets out of the way", !(await page.isVisible("#splash")));
+  var welcome = await page.evaluate("(()=>{const c=document.getElementById('chuy'); return {up:!c.classList.contains('off'), txt:document.getElementById('chuySay').textContent, btn:document.getElementById('chuyClose').textContent};})()");
+  ok("and a first-timer is welcomed", welcome.up && /Welcome/.test(welcome.txt), welcome.txt.slice(0, 50));
+  ok("with a tip that waits to be read", /Got it/.test(welcome.btn), welcome.btn);
+  var held = await page.evaluate(`(async () => {
+    const d = window.__dt(); const t0 = performance.now(); let moved = 0; const line0 = d.G.view.line.length;
+    while (performance.now() - t0 < 4500) { await new Promise(r => setTimeout(r, 100)); if (d.G.thinking >= 0 || d.G.view.line.length > line0) moved++; }
+    return { moved, learning: d.learning(), up: d.coachUp(), turn: d.G.view.turn, mine: d.G.view.turn === d.G.mySeat };
+  })()`);
+  ok("the machines wait while it is up", held.mine || held.moved === 0, JSON.stringify(held));
+  await page.click("#chuyClose");
+  await page.waitForTimeout(300);
+  var next = await page.evaluate("(()=>{const d=window.__dt(); return {up:d.coachUp(), txt:document.getElementById('chuySay').textContent};})()");
+  ok("and Got it puts it away, showing the next tip if one waited", !/Welcome/.test(next.txt), next.txt.slice(0, 40));
+  /* read the rest of the queue; then the check runs at a player's pace, tips fading */
+  for (var tq = 0; tq < 4 && (await page.evaluate("window.__dt().coachUp()")); tq++) { await page.click("#chuyClose"); await page.waitForTimeout(150); }
+  await page.evaluate("(()=>{const d=window.__dt(); d.P.pace='relaxed'; d.P.coachHold=false;})()");
 
   var colours = await page.evaluate(VARIED);
   ok("the table actually draws something", colours > 4, colours + " distinct samples");
@@ -254,14 +276,34 @@ async function readback(page, label) {
   ok("at least one bone in hand can be played", !!spot);
   if (spot) {
     var box = await page.evaluate("(()=>{const r=document.getElementById('stage').getBoundingClientRect();return {x:r.left,y:r.top};})()");
-    await page.mouse.click(box.x + spot.x, box.y + spot.y);
-    await page.waitForTimeout(900);
+    /* the tap is dispatched from inside the page at the bone's own
+       rectangle, in the same breath as reading it, so a hand that
+       changes between the look and the tap cannot fool the check */
+    var tapped = await page.evaluate("(()=>{const d=window.__dt(),s=d.scene(),L=window.Layout,st=document.getElementById('stage'),r0=st.getBoundingClientRect();" +
+      "const r=L.handRow(s.hand.length, d.over.w, d.over.h, {pad:10}); let i=-1; for(let k=0;k<s.hand.length;k++){ if(s.playable[s.hand[k]]){ i=k; break; } } if(i<0) return null;" +
+      "const x=r0.left+r[i].x+r[i].w/2, y=r0.top+r[i].y+r[i].h/2; const ev=(t)=>new PointerEvent(t,{bubbles:true,clientX:x,clientY:y,pointerId:7,isPrimary:true});" +
+      "st.dispatchEvent(ev('pointerdown')); st.dispatchEvent(ev('pointerup')); return {tile:s.hand[i], sel:d.G.sel}; })()");
+    await page.waitForTimeout(400);
     var after = await page.evaluate("window.__dt().G.view.hand.length");
-    var line = await page.evaluate("window.__dt().G.view.line.length");
-    /* either it went straight down, or it was lifted for a choice of end */
-    var lifted = await page.evaluate("window.__dt().G.sel !== null");
-    ok("tapping a bone plays it or lifts it", after === before - 1 || lifted,
-       "hand " + before + "→" + after + ", line " + line + ", lifted " + lifted);
+    /* two steps: the tap picks it up, and nothing is played yet */
+    var lifted = await page.evaluate("(()=>{const g=window.__dt().G; return {sel:g.sel, hand:g.view.hand.length, pick:!document.getElementById('endPick').classList.contains('hide'), btn:document.getElementById('btnPlay').textContent};})()");
+    ok("tapping a bone picks it up and plays nothing", !!tapped && lifted.sel === tapped.tile && after === before, "aimed " + (tapped && tapped.tile) + ", sel " + lifted.sel + ", hand " + before + "→" + after);
+    ok("and the table offers where to lay it", lifted.pick && /Lay|Tap an end/.test(lifted.btn), lifted.btn);
+    /* the second step: the spot on the table */
+    var slot2 = await page.evaluate(
+      "(()=>{const d=window.__dt(),s=d.scene(); if(!s.ghosts.length) return null; const gh=s.ghosts[0];" +
+      "if(d.gfx.kind==='3d'){ const p=d.gfx.screenOf(gh.x, gh.y, 0); return p?{x:p.x,y:p.y}:null; } const sl=d.gfx.slots[0]; return sl?{x:sl.x+sl.w/2,y:sl.y+sl.h/2}:null; })()");
+    ok("the spot is marked on the table", !!slot2);
+    if (slot2) {
+      await page.mouse.click(box.x + slot2.x, box.y + slot2.y);
+      await page.waitForTimeout(400);
+      var after2 = await page.evaluate("window.__dt().G.view.hand.length");
+      ok("tapping the spot lays it down", after2 === before - 1, "hand " + before + "→" + after2);
+      /* and the table says how it felt, once the bone has landed */
+      var felt = await page.evaluate(`(async () => { const t0 = performance.now(); while (performance.now() - t0 < 4000) { const g = document.getElementById('grade'); if (g.classList.contains('on')) return g.textContent; await new Promise(r => setTimeout(r, 50)); } return null; })()`);
+      var hadChoice = await page.evaluate("(()=>{const d=window.__dt(); return (d.G.hs && d.G.hs.graded) ? true : false;})()");
+      ok("and the table says how the play felt", !hadChoice || (!!felt && /Sharp|Good|Okay|Costly/.test(felt)), hadChoice ? (felt || "nothing shown") : "a forced play is not graded");
+    }
   }
 
   /* ---------- the room ----------

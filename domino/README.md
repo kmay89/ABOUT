@@ -272,6 +272,23 @@ A bone flies in from the plate of whoever played it, or up out of the
 place in your hand it just left, through the renderer's own camera.
 Every plate shows a big count and a row of little face-down bones.
 
+**Two steps to play a bone.** Tap it to pick it up; the spots it fits
+light on the table and the buttons say where. Then tap the spot, tap
+the button, or carry the bone there. Tapping the lifted bone again puts
+it back. A single tap used to play a bone that fitted only one end,
+which was quick and also the commonest way to play a bone you had not
+meant to. When the bone lands the table says how the play felt — Sharp,
+Good, Okay or Costly, with a word under it — and for a costly one Don
+Chuy says what he would have played and why.
+
+**Nothing is assumed of a newcomer.** A fresh profile's table is
+unhurried, the first hand opens with Don Chuy saying who sits where and
+what the game is for, and the first pick-up, the first lay-down and the
+first verdict are each explained once. Tips wait to be read: they stay
+until *Got it*, and for the first two hands the machines wait with
+them — nobody at a real table plays on while the newcomer is still
+being told the rules. A menu button lets tips fade on their own instead.
+
 **The pace is a person's.** The default is slower than it was, and the
 think is scaled by the choice: one bone that fits goes down almost at
 once, four that fit take a look at the table first, and no two turns
