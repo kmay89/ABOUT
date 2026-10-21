@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) \u2014 never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
   "scripts": {
-    "check": "npm run check:parity && npm run check:well && npm run check:guide && npm run check:room && npm run check:chess && npm run check:luma && npm run check:hollow && npm run check:cubby",
+    "check": "npm run check:parity && npm run check:well && npm run check:guide && npm run check:room && npm run check:chess && npm run check:luma && npm run check:hollow && npm run check:cubby && npm run check:swatch",
     "check:parity": "node tools/room-parity.js",
     "check:rules": "node tools/rules-check.js",
     "check:ai": "node tools/ai-check.js",
@@ -15,6 +15,7 @@
     "check:luma": "node --test luma/tests/mesh.test.mjs luma/tests/image-processing.test.mjs luma/tests/export-worker.test.mjs luma/tests/accessories.test.mjs luma/tests/frames.test.mjs luma/tests/light.test.mjs",
     "check:hollow": "node --test hollow/tests/mesh.test.mjs hollow/tests/sdf.test.mjs hollow/tests/surface.test.mjs hollow/tests/threemf.test.mjs hollow/tests/mold.test.mjs hollow/tests/verdict.test.mjs",
     "check:cubby": "node --test cubby/tests/geometry.test.mjs cubby/tests/layout.test.mjs cubby/tests/items.test.mjs cubby/tests/export.test.mjs cubby/tests/fuzz.test.mjs",
+    "check:swatch": "node --test swatch/tests/geometry.test.mjs swatch/tests/catalogue.test.mjs swatch/tests/export.test.mjs",
     "icons": "node tools/make-game-icons.js && node hollow/tools/make-icons.js",
     "check:chess": "node chess/tools/perft.js && node chess/tools/book-check.js && node chess/tools/teach-check.js && node chess/tools/lesson-check.js && node chess/tools/skin-check.js && node chess/tools/pieces-check.js && node chess/tools/engine-check.js && node chess/tools/brain-check.js && node chess/tools/offline-check.js && node chess/tools/touch-check.js && node chess/tools/play-check.js && node chess/tools/rating-check.js && node chess/tools/sound-check.js && node chess/tools/motion-check.js && node chess/tools/grain-check.js",
     "check:chess:fx": "node chess/tools/fx-check.js && node chess/tools/gfx-check.js && node chess/tools/board-check.js",

@@ -45,7 +45,11 @@ will release before you print; and
 printer: type the inside of any drawer, drag bins across a grid that
 fills it to the millimetre, and download one file with every part
 placed on the plate, no screws, no glue (the drawer under the desk's
-near corner is pulled open, with the bins that were printed for it).
+near corner is pulled open, with the bins that were printed for it); and
+[Swatch](https://kmay89.com/swatch/) — a surface test lab: a grid of
+small coupons, each carrying its own slicer settings inside one Bambu
+Studio file, for finding the ironing, first-layer, top-surface, wall and
+seam settings that make a print look its best.
 
 **Live:** <https://kmay89.com>
 
@@ -202,9 +206,9 @@ near corner is pulled open, with the bins that were printed for it).
   the device. Exports one STL per part or a 3MF with every part laid out on
   the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
   `npm run check:hollow` runs its suites.
-- `workshop/` — the workshop: one page listing the 3D printer tools (Luma
-  and Hollow), reached from the desk by the scratch-built printer on the
-  side table; and
+- `workshop/` — the workshop: one page listing the 3D printer tools (Luma,
+  Hollow, Cubby and Swatch), reached from the desk by the scratch-built
+  printer on the side table;
 - `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
   becomes a grid that fills it exactly; bins cover whole cells, can be
   split inside, made low or given a finger scoop, and join each other
@@ -213,7 +217,19 @@ near corner is pulled open, with the bins that were printed for it).
   rings and earcut, with walls a whole number of nozzle lines; the
   download is a 3MF per plate with every part placed and named, or a ZIP
   with STLs and a print sheet, made in the browser with nothing uploaded.
-  Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them.
+  Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them;
+  and
+- `swatch/` — Swatch, a surface test lab for the printer. A test is two
+  slicer settings and a list of values for each; every pair becomes a
+  labelled coupon, and the download is one 3MF whose
+  `Metadata/model_settings.config` carries each coupon's settings as
+  per-object overrides, so Bambu Studio opens it as a plate ready to slice
+  with the user's own profiles. Seven tests: ironing speed × flow and
+  spacing × pattern, first-layer flow × elephant foot, top-surface flow ×
+  speed and pattern × line width, outer-wall speed × line width, and scarf
+  seam × seam position. The settings and their serialization were read
+  from Bambu Studio's source. Notes in `swatch/README.md`;
+  `npm run check:swatch` runs its suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
