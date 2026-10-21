@@ -46,10 +46,11 @@ printer: type the inside of any drawer, drag bins across a grid that
 fills it to the millimetre, and download one file with every part
 placed on the plate, no screws, no glue (the drawer under the desk's
 near corner is pulled open, with the bins that were printed for it); and
-[Swatch](https://kmay89.com/swatch/) — a surface test lab: a grid of
-small coupons, each carrying its own slicer settings inside one Bambu
-Studio file, for finding the ironing, first-layer, top-surface, wall and
-seam settings that make a print look its best.
+[Swatch](https://kmay89.com/swatch/) — a test lab for the printer:
+sessions of small coupons, each carrying its own slicer settings inside
+one Bambu Studio file, for finding the dimensional compensations, fit
+clearances, first-layer, top-surface, ironing, wall and seam settings
+that make a print accurate and good to look at.
 
 **Live:** <https://kmay89.com>
 
@@ -219,16 +220,19 @@ seam settings that make a print look its best.
   with STLs and a print sheet, made in the browser with nothing uploaded.
   Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them;
   and
-- `swatch/` — Swatch, a surface test lab for the printer. A test is two
-  slicer settings and a list of values for each; every pair becomes a
-  labelled coupon, and the download is one 3MF whose
+- `swatch/` — Swatch, a test lab for the printer. A test is two things
+  (slicer settings, or a geometry such as a hole's clearance) and a list
+  of values for each; every pair becomes a labelled coupon, and a session
+  puts two or three tests on one plate in the order they depend on each
+  other: accuracy (a caliper gauge for the X-Y compensations, a peg-and-
+  socket fit test, the first layer), then top surfaces (flow, ironing),
+  walls and seams, finishing touches. The download is one 3MF whose
   `Metadata/model_settings.config` carries each coupon's settings as
-  per-object overrides, so Bambu Studio opens it as a plate ready to slice
-  with the user's own profiles. Seven tests: ironing speed × flow and
-  spacing × pattern, first-layer flow × elephant foot, top-surface flow ×
-  speed and pattern × line width, outer-wall speed × line width, and scarf
-  seam × seam position. The settings and their serialization were read
-  from Bambu Studio's source. Notes in `swatch/README.md`;
+  per-object overrides and whose sparse `project_settings.config` names
+  the Bambu printer's own system presets, so Bambu Studio opens it as a
+  project with no warning and the user's profiles untouched. The settings
+  and their serialization were read from Bambu Studio's source. Notes in
+  `swatch/README.md`;
   `npm run check:swatch` runs its suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.

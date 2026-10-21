@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f4f2eb">
-  <meta name="description" content="Print a grid of small test coupons and find the settings that make your 3D prints look amazing: ironing speed and flow, first layer flow, top surface flow, wall speed, seams. Each coupon carries its own settings inside one Bambu Studio 3MF. Free, private, in your browser.">
+  <meta name="description" content="Print a plate of small test coupons and find the settings that make your 3D prints accurate and beautiful: dimensions and fit, first layer, ironing speed and flow, top surface flow, wall speed, seams. Each coupon carries its own settings inside one Bambu Studio 3MF that opens as a project. Free, private, in your browser.">
   <title>Swatch — Surface Test Lab · kmay89.com</title>
   <link rel="canonical" href="https://kmay89.com/swatch/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="kmay89.com">
   <meta property="og:title" content="Swatch — Surface Test Lab">
-  <meta property="og:description" content="A grid of coupons, each with its own slicer settings, in one 3MF. Print the plate, pick the winner, put it in your profile. Made for the Bambu Lab P2S and any Bambu printer.">
+  <meta property="og:description" content="Sessions of test coupons, each with its own slicer settings, in one 3MF. Print the plate, measure or look, put the winner in your profile. Made for the Bambu Lab P2S and any Bambu printer.">
   <meta property="og:url" content="https://kmay89.com/swatch/">
   <meta property="og:image" content="https://kmay89.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -40,8 +40,8 @@
         <h1 id="pageTitle">The surface you want,<br><em>found</em> on one plate.</h1>
       </div>
       <div class="intro-note">
-        <p>Every setting that decides how a print looks — ironing, first layer, top surface, walls, seams — tested as a grid of little coupons, each carrying its own settings inside one Bambu Studio file. Print the plate once, hold it to the light, keep the best square.</p>
-        <span class="intro-steps">Choose a test <span>→</span> Open the 3MF as a project <span>→</span> Print &amp; compare</span>
+        <p>Every setting that decides whether a print is accurate and how it looks — dimensions, fit, first layer, top surface, ironing, walls, seams — as little coupons, each carrying its own settings inside one Bambu Studio file. Four sessions in the order that pays best; print a plate, measure or hold it to the light, keep the winner.</p>
+        <span class="intro-steps">Pick a session <span>→</span> Open the 3MF as a project <span>→</span> Print, measure, compare</span>
       </div>
     </section>
 
@@ -51,7 +51,7 @@
           <div class="plate-head">
             <div>
               <h2 id="plateTitle">The plate</h2>
-              <p class="plate-hint" id="plateHint">Coupons as they will lie on the plate, labelled as they will print. Across: one setting. Front to back: the other.</p>
+              <p class="plate-hint" id="plateHint">Coupons as they will lie on the plate, labelled as they will print. In each test, across is one setting and front to back the other; the first test sits at the front.</p>
             </div>
             <div class="plate-stats" id="plateStats" aria-live="polite"></div>
           </div>
@@ -61,22 +61,30 @@
 
         <section class="card look-card" aria-labelledby="lookTitle">
           <div class="card-head"><span class="step">👁</span><h2 id="lookTitle">What to look for</h2></div>
-          <p class="look" id="lookText"></p>
-          <h3 class="minor">How to choose</h3>
-          <p class="look" id="pickText"></p>
+          <div id="lookList"></div>
         </section>
       </section>
 
       <aside class="panel" aria-label="Test controls">
-        <section class="card" aria-labelledby="testTitle">
-          <div class="card-head"><span class="step">1</span><h2 id="testTitle">The test</h2></div>
-          <div class="chips" id="testChips" role="group" aria-label="Which surface to test"></div>
+        <section class="card" aria-labelledby="sessionTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="sessionTitle">The session</h2></div>
+          <p class="help">A session is one plate, one print, two or three tests that belong together. Do them in order: each leans on the one before.</p>
+          <div class="chips" id="sessionChips" role="group" aria-label="Which session to print"></div>
+          <p class="help" id="sessionWhy" hidden></p>
+          <div class="detail" role="group" aria-label="How many values to try">
+            <button id="detailQuick" class="seg" type="button" aria-pressed="true">Quick<small>3 values an axis, the span that matters</small></button>
+            <button id="detailThorough" class="seg" type="button" aria-pressed="false">Thorough<small>5 values an axis — one test to a plate</small></button>
+          </div>
+          <h3 class="minor">On the plate</h3>
+          <div class="plate-list" id="plateList"></div>
+          <h3 class="minor">Or build your own plate</h3>
+          <div class="chips" id="testChips" role="group" aria-label="Tests: click one to print it alone, + to add it to the plate"></div>
           <p class="help" id="testBlurb"></p>
         </section>
 
         <section class="card" aria-labelledby="gridTitle">
           <div class="card-head"><span class="step">2</span><h2 id="gridTitle">The grid</h2></div>
-          <p class="help">One setting runs across the plate, the other from front to back. Type the values to try, separated by commas; every pair becomes a coupon. Fewer values, a quicker print.</p>
+          <p class="help">One setting runs across, the other from front to back. Type the values to try, separated by commas; every pair becomes a coupon. Fewer values, a quicker print.</p>
           <div class="axis" id="axisX">
             <div class="axis-head"><span class="axis-dir">ACROSS</span><strong id="axisXLabel"></strong><span class="axis-unit" id="axisXUnit"></span></div>
             <input id="axisXValues" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Values across">
@@ -91,6 +99,16 @@
             <p class="help small">Leave this empty for a single row.</p>
           </div>
           <p class="help" id="gridNote"></p>
+          <div class="calc" id="calc" hidden>
+            <h3 class="minor">From the calipers</h3>
+            <p class="help">Measure the gauge printed with both compensations at 0 and type what you read; the answer is what to set, per side.</p>
+            <div class="calc-row">
+              <label>Width (30.00)<input id="calcW" type="number" inputmode="decimal" step="0.01" placeholder="30.10"></label>
+              <label>Depth (24.00)<input id="calcD" type="number" inputmode="decimal" step="0.01" placeholder="24.08"></label>
+              <label>Hole (10.00)<input id="calcH" type="number" inputmode="decimal" step="0.01" placeholder="9.86"></label>
+            </div>
+            <p class="calc-out" id="calcOut">Type what the calipers say on the gauge printed with both compensations at 0.</p>
+          </div>
         </section>
 
         <section class="card" aria-labelledby="fixedTitle">
@@ -102,14 +120,17 @@
 
         <section class="card" aria-labelledby="printTitle">
           <div class="card-head"><span class="step">4</span><h2 id="printTitle">Print</h2></div>
-          <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+          <div class="two-fields">
+            <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+            <div class="field wide" id="bedField"><label for="bedSelect">Plate</label><select id="bedSelect"></select></div>
+          </div>
           <p class="totals" id="totalsLine"></p>
           <div class="downloads">
             <button id="download3mf" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — the plate, each coupon with its settings</small></span></button>
             <button id="downloadSheet" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg><span>Download the sheet <small>.txt — every coupon's settings, what to look for</small></span></button>
             <button id="downloadLegend" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span>Download the legend <small>.svg — the plate map, to print or keep</small></span></button>
           </div>
-          <p class="help open-note"><strong>Open it as a project</strong> (File › Open Project, or drop it on Bambu Studio and choose <em>open as project</em>). The slicer will say it loaded geometry only because the file carries no printer or filament profile on purpose: your own stay selected. Click any coupon and its settings are listed under it in the object list. Slice the whole plate and print.</p>
+          <p class="help open-note" id="profileNote"></p>
         </section>
       </aside>
     </div>
@@ -126,7 +147,7 @@
         <li><strong>Flow rate, coarse then fine.</strong> Bambu Studio › Calibration › <em>Flow rate</em>. Both passes. The result goes into the filament profile’s flow ratio; the first-layer and top-surface ratios in Swatch multiply it, so set it first.</li>
         <li><strong>Max flow rate.</strong> Calibration › <em>Max flowrate</em>, once per filament. Where the line breaks up is the ceiling; set the filament’s max volumetric speed a touch below it, and no wall-speed test will fool you with under-extrusion.</li>
         <li><strong>Temperature.</strong> Calibration › <em>Temperature</em> tower. Cooler for sharper detail and less stringing, hotter for stronger layers and a glossier wall — it changes gloss as much as any setting here.</li>
-        <li><strong>Then the Swatch grids,</strong> in this order: first layer → top surface flow → ironing → walls → seam. Each one leans on the one before.</li>
+        <li><strong>Then the four sessions,</strong> in order: accuracy (dimensions, fit, first layer) → top surfaces (flow, ironing) → walls and seams → finishing touches. Each leans on the one before, and the accuracy session comes first because every later coupon is a part whose size should already be right.</li>
         <li><strong>Choose the plate on purpose.</strong> Textured PEI gives a matte, grained bottom that hides everything; smooth PEI or the Cool Plate gives a gloss bottom that shows everything, which is where the first-layer grid earns its keep.</li>
         <li><strong>Top shells.</strong> Five top shell layers over 15 % gyroid or cubic, or set <em>Top shell thickness</em> to 1 mm. Fewer and the infill ghosts through the surface; no setting in this lab can hide it.</li>
         <li><strong>Walls.</strong> Three loops, <em>Precise wall</em> on, order inner / outer / inner if your version has it. Try <em>Slow down for curled perimeters</em> and keep the outer wall at the speed the walls grid chose.</li>
@@ -141,10 +162,14 @@
         <h2 id="guideTitle">The guide</h2>
         <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       </div>
+      <h3>What a session is</h3>
+      <p>One plate, one print, two or three tests that belong together, laid out one block after another from the front of the plate. Quick is three values an axis — the span that matters, nine coupons a test; thorough is five, for a finer answer once the quick plate has shown where to look. The order of the sessions is the order the settings depend on each other: a dimensionally wrong part cannot have its surfaces judged, a pinholed top cannot be ironed flat.</p>
       <h3>What a grid is</h3>
       <p>A test is two settings and a list of values for each. Every pair becomes a coupon — a small tile, pillar or cylinder — that prints with that pair, and with its values printed on it so the plate can be read without the legend. The file is a 3MF; inside it, next to the shapes, is the same per-object settings list Bambu Studio writes when you right-click a part and add a setting. Open it as a project and each coupon arrives with its settings already on it.</p>
       <h3>Opening it</h3>
-      <p>Use <strong>File › Open Project</strong>, or drop the file on the window and pick <em>open as project</em>. Bambu Studio will note that it loaded “geometry data only”: that is right, because the file carries no printer, filament or process profile — yours stay selected, and the coupons only differ from them where the test says. Do not use File › Import, which strips settings from objects. To check, click a coupon: its settings appear under it in the object list on the right.</p>
+      <p>Use <strong>File › Open Project</strong>, or drop the file on the window and pick <em>open as project</em>. For a Bambu printer the file names the printer’s own presets — the 0.20 mm Standard process, Bambu PLA Basic, the 0.4 mm nozzle machine — and lists nothing as different from them, so Bambu Studio selects its own copies and opens the file with no warning; then pick your real filament and your own process in the dropdowns, and the coupons keep their differences as per-object settings. For other printers the file carries no profile and the slicer says it loaded geometry only, which is fine. Do not use File › Import, which strips settings from objects. To check, click a coupon: its settings appear under it in the object list on the right.</p>
+      <h3>Measuring</h3>
+      <p>The dimensions gauges want calipers: width and depth across the middle of the block, the hole in two directions. Compensation in Bambu Studio is per side, so halve the error: a block 0.10 mm wide wants a contour compensation of −0.05, a hole 0.12 mm small wants +0.06. The calculator under the grid does this. The fit sockets want only your fingers.</p>
       <h3>Printing it</h3>
       <p>Print the whole plate at once, with the filament you will use for real prints and the plate you will use. Keep the process profile you normally print with; the test adds its own differences. Expect the time the slicer says, not the rough figure on this page.</p>
       <h3>Reading it</h3>

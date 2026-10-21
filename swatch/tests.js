@@ -32,19 +32,21 @@ export const SETTINGS = Object.freeze({
   ironing_pattern: { label: 'Ironing pattern', kind: 'enum', options: { 'zig-zag': 'Rectilinear', concentric: 'Concentric', ironingarchimedeanspiral: 'Archimedean chords' }, short: { 'zig-zag': 'ZIG', concentric: 'CONC', ironingarchimedeanspiral: 'ARCH' } },
   ironing_flow: { label: 'Ironing flow', kind: 'percent', unit: '%', min: 0, max: 100, step: 1 },
   ironing_speed: { label: 'Ironing speed', kind: 'float', unit: 'mm/s', min: 1, max: 300, step: 1 },
-  ironing_spacing: { label: 'Ironing line spacing', kind: 'float', unit: 'mm', min: 0.02, max: 1, step: 0.01 , decimals: 2 },
+  ironing_spacing: { label: 'Ironing line spacing', kind: 'float', unit: 'mm', min: 0.02, max: 1, step: 0.01, decimals: 2 },
   ironing_inset: { label: 'Ironing inset', kind: 'float', unit: 'mm', min: 0, max: 5, step: 0.05 },
   ironing_direction: { label: 'Ironing angle', kind: 'float', unit: '°', min: 0, max: 360, step: 5 },
   top_surface_pattern: { label: 'Top surface pattern', kind: 'enum', options: { monotonicline: 'Monotonic line', monotonic: 'Monotonic', globalmonotonicline: 'Global monotonic line', alignedrectilinear: 'Aligned rectilinear', 'zig-zag': 'Rectilinear', concentric: 'Concentric', hilbertcurve: 'Hilbert curve', archimedeanchords: 'Archimedean chords', octagramspiral: 'Octagram spiral' }, short: { monotonicline: 'MLINE', monotonic: 'MONO', globalmonotonicline: 'GLOB', alignedrectilinear: 'ALIGN', 'zig-zag': 'ZIG', concentric: 'CONC', hilbertcurve: 'HILB', archimedeanchords: 'ARCH', octagramspiral: 'OCTA' } },
   top_surface_speed: { label: 'Top surface speed', kind: 'floats', unit: 'mm/s', min: 5, max: 500, step: 5 },
-  top_surface_line_width: { label: 'Top surface line width', kind: 'float', unit: 'mm', min: 0.2, max: 1, step: 0.01 , decimals: 2 },
-  top_solid_infill_flow_ratio: { label: 'Top surface flow ratio', kind: 'floats', unit: '×', min: 0.5, max: 1.5, step: 0.01 , decimals: 2 },
+  top_surface_line_width: { label: 'Top surface line width', kind: 'float', unit: 'mm', min: 0.2, max: 1, step: 0.01, decimals: 2 },
+  top_solid_infill_flow_ratio: { label: 'Top surface flow ratio', kind: 'floats', unit: '×', min: 0.5, max: 1.5, step: 0.01, decimals: 2 },
   top_shell_layers: { label: 'Top shell layers', kind: 'int', unit: 'layers', min: 0, max: 20, step: 1 },
-  initial_layer_flow_ratio: { label: 'Initial layer flow ratio', kind: 'float', unit: '×', min: 0.5, max: 1.5, step: 0.01 , decimals: 2 },
-  elefant_foot_compensation: { label: 'Elephant foot compensation', kind: 'float', unit: 'mm', min: 0, max: 1, step: 0.01 , decimals: 2 },
-  print_flow_ratio: { label: 'Object flow ratio', kind: 'float', unit: '×', min: 0.5, max: 1.5, step: 0.01 , decimals: 2 },
+  initial_layer_flow_ratio: { label: 'Initial layer flow ratio', kind: 'float', unit: '×', min: 0.5, max: 1.5, step: 0.01, decimals: 2 },
+  elefant_foot_compensation: { label: 'Elephant foot compensation', kind: 'float', unit: 'mm', min: 0, max: 1, step: 0.01, decimals: 2 },
+  xy_contour_compensation: { label: 'X-Y contour compensation', kind: 'float', unit: 'mm', min: -1, max: 1, step: 0.01, decimals: 2 },
+  xy_hole_compensation: { label: 'X-Y hole compensation', kind: 'float', unit: 'mm', min: -1, max: 1, step: 0.01, decimals: 2 },
+  print_flow_ratio: { label: 'Object flow ratio', kind: 'float', unit: '×', min: 0.5, max: 1.5, step: 0.01, decimals: 2 },
   outer_wall_speed: { label: 'Outer wall speed', kind: 'floats', unit: 'mm/s', min: 5, max: 600, step: 5 },
-  outer_wall_line_width: { label: 'Outer wall line width', kind: 'float', unit: 'mm', min: 0.2, max: 1, step: 0.01 , decimals: 2 },
+  outer_wall_line_width: { label: 'Outer wall line width', kind: 'float', unit: 'mm', min: 0.2, max: 1, step: 0.01, decimals: 2 },
   wall_loops: { label: 'Wall loops', kind: 'int', unit: '', min: 1, max: 10, step: 1 },
   precise_outer_wall: { label: 'Precise wall', kind: 'bool' },
   seam_position: { label: 'Seam position', kind: 'enum', options: { aligned: 'Aligned', back: 'Back', nearest: 'Nearest', random: 'Random' }, short: { aligned: 'ALIGN', back: 'BACK', nearest: 'NEAR', random: 'RAND' } },
@@ -61,6 +63,11 @@ export const SETTINGS = Object.freeze({
 
 export const SETTING_KEYS = Object.freeze(Object.keys(SETTINGS));
 
+/** Things a coupon's shape can vary that are not slicer settings. */
+export const PARAMS = Object.freeze({
+  clearance: { label: 'Clearance (hole minus peg)', kind: 'float', unit: 'mm', min: 0, max: 2, step: 0.05, decimals: 2 },
+});
+
 /** The string a value takes in model_settings.config. */
 export function serialize(key, value) {
   const def = SETTINGS[key];
@@ -71,7 +78,7 @@ export function serialize(key, value) {
 
 /** How a value reads on the page. */
 export function format(key, value) {
-  const def = SETTINGS[key];
+  const def = SETTINGS[key] || PARAMS[key];
   if (!def) return String(value);
   if (def.kind === 'enum') return def.options[value] || String(value);
   if (def.kind === 'bool') return value ? 'on' : 'off';
@@ -82,14 +89,14 @@ export function format(key, value) {
 
 /** How a value reads on the coupon: a few characters. */
 export function short(key, value) {
-  const def = SETTINGS[key];
+  const def = SETTINGS[key] || PARAMS[key];
   if (!def) return String(value);
   if (def.short) return def.short[value] || String(value).slice(0, 5).toUpperCase();
   if (def.kind === 'enum') return String(value).slice(0, 5).toUpperCase();
   if (def.kind === 'bool') return value ? 'ON' : 'OFF';
   if (value === 0) return '0';
   let s = def.decimals ? Number(value).toFixed(def.decimals) : num(value);
-  if (s.startsWith('0.')) s = s.slice(1); // .42 rather than 0.42
+  s = s.replace(/^(-?)0\./, '$1.'); // .42 rather than 0.42, -.06 rather than -0.06
   return s;
 }
 
@@ -99,7 +106,7 @@ export function short(key, value) {
  * kept in the order typed. Returns { values, errors }.
  */
 export function parseValues(key, text) {
-  const def = SETTINGS[key];
+  const def = SETTINGS[key] || PARAMS[key];
   // Enum labels can have spaces ("Monotonic line"), so those split on commas only.
   const raw = String(text).split(def.kind === 'enum' ? /[,;]+/ : /[,\s;]+/).map(s => s.trim()).filter(Boolean);
   const values = [], errors = [];
@@ -157,6 +164,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'tile', w: 26, d: 22, h: 2.4 },
     x: { key: 'ironing_speed', values: [15, 25, 40, 60, 90] },
     y: { key: 'ironing_flow', values: [8, 10, 12, 15, 18] },
+    quick: { x: [20, 40, 80], y: [8, 12, 16] },
     fixed: { ironing_type: 'topmost', ironing_pattern: 'zig-zag', ironing_spacing: 0.1, ironing_inset: 0, top_shell_layers: 5, top_surface_pattern: 'monotonicline' },
     look: 'Hold each tile to a window. Too little flow leaves the top infill lines showing through a thin wash; too much piles ridges at the edges and a shiny crust that is actually a skin of extra plastic. Too fast and the pass skips and chatters; too slow and the tile browns or the surface goes matte from too much heat.',
     pick: 'The winner is the flattest, most even tile with no ridge at the perimeter. Put its speed and flow in your process profile under Quality › Ironing, then run the spacing × pattern test to finish the job.',
@@ -167,6 +175,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'tile', w: 26, d: 22, h: 2.4 },
     x: { key: 'ironing_spacing', values: [0.08, 0.1, 0.12, 0.15, 0.2] },
     y: { key: 'ironing_pattern', values: ['zig-zag', 'concentric', 'ironingarchimedeanspiral'] },
+    quick: { x: [0.08, 0.12, 0.18], y: ['zig-zag', 'concentric'] },
     fixed: { ironing_type: 'topmost', ironing_speed: 30, ironing_flow: 10, ironing_inset: 0, top_shell_layers: 5, top_surface_pattern: 'monotonicline' },
     look: 'Closer spacing takes longer and can over-fill; wider leaves visible lines between passes. Concentric and Archimedean hide the direction on round tops; rectilinear is fastest and best on square ones.',
     pick: 'Choose the tightest spacing that stays flat without a raised rim. Then set Ironing flow a notch lower if the rim appears at that spacing.',
@@ -177,6 +186,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'stencil', w: 26, d: 30, h: 1.2 },
     x: { key: 'initial_layer_flow_ratio', values: [0.9, 0.95, 1, 1.05, 1.1] },
     y: { key: 'elefant_foot_compensation', values: [0, 0.1, 0.15, 0.2, 0.25] },
+    quick: { x: [0.92, 1, 1.08], y: [0.05, 0.15, 0.25] },
     fixed: {},
     look: 'Judge the bottom, where the label reads the right way round. Low flow shows gaps between lines and a see-through look against the light; high flow shows ridges, a rough feel and a lip that curls at the edge. Elephant foot shows as a flare at the bottom edge; too much compensation shows as the bottom layer being smaller than the layers above it.',
     pick: 'Pick the flow whose lines just vanish into one surface, then the smallest compensation whose edge is straight when the tile stands on end. Set both under Quality in the process profile. The holes of the label print tiny — do not read anything into their edges.',
@@ -187,6 +197,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'tile', w: 26, d: 22, h: 2.4 },
     x: { key: 'top_solid_infill_flow_ratio', values: [0.9, 0.94, 0.97, 1, 1.03, 1.06] },
     y: { key: 'top_surface_speed', values: [60, 100, 150, 200] },
+    quick: { x: [0.92, 0.97, 1.02], y: [100, 200] },
     fixed: { ironing_type: 'no ironing', top_shell_layers: 5, top_surface_pattern: 'monotonicline' },
     look: 'At a low angle to a lamp, under-flow shows as dark lines or pinholes between passes, over-flow as a raised, waxy look with the lines standing proud and a lip at the walls. The faster rows show more drag at the turns.',
     pick: 'The winner is the tile with an even sheen and no pinholes. Enter it as Top surface flow ratio (Quality › Advanced, visible in Developer mode) and Top surface speed. Do this before tuning ironing; ironing covers for a poor top but cannot fix pinholes.',
@@ -197,6 +208,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'tile', w: 26, d: 22, h: 2.4 },
     x: { key: 'top_surface_pattern', values: ['monotonicline', 'monotonic', 'alignedrectilinear', 'concentric', 'hilbertcurve'] },
     y: { key: 'top_surface_line_width', values: [0.38, 0.42, 0.45, 0.5] },
+    quick: { x: ['monotonicline', 'concentric', 'hilbertcurve'], y: [0.42, 0.5] },
     fixed: { ironing_type: 'no ironing', top_shell_layers: 5 },
     look: 'Monotonic patterns lay every line in the same direction so there is no visible join; concentric follows the outline and hides on round tops; the Hilbert curve has no direction at all but is slow and textured. Wider lines fill small gaps at the perimeter; narrower lines show finer grain.',
     pick: 'There is no single right answer — pick what you like on the shape you print most, and note the width that leaves no gap next to the wall.',
@@ -207,6 +219,7 @@ export const TESTS = Object.freeze([
     coupon: { type: 'pillar', w: 20, d: 20, h: 30 },
     x: { key: 'outer_wall_speed', values: [60, 100, 150, 200, 250] },
     y: { key: 'outer_wall_line_width', values: [0.38, 0.42, 0.45, 0.5] },
+    quick: { x: [100, 200, 300], y: [0.42, 0.5] },
     fixed: { wall_loops: 3, precise_outer_wall: 1 },
     look: 'Look along each pillar at a light. Faster columns show ghosting after the corners and vertical fine-artefact lines; wider lines look glossier but can bulge at the corners. The label is on top so the four faces stay clean.',
     pick: 'Pick the fastest column that still looks like the slowest, then the width you like the look of. Enter them under Speed › Outer wall and Quality › Line width.',
@@ -217,10 +230,48 @@ export const TESTS = Object.freeze([
     coupon: { type: 'cylinder', r: 10, h: 25 },
     x: { composite: 'scarf', values: ['none', 'scarf5', 'scarf10', 'scarf20'] },
     y: { key: 'seam_position', values: ['aligned', 'back', 'nearest'] },
+    quick: { x: ['none', 'scarf10', 'scarf20'], y: ['aligned', 'back'] },
     fixed: { wall_loops: 3 },
     look: 'Turn each cylinder in the light. A plain seam is a vertical zip or a line of dots; a scarf is a faint smear over its length. Too long a scarf on a small circle wraps around the whole wall and shows as banding; too short leaves a bump.',
     pick: 'Choose the column where you cannot find the seam, and the row where it lands on the face you least care about. Scarf settings live under Quality › Seam; tick “Override filament scarf seam setting” or the filament profile’s own choice wins.',
   },
+  {
+    id: 'dimensions', name: 'Dimensions: contour × hole', tag: 'Accuracy',
+    blurb: 'A gauge for the calipers. Plastic swells a little as it is laid, so outside dimensions come out big and holes come out small; the two compensations shrink the contour and grow the holes by a set amount per side. One print with a few values each, two measurements per gauge, and the numbers go straight into the profile.',
+    coupon: { type: 'gauge', w: 30, d: 24, h: 4, hole: 10 },
+    x: { key: 'xy_contour_compensation', values: [-0.08, -0.05, -0.02, 0, 0.03] },
+    y: { key: 'xy_hole_compensation', values: [0, 0.04, 0.08, 0.12, 0.16] },
+    quick: { x: [-0.05, 0, 0.05], y: [0, 0.08, 0.16] },
+    fixed: {},
+    look: 'Measure each gauge\u2019s width (30.00 nominal) and depth (24.00) across the middle, then the hole (10.00) in two directions. Compensation is per side, so a gauge 0.10 mm too wide wants \u22120.05 on the contour, and a hole 0.12 mm too small wants +0.06. The calculator below does this from one gauge; the grid confirms it, because the correction is not quite the same at every size.',
+    pick: 'Take the gauge whose width, depth and hole are all within 0.03 mm of nominal. Enter its two values under Quality \u203a Precision in the process profile, saved per filament. If no gauge fits, type the measurements of the zero-compensation gauge into the calculator and print the grid again around its answer.',
+  },
+  {
+    id: 'fit', name: 'Fit: clearance', tag: 'Accuracy',
+    blurb: 'Once dimensions are right, how much room do two printed parts need to go together? A block with a hole and a peg beside it, five clearances; try the peg in each hole.',
+    coupon: { type: 'socket', peg: 8, block: 18, h: 8, pegHeight: 14 },
+    x: { param: 'clearance', values: [0.1, 0.15, 0.2, 0.3, 0.4] },
+    y: null,
+    fixed: {},
+    look: 'Snap the pegs off their bases, or print them as they stand and use them. One clearance will not go in, one needs a push and stays put, one slides and holds, one rattles. Those are your press fit, snug fit, running fit and loose fit for this filament \u2014 the numbers to design with.',
+    pick: 'Write the four numbers down; they are properties of the filament and the nozzle, not the printer. Run this after the dimensions test, with its compensations in the profile, or the clearances mean nothing.',
+  },
+]);
+
+/**
+ * Sessions: several tests on one plate, in the order that pays best. Each
+ * leans on the one before, and the dimensional ones come first because
+ * every surface test is judged on a part whose size is already right.
+ */
+export const SESSIONS = Object.freeze([
+  { id: 'accuracy', name: 'Session 1 \u00b7 Accuracy', tests: ['dimensions', 'fit', 'first-layer'],
+    why: 'Dimensions and fit first, since every later part is measured against them, and the first layer on the same plate because its flow and elephant-foot settings change the bottom edge the gauges are measured on.' },
+  { id: 'tops', name: 'Session 2 \u00b7 Top surfaces', tests: ['top-flow', 'ironing'],
+    why: 'The last layer itself before ironing over it: a top that pinholes or over-fills cannot be ironed flat, so the flow test is read first, and the ironing grid on the same plate is read with that in mind.' },
+  { id: 'sides', name: 'Session 3 \u00b7 Walls and seams', tests: ['walls', 'seam'],
+    why: 'The outside walls and where each layer starts and ends. These are judged by eye against the light, so they share a plate and a filament.' },
+  { id: 'finish', name: 'Session 4 \u00b7 Finishing touches', tests: ['ironing-pattern', 'top-pattern'],
+    why: 'Taste rather than tolerance: which direction the faint lines run, how close the ironing passes sit. Worth a plate once the first three sessions are in the profile.' },
 ]);
 
 /** Resolve one axis value to the settings it sets and the words for it. */
@@ -228,13 +279,31 @@ export function axisValue(axis, value) {
   if (axis.composite) {
     const opt = COMPOSITES[axis.composite].options.find(o => o.id === value);
     if (!opt) throw new Error(`"${value}" is not a ${COMPOSITES[axis.composite].label.toLowerCase()} option.`);
-    return { set: { ...opt.set }, label: opt.label, short: opt.short };
+    return { set: { ...opt.set }, geom: {}, label: opt.label, short: opt.short };
   }
-  return { set: { [axis.key]: value }, label: format(axis.key, value), short: short(axis.key, value) };
+  if (axis.param) return { set: {}, geom: { [axis.param]: value }, label: format(axis.param, value), short: short(axis.param, value) };
+  return { set: { [axis.key]: value }, geom: {}, label: format(axis.key, value), short: short(axis.key, value) };
 }
 
 /** The title of an axis. */
-export function axisLabel(axis) { return axis.composite ? COMPOSITES[axis.composite].label : SETTINGS[axis.key].label; }
+export function axisLabel(axis) { return axis.composite ? COMPOSITES[axis.composite].label : axis.param ? PARAMS[axis.param].label : SETTINGS[axis.key].label; }
+
+/** The key an axis is typed and parsed by (a setting, a parameter, or a composite's id). */
+export function axisKey(axis) { return axis.composite || axis.param || axis.key; }
+
+/**
+ * A test with its values chosen for a level of detail: 'quick' takes the
+ * test's `quick` lists (few values, the span that matters), 'thorough' the
+ * full defaults. Fixed settings are copied so they can be edited.
+ */
+export function withDetail(test, detail = 'quick') {
+  const pick = (axis, which) => {
+    if (!axis) return null;
+    const values = detail === 'quick' && test.quick && test.quick[which] ? test.quick[which] : axis.values;
+    return { ...axis, values: [...values] };
+  };
+  return { ...test, x: pick(test.x, 'x'), y: pick(test.y, 'y'), fixed: { ...test.fixed } };
+}
 
 /**
  * The coupons of a test: one per (x, y), each with its settings merged
@@ -247,11 +316,12 @@ export function coupons(test) {
   ys.forEach((yv, row) => xs.forEach((xv, col) => {
     const x = axisValue(test.x, xv), y = yv === null ? null : axisValue(test.y, yv);
     const settings = { ...test.fixed, ...x.set, ...(y ? y.set : {}) };
+    const geom = { ...x.geom, ...(y ? y.geom : {}) };
     const serialized = Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, serialize(k, v)]));
     list.push({
       col, row, label: y ? [x.short, y.short] : [x.short],
       name: y ? `${axisLabel(test.x)} ${x.label} · ${axisLabel(test.y)} ${y.label}` : `${axisLabel(test.x)} ${x.label}`,
-      settings, serialized,
+      settings, serialized, geom,
     });
   }));
   return list;

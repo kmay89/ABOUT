@@ -198,6 +198,8 @@ export function layoutLabel(parts, room, { px = 1, minPx = 0.85, lines: force = 
 /** The width a coupon of this kind offers its label. */
 export function labelRoom(type, c = {}) {
   if (type === 'cylinder') return (c.r ?? 10) * Math.SQRT2 - 2;
+  if (type === 'gauge') { const w = c.w ?? 30, hole = c.hole ?? 10; return w / 2 - (-(w / 2 - hole / 2 - 3) + hole / 2) - 2; }
+  if (type === 'socket') return (c.peg ?? 8) - 1;
   const margin = c.margin ?? 1.5;
   return (c.w ?? (type === 'pillar' ? 20 : 26)) - 2 * margin;
 }
@@ -255,8 +257,75 @@ export function cylinderCoupon({ r = 10, h = 25, label = ['1'], px = 1, raise = 
   return { mesh, size: [2 * r, 2 * r, h + raise], area: [2 * r, 2 * r], lines };
 }
 
+/**
+ * A block with a round through-hole: the outline sampled by angle from the
+ * hole's centre (the rectangle's own corners added to the angles so they
+ * stay sharp), inner and outer rings joined by quads top and bottom, and
+ * walls outside and inside. One closed shell, no boolean needed.
+ */
+export function holedBlock(mesh, { w, d, h, cx = 0, cy = 0, r, n = 96 } = {}) {
+  const corners = [[w / 2, d / 2], [-w / 2, d / 2], [-w / 2, -d / 2], [w / 2, -d / 2]].map(([x, y]) => Math.atan2(y - cy, x - cx));
+  const angles = [...corners];
+  for (let i = 0; i < n; i++) angles.push(-Math.PI + (i / n) * Math.PI * 2);
+  angles.sort((a, b) => a - b);
+  const uniq = angles.filter((a, i) => i === 0 || a - angles[i - 1] > 1e-9);
+  const b = mesh.vertices.length / 3, m = uniq.length;
+  for (const a of uniq) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    // the ray from the hole centre to the rectangle's edge
+    const tx = dx > 1e-12 ? (w / 2 - cx) / dx : dx < -1e-12 ? (-w / 2 - cx) / dx : Infinity;
+    const ty = dy > 1e-12 ? (d / 2 - cy) / dy : dy < -1e-12 ? (-d / 2 - cy) / dy : Infinity;
+    const t = Math.min(tx, ty);
+    const ox = cx + dx * t, oy = cy + dy * t, ix = cx + r * dx, iy = cy + r * dy;
+    mesh.vertices.push(ox, oy, 0, ox, oy, h, ix, iy, 0, ix, iy, h); // outer lo, outer hi, inner lo, inner hi
+  }
+  for (let i = 0; i < m; i++) {
+    const j = (i + 1) % m, o0 = b + 4 * i, o1 = b + 4 * j;
+    const [olo, ohi, ilo, ihi] = [o0, o0 + 1, o0 + 2, o0 + 3], [olo2, ohi2, ilo2, ihi2] = [o1, o1 + 1, o1 + 2, o1 + 3];
+    mesh.indices.push(ohi, ohi2, ihi2, ohi, ihi2, ihi);   // top ring, facing up
+    mesh.indices.push(olo, ilo2, olo2, olo, ilo, ilo2);   // bottom ring, facing down
+    mesh.indices.push(olo, olo2, ohi2, olo, ohi2, ohi);   // outer wall, outward
+    mesh.indices.push(ilo, ihi2, ilo2, ilo, ihi, ihi2);   // inner wall, facing the hole
+  }
+  return mesh;
+}
+
+/**
+ * A gauge for the calipers: a block with a Ø`hole` hole through it, so the
+ * outside (contour compensation) and the inside (hole compensation) can
+ * both be measured, labelled on top beside the hole.
+ */
+export function gaugeCoupon({ w = 30, d = 24, h = 4, hole = 10, label = ['1'], px = 0.9, raise = 0.6, layout } = {}) {
+  const mesh = emptyMesh();
+  const cx = -(w / 2 - hole / 2 - 3);                  // hole toward the left, 3 mm from the edge
+  const room = w / 2 - (cx + hole / 2) - 2;            // what is left to the right of it
+  const { lines, px: usePx } = layoutLabel(label, room, { px, minPx: 0.7, ...layout });
+  holedBlock(mesh, { w, d, h, cx, cy: 0, r: hole / 2 });
+  raisedLabel(mesh, lines, { cx: (cx + hole / 2 + w / 2) / 2, cy: 0, px: usePx, base: h, raise });
+  return { mesh, size: [w, d, h + raise], area: [w, d], lines, measure: { width: w, depth: d, hole } };
+}
+
+/**
+ * A socket and its peg: a block with a hole of Ø(`peg` + `clearance`) and,
+ * standing beside it, a Ø`peg` pin to try in it. The clearance is the
+ * label.
+ */
+export function socketCoupon({ peg = 8, clearance = 0.2, block = 18, h = 8, pegHeight = 14, gap = 5, label = ['1'], px = 0.9, raise = 0.6, layout } = {}) {
+  const mesh = emptyMesh();
+  const total = block + gap + peg, x0 = -total / 2;
+  const bx = x0 + block / 2, pxc = x0 + block + gap + peg / 2;
+  const { lines, px: usePx } = layoutLabel(label, block - 3, { px, minPx: 0.7, lines: 1, ...layout });
+  // the block is shifted so the label strip along its front edge stays clear of the hole
+  holedBlock(mesh, { w: block, d: block, h, cx: 0, cy: 0, r: (peg + clearance) / 2 });
+  // move the block into place by shifting its vertices (it was built around the origin)
+  for (let i = 0; i < mesh.vertices.length; i += 3) mesh.vertices[i] += bx;
+  prism(mesh, pxc, 0, peg / 2, 0, pegHeight, 96);
+  raisedLabel(mesh, lines, { cx: pxc, cy: 0, px: Math.min(usePx, (peg - 1) / Math.max(1, textCols(lines[0]))), base: pegHeight, raise });
+  return { mesh, size: [total, block, pegHeight + raise], area: [total, block], lines, measure: { peg, clearance } };
+}
+
 export const COUPONS = Object.freeze({
-  tile: tileCoupon, stencil: stencilCoupon, pillar: pillarCoupon, cylinder: cylinderCoupon,
+  tile: tileCoupon, stencil: stencilCoupon, pillar: pillarCoupon, cylinder: cylinderCoupon, gauge: gaugeCoupon, socket: socketCoupon,
 });
 
 /* ---------- checks (used by the tests and the page's self-check) ---------- */
