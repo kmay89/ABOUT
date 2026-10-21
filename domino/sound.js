@@ -44,7 +44,9 @@ function ctx() {
 /* the first touch anywhere wakes the audio; iOS insists on it */
 S.unlock = function () {
   var c = ctx();
-  if (c && c.state === "suspended" && c.resume) c.resume().catch(function () {});
+  if (c && c.state === "suspended" && c.resume) {
+    c.resume().then(function () { if (M.want && !M.on) S.music.start(); }).catch(function () {});
+  } else if (c && M.want && !M.on) S.music.start();
 };
 
 function burst(t, dur, freq, q, gain) {
@@ -182,6 +184,172 @@ S.deal = function () {
 S.tick = function () {
   var t = ready(); if (t === null) return;
   burst(t, 0.02, 3200, 8, 0.12);
+};
+
+/* ---------- the trio in the corner ----------
+   A guitarrón, a vihuela and a trumpet, playing a slow ranchera waltz
+   in A — the music of every cantina that has one — made up as it goes
+   from a few rules, so it never repeats exactly and never ends, and
+   never gets in the way: it sits under the clack of the bones at a
+   quarter of their volume.
+
+   How it is made, since nothing is recorded:
+     guitarrón   a plucked string (Karplus–Strong, above) two octaves
+                 down, root on the one, fifth on the two and three — the
+                 oom of the oom-pah-pah
+     vihuela     four strings raked a few milliseconds apart on the two
+                 and the three — the pah-pah — with a double rake now
+                 and then, which is the rasgueado
+     trumpet     two detuned saws through a warm low-pass with a slow
+                 vibrato that comes in after the attack, playing phrases:
+                 chord tones on the strong beats, steps between, a breath
+                 every fourth bar, a second trumpet a third below on the
+                 long notes. Phrases come in the form A A' B A over
+                 sixteen bars, from a seeded stream, so the tune has a
+                 shape you can hum and a different ornament each time
+                 round.
+   Notes are scheduled a quarter second ahead on a timer, the way every
+   Web Audio sequencer is — a frame-late timer does not stutter a note
+   that is already booked. */
+var M = { on: false, timer: null, next: 0, bar: 0, gain: null, want: false };
+var BPM = 88, BEAT = 60 / BPM;
+var A3 = 220;
+var SCALE = [0, 2, 4, 5, 7, 9, 11];                    /* A major, in semitones */
+var CHORDS = [[0, 4, 7], [5, 9, 12], [7, 11, 14], [9, 12, 16]]; /* I IV V vi */
+var PROG = [0, 0, 1, 0, 2, 2, 0, 0, 0, 3, 1, 0, 2, 2, 0, 0];
+function hz(semi, oct) { return A3 * Math.pow(2, (semi + (oct || 0) * 12) / 12); }
+function srng(seed) {
+  var x = (seed * 2654435761 + 12345) >>> 0 || 7;
+  return function () { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+}
+function horn(t, freq, dur, gain) {
+  var c = S.ctx, g = c.createGain(), f = c.createBiquadFilter(), lfo = c.createOscillator(), lg = c.createGain();
+  f.type = "lowpass"; f.frequency.value = 1700; f.Q.value = 1.1;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.035);
+  g.gain.setValueAtTime(gain, t + dur - 0.09);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  lfo.frequency.value = 5.4; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(freq * 0.006, t + 0.25);
+  lfo.connect(lg);
+  [["sawtooth", -4], ["sawtooth", 4], ["triangle", 0]].forEach(function (w) {
+    var o = c.createOscillator();
+    o.type = w[0]; o.frequency.value = freq; o.detune.value = w[1];
+    lg.connect(o.detune);
+    o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+  });
+  lfo.start(t); lfo.stop(t + dur + 0.05);
+  f.connect(g); g.connect(M.gain);
+}
+function mpluck(t, freq, dur, gain) {
+  /* the same string as the guitar above, but into the trio's own gain */
+  var c = S.ctx, sr = c.sampleRate, n = Math.floor(sr * dur), N = Math.max(2, Math.round(sr / freq));
+  var buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), ring = new Float32Array(N), i, idx = 0;
+  for (i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
+  for (i = 0; i < n; i++) { var v = ring[idx], nx = ring[(idx + 1) % N]; ring[idx] = (v + nx) * 0.5 * 0.995; d[i] = v; idx = (idx + 1) % N; }
+  var src = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+  src.buffer = buf; f.type = "lowpass"; f.frequency.value = freq < 150 ? 900 : 2600;
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(M.gain);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+/* a four-bar phrase for the trumpet: [{beat, len, semi}] with beat
+   counted from the start of the phrase, in beats of a 3/4 bar */
+function phrase(kind, round) {
+  var r = srng(kind * 97 + round * 13 + 5), out = [], beat = 0, last = 7 + 12;
+  for (var bar = 0; bar < 4; bar++) {
+    var ch = CHORDS[PROG[(round * 4 + bar) % 16]];
+    if (bar === 3 && kind !== 2) {
+      /* the breath: a long note on the chord's root or third, then rest */
+      out.push({ beat: beat, len: 2, semi: ch[r() < 0.5 ? 0 : 1] + 12, two: true });
+      beat += 3; continue;
+    }
+    var pat = [[1, 1, 1], [2, 1], [1, 2], [1.5, 1.5], [1, 0.5, 0.5, 1]][Math.floor(r() * 5)];
+    for (var i = 0; i < pat.length; i++) {
+      var semi;
+      if (i === 0 || r() < 0.4) {
+        /* chord tone, nearest to where we were */
+        var best = null;
+        for (var o = 0; o <= 2; o++) for (var k = 0; k < 3; k++) { var c2 = ch[k] + o * 12; if (c2 >= 9 && c2 <= 28 && (best === null || Math.abs(c2 - last) < Math.abs(best - last))) best = c2; }
+        semi = best;
+        if (r() < 0.3) semi += r() < 0.5 ? 12 : -12;
+      } else {
+        /* a step along the scale */
+        var deg = SCALE.indexOf(((last % 12) + 12) % 12);
+        if (deg < 0) deg = 0;
+        var up = r() < 0.55 ? 1 : -1;
+        var nd = deg + up, oct = Math.floor(last / 12);
+        if (nd >= 7) { nd = 0; oct++; } if (nd < 0) { nd = 6; oct--; }
+        semi = SCALE[nd] + oct * 12;
+      }
+      if (semi < 9) semi += 12; if (semi > 28) semi -= 12;
+      out.push({ beat: beat, len: pat[i], semi: semi, two: pat[i] >= 1.5 && r() < 0.6 });
+      last = semi; beat += pat[i];
+    }
+  }
+  return out;
+}
+var FORM = [0, 1, 2, 0];
+function bar(b, t0) {
+  var ch = CHORDS[PROG[b % 16]], r = srng(b * 31 + 1);
+  /* guitarrón: root on one, fifth on two, root (or fifth) on three */
+  mpluck(t0, hz(ch[0], -2), BEAT * 1.4, 0.30);
+  mpluck(t0 + BEAT, hz(ch[2], -2), BEAT * 0.9, 0.20);
+  mpluck(t0 + BEAT * 2, hz(r() < 0.6 ? ch[0] : ch[2], -2), BEAT * 0.9, 0.20);
+  /* vihuela: the pah-pah, with the odd rasgueado */
+  for (var k = 1; k <= 2; k++) {
+    var at = t0 + BEAT * k, dbl = k === 2 && r() < 0.25;
+    for (var i = 0; i < 4; i++) mpluck(at + i * 0.012, hz(ch[i % 3] + (i > 2 ? 12 : 0), 0), 0.36, 0.055);
+    if (dbl) for (var j = 0; j < 4; j++) mpluck(at + BEAT * 0.5 + j * 0.01, hz(ch[j % 3] + (j > 2 ? 12 : 0), 0), 0.25, 0.04);
+  }
+  /* trumpet: this bar's share of the phrase */
+  var ph = Math.floor(b / 4), kind = FORM[ph % 4], round = Math.floor(ph / 4) % 4;
+  if (ph % 8 === 7) return;                   /* every eighth phrase the trumpet sits one out */
+  var notes = phrase(kind, round), inBar = b % 4;
+  for (var n = 0; n < notes.length; n++) {
+    var nt = notes[n];
+    if (Math.floor(nt.beat / 3) !== inBar) continue;
+    var at2 = t0 + (nt.beat - inBar * 3) * BEAT, dur = nt.len * BEAT * 0.92;
+    horn(at2, hz(nt.semi, 0), dur, 0.07);
+    if (nt.two) horn(at2 + 0.02, hz(nt.semi - (SCALE.indexOf(nt.semi % 12) % 2 ? 3 : 4), 0), dur, 0.045);
+  }
+}
+function tick() {
+  if (!M.on || !S.ctx) return;
+  var now = S.ctx.currentTime;
+  while (M.next < now + 0.35) {
+    if (M.next < now - 1) M.next = now + 0.05;    /* the tab was asleep: pick up from here */
+    bar(M.bar, M.next);
+    M.bar++;
+    M.next += BEAT * 3;
+  }
+}
+S.music = {
+  start: function () {
+    M.want = true;
+    if (M.on) return;
+    var c = ctx();
+    if (!c || c.state !== "running") return;     /* unlock() will call again */
+    if (!M.gain) { M.gain = c.createGain(); M.gain.connect(S.master); }
+    M.gain.gain.cancelScheduledValues(c.currentTime);
+    M.gain.gain.setValueAtTime(0.0001, c.currentTime);
+    M.gain.gain.exponentialRampToValueAtTime(0.9, c.currentTime + 2.5);
+    M.on = true; M.next = c.currentTime + 0.1;
+    M.timer = setInterval(tick, 90);
+    tick();
+  },
+  stop: function (keepWanting) {
+    if (!keepWanting) M.want = false;
+    if (!M.on) return;
+    M.on = false;
+    clearInterval(M.timer); M.timer = null;
+    if (M.gain && S.ctx) {
+      var c = S.ctx;
+      M.gain.gain.cancelScheduledValues(c.currentTime);
+      M.gain.gain.setValueAtTime(M.gain.gain.value, c.currentTime);
+      M.gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.6);
+    }
+  },
+  playing: function () { return M.on; }
 };
 
 /* a short buzz in the hand where the phone can do it */

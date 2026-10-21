@@ -20,6 +20,7 @@ var R = window.Rules, L = window.Layout, AI = window.AI, C = window.Coach,
 function reducedMotion() {
   return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
+var RM = reducedMotion();
 
 /* who this table is, as far as the shared front door is concerned
    (see room.js — the same four-letter door the chess room uses) */
@@ -57,8 +58,10 @@ function esc(s) {
 function open(id) { $(id).classList.remove("hide"); }
 function shut(id) { $(id).classList.add("hide"); }
 document.addEventListener("pointerdown", function (e) {
-  /* browsers keep audio asleep until a touch; any touch will do */
+  /* browsers keep audio asleep until a touch; any touch will do — and
+     the trio in the corner starts with it, once the room is open */
   Snd.unlock();
+  if (P.music && P.sound && $("splash").classList.contains("gone")) Snd.music.start();
   var c = e.target.getAttribute && e.target.getAttribute("data-close");
   if (c) shut(c);
   /* tapping the dark outside a sheet closes it too — except the curtain
@@ -85,6 +88,7 @@ var P = {
   career: null,
   face: "",             /* the face this player picked (faces.js code), or "" for the one their name draws */
   fiesta: true,         /* the papel picado and the bulbs over the table */
+  music: true,          /* the trio in the corner */
   id: ""                /* this phone, so a chair it drops is given back to it */
 };
 function load() {
@@ -102,6 +106,7 @@ function load() {
       P.career = Car.clean(raw.career);
       P.face = Net.cleanFace(raw.face);
       P.fiesta = raw.fiesta !== false;
+      P.music = raw.music !== false;
       if (typeof raw.id === "string" && /^[a-z0-9]{6,16}$/.test(raw.id)) P.id = raw.id;
       if (raw.rules) P.rules = R.houseRules(raw.rules);
       if (raw.skin) P.skin = Sk.clean(raw.skin);
@@ -127,7 +132,7 @@ function save() {
     localStorage.setItem(SAVE, JSON.stringify({
       v: 1, name: P.name, skin: P.skin, view3d: P.view3d, level: P.level, pace: P.pace,
       rules: P.rules, seen: P.seen, coach: P.coach, sound: P.sound, grade: P.grade,
-      career: P.career, id: P.id, face: P.face, fiesta: P.fiesta
+      career: P.career, id: P.id, face: P.face, fiesta: P.fiesta, music: P.music
     }));
   } catch (e) { /* private browsing; the game still plays */ }
 }
@@ -298,7 +303,8 @@ function scene() {
     playable: playable, selected: G.sel, ghosts: ghosts,
     lastIdx: G.lastIdx, lastAge: G.lastAt ? performance.now() - G.lastAt : 0, anim: G.anim,
     yourTurn: mine, topPad: hudBottom(), botPad: handTop(), bound: bound,
-    drag: G.drag, hover: G.drag ? G.drag.over : null, lean: (G.sel !== null && ghosts.length === 2) ? G.lean : null
+    drag: G.drag, hover: G.drag ? G.drag.over : null, lean: (G.sel !== null && ghosts.length === 2) ? G.lean : null,
+    breathe: !RM
   };
 }
 /* how much of the top of the stage the plates and the score take, and
@@ -512,6 +518,7 @@ function pickBone(tile) {
 }
 
 function tryPlay(tile, end) {
+  G.lastHandI = G.view ? G.view.hand.indexOf(tile) : 0;
   G.sel = null; G.hint = null; G.drag = null; G.press = null;
   /* how did that compare? Asked before the bone goes down, from this
      chair's own view — so a joined phone grades its own plays without
@@ -671,12 +678,40 @@ function startAnim(idx, seat, hard) {
   var away = 9;
   /* layout y runs down the screen; the plates are along the top */
   var from = [[0, away], [away * 0.8, -away * 0.8], [0, -away], [-away * 0.8, -away * 0.8]][rel];
+  var fx = b.x + from[0], fy = b.y + from[1];
+  /* Better: from where that player *is* on the screen — their plate, or
+     the bone's own place in your hand — turned back into table units
+     through the renderer's camera, so the bone visibly leaves the person
+     who played it. Capped so a plate at the top of the screen, which the
+     camera sees a long way off, does not launch it from the next room. */
+  var src = fromWhere(seat, idx);
+  if (src) {
+    var dx = src.x - b.x, dy = src.y - b.y, dd = Math.hypot(dx, dy);
+    if (dd > 0.5) { var cap = Math.min(dd, 11) / dd; fx = b.x + dx * cap; fy = b.y + dy * cap; }
+  }
   G.anim = {
     idx: idx, t: 0, dur: pace().anim,
-    fromX: b.x + from[0], fromY: b.y + from[1],
+    fromX: fx, fromY: fy,
     fromRot: b.rot + (rel % 2 ? 90 : 0) + (rel === 0 ? 0 : (rel === 1 ? -25 : 25)),
     hard: hard ? 1 : 0.6, mine: seat === G.mySeat
   };
+}
+
+function fromWhere(seat, idx) {
+  var st = $("stage").getBoundingClientRect(), x, y;
+  if (seat === G.mySeat) {
+    /* the bone just left the hand: the slot its neighbours still mark */
+    var hg = handGfx(), r = hg.hand && hg.hand.length ? hg.hand[Math.min(G.lastHandI || 0, hg.hand.length - 1)] : null;
+    if (!r) return null;
+    x = r.x + r.w / 2; y = r.y + r.h / 2;
+  } else {
+    var pl = $("plate" + ((seat - G.mySeat + 4) & 3));
+    if (!pl) return null;
+    var pr = pl.getBoundingClientRect();
+    x = pr.left + pr.width / 2 - st.left; y = pr.top + pr.height / 2 - st.top;
+  }
+  var p = gfx.pointOnTable ? gfx.pointOnTable(x, y) : null;
+  return p && isFinite(p.x) && isFinite(p.y) ? p : null;
 }
 
 function afterMove(ev) {
@@ -724,12 +759,26 @@ function note(seat, text) {
    about three seconds a turn, with the bone visibly carried to the
    table — and the old relaxed is Brisk. */
 var PACES = {
-  slow:    { id: "slow",    label: "Unhurried", note: "Time to think about every play.", think: 1700, spread: 1000, settle: 1500, anim: 0.78 },
-  relaxed: { id: "relaxed", label: "Relaxed", note: "A beat to see each play land.", think: 1150, spread: 800, settle: 1050, anim: 0.62 },
-  brisk:   { id: "brisk",   label: "Brisk",   note: "The usual pace of a table in a hurry.", think: 650, spread: 450, settle: 600, anim: 0.46 },
+  slow:    { id: "slow",    label: "Unhurried", note: "Time to think about every play.", think: 2600, spread: 1600, settle: 1700, anim: 0.84 },
+  relaxed: { id: "relaxed", label: "Relaxed", note: "A person's pace: a look at the table, then the bone.", think: 1800, spread: 1300, settle: 1300, anim: 0.70 },
+  brisk:   { id: "brisk",   label: "Brisk",   note: "The usual pace of a table in a hurry.", think: 800, spread: 500, settle: 650, anim: 0.48 },
   quick:   { id: "quick",   label: "Quick",   note: "For when you just want the hand over.", think: 220, spread: 160, settle: 160, anim: 0.32 }
 };
 function pace() { return PACES[P.pace] || PACES.relaxed; }
+/* How long this seat thinks about *this* bone. A person with one bone
+   that fits puts it down almost at once; a person with four that fit
+   looks at the table for a while. So the think is scaled by the choice:
+   forced plays come quick, real decisions take their time, and no two
+   turns take the same time — which is the whole difference between a
+   table of people and three timers. */
+function thinkFor(st, seat) {
+  var p = pace(), n = R.moves(st, seat).length;
+  var k = n <= 1 ? 0.5 : n === 2 ? 0.9 : n === 3 ? 1.1 : 1.3;
+  /* late in a hand, with few bones, the counting is done — and quicker */
+  if (st.hands[seat].length <= 2) k *= 0.75;
+  var r = Math.random();
+  return p.think * k * (0.75 + r * 0.5) + Math.random() * p.spread * k;
+}
 
 var turnT = 0;
 function scheduleTurn() {
@@ -772,7 +821,7 @@ function scheduleTurn() {
     var v = R.publicView(G.st, seat);
     var a = AI.analyse(v, { level: Rt.aiLevel(P.level) });
     if (a.move) doPlay(seat, a.move); else doPass(seat);
-  }, p.think + Math.random() * p.spread);
+  }, thinkFor(st, seat));
 }
 /* it has come round to you: say so, quietly, three ways */
 function yourTurn() {
@@ -1003,20 +1052,52 @@ function endHand() {
    gets a second to see the last bone before a sheet covers it. */
 function finale(pack) {
   var r = pack.res, us = R.team(G.mySeat), won = r.team === us;
-  if (r.how === "domino") {
-    bubble(r.winner, r.capicua ? "¡Capicúa!" : "¡Dominó!", "big", 1800);
-    banner(r.capicua ? "¡Capicúa!" : "¡Dominó!", r.winner === G.mySeat ? "You went out" : nameOf(r.winner) + " went out", 1500, true);
-  } else {
-    banner("¡Tranca!", "Nobody can move — count the bones", 1500, true);
-  }
-  /* the faces round the table take it as people do */
-  for (var s = 0; s < 4; s++) {
-    if (r.team < 0) mood(s, "think", 3000);
-    else mood(s, R.team(s) === r.team ? (s === r.winner ? "party" : "grin") : "ouch", 4000);
-  }
+  /* the moment itself is the cheer below; the bubble is the winner's own word */
+  if (r.how === "domino") bubble(r.winner, r.capicua ? "¡Capicúa!" : "¡Dominó!", "big", 1800);
+  $("chuy").classList.add("off");
+  clearTimeout(chuyT);
   if (r.team >= 0) { if (won) { if (r.capicua || pack.over) Snd.fiesta(); else Snd.win(); } else Snd.lose(); }
-  if (won) confetti(r.capicua || pack.over ? 160 : 70);
-  setTimeout(function () { showEnd(pack); }, 1500);
+  if (won) confetti(r.capicua || pack.over ? 200 : 90);
+  cheer(pack);
+  setTimeout(function () { showEnd(pack); }, pack.over ? 3200 : 2500);
+}
+
+/* ---------- the moment, before the count ----------
+   A hand ending used to be a banner and then a sheet of numbers. The
+   sheet is still there for the numbers; this is the part a table does
+   first — everybody looks at whoever went out. The winner's face, big;
+   what happened, in the table's own words; who it goes to and how much,
+   counted up onto the score. A hand lost is said just as clearly and
+   much more quietly. */
+function cheer(pack) {
+  var r = pack.res, us = R.team(G.mySeat), won = r.team === us, el = $("cheer");
+  if (!el) return;
+  var how, who, pts = r.team < 0 ? 0 : r.points;
+  if (r.how === "domino") {
+    how = r.capicua ? "¡Capicúa!" : "¡Dominó!";
+    who = r.winner === G.mySeat ? "You went out" : nameOf(r.winner) + " went out" + (r.winner === R.partner(G.mySeat) ? " — your partner" : "");
+  } else {
+    how = "¡Tranca!";
+    who = r.team < 0 ? "Dead even — nobody scores" : (won ? "Shut, and we held less" : "Shut, and they held less");
+  }
+  var faces = "";
+  if (r.team >= 0) {
+    var seats = r.how === "domino" ? [r.winner] : [r.team, r.team + 2];
+    seats.forEach(function (sx, i) { faces += "<div class='cf" + (i ? " second" : "") + "'>" + faceSvg(sx, "party", i ? 72 : 112, "ch" + sx) + "</div>"; });
+  } else {
+    faces = "<div class='cf'>" + faceSvg(G.mySeat, "think", 96, "ch0") + "</div>";
+  }
+  el.className = "cheer on " + (r.team < 0 ? "even" : (won ? "won" : "lost")) + (pack.over ? " match" : "");
+  el.innerHTML = "<div class='cfaces'>" + faces + "</div>" +
+    "<div class='chow'>" + esc(how) + "</div><div class='cwho'>" + esc(who) + "</div>" +
+    (r.team >= 0 ? "<div class='cpts'><b id='cheerPts'>0</b> <span>" + (won ? "to us" : "to them") +
+      (r.capicua ? " · capicúa" : "") + "</span></div>" : "") +
+    (pack.over ? "<div class='cmatch'>" + (pack.champion === us ? "¡Ganamos! We take the match" : "They take the match") +
+      (pack.zapatero ? " · ¡zapatero!" : "") + " · " + pack.scores[us] + "–" + pack.scores[1 - us] + "</div>" : "");
+  setTimeout(function () { countUp($("cheerPts"), pts, won ? "+" : "−"); }, 500);
+  for (var s = 0; s < 4; s++) mood(s, r.team < 0 ? "think" : (R.team(s) === r.team ? "party" : "ouch"), 4000);
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.classList.remove("on"); }, pack.over ? 3100 : 2400);
 }
 
 function showEnd(pack) {
@@ -1574,7 +1655,7 @@ function plate(rel, v) {
   var s = (G.mySeat + rel) & 3;
   if (!el.firstChild) {
     el.innerHTML = "<div class='av'></div><div class='pi'><div class='nm'></div><div class='role'></div><div class='mini'></div></div>" +
-      "<span class='tag'></span><div class='bubble'></div>";
+      "<b class='cnt'></b><span class='tag'></span><div class='bubble'></div>";
   }
   var us = R.team(s) === R.team(G.mySeat);
   var human = G.mode === "guest" ? !!(G.humans && G.humans[s]) : (isHuman(s) && (G.mode !== "solo" || !!G.hot));
@@ -1593,6 +1674,8 @@ function plate(rel, v) {
   var mini = el.querySelector(".mini"), n = v.counts[s];
   if (mini.childNodes.length !== 7) { mini.innerHTML = ""; for (var k = 0; k < 7; k++) mini.appendChild(document.createElement("i")); }
   for (var j = 0; j < 7; j++) mini.childNodes[j].className = j < n ? "" : "out";
+  var cnt = el.querySelector(".cnt");
+  if (cnt.textContent !== String(n)) { cnt.textContent = n; cnt.classList.remove("tick"); void cnt.offsetWidth; cnt.classList.add("tick"); }
 }
 /* something a seat says, in a bubble under its plate (or above your hand) */
 function bubble(seat, text, cls, ms) {
@@ -1631,6 +1714,7 @@ function showMenu() {
   $("mSound").textContent = P.sound ? "🔊 Sound on" : "🔇 Sound off";
   $("mCoach").textContent = P.coach ? "Coach & grades on" : "Coach & grades off";
   $("mFiesta").textContent = P.fiesta ? "🎉 Fiesta on" : "Fiesta off";
+  $("mMusic").textContent = P.music ? "🎺 Music on" : "Music off";
   $("mUpdate").classList.toggle("hide", !swWaiting);
   $("menuNote").textContent = gfx && gfx.kind === "3d"
     ? "Drawn in 3D. The bones in your hand stay flat and crisp on purpose."
@@ -1644,6 +1728,16 @@ press($("mFiesta"), function () {
   showMenu();
 });
 press($("mFace"), function () { shut("ovMenu"); showFace(); });
+press($("mMusic"), function () {
+  P.music = !P.music; save();
+  if (P.music && P.sound) { Snd.unlock(); Snd.music.start(); } else Snd.music.stop();
+  showMenu();
+});
+/* the trio stops when the room is put away, and picks up when it is back */
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden) Snd.music.stop(true);
+  else if (P.music && P.sound && $("splash").classList.contains("gone")) Snd.music.start();
+});
 press($("mUpdate"), function () { shut("ovMenu"); takeUpdate(); });
 
 /* ---------- your face ----------
@@ -1694,7 +1788,7 @@ press($("mParty"), function () { shut("ovMenu"); showParty(); });
 press($("mCareer"), function () { shut("ovMenu"); showCareer(); });
 press($("mSound"), function () {
   P.sound = !P.sound; Snd.on = P.sound; save();
-  if (P.sound) { Snd.unlock(); Snd.clack(0.7); }
+  if (P.sound) { Snd.unlock(); Snd.clack(0.7); if (P.music) Snd.music.start(); } else Snd.music.stop();
   showMenu();
 });
 press($("mCoach"), function () {
@@ -2407,6 +2501,7 @@ function begin(mode) {
   $("splash").classList.add("gone");
   setTimeout(function () { $("splash").style.display = "none"; }, 520);
   resize();
+  if (P.music && P.sound) Snd.music.start();
   if (mode === "resume") { G.mode = "solo"; syncAll(); return; }
   G.mySeat = 0; G.hot = null;
   G.names = { 0: P.name || "You" };
@@ -2566,6 +2661,7 @@ window.__dt = function () {
   return { G: G, P: P, gfx: gfx, over: over, scene: scene, Net: Net, tryPlay: tryPlay, doPass: doPass,
            Room: Room, joinByCode: joinByCode, health: Net.health(), PACES: PACES,
            happen: happen, showCareer: showCareer, record: record, leanFor: leanFor, mood: mood, showFace: showFace,
-           makeRenderers: makeRenderers, hotSeat: hotSeat, loadMatch: loadMatch, saveMatch: saveMatch };
+           makeRenderers: makeRenderers, hotSeat: hotSeat, loadMatch: loadMatch, saveMatch: saveMatch,
+           finale: finale, thinkFor: thinkFor };
 };
 })();
