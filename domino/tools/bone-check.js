@@ -135,7 +135,50 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
      "the face reaches " + (reach * 100).toFixed(0) + "% of the way out");
 })();
 
+
+/* ---------- and the table it lies on ----------
+   The table (gfx3d.js, tableGeometry) is built with the same quads and
+   the same rules. The cloth and the frame are two meshes because they
+   wear different textures, but together they are one closed solid: the
+   frame's lip walls run down to the cloth's edge and the cloth seals the
+   opening. So the two are checked as one surface. The table is not
+   convex — the cloth is let into the frame — so the one test that does
+   not apply is the one above about corners poking through faces. */
+(function () {
+  var t = Gfx3D.tableGeometry(10, 13);
+  var P2 = t.wood.P.concat(t.cloth.P), N2 = t.wood.N.concat(t.cloth.N);
+  var off = t.wood.P.length / 3;
+  var I2 = t.wood.I.concat(t.cloth.I.map(function (i) { return i + off; }));
+  function v2(i) { return [P2[i * 3], P2[i * 3 + 1], P2[i * 3 + 2]]; }
+  function n2(i) { return [N2[i * 3], N2[i * 3 + 1], N2[i * 3 + 2]]; }
+  ok("the table is built", P2.length > 0 && I2.length === (t.wood.P.length / 12 + 1) * 6);
+  var s = [0, 0, 0], wrong = 0, flat = 0;
+  for (var k = 0; k < I2.length; k += 3) {
+    var a = v2(I2[k]), b = v2(I2[k + 1]), c = v2(I2[k + 2]);
+    var f = cross(sub(b, a), sub(c, a));
+    s[0] += f[0]; s[1] += f[1]; s[2] += f[2];
+    var mag = Math.hypot(f[0], f[1], f[2]);
+    if (mag < 1e-9) { flat++; continue; }
+    if (dot(f, n2(I2[k])) <= 0) wrong++;
+  }
+  ok("the cloth and the frame close into one solid", Math.hypot(s[0], s[1], s[2]) < 1e-6,
+     "vector area off by " + Math.hypot(s[0], s[1], s[2]).toExponential(2));
+  ok("every face of the table winds the way its normal points", wrong === 0, wrong + " backwards");
+  ok("and none is degenerate", flat === 0, flat + " flat");
+  /* the cloth is where the bones lie, at z = 0, and the frame stands above it */
+  var lo = 1e9, hi = -1e9, topWood = -1e9;
+  for (var i = 0; i < t.cloth.P.length; i += 3) { lo = Math.min(lo, t.cloth.P[i + 2]); hi = Math.max(hi, t.cloth.P[i + 2]); }
+  for (var j = 0; j < t.wood.P.length; j += 3) topWood = Math.max(topWood, t.wood.P[j + 2]);
+  ok("the cloth is flat at the height the bones rest on", lo === 0 && hi === 0);
+  ok("and the frame stands a lip above it", topWood > 0 && topWood < 0.3, "lip " + topWood);
+  /* a 10 × 13 cloth holds the widest and deepest line ever measured
+     (bound + 2 across, 11 deep) with air to spare */
+  var cx = 0, cy = 0;
+  for (var m = 0; m < t.cloth.P.length; m += 3) { cx = Math.max(cx, Math.abs(t.cloth.P[m])); cy = Math.max(cy, Math.abs(t.cloth.P[m + 1])); }
+  ok("the cloth is as big as it was asked for", cx === 10 && cy === 13, cx + " × " + cy);
+})();
+
 console.log("\n" + (fail === 0
-  ? "the bone is solid — " + pass + " checks passed"
+  ? "the bone is solid and the table holds it — " + pass + " checks passed"
   : fail + " of " + (pass + fail) + " checks FAILED"));
 if (fail) { failures.forEach(function (f) { console.log("  · " + f); }); process.exit(1); }

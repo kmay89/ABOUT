@@ -74,6 +74,113 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   "const seen = new Set(); for (let i=0;i<px.length;i+=4*97) seen.add(px[i]+','+px[i+1]+','+px[i+2]);" +
   "return seen.size; })()";
 
+/* A hand can end at any moment of the check — the machines keep
+   playing while it clicks about — and the end sheet then covers the
+   menu. So before anything is clicked, a finished hand is dealt on and
+   a question is answered, the way a player would. */
+async function settle(page) {
+  for (var i = 0; i < 3; i++) {
+    if (await page.isVisible("#ovEnd")) { await page.click("#endNext"); await page.waitForTimeout(1700); continue; }
+    if (await page.isVisible("#ovAsk")) { await page.click("#askRow .btn"); await page.waitForTimeout(300); continue; }
+    break;
+  }
+}
+
+/* ---------- carrying a bone to an end ----------
+   A finger that lands on a bone and moves is carrying it; letting go
+   over an end plays it there. Driven with the real mouse, through the
+   real hit tests, in whichever renderer is on. */
+async function dragOne(page, label) {
+  var waited = 0;
+  while (waited < 14000) {
+    var mine = await page.evaluate("(()=>{const g=window.__dt().G;return g.view && g.view.turn === g.mySeat && !g.busy && window.AI.movesFor(g.view).length > 0;})()");
+    if (mine) break;
+    /* a turn with nothing to play is said for us; otherwise wait —
+       and a hand that ended meanwhile is dealt on */
+    await settle(page);
+    await page.waitForTimeout(300); waited += 300;
+  }
+  if (waited >= 14000) { ok(label + ": a turn with a playable bone comes round", false, "waited " + waited + "ms"); return; }
+  var spot = await page.evaluate(
+    "(()=>{const d=window.__dt(),s=d.scene(),L=window.Layout;" +
+    "const r=L.handRow(s.hand.length, d.over.w, d.over.h, {pad:10});" +
+    "for(let i=0;i<s.hand.length;i++){ if(s.playable[s.hand[i]]) return {x:r[i].x+r[i].w/2,y:r[i].y+r[i].h/2,tile:s.hand[i]}; }" +
+    "return null;})()");
+  var box = await page.evaluate("(()=>{const r=document.getElementById('stage').getBoundingClientRect();return {x:r.left,y:r.top};})()");
+  var before = await page.evaluate("window.__dt().G.view.hand.length");
+  await page.mouse.move(box.x + spot.x, box.y + spot.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + spot.x + 4, box.y + spot.y - 40, { steps: 5 });
+  await page.waitForTimeout(120);
+  var dragging = await page.evaluate("(()=>{const g=window.__dt().G;return !!(g.drag && g.drag.tile === " + spot.tile + ");})()");
+  ok(label + ": a bone that is moved is picked up, not tapped", dragging);
+  /* where is a slot on the screen? */
+  var slot = await page.evaluate(
+    "(()=>{const d=window.__dt(),s=d.scene(); if(!s.ghosts.length) return null; const gh=s.ghosts[0];" +
+    "if(d.gfx.kind==='3d'){ const p=d.gfx.screenOf(gh.x, gh.y, 0); return p ? {x:p.x,y:p.y,end:gh.end} : null; }" +
+    "const sl=d.gfx.slots[0]; return sl ? {x:sl.x+sl.w/2, y:sl.y+sl.h/2, end:sl.end} : null; })()");
+  ok(label + ": the open end it fits is marked on the table", !!slot);
+  if (!slot) { await page.mouse.up(); return; }
+  await page.mouse.move(box.x + slot.x, box.y + slot.y, { steps: 8 });
+  await page.waitForTimeout(150);
+  var over = await page.evaluate("(()=>{const g=window.__dt().G;return g.drag ? g.drag.over : null;})()");
+  ok(label + ": carried over the slot, the slot says so", over === slot.end, "over " + over + " wanted " + slot.end);
+  await page.mouse.up();
+  await page.waitForTimeout(350);
+  var after = await page.evaluate("window.__dt().G.view.hand.length");
+  ok(label + ": letting go there plays it", after === before - 1, "hand " + before + "→" + after);
+  var left = await page.evaluate("(()=>{const g=window.__dt().G;return !g.drag && g.sel === null;})()");
+  ok(label + ": and nothing is left in the fingers", left);
+}
+
+/* ---------- the pips, read back off the screen ----------
+   layout-check proves which half of every bone touches its neighbour.
+   This reads the *picture*: for each half it samples the nine places a
+   pip can be and counts the dark ones, in both renderers, and requires
+   the count to be the number the layout says that half shows. A bone
+   drawn back to front, a texture mapped the wrong way round, a renderer
+   turning its pips twice — all would read wrong here and nowhere else. */
+var KNOWN = "(()=>{const R=window.Rules,d=window.__dt();const t=(a,b)=>R.tileId(a,b);" +
+  "d.G.view.line=[{tile:t(6,6),end:'S',flip:false,dbl:true,seat:1},{tile:t(4,6),end:'R',flip:false,dbl:false,seat:2}," +
+  "{tile:t(3,6),end:'L',flip:false,dbl:false,seat:3},{tile:t(2,4),end:'R',flip:false,dbl:false,seat:0}," +
+  "{tile:t(3,3),end:'L',flip:false,dbl:true,seat:1},{tile:t(1,2),end:'R',flip:false,dbl:false,seat:2}," +
+  "{tile:t(0,3),end:'L',flip:false,dbl:false,seat:3}];" +
+  "d.G.anim=null;d.G.lastIdx=-1;d.G.st=null;d.G.busy=true;d.G.sel=null;d.G.drag=null;return d.G.view.line.length;})()";
+var READBACK = "(()=>{" +
+  "const d=window.__dt(), s=d.scene(), L=window.Layout, g=d.gfx, cv=document.getElementById('table');" +
+  "const W=cv.width, H=cv.height; let px, flip;" +
+  "if (g.kind==='3d'){ const gl=cv.getContext('webgl'); px=new Uint8Array(W*H*4); gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,px); flip=true; }" +
+  "else { px=cv.getContext('2d').getImageData(0,0,W,H).data; flip=false; }" +
+  "const lum=(X,Y)=>{ X=Math.round(X); Y=Math.round(Y); if(X<0||Y<0||X>=W||Y>=H) return null; if(flip) Y=H-1-Y; const k=(Y*W+X)*4; return 0.299*px[k]+0.587*px[k+1]+0.114*px[k+2]; };" +
+  "const dpr=g.dpr||1; let toScreen, unit;" +
+  "if (g.kind==='3d'){ toScreen=(x,y)=>{ const p=g.screenOf(x,y,0.17); return p?{x:p.x*dpr,y:p.y*dpr}:null; }; }" +
+  "else { const ed=g.edges(), top=s.topPad, bot=s.botPad; const fit=L.fit(s.table.bbox, g.w-ed.all*2, g.h-top-bot, 10); unit=fit.scale;" +
+  "  toScreen=(x,y)=>({x:(fit.ox+ed.all+x*unit)*dpr, y:(fit.oy+top+y*unit)*dpr}); }" +
+  "const out=[];" +
+  "for (const b of s.table.bones){ const r=b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r), f=L.faces(b);" +
+  "  const halves=[[-0.5,f[0]],[0.5,f[1]]]; const got=[];" +
+  "  for (const [hx,n] of halves){ const vals=[];" +
+  "    for (let i=0;i<3;i++) for (let j=0;j<3;j++){ const lx=hx+(i-1)*0.30, ly=(j-1)*0.30;" +
+  "      const x=b.x+lx*C-ly*S, y=b.y+lx*S+ly*C; const p=toScreen(x,y); const v=p?lum(p.x,p.y):null; if(v!==null) vals.push(v); }" +
+  "    if (vals.length<9){ got.push(-1); continue; }" +
+  "    const mx=Math.max(...vals), mn=Math.min(...vals); const dark=(mx-mn)<60?0:vals.filter(v=>v<(mx+mn)/2).length;" +
+  "    got.push(dark); }" +
+  "  out.push({tile:window.Rules.name(b.tile), end:b.end, want:[f[0],f[1]], got:got}); }" +
+  "return out; })()";
+async function readback(page, label) {
+  var n = await page.evaluate(KNOWN);
+  await page.waitForTimeout(1100);          /* the camera eases to the new line */
+  var rb = await page.evaluate(READBACK);
+  var bad = rb.filter(function (b) { return b.got[0] !== b.want[0] || b.got[1] !== b.want[1]; });
+  ok(label + ": every half of every bone shows the number the rules say", bad.length === 0,
+     bad.map(function (b) { return b.tile + " on " + b.end + " wants " + b.want.join("|") + " reads " + b.got.join("|"); }).join("; "));
+  ok(label + ": all " + n + " bones were read", rb.length === n && rb.every(function (b) { return b.got[0] >= 0 && b.got[1] >= 0; }));
+  /* the one that used to be wrong: the 6|4 on the right of the 6|6 */
+  var six4 = rb[1];
+  ok(label + ": the 6|4 shows its 6 to the mula and its 4 to the open end", !!six4 && six4.got[0] === 6 && six4.got[1] === 4,
+     six4 ? six4.got.join("|") : "missing");
+}
+
 (async function main() {
   var srv = await serve();
   var port = srv.address().port;
@@ -121,13 +228,16 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
 
   /* ---------- playing ---------- */
   /* wait for our turn — the opener may be one of the others */
+  /* wait for our turn — the opener may be one of the others — and for
+     one with a bone to play: a turn with nothing that fits is said for
+     us (paso) and comes round again */
   var waited = 0;
-  while (waited < 12000) {
-    var mine = await page.evaluate("window.__dt().G.view.turn === window.__dt().G.mySeat");
+  while (waited < 16000) {
+    var mine = await page.evaluate("(()=>{const g=window.__dt().G;return g.view.turn === g.mySeat && !g.busy && window.AI.movesFor(g.view).length > 0;})()");
     if (mine) break;
-    await page.waitForTimeout(400); waited += 400;
+    await page.waitForTimeout(300); waited += 300;
   }
-  ok("the turn comes round to you", waited < 12000, "waited " + waited + "ms");
+  ok("the turn comes round to you", waited < 16000, "waited " + waited + "ms");
 
   var before = await page.evaluate("window.__dt().G.view.hand.length");
   /* tap the first playable bone where it actually is on screen */
@@ -148,6 +258,24 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
     ok("tapping a bone plays it or lifts it", after === before - 1 || lifted,
        "hand " + before + "→" + after + ", line " + line + ", lifted " + lifted);
   }
+
+  /* ---------- the room ----------
+     Bulbs and papel picado over the table, and faces on the plates.
+     Decoration that could catch a tap would be a bug; it cannot. */
+  var fiesta = await page.evaluate("(()=>{const sv=document.querySelector('#stage > svg.fiesta'); if(!sv) return null;" +
+    "return {flags:sv.querySelectorAll('.flag').length, bulbs:sv.querySelectorAll('.glow').length, pe:getComputedStyle(sv).pointerEvents," +
+    "splash:!!document.querySelector('#splash > svg.fiesta')};})()");
+  ok("papel picado hangs over the table", !!fiesta && fiesta.flags >= 6, fiesta ? fiesta.flags + " flags" : "no layer");
+  ok("under a string of bulbs", !!fiesta && fiesta.bulbs >= 4, fiesta ? fiesta.bulbs + " bulbs" : "");
+  ok("and none of it can catch a tap", !!fiesta && fiesta.pe === "none", fiesta ? fiesta.pe : "");
+  ok("the door is dressed the same way", !!fiesta && fiesta.splash);
+  var faces = await page.evaluate("(()=>{let n=0; for (const id of ['plate1','plate2','plate3']) if (document.querySelector('#'+id+' .av svg')) n++;" +
+    "return {plates:n, me:!!document.querySelector('#me svg'), distinct:new Set([1,2,3].map(i=>document.querySelector('#plate'+i+' .av').getAttribute('data-h'))).size};})()");
+  ok("every seat has a face", faces.plates === 3 && faces.me, faces.plates + " plates, me " + faces.me);
+  ok("and they are three different people", faces.distinct === 3, faces.distinct + " distinct");
+
+  /* ---------- carrying a bone, in 3D ---------- */
+  await dragOne(page, "3D");
 
   /* let the machines play a while — this is where a bad rollout or a
      bad layout would throw */
@@ -362,6 +490,7 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.waitForTimeout(200);
   ok("and closes again", !(await page.isVisible("#ovCount")));
 
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(250);
   await page.click("#mLook");
@@ -383,17 +512,24 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.waitForTimeout(200);
 
   /* ---------- 2D and back ---------- */
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(200);
+  var handBefore = await page.evaluate("(()=>{const g=window.__dt().G;return {no:g.match.handNo, line:g.view.line.length};})()");
   await page.click("#mView");
   await page.waitForTimeout(700);
   var kind2 = await page.evaluate("window.__dt().gfx.kind");
   ok("it switches to 2D mid-hand", kind2 === "2d", kind2);
   var flat = await page.evaluate(VARIED);
   ok("and the flat table draws too", flat > 4, flat + " distinct samples");
-  var kept = await page.evaluate("window.__dt().G.view.line.length");
-  ok("without losing the hand", kept >= played, kept + " vs " + played);
+  var handAfter = await page.evaluate("(()=>{const g=window.__dt().G;return {no:g.match.handNo, line:g.view.line.length};})()");
+  ok("without losing the hand", handAfter.no !== handBefore.no || handAfter.line >= handBefore.line,
+     handAfter.line + " vs " + handBefore.line);
 
+  /* ---------- carrying a bone, flat ---------- */
+  await dragOne(page, "2D");
+
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(200);
   await page.click("#mView");
@@ -401,6 +537,7 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   ok("and back to 3D", (await page.evaluate("window.__dt().gfx.kind")) === "3d");
 
   /* ---------- the join door ---------- */
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(200);
   await page.click("#mParty");
@@ -410,6 +547,7 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.click("[data-close=ovParty]");
 
   /* ---------- house rules ---------- */
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(200);
   await page.click("#mRules");
@@ -444,6 +582,7 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.click("[data-close=ovRules]");
 
   /* ---------- how it's played ---------- */
+  await settle(page);
   await page.click("#btnMenu");
   await page.waitForTimeout(200);
   await page.click("#mLearn");
@@ -467,6 +606,110 @@ var VARIED = "(() => { const c = document.getElementById('table');" +
   await page.waitForTimeout(600);
   var saved = await page.evaluate("(()=>{const raw=JSON.parse(localStorage.getItem('dominotable.v1')||'null');return raw&&raw.rules?raw.rules.target:0;})()");
   ok("the house rules survive a reload", saved === 50, saved + "");
+
+  /* ---------- where you left it ----------
+     The match was written down after its last play. The splash has to
+     offer it back, and taking it has to put the same hand, the same
+     bones and the same score on the table. */
+  var expect = await page.evaluate("(()=>{const o=window.__dt().loadMatch(); return o ? {hand:o.match.handNo, line:o.st.line.length, scores:o.match.scores, mine:o.st.hands[0].length} : null;})()");
+  ok("a match in progress is written down", !!expect, expect ? "hand " + (expect.hand + 1) + ", " + expect.line + " bones down" : "nothing saved");
+  ok("and the door offers it back", await page.isVisible("#goResume"));
+  await page.click("#goResume");
+  await page.waitForTimeout(1300);
+  var got = await page.evaluate("(()=>{const g=window.__dt().G; return {hand:g.match.handNo, line:g.view.line.length, scores:g.match.scores, mine:g.view.hand.length, rated:!!(g.mm&&g.mm.rated), splash:!document.getElementById('splash').classList.contains('gone')};})()");
+  ok("taking it puts the same hand back", !!expect && got.hand === expect.hand && got.line >= expect.line && got.mine <= expect.mine,
+     JSON.stringify(got) + " vs " + JSON.stringify(expect));
+  ok("with the same score", !!expect && got.scores.join() === expect.scores.join());
+  ok("still rated", got.rated);
+  ok("and the door is out of the way", !got.splash);
+
+  /* ---------- which end, when a bone fits both ----------
+     A real position, found by playing random hands until this seat is
+     on turn holding a bone that fits both ends; lifting it has to star
+     one end, on the slot and on the button, and count a lean. */
+  var lean = await page.evaluate("(()=>{const R=window.Rules,d=window.__dt(); let tries=0;" +
+    "for (let seed=1; seed<600; seed++){ const st=R.newHand({seed:seed}); const r=R.rng(seed); let guard=0, hit=null;" +
+    "  while(!st.over && guard++<60){ if(st.turn===0 && st.line.length>=3){ const mv=R.moves(st,0); const by={}; mv.forEach(m=>{(by[m.tile]=by[m.tile]||[]).push(m.end);});" +
+    "    const t=Object.keys(by).find(k=>by[k].length===2); if(t!==undefined){ hit=+t; break; } }" +
+    "    const mv=R.moves(st); if(!mv.length){R.pass(st);continue;} R.play(st, mv[Math.floor(r()*mv.length)]); }" +
+    "  if (hit===null) continue; tries++;" +
+    "  d.G.st=st; d.G.view=R.publicView(st,0); d.G.busy=false; d.G.anim=null; d.G.sel=hit; d.G.hint=null; d.P.coach=true;" +
+    "  const before=d.G.mm.leans||0; d.leanFor(hit); d.mood(0,'calm',1);" +
+    "  if (d.G.lean){ const rec=document.querySelectorAll('#endPick .btn.rec').length; const vis=!document.getElementById('endPick').classList.contains('hide');" +
+    "    const star=document.getElementById('endPick').textContent.indexOf('★')>=0; return {lean:d.G.lean, rec:rec, vis:vis, star:star, counted:(d.G.mm.leans||0)-before, tries:tries}; }" +
+    "  if (tries>=6) break; }" +
+    "return {lean:null, tries:tries}; })()");
+  ok("lifting a bone that fits both ends leans to one", !!(lean && lean.lean), "after " + (lean ? lean.tries : 0) + " positions");
+  if (lean && lean.lean) {
+    ok("the end picker is up with that end starred", lean.vis && lean.rec === 1 && lean.star, "visible " + lean.vis + ", " + lean.rec + " starred");
+    ok("and the lean is counted as help", lean.counted === 1, lean.counted + " counted");
+  }
+  var sc = await page.evaluate("(()=>{const d=window.__dt(); const s=d.scene(); return {lean:s.lean, ghosts:s.ghosts.length};})()");
+  ok("the slot it leans to is marked on the table", sc.ghosts === 2 && (sc.lean === "L" || sc.lean === "R"), JSON.stringify(sc));
+
+  /* ---------- two of you on one phone ----------
+     Partners sharing a phone. The table has to be covered when it is
+     the other person's turn, lift on their word, and the chair the phone
+     sits in has to follow whoever is holding it. */
+  await settle(page);
+  await page.click("#btnMenu");
+  await page.waitForTimeout(200);
+  await page.click("#mParty");
+  await page.waitForTimeout(400);
+  ok("the join door offers one phone for two", await page.isVisible("#pSame"));
+  await page.click("#pSame");
+  await page.waitForTimeout(300);
+  await page.fill("#sName0", "Ana");
+  await page.fill("#sName1", "Rosa");
+  await page.click("#sDeal");
+  await page.waitForTimeout(1900);
+  var hot = await page.evaluate("(()=>{const g=window.__dt().G; return {hot:!!g.hot, n0:g.names[0], n2:g.names[2], rated:!!(g.mm&&g.mm.rated), role:document.querySelector('#plate2 .role').textContent};})()");
+  ok("the two of you are seated as partners", hot.hot && hot.n0 === "Ana" && hot.n2 === "Rosa", JSON.stringify(hot));
+  ok("the plate across says so", /your partner/i.test(hot.role), hot.role);
+  ok("and the match is not rated", !hot.rated);
+  var handoff = await page.evaluate(`(async () => {
+    const d = window.__dt(); const t0 = performance.now();
+    let curtains = 0, switched = 0, leaked = 0, handWhenCovered = null;
+    while (performance.now() - t0 < 30000 && curtains < 2) {
+      await new Promise(r => setTimeout(r, 60));
+      const g = d.G; if (!g.view) continue;
+      const cv = document.getElementById('ovPass');
+      if (!cv.classList.contains('hide')) {
+        curtains++;
+        /* whose bones are showing under the curtain must be the previous player's, not the one it is for */
+        if (g.mySeat === g.st.turn) leaked++;
+        const who = document.getElementById('passWho').textContent;
+        document.getElementById('passGo').dispatchEvent(new PointerEvent('pointerdown', {bubbles:true}));
+        document.getElementById('passGo').dispatchEvent(new PointerEvent('pointerup', {bubbles:true}));
+        await new Promise(r => setTimeout(r, 120));
+        if (g.mySeat === g.st.turn && cv.classList.contains('hide')) switched++;
+        continue;
+      }
+      if (g.view.turn === g.mySeat && !g.busy) {
+        const mv = window.AI.movesFor(g.view);
+        if (mv.length) d.tryPlay(mv[0].tile, mv[0].end); else d.doPass(g.mySeat);
+      }
+      if (g.st && g.st.over) { document.getElementById('endNext').dispatchEvent(new PointerEvent('pointerdown', {bubbles:true})); document.getElementById('endNext').dispatchEvent(new PointerEvent('pointerup', {bubbles:true})); await new Promise(r => setTimeout(r, 1500)); }
+    }
+    return { curtains, switched, leaked, seat: d.G.mySeat };
+  })()`);
+  ok("the table is covered when the phone should change hands", handoff.curtains >= 1, handoff.curtains + " curtains in 30s");
+  ok("it never covers the table for the person already holding it", handoff.leaked === 0, handoff.leaked + " leaks");
+  ok("and lifts on their word, with the chair following", handoff.switched === handoff.curtains, handoff.switched + " of " + handoff.curtains);
+  ok("a tap on the dark round the curtain does not lift it", await page.evaluate(
+    "(()=>{const cv=document.getElementById('ovPass'); cv.classList.remove('hide'); cv.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); const up=!cv.classList.contains('hide'); cv.classList.add('hide'); return up;})()"));
+
+  /* ---------- the pips, read back ---------- */
+  await page.setViewportSize({ width: 820, height: 640 });
+  await page.waitForTimeout(400);
+  await readback(page, "3D");
+  await settle(page);
+  await page.click("#btnMenu");
+  await page.waitForTimeout(200);
+  await page.click("#mView");
+  await page.waitForTimeout(600);
+  ok("flat again for the read-back", (await page.evaluate("window.__dt().gfx.kind")) === "2d");
+  await readback(page, "2D");
 
   ok("no console error in the whole session", errors.length === 0,
      errors.slice(0, 4).join(" | "));

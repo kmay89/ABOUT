@@ -301,7 +301,8 @@ var Net = {
   pool: [],             /* host only: offers minted and waiting to be taken */
   pc: null, dc: null,   /* guest only: the single link to the host          */
   name: "",
-  roster: [],           /* [{seat, name, here, bot}] as the host sees it    */
+  face: "",             /* this player's face code (faces.js), sent with the name */
+  roster: [],           /* [{seat, name, here, bot, face}] as the host sees it */
   onMessage: null,      /* (msg, fromSeat)                                  */
   onRoster: null,
   onLink: null,
@@ -328,8 +329,8 @@ Net.startHosting = function (name) {
   Net.name = name || "Host";
   Net.peers = [];
   Net.pool = [];
-  Net.roster = [{ seat: 0, name: Net.name, here: true, bot: false }];
-  for (var s = 1; s < SEATS; s++) Net.roster.push({ seat: s, name: "", here: false, bot: true });
+  Net.roster = [{ seat: 0, name: Net.name, here: true, bot: false, face: cleanFace(Net.face) }];
+  for (var s = 1; s < SEATS; s++) Net.roster.push({ seat: s, name: "", here: false, bot: true, face: "" });
   return Net.mintInvite();
 };
 
@@ -396,7 +397,7 @@ function seatFor(name, id) {
 /* the roster as the other phones see it — without the ids, which are
    what a chair is reclaimed with and so are nobody else's business */
 function publicRoster() {
-  return Net.roster.map(function (r) { return { seat: r.seat, name: r.name, here: r.here, bot: r.bot }; });
+  return Net.roster.map(function (r) { return { seat: r.seat, name: r.name, here: r.here, bot: r.bot, face: r.face || "" }; });
 }
 /* a chair whose owner dropped out keeps their name on it for a while,
    so a newcomer is offered a truly empty chair before a held one */
@@ -437,6 +438,7 @@ function wireHostChannel(slot) {
          this has to be idempotent */
       if (slot.claimed) { sendTo(slot, { k: "seat", seat: slot.seat, roster: publicRoster() }); return; }
       var nm = cleanName(msg.name);
+      var face = cleanFace(msg.face);
       var id = typeof msg.id === "string" ? msg.id.replace(/[^a-z0-9]/gi, "").slice(0, 16) : "";
       /* Somebody arriving who is already sitting down is that same person
          coming back on a new link — the older one is a corpse the host
@@ -463,7 +465,7 @@ function wireHostChannel(slot) {
       Net.peers.push(slot);
       var idx = Net.pool.indexOf(slot);
       if (idx >= 0) Net.pool.splice(idx, 1);
-      Net.roster[seat] = { seat: seat, name: nm, here: true, bot: false, id: id };
+      Net.roster[seat] = { seat: seat, name: nm, here: true, bot: false, id: id, face: face };
       sendTo(slot, { k: "seat", seat: seat, roster: publicRoster() });
       Net.broadcast({ k: "lob", roster: publicRoster() });
       if (Net.onRoster) Net.onRoster(Net.roster);
@@ -488,7 +490,7 @@ function dropSlot(slot) {
   /* the chair does not disappear — it goes back to being played by the
      house, and keeps the name so its owner can take it back */
   if (seat >= 1 && seat < SEATS) {
-    Net.roster[seat] = { seat: seat, name: Net.roster[seat].name, here: false, bot: true, id: Net.roster[seat].id };
+    Net.roster[seat] = { seat: seat, name: Net.roster[seat].name, here: false, bot: true, id: Net.roster[seat].id, face: Net.roster[seat].face || "" };
   }
   Net.broadcast({ k: "lob", roster: publicRoster() });
   if (Net.onRoster) Net.onRoster(Net.roster);
@@ -545,7 +547,7 @@ function wireGuestChannel(dc) {
     Net.everSat = true;
     /* said three times, a beat apart: the host keys a seat on this name
        and a lost greeting would put the player in the wrong chair */
-    var say = function () { rawSend({ k: "hi", name: Net.name, id: Net.id || "" }); };
+    var say = function () { rawSend({ k: "hi", name: Net.name, id: Net.id || "", face: cleanFace(Net.face) }); };
     say();
     setTimeout(say, 220);
     setTimeout(say, 700);
@@ -660,6 +662,10 @@ function cleanName(n) {
   var s = String(n === undefined || n === null ? "" : n)
     .replace(/[<>&"'`\\]/g, "").replace(/\s+/g, " ").trim().slice(0, 14);
   return s || "Jugador";
+}
+/* a face code is nine fixed characters or nothing (see faces.js) */
+function cleanFace(f) {
+  return (typeof f === "string" && /^F1\.\d{7}$/.test(f)) ? f : "";
 }
 
 /* ---------- the room: four letters ----------
@@ -841,6 +847,7 @@ Net.drawQR = drawQR;
 Net.decode = dec;
 Net.encode = enc;
 Net.cleanName = cleanName;
+Net.cleanFace = cleanFace;
 Net.SEATS = SEATS;
 
 if (typeof module !== "undefined" && module.exports) module.exports = Net;

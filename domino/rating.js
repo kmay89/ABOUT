@@ -280,7 +280,12 @@ function expected(r, rj, rdj) {
    than a long one, so a match to 50 counts for 0.6 of a match to 100. */
 function assistWeight(assisted, target) {
   var h = 0;
-  if (assisted && typeof assisted === "object") h = Math.floor(num(assisted.hints, 0, 0, 1000));
+  /* a lean — the room marking the better of two ends for a bone the
+     player had already chosen — is a third of a hint: it answers a
+     smaller question. Leans weigh the match; only hints touch the stars. */
+  if (assisted && typeof assisted === "object") {
+    h = Math.floor(num(assisted.hints, 0, 0, 1000)) + num(assisted.leans, 0, 0, 1000) / 3;
+  }
   var w = Math.pow(0.92, h);
   var t = num(target, 100, 50, 200);
   w *= Math.min(1, 0.2 + 0.8 * t / 100);

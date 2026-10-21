@@ -165,13 +165,23 @@ function table(line, opts) {
 
   /* the bounding box, with a little air so nothing touches the edge */
   var b = { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 };
-  for (var k = 0; k < out.bones.length; k++) {
-    var r = boxOf(out.bones[k]);
+  function grow(r) {
     if (r.x0 < b.x0) b.x0 = r.x0; if (r.y0 < b.y0) b.y0 = r.y0;
     if (r.x1 > b.x1) b.x1 = r.x1; if (r.y1 > b.y1) b.y1 = r.y1;
   }
-  out.bbox = b;
+  for (var k = 0; k < out.bones.length; k++) grow(boxOf(out.bones[k]));
   out.rows = Math.max(1, Math.round((b.y1 - b.y0) / ROW));
+  /* Where the next plain bone would go at each end, folded if the line
+     has reached the table's edge, is part of the box too. The renderers
+     fit the box to the screen, so this is what keeps the slot you are
+     about to play into *on* the cloth, and what has the camera make room
+     for a bone before it lands rather than lurching back as it does. */
+  out.next = {
+    L: advance(cursor(L.x, L.y, L.h, L.fold), false, bound),
+    R: advance(cursor(R.x, R.y, R.h, R.fold), false, bound)
+  };
+  grow(boxOf(out.next.L)); grow(boxOf(out.next.R));
+  out.bbox = b;
 
   /* where the next bone would go, at each end — this is what the ghost
      slots are drawn on, and what a tap on the table is measured against */
