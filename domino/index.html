@@ -200,6 +200,8 @@
     transition:opacity .25s, transform .35s cubic-bezier(.2,1.4,.4,1);
   }
   #grade.on{opacity:1; transform:translate(-50%,0)}
+  #grade b{display:block; font-size:1.15rem}
+  #grade small{display:block; font-weight:500; font-size:.78rem; color:var(--soft); margin-top:1px}
   #grade.sharp{color:var(--glow); border-color:var(--amber); box-shadow:0 0 22px rgba(240,168,60,.35)}
   #grade.good{color:var(--good); border-color:#3f6b4c}
   #grade.ok{color:var(--ink)}
@@ -336,7 +338,8 @@
   }
   #chuy.off{opacity:0; transform:translateY(-10px); pointer-events:none}
   #chuy .head{display:flex; align-items:center; gap:7px; font-weight:700; color:var(--amber); font-size:.8rem; letter-spacing:.04em}
-  #chuy .head .x{margin-left:auto; color:var(--soft); font-weight:400; padding:2px 6px}
+  #chuy .head .x{margin-left:auto; color:#241503; font-weight:750; padding:4px 12px; background:linear-gradient(180deg,#f0a83c,#d2841f);
+    border-radius:999px; font-size:.78rem; min-height:30px; pointer-events:auto}
   #chuy p{margin:.35em 0 0}
   #chuy .why{color:var(--soft); font-size:.84rem}
 
@@ -675,6 +678,7 @@
   </div>
   <div class="row">
     <button class="btn" id="mMusic">🎺 Music on</button>
+    <button class="btn" id="mHold">Tips wait for me</button>
   </div>
   <div class="row">
     <button class="btn" id="mFace">My face</button>
