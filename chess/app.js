@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park" };
+var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", roomTone: true };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -282,7 +282,22 @@ function setScene(id) {
   prefs.scene = id; savePrefs();
   if (R3) R3.setScene(id);
   syncStageBackdrop();
+  syncRoomTone();
   needFrame();
+}
+/* the place's own quiet — birds in the park, the murmur of the café,
+   the fire in the grand room — under the game, if sound is on and the
+   room tone has not been switched off in the Studio. Level, not a
+   switch: sound.js fades it in and out. */
+var audioWoken = false;
+function syncRoomTone() {
+  if (typeof Sound === "undefined" || !Sound.setPlace) return;
+  Sound.setPlace(prefs.scene);
+  /* not before the first tap: a browser will not start the audio clock
+     until somebody has touched the page, and asking for a room tone
+     before then would only open a clock that cannot run yet */
+  if (!audioWoken) return;
+  Sound.ambience(prefs.sound && prefs.roomTone ? 0.55 : 0);
 }
 function syncStageBackdrop() {
   var st = $("stage");
@@ -3764,6 +3779,17 @@ function renderStudio() {
     scBox.appendChild(b);
   });
   $("stSceneNote").textContent = Scenes.get(prefs.scene).note;
+  /* and whether the place can be heard as well as seen */
+  var tone = $("stTone");
+  if (tone) {
+    tone.classList.toggle("sel", !!prefs.roomTone);
+    tone.textContent = prefs.roomTone ? "\ud83d\udd0a Room tone on" : "\ud83d\udd07 Room tone off";
+    tone.onclick = function () { prefs.roomTone = !prefs.roomTone; savePrefs(); syncRoomTone(); renderStudio(); };
+  }
+  var toneNote = $("stToneNote");
+  if (toneNote) toneNote.textContent = prefs.roomTone
+    ? "The place, quietly, under the game: birds and a breeze, a café\u2019s murmur, a fire, a page turned."
+    : "The place is seen and not heard.";
 
   /* gallery: the house set, then anything you saved or a friend sent */
   var box = $("stPresets");
@@ -4270,6 +4296,7 @@ function syncSettingsUI() {
     : v === "brief" ? "One line per remark, in notation, with what the move cost. Marks still ride along on the move list."
     : "The room says nothing and marks nothing. You can turn it back on mid-game.";
   if (typeof Sound !== "undefined") Sound.enable(prefs.sound);
+  syncRoomTone();
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
   $("setHelpers").classList.toggle("sel", prefs.helpers);
@@ -4619,7 +4646,7 @@ function boot() {
      browser wants before it will start an audio clock, and lets the
      room's reverb grow at idle before the first sting needs it */
   document.addEventListener("pointerdown", function () {
-    if (prefs.sound && typeof Sound !== "undefined") { try { Sound.wake(); } catch (e) {} }
+    if (prefs.sound && typeof Sound !== "undefined") { try { Sound.wake(); audioWoken = true; syncRoomTone(); } catch (e) {} }
   }, { capture: true, passive: true });
   if (typeof Sound !== "undefined" && Sound.setReduced) Sound.setReduced(REDUCED);
   /* who this room is, as far as the shared front door is concerned */

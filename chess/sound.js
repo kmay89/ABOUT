@@ -1144,45 +1144,187 @@ function reducedNow() {
 
 /* ---------- the room tone ----------
    Off unless asked for. A room with nobody talking in it is not
-   silent: there is a low wash of air and, here, a slow two-note pad
-   that breathes about once every twenty seconds. Turned up, it sits
-   just above the threshold of noticing; turned off, every node is
-   stopped and let go, so it costs nothing at all. And it is a sound for
-   a room somebody is in: a tab you have left stops humming to nobody,
-   and picks up again when you come back. */
-var amb = null, ambLevel = 0, AMB_GAIN = 0.06;
+   silent, and each of the places the board can stand in is quiet in
+   its own way: the studio has a low wash of air and a slow two-note
+   pad that breathes about once every twenty seconds; the park has a
+   breeze that comes and goes through leaves, and birds; the café has
+   the murmur of a room full of people none of whom you can quite hear,
+   and now and then a cup set down on a saucer; the grand room has a
+   fire — a low draw up the chimney and the crackle of it; the library
+   has a hush, and a page turned somewhere behind you. All of it is
+   synthesized from noise and a few sines, like everything else here.
+
+   Turned up, it sits just above the threshold of noticing; turned off,
+   every node is stopped and let go, so it costs nothing at all. And it
+   is a sound for a room somebody is in: a tab you have left stops
+   humming to nobody, and picks up again when you come back. */
+var amb = null, ambLevel = 0, AMB_GAIN = 0.06, placeNow = "studio";
 /* every room tone not yet fallen silent, the one playing and any still
    fading out, so "is anything left running" is answered by the nodes
    themselves rather than by a flag */
 var ambAll = [], ambWatched = false;
+/* each place: its air (noise through a filter, with what moves it), its
+   pad if it has one, and the small sounds it makes now and then —
+   how often, as a range of seconds, and how loud */
+var PLACES = {
+  studio:  { air: { hz: 320, q: 0.5, gain: 0.6 }, pad: true },
+  park:    { air: { hz: 900, q: 0.4, gain: 0.42, breeze: { rate: 0.07, depth: 0.55 } },
+             birds: { every: [1.4, 5.0], gain: 0.30 } },
+  cafe:    { air: { hz: 480, q: 0.9, gain: 0.55, murmur: true },
+             clinks: { every: [5, 14], gain: 0.22 } },
+  salon:   { air: { hz: 170, q: 0.7, gain: 0.7, draw: { rate: 0.11, depth: 0.35 } },
+             fire: { every: [0.06, 0.55], gain: 0.5 } },
+  library: { air: { hz: 230, q: 0.5, gain: 0.55 },
+             pages: { every: [7, 16], gain: 0.30 } }
+};
+var PLACE_IDS = Object.keys(PLACES);
+function placeOf(id) { return PLACES[id] ? id : "studio"; }
+
+/* one small sound of a place, at `t` on the audio clock, into `a.g`.
+   Every source made here is counted the way the bed's are, so a stop
+   is a stop and "is anything left running" stays honest. */
+function ambOne(c, a, t, P) {
+  var out = a.g, srcs = [];
+  function pan(node) {
+    if (typeof c.createStereoPanner !== "function") { node.connect(out); return; }
+    var p = c.createStereoPanner(); p.pan.setValueAtTime(rand() * 1.4 - 0.7, t);
+    node.connect(p); p.connect(out);
+  }
+  if (P.birds) {
+    /* a chirrup: two to four quick notes, each a sine swept up and
+       back down, high and small and somewhere off to one side */
+    var n = 2 + Math.floor(rand() * 3), f0 = 2300 + rand() * 1500, g = c.createGain();
+    g.gain.setValueAtTime(0, t); pan(g);
+    for (var i = 0; i < n; i++) {
+      var o = c.createOscillator(), at = t + i * (0.09 + rand() * 0.05), len = 0.045 + rand() * 0.03;
+      o.type = "sine";
+      o.frequency.setValueAtTime(f0, at);
+      o.frequency.linearRampToValueAtTime(f0 + 500 + rand() * 900, at + len * 0.45);
+      o.frequency.linearRampToValueAtTime(f0 - 150, at + len);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(P.birds.gain, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+      o.connect(g); o.start(at); o.stop(at + len + 0.01); srcs.push(o);
+    }
+  } else if (P.clinks) {
+    /* a cup on a saucer: two partials of china, over in a tenth of a second */
+    var ck = 2600 + rand() * 900, cg = c.createGain();
+    cg.gain.setValueAtTime(0.0001, t);
+    cg.gain.exponentialRampToValueAtTime(P.clinks.gain, t + 0.003);
+    cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    pan(cg);
+    [1, 2.76].forEach(function (m, k) {
+      var o = c.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(ck * m, t);
+      var og = c.createGain(); og.gain.setValueAtTime(k ? 0.35 : 1, t);
+      o.connect(og); og.connect(cg); o.start(t); o.stop(t + 0.16); srcs.push(o);
+    });
+  } else if (P.fire) {
+    /* a crackle: a few milliseconds of noise with the bottom taken out */
+    var src = c.createBufferSource(); src.buffer = noise(c); src.loop = true;
+    var hp = c.createBiquadFilter(); hp.type = "highpass";
+    hp.frequency.setValueAtTime(1400 + rand() * 1800, t); hp.Q.setValueAtTime(0.8, t);
+    var fg = c.createGain(), len = 0.006 + rand() * 0.022;
+    fg.gain.setValueAtTime(0.0001, t);
+    fg.gain.exponentialRampToValueAtTime(P.fire.gain * (0.25 + rand() * 0.75), t + 0.002);
+    fg.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    src.connect(hp); hp.connect(fg); pan(fg);
+    src.start(t); src.stop(t + len + 0.01); srcs.push(src);
+  } else if (P.pages) {
+    /* a page turned: a soft swell of paper, over in half a second */
+    var ps = c.createBufferSource(); ps.buffer = noise(c); ps.loop = true;
+    var bp = c.createBiquadFilter(); bp.type = "bandpass";
+    bp.frequency.setValueAtTime(1300 + rand() * 600, t); bp.Q.setValueAtTime(0.7, t);
+    var pg = c.createGain();
+    pg.gain.setValueAtTime(0.0001, t);
+    pg.gain.exponentialRampToValueAtTime(P.pages.gain, t + 0.22);
+    pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    ps.connect(bp); bp.connect(pg); pan(pg);
+    ps.start(t); ps.stop(t + 0.6); srcs.push(ps);
+  }
+  for (var k2 = 0; k2 < srcs.length; k2++) a.count(srcs[k2]);
+}
+
 function ambStart(c) {
-  var now = c.currentTime, a = { ctx: c, srcs: [], alive: 0 };
+  var now = c.currentTime, a = { ctx: c, srcs: [], alive: 0, timer: 0, next: 0 };
+  var P = PLACES[placeOf(placeNow)];
   a.g = c.createGain();
   a.g.gain.setValueAtTime(0, now);
   a.g.connect(master);
-  /* the air: noise with everything above a murmur taken out */
-  var n = c.createBufferSource(); n.buffer = noise(c); n.loop = true;
-  var lp = c.createBiquadFilter(); lp.type = "lowpass";
-  lp.frequency.setValueAtTime(320, now); lp.Q.setValueAtTime(0.5, now);
-  var ng = c.createGain(); ng.gain.value = 0.6;
-  n.connect(lp); lp.connect(ng); ng.connect(a.g);
-  /* the pad: D and A, very low, the A a breath sharp so the two of
-     them drift in and out of each other */
-  var pg = c.createGain(); pg.gain.value = 0.22;
-  var lfo = c.createOscillator(), lg = c.createGain();
-  lfo.frequency.setValueAtTime(0.05, now); lg.gain.value = 0.09;
-  lfo.connect(lg); lg.connect(pg.gain);
-  var o1 = c.createOscillator(); o1.type = "triangle"; o1.frequency.setValueAtTime(noteHz(-24), now);
-  var o2 = c.createOscillator(); o2.type = "sine"; o2.frequency.setValueAtTime(noteHz(-17) + 0.13, now);
-  o1.connect(pg); o2.connect(pg); pg.connect(a.g);
   /* when the last source has stopped, let go of the output too */
-  var ended = function () {
+  var ended = function (src) {
+    var i = a.srcs.indexOf(src);
+    if (i >= 0) a.srcs.splice(i, 1);
     if (--a.alive > 0) return;
     try { a.g.disconnect(); } catch (e) {}
     var k = ambAll.indexOf(a);
     if (k >= 0) ambAll.splice(k, 1);
   };
-  [n, lfo, o1, o2].forEach(function (s) { s.onended = ended; s.start(now); a.srcs.push(s); a.alive++; });
+  a.count = function (s) { s.onended = function () { ended(s); }; a.srcs.push(s); a.alive++; };
+  /* the air: noise with everything above a murmur taken out, and
+     whatever moves it in this place */
+  var n = c.createBufferSource(); n.buffer = noise(c); n.loop = true;
+  var lp = c.createBiquadFilter(); lp.type = P.air.murmur ? "bandpass" : "lowpass";
+  lp.frequency.setValueAtTime(P.air.hz, now); lp.Q.setValueAtTime(P.air.q, now);
+  var ng = c.createGain(); ng.gain.value = P.air.gain;
+  n.connect(lp); lp.connect(ng); ng.connect(a.g);
+  var lfos = [];
+  if (P.air.breeze) {
+    /* a breeze: the air opens up and closes again, through the leaves */
+    var bl = c.createOscillator(), bg = c.createGain(), bf = c.createGain();
+    bl.frequency.setValueAtTime(P.air.breeze.rate, now);
+    bg.gain.value = P.air.gain * P.air.breeze.depth; bf.gain.value = P.air.hz * 0.6;
+    bl.connect(bg); bg.connect(ng.gain); bl.connect(bf); bf.connect(lp.frequency);
+    lfos.push(bl);
+  }
+  if (P.air.draw) {
+    /* the chimney drawing: a slow swell in the low wash */
+    var dl = c.createOscillator(), dg = c.createGain();
+    dl.frequency.setValueAtTime(P.air.draw.rate, now);
+    dg.gain.value = P.air.gain * P.air.draw.depth;
+    dl.connect(dg); dg.connect(ng.gain);
+    lfos.push(dl);
+  }
+  if (P.air.murmur) {
+    /* a room of voices: two slow wobbles that never line up, so the
+       murmur rises and falls the way talk does */
+    [0.37, 0.53].forEach(function (hz, k) {
+      var ml = c.createOscillator(), mg = c.createGain();
+      ml.frequency.setValueAtTime(hz, now); mg.gain.value = P.air.gain * (k ? 0.18 : 0.26);
+      ml.connect(mg); mg.connect(ng.gain); lfos.push(ml);
+    });
+  }
+  var srcs = [n].concat(lfos);
+  if (P.pad) {
+    /* the pad: D and A, very low, the A a breath sharp so the two of
+       them drift in and out of each other */
+    var pg = c.createGain(); pg.gain.value = 0.22;
+    var lfo = c.createOscillator(), lg = c.createGain();
+    lfo.frequency.setValueAtTime(0.05, now); lg.gain.value = 0.09;
+    lfo.connect(lg); lg.connect(pg.gain);
+    var o1 = c.createOscillator(); o1.type = "triangle"; o1.frequency.setValueAtTime(noteHz(-24), now);
+    var o2 = c.createOscillator(); o2.type = "sine"; o2.frequency.setValueAtTime(noteHz(-17) + 0.13, now);
+    o1.connect(pg); o2.connect(pg); pg.connect(a.g);
+    srcs.push(lfo, o1, o2);
+  }
+  srcs.forEach(function (s) { a.count(s); s.start(now); });
+  /* the small sounds, scheduled a couple of seconds ahead on the audio
+     clock from a timer — in the room only: a context lent by the
+     checker renders faster than real time, and timers would land in
+     the wrong place in it */
+  var small = P.birds || P.clinks || P.fire || P.pages;
+  if (small && !borrowed && typeof root.setInterval === "function") {
+    a.next = c.currentTime + 0.8 + rand() * small.every[1] * 0.5;
+    var fill = function () {
+      if (amb !== a) return;
+      var horizon = c.currentTime + 2.2;
+      while (a.next < horizon) {
+        ambOne(c, a, Math.max(a.next, c.currentTime + 0.05), P);
+        a.next += small.every[0] + rand() * (small.every[1] - small.every[0]);
+      }
+    };
+    a.timer = root.setInterval(fill, 700);
+    fill();
+  }
   ambAll.push(a);
   return a;
 }
@@ -1201,6 +1343,7 @@ function ambStop() {
   if (!amb) return;
   var a = amb, c = a.ctx, now = c.currentTime;
   amb = null;
+  if (a.timer) { try { root.clearInterval(a.timer); } catch (e) {} a.timer = 0; }
   try {
     a.g.gain.cancelScheduledValues(now);
     a.g.gain.setValueAtTime(a.g.gain.value, now);
@@ -1421,6 +1564,18 @@ var Sound = {
     amb.g.gain.setTargetAtTime(ambLevel * AMB_GAIN, c.currentTime, 0.6);
     return ambLevel;
   },
+  /* which of the places the room tone is for: "park", "cafe", "salon",
+     "library" or "studio" (anything else is the studio). A tone already
+     playing fades into the new place's. */
+  setPlace: function (id) {
+    var next = placeOf(id);
+    if (next === placeNow) return placeNow;
+    placeNow = next;
+    if (amb) { ambStop(); Sound.ambience(ambLevel); }
+    return placeNow;
+  },
+  place: function () { return placeNow; },
+  PLACES: PLACE_IDS,
   /* whether any room tone is actually playing, or still fading — the
      checker asks this to prove "off" means nothing is left running. It
      is counted off the sources' own ended events, so a source that was

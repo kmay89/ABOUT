@@ -286,6 +286,69 @@ function checkPulse(sinceMs) {
   };
 }
 
+/* ---------- the squares opening out ----------
+   Touch a man and the squares he can go to do not simply appear: they
+   open out from under him, the nearest first, each one growing in with
+   the smallest overshoot and settling. The caller does the staggering —
+   `ms` is measured from the touch less REVEAL.step for every square of
+   distance — and this does the growing, so a square not yet due is
+   still "live" and still asks for frames. Over inside a quarter of a
+   second even for the far corner, so it never slows a blitz player's
+   hand: a tap before it is done simply moves on. */
+var REVEAL = { ms: 210, step: 22, over: 0.12 };
+function reveal(ms) {
+  if (!(ms > 0)) return { scale: 0, alpha: 0, live: true };
+  if (ms >= REVEAL.ms) return { scale: 1, alpha: 1, live: false };
+  var u = ms / REVEAL.ms, e = 1 - Math.pow(1 - u, 3);
+  return { scale: e * (1 + REVEAL.over * Math.sin(u * Math.PI)), alpha: clamp(u * 2.5, 0, 1), live: true };
+}
+
+/* The man in the hand, lit: a halo that flares on the touch, breathes
+   twice and then holds at a glow, so a board nobody is touching stops
+   asking to be redrawn — the same bargain the check square makes. */
+var SELECT_MS = 2200;
+var SELECT_HOLD = 0.55;
+function selectPulse(sinceMs) {
+  if (!(sinceMs >= 0)) return { amount: 0, live: false };
+  /* (Infinity is a fair question — "and once it has settled?" — and
+     the cosine of it is not a number) */
+  if (sinceMs >= SELECT_MS) return { amount: SELECT_HOLD, live: false };
+  var a = clamp(1 - sinceMs / SELECT_MS, 0, 1);
+  return {
+    amount: SELECT_HOLD + (1 - SELECT_HOLD) * (0.5 + 0.5 * Math.cos(sinceMs / 1000 * Math.PI * 2.0)) * a,
+    live: true
+  };
+}
+
+/* the square a move has just landed on, a shade brighter for a moment
+   than the last-move mark will be from then on: the eye is taken to
+   where the move finished rather than left to find it */
+var AFTERGLOW_MS = 420;
+function afterglow(ms) {
+  if (!(ms >= 0) || ms >= AFTERGLOW_MS) return { amount: 0, live: false };
+  var u = ms / AFTERGLOW_MS;
+  return { amount: (1 - u) * (1 - u), live: true };
+}
+
+/* ---------- a landing's ring ----------
+   A piece set down on a board moves the air on the board: a small ring
+   runs out from under it and is gone, bigger for a man dropped from a
+   height or a heavy one. `k` is how hard it landed, 0..1 — landPower
+   reads it off the plan, so the knight's hop and the king's weight each
+   get the ring they earned and a bishop's glide gets almost none. */
+var LAND = { ms: 280 };
+function landPower(pl) {
+  if (!pl) return 0.5;
+  return clamp((pl.settle || 0) * 11 + (pl.lift || 0) * 0.45, 0.25, 1);
+}
+function landRing(ms, k) {
+  k = clamp(k == null ? 0.5 : k, 0, 1);
+  var dur = LAND.ms * (0.8 + 0.5 * k);
+  if (!(ms >= 0) || ms >= dur) return { r: 0, alpha: 0, live: false };
+  var u = ms / dur, e = easeOutQuart(u);
+  return { r: 0.22 + e * (0.30 + 0.34 * k), alpha: (1 - u) * (1 - u) * (0.18 + 0.34 * k), live: true };
+}
+
 /* ---------- the king goes over ----------
    Checkmate is the one moment in a game that ends it, and the oldest
    way to say so is to lay your king down. So the mated king is not
@@ -480,7 +543,9 @@ var Motion = {
   checkPulse: checkPulse, character: character, ease: ease, hump: hump, span: span,
   kingFall: kingFall, lieOf: lieOf, lieLift: lieLift,
   cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
-  spring: spring, springAtRest: springAtRest, impactAt: impactAt
+  spring: spring, springAtRest: springAtRest, impactAt: impactAt,
+  REVEAL: REVEAL, SELECT_MS: SELECT_MS, AFTERGLOW_MS: AFTERGLOW_MS, LAND: LAND,
+  reveal: reveal, selectPulse: selectPulse, afterglow: afterglow, landPower: landPower, landRing: landRing
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Motion;
 else root.Motion = Motion;

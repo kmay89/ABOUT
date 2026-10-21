@@ -209,6 +209,45 @@ const CORNER = probeAt(0.06, 0.94);
     await page.evaluate(() => __cr.renderer.setFx("high"));
     await page.waitForTimeout(250);
 
+    /* the board is painted before it is lit: a skin with wood in it has
+       to have grain in the paint — a square is not one flat colour — and
+       the same grain cut into its relief, or the light has nothing to
+       catch. (The carved board had asked for its grain for a year and
+       never got it: a second number with the same name won.) */
+    const paint = await page.evaluate(() => {
+      __cr.renderer.setSkin(Skins.byId("walnut"));
+      const b = __cr.renderer.boardPaint();
+      const probe = (cv) => {
+        const g = cv.getContext("2d", { willReadFrequently: true }), S = cv.width, m = Math.round(S * 0.055), cell = (S - m * 2) / 8;
+        /* the middle of d4, well away from any line or letter */
+        const d = g.getImageData(Math.round(m + 3.2 * cell), Math.round(m + 4.2 * cell), Math.round(cell * 0.6), Math.round(cell * 0.6)).data;
+        let lo = 255, hi = 0;
+        for (let i = 0; i < d.length; i += 4) { lo = Math.min(lo, d[i]); hi = Math.max(hi, d[i]); }
+        return hi - lo;
+      };
+      return { colour: probe(b.colour), height: probe(b.height) };
+    });
+    ok("a wooden square is painted with grain, and the grain is cut into the relief",
+       paint.colour > 8 && paint.height > 4, JSON.stringify(paint));
+
+    /* a touched man is lit: his halo changes the picture, breathes for a
+       moment, and then holds without asking for frames */
+    await page.evaluate(() => __cr.renderer.setFx("low"));
+    await rest();
+    const unlit = await page.evaluate(PROBE);
+    await page.evaluate(() => __cr.renderer.setHighlights({ selected: 0x33, legal: [], legalCapt: [], last: null, check: -1, hint: null }));
+    const litNow = await page.evaluate(PROBE);
+    const heldStill = await rest();
+    const lit = await page.evaluate(PROBE);
+    await page.evaluate(() => __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null }));
+    await rest();
+    const unlitAgain = await page.evaluate(PROBE);
+    ok("a touched man is lit, settles to a glow, and the board rests",
+       litNow.err === 0 && litNow.hash !== unlit.hash && heldStill && lit.hash !== unlit.hash && unlitAgain.hash === unlit.hash,
+       JSON.stringify({ unlit, litNow, lit, unlitAgain, heldStill }));
+    await page.evaluate(() => __cr.renderer.setFx("high"));
+    await page.waitForTimeout(250);
+
     /* every house skin: lights, relief and all, and no two alike */
     const ids = await page.evaluate(() => Skins.PRESETS.map((s) => s.id));
     const seen = new Map();
@@ -239,8 +278,10 @@ const CORNER = probeAt(0.06, 0.94);
       const mid = await page.evaluate(PROBE);
       const corner = await page.evaluate(CORNER);
       if (VERBOSE) console.log("      ", id, JSON.stringify({ mid, corner }));
+      /* (the middle of the board, on the darkest skin, under the
+         library's one lamp: a picture, not a fill, but a dark one) */
       ok("the " + id + " place is where the board is, and draws cleanly",
-         now === id && mid.err === 0 && corner.err === 0 && mid.hi - mid.lo > 14 && corner.mean > 4,
+         now === id && mid.err === 0 && corner.err === 0 && mid.hi - mid.lo > 10 && corner.mean > 4,
          JSON.stringify({ now, mid, corner }));
       if (behind.has(corner.hash)) ok("…and does not look like " + behind.get(corner.hash), false);
       behind.set(corner.hash, id);

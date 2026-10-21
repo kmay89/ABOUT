@@ -102,6 +102,8 @@ function derive(skin, place) {
     spec: surf.spec, power: surf.power, rimLight: surf.rim,
     rough: surf.rough == null ? 0.4 : surf.rough,
     metal: surf.metal == null ? 0 : surf.metal,
+    /* how far light gets into the material, and the lacquer over it */
+    sss: surf.sss || 0, coat: surf.coat || 0,
     alpha: surf.alpha, translucent: surf.translucent,
     /* the light rig, in linear. The sky is the room's own colour lifted
        toward a neutral so a very dark skin still has somewhere for the
@@ -123,7 +125,10 @@ function derive(skin, place) {
     bloom: 0.40 + b.gloss * 0.34,
     bloomCut: 0.72,
     vignette: 0.30,
-    grain: REDUCED ? 0 : 0.013,
+    /* the lens's grain, not the board's: the two shared a name once,
+       and the lens's few thousandths won — which is why the carved
+       board never showed the wood its skin asked for */
+    filmGrain: REDUCED ? 0 : 0.013,
     /* measured at the corner: a couple of pixels of fringe on a wide
        screen. Anything you can actually see as colour separation is a
        broken lens, not a good one. */
@@ -293,6 +298,39 @@ function ring(segs, inner) {
   }
   return { pos: pos, idx: idx };
 }
+/* A disc that fades to nothing at its edge, and a ring that is brightest
+   along its middle. The shade attribute, which is baked occlusion on a
+   man, is alpha on a marker — so a dot of light on the board is a dot
+   of light rather than a coin, and a ring is a ring of light rather than
+   a washer. */
+function softDisc(segs, rings) {
+  var pos = [0, 0, 0], nrm = [0, 1, 0], shade = [1], idx = [], k, i, j;
+  for (k = 1; k <= rings; k++) {
+    var r = k / rings, sh = k === rings ? 0 : Math.pow(1 - r * r, 1.6);
+    for (i = 0; i < segs; i++) {
+      var a = (i / segs) * Math.PI * 2;
+      pos.push(Math.cos(a) * r, 0, Math.sin(a) * r); nrm.push(0, 1, 0); shade.push(sh);
+    }
+  }
+  for (i = 0; i < segs; i++) idx.push(0, 1 + i, 1 + (i + 1) % segs);
+  for (k = 1; k < rings; k++) {
+    var a0 = 1 + (k - 1) * segs, b0 = 1 + k * segs;
+    for (i = 0; i < segs; i++) { j = (i + 1) % segs; idx.push(a0 + i, b0 + i, b0 + j, a0 + i, b0 + j, a0 + j); }
+  }
+  return { pos: pos, nrm: nrm, shade: shade, idx: idx };
+}
+function softRing(segs, inner) {
+  var radii = [inner, (inner + 1) / 2, 1], sh = [0, 1, 0], pos = [], nrm = [], shade = [], idx = [], k, i, j;
+  for (k = 0; k < 3; k++) for (i = 0; i < segs; i++) {
+    var a = (i / segs) * Math.PI * 2;
+    pos.push(Math.cos(a) * radii[k], 0, Math.sin(a) * radii[k]); nrm.push(0, 1, 0); shade.push(sh[k]);
+  }
+  for (k = 0; k < 2; k++) {
+    var a0 = k * segs, b0 = (k + 1) * segs;
+    for (i = 0; i < segs; i++) { j = (i + 1) % segs; idx.push(a0 + i, b0 + i, b0 + j, a0 + i, b0 + j, a0 + j); }
+  }
+  return { pos: pos, nrm: nrm, shade: shade, idx: idx };
+}
 function quadXZ() { /* unit square centred on origin */
   return { pos: [-0.5,0,-0.5, 0.5,0,-0.5, 0.5,0,0.5, -0.5,0,0.5], idx: [0,2,1,0,3,2] };
 }
@@ -386,7 +424,7 @@ var GLSL_COMMON = [
 var GLSL_LIGHT = [
   "uniform vec3 uEye, uKeyDir, uKeyCol, uFillDir, uFillCol, uSky, uGround;",
   "uniform float uExposure, uDirect;",
-  "uniform sampler2D uShadow; uniform mat4 uLightVP; uniform float uShadowOn, uShadowTexel;",
+  "uniform sampler2D uShadow; uniform mat4 uLightVP; uniform float uShadowOn, uShadowTexel, uShadowSoft;",
   /* the place: what it looks like in every direction (sharp, and a
      blurred copy for rough surfaces), and what the key light comes
      through on its way in */
@@ -430,6 +468,32 @@ var GLSL_LIGHT = [
      this amplitude is indistinguishable from softness. */
   "  float ra = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;",
   "  float rc = cos(ra), rs = sin(ra);",
+  /* How soft the edge is depends on how far away the thing casting it
+     is: a lamp is not a point, so a king's foot throws a hard shadow
+     and his crown, a hand's height above the board, a soft one. Four
+     wide taps find the average depth of whatever is in the way, and
+     the gap from there to here sets the spread of the sixteen taps
+     that follow. The simpler tiers keep the nine fixed taps below. */
+  "  if (uShadowSoft > 0.5){",
+  "    float blk = 0.0, nb = 0.0;",
+  "    for (int i = 0; i < 4; i++){",
+  "      vec2 g = vec2(i < 2 ? -1.0 : 1.0, (i == 0 || i == 3) ? -1.0 : 1.0) * uShadowTexel * 6.0;",
+  "      vec2 o = vec2(g.x*rc - g.y*rs, g.x*rs + g.y*rc);",
+  "      float d = unpackDepth(texture2D(uShadow, c.xy + o));",
+  "      if (d < c.z - bias){ blk += d; nb += 1.0; }",
+  "    }",
+  "    float spread = nb > 0.0 ? clamp(1.1 + (c.z - blk / nb) * 300.0, 1.1, 9.0) : 1.6;",
+  "    float soft = 0.0;",
+  "    for (int y = 0; y < 4; y++){",
+  "      for (int x = 0; x < 4; x++){",
+  "        vec2 g = (vec2(float(x), float(y)) - 1.5) * uShadowTexel * spread * 0.8;",
+  "        vec2 o = vec2(g.x*rc - g.y*rs, g.x*rs + g.y*rc);",
+  "        float d = unpackDepth(texture2D(uShadow, c.xy + o));",
+  "        soft += step(c.z - bias, d);",
+  "      }",
+  "    }",
+  "    return soft * (1.0/16.0);",
+  "  }",
   /* a fixed 3x3 tap: WebGL 1 wants its loops counted at compile time,
      and nine samples is the difference between an edge you can see the
      pixels of and one you cannot */
@@ -443,7 +507,7 @@ var GLSL_LIGHT = [
   "  }",
   "  return sum * (1.0/9.0);",
   "}",
-  "vec3 shade(vec3 albedo, vec3 N, vec3 world, float rough, float metal, float ao, float rim){",
+  "vec3 shade(vec3 albedo, vec3 N, vec3 world, float rough, float metal, float ao, float rim, float sss, float coat){",
   "  vec3 V = normalize(uEye - world);",
   "  float NoV = max(dot(N, V), 1e-4);",
   "  vec3 f0 = mix(vec3(0.04), albedo, metal);",
@@ -452,29 +516,49 @@ var GLSL_LIGHT = [
   "  vec3 col = vec3(0.0);",
   /* the key light, the only one that casts */
   "  vec3 L = uKeyDir;",
-  "  float NoL = max(dot(N, L), 0.0);",
-  "  if (NoL > 0.0){",
-  "    vec3 H = normalize(L + V);",
-  "    float NoH = max(dot(N, H), 0.0), VoH = max(dot(V, H), 0.0);",
-  "    vec3 spec = F_Schlick(f0, VoH) * D_GGX(NoH, a) * V_Smith(NoV, NoL, a);",
-  "    /* a shadow is never quite black: some of the key light arrives",
-  "       anyway, off the table and the walls, and a hard zero is the",
-  "       thing that makes a rendered shadow look like a sticker */",
-  "    float sh = mix(0.18, 1.0, shadowAt(world, NoL)) * cookieAt(world);",
-  "    col += (diffCol * (1.0/3.14159265) + spec) * uKeyCol * NoL * sh;",
-  "  }",
+  "  float NoLr = dot(N, L);",
+  /* Light gets a little way into ivory and porcelain before it comes
+     back out, which is why the shadow side of an ivory bishop is warm
+     rather than black and the edge of a finial glows. The diffuse term
+     is wrapped past the terminator by that much; the highlight is not,
+     because the polish is on the outside. */
+  "  float wrap = sss * 0.45;",
+  "  float NoL = max((NoLr + wrap) / (1.0 + wrap), 0.0);",
+  "  float NoLs = max(NoLr, 0.0);",
+  "  float cook = cookieAt(world);",
+  "  /* a shadow is never quite black: some of the key light arrives",
+  "     anyway, off the table and the walls, and a hard zero is the",
+  "     thing that makes a rendered shadow look like a sticker */",
+  "  float sh = (NoLr > 0.0 ? mix(0.18, 1.0, shadowAt(world, NoLr)) : 0.42) * cook;",
+  "  vec3 H = normalize(L + V);",
+  "  float NoH = max(dot(N, H), 0.0), VoH = max(dot(V, H), 0.0);",
+  "  vec3 spec = F_Schlick(f0, VoH) * D_GGX(NoH, a) * V_Smith(NoV, NoLs, a);",
+  /* the clearcoat: a second, glassier lobe over the first, and the
+     layer under it loses whatever the coat has already reflected */
+  "  float Fc = F_Schlick(vec3(0.04), VoH).x * coat;",
+  "  float specC = Fc * D_GGX(NoH, 0.010) * V_Smith(NoV, NoLs, 0.010);",
+  "  col += (diffCol * (1.0/3.14159265) * NoL * (1.0 - Fc) + (spec * (1.0 - Fc) + specC) * NoLs) * uKeyCol * sh;",
+  /* and through the thin parts: light arriving from behind a finial
+     and seen from the front. Nothing here knows how thick a man is, so
+     his edges, which are always his thinnest part, get the most of it. */
+  "  float trans = pow(clamp(dot(V, -normalize(L + N * 0.35)), 0.0, 1.0), 3.0);",
+  "  col += albedo * uKeyCol * trans * sss * 0.22 * (0.4 + 0.6 * (1.0 - NoV)) * (0.35 + 0.65 * ao) * cook;",
   /* fill: no shadow, no highlight to speak of, just the other side of
      the room so nothing falls to pure black */
-  "  float NoF = max(dot(N, uFillDir), 0.0);",
+  "  float NoF = max((dot(N, uFillDir) + wrap) / (1.0 + wrap), 0.0);",
   "  col += diffCol * (1.0/3.14159265) * uFillCol * NoF;",
   /* ambient: a sky above, the board bouncing below, and a reflection of
-     both weighted by how polished the surface is */
-  "  vec3 irr = mix(uGround, uSky, N.y*0.5+0.5);",
+     both weighted by how polished the surface is. A material light gets
+     into is lit a little more evenly from all round. */
+  "  vec3 irr = mix(uGround, uSky, mix(N.y*0.5+0.5, 0.62, sss * 0.45));",
   "  col += diffCol * irr * ao;",
   "  vec3 Rv = reflect(-V, N);",
   "  vec3 envc = envLook(Rv, rough);",
   "  vec3 Fr = F_Schlick(f0, NoV);",
-  "  col += envc * Fr * mix(ao, 1.0, 0.5);",
+  "  col += envc * Fr * mix(ao, 1.0, 0.5) * (1.0 - Fc);",
+  /* the coat reflects the room sharply whatever is under it */
+  "  float Fcv = F_Schlick(vec3(0.04), NoV).x * coat;",
+  "  if (Fcv > 0.0005) col += envLook(Rv, 0.05) * Fcv * mix(ao, 1.0, 0.6);",
   /* the edge of the room caught on a silhouette */
   "  col += uSky * rim * pow(1.0 - NoV, 3.0) * ao;",
   "  return col * uExposure;",
@@ -503,13 +587,14 @@ var FSH = [
   "precision highp float;",
   GLSL_COMMON,
   GLSL_LIGHT,
-  "uniform vec3 uColor; uniform float uAlpha, uFlat, uRough, uMetal, uRimAmt, uGlow, uMirror;",
+  "uniform vec3 uColor, uHaloCol; uniform float uAlpha, uFlat, uRough, uMetal, uRimAmt, uGlow, uMirror, uSss, uCoat, uHaloAmt;",
   "varying vec3 vNrm; varying vec3 vWorld; varying float vShade;",
   "void main(){",
   /* markers, move dots and racing lines are not surfaces — they are
      light. They skip the whole model and go straight into the frame,
-     which is also what lets the bloom pick them up. */
-  "  if (uFlat > 0.5){ gl_FragColor = emit(toLinear(uColor) * uGlow, uAlpha); return; }",
+     which is also what lets the bloom pick them up. On a marker the
+     shade attribute is alpha, so a soft disc fades out at its edge. */
+  "  if (uFlat > 0.5){ gl_FragColor = emit(toLinear(uColor) * uGlow, uAlpha * vShade); return; }",
   "  float alpha = uAlpha;",
   /* the reflection pass draws the same men upside down through the
      board, clipped to the wood and fading as they fall away from it */
@@ -520,7 +605,14 @@ var FSH = [
   "  }",
   "  vec3 N = normalize(vNrm);",
   "  vec3 albedo = toLinear(uColor);",
-  "  vec3 c = shade(albedo, N, vWorld, uRough, uMetal, vShade, uRimAmt);",
+  "  vec3 c = shade(albedo, N, vWorld, uRough, uMetal, vShade, uRimAmt, uSss, uCoat);",
+  /* the man in the hand, or the one just touched: lit from within at
+     his edges in the skin's own colour, so the eye knows which man the
+     board is talking about without a box being drawn round him */
+  "  if (uHaloAmt > 0.0){",
+  "    float NoV = max(dot(N, normalize(uEye - vWorld)), 0.0);",
+  "    c += toLinear(uHaloCol) * uHaloAmt * (pow(1.0 - NoV, 2.2) * 1.7 + 0.10) * (0.5 + 0.5 * vShade) * uExposure;",
+  "  }",
   "  gl_FragColor = emit(c, alpha);",
   "}"].join("\n");
 
@@ -564,7 +656,7 @@ var FSH_TEX = [
   "    float dd = length(q);",
   "    ao = 1.0 - 0.62 * exp(-dd * 5.0) - 0.22 * exp(-dd * 1.1);",
   "  }",
-  "  vec3 c = shade(albedo, N, vWorld, rough, 0.0, ao, 0.03) * mix(1.0, ao, 0.7);",
+  "  vec3 c = shade(albedo, N, vWorld, rough, 0.0, ao, 0.03, 0.0, uGloss * 0.55) * mix(1.0, ao, 0.7);",
   "  gl_FragColor = emit(c, 1.0);",
   "}"].join("\n");
 
@@ -621,8 +713,8 @@ var FSH_BLUR = [
 var FSH_COMPOSITE = [
   "precision highp float;",
   GLSL_COMMON,
-  "uniform sampler2D uScene, uBloom;",
-  "uniform float uBloomAmt, uVignette, uGrain, uTime, uAberration;",
+  "uniform sampler2D uScene, uBloom, uBloom2;",
+  "uniform float uBloomAmt, uBloomAmt2, uVignette, uGrain, uTime, uAberration;",
   "varying vec2 vUV;",
   "float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
   "void main(){",
@@ -636,7 +728,10 @@ var FSH_COMPOSITE = [
   "  c.r = texture2D(uScene, vUV + off).r;",
   "  c.g = texture2D(uScene, vUV).g;",
   "  c.b = texture2D(uScene, vUV - off).b;",
-  "  c += texture2D(uBloom, vUV).rgb * uBloomAmt;",
+  /* two blooms: a tight one that puts a halo on a highlight, and a wide
+     one, an eighth of the width, that lets a lamp warm the whole corner
+     of the frame it hangs in — the second is what a lens really does */
+  "  c += texture2D(uBloom, vUV).rgb * uBloomAmt + texture2D(uBloom2, vUV).rgb * uBloomAmt2;",
   "  c *= 1.0 - uVignette * smoothstep(0.06, 0.78, r2);",
   "  c = aces(c);",
   /* back out to sRGB for the screen */
@@ -663,71 +758,63 @@ var RIM_DEPTH = 0.30;                    /* how far the edge of the board drops 
    The same five patterns the 2D board knows, so a skin looks like
    itself whichever way you're playing. */
 function paintPattern(g, x, y, cell, dark, th, f, r) {
-  if (th.grain <= 0.02 || th.pattern === "plain") return;
-  var amt = th.grain, seed = (f * 73 + r * 131) % 97, i;
+  /* wood, marble and linen are fields now (grain.js), laid over the
+     squares in one pass below; what is left to draw by hand is the
+     inlay's bright line round each square */
+  if (th.grain <= 0.02 || th.pattern !== "inlay") return;
   g.save();
   g.beginPath(); g.rect(x, y, cell, cell); g.clip();
-  if (th.pattern === "wood") {
-    for (i = 0; i < 6; i++) {
-      var yy = y + ((seed * 7 + i * 23) % cell);
-      g.strokeStyle = (i % 2) ? "#000" : "#fff";
-      g.globalAlpha = (0.03 + amt * 0.10) * (i % 2 ? 1 : 0.7);
-      g.lineWidth = 2 + (i % 2) * 2;
-      g.beginPath();
-      g.moveTo(x, yy);
-      g.bezierCurveTo(x + cell * 0.3, yy + 5, x + cell * 0.7, yy - 5, x + cell, yy + 2);
-      g.stroke();
-    }
-  } else if (th.pattern === "marble") {
-    g.globalAlpha = 0.05 + amt * 0.14;
-    g.strokeStyle = dark ? "#fff" : "#000";
-    g.lineWidth = Math.max(2, cell * 0.02);
-    for (i = 0; i < 3; i++) {
-      var sx = x + ((seed * 11 + i * 37) % cell);
-      g.beginPath();
-      g.moveTo(sx, y);
-      g.bezierCurveTo(sx + cell * 0.35, y + cell * 0.3, sx - cell * 0.3, y + cell * 0.65, sx + cell * 0.2, y + cell);
-      g.stroke();
-    }
-  } else if (th.pattern === "linen") {
-    g.globalAlpha = 0.04 + amt * 0.10;
-    g.strokeStyle = dark ? "#fff" : "#000";
-    g.lineWidth = 1.5;
-    var step = Math.max(5, cell / 8);
-    for (var t = 0; t < cell; t += step) {
-      g.beginPath(); g.moveTo(x, y + t); g.lineTo(x + cell, y + t); g.stroke();
-      g.beginPath(); g.moveTo(x + t, y); g.lineTo(x + t, y + cell); g.stroke();
-    }
-  } else if (th.pattern === "inlay") {
-    g.globalAlpha = 0.25 + amt * 0.5;
-    g.strokeStyle = dark ? "#fff" : "#000";
-    g.lineWidth = Math.max(2, cell * 0.03);
-    g.strokeRect(x + cell * 0.08, y + cell * 0.08, cell * 0.84, cell * 0.84);
-  }
+  g.globalAlpha = 0.25 + th.grain * 0.5;
+  g.strokeStyle = dark ? "#fff" : "#000";
+  g.lineWidth = Math.max(2, cell * 0.03);
+  g.strokeRect(x + cell * 0.08, y + cell * 0.08, cell * 0.84, cell * 0.84);
   g.restore();
 }
 
+/* ---- the grain, as a field ----
+   grain.js paints the sixty-four squares as one field — tone for the
+   colour, relief for the height map — and the frame round them as one
+   long plank, so the carved board's light reads the very grain its
+   colour shows. Both canvases call this: once in colour, once in grey. */
+var GRAIN_SEED = 1947, FRAME_SEED = 5;
+function grainOver(g, th, S, margin, mode) {
+  var Gr = root.Grain;
+  if (!Gr || !(th.grain > 0.02)) return;
+  /* the frame first, under everything: wood whatever the squares are,
+     because a board's frame is, and at a longer run of rings */
+  var all = g.getImageData(0, 0, S, S);
+  Gr.apply(all, Gr.field(256, { pattern: "wood", tiles: 1, seed: FRAME_SEED, lines: 30 }),
+           { x: 0, y: 0, w: S, h: S }, th.grain * (mode === "height" ? 0.5 : 0.7), mode);
+  g.putImageData(all, 0, 0);
+}
+function grainSquares(g, th, S, margin, mode) {
+  var Gr = root.Grain;
+  if (!Gr || !(th.grain > 0.02)) return;
+  var m = Math.round(margin), w = S - m * 2;
+  var sq = g.getImageData(m, m, w, w);
+  Gr.apply(sq, Gr.field(512, { pattern: th.pattern, seed: GRAIN_SEED }), { x: 0, y: 0, w: w, h: w }, th.grain, mode);
+  g.putImageData(sq, m, m);
+}
 
 function boardTexture(th) {
   var S = 1024, cv = document.createElement("canvas");
   cv.width = cv.height = S;
-  var g = cv.getContext("2d");
+  var g = cv.getContext("2d", { willReadFrequently: true });
   var margin = S * MARGIN, cell = (S - margin * 2) / 8;
   g.fillStyle = th.margin; g.fillRect(0, 0, S, S);
-  /* faint long grain in the margin */
-  g.globalAlpha = 0.06 + th.grain * 0.10;
-  for (var gy = 0; gy < S; gy += 7) {
-    g.fillStyle = (gy % 3) ? "#000" : "#fff";
-    g.fillRect(0, gy, S, 1.5);
-  }
-  g.globalAlpha = 1;
+  /* the frame: one long plank, grain running the length of it */
+  grainOver(g, th, S, margin, "colour");
   for (var r = 0; r < 8; r++) for (var f = 0; f < 8; f++) {
     /* canvas row 0 is the top of the texture = rank 8 */
     var x = margin + f * cell, y = margin + r * cell;
     var isDark = ((f + (7 - r)) % 2 === 0);
     g.fillStyle = isDark ? th.dark : th.light;
     g.fillRect(x, y, cell + 1, cell + 1);
-    paintPattern(g, x, y, cell, isDark, th, f, r);
+  }
+  /* the sixty-four, each its own cut of veneer */
+  grainSquares(g, th, S, margin, "colour");
+  for (var r2 = 0; r2 < 8; r2++) for (var f2 = 0; f2 < 8; f2++) {
+    paintPattern(g, margin + f2 * cell, margin + r2 * cell, cell, ((f2 + (7 - r2)) % 2 === 0), th, f2, r2);
   }
   /* The sheen used to be painted in here, because there was no light to
      make one. There is now, so what is left is a whisper of unevenness
@@ -814,16 +901,11 @@ var FSH_PANO = [
 function heightCanvas(th, S) {
   var cv = document.createElement("canvas");
   cv.width = cv.height = S;
-  var g = cv.getContext("2d");
+  var g = cv.getContext("2d", { willReadFrequently: true });
   var margin = S * MARGIN, cell = (S - margin * 2) / 8;
   g.fillStyle = "#808080"; g.fillRect(0, 0, S, S);
-  /* margin: long grain, then a routed step just inside the frame */
-  g.globalAlpha = 0.05 + th.grain * 0.08;
-  for (var gy = 0; gy < S; gy += 7) {
-    g.fillStyle = (gy % 3) ? "#000" : "#fff";
-    g.fillRect(0, gy, S, 1.5);
-  }
-  g.globalAlpha = 1;
+  /* margin: the plank's own grain, then a routed step just inside the frame */
+  grainOver(g, th, S, margin, "height");
   g.strokeStyle = "#5a5a5a"; g.lineWidth = Math.max(3, S * 0.004);
   g.strokeRect(margin * 0.55, margin * 0.55, S - margin * 1.1, S - margin * 1.1);
   g.strokeStyle = "#9a9a9a"; g.lineWidth = Math.max(2, S * 0.0025);
@@ -834,11 +916,16 @@ function heightCanvas(th, S) {
     /* dark squares a touch lower: two woods, two thicknesses */
     g.fillStyle = isDark ? "#7b7b7b" : "#848484";
     g.fillRect(x, y, cell + 1, cell + 1);
-    paintPattern(g, x, y, cell, isDark, th, f, r);
+  }
+  /* the grain itself, cut in: pores and year-lines, veins, the weave */
+  grainSquares(g, th, S, margin, "height");
+  for (var r2 = 0; r2 < 8; r2++) for (var f2 = 0; f2 < 8; f2++) {
+    var x2 = margin + f2 * cell, y2 = margin + r2 * cell;
+    paintPattern(g, x2, y2, cell, ((f2 + (7 - r2)) % 2 === 0), th, f2, r2);
     /* the groove where two squares meet */
     g.strokeStyle = "#6c6c6c";
     g.lineWidth = Math.max(1.5, cell * 0.012);
-    g.strokeRect(x + 0.5, y + 0.5, cell, cell);
+    g.strokeRect(x2 + 0.5, y2 + 0.5, cell, cell);
   }
   /* engraved coordinates — cut in, so the light catches one edge */
   g.fillStyle = "#636363";
@@ -897,11 +984,16 @@ function create(canvas, opts) {
     board: new Int8Array(128),
     hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     checkAt: -1,
+    /* when the squares were last asked to open out, when a man was
+       last touched, and when a move last landed — each a short moment
+       of light that then holds still */
+    hiAt: -1, selAt: -1, lastAt: -1,
     lines: [], net: [],
     anim: null, lost: false, dirty: true,
     /* the big moments: the men arriving at the start of a game, a king
-       lying where it was mated, and light under a capture */
-    cascade: null, toppled: null, impacts: []
+       lying where it was mated, light under a capture, and the small
+       ring every landing leaves */
+    cascade: null, toppled: null, impacts: [], lands: []
   };
 
   canvas.addEventListener("webglcontextlost", function (e) {
@@ -937,6 +1029,7 @@ function create(canvas, opts) {
       shadow: gl.getUniformLocation(pr, "uShadow"), lightVP: gl.getUniformLocation(pr, "uLightVP"),
       shadowOn: gl.getUniformLocation(pr, "uShadowOn"),
       shadowTexel: gl.getUniformLocation(pr, "uShadowTexel"),
+      shadowSoft: gl.getUniformLocation(pr, "uShadowSoft"),
       pano: gl.getUniformLocation(pr, "uPano"), envTex: gl.getUniformLocation(pr, "uEnvTex"),
       cookie: gl.getUniformLocation(pr, "uCookie"),
       envOn: gl.getUniformLocation(pr, "uEnvOn"), envGain: gl.getUniformLocation(pr, "uEnvGain"),
@@ -955,6 +1048,8 @@ function create(canvas, opts) {
     flat: gl.getUniformLocation(prog, "uFlat"), rough: gl.getUniformLocation(prog, "uRough"),
     metal: gl.getUniformLocation(prog, "uMetal"), rimAmt: gl.getUniformLocation(prog, "uRimAmt"),
     glow: gl.getUniformLocation(prog, "uGlow"), mirror: gl.getUniformLocation(prog, "uMirror"),
+    sss: gl.getUniformLocation(prog, "uSss"), coat: gl.getUniformLocation(prog, "uCoat"),
+    haloCol: gl.getUniformLocation(prog, "uHaloCol"), haloAmt: gl.getUniformLocation(prog, "uHaloAmt"),
     L: lightLocs(prog),
     aPos: gl.getAttribLocation(prog, "aPos"), aNrm: gl.getAttribLocation(prog, "aNrm"),
     aShade: gl.getAttribLocation(prog, "aShade")
@@ -1000,6 +1095,8 @@ function create(canvas, opts) {
   var UC = { scene: gl.getUniformLocation(progComp, "uScene"),
              bloom: gl.getUniformLocation(progComp, "uBloom"),
              bloomAmt: gl.getUniformLocation(progComp, "uBloomAmt"),
+             bloom2: gl.getUniformLocation(progComp, "uBloom2"),
+             bloomAmt2: gl.getUniformLocation(progComp, "uBloomAmt2"),
              vignette: gl.getUniformLocation(progComp, "uVignette"),
              grain: gl.getUniformLocation(progComp, "uGrain"),
              time: gl.getUniformLocation(progComp, "uTime"),
@@ -1094,9 +1191,9 @@ function create(canvas, opts) {
      Nothing here changes what the board means — only how much light it
      is drawn with. */
   var TIERS = {
-    high:   { shadow: 1024, bloom: true,  grain: true,  aberration: true,  mirror: true,  bump: 1024 },
-    medium: { shadow: 512,  bloom: true,  grain: true,  aberration: false, mirror: false, bump: 512 },
-    low:    { shadow: 0,    bloom: false, grain: false, aberration: false, mirror: false, bump: 256 }
+    high:   { shadow: 1024, soft: true,  bloom: true,  wide: true,  grain: true,  aberration: true,  mirror: true,  bump: 1024 },
+    medium: { shadow: 512,  soft: false, bloom: true,  wide: false, grain: true,  aberration: false, mirror: false, bump: 512 },
+    low:    { shadow: 0,    soft: false, bloom: false, wide: false, grain: false, aberration: false, mirror: false, bump: 256 }
   };
   var quality = Kit.autoQuality();
   /* What the device looks able for — cores and screen, read before a
@@ -1161,7 +1258,8 @@ function create(canvas, opts) {
     perf.on = next !== "low";
   }
 
-  var scene = null, bloomA = null, bloomB = null, postOk = false, bloomOk = false;
+  var scene = null, bloomA = null, bloomB = null, bloomC = null, bloomD = null;
+  var postOk = false, bloomOk = false, wideOk = false;
   /* A card that cannot give us an off-screen target will not change its
      mind, and retrying every frame would cost more than the chain ever
      saved. One failure is remembered and the renderer carries on
@@ -1171,8 +1269,8 @@ function create(canvas, opts) {
     var w = canvas.width, h = canvas.height;
     if (!w || !h || postDead) return;
     if (scene && scene.w === w && scene.h === h) return;
-    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB);
-    scene = bloomA = bloomB = null;
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD);
+    scene = bloomA = bloomB = bloomC = bloomD = null;
     scene = makeTarget(w, h, HDR_TYPE, gl.LINEAR, true);
     if (!scene && HDR_TYPE !== gl.UNSIGNED_BYTE) scene = makeTarget(w, h, gl.UNSIGNED_BYTE, gl.LINEAR, true);
     postOk = !!scene;
@@ -1183,6 +1281,13 @@ function create(canvas, opts) {
       bloomA = makeTarget(bw, bh, scene.type, gl.LINEAR, false);
       bloomB = bloomA ? makeTarget(bw, bh, scene.type, gl.LINEAR, false) : null;
       bloomOk = !!bloomB;
+    }
+    wideOk = false;
+    if (bloomOk && FX.wide) {
+      var cw = Math.max(4, w >> 3), ch = Math.max(4, h >> 3);
+      bloomC = makeTarget(cw, ch, scene.type, gl.LINEAR, false);
+      bloomD = bloomC ? makeTarget(cw, ch, scene.type, gl.LINEAR, false) : null;
+      wideOk = !!bloomD;
     }
   }
 
@@ -1321,6 +1426,9 @@ function create(canvas, opts) {
   var MESH_DISC = upload(disc(36));
   var MESH_RING = upload(ring(40, 0.82));
   var MESH_QUAD = upload(quadXZ());
+  var softD = softDisc(36, 5), softR = softRing(40, 0.58);
+  var MESH_SOFT = uploadRaw(softD.pos, softD.nrm, softD.shade, softD.idx);
+  var MESH_SOFTRING = uploadRaw(softR.pos, softR.nrm, softR.shade, softR.idx);
 
   /* rim: a shallow box under the board, drawn with the lit shader */
   var rimGeo = (function () {
@@ -1781,8 +1889,8 @@ function create(canvas, opts) {
   function applyFx(name) {
     if (!TIERS[name] || name === fxName) return;
     fxName = name; FX = TIERS[name];
-    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB);
-    scene = bloomA = bloomB = null;
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD);
+    scene = bloomA = bloomB = bloomC = bloomD = null;
     sizeShadow(); sizeTargets(); loadBoardTex();
     R.dirty = true;
   }
@@ -1829,6 +1937,11 @@ function create(canvas, opts) {
     R.dirty = true;
   };
   R.scene = function () { return place.ready ? place.id : "studio"; };
+  /* the board as it is painted before the light touches it, for the
+     checks: the squares' colour and their relief, as canvases */
+  R.boardPaint = function () {
+    return R.pal ? { colour: boardTexture(R.pal), height: heightCanvas(R.pal, FX.bump) } : null;
+  };
   /* which set is actually on the board — not always the one the skin
      asked for, if that skin named a set this browser doesn't have */
   R.pieceSet = function () { return { id: setId, name: setName }; };
@@ -1846,6 +1959,8 @@ function create(canvas, opts) {
     settling = null;
     R.toppled = null;
     R.cascade = null;
+    R.lands.length = 0;
+    R.lastAt = -1;
     if (o && o.flourish) {
       /* a new game starts from the player's own view, whatever the last
          one ended on */
@@ -1854,7 +1969,7 @@ function create(canvas, opts) {
         var plan = Move.cascade(R.board, { orientation: R.orientation });
         var delay = {};
         for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
-        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan) };
+        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan), rung: {} };
       }
     }
     R.dirty = true;
@@ -1910,7 +2025,13 @@ function create(canvas, opts) {
     var nextCheck = hi.check != null ? hi.check : -1;
     if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = performance.now();
     else if (nextCheck < 0) R.checkAt = -1;
-    R.hi.selected = hi.selected != null ? hi.selected : -1;
+    var nextSel = hi.selected != null ? hi.selected : -1, now = performance.now();
+    /* a new touch: the man lights and his squares open out from him. The
+       same selection repeated (a redraw) keeps its clocks, so a marker
+       half-open does not start again from nothing. */
+    if (nextSel >= 0 && nextSel !== R.hi.selected) { R.selAt = now; R.hiAt = now; }
+    else if (nextSel < 0) { R.selAt = -1; R.hiAt = -1; }
+    R.hi.selected = nextSel;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -2218,6 +2339,15 @@ function create(canvas, opts) {
     gl.uniform1f(U.glow, glow == null ? 1 : glow);
     gl.drawElements(gl.TRIANGLES, mesh.n, gl.UNSIGNED_SHORT, 0);
   }
+  /* the man's material under his colour, and the light inside him */
+  function setMaterial(th) {
+    gl.uniform1f(U.sss, th.sss || 0);
+    gl.uniform1f(U.coat, th.coat || 0);
+  }
+  function setHalo(col, amt) {
+    gl.uniform1f(U.haloAmt, amt > 0 ? amt : 0);
+    if (amt > 0) gl.uniform3fv(U.haloCol, col);
+  }
   function sendLights(L, th) {
     gl.uniform3fv(L.eye, cam.eye);
     gl.uniform3fv(L.keyDir, th.keyDir);
@@ -2231,6 +2361,7 @@ function create(canvas, opts) {
     gl.uniformMatrix4fv(L.lightVP, false, lightVP);
     gl.uniform1f(L.shadowOn, shadowSize ? 1 : 0);
     gl.uniform1f(L.shadowTexel, shadowSize ? 1 / shadowSize : 0);
+    gl.uniform1f(L.shadowSoft, shadowSize && FX.soft ? 1 : 0);
     gl.uniform1i(L.shadow, 1);
     var on = !!(th.table && place.ready);
     gl.uniform1i(L.pano, 3); gl.uniform1i(L.envTex, 4); gl.uniform1i(L.cookie, 5);
@@ -2325,8 +2456,10 @@ function create(canvas, opts) {
       [0, 0, 0], contact * al / (1 + Math.max(0, q.y) * 1.6), true, 0, 0, 1);
     if (al >= 1) { gl.depthMask(true); gl.disable(gl.BLEND); }
     bindMesh(q.P.mesh);
+    setHalo(th.selected, q.halo || 0);
     drawMesh(q.P.mesh, poseModel(q, false),
       q.white ? th.white : th.black, al, false, th.rough, th.metal);
+    if (q.halo) setHalo(null, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
@@ -2340,6 +2473,8 @@ function create(canvas, opts) {
     if (!FX.mirror || th.mirror <= 0.01 || th.translucent) return;
     gl.useProgram(prog);
     gl.uniform1f(U.mirror, th.mirror);
+    setHalo(null, 0);
+    setMaterial(th);
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     gl.enable(gl.BLEND);
@@ -2404,6 +2539,7 @@ function create(canvas, opts) {
   }
 
   function drawAllPieces(th) {
+    setMaterial(th);
     /* glass has to go far to near; everything else can draw as it comes */
     if (th.translucent) instances.sort(function (a, b) { return b.d - a.d; });
     for (var i = 0; i < instances.length; i++) drawPiece(instances[i], th);
@@ -2414,10 +2550,10 @@ function create(canvas, opts) {
       color, alpha, true, 0, 0, 1.45);
   }
 
-  /* dynamic meshes: hint arrows, and the racing lines. They're drawn
-     flat, so their normals and shade are along for the ride only — but
-     the attribute layout has to match the static meshes all the same. */
-  var arrowBuf = gl.createBuffer(), arrowIdx = gl.createBuffer();
+  /* dynamic meshes: the hint and the racing lines, one buffer between
+     them, rebuilt as drawn. They're drawn flat, so their normals are
+     along for the ride only and their shade is alpha — but the attribute
+     layout has to match the static meshes all the same. */
   var lineBuf = gl.createBuffer(), lineIdx = gl.createBuffer();
   function bindDynamic() {
     gl.enableVertexAttribArray(U.aPos);
@@ -2432,26 +2568,28 @@ function create(canvas, opts) {
      polygon whose first half is the left edge and second half the right
      edge reversed, so it triangulates as a strip without any clever
      geometry — and the arrowhead is simply one more triangle. */
-  function drawLine(spec, now, th) {
-    var a = { x: sqX(spec.from), y: sqZ(spec.from) };
-    var b = { x: sqX(spec.to), y: sqZ(spec.to) };
-    var L = root.Lines.build(a, b, { kind: spec.kind, scale: 1, knight: spec.knight, alpha: spec.alpha });
-    var colour = spec.colour ||
-      (spec.kind === "threat" ? th.capt : spec.kind === "lane" ? th.last : th.hint);
+  /* A ribbon of light on the board: Lines' outline, triangulated with a
+     spine down the middle so the shade attribute — alpha, for a marker —
+     runs from nothing at one edge to full on the spine and back to
+     nothing. A soft-edged stroke rather than a cut-out, and the head
+     fades toward its two back corners while its tip stays sharp. */
+  function drawRibbon(L, colour, alpha, glow, y) {
     var half = L.poly.length / 2, verts = [], idx = [], i;
     for (i = 0; i < half; i++) {
       var l = L.poly[i], r = L.poly[L.poly.length - 1 - i];
-      verts.push(l.x, 0.03, l.y, 0, 1, 0, 1);
-      verts.push(r.x, 0.03, r.y, 0, 1, 0, 1);
+      verts.push(l.x, y, l.y, 0, 1, 0, 0);
+      verts.push((l.x + r.x) / 2, y, (l.y + r.y) / 2, 0, 1, 0, 1);
+      verts.push(r.x, y, r.y, 0, 1, 0, 0);
     }
     for (i = 0; i < half - 1; i++) {
-      var v = i * 2;
-      idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+      var v = i * 3;
+      idx.push(v, v + 1, v + 4, v, v + 4, v + 3, v + 1, v + 2, v + 5, v + 1, v + 5, v + 4);
     }
     if (L.head) {
-      var base = verts.length / 7;
-      for (i = 0; i < 3; i++) verts.push(L.head[i].x, 0.03, L.head[i].y, 0, 1, 0, 1);
-      idx.push(base, base + 1, base + 2);
+      var base = verts.length / 7, tip = L.head[0], hl = L.head[1], hr = L.head[2];
+      verts.push(tip.x, y, tip.y, 0, 1, 0, 1, hl.x, y, hl.y, 0, 1, 0, 0,
+                 hr.x, y, hr.y, 0, 1, 0, 0, (hl.x + hr.x) / 2, y, (hl.y + hr.y) / 2, 0, 1, 0, 1);
+      idx.push(base, base + 1, base + 3, base, base + 3, base + 2);
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
@@ -2460,49 +2598,68 @@ function create(canvas, opts) {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.DYNAMIC_DRAW);
     gl.uniformMatrix4fv(U.model, false, mIdent());
     gl.uniform3fv(U.color, colour);
-    gl.uniform1f(U.alpha, L.alpha);
+    gl.uniform1f(U.alpha, alpha);
     gl.uniform1f(U.flat, 1);
-    gl.uniform1f(U.glow, 1.5);
+    gl.uniform1f(U.glow, glow);
     gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+  }
+
+  /* One racing line, flat on the board, and the spark riding it. */
+  function drawLine(spec, now, th) {
+    var a = { x: sqX(spec.from), y: sqZ(spec.from) };
+    var b = { x: sqX(spec.to), y: sqZ(spec.to) };
+    var L = root.Lines.build(a, b, { kind: spec.kind, scale: 1, knight: spec.knight, alpha: spec.alpha });
+    var colour = spec.colour ||
+      (spec.kind === "threat" ? th.capt : spec.kind === "lane" ? th.last : th.hint);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    drawRibbon(L, colour, L.alpha, 1.5 + 0.4 * L.glow, 0.03);
 
     /* the spark: a small bright disc riding the line. Well over white,
        on purpose — this is the one thing in the scene that is meant to
        bloom, and the tone map at the end keeps it from flaring out. */
     var sp = root.Lines.sparkAt(L.pts, root.Lines.phase(L, now));
+    bindMesh(MESH_SOFT);
+    drawMesh(MESH_SOFT, mModel(sp.x, 0.04, sp.y, 0.34, 0), colour, 0.55 * L.alpha, true, 0, 0, 2.6);
     bindMesh(MESH_DISC);
-    drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.17, 0), [1, 1, 1], 0.95 * L.alpha, true, 0, 0, 5.5);
-    drawMesh(MESH_DISC, mModel(sp.x, 0.04, sp.y, 0.30, 0), colour, 0.45 * L.alpha, true, 0, 0, 2.6);
+    drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.15, 0), [1, 1, 1], 0.95 * L.alpha, true, 0, 0, 5.5);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
+  /* the hint: the same ribbon the racing line is drawn with, bent over
+     the traffic for a knight, standing still, with its tip lit so the
+     eye lands where the idea does */
   function drawArrow(from, to, color) {
-    var x0 = sqX(from), z0 = sqZ(from), x1 = sqX(to), z1 = sqZ(to);
-    var dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz);
-    if (len < 0.1) return;
-    var ux = dx / len, uz = dz / len, px = -uz, pz = ux;
-    var w = 0.13, head = 0.34, y = 0.02;
-    var hx = x1 - ux * 0.32, hz = z1 - uz * 0.32;        /* arrow tip pulls short of centre */
-    var bx = hx - ux * head, bz = hz - uz * head;
-    var sx = x0 + ux * 0.30, sz = z0 + uz * 0.30;
-    var v = new Float32Array([
-      sx + px*w, y, sz + pz*w, 0,0,0,1,  sx - px*w, y, sz - pz*w, 0,0,0,1,
-      bx - px*w, y, bz - pz*w, 0,0,0,1,  bx + px*w, y, bz + pz*w, 0,0,0,1,
-      bx + px*head*0.62, y, bz + pz*head*0.62, 0,0,0,1,
-      bx - px*head*0.62, y, bz - pz*head*0.62, 0,0,0,1,
-      hx, y, hz, 0,0,0,1]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, arrowBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, v, gl.DYNAMIC_DRAW);
-    bindDynamic();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, arrowIdx);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3, 4,5,6]), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(U.model, false, mIdent());
-    gl.uniform3fv(U.color, color);
-    gl.uniform1f(U.alpha, 0.85);
-    gl.uniform1f(U.flat, 1);
-    gl.uniform1f(U.glow, 1.6);
-    gl.drawElements(gl.TRIANGLES, 9, gl.UNSIGNED_SHORT, 0);
+    if (!root.Lines) return;
+    var df = Math.abs(fileOf(to) - fileOf(from)), dr = Math.abs(rankOf(to) - rankOf(from));
+    var knight = (df === 1 && dr === 2) || (df === 2 && dr === 1);
+    var L = root.Lines.build({ x: sqX(from), y: sqZ(from) }, { x: sqX(to), y: sqZ(to) },
+                             { kind: "run", scale: 1, knight: knight, alpha: 0.95 });
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    drawRibbon(L, color, L.alpha, 2.3, 0.02);
+    /* and once more, narrower and brighter, for a spine the eye can
+       follow across a pale board */
+    drawRibbon(root.Lines.build({ x: sqX(from), y: sqZ(from) }, { x: sqX(to), y: sqZ(to) },
+                                { kind: "ghost", scale: 1, knight: knight, alpha: 0.9 }), color, 0.9, 3.0, 0.021);
+    bindMesh(MESH_SOFT);
+    drawMesh(MESH_SOFT, mModel(sqX(to), 0.022, sqZ(to), 0.42, 0), color, 0.34, true, 0, 0, 2.2);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
-  /* the colour of a struck square: warm lamplight, hotter at the core */
+  /* the colour of a struck square: warm lamplight, hotter at the core —
+     and of the air a landing moves, which is no colour in particular */
   var IMPACT_CORE = [1.0, 0.93, 0.80], IMPACT_COL = [1.0, 0.80, 0.52], IMPACT_EDGE = [0.95, 0.62, 0.34];
+  var LAND_COL = [1.0, 0.96, 0.90];
+  /* a thin lit edge round a square: the selected one, and the one a
+     carried man would land on */
+  function drawEdge(sq, col, alpha, glow) {
+    var hx = sqX(sq), hz = sqZ(sq);
+    var edge = [[0, -0.46, 0.94, 0.05], [0, 0.46, 0.94, 0.05], [-0.46, 0, 0.05, 0.84], [0.46, 0, 0.05, 0.84]];
+    bindMesh(MESH_QUAD);
+    for (var he = 0; he < 4; he++) {
+      var E = edge[he];
+      drawMesh(MESH_QUAD, [E[2], 0, 0, 0, 0, 1, 0, 0, 0, 0, E[3], 0, hx + E[0], 0.019, hz + E[1], 1],
+        col, alpha, true, 0, 0, glow);
+    }
+  }
 
   R.frame = function () {
     if (R.lost) return false;
@@ -2562,6 +2719,9 @@ function create(canvas, opts) {
 
     /* ---- who is standing where, once, for all the passes ---- */
     instances.length = 0;
+    /* the touched man's halo: a flare on the touch, two breaths, a glow */
+    var selP = R.hi.selected >= 0 && R.selAt >= 0 ? Move.selectPulse(REDUCED ? Infinity : nowMs - R.selAt)
+                                                   : { amount: 0, live: false };
     var skip = {};
     if (a) {
       skip[a.m.from] = true; skip[a.m.to] = true;
@@ -2583,6 +2743,8 @@ function create(canvas, opts) {
         var dp = Move.dropAt(cascMs - casc.delay[sq]);
         if (dp.alpha <= 0.004) continue;
         lift = dp.y; alph = dp.alpha; still = { squash: dp.squash };
+        /* each man's landing leaves its ring on the wood */
+        if (dp.landed && !casc.rung[sq]) { casc.rung[sq] = true; R.lands.push({ x: sqX(sq), z: sqZ(sq), t0: nowMs, k: 0.42 }); }
       } else if (down && sq === down.sq && downP) {
         /* across the push, in the board plane: positive tips the crown
            toward (dx, dz), away from whatever mated it — turning on the
@@ -2591,7 +2753,8 @@ function create(canvas, opts) {
                   pivot: downP.radius, dirx: down.dx, dirz: down.dz,
                   lift: Move.lieLift(fall.tilt, downP.lie) };
       }
-      pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1, still);
+      var standing = pushPiece(piece, sqX(sq), sqZ(sq), lift, alph, 1, still);
+      if (standing && sq === R.hi.selected && selP.amount > 0) standing.halo = selP.amount;
     }
     var promoFlash = 0, promoAt = null;
     if (a) {
@@ -2601,6 +2764,18 @@ function create(canvas, opts) {
          it, and a captured piece is pushed over along it */
       var vx = tx - fx, vz = tz - fz, vl = Math.hypot(vx, vz) || 1;
       vx /= vl; vz /= vl;
+      /* the moment he touches down, a ring runs out from under him —
+         and from under the rook of a castle at its own moment. A
+         promotion has a ceremony of its own and gets no ring. */
+      if (!REDUCED && !a.m.promo && !a.landed && aprog >= pl.travel) {
+        a.landed = true;
+        R.lands.push({ x: tx, z: tz, t0: nowMs, k: Move.landPower(pl) });
+      }
+      if (!REDUCED && a.m.rookFrom != null && !a.rookLanded && aprog >= pl.rookOut) {
+        a.rookLanded = true;
+        R.lands.push({ x: sqX(a.m.rookTo), z: sqZ(a.m.rookTo), t0: nowMs, k: 0.5 });
+      }
+      if (R.lands.length > 40) R.lands.splice(0, R.lands.length - 40);
 
       /* whatever was taken is pushed over rather than deleted. It tips
          away from the piece that took it, skids a little, and is off the
@@ -2671,11 +2846,11 @@ function create(canvas, opts) {
        across — and in the instance list, so he casts a real shadow */
     if (drag) {
       var held = (a ? a.after : R.board)[drag.sq];
-      if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1, null);
+      if (held) { var inHand = pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1, null); if (inHand) inHand.halo = 0.8; }
     }
     if (home) {
       var going = (a ? a.after : R.board)[settling.sq];
-      if (going) pushPiece(going, home.x, home.z, home.y, 1, 1, null);
+      if (going) { var onWay = pushPiece(going, home.x, home.z, home.y, 1, 1, null); if (onWay) onWay.halo = 0.45; }
     }
 
     /* ---- pass one: what the light can see ---- */
@@ -2766,6 +2941,7 @@ function create(canvas, opts) {
       gl.uniform1f(U.mirror, 0);
       gl.uniform1f(U.rimAmt, 0.2);
       sendLights(U.L, th);
+      setMaterial({ sss: 0, coat: th.table.gloss * 0.5 });
       bindMesh(place.edge);
       drawMesh(place.edge, mIdent(), hexToVec(th.table.edge), 1, false, Math.max(0.2, 0.8 - th.table.gloss), 0);
       gl.enable(gl.BLEND);
@@ -2779,6 +2955,7 @@ function create(canvas, opts) {
     gl.uniform1f(U.mirror, 0);
     gl.uniform1f(U.rimAmt, th.rimLight);
     sendLights(U.L, th);
+    setMaterial({ sss: 0, coat: 0.35 });
     bindMesh(MESH_RIM);
     drawMesh(MESH_RIM, mModel(0, -0.002, 0, 1, 0), hexToVec(th.rim), 1, false, 0.52, 0);
 
@@ -2812,54 +2989,86 @@ function create(canvas, opts) {
     gl.useProgram(prog);
     gl.enable(gl.BLEND);
     gl.depthMask(false);
-    bindMesh(MESH_QUAD);
-    if (R.hi.last) {
-      drawFlatSq(R.hi.last[0], th.last, 0.30);
-      drawFlatSq(R.hi.last[1], th.last, 0.45);
-    }
-    if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
-    /* where a carried man would land: a breath of colour on the square
-       and a thin bright edge round it, so it reads as "here" without
-       hiding the square's own colour */
-    if (hover >= 0) {
-      var hx = sqX(hover), hz = sqZ(hover);
-      drawFlatSq(hover, th.selected, 0.16, null, 0.96, 0.017);
-      var edge = [[0, -0.46, 0.94, 0.05], [0, 0.46, 0.94, 0.05], [-0.46, 0, 0.05, 0.84], [0.46, 0, 0.05, 0.84]];
-      for (var he = 0; he < 4; he++) {
-        var E = edge[he];
-        drawMesh(MESH_QUAD, [E[2], 0, 0, 0, 0, 1, 0, 0, 0, 0, E[3], 0, hx + E[0], 0.019, hz + E[1], 1],
-          th.selected, 0.85, true, 0, 0, 1.7);
-      }
-    }
+    var glowLive = selP.live, sel = R.hi.selected;
+    /* the square a move has just landed on, a shade brighter for a moment */
+    var ag = R.lastAt >= 0 ? Move.afterglow(nowMs - R.lastAt) : { amount: 0, live: false };
+    glowLive = glowLive || ag.live;
     /* a king in check breathes for a few seconds rather than blinking:
        a blink is an alarm, and an alarm is the one thing a beginner
        being shown a new idea does not need more of */
     var pulse = { amount: 1, live: false };
+    if (R.hi.check >= 0 && R.checkAt >= 0) pulse = Move.checkPulse(nowMs - R.checkAt);
+    bindMesh(MESH_QUAD);
+    if (R.hi.last) {
+      drawFlatSq(R.hi.last[0], th.last, 0.26);
+      drawFlatSq(R.hi.last[1], th.last, 0.38 + 0.26 * ag.amount);
+    }
+    if (sel >= 0) drawFlatSq(sel, th.selected, 0.34);
+    if (hover >= 0) drawFlatSq(hover, th.selected, 0.16, null, 0.96, 0.017);
+    if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.26 + 0.30 * pulse.amount);
+    /* and under each of them a pool of light, added rather than laid
+       over, because it is light arriving on the wood */
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    bindMesh(MESH_SOFT);
+    if (R.hi.last) {
+      drawMesh(MESH_SOFT, mModel(sqX(R.hi.last[1]), 0.018, sqZ(R.hi.last[1]), 0.74, 0),
+        th.last, 0.14 + 0.34 * ag.amount, true, 0, 0, 1.6 + 0.8 * ag.amount);
+    }
+    if (sel >= 0) drawMesh(MESH_SOFT, mModel(sqX(sel), 0.019, sqZ(sel), 0.82, 0), th.selected, 0.22, true, 0, 0, 1.7);
     if (R.hi.check >= 0) {
-      if (R.checkAt >= 0) pulse = Move.checkPulse(performance.now() - R.checkAt);
-      drawFlatSq(R.hi.check, th.check, 0.30 + 0.34 * pulse.amount);
+      drawMesh(MESH_SOFT, mModel(sqX(R.hi.check), 0.019, sqZ(R.hi.check), 0.78, 0),
+        th.check, 0.18 + 0.26 * pulse.amount, true, 0, 0, 1.9);
       if (pulse.amount > 0.5) {
-        bindMesh(MESH_RING);
-        drawMesh(MESH_RING, mModel(sqX(R.hi.check), 0.024, sqZ(R.hi.check),
-          0.40 + 0.22 * pulse.amount, 0), th.check, 0.5 * pulse.amount, true, 0, 0, 2.2);
-        bindMesh(MESH_QUAD);
+        bindMesh(MESH_SOFTRING);
+        drawMesh(MESH_SOFTRING, mModel(sqX(R.hi.check), 0.024, sqZ(R.hi.check),
+          0.42 + 0.24 * pulse.amount, 0), th.check, 0.55 * pulse.amount, true, 0, 0, 2.2);
       }
     }
-    bindMesh(MESH_DISC);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    /* a thin lit edge: round the touched square, and round the one a
+       carried man would land on, so it reads as "here" without hiding
+       the square's own colour */
+    if (sel >= 0) drawEdge(sel, th.selected, 0.72, 1.6);
+    if (hover >= 0) drawEdge(hover, th.selected, 0.85, 1.7);
+    /* the squares a touched man can go to, opening out from under him:
+       the nearest first, a few milliseconds a square, each a pool of
+       light with a bright heart — and a ring of light round whatever
+       he could take */
+    var rvAt = R.hiAt;
+    function revealOf(sq) {
+      if (REDUCED || rvAt < 0) return { scale: 1, alpha: 1, live: false };
+      var d = sel >= 0 ? Math.max(Math.abs(fileOf(sq) - fileOf(sel)), Math.abs(rankOf(sq) - rankOf(sel))) : 0;
+      return Move.reveal(nowMs - rvAt - d * Move.REVEAL.step);
+    }
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     for (var li = 0; li < R.hi.legal.length; li++) {
-      drawMesh(MESH_DISC, mModel(sqX(R.hi.legal[li]), 0.02, sqZ(R.hi.legal[li]), 0.13, 0), th.legal, 0.55, true, 0, 0, 1.9);
+      var lsq = R.hi.legal[li], lr = revealOf(lsq);
+      glowLive = glowLive || lr.live;
+      if (lr.scale < 0.01) continue;
+      bindMesh(MESH_SOFT);
+      drawMesh(MESH_SOFT, mModel(sqX(lsq), 0.02, sqZ(lsq), 0.26 * lr.scale, 0), th.legal, 0.44 * lr.alpha, true, 0, 0, 2.0);
+      bindMesh(MESH_DISC);
+      drawMesh(MESH_DISC, mModel(sqX(lsq), 0.021, sqZ(lsq), 0.085 * lr.scale, 0), th.legal, 0.8 * lr.alpha, true, 0, 0, 1.7);
     }
-    bindMesh(MESH_RING);
     for (var ci = 0; ci < R.hi.legalCapt.length; ci++) {
-      drawMesh(MESH_RING, mModel(sqX(R.hi.legalCapt[ci]), 0.02, sqZ(R.hi.legalCapt[ci]), 0.46, 0), th.capt, 0.6, true, 0, 0, 1.9);
+      var csq = R.hi.legalCapt[ci], cr = revealOf(csq);
+      glowLive = glowLive || cr.live;
+      if (cr.scale < 0.01) continue;
+      bindMesh(MESH_SOFTRING);
+      drawMesh(MESH_SOFTRING, mModel(sqX(csq), 0.02, sqZ(csq), 0.47 * cr.scale, 0), th.capt, 0.72 * cr.alpha, true, 0, 0, 2.2);
+      bindMesh(MESH_SOFT);
+      drawMesh(MESH_SOFT, mModel(sqX(csq), 0.019, sqZ(csq), 0.40 * cr.scale, 0), th.capt, 0.12 * cr.alpha, true, 0, 0, 1.5);
     }
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);
     /* the mate net: squares the king can't use */
     if (R.net.length) {
-      bindMesh(MESH_RING);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      bindMesh(MESH_SOFTRING);
       for (var nn = 0; nn < R.net.length; nn++) {
-        drawMesh(MESH_RING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.34, 0), th.capt, 0.5, true, 0, 0, 1.6);
+        drawMesh(MESH_SOFTRING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.36, 0), th.capt, 0.55, true, 0, 0, 1.8);
       }
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
     /* the promotion flash: a ring of light opening out of the square the
        new piece is arriving on, bright enough for the bloom to catch */
@@ -2894,6 +3103,19 @@ function create(canvas, opts) {
       }
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
+    /* the ring every landing leaves: thin, pale, gone in a quarter of a
+       second, and bigger for a knight dropped from his hop or a king's
+       weight than for a bishop's glide */
+    if (R.lands.length) {
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      bindMesh(MESH_SOFTRING);
+      for (var ln = R.lands.length - 1; ln >= 0; ln--) {
+        var ld = R.lands[ln], la = Move.landRing(nowMs - ld.t0, ld.k);
+        if (!la.live) { R.lands.splice(ln, 1); continue; }
+        drawMesh(MESH_SOFTRING, mModel(ld.x, 0.022, ld.z, la.r, 0), LAND_COL, la.alpha, true, 0, 0, 1.5);
+      }
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
     if (R.lines.length && root.Lines) {
       var lnow = performance.now();
       for (var ll = 0; ll < R.lines.length; ll++) drawLine(R.lines[ll], lnow, th);
@@ -2908,6 +3130,7 @@ function create(canvas, opts) {
     if (a && !animating) {
       R.board.set(a.after);
       R.anim = null;
+      if (!REDUCED) R.lastAt = nowMs;
       if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
     }
 
@@ -2915,7 +3138,7 @@ function create(canvas, opts) {
     if (postOk) post(th);
 
     R.dirty = animating || moving || dropping || falling || lifting || R.impacts.length > 0 ||
-              R.lines.length > 0 || pulse.live;
+              R.lands.length > 0 || R.lines.length > 0 || pulse.live || glowLive;
     /* a slow card, found out, steps down between moves rather than in
        the middle of one */
     if (!R.dirty) sampleEnd();
@@ -2951,6 +3174,19 @@ function create(canvas, opts) {
       gl.bindTexture(gl.TEXTURE_2D, bloomB.tex);
       gl.uniform2f(UL.dir, 0, 1 / bloomA.h);
       fullscreen(UL.aPos);
+      /* the wide one: the tight bloom taken down again to an eighth of
+         the width and blurred twice more, so a lamp's light reaches
+         across the corner of the frame it hangs in */
+      if (wideOk) {
+        gl.viewport(0, 0, bloomC.w, bloomC.h);
+        var pass = [[bloomD, bloomA], [bloomC, bloomD], [bloomD, bloomC], [bloomC, bloomD]];
+        for (var wp = 0; wp < 4; wp++) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, pass[wp][0].fb);
+          gl.bindTexture(gl.TEXTURE_2D, pass[wp][1].tex);
+          if (wp % 2 === 0) gl.uniform2f(UL.dir, 1 / bloomC.w, 0); else gl.uniform2f(UL.dir, 0, 1 / bloomC.h);
+          fullscreen(UL.aPos);
+        }
+      }
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -2962,9 +3198,14 @@ function create(canvas, opts) {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, haveBloom ? bloomA.tex : blankTex);
     gl.uniform1i(UC.bloom, 1);
-    gl.uniform1f(UC.bloomAmt, haveBloom ? th.bloom : 0);
+    var haveWide = haveBloom && wideOk;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, haveWide ? bloomC.tex : blankTex);
+    gl.uniform1i(UC.bloom2, 2);
+    gl.uniform1f(UC.bloomAmt, haveBloom ? th.bloom * (haveWide ? 0.78 : 1) : 0);
+    gl.uniform1f(UC.bloomAmt2, haveWide ? th.bloom * 0.55 : 0);
     gl.uniform1f(UC.vignette, th.vignette);
-    gl.uniform1f(UC.grain, FX.grain ? th.grain : 0);
+    gl.uniform1f(UC.grain, FX.grain ? th.filmGrain : 0);
     gl.uniform1f(UC.aberration, FX.aberration ? th.aberration : 0);
     gl.uniform1f(UC.time, (performance.now() % 10000) * 0.001);
     fullscreen(UC.aPos);
@@ -2974,8 +3215,8 @@ function create(canvas, opts) {
   R.destroy = function () {
     R.anim = null;
     freePieces();
-    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(shadowT);
-    scene = bloomA = bloomB = shadowT = null;
+    freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD); freeTarget(shadowT);
+    scene = bloomA = bloomB = bloomC = bloomD = shadowT = null;
     shadowSize = 0; postOk = bloomOk = false;
   };
   R.resize();

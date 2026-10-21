@@ -115,6 +115,13 @@ lines.js            the racing line: pure geometry that turns a chess
                     idea into one tapered curve with a travelling spark —
                     a plan, a threat, a promotion lane — drawn identically
                     by both renderers
+grain.js            the surface of the board, as pixels: a hash, a value
+                    noise built on it, a few octaves of that, and three
+                    recipes — rings cut at a slant, veins through cloud,
+                    a weave — giving every pixel of the playing surface a
+                    tone and a relief. Both boards sample the one field,
+                    so the carved board's light reads the very grain its
+                    colour shows. Pure arithmetic, no canvas
 engine.js           the rules of chess, complete: legal move generation
                     (castling, en passant, underpromotion), mate/stalemate,
                     every draw rule, FEN, SAN — and the search the coaching
@@ -350,6 +357,12 @@ tools/              dev-only, never shipped:
                     lesson in the Academy, the record and the nearby door
                     — on a phone and on a laptop, failing on a single
                     page error
+  grain-check.js    every pattern builds, finite, centred and in range;
+                    the same seed paints the same board from the one
+                    cache; no two patterns and no two squares alike; laid
+                    on paint it moves the paint and nothing outside its
+                    region; a flip turns the field round; and three
+                    boards' worth paint in under a second
   sound-check.js    checks the model in node, then renders the actual
                     audio in a browser and measures the samples: each
                     material rings longer than the last, metal is a bell
@@ -817,6 +830,81 @@ rest of the session, and the Studio says why.
 
 `board-check.js` measures every one of those claims on a real canvas.
 
+### A second pass over the light
+
+The board's grain used to be six bezier strokes a square — the drawing
+of a grain, and seen close, which is how a phone sees a board, strokes.
+On the carved board they were never there at all: the skin's grain and
+the lens's film grain shared a name in the palette, and the lens's few
+thousandths won. So the surface is a field now, in `grain.js`: a hash,
+a value noise built on it, a few octaves of that stacked into fBm, and
+three recipes. Wood is rings cut at a slant, their spacing drifting
+along the cut, a narrow dark year-line and the soft wood between, pores
+along the grain, a broad figure across the square, and a few of the
+squares cut where the rings sweep through the face as arches — the
+cathedral of flat-sawn wood. Marble is two families of veins wandering
+through cloud, lighter on a dark stone and darker on a pale one. Linen
+is a weave, the thread going over and under. Every square is its own
+cut from its own place on the plank, leaned a degree or two off square;
+the frame is one long plank round them. The field holds two numbers a
+pixel — a tone for the paint and a relief for the height map — and both
+boards sample the one field, so the carved board's normal map can never
+disagree with the colour it belongs to, and the drawn board, shown from
+Black's side, samples it turned round so the grain stays on its square.
+Painted once a skin change, in about a tenth of a second, and kept.
+
+The surface model learned two things a material does that one
+Cook-Torrance lobe cannot say. **Light gets into ivory.** A little of it
+comes back out past the terminator, which is why the shadow side of an
+ivory bishop is warm rather than black, and some comes through the thin
+parts, which is why a finial glows against the light. Each material in
+`skins.js` carries how far light gets in; the diffuse term is wrapped
+by that much, a transmission term lights the edges from behind, and the
+ambient is taken a little more evenly from all round. **And a polish is
+a layer.** A clear lacquer over a material is a second, glassier
+highlight that the shine slider buffs up, and whatever the coat reflects
+the layer under it has already lost — porcelain is porcelain because of
+the coat, not the colour. The board's gloss wears one too.
+
+The shadows harden where they touch. A lamp is not a point, so a king's
+foot throws a hard shadow and his crown, a hand's height above the
+board, a soft one; the old nine taps blurred both alike. On the Full
+tier four wide taps first find how far away whatever is casting is, and
+that distance sets the spread of the sixteen taps that follow —
+percentage-closer soft shadows, written out longhand. The bloom is two
+blooms: the tight one a highlight wears as a halo, and a second, an
+eighth of the width, that lets a lamp warm the whole corner of the frame
+it hangs in.
+
+### The marks on the board
+
+Everything the board says to you is light now rather than paint. The
+squares a touched man can go to are pools of light with a bright heart,
+and they do not simply appear: they open out from under him, the
+nearest first, a few milliseconds a square, each growing in with the
+smallest overshoot — over inside a quarter of a second for the far
+corner, so a blitz hand is never kept waiting. Whatever he could take
+is ringed in light. The man himself is lit from within at his edges, in
+the skin's own colour: a flare on the touch, two slow breaths, and then
+a glow that holds without asking for another frame — the same bargain
+the check square makes. A man carried by hand carries the halo with
+him. The square a move has just landed on is a shade brighter for a
+moment than the last-move mark will be from then on, so the eye is
+taken to where the move finished rather than left to find it. The hint
+is the same ribbon the racing line is drawn with — tapered, soft-edged,
+bent over the traffic for a knight, its tip lit — standing still. And
+every landing leaves a ring: thin, pale, gone in a quarter of a second,
+bigger for a knight dropped from his hop or a king's weight than for a
+bishop's glide, read off the very plan the move was animated from
+(`Motion.landPower`), with one under each man as he is set out at the
+start of a game. The soft discs and rings are meshes whose shade
+attribute — baked occlusion on a man — is alpha on a marker, so a dot
+of light is a dot of light rather than a coin. The drawn board draws
+all of the same, in gradients. `motion-check.js` holds the new timings
+to their promises and `grain-check.js` the wood to being wood; the
+render check now also asks the painted board for its grain, and the
+touched man for his halo.
+
 ## Where you play
 
 A board drawn against a plain colour reads as a diagram hanging in
@@ -856,6 +944,19 @@ Each place is three things, all in `scenes.js`:
   ceiling, its skirt the table it stands on).
 
 The flat board lies on the same table, seen from straight above.
+
+And each place can be heard as well as seen. Under the game, if sound
+is on and the Studio's *Room tone* has not been switched off, the place
+is quiet in its own way: the park has a breeze that comes and goes
+through the leaves, and birds somewhere off to one side; the café has
+the murmur of a room full of people none of whom you can quite hear,
+and now and then a cup set down on a saucer; the grand room has its
+fire, a low draw up the chimney and the crackle of it; the library has
+a hush, and a page turned behind you; the studio has the air and the
+slow two-note pad it always had. All of it is synthesized from noise
+and a few sines in `sound.js`, like everything else there, and sits
+just above the threshold of noticing. Move the board and the tone fades
+into the next place's; leave the tab and it stops humming to nobody.
 
 Nothing is downloaded: every place is painted from a seeded random
 stream the first time it is chosen, in about a fifth of a second, and
@@ -1159,9 +1260,10 @@ Kindness has some mechanics to it too:
 
 - **Off is off.** A muted room renders silence. A mute fades a fanfare
   that is already playing, and the room's echo of it, rather than
-  letting it finish over somebody who just asked for quiet. `sound.js`
-  also has an optional room tone, off by default; switched off, it lets
-  go of every node, and it never hums in a tab nobody is looking at.
+  letting it finish over somebody who just asked for quiet. The room
+  tone — the place's own quiet, under *Where you play* — can be
+  switched off in the Studio; switched off, it lets go of every node,
+  and it never hums in a tab nobody is looking at.
 - **A sound belongs to its moment.** A browser will not start the audio
   clock until somebody touches the page, and anything asked of a
   stopped clock is saved up for the instant it starts. So anything
@@ -1526,6 +1628,7 @@ node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier, every skin and every place
 node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
+node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
