@@ -1,7 +1,7 @@
 /**
- * Printable companions for a lithophane: a light box and a desk stand for a
- * flat picture, a tea-light base for a lamp, and a nightlight stand for a
- * curved shade. All dimensions are millimetres, measured from the picture's
+ * Printable companions for a lithophane: a desk stand for a flat picture, a
+ * tea-light base for a lamp, and a nightlight stand for a curved shade (the
+ * frames and the lantern are in frames.js, built from the same parts here). All dimensions are millimetres, measured from the picture's
  * own settings, so each one fits the panel it was made for.
  *
  * Every part is built the same way: a 2D cross-section (a "profile") swept
@@ -162,8 +162,24 @@ function finish(mesh, extra) {
   for (let i = 0; i < mesh.vertices.length; i += 3) for (let a = 0; a < 3; a++) {
     lo[a] = Math.min(lo[a], mesh.vertices[i + a]); hi[a] = Math.max(hi[a], mesh.vertices[i + a]);
   }
-  return { shells: 1, ...mesh, triangleCount: mesh.indices.length / 3, volume: signedVolume(mesh),
+  let area = 0;
+  const v = mesh.vertices, f = mesh.indices;
+  for (let t = 0; t < f.length; t += 3) {
+    const a = f[t] * 3, b = f[t + 1] * 3, c = f[t + 2] * 3;
+    const ux = v[b] - v[a], uy = v[b + 1] - v[a + 1], uz = v[b + 2] - v[a + 2];
+    const wx = v[c] - v[a], wy = v[c + 1] - v[a + 1], wz = v[c + 2] - v[a + 2];
+    area += Math.hypot(uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx) / 2;
+  }
+  return { shells: 1, ...mesh, triangleCount: mesh.indices.length / 3, volume: signedVolume(mesh), area,
     size: hi.map((h, a) => h - lo[a]), ...extra };
+}
+
+/** Grams of filament as a slicer would print it: about a millimetre of solid
+ * skin over every surface, and 15% infill inside. A thick frame weighs far
+ * less than its solid volume suggests. */
+export function printedGrams(mesh, density = 1.24) {
+  const skin = Math.min(mesh.volume, mesh.area * 1.0);
+  return (skin + 0.15 * Math.max(0, mesh.volume - skin)) * density / 1000;
 }
 
 /* ---------- paths ---------- */
@@ -189,82 +205,6 @@ function arcPath(radius, angle, segments) {
 }
 
 /* ---------- the parts ---------- */
-
-/**
- * Light box for a flat picture: a frame the picture presses into from the
- * front, flush, resting on a ledge behind its border; a hollow behind it for
- * an LED strip or puck light; and a rabbet at the back for a cover with a
- * notch for the cable. Prints face down, so the front comes off the plate
- * smooth.
- */
-export function lightBox({ width, height, maxThickness, border, depth = 30 }) {
-  const T = maxThickness + 0.2, ledge = Math.max(1.2, border - 0.5), back = 2;
-  const halfW = width / 2 + CLEAR, halfH = height / 2 + CLEAR;
-  if (depth < T + back + 8) throw new RangeError('The light box needs to be deeper than that.');
-  const step = -ledge + 1.2;                         // the back opening, 1.2 mm outside the ledge
-  const profile = [
-    [0, 0], [WALL, 0], [WALL, depth], [step, depth], [step, depth - back],
-    [-ledge, depth - back], [-ledge, T], [0, T],
-  ];
-  const frame = finish(sweep(rectanglePath(halfW, halfH), profile, true), {
-    place: ([x, y, z]) => [x, z - maxThickness, y + height / 2],
-  });
-  // The cover: the back opening less clearance, with a notch at the bottom for a cable.
-  const cw = halfW + step - CLEAR, ch = halfH + step - CLEAR, notch = Math.min(6, cw / 3);
-  const outline = [[-cw, -ch], [-notch, -ch], [-notch, -ch + 5], [notch, -ch + 5], [notch, -ch], [cw, -ch], [cw, ch], [-cw, ch]];
-  const cover = finish(extrude(outline, back - 0.2), {
-    place: ([x, y, z]) => [x, depth - back - maxThickness + z, y + height / 2],
-  });
-  return {
-    parts: [
-      { id: 'frame', name: 'Light box frame', mesh: frame },
-      { id: 'cover', name: 'Light box back', mesh: cover },
-    ],
-    notes: `Press the picture into the front (a dot of glue in each corner holds it), lay an LED strip or puck light in the ${Math.round(depth - T - back)} mm space behind, and click the back on. The notch at the bottom is for the cable. Print the frame face down; no supports.`,
-  };
-}
-
-/**
- * A light box built round a ready-made LED backlight board — the 156 × 120 mm
- * USB-C boards made for lithophanes (Bambu Lab's CMYK board and the many
- * that copy its size). The picture presses into the front as in lightBox;
- * the board drops in from the back, LEDs facing the picture, onto a ledge
- * that keeps it a set distance behind; and an open frame clips in behind the
- * board to hold it, leaving its back — and its USB-C port, wherever it is —
- * free for the cable. The box is the board's size, so the margins round a
- * smaller picture are wider at the sides than at the top and bottom.
- */
-export function boardBox({ width, height, maxThickness, border, gap = 12, board = [120, 156], boardThickness = 1 }) {
-  // Turn the board to the picture: a landscape picture gets a landscape board.
-  const [bw, bh] = (width > height) === (board[0] > board[1]) ? board : [board[1], board[0]];
-  const T = maxThickness + 0.2, ledge = Math.max(1.2, border - 0.5), lip = 1.6, back = 2.6, seat = 2, snap = 0.35;
-  const halfW = bw / 2 + 0.3, halfH = bh / 2 + 0.3;              // the board's pocket
-  const px = width / 2 + CLEAR - halfW, py = height / 2 + CLEAR - halfH;   // the picture's pocket, relative
-  // The picture's pocket may be a little bigger than the board's, but must leave a millimetre of wall.
-  if (px > WALL - 1 || py > WALL - 1) {
-    throw new RangeError(`This picture is larger than a ${bw} × ${bh} mm board. Make it ${bw} × ${bh} mm or smaller, or use the plain light box.`);
-  }
-  const zBoard = T + lip + gap, depth = zBoard + boardThickness + 0.2 + back;
-  // At the back, a 0.35 mm lip with a lead-in: the retainer pushes past it and clicks under it.
-  const profile = [
-    [px, py, 0], [WALL, WALL, 0], [WALL, WALL, depth], [0, 0, depth], [-snap, -snap, depth - snap],
-    [-snap, -snap, depth - 0.6], [0, 0, depth - 0.8], [0, 0, zBoard],
-    [-seat, -seat, zBoard], [-seat, -seat, T + lip], [px - ledge, py - ledge, T + lip], [px - ledge, py - ledge, T], [px, py, T],
-  ];
-  const frame = finish(rectSweep(halfW, halfH, profile), { place: ([x, y, z]) => [x, z - maxThickness, y + height / 2] });
-  // The retainer: an open frame, a snug fit in the pocket, that holds the board's edges under the snap lip.
-  const rim = 6, thick = back - 1, retainer = finish(rectSweep(halfW - 0.15, halfH - 0.15, [[-rim, -rim, 0], [0, 0, 0], [0, 0, thick], [-rim, -rim, thick]]), {
-    place: ([x, y, z]) => [x, depth - back - maxThickness + z, y + height / 2],
-  });
-  const sides = (2 * halfW + 2 * WALL - width) / 2, ends = (2 * halfH + 2 * WALL - height) / 2;
-  return {
-    parts: [
-      { id: 'frame', name: 'LED board box', mesh: frame },
-      { id: 'retainer', name: 'Board retainer', mesh: retainer },
-    ],
-    notes: `Built round a ${bw} × ${bh} mm LED board. Press the picture into the front (a dot of glue in each corner holds it). Drop the board in from the back, LEDs facing the picture — it rests ${gap} mm behind it so the LEDs blend into an even glow — then press the open retainer in behind it until it clicks under the lip (a dot of hot glue works too). Its open middle leaves the USB-C port and cable free wherever the port is. The box is ${(2 * halfW + 2 * WALL).toFixed(0)} × ${(2 * halfH + 2 * WALL).toFixed(0)} × ${depth.toFixed(0)} mm, with a ${sides.toFixed(1)} mm margin at the sides and ${ends.toFixed(1)} mm top and bottom. Print the box face down, no supports.`,
-  };
-}
 
 /** Desk stand for a flat picture: a foot with a slot the picture stands in. */
 export function deskStand({ width, maxThickness, border }) {
@@ -311,11 +251,5 @@ export function shadeStand({ width, angleDeg, maxThickness, border }) {
   };
 }
 
-/** The accessories that suit a shape, for the picker. */
-export const ACCESSORIES = Object.freeze({
-  flat: [{ id: 'lightbox', name: 'Light box', blurb: 'A frame with a back — add an LED and it glows on a shelf or wall', make: lightBox },
-    { id: 'ledboard', name: 'LED board box', blurb: 'Fits a 156 × 120 mm USB-C backlight board (Bambu CMYK board and lookalikes)', make: boardBox },
-    { id: 'stand', name: 'Desk stand', blurb: 'A slotted foot, to stand it in front of a light', make: deskStand }],
-  cylinder: [{ id: 'base', name: 'Tea-light base', blurb: 'A cup it stands in, hiding an LED tea light', make: lampBase }],
-  curved: [{ id: 'stand', name: 'Nightlight stand', blurb: 'A round base that holds the shade and a light', make: shadeStand }],
-});
+// Shared with frames.js, which builds the gallery frames and the lantern from the same parts.
+export { area, extrude, orient, merge, finish, signedVolume, circlePath };

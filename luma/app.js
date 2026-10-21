@@ -2,14 +2,19 @@ import { buildMesh, binarySTL, estimateGrid } from './mesh.js';
 import { imagePlacement, grayscale, photoLevels, enhanceDetail, estimateBounds, printerFit, safeResolution, clamp,
   MATERIALS, COLOURS, LIGHTS, absorption, transmissionRGB, recommendedRange, contrastWords } from './image-processing.js';
 import { LithophanePreview } from './preview.js';
-import { ACCESSORIES } from './accessories.js';
+import { ACCESSORIES } from './extras.js';
+import { printedGrams } from './accessories.js';
+import { FITS } from './frames.js';
+import { FONTS, PATTERNS, loadFont, patternCanvas, drawWords } from './decor.js';
 import { LIGHT_SOURCES, ROOMS, recommendThickness } from './light.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { accessory:{ flat:'none', curved:'none', cylinder:'none' }, accessoryParts:[], shape:'flat', rotation:0, mirror:false, autoTone:true, colour:'white', levels:null, mode:'lit', source:null, name:'Sample · golden retriever', sample:true, revision:0, busy:false, loaded:false, mesh:null, ready:null };
-const fieldIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput','fitSelect','cropX','cropY','zoomInput','brightnessInput','contrastInput','borderInput','minThicknessInput','maxThicknessInput','detailSelect','detailInput','materialSelect','lightColourSelect','standSelect'];
+const fieldIds = ['widthInput','heightInput','diameterInput','angleInput','curveHeightInput','fitSelect','cropX','cropY','zoomInput','brightnessInput','contrastInput','borderInput','minThicknessInput','maxThicknessInput','detailSelect','detailInput','materialSelect','lightColourSelect','standSelect','wordsLine1','wordsLine2','wordsFont','wordsSize','wordsPosition','wordsStyle','wordsBand'];
 // Fields added after the first project format: an older project simply lacks them.
-const optionalFields = { detailInput:'0', materialSelect:'pla', lightColourSelect:'warm', standSelect:'bottom' };
+const optionalFields = { detailInput:'0', materialSelect:'pla', lightColourSelect:'warm', standSelect:'bottom', wordsLine1:'', wordsLine2:'', wordsFont:'cormorant', wordsSize:'10', wordsPosition:'bottom', wordsStyle:'glow', wordsBand:'on' };
+// Free text, not numbers: accepted as any short string.
+const textFields = new Set(['wordsLine1','wordsLine2','wordsFont']);
 // The test strip always spans the same useful range, so its key never changes.
 const STRIP_STEPS = [0.6,1.1,1.6,2.1,2.6,3.1,3.6];
 const linearToSRGB = v => Math.round(255*clamp(v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055,0,1));
@@ -91,6 +96,12 @@ function imageField(s, maxDimension = 1000) {
     ctx.drawImage(state.source,-dw/2,-dh/2,dw,dh);
     ctx.restore();
   }
+  // Words go on top of the photo, in millimetres, mirrored with it so they read from the side it is viewed from.
+  ctx.save();
+  ctx.setTransform((nx-1)/iw,0,0,(ny-1)/ih,0.5,0.5);
+  if(state.mirror){ctx.translate(iw,0);ctx.scale(-1,1);}
+  drawWords(ctx,iw,ih,words());
+  ctx.restore();
   const imageData=ctx.getImageData(0,0,nx,ny),values=grayscale(imageData.data,adjustments());
   // The same physical radius at preview and export resolution, so both agree.
   enhanceDetail(values,nx,ny,DETAIL_RADIUS_MM*(nx-1)/iw,Number($('detailInput').value)/50);
@@ -99,7 +110,61 @@ function imageField(s, maxDimension = 1000) {
   return {values,nx,ny,canvas,widthMM:iw,heightMM:ih};
 }
 
+function words() {
+  return { lines:[$('wordsLine1').value,$('wordsLine2').value], font:$('wordsFont').value, size:Number($('wordsSize').value),
+    position:$('wordsPosition').value, style:$('wordsStyle').value, band:$('wordsBand').value==='on' };
+}
+
+/** Font tiles, each lettered in its own face; choosing one loads it, then redraws. */
+function drawFontTiles() {
+  $('fontTiles').replaceChildren(...FONTS.map(f=>{
+    const b=document.createElement('button');b.type='button';b.className='font-tile';b.setAttribute('role','radio');b.dataset.font=f.id;
+    b.setAttribute('aria-checked',String($('wordsFont').value===f.id));b.title=f.name;
+    b.innerHTML='<span class="font-sample"></span><small></small>';
+    b.querySelector('.font-sample').textContent='Aa';b.querySelector('.font-sample').style.fontFamily=`"${f.family}", Georgia, serif`;
+    b.querySelector('small').textContent=f.name;
+    b.addEventListener('click',()=>{if(state.busy)return;$('wordsFont').value=f.id;drawFontTiles();useFont();});
+    return b;
+  }));
+}
+
+/** Make sure the chosen font is loaded before the picture is redrawn with it. */
+function useFont() {
+  const id=$('wordsFont').value;
+  loadFont(id).then(()=>changed());
+  changed();
+}
+
+/** Patterns, each with a thumbnail of itself. */
+function drawPatternTiles() {
+  $('patternTiles').replaceChildren(...PATTERNS.map(p=>{
+    const b=document.createElement('button');b.type='button';b.className='pattern-tile';b.dataset.pattern=p.id;
+    const c=document.createElement('canvas');c.width=72;c.height=96;
+    try{p.draw(c.getContext('2d'),72,96);}catch(error){}
+    const label=document.createElement('span');label.innerHTML='<strong></strong><small></small>';
+    label.querySelector('strong').textContent=p.name;label.querySelector('small').textContent=p.season;
+    b.append(c,label);
+    b.addEventListener('click',()=>usePattern(p.id));
+    return b;
+  }));
+}
+
+/** A pattern becomes the picture, drawn at the picture's proportions. */
+function usePattern(id) {
+  if(state.busy)return;
+  try {
+    const {iw,ih}=photoSize(settings());
+    setSource(patternCanvas(id,iw/ih));
+    const p=PATTERNS.find(x=>x.id===id);
+    state.pattern=id;state.patternAspect=iw/ih;state.name=`Pattern · ${p.name}`;state.sample=false;state.rotation=0;state.mirror=false;
+    resetPhotoControls();state.autoTone=false;$('detailInput').value='15';
+    changed(true);
+    toast(`${p.name} is the picture now. Download it at this size for a lantern side or a spare slot.`);
+  } catch(error) { toast(error.message); }
+}
+
 function displayLabels() {
+  $('wordsSizeValue').textContent=`${$('wordsSize').value} mm`;
   $('angleValue').textContent=`${$('angleInput').value}°`;
   $('brightnessValue').textContent=`${Number($('brightnessInput').value)>0?'+':''}${$('brightnessInput').value}`;
   $('contrastValue').textContent=`${$('contrastInput').value}%`;
@@ -128,6 +193,11 @@ function render(resetView=false) {
   if(!state.source)return;
   try {
     const s=settings();
+    if(state.pattern) {
+      // A pattern is redrawn whenever the picture changes shape, so it is never stretched or cropped.
+      const {iw,ih}=photoSize(s);
+      if(Math.abs(iw/ih-state.patternAspect)>0.01){setSource(patternCanvas(state.pattern,iw/ih));state.patternAspect=iw/ih;}
+    }
     const p={...s,turn:false,resolution:Math.max(0.5,s.width/(s.shape==='cylinder'?320:220),s.height/280)};
     const photo=imageField(s,1100);
     state.photo=photo;
@@ -303,36 +373,57 @@ function drawAccessoryCards() {
 }
 
 /** Build the chosen frame or base for these settings, show it, and offer its files. */
-/* One slider, two meanings: how deep a plain light box is, or how far an LED board sits behind the picture. */
+/* One slider, two meanings: how deep the hollow for your own light is, or how far an LED board sits behind the picture. */
 const SLIDERS = {
-  lightbox:{ label:'Light box depth', min:20, max:60, value:30, ends:['Slim · LED strip','Deep · puck light'] },
-  ledboard:{ label:'Gap from LEDs to picture', min:6, max:30, value:12, ends:['Slim · may show LED dots','Deeper · smoother glow'] },
+  own:  { label:'Depth for your light', min:15, max:60, value:30, ends:['Slim · LED strip','Deep · puck light'] },
+  board:{ label:'Gap from LEDs to picture', min:6, max:30, value:12, ends:['Slim · may show LED dots','Deeper · smoother glow'] },
 };
 let sliderFor=null;
 
-function updateAccessory(s) {
-  const choice=accessoryChoice(),slider=SLIDERS[choice?.id];
-  $('accessoryOptions').hidden=!choice;$('depthField').hidden=!slider;
-  if(slider&&sliderFor!==choice.id) {
-    if(sliderFor&&SLIDERS[sliderFor])SLIDERS[sliderFor].value=Number($('boxDepthInput').value);
-    sliderFor=choice.id;
+/** Show the options this extra has, and set the slider to mean the right thing. */
+function showAccessoryOptions(choice) {
+  const opts=new Set(choice?.options||[]);
+  $('frameLightField').hidden=!opts.has('light');
+  $('storageField').hidden=!opts.has('storage');
+  $('frameLookField').hidden=!opts.has('style');
+  $('fitField').hidden=!opts.has('fit');$('fitHelp').hidden=!opts.has('fit');
+  $('coverField').hidden=!opts.has('cover');
+  const which=opts.has('gap')?$('frameLight').value:null,slider=SLIDERS[which];
+  $('depthField').hidden=!slider;
+  if(slider&&sliderFor!==which) {
+    if(sliderFor)SLIDERS[sliderFor].value=Number($('boxDepthInput').value);
+    sliderFor=which;
     const input=$('boxDepthInput');input.min=String(slider.min);input.max=String(slider.max);input.value=String(slider.value);
     $('depthField').querySelector('label').textContent=slider.label;
     const ends=$('depthField').querySelectorAll('.range-endpoints span');ends[0].textContent=slider.ends[0];ends[1].textContent=slider.ends[1];
   }
   $('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;
+  $('storageValue').textContent=$('storageInput').value;
+  $('fitHelp').textContent=(FITS[$('fitSelect').value]||FITS.standard).note+' Print the lid first: if its tongues are too tight or too loose in the slots, change this and print again.';
+}
+
+/** Where a part's print coordinates sit beside the picture in the preview. */
+function placed(mesh,kind) {
+  const v=new Float32Array(mesh.vertices.length);
+  for(let i=0;i<v.length;i+=3)v.set(mesh.place([mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]]),i);
+  return {vertices:v,indices:mesh.indices,kind};
+}
+
+function updateAccessory(s) {
+  const choice=accessoryChoice();
+  $('accessoryOptions').hidden=!choice;
+  showAccessoryOptions(choice);
   state.accessoryParts=[];
   if(!choice){preview?.setAccessories?.([]);return;}
   try {
-    const made=choice.make({...s,depth:Number($('boxDepthInput').value),gap:Number($('boxDepthInput').value)});
+    const value=Number($('boxDepthInput').value);
+    const made=choice.make({...s,depth:value,gap:value,light:$('frameLight').value,storage:choice.options?.includes('storage')?Number($('storageInput').value):0,
+      fit:$('fitSelect').value,style:$('frameStyle').value,margin:Number($('frameMargin').value),
+      cover:$('frameLight').value==='own'?true:$('frameCover').checked});
     state.accessoryParts=made.parts;
     $('accessoryNotes').textContent=made.notes;
     const show=$('accessoryPreview').checked;
-    preview?.setAccessories?.(show?made.parts.map(({mesh})=>{
-      const v=new Float32Array(mesh.vertices.length);
-      for(let i=0;i<v.length;i+=3)v.set(mesh.place([mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]]),i);
-      return {vertices:v,indices:mesh.indices};
-    }):[]);
+    preview?.setAccessories?.(show?[...made.parts.map(({mesh})=>placed(mesh)),...(made.ghosts||[]).map(g=>placed(g.mesh,g.kind))]:[]);
     const pr=printer(),material=MATERIALS[$('materialSelect').value]||MATERIALS.pla;
     $('accessoryDownloads').replaceChildren(...made.parts.map(part=>{
       const [x,y,z]=part.mesh.size,fit=printerFit({x,y,z},5,pr.bed);
@@ -340,7 +431,7 @@ function updateAccessory(s) {
       b.disabled=!fit.objectFits;
       b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg><span></span>';
       b.querySelector('span').textContent=fit.objectFits
-        ?`${part.name} · ${fmt(x,0)} × ${fmt(y,0)} × ${fmt(z,0)} mm · about ${fmt(part.mesh.volume/1000*material.density,0)} g`
+        ?`${part.name} · ${fmt(x,0)} × ${fmt(y,0)} × ${fmt(z,0)} mm · about ${fmt(printedGrams(part.mesh,material.density),0)} g`
         :`${part.name} is too large for the ${pr.name}`;
       b.addEventListener('click',()=>downloadAccessory(part));
       return b;
@@ -441,7 +532,7 @@ async function loadPhoto(file) {
       const converted=await decodeHeic(file);URL.revokeObjectURL(url);url=URL.createObjectURL(converted);img=await decodeImage(url);
     }
     if(loadId!==photoLoadId)return;
-    setSource(normalizeImage(img));state.name=file.name||'Pasted photo';state.sample=false;state.rotation=0;state.mirror=false;
+    setSource(normalizeImage(img));state.pattern=null;state.name=file.name||'Pasted photo';state.sample=false;state.rotation=0;state.mirror=false;
     resetPhotoControls();toast('Photo added. Choose the shape and size, then download your STL.');orientPresetToPhoto(true);changed(true);
   } catch(error) {toast(error.message||'That photo could not be opened. Try a JPEG copy.');}
   finally {URL.revokeObjectURL(url);setBusy(false);$('photoInput').value='';}
@@ -471,7 +562,7 @@ async function loadSample() {
   try {
     const img=await decodeImage('./sample.jpg');
     if(loadId!==photoLoadId)return;
-    setSource(normalizeImage(img));state.name='Sample · golden retriever';state.sample=true;state.rotation=0;state.mirror=false;
+    setSource(normalizeImage(img));state.pattern=null;state.name='Sample · golden retriever';state.sample=true;state.rotation=0;state.mirror=false;
     resetPhotoControls();changed(true);state.loaded=true;
   } catch(error) { $('viewerStatus').textContent='Choose a photo to begin.';toast('The sample did not load. Add your own photo to begin.'); }
   finally { setBusy(false); }
@@ -576,15 +667,17 @@ async function openProject(file) {
     if(!SHAPES.includes(data.shape)||![0,90,180,270].includes(data.rotation)||typeof data.mirror!=='boolean'||(data.autoTone!==undefined&&typeof data.autoTone!=='boolean'))throw new Error('This project contains invalid settings.');
     for(const id of fieldIds) {
       const el=$(id),value=data.fields[id]===undefined&&id in optionalFields?optionalFields[id]:data.fields[id];
-      if(typeof value!=='string'||value.length>30)throw new Error('This project contains invalid settings.');
-      if(el.tagName==='SELECT') {
+      if(typeof value!=='string'||value.length>(textFields.has(id)?80:30))throw new Error('This project contains invalid settings.');
+      if(textFields.has(id)) {
+        if(id==='wordsFont'&&!FONTS.some(f=>f.id===value))throw new Error('This project contains an unsupported option.');
+      } else if(el.tagName==='SELECT') {
         if(!Array.from(el.options).some(o=>o.value===value))throw new Error('This project contains an unsupported option.');
       } else if(!Number.isFinite(Number(value))||value.trim()===''||Number(value)<Number(el.min)||Number(value)>Number(el.max))throw new Error('This project contains an out-of-range value.');
       el.value=value;
     }
     setShape(data.shape,false);settings();
     const image=await decodeImage(data.image);
-    setSource(normalizeImage(image));state.name=String(data.name||'Saved photo').slice(0,150);state.sample=!!data.sample;state.rotation=data.rotation;state.mirror=data.mirror;state.autoTone=data.autoTone??false;state.colour=COLOURS[data.colour]?data.colour:'white';applyFilament(false);
+    setSource(normalizeImage(image));state.pattern=null;state.name=String(data.name||'Saved photo').slice(0,150);state.sample=!!data.sample;state.rotation=data.rotation;state.mirror=data.mirror;state.autoTone=data.autoTone??false;state.colour=COLOURS[data.colour]?data.colour:'white';applyFilament(false);drawFontTiles();loadFont($('wordsFont').value).then(()=>changed());
     changed(true);toast('Project opened. Your photo, crop, and print settings are restored.');
   } catch(error) {
     Object.assign(state,{source:previous.source,levels:previous.levels,name:previous.name,sample:previous.sample,rotation:previous.rotation,mirror:previous.mirror,autoTone:previous.autoTone,colour:previous.colour});
@@ -637,6 +730,10 @@ function installGuide() {
       <li><strong>Brighten faces, not backgrounds.</strong> If the subject looks heavy with the light on, raise Brightness a little — thin plastic glows, thick plastic holds shadow.</li>
       <li><strong>Bigger is better.</strong> Fine detail needs room: a 4 × 6 in picture shows far more than a postcard-sized one.</li>
     </ul>
+    <h3>Frames, a showcase and a lantern</h3>
+    <p>Under “Frame it, light it”, a <strong>gallery frame</strong> holds the picture and its light in grooves: slide them down from the top and press the lid on. The border is the same width all round, with a bevelled window like a picture mat. A <strong>showcase frame</strong> adds slots behind the light for up to six more pictures to swap with the seasons. A <strong>lantern</strong> stands four pictures round a light — fill the other sides with more photos or a pattern from step 01. Everything prints without supports. Print the lid first: if it is too tight or too loose, change <strong>Fit</strong> and print again.</p>
+    <h3>Words</h3>
+    <p>“Add words” (step 03) puts a name, a date or a line you love on the picture, in one of seven fonts. Letters 6 mm or taller in the bolder styles print best; glowing letters on the soft band read most clearly with the light on.</p>
     <h3>Fitting your frame or light</h3>
     <p>Flat sizes include the border: a 4 × 6 inch preset makes a 101.6 × 152.4 mm insert. Measure the frame opening and allow the clearance it needs. Curved shades and lamps use the <strong>inside diameter</strong>; for a lamp, leave a few millimetres around your light. No mounting clip is included.</p>
     <h3>Matching your light</h3>
@@ -713,6 +810,8 @@ function init() {
   $('printerSelect').addEventListener('change',()=>{ try { localStorage.setItem('luma-printer',$('printerSelect').value); } catch(error) {} render(); });
   $('autoToneBtn').addEventListener('click',()=>{state.autoTone=!state.autoTone;changed();});
   $('snapshotBtn').addEventListener('click',saveSnapshot);
+  drawFontTiles();drawPatternTiles();
+  for(const id of ['wordsLine1','wordsLine2'])$(id).addEventListener('input',()=>{if($(id).value.trim())loadFont($('wordsFont').value).then(()=>changed());});
   for(const [id,src] of Object.entries(LIGHT_SOURCES)){const o=document.createElement('option');o.value=id;o.textContent=src.name;$('lightSource').append(o);}
   for(const [id,room] of Object.entries(ROOMS)){const o=document.createElement('option');o.value=id;o.textContent=room.name;$('roomSelect').append(o);}
   $('roomSelect').value='dim';$('lightSource').value=SHAPE_LIGHT.flat;setLightDefaults();
@@ -726,6 +825,11 @@ function init() {
   });
   $('boxDepthInput').addEventListener('input',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),80);$('boxDepthValue').textContent=`${$('boxDepthInput').value} mm`;});
   $('accessoryPreview').addEventListener('change',()=>render());
+  for(const id of ['frameLight','storageInput','frameMargin','frameStyle','fitSelect','frameCover'])
+    $(id).addEventListener(id==='storageInput'?'input':'change',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(()=>render(),60);});
+  $('frameColour').addEventListener('change',()=>{preview?.setFrameColour?.($('frameColour').value);try{localStorage.setItem('luma-frame-colour',$('frameColour').value);}catch(error){}});
+  try{const c=localStorage.getItem('luma-frame-colour');if(c&&[...$('frameColour').options].some(o=>o.value===c)){$('frameColour').value=c;}}catch(error){}
+  preview?.setFrameColour?.($('frameColour').value);
   $('rotateBtn').addEventListener('click',()=>{state.rotation=(state.rotation+90)%360;$('cropX').value='0';$('cropY').value='0';changed();});
   $('mirrorBtn').addEventListener('click',()=>{state.mirror=!state.mirror;changed();});
   $('resetToneBtn').addEventListener('click',()=>{resetTone();changed();});
