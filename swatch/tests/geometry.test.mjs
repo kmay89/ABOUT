@@ -34,7 +34,7 @@ test('a box and a prism are closed solids with the volume they should have', () 
 });
 
 test('every coupon kind is closed, wound outward, standing on z = 0, and labelled', () => {
-  const kinds = [['tile', {}], ['stencil', {}], ['pillar', {}], ['cylinder', {}]];
+  const kinds = [['tile', {}], ['stencil', {}], ['pillar', {}], ['cylinder', {}], ['gauge', {}], ['socket', { clearance: 0.2 }]];
   for (const [kind, opts] of kinds) {
     const { mesh, size, lines } = g.COUPONS[kind]({ ...opts, label: ['1.05', 'ARCH'] });
     assert.ok(g.isClosed(mesh), `${kind} closed`);
@@ -76,4 +76,24 @@ test('the STL of a coupon has one record per triangle', () => {
   const stl = g.binarySTL(mesh);
   assert.equal(stl.byteLength, 84 + 50 * (mesh.indices.length / 3));
   assert.equal(new DataView(stl).getUint32(80, true), mesh.indices.length / 3);
+});
+
+test('a block with a hole is one closed shell whose volume is the block less the hole, with sharp corners', () => {
+  const m = g.holedBlock(g.emptyMesh(), { w: 30, d: 24, h: 4, cx: -7, cy: 0, r: 5, n: 360 });
+  assert.ok(g.isClosed(m));
+  const expect = 30 * 24 * 4 - Math.PI * 25 * 4;
+  assert.ok(Math.abs(g.volume(m) - expect) / expect < 2e-4);
+  const [lo, hi] = g.bounds(m);
+  assert.deepEqual([lo[0], lo[1], hi[0], hi[1]].map(v => Math.round(v * 1000) / 1000), [-15, -12, 15, 12]);
+  const corner = m.vertices.some((v, i) => i % 3 === 0 && Math.abs(v - 15) < 1e-9 && Math.abs(m.vertices[i + 1] - 12) < 1e-9);
+  assert.ok(corner, 'the rectangle keeps its corner');
+});
+
+test('a socket\u2019s hole is the peg plus the clearance, and the peg stands clear of the block', () => {
+  const a = g.socketCoupon({ clearance: 0.1, label: ['.10'] }), b = g.socketCoupon({ clearance: 0.4, label: ['.40'] });
+  assert.ok(g.isClosed(a.mesh) && g.isClosed(b.mesh));
+  const dv = g.volume(a.mesh) - g.volume(b.mesh);
+  const expect = Math.PI * 8 * ((8.4 / 2) ** 2 - (8.1 / 2) ** 2);
+  assert.ok(Math.abs(dv - expect) / expect < 0.02, 'the volume difference is the ring between the two holes');
+  assert.equal(a.measure.peg, 8);
 });

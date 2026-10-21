@@ -7,7 +7,10 @@ test('every test uses only settings the catalogue knows, with values the slicer 
   for (const tst of t.TESTS) {
     for (const axis of [tst.x, tst.y].filter(Boolean)) {
       assert.ok(axis.values.length >= 2, `${tst.id} has values on each axis`);
-      if (axis.composite) {
+      if (axis.param) {
+        assert.ok(t.PARAMS[axis.param], `${tst.id} parameter exists`);
+        for (const v of axis.values) assert.ok(Number.isFinite(v));
+      } else if (axis.composite) {
         assert.ok(t.COMPOSITES[axis.composite], `${tst.id} composite exists`);
         for (const v of axis.values) assert.ok(t.COMPOSITES[axis.composite].options.some(o => o.id === v), `${tst.id}: ${v}`);
       } else {
@@ -20,8 +23,28 @@ test('every test uses only settings the catalogue knows, with values the slicer 
       assert.doesNotThrow(() => t.serialize(k, v));
     }
     for (const field of ['name', 'blurb', 'look', 'pick', 'tag']) assert.ok(tst[field], `${tst.id} has ${field}`);
-    assert.ok(['tile', 'stencil', 'pillar', 'cylinder'].includes(tst.coupon.type));
+    assert.ok(['tile', 'stencil', 'pillar', 'cylinder', 'gauge', 'socket'].includes(tst.coupon.type));
+    if (tst.quick) {
+      for (const which of ['x', 'y']) if (tst.quick[which]) {
+        assert.ok(tst[which], `${tst.id} quick ${which} has an axis`);
+        assert.ok(tst.quick[which].length >= 2 && tst.quick[which].length <= tst[which].values.length, `${tst.id} quick ${which} is fewer values`);
+        for (const v of tst.quick[which]) assert.doesNotThrow(() => t.axisValue(tst[which], v), `${tst.id} quick ${which}=${v}`);
+      }
+    }
   }
+});
+
+test('sessions name real tests, in an order that starts with accuracy, and quick detail takes the quick lists', () => {
+  assert.equal(t.SESSIONS[0].tests[0], 'dimensions');
+  for (const s of t.SESSIONS) {
+    assert.ok(s.why && s.name);
+    for (const id of s.tests) assert.ok(t.TESTS.some(x => x.id === id), id);
+  }
+  const ironing = t.TESTS.find(x => x.id === 'ironing');
+  assert.deepEqual(t.withDetail(ironing, 'quick').x.values, ironing.quick.x);
+  assert.deepEqual(t.withDetail(ironing, 'thorough').x.values, ironing.x.values);
+  const q = t.withDetail(ironing, 'quick'); q.fixed.ironing_spacing = 0.2;
+  assert.equal(ironing.fixed.ironing_spacing, 0.1, 'editing a copy leaves the catalogue alone');
 });
 
 test('composite options set only known keys, and the scarf ones switch the override on', () => {
@@ -52,6 +75,8 @@ test('short labels drop the leading zero and keep two decimals where a ratio nee
   assert.equal(t.short('ironing_speed', 40), '40');
   assert.equal(t.short('top_surface_pattern', 'monotonicline'), 'MLINE');
   assert.equal(t.short('seam_position', 'aligned'), 'ALIGN');
+  assert.equal(t.short('xy_contour_compensation', -0.05), '-.05');
+  assert.equal(t.short('clearance', 0.15), '.15');
 });
 
 test('typed values parse, de-duplicate, keep order, and complain about what they cannot read', () => {
