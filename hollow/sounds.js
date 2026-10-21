@@ -14,7 +14,10 @@ export class Sounds {
     this.ctx = null;
     this.master = null;
     this.lastTick = 0;
+    this.unlocked = false; // browsers only let audio start after a tap or a click
   }
+  /** Call from a user gesture: from then on sounds may play. */
+  unlock() { this.unlocked = true; this.ready(); }
   setEnabled(on) {
     this.enabled = on;
     try { localStorage.setItem('hollow-sound', on ? 'on' : 'off'); } catch { /* ignore */ }
@@ -22,7 +25,7 @@ export class Sounds {
   }
   /** Create the context lazily, on a user gesture. */
   ready() {
-    if (!this.enabled) return null;
+    if (!this.enabled || !this.unlocked) return null;
     try {
       if (!this.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;

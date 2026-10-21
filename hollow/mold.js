@@ -33,12 +33,13 @@ export const DEFAULTS = Object.freeze({
   clearance: 0,
   partingZ: 'auto',
   pourFrom: '+y',
-  spout: { enabled: true, diameter: 10, mouth: 18 },
+  spout: { enabled: true, diameter: 12, mouth: 20 },
   vents: { enabled: true, diameter: 2.5, max: 6 },
   keys: { style: 'cones', diameter: 7, height: 4, clearance: 0.25 },
   fasteners: 'bands',
   prySlots: true,
   lip: 2,
+  pushHole: 0,
   siliconeGap: 10,
   boxWall: 2.4,
   boxFloor: 3,
@@ -68,7 +69,7 @@ function merged(options) {
   const s = { ...DEFAULTS, ...options };
   for (const key of ['spout', 'vents', 'keys']) s[key] = { ...DEFAULTS[key], ...(options?.[key] || {}) };
   if (!['two-part', 'open', 'box'].includes(s.type)) throw new RangeError('type must be "two-part", "open" or "box".');
-  for (const key of ['wall', 'cornerRadius', 'lip', 'siliconeGap', 'boxWall', 'boxFloor', 'tolerance']) {
+  for (const key of ['wall', 'cornerRadius', 'lip', 'pushHole', 'siliconeGap', 'boxWall', 'boxFloor', 'tolerance']) {
     if (!Number.isFinite(s[key]) || s[key] < 0) throw new RangeError(`${key} must be a number of zero or more.`);
   }
   if (s.wall < 3) throw new RangeError('The wall must be at least 3 mm.');
@@ -304,9 +305,27 @@ function extract(field, grid, s, progress, label) {
   return mesh;
 }
 
-function partStats(mesh) {
+/** Measurements of a part, and of how it prints: the share of its surface that overhangs more
+ * than 45° in its printing position (the first layer on the plate does not count), which is what
+ * the slicer will want supports under. */
+function partStats(mesh, print) {
   const vol = signedVolume(mesh);
-  return { volumeMm3: vol, bounds: meshBounds(mesh), triangles: mesh.indices.length / 3, plasticGrams: vol / 1000 * PLA_DENSITY * PRINT_FILL, closed: watertight(mesh).closed };
+  const printed = transform(mesh, print.matrix, print.translate);
+  const n = faceNormals(printed);
+  const { positions: p, indices: ix } = printed;
+  let total = 0, overhang = 0;
+  for (let t = 0; t < ix.length; t += 3) {
+    const a = ix[t] * 3, b = ix[t + 1] * 3, c = ix[t + 2] * 3;
+    const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+    const vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2];
+    const area = Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+    total += area;
+    // the first layer is not an overhang, and neither is the ceiling of a band groove 2.5 mm up:
+    // a 6 mm bridge prints without support
+    const low = p[a + 2] <= 3.2 && p[b + 2] <= 3.2 && p[c + 2] <= 3.2;
+    if (!low && n[t + 2] < -0.72) overhang += area;
+  }
+  return { volumeMm3: vol, bounds: meshBounds(mesh), triangles: mesh.indices.length / 3, plasticGrams: vol / 1000 * PLA_DENSITY * PRINT_FILL, closed: watertight(mesh).closed, print, supportFraction: total ? overhang / total : 0 };
 }
 
 /** The transform that lays a part down for printing: `flip` turns it over (180° about X). */
@@ -314,6 +333,12 @@ function printPlacement(mesh, flip) {
   const m = flip ? [1, 0, 0, 0, -1, 0, 0, 0, -1] : [1, 0, 0, 0, 1, 0, 0, 0, 1];
   const b = meshBounds(transform(mesh, m));
   return { matrix: m, translate: [-b.min[0], -b.min[1], -b.min[2]], size: b.size };
+}
+
+/** A finished part: its mesh, its numbers, and how it lies on the plate. */
+function part(name, role, mesh, flip) {
+  const print = printPlacement(mesh, flip);
+  return { name, role, mesh, ...partStats(mesh, print) };
 }
 
 /* ---------- the recipe ---------- */
@@ -455,7 +480,15 @@ function buildTwoPart(model, s, grid, sdf, inside, columns, release, block, resu
   if (!entry) result.warnings.push('The parting plane does not cut through the model, so there is no cavity on it to pour into. Move the plane or re-orient the model.');
   const faceCoord = pour.sign > 0 ? block.max[pour.axis] : block.min[pour.axis];
   if (entry && s.spout.enabled) {
-    const rIn = s.spout.diameter / 2, rOut = Math.max(rIn, s.spout.mouth / 2);
+    const rIn = s.spout.diameter / 2;
+    // the mouth must not break into a peg or socket on the same face
+    let rOut = Math.max(rIn, s.spout.mouth / 2);
+    for (const k of keys) {
+      const atFace = Math.abs((pour.axis === 0 ? k.x : k.y) - faceCoord) < s.wall; // a key near the pouring face
+      if (!atFace) continue;
+      const gap = Math.abs((pour.axis === 0 ? k.y : k.x) - entry[lateral]) - k.r - 1.5;
+      if (gap < rOut) { rOut = Math.max(rIn, gap); result.warnings.push('The spout mouth was narrowed to stay clear of an alignment peg; a wider wall gives it more room.'); }
+    }
     const a = entry.slice(); a[pour.axis] -= pour.sign * rIn * 0.8; // overlap into the cavity
     const b = entry.slice(); b[pour.axis] = faceCoord + pour.sign * 2;
     features.spout = { from: a, to: b, radiusIn: rIn, radiusOut: rOut, volumeMm3: Math.PI * Math.abs(b[pour.axis] - a[pour.axis]) * (rIn * rIn + rIn * rOut + rOut * rOut) / 3 };
@@ -468,7 +501,14 @@ function buildTwoPart(model, s, grid, sdf, inside, columns, release, block, resu
     const farFromSpout = (t) => Math.hypot(t.position[0] - entry[0], t.position[1] - entry[1]) > s.spout.diameter / 2 + s.vents.diameter;
     const useful = traps.slice(1).filter(t => t.depth >= 1 && t.area >= 1.5 && farFromSpout(t));
     useful.sort((p, q) => q.depth - p.depth);
+    const hitsKey = (pos) => keys.some(k => {
+      const atFace = Math.abs((pour.axis === 0 ? k.x : k.y) - faceCoord) < s.wall;
+      const sideways = Math.abs((pour.axis === 0 ? k.y : k.x) - pos[lateral]) < k.r + s.vents.diameter / 2 + 1;
+      const inHeight = pos[2] > partingZ - s.vents.diameter && pos[2] < partingZ + k.height + s.vents.diameter;
+      return atFace && sideways && inHeight;
+    });
     for (const t of useful.slice(0, s.vents.max)) {
+      if (hitsKey(t.position)) continue; // a vent through a peg would weaken it; tapping clears that pocket
       const a = t.position.slice(); a[pour.axis] -= pour.sign * Math.min(1.5, t.depth / 2);
       const b = t.position.slice(); b[pour.axis] = faceCoord + pour.sign * 2;
       vents.push({ from: a, to: b, radius: s.vents.diameter / 2, depth: t.depth });
@@ -480,7 +520,13 @@ function buildTwoPart(model, s, grid, sdf, inside, columns, release, block, resu
   // ---- fasteners and pry slots
   const along = (f) => block.min[pour.axis] + (block.max[pour.axis] - block.min[pour.axis]) * f;
   features.pour = { axis: pour.axis, sign: pour.sign, face: faceCoord };
-  if (s.fasteners === 'bands') features.bands = [0.25, 0.75].map(f => ({ at: along(f), width: 6, depth: 2.5 }));
+  if (s.fasteners === 'bands') {
+    // grooves must miss the pegs in the corners: keep a groove's edge 3 mm from a peg's edge
+    const L = block.max[pour.axis] - block.min[pour.axis];
+    const clear = keyInset + (keys.length ? keyR : 0) + 3 + 3;
+    const lo = Math.max(along(0.25), block.min[pour.axis] + clear), hi = Math.min(along(0.75), block.max[pour.axis] - clear);
+    features.bands = hi - lo >= 10 && L >= 2 * clear + 10 ? [lo, hi].map(at => ({ at, width: 6, depth: 2.5 })) : [{ at: along(0.5), width: 6, depth: 2.5 }];
+  }
   if (s.fasteners === 'bolts') {
     if (s.wall < 12) result.warnings.push('Bolt holes want a wall of at least 12 mm; the holes are cut, but the wall beside them is thin.');
     const inset = Math.max(s.wall / 2, 3.5);
@@ -545,7 +591,7 @@ function buildTwoPart(model, s, grid, sdf, inside, columns, release, block, resu
   }
   shared(field);
   const meshA = extract(field, grid, s, tick, 'half A');
-  result.parts.push({ name: 'Half A (lower)', role: 'half-a', mesh: meshA, ...partStats(meshA), print: printPlacement(meshA, false) });
+  result.parts.push(part('Half A (lower)', 'half-a', meshA, false));
 
   // half B — above the parting plane, sockets down
   tick('Shaping half B…');
@@ -562,7 +608,7 @@ function buildTwoPart(model, s, grid, sdf, inside, columns, release, block, resu
   }
   shared(field);
   const meshB = extract(field, grid, s, tick, 'half B');
-  result.parts.push({ name: 'Half B (upper)', role: 'half-b', mesh: meshB, ...partStats(meshB), print: printPlacement(meshB, true) });
+  result.parts.push(part('Half B (upper)', 'half-b', meshB, true));
 
   const castVolume = result.model.volumeMm3 + (features.spout ? features.spout.volumeMm3 : 0);
   result.cast = { volumeMm3: castVolume, spoutMm3: features.spout ? features.spout.volumeMm3 : 0 };
@@ -619,20 +665,55 @@ function buildOpen(model, s, grid, sdf, inside, release, block, result, tick) {
   // the empty nodes just outside this piece, which fix where its surface falls — stays as it is.
   const only = (id) => { const f = new Float32Array(grid.count); for (let i = 0; i < f.length; i++) f[i] = (field[i] >= 0 || label.ids[i] === id) ? field[i] : 1.5 * h; return f; };
   const bodyField = cores.length ? only(bodyId) : field;
+  const top = block.max[2];
+  // A push-out hole through the floor: a dowel through it frees a stubborn cast. It leaves a
+  // small mark on the cast's face against the floor, so it is off unless asked for.
+  if (s.pushHole > 0) {
+    const r = s.pushHole / 2, cx = mb.center[0], cy = mb.center[1];
+    apply(bodyField, grid, 'cut', [cx - r - h, cy - r - h, block.min[2] - 2 - h], [cx + r + h, cy + r + h, mb.min[2] + 2 + h],
+      (x, y, z) => shapes.cone(x, y, z, [cx, cy, block.min[2] - 2], [cx, cy, mb.min[2] + 2], r, r));
+    result.features.pushHole = { x: cx, y: cy, diameter: s.pushHole };
+  }
+  // A vessel's core needs locating as well as resting: the body gets a shallow recess inside
+  // a 2.5 mm rim at the top, and the collar drops into it, so the core cannot slide sideways.
+  const recess = cores.length ? { inset: 2.5, depth: 2 } : null;
+  if (recess) {
+    const rc = Math.max(0.5, Math.min(s.cornerRadius, Math.min(hs[0], hs[1]) - 0.5) - recess.inset);
+    apply(bodyField, grid, 'cut', [block.min[0] - h, block.min[1] - h, top - recess.depth - h], [block.max[0] + h, block.max[1] + h, top + 2 * h],
+      (x, y, z) => shapes.roundedBoxXY(x, y, z, [c[0], c[1], top + 1], [hs[0] - recess.inset, hs[1] - recess.inset, recess.depth + 1], rc));
+  }
   const meshBody = extract(bodyField, grid, s, tick, 'the mold');
-  result.parts.push({ name: cores.length ? 'Mold body' : 'Mold', role: 'body', mesh: meshBody, ...partStats(meshBody), print: printPlacement(meshBody, false) });
+  result.parts.push(part(cores.length ? 'Mold body' : 'Mold', 'body', meshBody, false));
   result.features.cores = cores.length;
+  result.features.coreHoles = [];
   cores.forEach((id, n) => {
     const f = only(id);
-    // a collar on top so the core rests on the body's rim at the right depth
     const fp = footprint(label.ids, id, grid);
-    const top = block.max[2];
-    const collar = { min: [Math.max(fp.min[0] - 8, block.min[0] + 1), Math.max(fp.min[1] - 8, block.min[1] + 1), top], max: [Math.min(fp.max[0] + 8, block.max[0] - 1), Math.min(fp.max[1] + 8, block.max[1] - 1), top + 3] };
-    const cc = centre(collar), ch = half(collar);
-    apply(f, grid, 'union', [collar.min[0] - h, collar.min[1] - h, top - 2 * h], [collar.max[0] + h, collar.max[1] + h, collar.max[2] + h],
-      (x, y, z) => shapes.roundedBoxXY(x, y, z, [cc[0], cc[1], cc[2] - 0.6], [ch[0], ch[1], ch[2] + 0.6], Math.min(3, ch[0] - 0.5, ch[1] - 0.5)));
+    // the collar: 2 mm down in the recess, 1.5 mm proud, 0.3 mm smaller than the recess all round
+    const inset = recess.inset + 0.3;
+    const rc = Math.max(0.5, Math.min(s.cornerRadius, Math.min(hs[0], hs[1]) - 0.5) - inset);
+    const z0 = top - recess.depth, z1 = top + 1.5;
+    apply(f, grid, 'union', [block.min[0] - h, block.min[1] - h, z0 - 2 * h], [block.max[0] + h, block.max[1] + h, z1 + h],
+      (x, y, z) => shapes.roundedBoxXY(x, y, z, [c[0], c[1], (z0 + z1) / 2 - 0.3], [hs[0] - inset, hs[1] - inset, (z1 - z0) / 2 + 0.3], rc));
+    // overflow holes through the collar over the gap between core and wall, one per side that has room
+    const holes = [];
+    const sides = [
+      [(fp.max[0] + mb.max[0]) / 2, c[1], mb.max[0] - fp.max[0]], [(fp.min[0] + mb.min[0]) / 2, c[1], fp.min[0] - mb.min[0]],
+      [c[0], (fp.max[1] + mb.max[1]) / 2, mb.max[1] - fp.max[1]], [c[0], (fp.min[1] + mb.min[1]) / 2, fp.min[1] - mb.min[1]],
+    ];
+    for (const [hx, hy, width] of sides) {
+      // the hole may overhang the gap by a millimetre either side: it only cuts the collar, and
+      // the notch it leaves at the very top of the core's edge is on the rim that gets struck flat
+      const r = Math.min(4, width / 2 + 1);
+      if (width < 4) continue;
+      apply(f, grid, 'cut', [hx - r - h, hy - r - h, z0 - 2 - h], [hx + r + h, hy + r + h, z1 + 2 + h],
+        (x, y, z) => shapes.cone(x, y, z, [hx, hy, z0 - 2], [hx, hy, z1 + 2], r, r));
+      holes.push({ x: hx, y: hy, diameter: 2 * r });
+    }
+    result.features.coreHoles.push(...holes);
+    if (!holes.length) result.warnings.push('The gap between the core and the wall is too narrow for overflow holes in the collar; pour the body only two thirds full and press the core in slowly.');
     const meshCore = extract(f, grid, s, tick, `core ${n + 1}`);
-    result.parts.push({ name: cores.length > 1 ? `Core ${n + 1}` : 'Core', role: 'core', mesh: meshCore, ...partStats(meshCore), print: printPlacement(meshCore, true) });
+    result.parts.push(part(cores.length > 1 ? `Core ${n + 1}` : 'Core', 'core', meshCore, true));
   });
   result.cast = { volumeMm3: result.model.volumeMm3, spoutMm3: 0 };
 }
@@ -663,7 +744,7 @@ function buildBox(model, s, grid, sdf, release, block, result, tick, originalBou
     }
   }
   const mesh = extract(field, grid, s, tick, 'the master');
-  result.parts.push({ name: 'Silicone master', role: 'master', mesh, ...partStats(mesh), print: printPlacement(mesh, false) });
+  result.parts.push(part('Silicone master', 'master', mesh, false));
   const innerVolume = (inner.max[0] - inner.min[0]) * (inner.max[1] - inner.min[1]) * (block.max[2] - s.boxFloor);
   result.features.silicone = { volumeMm3: Math.max(0, innerVolume - result.model.volumeMm3), gap: s.siliconeGap, innerSize: [inner.max[0] - inner.min[0], inner.max[1] - inner.min[1], block.max[2] - s.boxFloor] };
   result.features.modelOffset = [0, 0, -originalBounds.min[2] + s.boxFloor - 0.6];

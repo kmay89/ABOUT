@@ -8,7 +8,7 @@
    is all or nothing (a release with one script missing never takes over), a
    cached file is served as it is, and on activate only this room's old
    caches go — the cache store belongs to the whole site. */
-var VERSION = "hollow-v2";
+var VERSION = "hollow-v3";
 var SHELL = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./viewer.js", "./verdict.js", "./sounds.js", "./mesh.js", "./sdf.js", "./mc.js", "./decimate.js", "./mold.js", "./samples.js", "./threemf.js", "./mold-worker.js",

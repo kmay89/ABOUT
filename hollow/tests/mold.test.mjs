@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMold, pourAxis, castEstimate, MATERIALS, QUALITY } from '../mold.js';
-import { SAMPLES, extrude } from '../samples.js';
-import { watertight, bounds, transform, signedVolume } from '../mesh.js';
+import { SAMPLES, extrude, lathe } from '../samples.js';
+import { watertight, bounds, transform, signedVolume, faceNormals } from '../mesh.js';
 import { gridFor, signedDistanceField } from '../sdf.js';
 
 const near = (a, b, tol, msg = '') => assert.ok(Math.abs(a - b) <= tol, `${msg} expected ${b} ± ${tol}, got ${a}`);
@@ -133,7 +133,7 @@ test('a vessel comes out as a body and a core with a collar', () => {
   assert.equal(r.features.cores, 1);
   assert.equal(r.analysis.trappedFraction, 0, 'the core lifts up, the body stays: nothing trapped');
   const core = r.parts[1];
-  near(core.bounds.max[2], r.block.max[2] + 3, r.h, 'the collar sits 3 mm above the rim');
+  near(core.bounds.max[2], r.block.max[2] + 1.5, r.h, 'the collar stands 1.5 mm proud of the rim');
   assert.ok(core.bounds.size[0] > 60 && core.bounds.size[0] < r.block.max[0] - r.block.min[0], 'the collar is wider than the core but inside the block');
   assert.ok(core.print.matrix[8] === -1, 'the core prints collar down');
 });
@@ -195,4 +195,77 @@ test('a loosened cavity grows the hollow by the clearance', () => {
   const grown = vol(tight) - vol(loose);
   // the cavity grows by about surface area × clearance
   near(grown, tight.model.areaMm2 * 0.5, tight.model.areaMm2 * 0.5 * 0.35, 'cavity growth');
+});
+
+/* ---------- audit: does the cavity match the model, and do features stay clear of each other? ---------- */
+
+test('the cavity is the model: inside the model is empty in both halves, just outside it is solid in one', () => {
+  const model = SAMPLES.pebble.make();
+  const r = buildMold(model, { ...quick, clearance: 0 });
+  const [a, b] = r.parts;
+  const ba = bounds(a.mesh), bb = bounds(b.mesh);
+  const ga = gridFor(ba.min, ba.max, 0.5, 2), gb = gridFor(bb.min, bb.max, 0.5, 2);
+  const fa = signedDistanceField(a.mesh, ga, 1.5).sdf, fb = signedDistanceField(b.mesh, gb, 1.5).sdf;
+  const solidA = (p) => ga.sample(fa, p[0], p[1], p[2]) < 0, solidB = (p) => gb.sample(fb, p[0], p[1], p[2]) < 0;
+  // sample the model's own surface: step inward along the normal → empty; outward → solid in one half
+  const n = faceNormals(model), { positions: P, indices: I } = model;
+  let checked = 0, insideWrong = 0, outsideWrong = 0;
+  for (let t = 0; t < I.length; t += 3 * 7) {
+    const cx = (P[I[t] * 3] + P[I[t + 1] * 3] + P[I[t + 2] * 3]) / 3, cy = (P[I[t] * 3 + 1] + P[I[t + 1] * 3 + 1] + P[I[t + 2] * 3 + 1]) / 3, cz = (P[I[t] * 3 + 2] + P[I[t + 1] * 3 + 2] + P[I[t + 2] * 3 + 2]) / 3;
+    if (Math.abs(cz - r.analysis.partingZ) < 2) continue; // skip the seam itself
+    const inP = [cx - n[t] * 1.5, cy - n[t + 1] * 1.5, cz - n[t + 2] * 1.5];
+    const outP = [cx + n[t] * 1.5, cy + n[t + 1] * 1.5, cz + n[t + 2] * 1.5];
+    checked++;
+    if (solidA(inP) || solidB(inP)) insideWrong++;
+    const outSolid = cz > r.analysis.partingZ ? solidB(outP) : solidA(outP);
+    if (!outSolid) outsideWrong++;
+  }
+  assert.ok(checked > 200);
+  assert.ok(insideWrong / checked < 0.01, `${insideWrong} of ${checked} points inside the model were solid mold`);
+  assert.ok(outsideWrong / checked < 0.03, `${outsideWrong} of ${checked} points just outside the model were not mold`);
+});
+
+test('every part reports how much of it needs supports, and the pebble halves need none', () => {
+  const r = buildMold(SAMPLES.pebble.make(), quick);
+  for (const p of r.parts) {
+    assert.ok(Number.isFinite(p.supportFraction));
+    assert.ok(p.supportFraction < 0.01, `${p.name} overhangs ${p.supportFraction}`);
+  }
+  const bad = buildMold(SAMPLES.knob.make(), { ...quick, partingZ: 8 });
+  assert.ok(bad.parts.some(p => p.supportFraction > 0.02), 'a trapped cavity shows up as overhang in the print (the verdict flags 2 %)');
+});
+
+test('band grooves keep clear of the pegs on a small block, and the spout mouth of a peg', () => {
+  const small = lathe([[0, 0], [8, 0], [9, 6], [8, 12], [0, 12]], 48); // a 18 mm wide puck
+  const r = buildMold(small, { ...quick, wall: 8, spout: { enabled: true, diameter: 8, mouth: 30 } });
+  const inset = r.settings.wall / 2 + 0.25, keyR = r.features.keys.pegs[0].radius;
+  for (const g of r.features.bands) {
+    const edgeLo = g.at - g.width / 2 - r.block.min[1], edgeHi = r.block.max[1] - (g.at + g.width / 2);
+    assert.ok(Math.min(edgeLo, edgeHi) >= inset + keyR + 2.5, `groove at ${g.at} too close to a peg`);
+  }
+  assert.ok(r.features.spout.radiusOut < 15, 'the mouth was narrowed to miss the peg');
+  assert.ok(r.warnings.some(w => /spout mouth was narrowed/.test(w)));
+  for (const p of r.parts) assert.ok(p.closed, p.name);
+});
+
+test('a vessel core drops into a recess and has overflow holes; a push-out hole goes through the floor', () => {
+  const r = buildMold(SAMPLES.planter.make(), { ...quick, type: 'open', lip: 0, pushHole: 8 });
+  const [body, core] = r.parts;
+  const top = r.block.max[2];
+  // recess: 1 mm below the top the outer 2.5 mm rim is solid, 6 mm in it is not
+  const edge = [r.block.min[0] + 1.2, r.block.center ? 0 : (r.block.min[1] + r.block.max[1]) / 2, top - 1];
+  const inner = [r.block.min[0] + 6, (r.block.min[1] + r.block.max[1]) / 2, top - 1];
+  const [rimSolid, recessEmpty] = solidAt(body, [edge, inner]);
+  assert.ok(rimSolid && !recessEmpty, 'a 2.5 mm rim stands round a 2 mm recess');
+  // the collar sits in that recess
+  assert.ok(solidAt(core, [inner])[0], 'the collar fills the recess');
+  near(core.bounds.max[2], top + 1.5, r.h, 'the collar stands 1.5 mm proud');
+  assert.ok(r.features.coreHoles.length >= 2, `overflow holes: ${r.features.coreHoles.length}`);
+  const hole = r.features.coreHoles[0];
+  assert.ok(!solidAt(core, [[hole.x, hole.y, top]])[0], 'an overflow hole goes through the collar');
+  // the push-out hole
+  assert.deepEqual(r.features.pushHole.diameter, 8);
+  assert.ok(!solidAt(body, [[0, 0, r.block.min[2] + 1]])[0], 'the floor is open at the centre');
+  assert.ok(solidAt(body, [[12, 0, r.block.min[2] + 1]])[0], 'and solid beside the hole');
+  for (const p of r.parts) assert.ok(p.closed, p.name);
 });

@@ -97,7 +97,7 @@
         </section>
 
         <div class="model-details" aria-label="Sizes and amounts">
-          <div><span class="metric-label">Model</span><strong id="modelSizeLabel">—</strong></div>
+          <div><span class="metric-label">Model</span><strong id="modelSizeLabel">—</strong><small id="modelSizeHint"></small></div>
           <div><span class="metric-label">Mold</span><strong id="moldSizeLabel">—</strong></div>
           <div><span class="metric-label">To mix</span><strong id="castLabel">—</strong><small id="castHint"></small></div>
           <div><span class="metric-label">To print</span><strong id="plasticLabel">—</strong><small id="plasticHint"></small></div>
@@ -180,8 +180,8 @@
             </div>
             <div class="toggle-grid">
               <label class="check-row"><input id="spoutCheck" type="checkbox" checked><span>Pour spout</span></label>
-              <div class="number-with-unit small"><input id="spoutDiameterInput" type="number" min="4" max="30" step="1" value="10" aria-label="Spout diameter at the cavity" inputmode="decimal"><span>mm in</span></div>
-              <div class="number-with-unit small"><input id="spoutMouthInput" type="number" min="4" max="50" step="1" value="18" aria-label="Spout diameter at the mouth" inputmode="decimal"><span>mm mouth</span></div>
+              <div class="number-with-unit small"><input id="spoutDiameterInput" type="number" min="4" max="30" step="1" value="12" aria-label="Spout diameter at the cavity" inputmode="decimal"><span>mm in</span></div>
+              <div class="number-with-unit small"><input id="spoutMouthInput" type="number" min="4" max="50" step="1" value="20" aria-label="Spout diameter at the mouth" inputmode="decimal"><span>mm mouth</span></div>
             </div>
             <label class="check-row"><input id="ventsCheck" type="checkbox" checked><span>Air vents where the pour would trap bubbles</span></label>
             <details class="more-options" id="moreTwoPart">
@@ -200,7 +200,9 @@
             <div class="dimensions-fields">
               <div class="field"><label for="lipInput">Rim above the back</label><div class="number-with-unit"><input id="lipInput" type="number" min="0" max="10" step="0.5" value="2" inputmode="decimal"><span>mm</span></div></div>
               <div class="field"><label for="floorInput">Floor</label><div class="number-with-unit"><input id="floorInput" type="number" min="3" max="40" step="0.5" value="8" inputmode="decimal"><span>mm</span></div></div>
+              <div class="field"><label for="pushHoleSelect">Push-out hole</label><div class="select-wrap"><select id="pushHoleSelect"><option value="0" selected>None</option><option value="6">6 mm</option><option value="8">8 mm</option><option value="10">10 mm</option></select></div></div>
             </div>
+            <p class="field-help">A push-out hole through the floor lets a dowel free a stubborn cast. It marks the face against the floor, so leave it off for a piece that shows that face.</p>
             <p class="field-help">A rim lets you overfill, tap the bubbles out, then strike the back flat with a straight edge.</p>
           </div>
 
@@ -236,6 +238,7 @@
               <button id="downloadAllBtn" class="button" type="button">Every STL</button>
             </div>
             <p id="resultDetails"></p>
+            <div class="needs"><strong>Before you pour, you will need</strong><ul id="needsList"></ul></div>
             <button id="resultGuideBtn" type="button" class="text-button">Open the print &amp; pour guide →</button>
           </div>
           <p class="field-help">Standard detail is about 0.3 mm and takes a little while; Fine takes longer and is for small resin pieces. The preview updates at draft detail as you change things.</p>
