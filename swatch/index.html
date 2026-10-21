@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="Print a grid of small test coupons and find the settings that make your 3D prints look amazing: ironing speed and flow, first layer flow, top surface flow, wall speed, seams. Each coupon carries its own settings inside one Bambu Studio 3MF. Free, private, in your browser.">
+  <title>Swatch — Surface Test Lab · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/swatch/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Swatch — Surface Test Lab">
+  <meta property="og:description" content="A grid of coupons, each with its own slicer settings, in one 3MF. Print the plate, pick the winner, put it in your profile. Made for the Bambu Lab P2S and any Bambu printer.">
+  <meta property="og:url" content="https://kmay89.com/swatch/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#lab">Skip to the lab</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Swatch, Surface Test Lab home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="2"/><rect x="15" y="3" width="10" height="10" rx="2"/><rect x="27" y="3" width="10" height="10" rx="2"/><rect x="3" y="15" width="10" height="10" rx="2"/><rect x="15" y="15" width="10" height="10" rx="2" class="lit"/><rect x="27" y="15" width="10" height="10" rx="2"/><rect x="3" y="27" width="10" height="10" rx="2"/><rect x="15" y="27" width="10" height="10" rx="2"/><rect x="27" y="27" width="10" height="10" rx="2"/></svg>
+      <span class="brand-name">Swatch<span class="brand-description">SURFACE TEST LAB</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Lab help">
+      <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <a class="desk-link" href="/workshop/">The workshop</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>The guide</span></button>
+    </nav>
+  </header>
+
+  <main id="lab" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> PRINT A GRID. PICK THE WINNER.</p>
+        <h1 id="pageTitle">The surface you want,<br><em>found</em> on one plate.</h1>
+      </div>
+      <div class="intro-note">
+        <p>Every setting that decides how a print looks — ironing, first layer, top surface, walls, seams — tested as a grid of little coupons, each carrying its own settings inside one Bambu Studio file. Print the plate once, hold it to the light, keep the best square.</p>
+        <span class="intro-steps">Choose a test <span>→</span> Open the 3MF as a project <span>→</span> Print &amp; compare</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="stage-pane" aria-label="The plate">
+        <div class="plate-card">
+          <div class="plate-head">
+            <div>
+              <h2 id="plateTitle">The plate</h2>
+              <p class="plate-hint" id="plateHint">Coupons as they will lie on the plate, labelled as they will print. Across: one setting. Front to back: the other.</p>
+            </div>
+            <div class="plate-stats" id="plateStats" aria-live="polite"></div>
+          </div>
+          <div class="plate" id="plate"></div>
+          <div class="warnings" id="warnings" role="status"></div>
+        </div>
+
+        <section class="card look-card" aria-labelledby="lookTitle">
+          <div class="card-head"><span class="step">👁</span><h2 id="lookTitle">What to look for</h2></div>
+          <p class="look" id="lookText"></p>
+          <h3 class="minor">How to choose</h3>
+          <p class="look" id="pickText"></p>
+        </section>
+      </section>
+
+      <aside class="panel" aria-label="Test controls">
+        <section class="card" aria-labelledby="testTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="testTitle">The test</h2></div>
+          <div class="chips" id="testChips" role="group" aria-label="Which surface to test"></div>
+          <p class="help" id="testBlurb"></p>
+        </section>
+
+        <section class="card" aria-labelledby="gridTitle">
+          <div class="card-head"><span class="step">2</span><h2 id="gridTitle">The grid</h2></div>
+          <p class="help">One setting runs across the plate, the other from front to back. Type the values to try, separated by commas; every pair becomes a coupon. Fewer values, a quicker print.</p>
+          <div class="axis" id="axisX">
+            <div class="axis-head"><span class="axis-dir">ACROSS</span><strong id="axisXLabel"></strong><span class="axis-unit" id="axisXUnit"></span></div>
+            <input id="axisXValues" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Values across">
+            <div class="axis-options" id="axisXOptions" hidden></div>
+            <p class="field-error" id="axisXError" hidden></p>
+          </div>
+          <div class="axis" id="axisY">
+            <div class="axis-head"><span class="axis-dir">FRONT → BACK</span><strong id="axisYLabel"></strong><span class="axis-unit" id="axisYUnit"></span></div>
+            <input id="axisYValues" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Values front to back">
+            <div class="axis-options" id="axisYOptions" hidden></div>
+            <p class="field-error" id="axisYError" hidden></p>
+            <p class="help small">Leave this empty for a single row.</p>
+          </div>
+          <p class="help" id="gridNote"></p>
+        </section>
+
+        <section class="card" aria-labelledby="fixedTitle">
+          <div class="card-head"><span class="step">3</span><h2 id="fixedTitle">On every coupon</h2></div>
+          <p class="help">Settings the test holds the same on every coupon, so only the grid changes. Everything else comes from your own process profile.</p>
+          <div class="fixed" id="fixedList"></div>
+          <button id="resetBtn" class="button button-quiet" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg>Back to the test's defaults</button>
+        </section>
+
+        <section class="card" aria-labelledby="printTitle">
+          <div class="card-head"><span class="step">4</span><h2 id="printTitle">Print</h2></div>
+          <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+          <p class="totals" id="totalsLine"></p>
+          <div class="downloads">
+            <button id="download3mf" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — the plate, each coupon with its settings</small></span></button>
+            <button id="downloadSheet" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg><span>Download the sheet <small>.txt — every coupon's settings, what to look for</small></span></button>
+            <button id="downloadLegend" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg><span>Download the legend <small>.svg — the plate map, to print or keep</small></span></button>
+          </div>
+          <p class="help open-note"><strong>Open it as a project</strong> (File › Open Project, or drop it on Bambu Studio and choose <em>open as project</em>). The slicer will say it loaded geometry only because the file carries no printer or filament profile on purpose: your own stay selected. Click any coupon and its settings are listed under it in the object list. Slice the whole plate and print.</p>
+        </section>
+      </aside>
+    </div>
+
+    <section class="p2s page-width" aria-labelledby="p2sTitle">
+      <div class="p2s-head">
+        <p class="eyebrow"><span></span> BEFORE AND AFTER THE GRIDS</p>
+        <h2 id="p2sTitle">What else a Bambu Lab P2S wants for amazing prints</h2>
+        <p class="help">Swatch finds the settings that decide how a surface looks. The ones below decide whether any of it holds — do them in this order, and the grids get easy to read.</p>
+      </div>
+      <ol class="checklist">
+        <li><strong>Dry the filament.</strong> Most “bad ironing” and “pitted top” is moisture. PLA 4 h at 55 °C, PETG 6 h at 65 °C, in the AMS with desiccant after. A top surface that pops and leaves pinholes will never iron flat.</li>
+        <li><strong>Let the printer calibrate flow dynamics.</strong> The P2S measures pressure advance itself with its eddy-current sensor; leave <em>Flow Dynamics Calibration</em> ticked on the print dialog, or run it from the Calibration tab per filament. Every grid here assumes it has been done.</li>
+        <li><strong>Flow rate, coarse then fine.</strong> Bambu Studio › Calibration › <em>Flow rate</em>. Both passes. The result goes into the filament profile’s flow ratio; the first-layer and top-surface ratios in Swatch multiply it, so set it first.</li>
+        <li><strong>Max flow rate.</strong> Calibration › <em>Max flowrate</em>, once per filament. Where the line breaks up is the ceiling; set the filament’s max volumetric speed a touch below it, and no wall-speed test will fool you with under-extrusion.</li>
+        <li><strong>Temperature.</strong> Calibration › <em>Temperature</em> tower. Cooler for sharper detail and less stringing, hotter for stronger layers and a glossier wall — it changes gloss as much as any setting here.</li>
+        <li><strong>Then the Swatch grids,</strong> in this order: first layer → top surface flow → ironing → walls → seam. Each one leans on the one before.</li>
+        <li><strong>Choose the plate on purpose.</strong> Textured PEI gives a matte, grained bottom that hides everything; smooth PEI or the Cool Plate gives a gloss bottom that shows everything, which is where the first-layer grid earns its keep.</li>
+        <li><strong>Top shells.</strong> Five top shell layers over 15 % gyroid or cubic, or set <em>Top shell thickness</em> to 1 mm. Fewer and the infill ghosts through the surface; no setting in this lab can hide it.</li>
+        <li><strong>Walls.</strong> Three loops, <em>Precise wall</em> on, order inner / outer / inner if your version has it. Try <em>Slow down for curled perimeters</em> and keep the outer wall at the speed the walls grid chose.</li>
+        <li><strong>Judge in good light,</strong> at a low angle to a window or a lamp, and in photos: a phone camera at a glancing angle shows ridges your eyes forgive.</li>
+      </ol>
+    </section>
+  </main>
+
+  <dialog id="guide" class="guide" aria-labelledby="guideTitle">
+    <div class="guide-inner">
+      <div class="guide-head">
+        <h2 id="guideTitle">The guide</h2>
+        <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <h3>What a grid is</h3>
+      <p>A test is two settings and a list of values for each. Every pair becomes a coupon — a small tile, pillar or cylinder — that prints with that pair, and with its values printed on it so the plate can be read without the legend. The file is a 3MF; inside it, next to the shapes, is the same per-object settings list Bambu Studio writes when you right-click a part and add a setting. Open it as a project and each coupon arrives with its settings already on it.</p>
+      <h3>Opening it</h3>
+      <p>Use <strong>File › Open Project</strong>, or drop the file on the window and pick <em>open as project</em>. Bambu Studio will note that it loaded “geometry data only”: that is right, because the file carries no printer, filament or process profile — yours stay selected, and the coupons only differ from them where the test says. Do not use File › Import, which strips settings from objects. To check, click a coupon: its settings appear under it in the object list on the right.</p>
+      <h3>Printing it</h3>
+      <p>Print the whole plate at once, with the filament you will use for real prints and the plate you will use. Keep the process profile you normally print with; the test adds its own differences. Expect the time the slicer says, not the rough figure on this page.</p>
+      <h3>Reading it</h3>
+      <p>The label on each coupon is its values in the order <em>across / front-to-back</em>, written short: <code>.42</code> is 0.42, <code>MLINE</code> is the monotonic-line pattern, <code>SC10</code> a 10 mm scarf. The first-layer tiles are read from underneath, where the label reads the right way round. The sheet lists every coupon in full.</p>
+      <h3>Keeping the winner</h3>
+      <p>Enter the winning values in your process profile and save it under a new name — one per filament, since flow is a property of the plastic. Ironing settings are under Quality › Ironing; the two flow ratios under Quality › Advanced (they appear in Developer mode: Preferences › Develop mode); the seam settings under Quality › Seam.</p>
+      <h3>Other slicers</h3>
+      <p>OrcaSlicer reads the same file the same way. PrusaSlicer and Cura open the coupons but ignore the Bambu settings list; use the sheet and set each coupon’s settings by hand as per-object overrides.</p>
+      <p class="guide-foot">Swatch runs entirely in your browser; nothing is uploaded. Bambu Lab and Bambu Studio are trademarks of their owner; Swatch is an independent tool.</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="page-width site-footer">
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/workshop/">The workshop</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/hollow/">Hollow — molds</a>
+      <a href="/cubby/">Cubby — drawer organizers</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/legal/">Legal</a>
+      <a href="https://github.com/kmay89/ABOUT/tree/main/swatch">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
