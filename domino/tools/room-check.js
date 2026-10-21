@@ -161,7 +161,7 @@ var READBACK = "(()=>{" +
   "else { const ed=g.edges(), top=s.topPad, bot=s.botPad; const fit=L.fit(s.table.bbox, g.w-ed.all*2, g.h-top-bot, 10); unit=fit.scale;" +
   "  geo={hc:0.5, sa:0.30, sc:0.30}; toScreen=(x,y)=>({x:(fit.ox+ed.all+x*unit)*dpr, y:(fit.oy+top+y*unit)*dpr}); }" +
   "const out=[];" +
-  "for (const b0 of s.table.bones){ const jj=window.Gfx3D.jit(b0.tile); const b={x:b0.x+jj.dx, y:b0.y+jj.dy, rot:b0.rot+jj.dr*57.3, tile:b0.tile, end:b0.end, inner:b0.inner, outer:b0.outer};" +
+  "for (const b0 of s.table.bones){ const jj=window.Gfx3D.jit(b0.tile, b0.h); const b={x:b0.x+jj.dx, y:b0.y+jj.dy, rot:b0.rot+jj.dr*57.3, tile:b0.tile, end:b0.end, inner:b0.inner, outer:b0.outer};" +
   "  const r=b.rot*Math.PI/180, C=Math.cos(r), S=Math.sin(r), f=L.faces(b);" +
   "  const halves=[[-geo.hc,f[0]],[geo.hc,f[1]]]; const got=[];" +
   "  for (const [hx,n] of halves){ const vals=[];" +

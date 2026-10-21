@@ -264,8 +264,9 @@ button in the menu.
 **Thick bones, laid by hand.** The set is a jumbo one, a little under
 half as thick as it is wide, so the side of a bone is something you
 see rather than something you are told about. Every bone on the table
-is nudged a hair off its slot and turned a degree, the same way every
-time for the same bone, in both renderers; the camera sways by a
+lies flat, exactly where the line puts it along the line so neighbours
+touch, nudged a hair across it and turned half a degree, the same way
+every time for the same bone, in both renderers; the camera turns by a
 fraction of a degree over several seconds (not under reduced motion).
 A bone flies in from the plate of whoever played it, or up out of the
 place in your hand it just left, through the renderer's own camera.

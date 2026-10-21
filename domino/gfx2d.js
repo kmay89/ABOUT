@@ -50,8 +50,9 @@ function nrand(i) {
 }
 function nrand2(i) { var x = Math.sin(i * 127.1 + 1.7) * 43758.5453; return x - Math.floor(x); }
 /* the same nudge off the slot the round table gives each bone (gfx3d.js) */
-function jit(tile) {
-  return { dx: (nrand2(tile * 3 + 1) - 0.5) * 0.07, dy: (nrand2(tile * 3 + 2) - 0.5) * 0.07, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.05 };
+function jit(tile, h) {
+  var across = (nrand2(tile * 3 + 2) - 0.5) * 0.045, horiz = (h === 0 || h === 2 || h === undefined);
+  return { dx: horiz ? 0 : across, dy: horiz ? across : 0, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.018 };
 }
 
 /* ---------- pips ----------
@@ -268,7 +269,7 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
      offset down by the bone's thickness, drawn under the face, and the
      sliver left showing along the bottom is an edge. It costs one fill
      and it is the same trick the eye is being offered in 3D. */
-  var thick = Math.max(2, Math.min(sw, sh) * 0.115);
+  var thick = Math.max(2.5, Math.min(sw, sh) * 0.14);
   var edgeCol = opts.faceDown ? sk.bones.back : sk.bones.face;
   rr(g, -hw, -hh + thick, sw, sh, r);
   g.fillStyle = mix(edgeCol, "#000000", 0.42);
@@ -332,6 +333,14 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
   this.pips(longAxis ? 0 : -half.w / 2, longAxis ? -half.h / 2 : 0, half.w, half.h, a);
   this.pips(longAxis ? 0 : half.w / 2, longAxis ? half.h / 2 : 0, half.w, half.h, b);
   if (turn) g.rotate(-turn * Math.PI / 180);
+  /* the perno: a brass pin raised in the middle of the face */
+  var pr = Math.max(2, Math.min(w, h) * 0.078);
+  var brass = g.createRadialGradient(-pr * 0.35, -pr * 0.35, pr * 0.1, 0, 0, pr);
+  brass.addColorStop(0, "#f6dc8c"); brass.addColorStop(0.55, "#c9a24f"); brass.addColorStop(1, "#7a5a1e");
+  g.beginPath(); g.arc(0, pr * 0.25, pr, 0, Math.PI * 2); g.fillStyle = "rgba(0,0,0,.28)"; g.fill();
+  g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fillStyle = brass; g.fill();
+  g.strokeStyle = "rgba(60,40,10,.55)"; g.lineWidth = Math.max(0.8, pr * 0.18); g.stroke();
+  g.beginPath(); g.arc(-pr * 0.3, -pr * 0.3, pr * 0.28, 0, Math.PI * 2); g.fillStyle = "rgba(255,250,235,.75)"; g.fill();
 
   if (opts.glow) {
     g.strokeStyle = opts.glow;
@@ -517,7 +526,7 @@ Gfx2D.prototype.drawTable = function (scene, now) {
     var fc = L.faces(b), a = fc[0], c = fc[1];
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
     /* hand-laid: the same hair off the slot the round table gives it */
-    var jj = jit(b.tile);
+    var jj = jit(b.tile, b.h);
     var px = ox + (b.x + jj.dx) * unit, py = oy + (b.y + jj.dy) * unit, lift = 0, rot = b.rot + jj.dr * 57.3;
     if (anim) {
       var k = Math.min(1, anim.t);
