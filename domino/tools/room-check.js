@@ -233,7 +233,7 @@ async function readback(page, label) {
   await page.click("#chuyClose");
   await page.waitForTimeout(300);
   var next = await page.evaluate("(()=>{const d=window.__dt(); return {up:d.coachUp(), txt:document.getElementById('chuySay').textContent};})()");
-  ok("and Got it puts it away, showing the next tip if one waited", !/Welcome/.test(next.txt), next.txt.slice(0, 40));
+  ok("and Got it puts it away, showing the next tip if one waited", !next.up || !/Welcome/.test(next.txt), (next.up ? "up: " : "down: ") + next.txt.slice(0, 40));
   /* read the rest of the queue; then the check runs at a player's pace, tips fading */
   for (var tq = 0; tq < 4 && (await page.evaluate("window.__dt().coachUp()")); tq++) { await page.click("#chuyClose"); await page.waitForTimeout(150); }
   await page.evaluate("(()=>{const d=window.__dt(); d.P.pace='relaxed'; d.P.coachHold=false;})()");
@@ -494,6 +494,22 @@ async function readback(page, label) {
     "return {forced: cnt.f? forced/(n*cnt.f):null, open: cnt.o? open/(n*cnt.o):null, pace:d.P.pace};})()");
   ok("a forced bone goes down sooner than a real choice", think.forced === null || think.open === null || think.forced < think.open,
      "forced " + Math.round(think.forced || 0) + "ms, open " + Math.round(think.open || 0) + "ms (" + think.pace + ")");
+
+  /* ---------- the table answers ----------
+     Every answer is a function that must exist and never throw, with the
+     audio awake or asleep; the streak must count and the firsts must be
+     marked once. */
+  var answers = await page.evaluate("(()=>{const S=window.Sound,d=window.__dt(); try { S.note(2,7); S.note(2,7,true); S.turn(); S.verdict('ok'); S.verdict('good'); S.verdict('sharp',1); S.verdict('sharp',6); S.verdict('miss'); S.lesson(); S.music.quiet(true); S.music.quiet(false); } catch(e) { return {err:String(e)}; }" +
+    "d.P.seen.firstSharp=0; d.P.seen.firstStreak=0; d.G.streak=0; const g=document.getElementById('grade'); const out=[];" +
+    "for (const id of ['sharp','sharp','sharp','ok']) { d.showGrade({id:id, icon:'★', label:id}); out.push({cls:g.className, txt:g.textContent}); }" +
+    "return {out, first:d.P.seen.firstSharp, run:d.P.seen.firstStreak, streak:d.G.streak}; })()");
+  ok("every answer of the table can be sounded", !answers.err, answers.err);
+  if (!answers.err) {
+    ok("the first sharp play is marked as a first", /first/.test(answers.out[0].cls) && /first Sharp/i.test(answers.out[0].txt), answers.out[0].txt);
+    ok("a streak counts up", /×2/.test(answers.out[1].txt) && /×3/.test(answers.out[2].txt), answers.out[1].txt + " / " + answers.out[2].txt);
+    ok("three in a row is a racha, once", /Racha/.test(answers.out[2].txt) && answers.run === 1);
+    ok("and an okay play ends it", answers.streak === 0 && !/×/.test(answers.out[3].txt));
+  }
 
   /* ---------- the moment a hand ends ----------
      Whoever went out, big, and what it was worth — before the sheet. */

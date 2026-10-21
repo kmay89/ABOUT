@@ -281,6 +281,23 @@ meant to. When the bone lands the table says how the play felt — Sharp,
 Good, Okay or Costly, with a word under it — and for a costly one Don
 Chuy says what he would have played and why.
 
+**The table answers in the trio's key.** Every sound the game makes at
+the player sits in A major, the key the music is in, so nothing it says
+ever clashes with the band: a bone picked up is a note of the scale
+(which note depends on where it sits in the hand, so a finger run along
+the hand plays the scale), a bone put back is the same note an octave
+down, your turn is a plucked fifth, and the verdict on a play is an
+arpeggio that grows with it — one note when it works, three climbing
+when it is good, a bright run when it is sharp, and a run that keeps
+climbing while a streak lasts, with a rasgueado at six. A costly play is
+a soft low pair, a shrug, never a buzzer. The trumpet sits out while
+you are deciding and comes back in when the bone goes down. Streaks
+show as ×2, ×3 with a word of encouragement, a little paper falls at
+three, your partner says *¡Órale!* now and then, and two firsts are
+marked once and never again: the first sharp play, the first streak.
+Hanging an opponent after the tip that taught it gets a chime of its
+own. People learn from a table that answers at once and kindly.
+
 **Nothing is assumed of a newcomer.** A fresh profile's table is
 unhurried, the first hand opens with Don Chuy saying who sits where and
 what the game is for, and the first pick-up, the first lay-down and the

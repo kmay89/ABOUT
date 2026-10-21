@@ -104,15 +104,50 @@ S.shuffle = function () {
     burst(at, 0.03, 1800 + Math.random() * 1400, 5, 0.10 + Math.random() * 0.12);
   }
 };
+/* ---------- the table answers in the trio's key ----------
+   Every sound the game makes at the player sits in A major, the key the
+   trio plays in, so nothing the room says ever clashes with the music:
+   a bone picked up is a note of the scale (which note depends on where
+   it sits in the hand, so running a finger along the hand plays the
+   scale), a bone put back is the same note an octave down, your turn is
+   a plucked fifth, and the verdict on a play is an arpeggio that grows
+   with it — one note for a play that works, three climbing for a good
+   one, a bright run for a sharp one and a run that keeps climbing while
+   a streak lasts. A costly play gets a soft, low, unhurried pair: a
+   shrug, never a buzzer. People learn from a table that answers kindly
+   and at once, and stop listening to one that scolds. */
+var KEYS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];          /* A major, two octaves */
+function keyHz(semi, oct) { return 220 * Math.pow(2, (semi + (oct || 0) * 12) / 12); }
+S.note = function (i, n, down) {
+  var t = ready(); if (t === null) return;
+  var step = n > 1 ? Math.round(i / (n - 1) * 7) : 3;
+  pluck(t, keyHz(KEYS[Math.max(0, Math.min(KEYS.length - 1, step))], down ? 0 : 1), 0.7, down ? 0.07 : 0.11);
+};
 S.turn = function () {
   var t = ready(); if (t === null) return;
-  tone(t, 0.16, 660, "sine", 0.16);
-  tone(t + 0.11, 0.22, 880, "sine", 0.14);
+  pluck(t, keyHz(0, 1), 0.9, 0.11);
+  pluck(t + 0.09, keyHz(7, 1), 1.1, 0.10);
 };
 S.good = function () {
   var t = ready(); if (t === null) return;
-  tone(t, 0.12, 784, "triangle", 0.10);
-  tone(t + 0.08, 0.18, 1175, "triangle", 0.09);
+  pluck(t, keyHz(4, 1), 0.6, 0.09);
+  pluck(t + 0.08, keyHz(9, 1), 0.8, 0.09);
+};
+S.verdict = function (id, streak) {
+  var t = ready(); if (t === null) return;
+  if (id === "miss") { pluck(t, keyHz(9, -1), 1.0, 0.07); pluck(t + 0.22, keyHz(7, -1), 1.2, 0.06); return; }
+  if (id === "ok") { pluck(t, keyHz(4, 1), 0.8, 0.09); return; }
+  if (id === "good") { [0, 4, 7].forEach(function (s, i) { pluck(t + i * 0.07, keyHz(s, 1), 0.8, 0.09); }); return; }
+  /* sharp: a run up the chord, one note longer for every play of the streak */
+  var run = [0, 4, 7, 12, 16, 19, 24], n = Math.min(run.length, 4 + Math.max(0, (streak || 1) - 1));
+  for (var i = 0; i < n; i++) pluck(t + i * 0.06, keyHz(run[i], 1), 0.9, 0.10);
+  if (n >= 6) strum(t + n * 0.06 + 0.1, A_MAJ, 0.025, 1.2, 0.12);
+};
+/* a lesson put to use — the thing a tip taught, done */
+S.lesson = function () {
+  var t = ready(); if (t === null) return;
+  [7, 12, 16].forEach(function (s, i) { tone(t + i * 0.09, 0.35, keyHz(s, 1), "triangle", 0.07); });
+  pluck(t + 0.3, keyHz(0, 1), 1.0, 0.09);
 };
 
 /* ---------- a guitar, for the moments that earn one ----------
@@ -301,9 +336,12 @@ function bar(b, t0) {
     for (var i = 0; i < 4; i++) mpluck(at + i * 0.012, hz(ch[i % 3] + (i > 2 ? 12 : 0), 0), 0.36, 0.055);
     if (dbl) for (var j = 0; j < 4; j++) mpluck(at + BEAT * 0.5 + j * 0.01, hz(ch[j % 3] + (j > 2 ? 12 : 0), 0), 0.25, 0.04);
   }
-  /* trumpet: this bar's share of the phrase */
+  /* trumpet: this bar's share of the phrase — and it sits out while
+     the player is thinking, so the table goes quiet for them the way a
+     trio does when somebody at the bar is deciding; it comes back in
+     when the bone goes down */
   var ph = Math.floor(b / 4), kind = FORM[ph % 4], round = Math.floor(ph / 4) % 4;
-  if (ph % 8 === 7) return;                   /* every eighth phrase the trumpet sits one out */
+  if (ph % 8 === 7 || M.quiet) return;
   var notes = phrase(kind, round), inBar = b % 4;
   for (var n = 0; n < notes.length; n++) {
     var nt = notes[n];
@@ -324,6 +362,8 @@ function tick() {
   }
 }
 S.music = {
+  /* the trumpet steps back while the player decides */
+  quiet: function (on) { M.quiet = !!on; },
   start: function () {
     M.want = true;
     if (M.on) return;
