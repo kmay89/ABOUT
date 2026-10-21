@@ -120,7 +120,7 @@ var VS = [
 var FS = [
   "precision mediump float;",
   "varying vec3 vN; varying vec3 vP; varying vec2 vUV;",
-  "uniform vec3 uColor, uEye, uLamp, uBounce;",
+  "uniform vec3 uColor, uEye, uLamp, uBounce, uRoom, uFog;",
   "uniform float uSpec, uPower, uRim, uAlpha, uTex, uAmb;",
   "uniform sampler2D uSampler;",
   "const vec3 FILL = vec3(-0.470, -0.646, 0.601);",   /* over the near shoulder */
@@ -155,6 +155,15 @@ var FS = [
   "  float spe = pow(max(dot(N, H), 0.0), uPower) * uSpec * (0.35 + 0.65 * fall);",
   "  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0) * uRim;",
   "  vec3 col = base * light + vec3(1.0, 0.96, 0.88) * spe + vec3(0.7, 0.8, 1.0) * rim;",
+  /* The room past the table. A finite table over a floor needs an end
+     to the floor, and a hard edge where the plane stops is the one thing
+     that gives a backdrop away. So everything fades towards the room's
+     own colour with distance from the eye — the floor beyond the far
+     rim goes to the dark of the cantina the way the back of a bar does
+     under one bulb, and the table itself, which is always closer than
+     uFog.x, never notices. */
+  "  float fog = clamp((length(uEye - vP) - uFog.x) / uFog.y, 0.0, 1.0);",
+  "  col = mix(col, uRoom, fog * fog);",
   "  gl_FragColor = vec4(col, uAlpha);",
   "}"
 ].join("\n");
@@ -285,17 +294,12 @@ function boneMesh(gl) {
   return mesh;
 }
 
-/* a flat quad for the table top */
-function planeMesh(gl, size) {
+/* a flat quad: the cantina floor, far below the table. `rep` is how
+   many times the tile texture repeats across it */
+function planeMesh(gl, size, rep) {
   var P = [-size, -size, 0, size, -size, 0, size, size, 0, -size, size, 0];
   var N = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
-  /* 20 repeats across the plane rather than 6. At 6 a single 128px tile
-     of cloth was stretched over four bone-lengths of table, so the felt
-     under a bone was a smooth brown gradient while the bone on top of it
-     was razor sharp — and that mismatch reads as a sticker on a
-     backdrop. At 20 the weave is about a bone long and the two surfaces
-     belong to the same photograph. */
-  var U = [0, 0, 20, 0, 20, 20, 0, 20];
+  var U = [0, 0, rep, 0, rep, rep, 0, rep];
   var I = [0, 1, 2, 0, 2, 3];
   var m = { pos: gl.createBuffer(), nrm: gl.createBuffer(), uv: gl.createBuffer(), idx: gl.createBuffer(), count: 6 };
   gl.bindBuffer(gl.ARRAY_BUFFER, m.pos); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(P), gl.STATIC_DRAW);
@@ -304,6 +308,99 @@ function planeMesh(gl, size) {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(I), gl.STATIC_DRAW);
   return m;
+}
+
+/* ---------- the table, as a piece of furniture ----------
+   The felt used to be an infinite plane: brown in every direction, no
+   edge, no room, a diagram's idea of a table. A table is a thing with an
+   end to it. This one is a felt top let into a wooden frame that stands
+   a little proud of the cloth — the lip your bones bump against at a
+   real table — with a bevel on its outer edge and an apron below, over
+   a floor a good way down.
+
+   Two meshes come out of one description: the cloth (textured with the
+   felt) and the wood (textured with grain), because they are drawn with
+   different textures and different shine. Everything is built the same
+   way as the bone — quads with a stated normal — so `tools/bone-check.js`
+   can hold the frame to the same winding and closure rules, and here the
+   winding is *corrected* rather than trusted: a quad whose corners wind
+   against its normal is reversed on the spot, so a typo in a corner
+   order can never cull a face.
+
+   Units are half-tiles, like everything on the table. `tw`/`th` are the
+   half-extents of the cloth; the line of play has been measured over
+   thousands of games and never reaches past bound + 2 sideways or 11
+   deep, so a cloth of bound + 4 by 13 or more always has air round it.
+   The top of the cloth is z = 0 here; `draw` lowers the whole piece to
+   the felt height the bones rest on. */
+var RIM = 1.5, LIP = 0.10, RIMC = 0.14, APRON = 2.6, FLOOR_DROP = 28;
+function tableGeometry(tw, th) {
+  var cloth = { P: [], N: [], U: [], I: [] }, wood = { P: [], N: [], U: [], I: [] };
+  function quad(g, a, b, c, d, n, uvs) {
+    var vs = [a, b, c, d];
+    /* wind the corners the way the normal says */
+    var e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    var f = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (f[0] * n[0] + f[1] * n[1] + f[2] * n[2] < 0) { vs = [a, d, c, b]; uvs = uvs && [uvs[0], uvs[3], uvs[2], uvs[1]]; }
+    var base = g.P.length / 3;
+    for (var i = 0; i < 4; i++) {
+      g.P.push(vs[i][0], vs[i][1], vs[i][2]);
+      g.N.push(n[0], n[1], n[2]);
+      g.U.push(uvs ? uvs[i][0] : 0, uvs ? uvs[i][1] : 0);
+    }
+    g.I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  var FU = 0.385;                     /* felt weave: one repeat per 2.6 units, a bone and a bit */
+  var WU = 0.11;                      /* wood grain: a plank's worth every nine units */
+  function fuv(p) { return [p[0] * FU, p[1] * FU]; }
+  function wuv(p, along) { return along ? [p[0] * WU, p[1] * WU] : [p[1] * WU, p[0] * WU]; }
+
+  /* the cloth */
+  var c0 = [-tw, -th, 0], c1 = [tw, -th, 0], c2 = [tw, th, 0], c3 = [-tw, th, 0];
+  quad(cloth, c0, c1, c2, c3, [0, 0, 1], [fuv(c0), fuv(c1), fuv(c2), fuv(c3)]);
+
+  /* the lip: the inner wall of the frame, from the top of the wood
+     down to the cloth, facing in */
+  var L = LIP;
+  quad(wood, [-tw, th, L], [tw, th, L], [tw, th, 0], [-tw, th, 0], [0, -1, 0], [[0, 0], [tw * 2 * WU, 0], [tw * 2 * WU, L * WU], [0, L * WU]]);
+  quad(wood, [-tw, -th, L], [tw, -th, L], [tw, -th, 0], [-tw, -th, 0], [0, 1, 0], [[0, 0], [tw * 2 * WU, 0], [tw * 2 * WU, L * WU], [0, L * WU]]);
+  quad(wood, [tw, -th, L], [tw, th, L], [tw, th, 0], [tw, -th, 0], [-1, 0, 0], [[0, 0], [th * 2 * WU, 0], [th * 2 * WU, L * WU], [0, L * WU]]);
+  quad(wood, [-tw, -th, L], [-tw, th, L], [-tw, th, 0], [-tw, -th, 0], [1, 0, 0], [[0, 0], [th * 2 * WU, 0], [th * 2 * WU, L * WU], [0, L * WU]]);
+
+  /* the top of the frame: a ring, mitred at the corners like a picture
+     frame, with the grain running along each side */
+  var ow = tw + RIM - RIMC, oh = th + RIM - RIMC;      /* where the bevel starts */
+  var ew = tw + RIM, eh = th + RIM;                    /* the outer edge */
+  function strip(g, a, b, c, d, n, along) { quad(g, a, b, c, d, n, [wuv(a, along), wuv(b, along), wuv(c, along), wuv(d, along)]); }
+  strip(wood, [-tw, th, L], [tw, th, L], [ow, oh, L], [-ow, oh, L], [0, 0, 1], true);        /* far */
+  strip(wood, [-tw, -th, L], [tw, -th, L], [ow, -oh, L], [-ow, -oh, L], [0, 0, 1], true);    /* near */
+  strip(wood, [tw, -th, L], [tw, th, L], [ow, oh, L], [ow, -oh, L], [0, 0, 1], false);       /* right */
+  strip(wood, [-tw, -th, L], [-tw, th, L], [-ow, oh, L], [-ow, -oh, L], [0, 0, 1], false);   /* left */
+  /* the bevel round the outside */
+  var d = 0.7071, Lb = L - RIMC;
+  strip(wood, [-ow, oh, L], [ow, oh, L], [ew, eh, Lb], [-ew, eh, Lb], [0, d, d], true);
+  strip(wood, [-ow, -oh, L], [ow, -oh, L], [ew, -eh, Lb], [-ew, -eh, Lb], [0, -d, d], true);
+  strip(wood, [ow, -oh, L], [ow, oh, L], [ew, eh, Lb], [ew, -eh, Lb], [d, 0, d], false);
+  strip(wood, [-ow, -oh, L], [-ow, oh, L], [-ew, eh, Lb], [-ew, -eh, Lb], [-d, 0, d], false);
+  /* the apron, straight down */
+  var B = -APRON;
+  quad(wood, [-ew, eh, Lb], [ew, eh, Lb], [ew, eh, B], [-ew, eh, B], [0, 1, 0], [[0, 0], [ew * 2 * WU, 0], [ew * 2 * WU, APRON * WU], [0, APRON * WU]]);
+  quad(wood, [-ew, -eh, Lb], [ew, -eh, Lb], [ew, -eh, B], [-ew, -eh, B], [0, -1, 0], [[0, 0], [ew * 2 * WU, 0], [ew * 2 * WU, APRON * WU], [0, APRON * WU]]);
+  quad(wood, [ew, -eh, Lb], [ew, eh, Lb], [ew, eh, B], [ew, -eh, B], [1, 0, 0], [[0, 0], [eh * 2 * WU, 0], [eh * 2 * WU, APRON * WU], [0, APRON * WU]]);
+  quad(wood, [-ew, -eh, Lb], [-ew, eh, Lb], [-ew, eh, B], [-ew, -eh, B], [-1, 0, 0], [[0, 0], [eh * 2 * WU, 0], [eh * 2 * WU, APRON * WU], [0, APRON * WU]]);
+  /* and the underside, which nobody sees and the closure check needs */
+  quad(wood, [-ew, -eh, B], [ew, -eh, B], [ew, eh, B], [-ew, eh, B], [0, 0, -1]);
+  return { cloth: cloth, wood: wood, tw: tw, th: th };
+}
+function upload(gl, g, mesh) {
+  mesh = mesh || { pos: gl.createBuffer(), nrm: gl.createBuffer(), uv: gl.createBuffer(), idx: gl.createBuffer() };
+  mesh.count = g.I.length;
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.pos); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.P), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nrm); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.N), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.uv); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.U), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(g.I), gl.STATIC_DRAW);
+  return mesh;
 }
 
 /* the unit quad the marks on the felt are drawn on: -1..1, UV 0..1 */
@@ -540,6 +637,76 @@ function feltTexture(gl, skin) {
 function hex3(h) {
   return [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
 }
+function mixHex(a, b, t) {
+  var x = hex3(a), y = hex3(b);
+  return "rgb(" + Math.round((x[0] + (y[0] - x[0]) * t) * 255) + "," + Math.round((x[1] + (y[1] - x[1]) * t) * 255) + "," +
+    Math.round((x[2] + (y[2] - x[2]) * t) * 255) + ")";
+}
+function nrand(i) { var x = Math.sin(i * 127.1 + 1.7) * 43758.5453; return x - Math.floor(x); }
+function texFrom(gl, cv, repeat) {
+  var tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  return tex;
+}
+
+/* The wood of the frame: long grain in the skin's rim and edge colours,
+   with a few darker lines where the planks meet. Painted once a skin. */
+function woodTexture(gl, skin) {
+  var S = 256, cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  var g = cv.getContext("2d");
+  var dark = skin.table.rim, light = skin.table.edge;
+  g.fillStyle = mixHex(dark, light, 0.38); g.fillRect(0, 0, S, S);
+  for (var y = 0; y < S; y += 2) {
+    var t = Math.sin(y * 0.19) * 0.5 + 0.5, u = nrand(y) * 0.5;
+    g.strokeStyle = mixHex(dark, light, 0.15 + t * 0.45 + u * 0.2);
+    g.globalAlpha = 0.55;
+    g.lineWidth = 1.5 + nrand(y + 3) * 1.5;
+    g.beginPath(); g.moveTo(0, y + nrand(y + 9)); g.lineTo(S, y + (nrand(y + 1) - 0.5) * 3); g.stroke();
+  }
+  g.globalAlpha = 0.35;
+  g.strokeStyle = dark; g.lineWidth = 2;
+  [0.33, 0.67].forEach(function (f) { g.beginPath(); g.moveTo(0, S * f); g.lineTo(S, S * f + 2); g.stroke(); });
+  g.globalAlpha = 1;
+  return texFrom(gl, cv, true);
+}
+
+/* The floor: saltillo tile, the big terracotta squares of every cantina
+   and courtyard in the country, with pale grout and each tile fired a
+   little differently. Tinted a third of the way towards the room's own
+   colour so a midnight table stands on a midnight floor. */
+function tileTexture(gl, skin) {
+  var S = 256, cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  var g = cv.getContext("2d");
+  var bg = skin.room.bg;
+  g.fillStyle = mixHex("#5a3a2a", bg, 0.35); g.fillRect(0, 0, S, S);
+  var n = 2, cell = S / n, gap = 6;
+  for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
+    var k = i * n + j;
+    var base = mixHex(mixHex("#b5643c", "#8a4a2e", nrand(k * 7 + 2)), bg, 0.30);
+    g.fillStyle = base;
+    g.fillRect(i * cell + gap / 2, j * cell + gap / 2, cell - gap, cell - gap);
+    /* the mottle of a fired tile */
+    for (var s = 0; s < 70; s++) {
+      g.fillStyle = mixHex("#d08a5a", "#6a3620", nrand(k * 131 + s));
+      g.globalAlpha = 0.10;
+      var px = i * cell + gap / 2 + nrand(k * 977 + s) * (cell - gap), py = j * cell + gap / 2 + nrand(k * 313 + s * 3) * (cell - gap);
+      g.beginPath(); g.arc(px, py, 3 + nrand(s + k) * 9, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
+    /* a worn edge: slightly lighter along the top-left */
+    g.strokeStyle = "rgba(255,230,200,.12)"; g.lineWidth = 2;
+    g.strokeRect(i * cell + gap / 2 + 1, j * cell + gap / 2 + 1, cell - gap - 2, cell - gap - 2);
+  }
+  return texFrom(gl, cv, true);
+}
 
 /* ---------- the renderer ---------- */
 function Gfx3D(canvas) {
@@ -579,7 +746,7 @@ function Gfx3D(canvas) {
   };
   this.u = {};
   ["uProj", "uView", "uModel", "uColor", "uEye", "uLamp", "uBounce", "uSpec",
-   "uPower", "uRim", "uAlpha", "uTex", "uAmb", "uSampler"].forEach(function (n) {
+   "uPower", "uRim", "uAlpha", "uTex", "uAmb", "uSampler", "uRoom", "uFog"].forEach(function (n) {
     this.u[n] = gl.getUniformLocation(pr, n);
   }, this);
 
@@ -597,9 +764,13 @@ function Gfx3D(canvas) {
   }, this);
 
   this.bone = boneMesh(gl);
-  this.plane = planeMesh(gl, 26);
+  /* the floor: 800 units across, a tile every 12 (about 30cm), and
+     the texture carries two tiles a side */
+  this.plane = planeMesh(gl, 400, 800 / 24);
+  this.cloth = null; this.wood = null; this.tableKey = "";
   this.mark = markMesh(gl);
-  this.pipTex = null; this.feltTex = null;
+  this.pipTex = null; this.feltTex = null; this.woodTex = null; this.tileTex = null;
+  this.shake = null; this.lastNow = 0;
   this.shadowTex = shadowTexture(gl);
   this.slotTex = slotTexture(gl);
   this.skin = null;
@@ -624,9 +795,40 @@ Gfx3D.prototype.setSkin = function (skin) {
   var gl = this.gl;
   if (this.pipTex) gl.deleteTexture(this.pipTex);
   if (this.feltTex) gl.deleteTexture(this.feltTex);
+  if (this.woodTex) gl.deleteTexture(this.woodTex);
+  if (this.tileTex) gl.deleteTexture(this.tileTex);
   this.pipTex = pipAtlas(gl, skin.bones.pip);
   this.feltTex = feltTexture(gl, skin);
+  this.woodTex = woodTexture(gl, skin);
+  this.tileTex = tileTexture(gl, skin);
   this.surf = Sk.surface(skin);
+};
+
+/* a bone brought down hard — a mula slammed to shut the game — is felt
+   through the table. A short, decaying nudge of the camera, never more
+   than a few pixels, and only when the room asks for it (it does not,
+   when the player prefers reduced motion). */
+Gfx3D.prototype.kick = function (amount) {
+  this.shake = { t: 0, a: Math.max(0, Math.min(1, amount || 0.6)) };
+};
+
+/* the table this screen gets: wide enough for the line to fold at this
+   screen's bound with air to spare, and never smaller than the line
+   that is actually on it */
+Gfx3D.prototype.tableFor = function (bound, bb) {
+  var tw = Math.max(8.5, bound + 4), th = Math.max(13, bound * 0.75 + 4);
+  tw = Math.max(tw, Math.max(-bb.x0, bb.x1) + 3);
+  th = Math.max(th, Math.max(-bb.y0, bb.y1) + 3);
+  /* in whole units, so a growing line rebuilds the mesh rarely */
+  tw = Math.ceil(tw); th = Math.ceil(th);
+  var key = tw + "x" + th;
+  if (key !== this.tableKey) {
+    var g = tableGeometry(tw, th);
+    this.cloth = upload(this.gl, g.cloth, this.cloth);
+    this.wood = upload(this.gl, g.wood, this.wood);
+    this.tableKey = key;
+  }
+  return { tw: tw, th: th };
 };
 
 Gfx3D.prototype.resize = function (w, h, dpr) {
@@ -785,6 +987,17 @@ Gfx3D.prototype.draw = function (scene, now) {
   var cam = camAt(d), eye = cam.eye, at = [cx, cy, 0], view = cam.view;
   /* the shift is a translation in clip space, applied after projecting */
   var shift = m4(); shift[12] = this.orbit.shX; shift[13] = this.orbit.shY;
+  /* the slam, felt through the table: a decaying wobble on the shift */
+  var dt = this.lastNow ? Math.min(0.05, (now - this.lastNow) / 1000) : 0;
+  this.lastNow = now;
+  if (this.shake) {
+    var sh = this.shake;
+    sh.t += dt;
+    var env = Math.exp(-sh.t * 9) * sh.a;
+    shift[13] += Math.sin(sh.t * 52) * env * 0.022;
+    shift[12] += Math.sin(sh.t * 37 + 1) * env * 0.006;
+    if (sh.t > 0.7) this.shake = null;
+  }
   var proj = mul(shift, proj0);
   this.freeMid = { x: this.w / 2, y: top + freeH / 2 };
   gl.uniformMatrix4fv(u.uProj, false, proj);
@@ -808,21 +1021,54 @@ Gfx3D.prototype.draw = function (scene, now) {
   var lamp = [cx - 2.6, cy + 2.2, 7.5];
   gl.uniform3f(u.uLamp, lamp[0], lamp[1], lamp[2]);
   gl.uniform3f(u.uBounce, felt[0], felt[1], felt[2]);
+  gl.uniform3f(u.uRoom, bg[0], bg[1], bg[2]);
+  /* the room fades in from well past the table's far edge, so the
+     table itself is always in the clear */
+  gl.uniform3f(u.uFog, d * 1.6 + 22, d * 2.6 + 30, 0);
   gl.uniform1i(u.uSampler, 0);
   gl.activeTexture(gl.TEXTURE0);
 
-  /* the table */
-  gl.bindTexture(gl.TEXTURE_2D, this.feltTex);
-  this.bind(this.plane);
-  gl.uniformMatrix4fv(u.uModel, false, trs(cx, cy, -0.17, 0, 1, 1, 1));
-  gl.uniform3f(u.uColor, felt[0], felt[1], felt[2]);
-  gl.uniform1f(u.uSpec, 0.05 + sk.table.gloss * 0.30);
-  gl.uniform1f(u.uPower, 14);
+  /* The table stands in the middle of its own cloth, not of the line:
+     the line grows from the salida at the origin, and the frame is
+     built round the origin, so a long line folds towards the rim the
+     way it does at a real table rather than the table sliding under it. */
+  var tb = this.tableFor(scene.bound || 9, bb);
+  var tz = -0.17;
   gl.uniform1f(u.uRim, 0);
   gl.uniform1f(u.uAlpha, 1);
   gl.uniform1f(u.uTex, 1);
-  gl.uniform1f(u.uAmb, 0.30);
+
+  /* the floor, a long way down */
+  gl.bindTexture(gl.TEXTURE_2D, this.tileTex);
+  this.bind(this.plane);
+  gl.uniformMatrix4fv(u.uModel, false, trs(0, 0, tz - APRON - FLOOR_DROP, 0, 1, 1, 1));
+  gl.uniform3f(u.uColor, 0.5, 0.3, 0.2);
+  gl.uniform1f(u.uSpec, 0.04);
+  gl.uniform1f(u.uPower, 10);
+  gl.uniform1f(u.uAmb, 0.20);
   gl.drawElements(gl.TRIANGLES, this.plane.count, gl.UNSIGNED_SHORT, 0);
+
+  /* the frame */
+  gl.bindTexture(gl.TEXTURE_2D, this.woodTex);
+  this.bind(this.wood);
+  gl.uniformMatrix4fv(u.uModel, false, trs(0, 0, tz, 0, 1, 1, 1));
+  var rimc = hex3(sk.table.rim);
+  gl.uniform3f(u.uColor, rimc[0], rimc[1], rimc[2]);
+  gl.uniform1f(u.uSpec, 0.12 + sk.table.gloss * 0.45);
+  gl.uniform1f(u.uPower, 22);
+  gl.uniform1f(u.uAmb, 0.24);
+  gl.drawElements(gl.TRIANGLES, this.wood.count, gl.UNSIGNED_SHORT, 0);
+
+  /* the cloth */
+  gl.bindTexture(gl.TEXTURE_2D, this.feltTex);
+  this.bind(this.cloth);
+  gl.uniformMatrix4fv(u.uModel, false, trs(0, 0, tz, 0, 1, 1, 1));
+  gl.uniform3f(u.uColor, felt[0], felt[1], felt[2]);
+  gl.uniform1f(u.uSpec, 0.05 + sk.table.gloss * 0.30);
+  gl.uniform1f(u.uPower, 14);
+  gl.uniform1f(u.uAmb, 0.30);
+  gl.drawElements(gl.TRIANGLES, this.cloth.count, gl.UNSIGNED_SHORT, 0);
+  this.table = { tw: tb.tw, th: tb.th };
 
   /* Where every bone actually ends up this frame, worked out once. The
      shadows have to agree with the bones exactly, and the only way to
@@ -894,13 +1140,23 @@ Gfx3D.prototype.draw = function (scene, now) {
   /* the open ends, marked on the felt itself */
   if (scene.ghosts && scene.ghosts.length) {
     var pulse = 0.42 + 0.26 * Math.sin(now / 320);
-    var slots = [];
+    var slots = [], hot = [], leanM = [];
     for (i = 0; i < scene.ghosts.length; i++) {
       var gh = scene.ghosts[i];
-      slots.push({ x: gh.x, y: -gh.y, z: -0.158,
-                   rot: (gh.h % 2 === 0 ? 0 : Math.PI / 2), s: 0.97, a: pulse });
+      var grot = gh.rot === undefined ? gh.h * 90 : gh.rot;
+      var mk = { x: gh.x, y: -gh.y, z: -0.158, rot: -grot * Math.PI / 180, s: 0.97, a: pulse };
+      if (scene.hover === gh.end) { mk.a = 1; mk.s = 1.08; hot.push(mk); }
+      else if (scene.lean === gh.end) { mk.a = 0.55 + 0.35 * Math.sin(now / 220); mk.s = 1.04; leanM.push(mk); }
+      else slots.push(mk);
     }
     this.marks(proj, view, this.slotTex, hex3(sk.marks.ghost), slots);
+    /* the end Don Chuy leans to is rung in the colour of the last bone;
+       the slot under a dragged bone is filled in solid */
+    if (leanM.length) this.marks(proj, view, this.slotTex, hex3(sk.marks.last), leanM);
+    if (hot.length) {
+      this.marks(proj, view, this.shadowTex, hex3(sk.marks.playable), hot.map(function (m) { return { x: m.x, y: m.y, z: m.z, rot: m.rot, s: 0.9, a: 0.45 }; }));
+      this.marks(proj, view, this.slotTex, hex3(sk.marks.playable), hot);
+    }
   }
 
   /* The bone that just landed, picked out on the felt for a moment. The
@@ -978,6 +1234,17 @@ function invert(m) {
   return i;
 }
 
+/* the other way round: where on the screen a point of the table is
+   drawn. `z` is height above the felt; the checks use it to read the
+   pixels of a bone's face back, and the drag test to aim at a slot. */
+Gfx3D.prototype.screenOf = function (x, y, z) {
+  var c = this.lastCam;
+  if (!c) return null;
+  var q = xform(mul(c.proj, c.view, new Float32Array(16)), [x, -y, z || 0, 1]);
+  if (!q) return null;
+  return { x: (q[0] * 0.5 + 0.5) * this.w, y: (1 - (q[1] * 0.5 + 0.5)) * this.h };
+};
+
 /* which end of the line a tap landed nearest, if any. The hand is not
    tested here — the 2D overlay owns it. */
 Gfx3D.prototype.hitTable = function (px, py, scene) {
@@ -1000,6 +1267,8 @@ Gfx3D.prototype.destroy = function () {
   try {
     if (this.pipTex) gl.deleteTexture(this.pipTex);
     if (this.feltTex) gl.deleteTexture(this.feltTex);
+    if (this.woodTex) gl.deleteTexture(this.woodTex);
+    if (this.tileTex) gl.deleteTexture(this.tileTex);
     if (this.shadowTex) gl.deleteTexture(this.shadowTex);
     if (this.slotTex) gl.deleteTexture(this.slotTex);
     if (this.pr) gl.deleteProgram(this.pr);
@@ -1011,6 +1280,7 @@ Gfx3D.prototype.destroy = function () {
 /* exposed so `tools/bone-check.js` can check the winding in node, where
    there is no WebGL to upload it to */
 Gfx3D.boneGeometry = boneGeometry;
+Gfx3D.tableGeometry = tableGeometry;
 
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx3D;
 else root.Gfx3D = Gfx3D;

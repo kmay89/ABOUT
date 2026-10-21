@@ -15,7 +15,11 @@
 
 var R = window.Rules, L = window.Layout, AI = window.AI, C = window.Coach,
     Sk = window.Skins, Net = window.Net, Room = window.Room,
-    Snd = window.Sound, Car = window.Career, Rt = window.Rating;
+    Snd = window.Sound, Car = window.Career, Rt = window.Rating,
+    Fc = window.Faces, Cn = window.Cantina;
+function reducedMotion() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
 
 /* who this table is, as far as the shared front door is concerned
    (see room.js — the same four-letter door the chess room uses) */
@@ -57,8 +61,9 @@ document.addEventListener("pointerdown", function (e) {
   Snd.unlock();
   var c = e.target.getAttribute && e.target.getAttribute("data-close");
   if (c) shut(c);
-  /* tapping the dark outside a sheet closes it too */
-  if (e.target.classList && e.target.classList.contains("ov")) e.target.classList.add("hide");
+  /* tapping the dark outside a sheet closes it too — except the curtain
+     between two players on one phone, which only lifts on their word */
+  if (e.target.classList && e.target.classList.contains("ov") && e.target.id !== "ovPass") e.target.classList.add("hide");
 });
 
 var toastT = 0;
@@ -78,6 +83,8 @@ var P = {
   rules: { target: 100, capicua: 25, countAll: false, trancaTie: "closer", firstSalida: "mula" },
   seen: {}, coach: true, sound: true, grade: true,
   career: null,
+  face: "",             /* the face this player picked (faces.js code), or "" for the one their name draws */
+  fiesta: true,         /* the papel picado and the bulbs over the table */
   id: ""                /* this phone, so a chair it drops is given back to it */
 };
 function load() {
@@ -93,6 +100,8 @@ function load() {
       P.grade = raw.grade !== false;
       P.seen = raw.seen || {};
       P.career = Car.clean(raw.career);
+      P.face = Net.cleanFace(raw.face);
+      P.fiesta = raw.fiesta !== false;
       if (typeof raw.id === "string" && /^[a-z0-9]{6,16}$/.test(raw.id)) P.id = raw.id;
       if (raw.rules) P.rules = R.houseRules(raw.rules);
       if (raw.skin) P.skin = Sk.clean(raw.skin);
@@ -107,6 +116,8 @@ function load() {
   if (!P.id) P.id = (Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 12);
   Snd.on = P.sound;
   Net.id = P.id;
+  Net.face = P.face;
+  document.documentElement.classList.toggle("noFiesta", !P.fiesta);
 }
 function saveRating() {
   Rt.save(P.rating, function (k, v) { localStorage.setItem(k, v); return true; });
@@ -116,7 +127,7 @@ function save() {
     localStorage.setItem(SAVE, JSON.stringify({
       v: 1, name: P.name, skin: P.skin, view3d: P.view3d, level: P.level, pace: P.pace,
       rules: P.rules, seen: P.seen, coach: P.coach, sound: P.sound, grade: P.grade,
-      career: P.career, id: P.id
+      career: P.career, id: P.id, face: P.face, fiesta: P.fiesta
     }));
   } catch (e) { /* private browsing; the game still plays */ }
 }
@@ -138,6 +149,13 @@ var G = {
   lastAt: 0,            /* when the last bone landed, for the glow        */
   handNo: 0,
   hint: null,           /* the end the hint chose for the lifted bone     */
+  lean: null,           /* the end the room leans to, for a lifted bone that fits both */
+  leanKey: "",          /* the position a lean was last counted for       */
+  rv: null,             /* the reviewer's verdicts for this position, kept for the grade */
+  drag: null,           /* a bone in the player's fingers: {tile, x, y, over} */
+  press: null,          /* a finger that has landed on a bone and not yet moved */
+  moods: {},            /* what each face is doing, and until when        */
+  faces: {},            /* face codes that came with the names at a table */
   hs: null,             /* this hand, for the record: sharp plays, feeds  */
   endKey: ""            /* which hand the end sheet last scored           */
 };
@@ -223,6 +241,7 @@ function resize() {
   over.resize(w, h, dpr);
   var cf = $("confetti");
   if (cf) { cf.width = Math.round(w * dpr); cf.height = Math.round(h * dpr); cf.style.width = w + "px"; cf.style.height = h + "px"; }
+  if (Cn) Cn.refresh();
   measureHud();
   sized = true;
 }
@@ -262,11 +281,14 @@ function scene() {
       playable[mv[i].tile].push(mv[i].end);
     }
     if (G.sel !== null && playable[G.sel]) {
+      /* the slot is where the bone will actually lie — worked out by
+         laying it, so a slot at a fold turns the corner and a mula's
+         slot stands crosswise, exactly as the bone will */
       var ends = playable[G.sel];
       for (var k = 0; k < ends.length; k++) {
-        var e = t.ends[ends[k]];
-        ghosts.push({ end: ends[k], x: e.x + L.DX[e.h] * (isDbl(G.sel) ? 0.5 : 1),
-                      y: e.y + L.DY[e.h] * (isDbl(G.sel) ? 0.5 : 1), h: e.h });
+        var trial = L.table(line.concat([{ tile: G.sel, end: ends[k], flip: false, dbl: isDbl(G.sel), seat: G.mySeat }]), { bound: bound });
+        var gb = trial.bones[trial.bones.length - 1];
+        ghosts.push({ end: ends[k], x: gb.x, y: gb.y, h: gb.h, rot: gb.rot, dbl: gb.dbl });
       }
     }
   }
@@ -275,7 +297,8 @@ function scene() {
     view: v, table: t, hand: v ? v.hand : [],
     playable: playable, selected: G.sel, ghosts: ghosts,
     lastIdx: G.lastIdx, lastAge: G.lastAt ? performance.now() - G.lastAt : 0, anim: G.anim,
-    yourTurn: mine, topPad: hudBottom(), botPad: handTop()
+    yourTurn: mine, topPad: hudBottom(), botPad: handTop(), bound: bound,
+    drag: G.drag, hover: G.drag ? G.drag.over : null, lean: (G.sel !== null && ghosts.length === 2) ? G.lean : null
   };
 }
 /* how much of the top of the stage the plates and the score take, and
@@ -322,6 +345,8 @@ function frame(now) {
       G.anim.heard = true;
       Snd.clack(G.anim.hard);
       if (G.anim.mine) Snd.buzz(10);
+      /* a mula slammed down is felt through the table */
+      if (G.anim.hard >= 1 && gfx.kind === "3d" && gfx.kick && !reducedMotion()) gfx.kick(0.7);
       G.lastAt = performance.now();
     }
     if (G.anim.t >= 1) { G.anim = null; }
@@ -343,28 +368,119 @@ function stagePoint(e) {
   var r = $("stage").getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
+/* Two ways to put a bone down, and both are the same gesture at a real
+   table: tap it (one tap plays it where it fits, or lifts it to choose an
+   end), or pick it up and carry it to the end you mean. A finger that
+   lands on a bone and moves is carrying; one that lands and lifts is a
+   tap. The carried bone follows the finger, the slot it is over fills
+   in, and letting go over an end plays it there. Letting go anywhere
+   else puts it back — nothing is played by accident. When a bone fits
+   only one end, letting go anywhere on the table plays it: there is
+   nothing to choose. */
+function handGfx() { return gfx.kind === "3d" ? over : gfx; }
+function endUnder(p) {
+  if (gfx.kind === "3d") {
+    var got = gfx.hitTable(p.x, p.y, scene());
+    return got ? got.end : null;
+  }
+  var g2 = gfx.hit(p.x, p.y);
+  return g2.kind === "end" ? g2.end : null;
+}
 $("stage").addEventListener("pointerdown", function (e) {
   if (!G.view || G.busy) return;
   /* the buttons that float on the stage handle themselves */
-  if (e.target && e.target.closest && e.target.closest("#endPick")) return;
+  if (e.target && e.target.closest && e.target.closest("#endPick, #me, #netChip")) return;
   var p = stagePoint(e);
-  /* the hand always belongs to the overlay, in both renderers, so the
-     tap target is identical whichever one is drawing the table */
-  var h = over.hit(p.x, p.y);
-  if (h.kind === "hand") { pickBone(G.view.hand[h.i]); return; }
-  if (G.view.turn !== G.mySeat) return;
-
-  var end = null;
-  if (gfx.kind === "3d") {
-    var got = gfx.hitTable(p.x, p.y, scene());
-    if (got) end = got.end;
-  } else {
-    var g2 = gfx.hit(p.x, p.y);
-    if (g2.kind === "end") end = g2.end;
+  /* the hand is drawn by the same painter in both renderers — onto the
+     overlay over the 3D table, onto the table itself when it is flat —
+     so the tap target is identical whichever is on. Ask the one that
+     drew it: the other's rectangles are from before the last switch. */
+  var h = handGfx().hit(p.x, p.y);
+  if (h.kind === "hand") {
+    G.press = { tile: G.view.hand[h.i], x: p.x, y: p.y, id: e.pointerId };
+    try { $("stage").setPointerCapture(e.pointerId); } catch (x) { /* older browsers; the tap still works */ }
+    return;
   }
+  if (G.view.turn !== G.mySeat) return;
+  var end = endUnder(p);
   if (end && G.sel !== null) tryPlay(G.sel, end);
   else if (G.sel !== null) { G.sel = null; G.hint = null; syncAll(); }
 });
+$("stage").addEventListener("pointermove", function (e) {
+  var p = stagePoint(e);
+  if (G.drag) {
+    G.drag.x = p.x; G.drag.y = p.y;
+    var wasOver = G.drag.over;
+    G.drag.over = endsFor(G.drag.tile).indexOf(endUnder(p) || "") >= 0 ? endUnder(p) : null;
+    if (G.drag.over && G.drag.over !== wasOver) Snd.tick();
+    return;
+  }
+  if (!G.press || !G.view) return;
+  if (Math.hypot(p.x - G.press.x, p.y - G.press.y) < 9) return;
+  /* it is being carried, not tapped */
+  var tile = G.press.tile;
+  G.press = null;
+  if (G.view.turn !== G.mySeat || G.busy) return;
+  var ends = endsFor(tile);
+  if (!ends.length) { Snd.tick(); toast("That one doesn't fit — the ends are " + G.view.left + " and " + G.view.right + "."); return; }
+  G.sel = tile; G.hint = null;
+  G.drag = { tile: tile, x: p.x, y: p.y, over: null, ends: ends };
+  if (ends.length === 2) leanFor(tile);
+  Snd.buzz(8);
+  syncAll();
+});
+function endPointer(e) {
+  var p = stagePoint(e);
+  if (G.drag) {
+    var d = G.drag; G.drag = null;
+    var end = d.over;
+    /* one possible end: anywhere on the table above the hand will do */
+    if (!end && d.ends.length === 1 && p.y < handTopPx()) end = d.ends[0];
+    if (end) { tryPlay(d.tile, end); return; }
+    /* put back — lifted, if it still needs an end chosen */
+    if (d.ends.length < 2) G.sel = null;
+    Snd.tick();
+    syncAll();
+    return;
+  }
+  if (G.press) { var t = G.press.tile; G.press = null; pickBone(t); }
+}
+$("stage").addEventListener("pointerup", endPointer);
+$("stage").addEventListener("pointercancel", function () { G.press = null; if (G.drag) { G.drag = null; syncAll(); } });
+function handTopPx() { return ($("stage").clientHeight || 600) - handTop(); }
+
+/* ---------- which end, when a bone fits both ----------
+   The room says which end it would choose — a star on the slot and on
+   the button — so a player who has already picked their bone is never
+   left guessing between two numbers that look the same. The lean comes
+   from the same reviewer that grades the play afterwards (the same
+   imagined deals for both ends), kept and reused so the grade costs
+   nothing extra. It is shown while the coach is on, and it is help:
+   each lean weighs the match a third of what a hint does. */
+function leanFor(tile) {
+  G.lean = null;
+  if (!P.coach || !G.view) return;
+  var rv = reviewNow();
+  if (!rv) return;
+  var vL = AI.valueOf(rv, { tile: tile, end: "L" }), vR = AI.valueOf(rv, { tile: tile, end: "R" });
+  if (vL === null || vR === null) return;
+  if (Math.abs(vL - vR) < 1e-9) return;              /* nothing to prefer */
+  G.lean = vL > vR ? "L" : "R";
+  var key = positionKey();
+  if (G.mm && G.mm.rated && G.leanKey !== key) { G.leanKey = key; G.mm.leans = (G.mm.leans || 0) + 1; }
+}
+function positionKey() {
+  var v = G.view;
+  return v ? (G.st ? G.st.seed : 0) + ":" + v.line.length + ":" + v.passes + ":" + v.turn : "";
+}
+function reviewNow() {
+  var key = positionKey();
+  if (G.rv && G.rv.key === key) return G.rv.rv;
+  var rv;
+  try { rv = AI.review(G.view); } catch (e) { return null; }
+  G.rv = { key: key, rv: rv };
+  return rv;
+}
 
 function endsFor(tile) {
   var mv = AI.movesFor(G.view), ends = [];
@@ -390,13 +506,13 @@ function pickBone(tile) {
      answer is the commonest way to make a game feel slow. */
   if (ends.length === 1) { tryPlay(tile, ends[0]); return; }
   G.sel = (G.sel === tile) ? null : tile;
-  if (G.sel === null) G.hint = null;
+  if (G.sel === null) G.hint = null; else leanFor(tile);
   Snd.tick();
   syncAll();
 }
 
 function tryPlay(tile, end) {
-  G.sel = null; G.hint = null;
+  G.sel = null; G.hint = null; G.drag = null; G.press = null;
   /* how did that compare? Asked before the bone goes down, from this
      chair's own view — so a joined phone grades its own plays without
      the host's help, and nothing is graded with knowledge the player
@@ -422,8 +538,8 @@ function judge(mv) {
   if (!G.view) return;
   var v = G.view;
   if (AI.movesFor(v).length < 2) return;
-  var rv;
-  try { rv = AI.review(v); } catch (e) { return; }
+  var rv = reviewNow();
+  if (!rv) return;
   var played = AI.valueOf(rv, mv);
   if (played === null) return;
   var acc = Rt.moveAccuracy(rv.bestValue, played);
@@ -444,6 +560,7 @@ function judge(mv) {
   if (!gr) return;
   var el = $("grade");
   el.className = gr.id;
+  mood(G.mySeat, gr.id === "sharp" ? "grin" : gr.id === "miss" ? "ouch" : "happy", 1800);
   el.textContent = gr.icon + " " + gr.label + (gr.id === "sharp" && G.hs.sharp > 1 ? " ×" + G.hs.sharp : "");
   void el.offsetWidth;
   el.classList.add("on");
@@ -510,7 +627,7 @@ function happen(ev) {
     G.lastAt = 0;                 /* it glows from the moment it lands */
     startAnim(ev.idx, ev.seat, R.isDouble(ev.tile) || ev.out);
     note(ev.seat, nameOf(ev.seat) + " played the " + C.boneName(ev.tile));
-    if (ev.seat !== me) bubble(ev.seat, C.boneName(ev.tile), "", 1500);
+    if (ev.seat !== me) { bubble(ev.seat, C.boneName(ev.tile), "", 1500); mood(ev.seat, ev.out ? "party" : "happy", ev.out ? 4000 : 1400); }
     if (ev.idx === 0) sayMoment({ k: "salida", seat: ev.seat, tile: ev.tile, you: me });
     else sayMoment({ k: "play", seat: ev.seat, you: me, tile: ev.tile, dbl: R.isDouble(ev.tile) });
     /* a pareja answering each other */
@@ -524,10 +641,12 @@ function happen(ev) {
   } else if (ev.k === "pass") {
     Snd.knock();
     bubble(ev.seat, "¡Paso!", "paso", 1700);
+    mood(ev.seat, "paso", 2200);
     note(ev.seat, nameOf(ev.seat) + " · ¡paso!");
     sayMoment({ k: "pass", seat: ev.seat, you: me, ends: ev.ends });
     if (ev.by >= 0 && ev.by !== ev.seat) {
       var hungOpp = R.isOpponent(ev.by, ev.seat);
+      if (hungOpp) mood(ev.by, "grin", 2000);
       sayMoment({ k: "hung", seat: ev.seat, by: ev.by, you: me });
       if (ev.by === me && hungOpp) {
         if (!G.hs) G.hs = freshHandStats();
@@ -563,6 +682,7 @@ function startAnim(idx, seat, hard) {
 function afterMove(ev) {
   refreshView();
   syncAll();
+  saveMatch();
   if (G.mode === "host") Net.dealViews(G.st, hostExtra({ ev: ev, last: G.lastIdx }));
   if (G.st.over) {
     clearTimeout(turnT);
@@ -625,9 +745,14 @@ function scheduleTurn() {
          making them tap a button they have no choice about is theatre,
          so it is said for them after a beat (long enough to see why) */
       if (seat === G.mySeat) note(seat, "Nothing fits — you knock: paso.");
+      else if (G.hot && seat === 2) note(seat, nameOf(seat) + " has nothing that fits — paso.");
       turnT = setTimeout(function () { doPass(seat); }, pace().think + 500);
     } else if (seat === G.mySeat) {
       yourTurn();
+    } else if (G.hot) {
+      /* the other person on this phone: the table is covered until they
+         say it is them holding it */
+      curtain(seat);
     }
     if (G.mode === "host") Net.broadcast({ k: "beat", thinking: -1, turn: seat });
     syncAll();
@@ -656,7 +781,7 @@ function yourTurn() {
   if (G.view) sayMoment({ k: "yourTurn", you: G.mySeat, line: G.view.line.length });
 }
 function isHuman(seat) {
-  if (G.mode === "solo") return seat === 0;
+  if (G.mode === "solo") return seat === 0 || (!!G.hot && seat === 2);
   if (G.mode === "host") {
     if (seat === 0) return true;
     for (var i = 0; i < Net.peers.length; i++) if (Net.peers[i].seat === seat) return true;
@@ -667,6 +792,91 @@ function isHuman(seat) {
 
 function refreshView() {
   if (G.mode !== "guest" && G.st) G.view = R.publicView(G.st, G.mySeat);
+}
+
+/* ---------- two of you on one phone ----------
+   Partners, across the table from each other, taking turns holding the
+   phone. Between one's turn and the other's the table is covered — the
+   hands are the whole game, and a glance at a partner's bones is a
+   glance too many. The curtain names who it is for, with their face, and
+   lifts on their word. Nothing else about the room changes: the chair
+   the phone is "sitting in" moves to whoever is holding it, and the
+   plates, the hand and the coach follow. Not rated: the ladder only
+   measures one person against the house. */
+function curtain(seat) {
+  var el = $("ovPass");
+  $("passFace").innerHTML = faceSvg(seat, "happy", 96, "pass");
+  $("passWho").textContent = "Pass the phone to " + nameOf(seat);
+  $("passGo").textContent = "I'm " + nameOf(seat) + " — show my bones";
+  el.classList.remove("hide");
+}
+press($("passGo"), function () {
+  var st = G.st;
+  shut("ovPass");
+  if (!st || st.over || !G.hot) return;
+  G.mySeat = st.turn;
+  G.sel = null; G.hint = null; G.lean = null; G.rv = null; G.drag = null;
+  refreshView();
+  syncAll();
+  yourTurn();
+});
+function hotSeat(a, b) {
+  stopLocal(true);
+  G.mode = "solo"; G.mySeat = 0;
+  G.hot = { names: [a, b] };
+  G.names = { 0: a, 2: b };
+  for (var s = 1; s < 4; s += 2) G.names[s] = botName(s, G.names);
+  syncNetChip();
+  newMatch();
+}
+
+/* ---------- the match, kept ----------
+   A solo match is written down after every play, so a phone that is
+   closed on it — a call, a pocket, a battery — opens again on a splash
+   that offers the same hand back, same bones, same score, same rating
+   stakes. A table with friends at it is remembered by the room instead
+   (room.js), because the host holds the game. */
+var MATCH_KEY = "dominotable.match";
+function saveMatch() {
+  if (G.mode !== "solo" || !G.match) return;
+  try {
+    localStorage.setItem(MATCH_KEY, JSON.stringify({
+      v: 1, at: Date.now(), match: G.match, st: G.st, names: G.names, mySeat: G.mySeat,
+      mm: G.mm, hs: G.hs, hot: G.hot, level: P.level, endKey: G.endKey
+    }));
+  } catch (e) { /* private browsing; the match still plays */ }
+}
+function loadMatch() {
+  try {
+    var o = JSON.parse(localStorage.getItem(MATCH_KEY) || "null");
+    if (!o || o.v !== 1 || !o.match || !o.st || o.match.over) return null;
+    if (!o.match.rules || !Array.isArray(o.match.scores) || !Array.isArray(o.st.hands)) return null;
+    if (Date.now() - (o.at || 0) > 14 * 24 * 60 * 60 * 1000) return null;
+    return o;
+  } catch (e) { return null; }
+}
+function clearMatch() { try { localStorage.removeItem(MATCH_KEY); } catch (e) {} }
+function resumeMatch(o) {
+  stopLocal(true);
+  G.mode = "solo";
+  G.hot = o.hot || null;
+  G.names = o.names || { 0: myName() };
+  for (var s = 0; s < 4; s++) if (!G.names[s]) G.names[s] = s === 0 ? myName() : botName(s, G.names);
+  G.mySeat = G.hot ? (o.mySeat || 0) : 0;
+  G.match = o.match; G.st = o.st; G.mm = o.mm || { level: P.level, rated: false, hints: 0, leans: 0, moves: [] };
+  G.hs = o.hs || freshHandStats();
+  G.endKey = o.endKey || "";
+  if (o.level && Rt.levelById(o.level)) P.level = o.level;
+  G.lastIdx = G.st.line.length - 1; G.lastAt = performance.now(); G.anim = null;
+  refreshView();
+  begin("resume");
+  if (G.st.over) {
+    /* closed on the count: deal on */
+    turnT = setTimeout(function () { nextHand(false); }, 600);
+    return;
+  }
+  banner("Where you left it", "Mano " + (G.match.handNo + 1) + " · " + G.match.scores[R.team(G.mySeat)] + "–" + G.match.scores[1 - R.team(G.mySeat)], 1600);
+  turnT = setTimeout(scheduleTurn, 900);
 }
 
 /* ---------- a hand begins ---------- */
@@ -681,7 +891,8 @@ function newMatch(level) {
   /* Every solo match is rated against the pareja across the table. A
      table with friends at it is not — half of it is people, and the
      ladder only measures the house. */
-  G.mm = { level: P.level, rated: G.mode === "solo", hints: 0, moves: [] };
+  G.mm = { level: P.level, rated: G.mode === "solo" && !G.hot, hints: 0, leans: 0, moves: [] };
+  G.leanKey = "";
   nextHand(true);
 }
 /* Starting again over a match still in progress. Free while the match is
@@ -721,9 +932,11 @@ function ask(title, lead, answers) {
 function nextHand(first) {
   clearTimeout(turnT);
   G.sel = null; G.hint = null; G.anim = null; G.lastIdx = -1; G.lastNote = null; G.thinking = -1;
+  G.drag = null; G.press = null; G.lean = null; G.rv = null; G.moods = {};
   G.hs = freshHandStats();
   G.st = R.dealHand(G.match);
   refreshView();
+  saveMatch();
   G.busy = true;
   Snd.shuffle();
   if (G.mode === "host") Net.dealViews(G.st, hostExtra({ start: true, shuffling: true }));
@@ -771,6 +984,7 @@ function endHand() {
   var st = G.st, r = st.result;
   if (!r) return;
   R.settle(G.match, st);
+  if (G.match.over) clearMatch(); else saveMatch();
   var pack = {
     res: r, scores: G.match.scores.slice(), over: G.match.over,
     champion: G.match.champion, zapatero: G.match.zapatero,
@@ -795,7 +1009,12 @@ function finale(pack) {
   } else {
     banner("¡Tranca!", "Nobody can move — count the bones", 1500, true);
   }
-  if (r.team >= 0) { if (won) Snd.win(); else Snd.lose(); }
+  /* the faces round the table take it as people do */
+  for (var s = 0; s < 4; s++) {
+    if (r.team < 0) mood(s, "think", 3000);
+    else mood(s, R.team(s) === r.team ? (s === r.winner ? "party" : "grin") : "ouch", 4000);
+  }
+  if (r.team >= 0) { if (won) { if (r.capicua || pack.over) Snd.fiesta(); else Snd.win(); } else Snd.lose(); }
   if (won) confetti(r.capicua || pack.over ? 160 : 70);
   setTimeout(function () { showEnd(pack); }, 1500);
 }
@@ -828,7 +1047,8 @@ function showEnd(pack) {
     var s = order[oi], h = pack.hands ? pack.hands[s] : [];
     var mine = R.team(s) === us;
     hv += "<div class='rv " + (mine ? "us" : "them") + (h.length === 0 ? " out" : "") + "'>" +
-      "<span class='who'>" + esc(s === G.mySeat ? "You" : nameOf(s)) + "</span>" +
+      "<span class='who'>" + faceSvg(s, h.length === 0 ? "party" : (mine === won ? "happy" : "ouch"), 24, "rv" + s) +
+      esc(s === G.mySeat ? "You" : nameOf(s)) + "</span>" +
       "<canvas data-hand='" + s + "'></canvas>" +
       "<span class='pts'>" + (h.length === 0 ? "out!" : r.pipsBySeat[s] + " pts") + "</span></div>";
   }
@@ -971,7 +1191,7 @@ function rate(result) {
   P.rating = Rt.load(function (k) { return localStorage.getItem(k); });
   var acc = Rt.gameAccuracy(G.mm.moves);
   var u = Rt.update(P.rating, { level: G.mm.level, result: result, at: Date.now(), accuracy: acc,
-                                assisted: { hints: G.mm.hints }, target: G.match ? G.match.rules.target : 100 });
+                                assisted: { hints: G.mm.hints, leans: G.mm.leans || 0 }, target: G.match ? G.match.rules.target : 100 });
   P.rating = u.state;
   saveRating();
   G.mm.rated = false;            /* a match is counted once */
@@ -1102,15 +1322,18 @@ function showCareer() {
 function stat(v, l) { return "<div class='stat'><b>" + esc(v) + "</b><small>" + esc(l) + "</small></div>"; }
 /* sit down against a rung, from wherever the player is */
 function goRung(id) {
-  if ($("splash").style.display !== "none") { P.level = id; save(); begin("solo"); return; }
+  if ($("splash").style.display !== "none") { P.level = id; save(); startFresh("solo"); return; }
   if (G.mode !== "solo") { toast("The ladder is for solo matches — the table with friends keeps its own game."); return; }
   freshMatch(id, "Sitting down with " + Rt.levelById(id).label + ".");
 }
 function splashRank() {
   var el = $("splashRank");
   if (!el) return;
-  el.innerHTML = ratingHead() + ladderHTML(true);
+  el.innerHTML = "<div class='meRow'><button class='faceBtn' id='sFace' title='Your face'>" +
+    Fc.svg(Fc.forName(P.name || "Jugador", P.face), "happy", 46, { id: "sf", bg: "#2a1c14" }) + "</button><div class='meRank'>" +
+    ratingHead() + "</div></div>" + ladderHTML(true);
   wireLadder(el, goRung);
+  press($("sFace"), function () { showFace(); });
   var sug = Rt.levelById(P.level) || Rt.levelById(Rt.suggestLevel(P.rating));
   $("goSolo").innerHTML = "Play " + esc(sug.label) + " <small style='opacity:.75;font-weight:500'>· " + sug.elo + "</small>";
   setTimeout(function () {
@@ -1124,7 +1347,8 @@ var bits = [];
 function confetti(n) {
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   var cv = $("confetti"); if (!cv) return;
-  var w = cv.width, cols = ["#ffd77a", "#f0a83c", "#3ecf8e", "#e06a52", "#8fb0ff", "#fff6e4"];
+  /* the papel picado's own colours, cut up */
+  var w = cv.width, cols = (Cn && Cn.PAPER) ? Cn.PAPER.concat(["#fff6e4"]) : ["#ffd77a", "#f0a83c", "#3ecf8e", "#e06a52", "#8fb0ff", "#fff6e4"];
   for (var i = 0; i < n; i++) {
     bits.push({ x: Math.random() * w, y: -20 - Math.random() * cv.height * 0.4, vx: (Math.random() - 0.5) * 120,
                 vy: 120 + Math.random() * 260, r: Math.random() * 6.3, vr: (Math.random() - 0.5) * 12,
@@ -1266,22 +1490,67 @@ function syncAll() {
   var b = $("btnPlay");
   b.classList.toggle("pulse", mine);
   b.disabled = false;
-  if (!mine) b.textContent = G.thinking >= 0 ? nameOf(G.thinking) + " is thinking…" : nameOf(v.turn) + "'s turn";
+  if (v.turn < 0) b.textContent = "Waiting for " + nameOf(0) + " to deal…";
+  else if (!mine) b.textContent = G.thinking >= 0 ? nameOf(G.thinking) + " is thinking…" : nameOf(v.turn) + "'s turn";
   else if (!mv.length) b.textContent = "Paso — I can't play";
   else if (G.sel !== null) b.textContent = "Play the " + C.boneName(G.sel);
   else b.textContent = "Your turn — tap a bone";
   b.classList.toggle("primary", mine);
   $("btnHint").disabled = !mine;
 
-  /* the end picker, for a lifted bone that fits both ends */
-  var two = mine && G.sel !== null && endsOf(mv, G.sel).length === 2;
+  /* the end picker, for a lifted bone that fits both ends — with the
+     room's lean starred, so either can be chosen and one is advised */
+  var two = mine && G.sel !== null && !G.drag && endsOf(mv, G.sel).length === 2;
   $("endPick").classList.toggle("hide", !two);
   if (two) {
-    $("pickL").innerHTML = "◀ on the <b>" + v.left + "</b>" + (G.hint === "L" ? " ★" : "");
-    $("pickR").innerHTML = "on the <b>" + v.right + "</b> ▶" + (G.hint === "R" ? " ★" : "");
+    var rec = G.hint || G.lean;
+    $("pickL").innerHTML = "◀ on the <b>" + v.left + "</b>" + (rec === "L" ? " ★" : "");
+    $("pickR").innerHTML = "on the <b>" + v.right + "</b> ▶" + (rec === "R" ? " ★" : "");
+    $("pickL").classList.toggle("rec", rec === "L");
+    $("pickR").classList.toggle("rec", rec === "R");
   }
   $("stage").classList.toggle("myTurn", mine);
+  mePlate(v, mine);
   measureHud();
+}
+
+/* ---------- faces ----------
+   Every seat has a face: the one its name draws, or the one that came
+   with the name over the link, or — for this player — the one they
+   picked. A face has a mood for a moment at a time; between moments it
+   is thinking when it is deciding, grinning when it is down to its last
+   bone, and otherwise simply there. */
+function faceFor(seat) {
+  /* the face this phone's owner picked belongs to the chair they sit in:
+     seat 0 at their own table, whatever chair they were given at a
+     friend's; a partner sharing the phone gets the face their name draws */
+  var own = G.mode === "guest" ? G.mySeat : 0;
+  if (seat === own) return Fc.forName(myName(), P.face);
+  return Fc.forName(nameOf(seat), G.faces[seat]);
+}
+function mood(seat, m, ms) {
+  G.moods[seat] = { m: m, until: performance.now() + (ms || 1500) };
+  syncAll();
+  clearTimeout(G.moods[seat].t);
+  G.moods[seat].t = setTimeout(syncAll, (ms || 1500) + 30);
+}
+function moodOf(seat, v) {
+  var m = G.moods[seat];
+  if (m && m.until > performance.now()) return m.m;
+  if (seat === G.thinking) return "think";
+  if (v && v.counts && v.counts[seat] === 1 && v.line.length) return "grin";
+  return "calm";
+}
+function faceSvg(seat, m, px, id) {
+  return Fc.svg(faceFor(seat), m, px, { id: id, bg: "#2a1c14" });
+}
+function mePlate(v, mine) {
+  var el = $("me");
+  if (!el) return;
+  var m = moodOf(G.mySeat, v);
+  var html = faceSvg(G.mySeat, m, 40, "me") + "<span class='nm'>" + esc(nameOf(G.mySeat)) + "</span>";
+  if (el.getAttribute("data-h") !== html) { el.innerHTML = html; el.setAttribute("data-h", html); }
+  el.classList.toggle("turn", !!mine);
 }
 function endsOf(mv, tile) {
   var e = [];
@@ -1308,14 +1577,19 @@ function plate(rel, v) {
       "<span class='tag'></span><div class='bubble'></div>";
   }
   var us = R.team(s) === R.team(G.mySeat);
-  var human = G.mode === "guest" ? !!(G.humans && G.humans[s]) : (isHuman(s) && G.mode !== "solo");
+  var human = G.mode === "guest" ? !!(G.humans && G.humans[s]) : (isHuman(s) && (G.mode !== "solo" || !!G.hot));
   el.className = "plate " + (us ? "us" : "them") + (s === v.turn ? " turn" : "") +
     (s === G.thinking ? " thinking" : "") + (v.counts[s] <= 2 && v.counts[s] > 0 && v.line.length ? " low" : "");
   var nm = nameOf(s);
-  el.querySelector(".av").textContent = (nm || "?").charAt(0).toUpperCase();
+  var av = el.querySelector(".av"), fh = faceSvg(s, moodOf(s, v), 36, "p" + rel);
+  if (av.getAttribute("data-h") !== fh) { av.innerHTML = fh; av.setAttribute("data-h", fh); }
   el.querySelector(".nm").textContent = nm;
-  el.querySelector(".role").textContent = (v.counts[s] <= 2 && v.counts[s] > 0 && v.line.length) ? (v.counts[s] === 1 ? "last bone!" : "2 left!") : ROLE[rel];
-  el.querySelector(".tag").textContent = human ? "📱" : "";
+  /* who they are to you is said in words, and a person at the table —
+     a phone of their own, or sharing yours — is marked as one */
+  var who = rel === 2 ? (human ? "your partner" : "partner") : ROLE[rel];
+  el.querySelector(".role").textContent = (v.counts[s] <= 2 && v.counts[s] > 0 && v.line.length)
+    ? (v.counts[s] === 1 ? "last bone!" : "2 left!") : ((human ? (G.hot ? "🤝 " : "📱 ") : "") + who);
+  el.querySelector(".tag").textContent = "";
   var mini = el.querySelector(".mini"), n = v.counts[s];
   if (mini.childNodes.length !== 7) { mini.innerHTML = ""; for (var k = 0; k < 7; k++) mini.appendChild(document.createElement("i")); }
   for (var j = 0; j < 7; j++) mini.childNodes[j].className = j < n ? "" : "out";
@@ -1350,16 +1624,64 @@ function nameOf(s) { return G.names[s] || ("Seat " + s); }
 function showMenu() {
   $("menuState").textContent = G.match
     ? ("To " + G.match.rules.target + " · hand " + (G.match.handNo + 1) + " · " +
-       Rt.levelById(P.level).label + " · " + Rt.levelById(P.level).elo + (G.mm && G.mm.rated ? " · rated" : ""))
+       Rt.levelById(P.level).label + " · " + Rt.levelById(P.level).elo + (G.mm && G.mm.rated ? " · rated" : "") +
+       (G.hot ? " · " + esc(G.names[0]) + " & " + esc(G.names[2]) + " on this phone" : ""))
     : "No match yet.";
   $("mView").textContent = P.view3d ? "Switch to 2D" : "Switch to 3D";
   $("mSound").textContent = P.sound ? "🔊 Sound on" : "🔇 Sound off";
   $("mCoach").textContent = P.coach ? "Coach & grades on" : "Coach & grades off";
+  $("mFiesta").textContent = P.fiesta ? "🎉 Fiesta on" : "Fiesta off";
+  $("mUpdate").classList.toggle("hide", !swWaiting);
   $("menuNote").textContent = gfx && gfx.kind === "3d"
     ? "Drawn in 3D. The bones in your hand stay flat and crisp on purpose."
     : "Drawn flat. Every phone can do this one.";
   open("ovMenu");
 }
+press($("mFiesta"), function () {
+  P.fiesta = !P.fiesta; save();
+  document.documentElement.classList.toggle("noFiesta", !P.fiesta);
+  measureHud();
+  showMenu();
+});
+press($("mFace"), function () { shut("ovMenu"); showFace(); });
+press($("mUpdate"), function () { shut("ovMenu"); takeUpdate(); });
+
+/* ---------- your face ----------
+   A picker that is mostly a button: shuffle until you like one, then
+   nudge the bits you want. Nothing to type, nothing to upload. */
+var faceDraft = null;
+function showFace() {
+  faceDraft = Fc.clean(Fc.forName(myName(), P.face));
+  drawFace();
+  open("ovFace");
+}
+var TRAIT_LABELS = { skin: "Skin", hair: "Hair", hairCol: "Colour", beard: "Bigote", hat: "Hat", glasses: "Glasses", shirt: "Shirt" };
+function drawFace() {
+  var html = "<div class='facePick'><div class='faceBig'>" + Fc.svg(faceDraft, "happy", 112, { id: "big", bg: "#2a1c14" }) + "</div>" +
+    "<div class='faceSide'><div class='fld' style='margin:0 0 8px'><label><b>Your name</b></label>" +
+    "<input type='text' id='fName' maxlength='14' value='" + esc(myName()) + "' autocomplete='nickname'></div>" +
+    "<button class='btn primary' id='fShuffle'>🎲 Another face</button></div></div>" +
+    "<div class='traits'>";
+  Fc.TRAITS.forEach(function (t) {
+    html += "<button class='btn' data-trait='" + t + "'>" + esc(TRAIT_LABELS[t]) + " ›</button>";
+  });
+  html += "</div><div class='row' style='margin-top:12px'><button class='btn primary wide' id='fKeep'>That's me</button>" +
+    "<button class='btn' id='fName0'>Use my name's face</button></div>";
+  $("faceBody").innerHTML = html;
+  press($("fShuffle"), function () { faceDraft = Fc.random(); Snd.tick(); drawFace(); });
+  Array.prototype.forEach.call($("faceBody").querySelectorAll("[data-trait]"), function (b) {
+    press(b, function () { faceDraft = Fc.mutate(faceDraft, b.getAttribute("data-trait")); Snd.tick(); drawFace(); });
+  });
+  press($("fKeep"), function () {
+    var nm = $("fName").value.trim();
+    if (nm) { P.name = Net.cleanName(nm); G.names[G.mySeat] = P.name; }
+    P.face = Fc.encode(faceDraft); Net.face = P.face; save();
+    shut("ovFace"); syncAll(); splashRank();
+    if (G.mode !== "solo") toast("Friends see your new face next time you sit down.");
+  });
+  press($("fName0"), function () { P.face = ""; Net.face = ""; save(); faceDraft = Fc.clean(Fc.forName($("fName").value || myName(), "")); drawFace(); });
+}
+press($("me"), function () { showFace(); });
 press($("mNew"), function () {
   shut("ovMenu");
   if (G.mode === "guest") { toast(nameOf(0) + "'s phone deals — ask them."); return; }
@@ -1627,15 +1949,20 @@ function showParty() {
     "<p class='lead'>Two phones or four. One phone is the table; the others sit down at it with four letters. " +
     "Your first friend sits across from you, as your partner. Empty chairs are played by the house.</p>" +
     "<div class='fld'><label><b>Your name</b> <span class='val'>so they know it's you</span></label>" +
-    "<input type='text' id='pName' maxlength='14' value='" + esc(myName()) + "' placeholder='Your name' autocomplete='nickname'></div>" +
-    (back ? "<div class='row'><button class='btn wide' id='pBack'>↩ Back to <b>" + esc(back.code) + "</b></button></div>" : "") +
+    "<div class='nameRow'><button class='faceBtn' id='pFace' title='Your face'>" + faceSvg(G.mySeat, "happy", 44, "pf") + "</button>" +
+    "<input type='text' id='pName' maxlength='14' value='" + esc(myName()) + "' placeholder='Your name' autocomplete='nickname'></div></div>" +
+    (back ? "<div class='row'><button class='btn wide' id='pBack'>↩ Back to <b>" + esc(back.code) + "</b>" +
+      (back.title ? " <small style='opacity:.8'>· " + esc(back.title) + "</small>" : "") + "</button></div>" : "") +
     "<div class='door'>" +
     "<button class='btn primary' id='pHost'><span class='k'>📡</span>Host<small>I'll show a code</small></button>" +
     "<button class='btn' id='pJoin'><span class='k'>🔑</span>Join<small>I have a code</small></button>" +
-    "</div>";
+    "</div>" +
+    "<div class='row'><button class='btn wide' id='pSame'><span class='k'>🤝</span>One phone, two of us<small style='font-weight:500;opacity:.85'> · partners, passing it back and forth</small></button></div>";
   var takeName = function () { var v = $("pName").value.trim(); if (v) P.name = Net.cleanName(v); myName(); save(); };
+  press($("pFace"), function () { takeName(); shut("ovParty"); showFace(); });
   press($("pHost"), function () { takeName(); hostTable(); });
   press($("pJoin"), function () { takeName(); joinTable(); });
+  press($("pSame"), function () { takeName(); showSamePhone(); });
   if (back) press($("pBack"), function () {
     takeName();
     Room.resume();
@@ -1644,6 +1971,33 @@ function showParty() {
     if (back.role === "host") hostTable(true); else { joinTable(); joinByCode(back.code); }
   });
   open("ovParty");
+}
+
+/* one phone, two names: you and your partner, who takes the chair across */
+function showSamePhone() {
+  var body = $("partyBody");
+  body.innerHTML =
+    "<p class='lead'>Two of you, one phone, partners against the house. The table is covered while the phone changes hands, so nobody sees the other's bones.</p>" +
+    "<div class='fld'><label><b>You</b></label><div class='nameRow'>" + faceSvg(0, "happy", 40, "s0") +
+    "<input type='text' id='sName0' maxlength='14' value='" + esc(myName()) + "' autocomplete='off'></div></div>" +
+    "<div class='fld'><label><b>Your partner</b> <span class='val'>sits across from you</span></label><div class='nameRow'><span id='sFace1'>" +
+    Fc.svg(Fc.forName("compa", ""), "happy", 40, { id: "s1", bg: "#2a1c14" }) + "</span>" +
+    "<input type='text' id='sName1' maxlength='14' placeholder='Their name' autocomplete='off'></div></div>" +
+    "<div class='row'><button class='btn primary wide' id='sDeal'>Deal us in</button></div>" +
+    "<p class='note'>Not rated — the ladder measures one person against the house. Everything else is the same table.</p>";
+  var n1 = $("sName1");
+  n1.addEventListener("input", function () {
+    $("sFace1").innerHTML = Fc.svg(Fc.forName(n1.value.trim() || "compa", ""), "happy", 40, { id: "s1", bg: "#2a1c14" });
+  });
+  setTimeout(function () { try { n1.focus(); } catch (e) {} }, 200);
+  press($("sDeal"), function () {
+    var a = Net.cleanName($("sName0").value || myName()), b = Net.cleanName(n1.value || "Compa");
+    if (a.toLowerCase() === b.toLowerCase()) b = b + " 2";
+    P.name = a; save();
+    shut("ovParty");
+    hotSeat(a, b);
+    banner(a + " & " + b, "partners — pass the phone across the table", 1800);
+  });
 }
 
 /* The extra a host sends along with each chair's view: the score, the
@@ -1686,6 +2040,7 @@ function hostTable(again) {
       var st = roster[j].seat;
       if (st === 0) continue;
       G.names[st] = humansNow[st] || roster[j].name || botName(st, humansNow);
+      G.faces[st] = roster[j].face || "";
     }
     syncAll();
     renderLobby();
@@ -1694,7 +2049,7 @@ function hostTable(again) {
      here, and should: deal that chair its own view and carry on. The
      seat was held for them by name (see net.js), so the bones are theirs. */
   Net.onLink = function (seat, nm) {
-    toast(nm + " sat down " + (seat === 2 ? "across from you — your partner." : (seat === 1 ? "on your right." : "on your left.")));
+    banner(nm + " sat down", seat === 2 ? "across from you — your partner" : (seat === 1 ? "on your right" : "on your left"), 1800);
     Snd.good();
     renderLobby();
     syncNetChip();
@@ -1884,6 +2239,7 @@ function renderLobby() {
   for (var i = 0; i < order.length; i++) {
     var s = order[i][0], r = Net.roster[s], here = !!(r && r.here && !r.bot);
     html += "<div class='seatRow" + (here ? " here" : "") + (s === 2 ? " us" : "") + "'><span class='sd'></span>" +
+      (here ? Fc.svg(Fc.forName(r.name, r.face), "happy", 26, { id: "lb" + s, bg: "#2a1c14" }) : "") +
       "<b>" + esc(here ? r.name : (r && r.name ? r.name + " (away)" : "the house")) + "</b>" +
       "<span class='sr'>" + order[i][1] + "</span></div>";
   }
@@ -1932,11 +2288,12 @@ function joinByPaste(prefill) {
    scrolled through the commentary of the real game. */
 function stopLocal(clearView) {
   clearTimeout(turnT);
-  G.thinking = -1; G.sel = null; G.hint = null; G.anim = null;
+  G.thinking = -1; G.sel = null; G.hint = null; G.anim = null; G.drag = null; G.press = null; G.hot = null;
+  shut("ovPass");
   if (clearView !== false) { G.st = null; G.match = null; G.view = null; G.lastNote = null; }
 }
 function goSolo(why) {
-  G.mode = "solo"; G.mySeat = 0;
+  G.mode = "solo"; G.mySeat = 0; G.hot = null;
   G.names = { 0: myName() };
   for (var s = 1; s < 4; s++) G.names[s] = botName(s, G.names);
   syncNetChip();
@@ -1954,6 +2311,12 @@ function guestHandlers() {
        actually given, closing the door leaves the solo game where it was */
     if (G.mode !== "guest") { stopLocal(true); G.mode = "guest"; }
     G.mySeat = seat;
+    /* until the host deals, an empty table and a word about whose it is —
+       not the last frame of whatever this phone was playing before */
+    if (!G.view) {
+      G.view = { line: [], hand: [], counts: [0, 0, 0, 0], turn: -1, left: -1, right: -1, passes: 0, seat: seat };
+      G.lastNote = { seat: 0, text: "At " + nameOf(0) + "'s table — waiting for the deal" };
+    }
     stopRoomList();
     shut("ovParty");
     banner("You're in", seat === 2 ? "Partners with " + nameOf(0) + " — sitting across" : "Seat " + (seat + 1) + " at " + nameOf(0) + "'s table", 1800);
@@ -1974,6 +2337,7 @@ function guestHandlers() {
   Net.onRoster = function (roster) {
     for (var i = 0; i < roster.length; i++) {
       G.names[roster[i].seat] = roster[i].name || ("Seat " + (roster[i].seat + 1));
+      G.faces[roster[i].seat] = roster[i].face || "";
     }
     syncAll();
   };
@@ -2034,18 +2398,19 @@ function takeMeta(m) {
 }
 
 /* ---------- the splash ---------- */
-press($("goSolo"), function () { begin("solo"); });
+press($("goSolo"), function () { startFresh("solo"); });
 press($("goParty"), function () { begin("party"); showParty(); });
 press($("goLearn"), function () { showLessons(); });
-press($("goLook"), function () { begin("solo"); showLook(); });
+press($("goLook"), function () { startFresh("solo"); showLook(); });
 
 function begin(mode) {
   $("splash").classList.add("gone");
   setTimeout(function () { $("splash").style.display = "none"; }, 520);
-  G.mySeat = 0;
+  resize();
+  if (mode === "resume") { G.mode = "solo"; syncAll(); return; }
+  G.mySeat = 0; G.hot = null;
   G.names = { 0: P.name || "You" };
   for (var s = 1; s < 4; s++) G.names[s] = botName(s, G.names);
-  resize();
   /* "party" waits for the door: no match is dealt behind the sheet
      unless the player closes it without choosing, in which case they
      simply have a solo game in front of them */
@@ -2056,6 +2421,53 @@ function begin(mode) {
   }
   G.mode = mode;
   if (!G.match) newMatch(); else syncAll();
+}
+
+/* ---------- where you left off, on the door ----------
+   Two kinds of unfinished business can be waiting when the room opens:
+   a solo match written down after its last play, and a table with
+   friends whose four letters are still good. Both get a button on the
+   splash, above everything else, because "pick up where I was" is the
+   commonest reason to open the room twice. */
+function splashResume() {
+  var el = $("splashResume");
+  if (!el) return;
+  var saved = loadMatch(), back = Room.recall(), html = "";
+  if (saved) {
+    var us = R.team(saved.hot ? (saved.mySeat || 0) : 0);
+    html += "<button class='btn primary wide' id='goResume'>▶ Resume — mano " + (saved.match.handNo + 1) +
+      " · " + saved.match.scores[us] + "–" + saved.match.scores[1 - us] +
+      (saved.hot ? " · " + esc(saved.names[0]) + " &amp; " + esc(saved.names[2]) : (saved.mm && saved.mm.rated ? " · rated" : "")) + "</button>";
+  }
+  if (back) {
+    html += "<button class='btn wide' id='goBack'>↩ " + (back.role === "host" ? "Re-open my table" : "Back to " + esc(back.title || "the table")) +
+      " <b>" + esc(back.code) + "</b></button>";
+  }
+  el.innerHTML = html;
+  el.classList.toggle("hide", !html);
+  if (saved) press($("goResume"), function () { resumeMatch(saved); });
+  if (back) press($("goBack"), function () {
+    begin("party");
+    Room.resume();
+    if (back.role === "host") { hostTable(true); open("ovParty"); }
+    else { open("ovParty"); joinTable(); joinByCode(back.code); }
+  });
+}
+/* starting fresh over a saved rated match that was already lost is the
+   loss it was — said first, the way it is mid-session */
+function startFresh(mode) {
+  var saved = loadMatch();
+  if (saved && saved.mm && saved.mm.rated && !saved.hot) {
+    var res = Rt.abandonResult({ hands: saved.match.handNo, us: saved.match.scores[0], them: saved.match.scores[1], target: saved.match.rules.target });
+    if (res === 0) {
+      ask("Your saved match counts as a loss", "It was well behind. Starting a new one resigns it; Resume keeps it.",
+        [["Resign and start fresh", function () { G.mm = saved.mm; G.match = saved.match; rate(0); G.mm = null; G.match = null; clearMatch(); begin(mode); }],
+         ["Keep it", null]]);
+      return;
+    }
+  }
+  clearMatch();
+  begin(mode);
 }
 function whenShut(id, fn) {
   var el = $(id), t = setInterval(function () {
@@ -2083,6 +2495,12 @@ function whenShut(id, fn) {
 load();
 makeRenderers();
 splashRank();
+splashResume();
+/* the room: bulbs and papel picado over the table, and over the door */
+if (Cn) {
+  Cn.hang($("stage"), { z: 1 });
+  Cn.hang($("splash"), { z: 0, scale: 1.15 });
+}
 
 /* a link can arrive carrying a table to wear or a chair to sit in */
 (function fromLink() {
@@ -2113,15 +2531,25 @@ window.addEventListener("keydown", function (e) {
 /* ---------- offline, and quietly announced updates ----------
    A new version waits rather than swapping itself in: a match runs
    twenty minutes and reloading mid-hand would lose it. */
+var swWaiting = null, swReg = null;
+function takeUpdate() {
+  if (!swWaiting) { location.reload(); return; }
+  /* the new worker takes over, and the page follows it */
+  try { swWaiting.postMessage("skipWaiting"); } catch (e) { location.reload(); }
+  setTimeout(function () { location.reload(); }, 400);
+}
 if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").then(function (reg) {
+      swReg = reg;
+      if (reg.waiting && navigator.serviceWorker.controller) swWaiting = reg.waiting;
       reg.addEventListener("updatefound", function () {
         var sw = reg.installing;
         if (!sw) return;
         sw.addEventListener("statechange", function () {
           if (sw.state === "installed" && navigator.serviceWorker.controller) {
-            toast("A new version is ready — it'll load next time.");
+            swWaiting = sw;
+            toast("A new version is ready — Menu → Update, or it loads next time.");
           }
         });
       });
@@ -2135,8 +2563,9 @@ window.__dt = function () {
      needs to keep a hand moving while it times the machines' beats —
      it is the player's turn a quarter of the time and the room is quite
      right to sit and wait, but a stalled window measures nothing. */
-  return { G: G, P: P, gfx: gfx, scene: scene, Net: Net, tryPlay: tryPlay, doPass: doPass,
+  return { G: G, P: P, gfx: gfx, over: over, scene: scene, Net: Net, tryPlay: tryPlay, doPass: doPass,
            Room: Room, joinByCode: joinByCode, health: Net.health(), PACES: PACES,
-           happen: happen, showCareer: showCareer, record: record };
+           happen: happen, showCareer: showCareer, record: record, leanFor: leanFor, mood: mood, showFace: showFace,
+           makeRenderers: makeRenderers, hotSeat: hotSeat, loadMatch: loadMatch, saveMatch: saveMatch };
 };
 })();

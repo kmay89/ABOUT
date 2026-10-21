@@ -196,8 +196,13 @@ gfx3d.js      raw WebGL 1: chamfered bones, a generated pip atlas, one
               warm bulb, an orbit camera that frames the whole line
 gfx2d.js      the canvas twin — the safety net, the small-phone option,
               and the painter of the hand in *both* modes
-sound.js      the clack, the knock on the wood for paso, the shuffle —
-              all synthesized on the spot, nothing to download
+cantina.js    the room: festoon bulbs and papel picado strung over the
+              table, in screen space so they are there in both renderers
+faces.js      who is sitting there: small drawn faces from a name or a
+              nine-character code, with moods — thinking, paso, ¡dominó!
+sound.js      the clack, the knock on the wood for paso, the shuffle, and
+              a guitar for the moments that earn one — all synthesized
+              on the spot, nothing to download
 rating.js     the score: the ladder of parejas as measured recipes,
               accuracy, and Glicko for a pareja. Pure arithmetic
 career.js     the rest of the record — counts and logros
@@ -208,10 +213,103 @@ net.js        four seats over WebRTC: a star with the host at the
               middle, and per-seat views so hands stay secret. Sitting
               down is four letters; a chair that drops comes back to
               the same seat, because a seat is remembered by name
-sw.js         offline shell + update notice (bump VERSION on release)
+sw.js         offline shell, network-first, with an update you can take
+              from the menu (bump VERSION on release)
 manifest.webmanifest, icons/
 tools/        dev-only, never shipped — see below
 ```
+
+## The cantina
+
+The table is a piece of furniture now rather than a brown plane that
+goes on forever: a cloth let into a wooden frame with a lip the bones
+bump against, an apron below it, and a floor of saltillo tile a good
+way down, fading into the dark of the room past the far edge. The 3D
+table is built the way the bone is — quads with a stated normal — and
+`bone-check.js` holds the cloth and the frame to the same winding and
+closure rules, as one solid. The flat table has the same frame and the
+same floor, seen from above.
+
+The *room* is drawn in screen space over whichever renderer is on,
+by `cantina.js`: a string of bulbs with a warm glow that breathes, and
+under it two lines of papel picado — cut tissue-paper banners in the
+seven colours they are sold in, each flag cut with one of three
+patterns by an SVG mask, swaying a little on their string. Screen
+space on purpose: the camera frames the line of play and pulls in
+close on a short one, so anything standing on the far side of the
+table is off-screen for most of a hand, while a banner hung over the
+near edge of the picture is there every moment, on every phone, at any
+pixel ratio, for the cost of a handful of SVG elements. It lives in a
+strip the layout gives it (`--fiestaH`), never covers a plate or a
+bone, cannot catch a tap, stops moving for anyone who has asked their
+phone for less motion, disappears on a screen too short to spare the
+strip, and can be turned off from the menu.
+
+A mula slammed down is felt through the table — a short decaying
+nudge of the 3D camera, never more than a few pixels, and not at all
+under reduced motion. A hand won gets a guitar: a Karplus–Strong
+string, six of them raked a few milliseconds apart the way a thumb
+does, made on the spot like everything else the room plays.
+
+## The people
+
+Every seat has a face: a small drawn one — round, big-eyed, a few
+shapes — built from a short recipe of skin, hair, a bigote or a beard,
+something on the head, glasses, a shirt. Beto's comes from his name, so
+he looks like Beto on every phone at the table without anybody sending
+a picture; yours you can pick, one trait at a time or by shuffling until
+you like one, and it travels with your name as a nine-character code
+when you sit down at a friend's table. Faces react: they think when
+they are deciding, wince at a paso, grin at one bone left, and open
+wide at ¡dominó!.
+
+## Putting a bone down
+
+Tap a bone and it goes where it fits, or lifts if it fits both ends.
+Or pick it up: a finger that lands on a bone and *moves* is carrying it.
+The bone follows the finger, the slot it is over fills in, and letting
+go there plays it. Letting go anywhere else puts it back — nothing is
+played by accident; when a bone fits only one end, letting go anywhere
+on the table is enough. The slot is where the bone will actually lie,
+worked out by laying it: at a fold it turns the corner and a mula's slot
+stands crosswise, and the framing makes room for the next bone at each
+end before it lands.
+
+When a lifted bone fits both ends and the coach is on, the room says
+which end it would choose — a star on the slot and on the button — so
+either can be played and one is advised. The lean comes from the same
+reviewer that grades the play afterwards, kept and reused so the grade
+costs nothing extra. It is help, and is weighed as help: a lean counts
+a third of a hint towards a match's weight. Only hints touch the stars.
+
+## Two phones, or one
+
+Sitting down with a friend is four letters: one phone taps *Host* and
+shows them big, with a QR code of the same four; the other taps *Join*
+and types them — or taps the table in the list, because every open
+table nearby is listed by name. The first friend to arrive takes the
+chair across, as your partner, and both phones say so: a banner on each
+with the name and the chair, the plate across reads *📱 your partner*,
+and the host's sheet shows every chair with the face of whoever is in
+it. A phone that joined before the deal sees an empty table and whose
+it is, not the last frame of whatever it was playing before.
+
+Both halves survive being closed. A table's four letters are good for
+eight hours, so the splash offers *Back to* ⟨code⟩ to a host or a
+guest who comes back, and a chair that drops mid-hand is given back to
+the same name with the same bones (net.js). A solo match is written
+down after every play — bones, score, rating stakes — and the splash
+offers it back as *Resume*; starting fresh over a rated match that was
+already well lost resigns it first and says so, as it does mid-session.
+
+And there is the oldest table of all: two of you, one phone. *One
+phone, two of us* seats you and your partner across from each other
+against the house, and covers the table whenever the phone should
+change hands — an opaque curtain with the next player's face, lifted
+only by their word — so nobody ever sees the other's bones. The chair
+the phone sits in follows whoever is holding it; the plates, the hand,
+the coach and the end-of-hand count all follow the chair. Not rated,
+because the ladder measures one person against the house.
 
 ## Three things worth explaining
 
@@ -269,6 +367,29 @@ containing the word *passed* must be backed by a pass in the record.
   does: for every pair of neighbours it finds the half of each that
   touches the other and requires them to show the same number. Put the
   old drawing back and it fails at once.
+- **And the picture is read back.** `layout-check.js` proves the
+  geometry; nothing in node can prove the *drawing*. So `room-check.js`
+  lays a known line — the 6|6, a 6|4 on its right, a 3|6 on its left, a
+  mula and more — and reads the pixels: for every half of every bone it
+  samples the nine places a pip can be, counts the dark ones, and
+  requires the count to be the number the layout says that half shows.
+  In 3D the nine points are projected through the frame's own camera;
+  flat, through the same fit the painter used. A bone drawn back to
+  front, a texture mapped the wrong way round, a renderer turning its
+  pips twice — all read wrong here and nowhere else. The 6|4 is checked
+  by name, because it was the one that was wrong.
+- **A fix reaches the phone it was fixed for.** The service worker was
+  cache-first: it served the old copy and freshened it in the
+  background, so a deployed fix showed up the launch *after* the one
+  that fetched it, and a reversed-bone fix sat on the server for an
+  evening while an installed iPad kept showing the bug. It is
+  network-first now, with the cache as the fallback for the bus, and an
+  update that has arrived can be taken from the menu between hands.
+- **Carrying a bone is driven with a real mouse.** The browser check
+  picks a bone up, carries it to the marked end and lets go, in 3D and
+  flat, through the real hit tests — which is how it found that the
+  flat table was answering taps on the hand from the overlay's
+  rectangles, stale since the last switch.
 - **The round table is not a mirror.** The 3D camera looked at the
   layout from the side that turned it upside down: the line folded the
   opposite way from the flat table, and your partner's bones flew in
@@ -369,7 +490,7 @@ or one at a time:
 ```
 node domino/tools/rules-check.js     # the rules, and the line rebuilt from the log
 node domino/tools/layout-check.js    # no overlaps, nothing moves, the hand stays tappable
-node domino/tools/bone-check.js      # the 3D bone is a solid, and wound the right way out
+node domino/tools/bone-check.js      # the 3D bone is a solid, and wound the right way out; so is the table
 node domino/tools/skin-check.js      # presets, share codes, hostile input
 node domino/tools/net-check.js       # the permutation test: hands stay secret
 node domino/tools/coach-check.js     # every hint names its move and tells the truth; grades are honest
@@ -377,7 +498,7 @@ node domino/tools/rating-check.js    # the score: Glicko for a pareja, accuracy,
 node domino/tools/career-check.js    # the record: counts and logros survive junk
 node domino/tools/calibrate.js       # not a check — re-measures the ladder (minutes; see its header)
 node domino/tools/ai-check.js        # the strength ladder (the slow one)
-node domino/tools/room-check.js      # opens it in a browser and plays it
+node domino/tools/room-check.js      # opens it in a browser and plays it: taps, carries, reads the pips back
 node domino/tools/make-icons.js      # redraws the icons from scratch
 ```
 

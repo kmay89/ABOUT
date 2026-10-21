@@ -112,17 +112,72 @@ S.good = function () {
   tone(t, 0.12, 784, "triangle", 0.10);
   tone(t + 0.08, 0.18, 1175, "triangle", 0.09);
 };
+
+/* ---------- a guitar, for the moments that earn one ----------
+   A plucked string by Karplus–Strong: a burst of noise run round a
+   delay line one period long and averaged as it goes, which is the
+   whole of how a nylon string decays — bright for a few milliseconds,
+   then warm, then gone. A few hundred lines of samples made on the
+   spot, no recording. `strum` rakes six of them a few milliseconds
+   apart, the way a thumb does. */
+function pluck(t, freq, dur, gain) {
+  var c = S.ctx, sr = c.sampleRate, n = Math.floor(sr * dur), N = Math.max(2, Math.round(sr / freq));
+  var buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  var ring = new Float32Array(N), i;
+  for (i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
+  var idx = 0;
+  for (i = 0; i < n; i++) {
+    var v = ring[idx], nx = ring[(idx + 1) % N];
+    ring[idx] = (v + nx) * 0.5 * 0.996;
+    d[i] = v;
+    idx = (idx + 1) % N;
+  }
+  var src = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+  src.buffer = buf;
+  f.type = "lowpass"; f.frequency.value = 3200; f.Q.value = 0.5;
+  g.gain.setValueAtTime(gain, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(S.master);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+function strum(t, notes, spacing, dur, gain) {
+  for (var i = 0; i < notes.length; i++) pluck(t + i * spacing, notes[i], dur, gain);
+}
+/* open-position chords, low string first */
+var E_MAJ = [164.81, 246.94, 329.63, 415.30, 493.88, 659.26];
+var A_MAJ = [220.00, 329.63, 440.00, 554.37, 659.26];
+var A_MIN = [220.00, 329.63, 440.00, 523.25, 659.26];
+var E_MIN = [164.81, 246.94, 329.63, 392.00, 493.88, 659.26];
+
 S.win = function () {
   var t = ready(); if (t === null) return;
-  [523, 659, 784, 1047].forEach(function (f, i) { tone(t + i * 0.09, 0.32, f, "triangle", 0.16); });
+  strum(t, A_MAJ, 0.028, 1.1, 0.16);
+  strum(t + 0.34, E_MAJ, 0.024, 1.6, 0.18);
+};
+/* a capicúa or a match won gets the full rasgueado */
+S.fiesta = function () {
+  var t = ready(); if (t === null) return;
+  strum(t, A_MAJ, 0.03, 0.6, 0.14);
+  strum(t + 0.22, A_MAJ, 0.02, 0.6, 0.12);
+  strum(t + 0.40, E_MAJ, 0.028, 0.7, 0.15);
+  strum(t + 0.62, E_MAJ, 0.02, 0.6, 0.12);
+  strum(t + 0.86, A_MAJ, 0.034, 1.8, 0.20);
+  [880, 1108.7, 1318.5].forEach(function (f, i) { tone(t + 0.9 + i * 0.1, 0.28, f, "triangle", 0.07); });
 };
 S.lose = function () {
   var t = ready(); if (t === null) return;
-  [392, 330, 262].forEach(function (f, i) { tone(t + i * 0.12, 0.3, f, "sine", 0.13); });
+  strum(t, E_MIN, 0.045, 1.3, 0.10);
+  pluck(t + 0.5, 164.81, 1.2, 0.09);
 };
 S.rank = function () {
   var t = ready(); if (t === null) return;
-  [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { tone(t + i * 0.07, 0.4, f, "triangle", 0.12); });
+  [220, 277.18, 329.63, 440, 554.37, 659.26].forEach(function (f, i) { pluck(t + i * 0.07, f, 0.9, 0.12); });
+  strum(t + 0.5, A_MAJ, 0.026, 1.8, 0.18);
+};
+/* the deal: a chord dampened under the hand, then the wash of bones */
+S.deal = function () {
+  var t = ready(); if (t === null) return;
+  strum(t, A_MIN, 0.03, 0.35, 0.08);
 };
 S.tick = function () {
   var t = ready(); if (t === null) return;
