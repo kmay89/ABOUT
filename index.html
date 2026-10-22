@@ -176,7 +176,12 @@
     min-width:720px;
     max-width:1180px;
     margin:0 auto;
-    transform:translate3d(var(--px,0px),var(--py,0px),0);
+    /* no transform here: the parallax writes #iso's style.transform itself.
+       It used to set two custom properties on #iso for this rule to read,
+       and a custom property set on an element restyles everything under it
+       — about 2,200 nodes, every pointer move. It keeps its own layer, as
+       the old translate3d(0,0,0) gave it, so moving it is a composite. */
+    will-change:transform;
   }
   .iso-obj{cursor:pointer;outline:none}
   .iso-obj > *{transition:transform .3s cubic-bezier(.2,.9,.3,1.35)}
@@ -353,6 +358,16 @@
   .pool-cool{opacity:0}
   #iso.now .pool-cool{opacity:1}
   #iso.now .pool-warm{opacity:.3}
+  /* The room sleeps when nobody can see it. Game engines don't simulate
+     what's off camera: scrolled away (#iso.asleep) or under a sheet
+     (body.modal-open), every loop in the room holds still. That includes
+     the picked object's pulse: it holds wherever it was, still glowing,
+     because an animated filter re-rasters its object every frame, and
+     under a sheet that alone was most of the page's idle work. The year
+     chip's pulse is the same kind of cost, and an invitation nobody can
+     take up from under a sheet or with the desk off screen. */
+  #iso.asleep *,body.modal-open #iso *,body.modal-open #eraBtn{animation-play-state:paused}
+  body:has(#iso.asleep) #eraBtn{animation-play-state:paused}   /* its own rule: a browser without :has() drops only this one */
   /* the era chip is a real invitation, not a label */
   #eraBtn{
     color:var(--room);
@@ -787,7 +802,7 @@
   footer .cols.small a:hover{color:var(--lamp);border-color:var(--lamp)}
 
   @media (prefers-reduced-motion:reduce){
-    #iso{transform:none !important}
+    #iso{transform:none !important;will-change:auto}
     .iso-obj > *,.dossier,.scrim{transition:none}
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
@@ -3140,12 +3155,19 @@
     if (!lightStage.classList.contains("show")) lightStage.hidden = true;
   }
   function scheduleHide(el, ms){
-    var done = function(){ hideTimer = null; scrim.hidden = true; el.hidden = true; };
+    /* the dust waits for the sheet to be gone, not just going */
+    var done = function(){ hideTimer = null; scrim.hidden = true; el.hidden = true; wakeDust(); };
     if (REDUCED) done(); else hideTimer = setTimeout(done, ms);
   }
   var bgEls = [document.getElementById("scene"), document.querySelector("footer")];
+  /* the dust block, near the end, replaces this with the real thing */
+  var wakeDust = function(){};
   function setBackgroundInert(on){
     bgEls.forEach(function(el){ el.inert = on; });
+    /* every sheet opens and closes through here, so this is where the room
+       is told to sleep under it, and woken when it goes */
+    document.body.classList.toggle("modal-open", on);
+    if (!on) wakeDust();
   }
   /* highlight the object(s) a dialog belongs to, and pan it into view
      so a legend tag always points back at something on the desk */
@@ -4559,7 +4581,13 @@
     setTimeout(function(){ panCue.style.display = "none"; }, 550);
   });
 
-  /* ---------------- gentle whole-scene parallax ---------------- */
+  /* ---------------- gentle whole-scene parallax ----------------
+     The transform is written straight onto #iso. Setting a custom property
+     there instead (as this once did) restyles all ~2,200 nodes of the room
+     on every frame; a transform restyles one, and the room stays on
+     its own layer (see #iso in the CSS), so moving it is a composite
+     rather than a repaint. Reduced motion's !important rule still wins
+     over the inline style. */
   var iso = document.getElementById("iso");
   if (!REDUCED && matchMedia("(pointer: fine)").matches){
     var raf = null, mx = 0, my = 0;
@@ -4568,8 +4596,7 @@
       my = (e.clientY / innerHeight - 0.5);
       if (!raf) raf = requestAnimationFrame(function(){
         raf = null;
-        iso.style.setProperty("--px", (mx * -10).toFixed(1) + "px");
-        iso.style.setProperty("--py", (my * -6).toFixed(1) + "px");
+        iso.style.transform = "translate3d(" + (mx * -10).toFixed(1) + "px," + (my * -6).toFixed(1) + "px,0)";
       });
     });
   }
@@ -4669,8 +4696,15 @@
     for (var i2 = 0; i2 < 34; i2++) motes.push(mote(1));
     for (var i3 = 0; i3 < 9; i3++) motes.push(mote(2));
     for (var i4 = 0; i4 < 30; i4++) motes.push(mote(i4 % 3 ? 1 : 0));   // enough to fill two beams
-    var last = performance.now();
-    (function frame(now){
+    /* It sleeps when nobody can see it: scrolled away, in a background tab,
+       or under a sheet (where the scrim and the sheet's blur would otherwise
+       re-blur the whole viewport sixty times a second over it). Each of
+       those ways back wakes it. And it stops if the visitor asks for
+       reduced motion while it is running. */
+    var last = performance.now(), dustRaf = 0;
+    function frame(now){
+      if (REDUCED){ cx2.clearRect(0, 0, W, H); dustRaf = 0; return; }
+      if (!SEEN || document.hidden || activeModal()){ dustRaf = 0; return; }
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
       var dark = document.body.classList.contains("lights-out");   // no lamp: only the moon lights them
@@ -4695,9 +4729,23 @@
       });
       cx2.globalAlpha = 1;
       cx2.globalCompositeOperation = "source-over";
-      requestAnimationFrame(frame);
-    })();
+      dustRaf = requestAnimationFrame(frame);
+    }
+    wakeDust = function(){
+      if (!dustRaf && !REDUCED){ last = performance.now(); dustRaf = requestAnimationFrame(frame); }
+    };
+    wakeDust();
   }
+  /* whether the desk is on screen at all: the dust reads SEEN, and the
+     room's CSS loops read #iso.asleep (they sleep even when the dust,
+     under reduced motion, never started) */
+  var SEEN = true;
+  new IntersectionObserver(function(es){
+    SEEN = es[0].isIntersecting;
+    document.getElementById("iso").classList.toggle("asleep", !SEEN);
+    if (SEEN) wakeDust();
+  }).observe(document.querySelector(".desk-wrap"));
+  document.addEventListener("visibilitychange", function(){ wakeDust(); });
 })();
 </script>
 </body>
