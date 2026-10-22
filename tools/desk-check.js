@@ -78,7 +78,7 @@ const BUDGET = {
   lines: 5850,                 // index.html, wc -l
   idleTop: 95,                 // ms/s of main-thread render work, desk in view, 1×
   idleTopSlow: 120,            // the same at 4× CPU throttle and DPR 2
-  idleAway: 10,                // ms/s, scrolled to the footer or under a sheet: the dust is asleep
+  idleAway: 10,                // ms/s, desk scrolled away or under a sheet: the dust is asleep
   sweepStyle: 2,               // ms of style recalc per pointer-move frame
   sweepRaster: 5,              // ms of raster per pointer-move frame
   hoverRaster: 4,              // ms of raster per frame while one object reacts
@@ -329,6 +329,7 @@ async function diffState(page, shot, baseRects) {
       /* what moved, in red over a dimmed copy of the new photograph */
       const c = document.createElement("canvas"); c.width = f.w; c.height = f.h;
       const g = c.getContext("2d");
+      g.fillStyle = "#000"; g.fillRect(0, 0, f.w, f.h);
       g.globalAlpha = 0.3; g.drawImage(ci, Math.round(fc.x * k), Math.round(fc.y * k), f.w, f.h, 0, 0, f.w, f.h); g.globalAlpha = 1;
       const im = g.getImageData(0, 0, f.w, f.h);
       for (const p of marks) { im.data[p * 4] = 255; im.data[p * 4 + 1] = 40; im.data[p * 4 + 2] = 40; im.data[p * 4 + 3] = 255; }
@@ -500,13 +501,22 @@ async function perfConfig(browser, label, slow) {
   };
   const idle = async (o, what, prep) => {
     if (prep) await prep(o.page);
-    await o.page.waitForTimeout(800);
+    /* idle means after the sheet has slid up and the pointer's last easing
+       has settled, so the opening itself isn't counted as idling */
+    await o.page.waitForTimeout(1500);
     const t = await traced(browser, o.page, () => o.page.waitForTimeout(2500));
     rows.push({ what, val: t.main / t.secs, unit: "ms/s" });
   };
   let o = await fresh();
   await idle(o, "idle, desk in view");
-  await idle(o, "idle, scrolled to the footer", (p) => p.evaluate(() => window.scrollTo({ top: 1e5, behavior: "instant" })));
+  /* At 1400×1000 the page is too short to scroll the desk off screen —
+     two thirds of it still shows above the footer, and the dust rightly
+     keeps going. So the probe lengthens the page below the footer (a spacer
+     nobody sees otherwise) and scrolls there: this measures the room asleep. */
+  await idle(o, "idle, desk scrolled away", (p) => p.evaluate(() => {
+    const pad = document.createElement("div"); pad.style.height = "200vh"; document.body.appendChild(pad);
+    window.scrollTo({ top: 1e6, behavior: "instant" });
+  }));
   await o.ctx.close();
   o = await fresh();
   await idle(o, "idle, under a sheet", (p) => p.evaluate(() =>
@@ -577,7 +587,7 @@ async function perf(browser) {
   const r1 = (v) => Math.round(v * 10) / 10;
   const limit = {
     "idle, desk in view": rec ? [r1(rec.idleTop * 1.15), r1(rec.idleTopSlow * 1.15)] : [BUDGET.idleTop, BUDGET.idleTopSlow],
-    "idle, scrolled to the footer": [BUDGET.idleAway, null],
+    "idle, desk scrolled away": [BUDGET.idleAway, null],
     "idle, under a sheet": [BUDGET.idleAway, null],
     "pointer sweep: style": [BUDGET.sweepStyle, null],
     "pointer sweep: raster": [BUDGET.sweepRaster, null],
