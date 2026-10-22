@@ -185,9 +185,16 @@
   }
   .iso-obj{cursor:pointer;outline:none}
   .iso-obj > *{transition:transform .3s cubic-bezier(.2,.9,.3,1.35)}
-  .iso-obj:hover > *,.iso-obj:focus-visible > *{transform:translateY(-8px)}
-  .iso-obj:hover,.iso-obj:focus-visible{
-    filter:drop-shadow(0 0 14px color-mix(in srgb, var(--a) 55%, transparent));
+  .iso-obj:hover > *,.iso-obj:focus-visible > *,.iso-obj.rx > *{transform:translateY(-8px)}
+  /* The keyboard's focus ring. .iso-obj has no outline (a rectangle round
+     an isometric thing reads as a selection box), so this glow *is* the
+     ring, and it must never go. It's a filter, which re-rasters the object,
+     but focus moves one Tab at a time, so that cost is paid once per press.
+     A pointer gets no filter at all: the lift and the tooltip in the
+     object's own colour already say "this one", and a filter that follows
+     the mouse round the room is paid every frame. */
+  .iso-obj:focus-visible{
+    filter:drop-shadow(0 0 1.5px var(--a)) drop-shadow(0 0 9px color-mix(in srgb,var(--a) 60%,transparent));
   }
   .iso-obj.picked > *{transform:translateY(-8px)}
   .iso-obj.picked{
@@ -202,9 +209,9 @@
   /* ---------- the light switch on the wall, and what the dark says ----------
      A switch screwed to a wall shouldn't hop when you point at it, so this one
      opts out of the lift and answers with its own toggle instead. */
-  .iso-obj.wallsw:hover > *,.iso-obj.wallsw:focus-visible > *{transform:none}
+  .iso-obj.wallsw:hover > *,.iso-obj.wallsw:focus-visible > *,.iso-obj.wallsw.rx > *{transform:none}
   /* the drawer under the desk slides out a little rather than lifting: it is in a desk */
-  .iso-obj[data-id="cubby"]:hover > *,.iso-obj[data-id="cubby"]:focus-visible > *,.iso-obj[data-id="cubby"].picked > *{transform:translate(-7px,3.5px)}
+  .iso-obj[data-id="cubby"]:hover > *,.iso-obj[data-id="cubby"]:focus-visible > *,.iso-obj[data-id="cubby"].rx > *,.iso-obj[data-id="cubby"].picked > *{transform:translate(-7px,3.5px)}
   #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
   body.lights-out #swLever{transform:translate(0,9px)}
   /* the glow-in-the-dark plate ring — the whole point of buying those */
@@ -823,9 +830,22 @@
     #moon{transition:none}
     html{scroll-behavior:auto}
   }
+  /* The motion gate. Stillness is the default and motion is the
+     exception: every @keyframes and every animation: added from here on
+     goes inside this one block, so a visitor who asks for less motion gets
+     it by construction rather than by someone remembering a matching
+     line in the block above. Anything that loops is drawn at its middle
+     pose, so with the gate shut it rests looking right. */
+  @media (prefers-reduced-motion:no-preference){
+  }
+  /* the first Tab stop: straight past the headline to the desk */
+  .skip{position:absolute;left:1rem;top:-3rem;z-index:60;background:var(--room);text-decoration:none}
+  .skip:focus{top:1rem}
+  #iso:focus{outline:none}
 </style>
 </head>
 <body>
+<a class="skip chip" href="#iso">Skip to the desk</a>
 
 <main class="scene" id="scene">
   <canvas id="dust" aria-hidden="true"></canvas>
@@ -840,7 +860,7 @@
   </header>
 
   <div class="desk-wrap">
-    <svg id="iso" viewBox="-465 -245 1135 815" role="group"
+    <svg id="iso" tabindex="-1" viewBox="-465 -245 1135 815" role="group"
          aria-label="An isometric 2000s room: a desk of interactive work objects, with hobbies filling the walls, shelf, window, and side table"></svg>
     <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>drag to pan<span class="cr">›</span></div>
   </div>
@@ -1004,7 +1024,19 @@
 <script>
 (function(){
   "use strict";
-  var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* Live, not read once: a visitor can turn reduced motion on with the page
+     open, and every loop that reads REDUCED per frame (the dust, and the
+     ones to come) honours it from the next frame. The dawn classes go at
+     once; the dust clears itself, and wakes again if it's turned back off.
+     (Old Safari's MediaQueryList has no addEventListener; there REDUCED
+     just stays what it was at load, as it always did.) */
+  var reducedQ = matchMedia("(prefers-reduced-motion: reduce)");
+  var REDUCED = reducedQ.matches;
+  if (reducedQ.addEventListener) reducedQ.addEventListener("change", function(e){
+    REDUCED = e.matches;
+    if (REDUCED) document.documentElement.classList.remove("dawn", "waking");
+    else wakeDust();
+  });
 
   /* ================================================================
      ISOMETRIC SCENE — classic 2:1 dimetric projection, generated
@@ -4392,7 +4424,16 @@
     btn.addEventListener("pointerleave", hideTip);
     btn.addEventListener("focus", function(){ showTip(btn, accent); });
     btn.addEventListener("blur", hideTip);
-    btn.addEventListener("pointerdown", function(){ buzz(id); });
+    btn.addEventListener("pointerdown", function(e){
+      buzz(id);
+      /* a finger has no hover, so a tap shows the reaction a pointer gets
+         on the way in — for as long as it takes to be seen. The sheet
+         doesn't wait for it. */
+      if (e.pointerType === "touch"){
+        btn.classList.add("rx");
+        setTimeout(function(){ btn.classList.remove("rx"); }, 450);
+      }
+    });
     btn.addEventListener("click", function(){
       ac(true); hideTip();
       if (SOUNDS[id]) SOUNDS[id]();
