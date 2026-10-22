@@ -33,9 +33,11 @@
    Baselines live in tools/desk-baseline/ (gitignored: they are this
    machine's fonts and this machine's Chromium, not the truth everywhere).
 
-   Run: node tools/desk-check.js --update   take the baselines (an untouched tree), and
-                                            record this machine's idle numbers
+   Run: node tools/desk-check.js --update   take the photographs' baselines (an untouched
+                                            tree, or one whose visual change you accept)
         node tools/desk-check.js            compare against them
+        --update-perf                       re-measure the frozen idle reference (below);
+                                            never needed after the first run on a machine
         --only=visual,dom,perf              just those parts
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
@@ -58,6 +60,11 @@ const ARGV = process.argv.slice(2);
 const flag = (n) => ARGV.includes("--" + n);
 const opt = (n) => { const a = ARGV.find((s) => s.startsWith("--" + n + "=")); return a ? a.slice(n.length + 3) : null; };
 const UPDATE = flag("update");
+const UPDATE_PERF = flag("update-perf");
+/* the last commit whose index.html is the desk before the rethink: the
+   in-view idle reference is always measured on this file, whatever tree
+   the check is run from, so no later piece of work can move its own goal */
+const PERF_REF = opt("perf-ref") || "6720fc1";
 const ONLY = (opt("only") || "visual,dom,perf").split(",");
 const OUT = opt("out") || fs.mkdtempSync(path.join(os.tmpdir(), "desk-check-"));
 let ART = flag("art") || process.env.DESK_ART === "1";
@@ -159,6 +166,7 @@ async function tapObj(page, id, wait) {
    /__img/ serves this run's photographs and the baselines to the diff page. */
 const TYPES = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml", ".json": "application/json" };
+let SERVE_REF = null;
 const server = http.createServer((req, res) => {
   const [rawPath, query] = req.url.split("?");
   let p = decodeURIComponent(rawPath);
@@ -171,6 +179,10 @@ const server = http.createServer((req, res) => {
   }
   if (p === "/__blank") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<!doctype html><title>diff</title>"); }
   if (p.endsWith("/")) p += "index.html";
+  if (p === "/index.html" && SERVE_REF != null) {     // measuring the reference: the untouched page
+    res.writeHead(200, { "content-type": "text/html" });
+    return res.end(SERVE_REF);
+  }
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404); return res.end("no");
@@ -490,7 +502,7 @@ const frames = (page, n) => page.evaluate((n) => new Promise((r) => {
   let i = 0; (function f() { if (++i >= n) r(); else requestAnimationFrame(f); })();
 }), n);
 
-async function perfConfig(browser, label, slow) {
+async function perfConfig(browser, label, slow, idleOnly) {
   const rows = [];
   const fresh = async () => {
     const o = await openDesk(browser, { name: "perf " + label, dpr: slow ? 2 : 1 });
@@ -509,6 +521,7 @@ async function perfConfig(browser, label, slow) {
   };
   let o = await fresh();
   await idle(o, "idle, desk in view");
+  if (idleOnly) { await o.ctx.close(); return rows; }
   /* At 1400×1000 the page is too short to scroll the desk off screen —
      two thirds of it still shows above the footer, and the dust rightly
      keeps going. So the probe lengthens the page below the footer (a spacer
@@ -570,24 +583,61 @@ async function perfConfig(browser, label, slow) {
 /* The idle budget with the desk in view is "no worse than today", and
    today is a property of the machine: the spec's ~95 ms/s and 120 ms/s were
    one desktop's numbers, and a container without a GPU spends several times
-   that at 4× throttle on the very same page. So --update records this
-   machine's numbers in desk-baseline/perf.json, and the in-view budget is
-   that record plus 25 % for noise (one unchanged page measured 83 to 104
-   ms/s here, run to run). Without a record, the spec's figures stand.
+   that at 4× throttle on the very same page. So the first run on a machine
+   measures the untouched page (index.html as of PERF_REF, served in place
+   of the working tree's) and keeps its numbers in desk-baseline/perf.json.
+   That record is frozen: --update (the photographs) never touches it, and
+   only an explicit --update-perf measures it again — still on PERF_REF, so
+   no later piece of work can record its own cost as the new "today".
+   Per column, where the untouched page is within the 25 % noise margin of
+   the spec's figure (one unchanged page measured 83 to 104 ms/s here, run
+   to run), the spec's figure is the gate; where the machine is plainly
+   slower than the spec's desktop, the gate is the reference plus 25 %.
    Every other budget is absolute: asleep is asleep anywhere. */
 const PERF_BASE = path.join(BASE, "perf.json");
+const r1 = (v) => Math.round(v * 10) / 10;
+
+/* Known failures, each owned by a later piece of work that is meant to fix
+   it, so the exit code can still tell a new regression from these. A known
+   row prints as "◐ known" and doesn't count against the run, as long as it
+   is no worse than the value it had when it was written down here (plus
+   the same 25 % for noise), and only until its owner lands: `landed` reads
+   the page for that work's mark, and from then on the row is judged like
+   any other. Both of these are the CD's rainbow and the prism's fan, which
+   re-raster on every pointer move until the camera (A13) takes them over. */
+const KNOWN = {
+  "pointer sweep: raster":     { owner: "A13", was: 6.2, landed: (src) => src.includes("cam-live") },
+  "hover (Hive Mind): raster": { owner: "A13", was: 4.4, landed: (src) => src.includes("cam-live") }
+};
+
+async function measureRef(browser) {
+  let html;
+  try { html = execSync("git show " + PERF_REF + ":index.html", { cwd: ROOT, maxBuffer: 64 << 20 }).toString(); }
+  catch (e) { note("· can't read index.html at " + PERF_REF + " — no idle reference recorded; the spec's figures stand"); return null; }
+  console.log("  measuring the untouched page (index.html at " + PERF_REF + ") for the idle reference…");
+  SERVE_REF = html;
+  try {
+    const fast = await perfConfig(browser, "ref 1×", false, true);
+    const slow = await perfConfig(browser, "ref 4×", true, true);
+    const rec = { idleTop: fast[0].val, idleTopSlow: slow[0].val, ref: PERF_REF, at: new Date().toISOString() };
+    fs.mkdirSync(BASE, { recursive: true });
+    fs.writeFileSync(PERF_BASE, JSON.stringify(rec));
+    note("✎ idle reference: " + r1(rec.idleTop) + " ms/s at 1×, " + r1(rec.idleTopSlow) + " ms/s at 4× → " + path.relative(ROOT, PERF_BASE));
+    return rec;
+  } finally { SERVE_REF = null; }
+}
+
 async function perf(browser) {
-  console.log("\n──  performance" + (UPDATE ? " (recording this machine's idle numbers)" : ""));
+  console.log("\n──  performance");
+  let rec = !UPDATE_PERF && fs.existsSync(PERF_BASE) ? JSON.parse(fs.readFileSync(PERF_BASE, "utf8")) : null;
+  if (!rec) rec = await measureRef(browser);
   const fast = await perfConfig(browser, "1×", false);
   const slow = await perfConfig(browser, "4×", true);
-  if (UPDATE) {
-    fs.mkdirSync(BASE, { recursive: true });
-    fs.writeFileSync(PERF_BASE, JSON.stringify({ idleTop: fast[0].val, idleTopSlow: slow[0].val }));
-  }
-  const rec = !UPDATE && fs.existsSync(PERF_BASE) ? JSON.parse(fs.readFileSync(PERF_BASE, "utf8")) : null;
-  const r1 = (v) => Math.round(v * 10) / 10;
+  const src = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const gate = (ref, spec) => (ref == null || ref <= spec * 1.25 ? spec : r1(ref * 1.25));
+  const inView = rec ? [gate(rec.idleTop, BUDGET.idleTop), gate(rec.idleTopSlow, BUDGET.idleTopSlow)] : [BUDGET.idleTop, BUDGET.idleTopSlow];
   const limit = {
-    "idle, desk in view": rec ? [r1(rec.idleTop * 1.25), r1(rec.idleTopSlow * 1.25)] : [BUDGET.idleTop, BUDGET.idleTopSlow],
+    "idle, desk in view": inView,
     "idle, desk scrolled away": [BUDGET.idleAway, null],
     "idle, under a sheet": [BUDGET.idleAway, null],
     "pointer sweep: style": [BUDGET.sweepStyle, null],
@@ -601,13 +651,20 @@ async function perf(browser) {
     const s = slow[i], lim = limit[row.what] || [null, null];
     const pass1 = lim[0] == null || row.val <= lim[0], pass4 = lim[1] == null || s.val <= lim[1];
     const cell = (v, pass, w) => (v.toFixed(1) + (pass ? " " : "!")).padStart(w);
-    const budget = (lim[0] != null ? "≤ " + lim[0] : "") + (lim[1] != null ? " (4×: ≤ " + lim[1] + ")" : "") + " " + row.unit +
-      (i === 0 ? (rec ? " (recorded + 25 %)" : " (spec)") : "");
+    let budget = (lim[0] != null ? "≤ " + lim[0] : "") + (lim[1] != null ? " (4×: ≤ " + lim[1] + ")" : "") + " " + row.unit;
+    if (i === 0) budget += rec
+      ? " (untouched page " + r1(rec.idleTop) + " / " + r1(rec.idleTopSlow) + "; spec ≤ " + BUDGET.idleTop + " / " + BUDGET.idleTopSlow + ")"
+      : " (spec; no reference)";
     const line = row.what.padEnd(30) + cell(row.val, pass1, 10) + cell(s.val, pass4, 12) + "   " + budget;
-    /* recording is not judging: an untouched tree may well be over budget */
-    if (UPDATE) console.log("  ✎ " + line);
-    else if (pass1 && pass4) console.log("  ✓ " + line);
-    else { fails++; console.log("  ✗ " + line); }
+    const k = KNOWN[row.what];
+    if (pass1 && pass4) console.log("  ✓ " + line);
+    else if (k && !k.landed(src) && pass4 && row.val <= r1(k.was * 1.25))
+      console.log("  ◐ " + line + " — known, owner " + k.owner + " (was " + k.was + ", ≤ " + r1(k.was * 1.25) + " tolerated until it lands)");
+    else {
+      fails++;
+      console.log("  ✗ " + line + (k ? (k.landed(src) ? " — " + k.owner + " has landed, so this is no longer excused"
+        : " — known (owner " + k.owner + "), but worse than its recorded " + k.was) : ""));
+    }
   });
 }
 

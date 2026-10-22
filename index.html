@@ -194,6 +194,7 @@
      object's own colour already say "this one", and a filter that follows
      the mouse round the room is paid every frame. */
   .iso-obj:focus-visible{
+    filter:drop-shadow(0 0 1.5px var(--a)) drop-shadow(0 0 9px var(--a));   /* for a browser without color-mix(), which would drop the line below whole */
     filter:drop-shadow(0 0 1.5px var(--a)) drop-shadow(0 0 9px color-mix(in srgb,var(--a) 60%,transparent));
   }
   .iso-obj.picked > *{transform:translateY(-8px)}
@@ -368,12 +369,15 @@
   /* The room sleeps when nobody can see it. Game engines don't simulate
      what's off camera: scrolled away (#iso.asleep) or under a sheet
      (body.modal-open), every loop in the room holds still. That includes
-     the picked object's pulse: it holds wherever it was, still glowing,
-     because an animated filter re-rasters its object every frame, and
-     under a sheet that alone was most of the page's idle work. The year
-     chip's pulse is the same kind of cost, and an invitation nobody can
-     take up from under a sheet or with the desk off screen. */
+     the picked object's pulse: an animated filter re-rasters its object
+     every frame, and under a sheet that alone was most of the page's idle
+     work. So under a sheet the picked object stops pulsing and holds its
+     steady glow (the plain .picked filter, as bright as the pulse's middle)
+     rather than freezing on the pulse's dimmest frame. The year chip's
+     pulse is the same kind of cost, and an invitation nobody can take up
+     from under a sheet or with the desk off screen. */
   #iso.asleep *,body.modal-open #iso *,body.modal-open #eraBtn{animation-play-state:paused}
+  body.modal-open #iso .iso-obj.picked{animation:none}
   body:has(#iso.asleep) #eraBtn{animation-play-state:paused}   /* its own rule: a browser without :has() drops only this one */
   /* the era chip is a real invitation, not a label */
   #eraBtn{
@@ -838,8 +842,17 @@
      pose, so with the gate shut it rests looking right. */
   @media (prefers-reduced-motion:no-preference){
   }
-  /* the first Tab stop: straight past the headline to the desk */
-  .skip{position:absolute;left:1rem;top:-3rem;z-index:60;background:var(--room);text-decoration:none}
+  /* the first Tab stop: straight past the headline to the desk. It lands
+     on top of the eyebrow line on any screen narrower than about 1000 px,
+     so its fill has to be solid: the chip's own hover tint, laid over the
+     room colour rather than over the words underneath. The doubled class
+     outranks .chip:focus-visible, which would otherwise swap in the bare
+     translucent tint the moment the link takes focus. */
+  .skip{position:absolute;left:1rem;top:-3rem;z-index:60;text-decoration:none}
+  .skip.chip,.skip.chip:hover,.skip.chip:focus-visible{
+    background:linear-gradient(rgba(255,201,122,.18),rgba(255,201,122,.18)),var(--room);
+    box-shadow:0 4px 14px rgba(0,0,0,.45);
+  }
   .skip:focus{top:1rem}
   #iso:focus{outline:none}
 </style>
@@ -1036,6 +1049,19 @@
     REDUCED = e.matches;
     if (REDUCED) document.documentElement.classList.remove("dawn", "waking");
     else wakeDust();
+  });
+
+  /* The skip link works as a plain anchor without script. With script it
+     moves focus itself and keeps "#iso" out of the address bar, so a reload
+     or a copied link doesn't open the page scrolled to the desk, and the
+     world addresses to come never have to read "#iso" as one of theirs. */
+  var skipA = document.querySelector(".skip");
+  if (skipA) skipA.addEventListener("click", function(e){
+    var to = document.getElementById("iso");
+    if (!to) return;
+    e.preventDefault();
+    to.focus({ preventScroll: true });
+    to.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" });
   });
 
   /* ================================================================
@@ -4650,6 +4676,7 @@
   if (cdBow && pFan && !REDUCED && matchMedia("(pointer: fine)").matches){
     var tgtA = 0, curA = 0, lightRaf = null;
     document.getElementById("scene").addEventListener("pointermove", function(e){
+      if (REDUCED) return;   /* turned on with the page open: no more swinging */
       /* nobody is looking at the disc from under a sheet, so it stops
          swinging there (each step re-rasters the filtered bow). The era
          ride isn't a sheet: the desk is in full view through it. */
@@ -4659,7 +4686,7 @@
         curA += (tgtA - curA) * 0.12;
         cdBow.setAttribute("transform", "rotate(" + (-30 + curA * 150).toFixed(1) + ")");
         pFan.setAttribute("transform", "rotate(" + (24 + curA * 14).toFixed(1) + ")");
-        lightRaf = Math.abs(tgtA - curA) > 0.002 && !activeModal() ? requestAnimationFrame(ease) : null;
+        lightRaf = Math.abs(tgtA - curA) > 0.002 && !activeModal() && !REDUCED ? requestAnimationFrame(ease) : null;
       });
     });
   }
