@@ -48,6 +48,11 @@
     --c-well:#9aa8ff;
     --c-luma:#ffcf8a;
     --c-cubby:#ffb65c;
+    --c-chess:#3fc472;
+    --c-sudoku:#ffc97a;
+    --c-domino:#f0a83c;
+    --c-lib:#6cc24a;
+    --c-cv:#b9c6d8;
     --mono:ui-monospace,"Cascadia Code","Source Code Pro",Menlo,Consolas,monospace;
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   }
@@ -251,10 +256,21 @@
     background:var(--a,#ffc97a);box-shadow:0 0 8px var(--a,#ffc97a);
   }
   .tip.show{opacity:1;visibility:visible}
+  /* the legend is the room's map, in rows by what each thing was: Work,
+     Play, Make, Life, then the secrets. On a phone the rows wrap rather
+     than scroll sideways, because a pill you'd have to scroll to find is
+     a world you'd never know was there. */
   .legend{
     position:relative;z-index:4;
-    display:flex;flex-wrap:wrap;gap:.5rem .6rem;justify-content:center;
+    display:flex;flex-direction:column;gap:.55rem;
     padding:.9rem clamp(1.25rem,5vw,4rem) 0;
+  }
+  .lg{display:flex;flex-wrap:wrap;gap:.45rem .5rem;justify-content:center;align-items:center}
+  .lg[hidden]{display:none}
+  .lg-h{font:.58rem var(--mono);letter-spacing:.24em;text-transform:uppercase;color:var(--ink-faint);margin-right:.35rem}
+  @media (max-width:640px){
+    .lg{justify-content:flex-start}   /* on the page's own gutter, flush with the words above */
+    .lg-h{flex-basis:100%;margin:0}
   }
   .legend button{
     font-family:var(--mono);
@@ -276,7 +292,7 @@
     box-shadow:0 0 14px color-mix(in srgb, var(--a) 45%, transparent);
   }
   .legend .found-count{
-    align-self:center;
+    align-self:center;margin-top:.2rem;
     font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
     color:var(--ink-faint);
     border:1px dashed rgba(126,111,91,.5);
@@ -289,10 +305,10 @@
     background:color-mix(in srgb, var(--a) 18%, transparent);
   }
   .legend button:focus-visible{outline:2px solid var(--a);outline-offset:2px}
-  .legend-sep{
-    align-self:center;width:1px;height:1.1em;
-    background:rgba(185,168,143,.35);
-  }
+  /* a secret is a dashed question mark until the desk gives it up; then it
+     takes its own name and the colour of the thing it is */
+  .legend button.secret{--a:var(--ink-faint);color:var(--ink-faint);border-style:dashed;min-width:2.4em}
+  .legend button.secret.found{border-style:solid;color:var(--ink)}
   .steam{animation:steam 3.6s ease-in-out infinite;transform-origin:center bottom}
   .steam.s2{animation-delay:-1.7s}
   @keyframes steam{
@@ -845,6 +861,9 @@
      line in the block above. Anything that loops is drawn at its middle
      pose, so with the gate shut it rests looking right. */
   @media (prefers-reduced-motion:no-preference){
+    /* an unfound secret's pill shakes its head: not from here */
+    .legend button.nudge{animation:nudge .3s ease}
+    @keyframes nudge{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -883,25 +902,57 @@
   </div>
   <div class="tip" id="tip" aria-hidden="true"></div>
 
+  <!-- Every world on the desk, by what it was: the map of the room. The
+       one-page version waits hidden until its sheet exists (the script
+       shows it then), and the three secrets are found on the desk, never
+       here: their pills only say so once they have been. -->
   <nav class="legend" aria-label="Worlds on the desk">
-    <button data-id="board" style="--a:var(--c-board)">The machine years</button>
-    <button data-id="toy" style="--a:var(--c-toy)">Book + toy</button>
-    <button data-id="hive" style="--a:var(--c-hive)">Hive Mind</button>
-    <button data-id="series" style="--a:var(--c-series)">Everything series</button>
-    <button data-id="sun" style="--a:var(--c-sun)">Borrowed Sunlight</button>
-    <button data-id="scqcs" style="--a:var(--c-scqcs)">SCQCS</button>
-    <button data-id="vinyl" style="--a:var(--c-vinyl)">Aethra Kairos</button>
-    <button data-id="cam" style="--a:var(--c-cam)">securaCV</button>
-    <button data-id="mandel" style="--a:var(--c-imp)">The impossible object</button>
-    <button data-id="prism" style="--a:var(--c-pri)">The light bench</button>
-    <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
-    <button data-id="vantage" style="--a:var(--c-vantage)">Vantage</button>
-    <button data-id="luma" style="--a:var(--c-luma)">Luma</button>
-    <button data-id="cubby" style="--a:var(--c-cubby)">Cubby</button>
-    <span class="legend-sep" aria-hidden="true"></span>
-    <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
-    <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
-    <button data-id="puzzle" style="--a:var(--c-puz)">The thinking wall</button>
+    <div class="lg" role="group" aria-labelledby="lg-work">
+      <span class="lg-h" id="lg-work">Work</span>
+      <button data-id="cv" style="--a:var(--c-cv)" hidden>The one-page version</button>
+      <button data-id="board" style="--a:var(--c-board)">The machine years</button>
+      <button data-id="scqcs" style="--a:var(--c-scqcs)">SCQCS</button>
+      <button data-id="cam" style="--a:var(--c-cam)">securaCV</button>
+      <button data-id="utap" style="--a:var(--c-utap)">uTap</button>
+      <button data-id="toy" style="--a:var(--c-toy)">Book + toy</button>
+      <button data-id="hive" style="--a:var(--c-hive)">Hive Mind</button>
+      <button data-id="series" style="--a:var(--c-series)">Everything series</button>
+      <button data-id="sun" style="--a:var(--c-sun)">Borrowed Sunlight</button>
+      <button data-id="vinyl" style="--a:var(--c-vinyl)">Aethra Kairos</button>
+    </div>
+    <div class="lg" role="group" aria-labelledby="lg-play">
+      <span class="lg-h" id="lg-play">Play</span>
+      <button data-id="chess" style="--a:var(--c-chess)">The chess room</button>
+      <button data-id="sudoku" style="--a:var(--c-sudoku)">The sudoku room</button>
+      <button data-id="domino" style="--a:var(--c-domino)">The domino table</button>
+      <button data-id="well" style="--a:var(--c-well)">well</button>
+      <button data-id="library" style="--a:var(--c-lib)">The reading room</button>
+      <button data-id="mandel" style="--a:var(--c-imp)">The impossible object</button>
+      <button data-id="prism" style="--a:var(--c-pri)">The light bench</button>
+    </div>
+    <div class="lg" role="group" aria-labelledby="lg-make">
+      <span class="lg-h" id="lg-make">Make</span>
+      <button data-id="vantage" style="--a:var(--c-vantage)">Vantage</button>
+      <button data-id="luma" style="--a:var(--c-luma)">Luma</button>
+      <button data-id="cubby" style="--a:var(--c-cubby)">Cubby</button>
+      <button data-id="chili" style="--a:var(--c-chili)">The chili</button>
+      <button data-id="offhours" style="--a:var(--c-off)">Off the clock</button>
+    </div>
+    <div class="lg" role="group" aria-labelledby="lg-life">
+      <span class="lg-h" id="lg-life">Life</span>
+      <button data-id="outside" style="--a:var(--c-out)">The world outside</button>
+      <button data-id="puzzle" style="--a:var(--c-puz)">The thinking wall</button>
+    </div>
+    <div class="lg" role="group" aria-labelledby="lg-secret">
+      <span class="lg-h" id="lg-secret">Secrets</span>
+      <button class="secret" data-id="cube" aria-label="A secret — not found yet">?</button>
+      <button class="secret" data-id="web" aria-label="A secret — not found yet">?</button>
+      <button class="secret" data-id="switch" aria-label="A secret — not found yet">?</button>
+    </div>
+    <!-- backstage: the director's commentary chip, hidden until it's wired -->
+    <div class="lg lg-backstage" hidden>
+      <button id="commBtn" class="chip" style="--a:var(--lamp)" aria-pressed="false" title="How this room is drawn">Director's commentary: off</button>
+    </div>
     <span class="found-count" id="foundCount" aria-live="polite"></span>
   </nav>
 
@@ -3169,21 +3220,38 @@
   var FOUND_KEY = "km_found";
   var foundSet = {};
   try { (JSON.parse(localStorage.getItem(FOUND_KEY)) || []).forEach(function(id){ foundSet[id] = 1; }); } catch(e){}
-  var legendBtns = {};
-  document.querySelectorAll(".legend button").forEach(function(b){ legendBtns[b.dataset.id] = b; });
-  var PILL_IDS = Object.keys(legendBtns);
   var SECRET_IDS = ["cube","web","switch"]; // the playable cube, the hidden browser, the wall switch
+  var SECRET_NAMES = {cube:"The pocket cube", web:"Today's rig", "switch":"The light switch"};
+  var legendBtns = {};
+  document.querySelectorAll(".legend button[data-id]").forEach(function(b){ legendBtns[b.dataset.id] = b; });
+  /* the one-page version shows (and counts) only once its sheet exists */
+  if (WORLDS.cv && legendBtns.cv) legendBtns.cv.hidden = false;
+  var PILL_IDS = Object.keys(legendBtns).filter(function(id){
+    return SECRET_IDS.indexOf(id) < 0 && !legendBtns[id].hidden;
+  });
   function updateFoundUI(){
+    /* a pill isn't a toggle, so "found" is part of its name, not a pressed state */
     PILL_IDS.forEach(function(id){
-      legendBtns[id].classList.toggle("found", !!foundSet[id]);
-      legendBtns[id].setAttribute("aria-pressed", foundSet[id] ? "true" : "false");
+      var b = legendBtns[id], f = !!foundSet[id];
+      b.classList.toggle("found", f);
+      if (f) b.setAttribute("aria-label", b.textContent + " — found");
+      else b.removeAttribute("aria-label");
+    });
+    SECRET_IDS.forEach(function(id){
+      var b = legendBtns[id], f = !!foundSet[id];
+      if (!b) return;
+      var o = document.querySelector('.iso-obj[data-id="' + id + '"]');
+      b.classList.toggle("found", f);
+      b.textContent = f ? SECRET_NAMES[id] : "?";
+      b.setAttribute("aria-label", f ? SECRET_NAMES[id] + " — found" : "A secret — not found yet");
+      b.style.setProperty("--a", f && o ? o.style.getPropertyValue("--a") : "");
     });
     var n = PILL_IDS.filter(function(id){ return foundSet[id]; }).length;
     var s = SECRET_IDS.filter(function(id){ return foundSet[id]; }).length;
     var el = document.getElementById("foundCount");
     var all = n === PILL_IDS.length && s === SECRET_IDS.length;
     el.textContent = all ? "every world found ✦" :
-      n + " / " + PILL_IDS.length + " found" + (s ? " · " + s + "/" + SECRET_IDS.length + " secrets" : "");
+      n + " / " + PILL_IDS.length + " worlds" + (s ? " · " + s + " / " + SECRET_IDS.length + " secrets" : "");
     el.classList.toggle("done", all);
   }
   function markFound(id){
@@ -4551,13 +4619,23 @@
     });
   });
 
-  document.querySelectorAll(".legend button").forEach(function(btn){
+  document.querySelectorAll(".legend button[data-id]").forEach(function(btn){
     var id = btn.dataset.id;
     var accent = getComputedStyle(btn).getPropertyValue("--a").trim() || "#ffc97a";
     if (!ACCENT[id]) ACCENT[id] = accent;
     btn.addEventListener("pointerenter", function(){ SOUNDS.hover(); });
     btn.addEventListener("pointerdown", function(){ buzz(id); });
-    btn.addEventListener("click", function(){ activate(id); });
+    btn.addEventListener("click", function(){
+      /* a secret is found on the desk, never through its pill: until then
+         the pill only shakes its head */
+      if (btn.classList.contains("secret") && !foundSet[id]){
+        ac(true); SOUNDS.hover();
+        btn.classList.remove("nudge"); void btn.offsetWidth; btn.classList.add("nudge");
+        setTimeout(function(){ btn.classList.remove("nudge"); }, 300);
+        return;
+      }
+      activate(id);
+    });
   });
 
   /* ---------------- era toggle: 1999 ⇄ 2026 ---------------- */
