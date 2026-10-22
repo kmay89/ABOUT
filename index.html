@@ -460,6 +460,10 @@
     transition:transform .45s cubic-bezier(.2,.9,.25,1);
   }
   .dossier.show{transform:translate(-50%,0)}
+  /* on a phone the sheet stops short of the thing it's about: the top of
+     the screen stays the desk, with what you picked up lit in it (and
+     frameObject glides it into that band) */
+  @media (max-width:640px){ .dossier{max-height:58vh} }
   .dossier::before{
     content:"";position:absolute;left:50%;top:.55rem;width:2.6rem;height:4px;margin-left:-1.3rem;
     border-radius:999px;background:color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
@@ -875,7 +879,7 @@
   <div class="desk-wrap">
     <svg id="iso" tabindex="-1" viewBox="-465 -245 1135 815" role="group"
          aria-label="An isometric 2000s room: a desk of interactive work objects, with hobbies filling the walls, shelf, window, and side table"></svg>
-    <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>drag to pan<span class="cr">›</span></div>
+    <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>slide the desk<span class="cr">›</span></div>
   </div>
   <div class="tip" id="tip" aria-hidden="true"></div>
 
@@ -3235,16 +3239,45 @@
     pickedEls = [];
     scrim.classList.remove("spot");
   }
-  function pickObjects(id){
-    clearPicked();
-    document.querySelectorAll('.iso-obj[data-id="' + id + '"]').forEach(function(el){
-      el.classList.add("picked");
-      pickedEls.push(el);
+  /* the CRT and today's rig are the same desk's computer, a quarter of a
+     century apart: when the one asked for belongs to the other year, the
+     light falls on the one that's there rather than on an empty corner */
+  var STANDIN = {board:"web", web:"board"};
+  /* a world drawn once per era has a copy hidden by display:none, which
+     measures as an empty box at the corner — only the ones on show count */
+  function shownObjects(id){
+    return [].filter.call(document.querySelectorAll('.iso-obj[data-id="' + id + '"]'), function(e){
+      var b = e.getBoundingClientRect(); return b.width || b.height;
     });
-    if (!pickedEls.length) return;
-    /* a world drawn once per era has a copy hidden by display:none, which
-       measures as an empty box at the corner — aim at the one on show */
-    var el = pickedEls.filter(function(e){ var b = e.getBoundingClientRect(); return b.width || b.height; })[0] || pickedEls[0];
+  }
+  /* nth picks which copy on show to aim at: off the clock is three things
+     (the tee, the sourdough, the printer), so nth 2 is the printer */
+  function pickObjects(id, nth){
+    clearPicked();
+    var vis = shownObjects(id);
+    if (!vis.length && STANDIN[id]) vis = shownObjects(STANDIN[id]);
+    if (!vis.length) return;            // nothing to light: the scrim stays whole
+    vis.forEach(function(el){ el.classList.add("picked"); pickedEls.push(el); });
+    var el = vis[Math.min(nth || 0, vis.length - 1)];
+    var r = el.getBoundingClientRect();
+    spotAt(frameObject(el), Math.max(r.width, r.height) / 2 + 30);
+  }
+  function spotAt(c, rad){
+    scrim.classList.add("spot");
+    scrim.style.setProperty("--sx", c.x.toFixed(0) + "px");
+    scrim.style.setProperty("--sy", c.y.toFixed(0) + "px");
+    scrim.style.setProperty("--sr", rad.toFixed(0) + "px");
+  }
+  /* Keep what you picked up in sight. The desk pans sideways to it on a
+     narrow screen, and the page glides so it sits in the clear band above
+     the sheet: the top 22 % on a phone, where the sheet takes the bottom
+     58 %, and 40 % down anywhere wider. Returns where its centre will be
+     once both settle, so the spotlight is cut there and not where it was.
+     camReturn remembers where the visitor was, so putting the thing back
+     puts them back too — unless they've scrolled since, and then they
+     meant to be where they are. A chain of sheets keeps the first "from". */
+  var camReturn = null, handoff = false;
+  function frameObject(el){
     var r = el.getBoundingClientRect();
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (wrap.scrollWidth > wrap.clientWidth){
@@ -3254,16 +3287,39 @@
       cx -= target - wrap.scrollLeft; // where the object lands once the pan settles
       wrap.scrollTo({ left: target, behavior: REDUCED ? "auto" : "smooth" });
     }
-    scrim.classList.add("spot");
-    scrim.style.setProperty("--sx", cx.toFixed(0) + "px");
-    scrim.style.setProperty("--sy", cy.toFixed(0) + "px");
-    scrim.style.setProperty("--sr", (Math.max(r.width, r.height) / 2 + 30).toFixed(0) + "px");
+    var band = innerHeight * (matchMedia("(max-width:640px)").matches ? .22 : .40);
+    var maxY = document.documentElement.scrollHeight - innerHeight;
+    var y1 = Math.round(Math.max(0, Math.min(maxY, scrollY + cy - band)));
+    var dy = y1 - scrollY;
+    if (Math.abs(dy) > 40){
+      camReturn = {from: camReturn ? camReturn.from : scrollY, to: y1};
+      scrollTo({ top: y1, behavior: REDUCED ? "auto" : "smooth" });
+      cy -= dy;
+    }
+    return {x: cx, y: cy};
+  }
+  /* the way back: true when the page is gliding home, so the focus that
+     follows doesn't yank it somewhere else. A hand-off (one sheet closing
+     because another is opening) keeps the memory for the next sheet. */
+  function camBack(){
+    var c = camReturn;
+    if (handoff) return true;
+    camReturn = null;
+    if (!c || Math.abs(scrollY - c.to) >= 4) return false;
+    scrollTo({ top: c.from, behavior: REDUCED ? "auto" : "smooth" });
+    return true;
+  }
+  function refocus(){
+    var back = camBack();
+    if (lastFocus && lastFocus.focus) lastFocus.focus({preventScroll: back});
   }
   function openWorld(id, accent){
     if (eraBusy) return; // the desk sleeps during the era ride
     var w = WORLDS[id]; if (!w) return;
-    lastFocus = document.activeElement;
-    dossier.style.setProperty("--a", accent);
+    /* a sheet swapped in place (one world paging to the next) keeps the
+       thing that opened the first, so closing goes back to where you began */
+    if (!dossier.contains(document.activeElement)) lastFocus = document.activeElement;
+    dossier.style.setProperty("--a", accent || "#ffc97a");
     document.getElementById("dKicker").textContent = w.kicker;
     document.getElementById("dTitle").textContent = w.title;
     document.getElementById("dStory").textContent = w.story;
@@ -3316,7 +3372,7 @@
     scrim.classList.remove("show"); dossier.classList.remove("show");
     scheduleHide(dossier, 460);
     setBackgroundInert(false);
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    refocus();
   }
   /* ---------------- the built-in browser ---------------- */
   var browser = document.getElementById("browser");
@@ -3381,7 +3437,7 @@
     scrim.classList.remove("show"); browser.classList.remove("show");
     scheduleHide(browser, 320);
     setBackgroundInert(false);
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    refocus();
   }
   document.getElementById("bClose").addEventListener("click", function(){ SOUNDS.hover(); closeBrowser(); });
 
@@ -3798,7 +3854,7 @@
     scrim.classList.remove("show"); cubeStage.classList.remove("show");
     scheduleHide(cubeStage, 320);
     setBackgroundInert(false);
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    refocus();
   }
   document.getElementById("csClose").addEventListener("click", function(){ SOUNDS.hover(); closeCubeGame(); });
   document.getElementById("csSolve").addEventListener("click", function(){
@@ -3993,7 +4049,7 @@
     scheduleHide(mandelStage, 320);
     setBackgroundInert(false);
     if (MN.raf){ cancelAnimationFrame(MN.raf); MN.raf = null; }
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    refocus();
   }
   document.getElementById("mnClose").addEventListener("click", function(){ SOUNDS.hover(); closeMandel(); });
   (function(){
@@ -4333,7 +4389,7 @@
     scheduleHide(lightStage, 320);
     setBackgroundInert(false);
     if (LT.raf){ cancelAnimationFrame(LT.raf); LT.raf = null; }
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    refocus();
   }
   document.getElementById("ltClose").addEventListener("click", function(){ SOUNDS.hover(); closeLight(); });
   window.KM_LIGHT = {
@@ -4433,19 +4489,44 @@
      ================================================================ */
   var tip = document.getElementById("tip");
   var scene = document.getElementById("scene");
+  /* a finger lands where a pointer would hover, right on the label, so on
+     a touch screen the name sits a thumb's width higher */
+  var COARSE = matchMedia("(pointer:coarse)");
   function showTip(btn, accent){
     tip.textContent = btn.getAttribute("aria-label");
     tip.style.setProperty("--a", accent);
     var r = btn.getBoundingClientRect(), s = scene.getBoundingClientRect();
     tip.style.left = (r.left - s.left + r.width / 2) + "px";
-    tip.style.top  = (r.top - s.top - 10) + "px";
+    tip.style.top  = (r.top - s.top - 10 - (COARSE.matches ? 28 : 0)) + "px";
     tip.classList.add("show");
   }
   function hideTip(){ tip.classList.remove("show"); }
 
+  /* each world's colour, read once from the first copy of it on the desk
+     (or, for a world with no object, from its legend pill), so a sheet
+     opened from anywhere wears the same accent */
+  var ACCENT = {};
+  /* Every way into a world comes through this one door: the thing on the
+     desk, its legend pill, and the routes added later (the one-page
+     version, the hats, the tour, an address). One sheet at a time, so a
+     door opened from inside a sheet closes that sheet first; the switch is
+     the exception, because flipping a light doesn't open anything. */
+  function activate(id){
+    if (eraBusy) return;               // the desk sleeps during the era ride
+    ac(true); hideTip();
+    if (SOUNDS[id]) SOUNDS[id]();
+    if (activeModal() && id !== "switch"){ handoff = true; closeModal(); handoff = false; }
+    if (id === "web") openBrowser();
+    else if (id === "cube") openCubeGame();
+    else if (id === "mandel") openMandel();
+    else if (id === "prism") openLight();
+    else if (id === "switch") flipRoomLight();
+    else openWorld(id, ACCENT[id]);
+  }
   document.querySelectorAll(".iso-obj").forEach(function(btn){
     var id = btn.dataset.id;
     var accent = getComputedStyle(btn).getPropertyValue("--a").trim() || "#ffc97a";
+    if (!ACCENT[id]) ACCENT[id] = accent;
     btn.addEventListener("pointerenter", function(){ SOUNDS.hover(); showTip(btn, accent); });
     btn.addEventListener("pointerleave", hideTip);
     btn.addEventListener("focus", function(){ showTip(btn, accent); });
@@ -4460,16 +4541,7 @@
         setTimeout(function(){ btn.classList.remove("rx"); }, 450);
       }
     });
-    btn.addEventListener("click", function(){
-      ac(true); hideTip();
-      if (SOUNDS[id]) SOUNDS[id]();
-      if (id === "web") openBrowser();
-      else if (id === "cube") openCubeGame();
-      else if (id === "mandel") openMandel();
-      else if (id === "prism") openLight();
-      else if (id === "switch") flipRoomLight();
-      else openWorld(id, accent);
-    });
+    btn.addEventListener("click", function(){ activate(id); });
     btn.addEventListener("keydown", function(e){
       if (e.key === "Enter" || e.key === " "){
         e.preventDefault();
@@ -4482,15 +4554,10 @@
   document.querySelectorAll(".legend button").forEach(function(btn){
     var id = btn.dataset.id;
     var accent = getComputedStyle(btn).getPropertyValue("--a").trim() || "#ffc97a";
+    if (!ACCENT[id]) ACCENT[id] = accent;
     btn.addEventListener("pointerenter", function(){ SOUNDS.hover(); });
     btn.addEventListener("pointerdown", function(){ buzz(id); });
-    btn.addEventListener("click", function(){
-      ac(true);
-      if (SOUNDS[id]) SOUNDS[id]();
-      if (id === "mandel") openMandel();
-      else if (id === "prism") openLight();
-      else openWorld(id, accent);
-    });
+    btn.addEventListener("click", function(){ activate(id); });
   });
 
   /* ---------------- era toggle: 1999 ⇄ 2026 ---------------- */
@@ -4641,12 +4708,17 @@
   cueCheck();
   addEventListener("resize", cueCheck);
   var cueStart = wrap.scrollLeft;
-  wrap.addEventListener("scroll", function(){
-    if (cueDismissed || Math.abs(wrap.scrollLeft - cueStart) < 24) return;
+  function cueDismiss(){
+    if (cueDismissed) return;
     cueDismissed = true;
     panCue.style.opacity = "0";
     setTimeout(function(){ panCue.style.display = "none"; }, 550);
+  }
+  wrap.addEventListener("scroll", function(){
+    if (Math.abs(wrap.scrollLeft - cueStart) >= 24) cueDismiss();
   });
+  /* a tap on the desk means they've found it too, slid or not */
+  wrap.addEventListener("pointerdown", cueDismiss);
 
   /* ---------------- gentle whole-scene parallax ----------------
      The transform is written straight onto #iso. Setting a custom property
