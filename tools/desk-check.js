@@ -572,8 +572,9 @@ async function perfConfig(browser, label, slow) {
    one desktop's numbers, and a container without a GPU spends several times
    that at 4× throttle on the very same page. So --update records this
    machine's numbers in desk-baseline/perf.json, and the in-view budget is
-   that record plus 15 % for noise. Without a record, the spec's figures
-   stand. Every other budget is absolute: asleep is asleep anywhere. */
+   that record plus 25 % for noise (one unchanged page measured 83 to 104
+   ms/s here, run to run). Without a record, the spec's figures stand.
+   Every other budget is absolute: asleep is asleep anywhere. */
 const PERF_BASE = path.join(BASE, "perf.json");
 async function perf(browser) {
   console.log("\n──  performance" + (UPDATE ? " (recording this machine's idle numbers)" : ""));
@@ -586,7 +587,7 @@ async function perf(browser) {
   const rec = !UPDATE && fs.existsSync(PERF_BASE) ? JSON.parse(fs.readFileSync(PERF_BASE, "utf8")) : null;
   const r1 = (v) => Math.round(v * 10) / 10;
   const limit = {
-    "idle, desk in view": rec ? [r1(rec.idleTop * 1.15), r1(rec.idleTopSlow * 1.15)] : [BUDGET.idleTop, BUDGET.idleTopSlow],
+    "idle, desk in view": rec ? [r1(rec.idleTop * 1.25), r1(rec.idleTopSlow * 1.25)] : [BUDGET.idleTop, BUDGET.idleTopSlow],
     "idle, desk scrolled away": [BUDGET.idleAway, null],
     "idle, under a sheet": [BUDGET.idleAway, null],
     "pointer sweep: style": [BUDGET.sweepStyle, null],
@@ -601,7 +602,7 @@ async function perf(browser) {
     const pass1 = lim[0] == null || row.val <= lim[0], pass4 = lim[1] == null || s.val <= lim[1];
     const cell = (v, pass, w) => (v.toFixed(1) + (pass ? " " : "!")).padStart(w);
     const budget = (lim[0] != null ? "≤ " + lim[0] : "") + (lim[1] != null ? " (4×: ≤ " + lim[1] + ")" : "") + " " + row.unit +
-      (i === 0 ? (rec ? " (recorded + 15 %)" : " (spec)") : "");
+      (i === 0 ? (rec ? " (recorded + 25 %)" : " (spec)") : "");
     const line = row.what.padEnd(30) + cell(row.val, pass1, 10) + cell(s.val, pass4, 12) + "   " + budget;
     /* recording is not judging: an untouched tree may well be over budget */
     if (UPDATE) console.log("  ✎ " + line);
