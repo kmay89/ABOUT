@@ -4650,12 +4650,16 @@
   if (cdBow && pFan && !REDUCED && matchMedia("(pointer: fine)").matches){
     var tgtA = 0, curA = 0, lightRaf = null;
     document.getElementById("scene").addEventListener("pointermove", function(e){
+      /* nobody is looking at the disc from under a sheet, so it stops
+         swinging there (each step re-rasters the filtered bow). The era
+         ride isn't a sheet: the desk is in full view through it. */
+      if (activeModal()) return;
       tgtA = e.clientX / innerWidth - 0.5 + (e.clientY / innerHeight - 0.5) * 0.4;
       if (!lightRaf) lightRaf = requestAnimationFrame(function ease(){
         curA += (tgtA - curA) * 0.12;
         cdBow.setAttribute("transform", "rotate(" + (-30 + curA * 150).toFixed(1) + ")");
         pFan.setAttribute("transform", "rotate(" + (24 + curA * 14).toFixed(1) + ")");
-        lightRaf = Math.abs(tgtA - curA) > 0.002 ? requestAnimationFrame(ease) : null;
+        lightRaf = Math.abs(tgtA - curA) > 0.002 && !activeModal() ? requestAnimationFrame(ease) : null;
       });
     });
   }
