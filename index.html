@@ -136,6 +136,28 @@
     font-size:clamp(.98rem,1.5vw,1.12rem);
     line-height:1.55;
   }
+  /* The deck: the desk's controls, up beside the headline. They used to
+     sit under the legend, below the fold on a laptop and three screens
+     down on a phone, so the year chip — the best trick in the room — was
+     the thing fewest people ever saw. On a wide screen they stand in a
+     column to the right of the words; narrower, they're a row or two
+     under the lede, with the found count last. */
+  .deck{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:1.1rem}
+  .deck .found-count{order:9}
+  .found-count{
+    font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);
+    border:1px dashed rgba(126,111,91,.5);
+    border-radius:999px;
+    padding:.48em 1em;
+  }
+  .found-count.done{color:var(--lamp);border-color:var(--lamp);border-style:solid}
+  .found-count:empty{display:none}
+  @media (min-width:1100px){
+    .intro{max-width:none;display:grid;grid-template-columns:minmax(0,46rem) 1fr;column-gap:3rem;align-items:end}
+    .eyebrow,.intro h1,.lede{grid-column:1}
+    .deck{grid-column:2;grid-row:1/4;justify-self:end;align-self:end;flex-direction:column;align-items:flex-end;margin-bottom:.4rem}
+  }
 
   /* ---------- isometric desk ---------- */
   .desk-wrap{
@@ -144,7 +166,7 @@
     overflow-x:auto;
     overflow-y:hidden;
     -webkit-overflow-scrolling:touch;
-    padding:clamp(.5rem,2vh,1.5rem) 0 0;
+    padding:.25rem 0 0;
     /* a slim lamp-lit scrollbar so the pannable desk reads as pannable */
     scrollbar-width:thin;
     scrollbar-color:rgba(255,201,122,.45) transparent;
@@ -232,9 +254,11 @@
   #eggWall .eg2{fill:#b98f3e}
   #eggWall:hover .eg1,#eggWall:focus-visible .eg1{fill:#fff3cd}
   #eggWall:hover .eg2,#eggWall:focus-visible .eg2{fill:#ffd166}
-  .scene,.intro,.legend .found-count{transition:background .8s ease,opacity .8s ease}
+  .scene,.intro > *{transition:background .8s ease,opacity .8s ease}
   body.lights-out .scene{background:linear-gradient(#050403,#0a0705 45%)}
-  body.lights-out .intro{opacity:.5}
+  /* the words dim with the room; the controls don't, because "Year" and
+     "Sound" are the way out of the dark, not part of it */
+  body.lights-out .intro > :not(.deck){opacity:.5}
   .tip{
     position:absolute;z-index:6;
     transform:translate(-50%,-100%);
@@ -263,7 +287,7 @@
   .legend{
     position:relative;z-index:4;
     display:flex;flex-direction:column;gap:.55rem;
-    padding:.9rem clamp(1.25rem,5vw,4rem) 0;
+    padding:.9rem clamp(1.25rem,5vw,4rem) 1.6rem;
   }
   .lg{display:flex;flex-wrap:wrap;gap:.45rem .5rem;justify-content:center;align-items:center}
   .lg[hidden]{display:none}
@@ -291,15 +315,6 @@
     color:var(--room);background:var(--a);border-color:var(--a);
     box-shadow:0 0 14px color-mix(in srgb, var(--a) 45%, transparent);
   }
-  .legend .found-count{
-    align-self:center;margin-top:.2rem;
-    font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
-    color:var(--ink-faint);
-    border:1px dashed rgba(126,111,91,.5);
-    border-radius:999px;
-    padding:.48em 1em;
-  }
-  .legend .found-count.done{color:var(--lamp);border-color:var(--lamp);border-style:solid}
   .legend button:hover,.legend button:focus-visible{
     color:var(--a);
     background:color-mix(in srgb, var(--a) 18%, transparent);
@@ -392,21 +407,31 @@
      rather than freezing on the pulse's dimmest frame. The year chip's
      pulse is the same kind of cost, and an invitation nobody can take up
      from under a sheet or with the desk off screen. */
-  #iso.asleep *,body.modal-open #iso *,body.modal-open #eraBtn{animation-play-state:paused}
+  #iso.asleep *,body.modal-open #iso *,body.modal-open #eraBtn::after{animation-play-state:paused}
   body.modal-open #iso .iso-obj.picked{animation:none}
-  body:has(#iso.asleep) #eraBtn{animation-play-state:paused}   /* its own rule: a browser without :has() drops only this one */
-  /* the era chip is a real invitation, not a label */
+  body:has(#iso.asleep) #eraBtn::after{animation-play-state:paused}   /* its own rule: a browser without :has() drops only this one */
+  /* the era chip is a real invitation, not a label. Its pulse is a glow
+     drawn once on a layer of its own and faded in and out, rather than a
+     box-shadow repainted every frame: now that the chip sits up by the
+     headline, in view whenever the desk is, that repaint was a
+     millisecond of every frame the pointer moved. */
   #eraBtn{
+    position:relative;
     color:var(--room);
     background:var(--lamp);
     border-color:var(--lamp);
     box-shadow:0 0 10px rgba(255,201,122,.35);
+  }
+  #eraBtn::after{
+    content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+    box-shadow:0 0 24px rgba(255,201,122,.8);
+    opacity:0;
     animation:eraPulse 2.4s ease-in-out infinite;
   }
   #eraBtn:hover{filter:brightness(1.12)}
   #eraBtn:disabled{opacity:.7;cursor:wait}
-  #eraBtn.used{animation:none}
-  @keyframes eraPulse{50%{box-shadow:0 0 24px rgba(255,201,122,.8)}}
+  #eraBtn.used::after{animation:none}
+  @keyframes eraPulse{50%{opacity:1}}
   /* CRT degauss: the whole tube shudders and the colors bloom for a beat */
   .iso-obj > *{transform-box:fill-box;transform-origin:50% 50%}
   #iso.deg .era-old > *{animation:degauss .8s ease-out}
@@ -418,17 +443,6 @@
     100%{transform:none;filter:none}
   }
 
-  .hint{
-    position:relative;z-index:4;
-    display:flex;flex-wrap:wrap;align-items:center;gap:.9rem;
-    padding:1rem clamp(1.25rem,5vw,4rem) 1.4rem;
-    font-family:var(--mono);
-    font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;
-    color:var(--ink-faint);
-    background:linear-gradient(transparent, rgba(8,6,4,.6));
-  }
-  .hint .sep{opacity:.4}
-  .hint .pan-hint{display:none}
   .chip{
     font-family:var(--mono);
     font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;
@@ -838,11 +852,11 @@
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
     .pan-cue .cl,.pan-cue .cr{animation:none}
-    #eraBtn{animation:none}
+    #eraBtn::after{animation:none}
     .legend button:hover,.d-links a:hover,.d-links a:focus-visible{transform:none}
     #iso.deg .era-old > *{animation:none}
     .pool-warm,.pool-cool{transition:none}
-    #swLever,#swGlow,#darkness,#eggWall,.scene,.intro{transition:none}
+    #swLever,#swGlow,#darkness,#eggWall,.scene,.intro > *{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     .lampfx,.crtfx{animation:none}
     .glint{animation:none;opacity:.7;transform:none}
@@ -893,6 +907,16 @@
     I&rsquo;ve worn a lot of hats: engineer, author, toymaker, game designer, founder.
     None of it felt like a career so much as a string of things I couldn&rsquo;t resist
     making. Pick something up; each one has its own light, sound, and pulse.</p>
+    <!-- the tour and the one-page version stay hidden until they're wired;
+         Say hello stays hidden until there's a real address to say it to -->
+    <div class="deck" role="toolbar" aria-label="Desk controls">
+      <button id="tourBtn" class="chip deck-go" hidden>Show me around</button>
+      <button id="cvBtn" class="chip" hidden>The one-page version</button>
+      <button id="eraBtn" class="chip" aria-pressed="false" title="Flip the desk between 1999 and 2026">Year: 1999 ⇄</button>
+      <button id="sndBtn" class="chip" aria-pressed="true">Sound: on</button>
+      <a id="helloBtn" class="chip" hidden>Say hello</a>
+      <span class="found-count" id="foundCount" aria-live="polite"></span>
+    </div>
   </header>
 
   <div class="desk-wrap">
@@ -953,15 +977,7 @@
     <div class="lg lg-backstage" hidden>
       <button id="commBtn" class="chip" style="--a:var(--lamp)" aria-pressed="false" title="How this room is drawn">Director's commentary: off</button>
     </div>
-    <span class="found-count" id="foundCount" aria-live="polite"></span>
   </nav>
-
-  <div class="hint">
-    <span>Hover to feel</span><span class="sep">/</span>
-    <span>Click to pick up</span><span class="sep">/</span>
-    <button id="eraBtn" class="chip" aria-pressed="false" title="Flip the desk between 1999 and 2026">Year: 1999 ⇄</button>
-    <button id="sndBtn" class="chip" aria-pressed="true">Sound: on</button>
-  </div>
 </main>
 
 <section class="browser" id="browser" role="dialog" aria-modal="true" aria-label="Built-in site browser" hidden>
@@ -3224,8 +3240,14 @@
   var SECRET_NAMES = {cube:"The pocket cube", web:"Today's rig", "switch":"The light switch"};
   var legendBtns = {};
   document.querySelectorAll(".legend button[data-id]").forEach(function(b){ legendBtns[b.dataset.id] = b; });
-  /* the one-page version shows (and counts) only once its sheet exists */
-  if (WORLDS.cv && legendBtns.cv) legendBtns.cv.hidden = false;
+  /* the one-page version shows (and counts) only once its sheet exists,
+     in the legend and in the deck alike */
+  var cvBtn = document.getElementById("cvBtn");
+  if (WORLDS.cv){
+    if (legendBtns.cv) legendBtns.cv.hidden = false;
+    cvBtn.hidden = false;
+    cvBtn.addEventListener("click", function(){ activate("cv"); });
+  }
   var PILL_IDS = Object.keys(legendBtns).filter(function(id){
     return SECRET_IDS.indexOf(id) < 0 && !legendBtns[id].hidden;
   });
