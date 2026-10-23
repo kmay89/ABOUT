@@ -489,6 +489,13 @@
   /* the wall clock's hands turn about the clock's middle, the origin of
      the plane they are drawn in (wallClock() sets the angle) */
   .clkH,.clkM{transform-box:view-box;transform-origin:0 0}
+  /* the vase on the printer, band by band (printStep()), and the nozzle
+     gone cold once it is finished */
+  #vase .vl{opacity:0}
+  #vase .vl.on{opacity:1}
+  #vase .vl.on:has(+ .vl.on) .vtop{display:none}
+  #vase.off{opacity:0}
+  .iso-obj.done .nozzle{animation:none;opacity:.25}
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
   .flutter{animation:flutter 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
@@ -1217,6 +1224,11 @@
        the hands spinning round from twelve */
     #wallClock.ticking .clkM{transition:transform .42s cubic-bezier(.3,2.2,.5,1)}
     #wallClock.ticking .clkH{transition:transform .6s ease}
+    /* each band of the vase lays down in under a second, and the gantry
+       climbs after it; .live comes a frame after the build, so the page
+       opens on the print as it stands, not on it being made from nothing */
+    .iso-obj.live #vase .vl,.iso-obj.live #vase{transition:opacity .9s ease}
+    .iso-obj.live .zax{transition:transform 1.4s ease-in-out}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1492,6 +1504,7 @@
          later it exists, and can be set to the visitor's seconds */
       requestAnimationFrame(syncClock);
     }
+    printStep();                       // the print: finished without motion, going on again with it
   });
 
   /* The skip link works as a plain anchor without script. With script it
@@ -3419,16 +3432,46 @@
   prn += gTop(606,96,-16,'<g stroke="#26303c" stroke-width="1"><path d="M6 6 h62 M6 16 h62 M6 26 h62 M6 36 h62 M6 46 h62"/></g>');
   prn += box(600,128,-20,7,9,74,"#3a3a46");                           // gantry posts
   prn += box(686,128,-20,7,9,74,"#3a3a46");
-  prn += box(600,128,50,93,9,8,"#3a3a46");                            // crossbar
+  /* The print in progress is a vase, printed in spiral mode: one
+     unbroken line wound up from the bed, the printer's own way of drawing
+     a spiral (the one on the thinking wall is the other). It grows. Every
+     fourteen seconds another band of it is laid down (printStep(), after
+     the build), and the gantry climbs one band, as it does on a real
+     printer of this kind: the crossbar and the carriage ride up the two
+     posts together, so the nozzle is always just over the top of the
+     work. Done, the nozzle cools, the vase stands a while, then someone
+     takes it off the bed, the gantry goes back down, and the next one
+     starts. A visitor who stays a few minutes sees it get further along.
+     Drawn under the nozzle, before the gantry: the carriage is above the
+     work and its underside hides the back of the rim, never the other way
+     round. Each band is two shapes, its side (one shared gradient carries
+     both the filament's colour and the lamp's roundness) and its top, a
+     rim round the dark of the hollow, which the next band covers. With
+     less motion the vase is finished and the gantry at the top. */
+  var VS = { n:13, lh:3, z:-16, x:649.5, y:145.5 }, vase = "";
+  prn += '<defs><linearGradient id="vaseSide" x1="0" y1="0" x2="1" y2="0">' +
+    '<stop offset="0" stop-color="#7c4316"/><stop offset=".2" stop-color="#bf7130"/><stop offset=".34" stop-color="#f6be80"/>' +
+    '<stop offset=".48" stop-color="#df9447"/><stop offset=".8" stop-color="#b8692a"/><stop offset="1" stop-color="#6e3a12"/></linearGradient></defs>';
+  function vR(k){ var t = k / VS.n; return (7.4 + 2.4*Math.sin(Math.PI*Math.min(1, t*1.25)) - 2.2*t*t + (t > .8 ? (t - .8)*9 : 0)) * 1.414; }   // foot, belly, neck, lip
+  for (var vk = 0; vk < VS.n; vk++){
+    var r0 = vR(vk), r1 = vR(vk + 1), v0 = P(VS.x, VS.y, VS.z + vk*VS.lh), v1 = P(VS.x, VS.y, VS.z + (vk + 1)*VS.lh);
+    vase += '<g class="vl">' + (vk ? "" : isoEllipse(VS.x + 1.5, VS.y - 1, VS.z, 9.6, "rgba(0,0,0,.4)", NO)) +    // where it stands on the bed
+      // a band is a short frustum, its own whole outline (the next band covers its top)
+      '<path d="M' + n1(v1[0]-r1) + ' ' + n1(v1[1]) + 'L' + n1(v0[0]-r0) + ' ' + n1(v0[1]) + 'A' + n1(r0) + ' ' + n1(r0/2) + ' 0 0 0 ' + n1(v0[0]+r0) + ' ' + n1(v0[1]) +
+        'L' + n1(v1[0]+r1) + ' ' + n1(v1[1]) + 'A' + n1(r1) + ' ' + n1(r1/2) + ' 0 0 0 ' + n1(v1[0]-r1) + ' ' + n1(v1[1]) + 'Z" fill="url(#vaseSide)" stroke="rgba(80,36,8,.28)" stroke-width=".35"/>' +
+      // and the rim round the hollow, shown only while this band is the top
+      '<ellipse class="vtop" cx="' + n1(v1[0]) + '" cy="' + n1(v1[1]) + '" rx="' + n1(r1 - .5) + '" ry="' + n1(r1/2 - .25) + '" fill="#5e300e" stroke="#f3b878" stroke-width="1"/></g>';
+  }
+  prn += '<g id="vase">' + vase + '</g>';
+  prn += '<g class="zax">' + box(600,128,50,93,9,8,"#3a3a46");      // crossbar (it rides the posts with the carriage)
   // carriage + hotend, as one thing that homes along the crossbar
   // (to x 608, just clear of the left post's inside face at 607)
   prn += '<g class="carriage">' + box(634,126,30,20,13,14,"#4a4a58");
   var nz = P(644,140,26);
-  prn += '<circle cx="' + nz[0] + '" cy="' + nz[1] + '" r="2.6" fill="#ff9a3d" class="nozzle"/></g>';
+  prn += '<circle cx="' + nz[0] + '" cy="' + nz[1] + '" r="2.6" fill="#ff9a3d" class="nozzle"/></g></g>';
   var sp = P(700,132,66);
   prn += '<circle cx="' + sp[0] + '" cy="' + sp[1] + '" r="13" fill="#2c4a68" ' + OUT + "/>" +
     '<circle cx="' + sp[0] + '" cy="' + sp[1] + '" r="4.5" fill="#15151b"/>';
-  prn += box(636,112,-16,16,16,12,"#e0a458");                         // the print in progress
   S.push(wrapObj("offhours","Scratch-built 3D printer — off the clock","#e0a458",tbl + prn,"still","printer"));
 
   S.push('<g aria-hidden="true">' + gTop(334,206,0,
@@ -3606,6 +3649,31 @@
   }
   syncClock();
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ document.getElementById("wallClock").classList.add("ticking"); }); });
+
+  /* The printer prints (the vase, in the scene above). One band every
+     fourteen seconds and the gantry up by one; when the last is down, the
+     nozzle cools (.done) and the vase stands for three quarters of a
+     minute; then it comes off the bed, the gantry homes, and the next one
+     begins. It opens part-way through a print, so the first look already
+     finds work in progress. Asleep it holds where it is, and with less
+     motion it is simply finished, the gantry at the top, as it was drawn. */
+  var VASE = document.getElementById("vase"), VL = VASE.querySelectorAll(".vl"), ZAX = document.querySelector("#iso .zax"),
+      PRN = document.querySelector('#iso .iso-obj[data-voice="printer"]'), vN = 4 + (Math.random() * 6 | 0), prT = 0;
+  function vShow(n){ VL.forEach(function(b, i){ b.classList.toggle("on", i < n); }); }
+  function vLift(n){ ZAX.style.transform = n >= VL.length ? "" : "translateY(" + (VL.length - n) * 3 + "px)"; }
+  function printStep(){
+    clearTimeout(prT);
+    if (REDUCED){ PRN.classList.remove("done"); VASE.classList.remove("off"); vShow(VL.length); vLift(VL.length); return; }
+    var iso = document.getElementById("iso");
+    if (document.hidden || iso.classList.contains("asleep") || document.body.classList.contains("modal-open")){ prT = setTimeout(printStep, 14000); return; }
+    if (vN < VL.length){ VASE.classList.remove("off"); vN++; vShow(vN); vLift(vN); prT = setTimeout(printStep, 14000); return; }
+    if (!PRN.classList.contains("done")){ PRN.classList.add("done"); prT = setTimeout(printStep, 45000); return; }
+    PRN.classList.remove("done"); VASE.classList.add("off");           // off the bed (the whole vase at once)...
+    prT = setTimeout(function(){ vN = 0; vShow(0); vLift(0); prT = setTimeout(printStep, 6000); }, 1200);   // ...and the gantry homes
+  }
+  if (REDUCED){ vShow(VL.length); vLift(VL.length); } else { vShow(vN); vLift(vN); }
+  prT = setTimeout(printStep, 14000);
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ PRN.classList.add("live"); }); });
 
   /* ================================================================
      WORLDS — dossier content
