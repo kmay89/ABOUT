@@ -331,7 +331,7 @@
   .rx-book,.rx-box{transform-origin:50% 100%}            /* lifted by the near edge, as a hand would */
   .rx-spiral{transform-box:view-box;transform-origin:45px 45px}
   .rx-spin{transform-box:view-box;transform-origin:0 0}
-  .rx-twist{transform-box:view-box;transform-origin:12.8px 12.8px}    /* the middle of the stickers */
+  .rx-twist{transform-box:fill-box;transform-origin:50% 50%}   /* the top layer's middle, P(46,344,19.5), by symmetry */
   /* the rig's cursor drifts up to a thumbnail, which takes a ring, and the screen wakes */
   .iso-obj[data-id="web"]:is(:hover,:focus-visible,.rx) .rx-cursor{transform:translate(10px,-43px)}
   .iso-obj[data-id="web"]:is(:hover,:focus-visible,.rx) .th{opacity:1}
@@ -1226,7 +1226,7 @@
     .iso-obj[data-id="puzzle"]:is(:hover,:focus-visible,.rx) .rx-spiral{animation:turn 14s linear infinite}
     .iso-obj[data-id="mandel"]:is(:hover,:focus-visible,.rx) .rx-spin{animation:turn 4s linear infinite}
     /* the cube's top layer starts a quarter turn, thinks better of it, and settles back */
-    @keyframes twist{40%{transform:rotate(9deg)}70%{transform:rotate(-2deg)}}
+    @keyframes twist{40%{transform:matrix(.978,.104,-.416,.978,0,0)}70%{transform:matrix(.999,-.017,.07,.999,0,0)}}   /* 12°, then back past home by 2° */
     .iso-obj[data-id="cube"]:is(:hover,:focus-visible,.rx) .rx-twist{animation:twist .7s var(--ease-settle) .12s}
     /* the butterfly's wings beat faster as it lifts off */
     .iso-obj[data-voice="garden"]:is(:hover,:focus-visible,.rx) .flutter{animation-duration:.55s}
@@ -2879,17 +2879,27 @@
      twelve edges flipped; the position that proved God's Number is 20.
      Scheme: white up, red front-left, blue front-right. ---------- */
   var CUBE_C = ["#e04b3c","#f5b63f","#3c6fb0","#4aa651","#efe8dd","#e88a2e"];
-  function stickers(pick){
+  function stickers(pick, r0, r1){       // rows r0 up to r1 (all three by default)
     var s = "";
-    for (var r = 0; r < 3; r++)
+    for (var r = r0 || 0; r < (r1 || 3); r++)
       for (var c = 0; c < 3; c++)
         s += '<rect x="' + (2 + c*7.6) + '" y="' + (2 + r*7.6) + '" width="6.4" height="6.4" rx="1" fill="' + CUBE_C[pick[r*3+c]] + '"/>';
     return s;
   }
-  var cube = box(34,332,0,24,24,24,"#141414");
-  cube += gTop(34,332,24, '<g class="rx-twist">' + stickers([4,5,4,3,4,2,4,0,4]) + "</g>");   // starts to turn, pointed at
-  cube += gLeft(34,356,24, stickers([0,4,0,3,0,2,0,1,0]));
-  cube += gRight(58,356,24, stickers([2,4,2,0,2,5,2,1,2]));
+  /* Pointed at, the top layer starts to turn and thinks better of it. So
+     it is drawn as its own layer: the lower two (z 0–15, their side
+     stickers) and then the top one (z 15–24: its own block, its face, and
+     the top row of each side), whose corner swings out over the edge
+     while the plastic of the layer under it shows on the other side. A
+     turn about the cube's upright axis is, on this projection, very
+     nearly one flat matrix for the whole thin layer (cos, sin/2, −2 sin,
+     cos about the layer's middle, P(46,344,19.5): see .rx-twist) */
+  var CUBE_L = [0,4,0,3,0,2,0,1,0], CUBE_R = [2,4,2,0,2,5,2,1,2];
+  var cube = box(34,332,0,24,24,15,"#141414");
+  cube += gLeft(34,356,24, stickers(CUBE_L, 1)) + gRight(58,356,24, stickers(CUBE_R, 1));
+  cube += '<g class="rx-twist">' + box(34,332,15,24,24,9,"#141414") +
+    gTop(34,332,24, stickers([4,5,4,3,4,2,4,0,4])) +
+    gLeft(34,356,24, stickers(CUBE_L, 0, 1)) + gRight(58,356,24, stickers(CUBE_R, 0, 1)) + "</g>";
   S.push(wrapObj("cube","A pocket puzzle — a whole room hides behind it","#d9a0e8",cube));
 
   /* ---------- outside: flower pot, mushroom & butterfly ---------- */
