@@ -510,6 +510,16 @@
      from its hook, and both steams lean from where they leave the cup */
   .teeSwing{transform-box:fill-box;transform-origin:50% 0}
   .lean{transform-box:fill-box;transform-origin:50% 100%}
+  /* the moth (drawn after the lithophane's night copy): with the lamp
+     off it is over the lithophane's moon, a silhouette, turned into the
+     plane of wall B (whose rows climb 26.6 degrees), wings half open.
+     These are its resting poses; the flight between them is in the gate */
+  .mw,.mPose{transform-box:fill-box;transform-origin:50% 50%}
+  .mDark{opacity:0}
+  body.lights-out .mDark{opacity:1}
+  body.lights-out .mTrekX{transform:translateX(-308px)}
+  body.lights-out .mTrekY{transform:translateY(-50px)}
+  body.lights-out .mPose{transform:skewY(-26.6deg) scale(.9)}
   .iso-obj.done .nozzle{animation:none;opacity:.25}
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
@@ -1262,6 +1272,29 @@
     @keyframes lean{30%{transform:skewX(16deg)}62%{transform:skewX(5deg)}}
     .teeSwing.gust{animation:teeSwing 4.2s ease-in-out}
     .lean.gust{animation:lean 4.2s ease-in-out .35s}
+    /* the moth's life at the lamp: two loops (2.9 s across, 7.3 s up and
+       down with the bump into the shade at 86 %), and wings at 2.5 beats
+       a second. The switch pauses the loops where they are, and it flies:
+       across slow-fast-slow, and up past the moon and back down onto it
+       (an overshoot on the Y wrapper), flapping all the way (18 beats is
+       3.6 s), then resting, its wings opening and closing slowly. These
+       are class-weight rules (the sleep gate and the sheet gate win) */
+    @keyframes mOrbX{from{transform:translateX(-13px)}to{transform:translateX(15px)}}
+    @keyframes mOrbY{0%,100%{transform:translateY(-6px)}25%{transform:translateY(6px)}50%{transform:translateY(-9px)}
+      72%{transform:translateY(2px)}82%{transform:translateY(-3px)}86%{transform:translateY(15px)}88.5%{transform:translateY(8px)}
+      91%{transform:translateY(12px)}95%{transform:translateY(-2px)}}
+    @keyframes mFlap{to{transform:scaleX(.4)}}
+    @keyframes mRest{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.62)}}
+    .mOrbX{animation:mOrbX 2.9s ease-in-out infinite alternate}
+    .mOrbY{animation:mOrbY 7.3s ease-in-out infinite}
+    .mw{animation:mFlap .2s linear infinite alternate}
+    body.lights-out .mOrbX,body.lights-out .mOrbY{animation-play-state:paused}
+    body.lights-out .mw{animation:mFlap .2s linear 18 alternate,mRest 2.6s ease-in-out 3.6s infinite}
+    .mTrekX{transition:transform 3.6s cubic-bezier(.45,.05,.4,1)}
+    .mTrekY{transition:transform 3.6s cubic-bezier(.3,1.7,.5,1)}
+    .mDark{transition:opacity 1.2s ease .3s}
+    .mPose{transition:transform .5s ease}
+    body.lights-out .mPose{transition:transform .9s ease 3.3s}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -3631,6 +3664,43 @@
   S.push('<g id="lumaNight" aria-hidden="true" style="pointer-events:none"><g>' +
     gRight(-30,394,190,LITHO_HALO + LITHO.replace(/id="litho(Sky|Water)"/g,'id="lithoN$1"').replace(/url\(#litho(Sky|Water)\)/g,"url(#lithoN$1)")) +
     "</g></g>");
+
+  /* A moth at the lamp. Someone's lamp has been on for hours, and a pale
+     moth has found it: it loops about the shade (two loops of different
+     lengths, 2.9 s across and 7.3 s up and down, so its path never quite
+     repeats) and every seven seconds or so it bumps into the shade and
+     reels off it. Its wings beat two and a half times a second, under the
+     3 Hz line, which is slow for a moth and right for a drawing of one.
+     Throw the switch and it leaves for the one light still on, the
+     lithophane, and settles over the picture's moon: the flight is two
+     transitions on two wrappers, across slow-fast-slow and up with an
+     overshoot, so it climbs past the moon and drops onto it rather than
+     sliding there in a straight line. Once it lands it turns into the
+     plane of the wall and fans its wings slowly. In the dark it is a
+     silhouette (a dark copy of the wings fades in over the pale ones),
+     so over the black room it can't be seen until it crosses the glow,
+     which reads as arriving. Lamp back on, and it flies home.
+     It is drawn here, after the darkness and after lumaNight, so it can be
+     a shape against the lit panel; with the lamp on it sits above
+     everything, which is right for a thing in the air between you and
+     the lamp. Pointer-blind, aria-hidden, no hit area. */
+  (function(){
+    var hd = P(112,152,90), ax = hd[0] - 4, ay = hd[1] - 16,       // just above the shade
+        land = P(-30, 394 - 72, 190 - 20);   // the lithophane's moon (panel 72, 18): (-308, -50) from here, the CSS trek
+    var wings = function(f1, f2, st){
+      return '<g fill="' + f1 + '" stroke="' + st + '" stroke-width=".4" stroke-linejoin="round">' +
+        '<path d="M0 -.6 L-6.4 -3.2 Q-7.6 1.2 -2.2 1.4 Z"/><path d="M0 -.6 L6.4 -3.2 Q7.6 1.2 2.2 1.4 Z"/>' +
+        '<path d="M0 .4 L-3.9 2.6 Q-3.2 4.6 -.6 2.6 Z" fill="' + f2 + '"/><path d="M0 .4 L3.9 2.6 Q3.2 4.6 .6 2.6 Z" fill="' + f2 + '"/></g>'; };
+    var MOTH = '<g class="mw">' +
+        '<g>' + wings("#ece2c8", "#d8c8a2", "rgba(60,40,20,.5)") +
+          '<path d="M-3 -1.6 L-5.6 -2.4 M3 -1.6 L5.6 -2.4" stroke="rgba(110,86,52,.55)" stroke-width=".5" fill="none"/>' +   // the band across each forewing
+          '<circle cx="-4.2" cy="-1.3" r=".4" fill="#b8a27a"/><circle cx="4.2" cy="-1.3" r=".4" fill="#b8a27a"/></g>' +
+        '<g class="mDark">' + wings("#2a1f15", "#22190f", "rgba(10,6,3,.7)") + '</g></g>' +
+      '<ellipse rx=".95" ry="2.8" cy=".6" fill="#6b5638"/>' +
+      '<path d="M-.3 -2 q-1 -1.6 -2.2 -2 M.3 -2 q1 -1.6 2.2 -2" fill="none" stroke="#5a4730" stroke-width=".35"/>';
+    S.push('<g id="moth" aria-hidden="true" style="pointer-events:none"><g transform="translate(' + n1(ax) + ' ' + n1(ay) + ')">' +
+      '<g class="mTrekX"><g class="mTrekY"><g class="mOrbX"><g class="mOrbY"><g class="mPose">' + MOTH + '</g></g></g></g></g></g></g>');
+  })();
 
   /* what the dark writes on the wall, in the plane of the wall itself */
   S.push('<a id="eggWall" href="/logic/" tabindex="-1" aria-label="Yes or no — the little room behind the light switch">' +
