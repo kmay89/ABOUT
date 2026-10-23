@@ -1095,7 +1095,8 @@
     .iso-obj:is([data-id="board"],[data-id="scqcs"]):is(:hover,:focus-visible,.rx) .kd{transform:translate(1.4px,1.4px)}
     .iso-obj[data-id="offhours"]:is(:hover,:focus-visible,.rx) .rx-tee{transform:rotate(2deg)}
     /* ...the steam up, the fence and the spiral and the shard part-turned, the pin grown */
-    .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx) .steam{transform:translateY(-4px)}
+    .steam{opacity:.22}                                             /* the steam at the middle of its breath, not a solid white stroke */
+    .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx) .steam{opacity:.5;transform:translateY(-4px)}
     .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-fence{transform:rotate(30deg)}
     .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-pin{transform:scale(1.3)}
     .iso-obj[data-id="puzzle"]:is(:hover,:focus-visible,.rx) .rx-spiral{transform:rotate(90deg)}
