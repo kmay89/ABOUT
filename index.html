@@ -136,6 +136,19 @@
     font-size:clamp(.98rem,1.5vw,1.12rem);
     line-height:1.55;
   }
+  /* The five hats in the lede are buttons: point at one and the things it
+     made light up on the desk. They stay words in a sentence — a dotted
+     underline, not a row of links — until you point at one. */
+  .hat{
+    all:unset;cursor:pointer;touch-action:manipulation;color:inherit;
+    border-bottom:1px dotted rgba(126,111,91,.7);   /* for a browser without color-mix() */
+    border-bottom:1px dotted color-mix(in srgb,var(--ink-faint) 70%,transparent);
+    transition:color .2s,border-color .2s;
+  }
+  .hat:hover,.hat:focus-visible{color:var(--lamp);border-bottom:1px solid var(--lamp)}
+  .hat:focus-visible{outline:2px solid var(--lamp);outline-offset:3px}
+  /* a finger can't hover to find out, so on a touch screen the line is a dash: tappable */
+  @media (pointer:coarse){ .hat{border-bottom-style:dashed;padding-bottom:1px} }
   /* The deck: the desk's controls, up beside the headline. They used to
      sit under the legend, below the fold on a laptop and three screens
      down on a phone, so the year chip — the best trick in the room — was
@@ -225,6 +238,9 @@
     filter:drop-shadow(0 0 1.5px var(--a)) drop-shadow(0 0 9px var(--a));   /* for a browser without color-mix(), which would drop the line below whole */
     filter:drop-shadow(0 0 1.5px var(--a)) drop-shadow(0 0 9px color-mix(in srgb,var(--a) 60%,transparent));
   }
+  /* what a hat in the lede made: one steady glow, on six things at most,
+     and only while you're pointing at the hat (or for a moment after a click) */
+  .iso-obj.lit{filter:drop-shadow(0 0 7px var(--a))}
   .iso-obj.picked > *{transform:translateY(-8px)}
   .iso-obj.picked{
     filter:drop-shadow(0 0 8px var(--a)) drop-shadow(0 0 22px var(--a));
@@ -241,6 +257,9 @@
   .iso-obj.wallsw:hover > *,.iso-obj.wallsw:focus-visible > *,.iso-obj.wallsw.rx > *{transform:none}
   /* the drawer under the desk slides out a little rather than lifting: it is in a desk */
   .iso-obj[data-id="cubby"]:hover > *,.iso-obj[data-id="cubby"]:focus-visible > *,.iso-obj[data-id="cubby"].rx > *,.iso-obj[data-id="cubby"].picked > *{transform:translate(-7px,3.5px)}
+  /* the floppy comes up the way a disk does, by one corner, a little
+     tilted in the fingers — and its shadow stays down on the wood */
+  .iso-obj[data-id="cv"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-6px) rotate(-2deg)}
   #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
   body.lights-out #swLever{transform:translate(0,9px)}
   /* the glow-in-the-dark plate ring — the whole point of buying those */
@@ -568,6 +587,16 @@
     filter:brightness(1.15);
     box-shadow:0 0 26px color-mix(in srgb, var(--a) 45%, transparent);
   }
+  /* RESUME.DOC: the desk as one page, a list per hat, every line a door
+     back into its world in that world's colour */
+  .cv{list-style:none;margin-top:1.1rem;display:grid;gap:.7rem}
+  .cv-hat{display:block;font:.62rem var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.25rem}
+  .cv-hat i{font-style:normal;margin-left:.6em;color:var(--ink-dim)}
+  .cv-line{all:unset;cursor:pointer;touch-action:manipulation;display:block;padding:.18em 0 .18em .6em;color:var(--ink);border-left:2px solid var(--a);margin:.15em 0}
+  .cv-line small{color:var(--ink-dim);font:.68rem var(--mono);letter-spacing:.08em;margin-left:.5em}
+  .cv-line:hover,.cv-line:focus-visible{color:var(--a)}
+  .cv-line:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+  .d-links a.d-plain::after{content:" ↓"}
 
   /* ---------- the built-in browser (game within the game) ---------- */
   .browser{
@@ -905,11 +934,16 @@
     <p class="eyebrow">Karl Meves · ERRER Labs — est. 1989</p>
     <h1>Welcome to my desk — every trinket here is a <em>little world</em> I got to make.</h1>
     <p class="lede">Born in &rsquo;89 — raised on beige plastic, dial-up, and CRT glow.
-    I&rsquo;ve worn a lot of hats: engineer, author, toymaker, game designer, founder.
+    I&rsquo;ve worn a lot of hats: <button class="hat" data-hat="engineer">engineer</button>,
+    <button class="hat" data-hat="author">author</button>,
+    <button class="hat" data-hat="toymaker">toymaker</button>,
+    <button class="hat" data-hat="game designer">game designer</button>,
+    <button class="hat" data-hat="founder">founder</button>.
     None of it felt like a career so much as a string of things I couldn&rsquo;t resist
     making. Pick something up; each one has its own light, sound, and pulse.</p>
-    <!-- the tour and the one-page version stay hidden until they're wired;
-         Say hello stays hidden until there's a real address to say it to -->
+    <!-- the tour stays hidden until it's wired, and the one-page version
+         until its sheet exists (the script shows it then); Say hello stays
+         hidden until there's a real address to say it to -->
     <div class="deck" role="toolbar" aria-label="Desk controls">
       <button id="tourBtn" class="chip deck-go" hidden>Show me around</button>
       <button id="cvBtn" class="chip" hidden>The one-page version</button>
@@ -2636,15 +2670,27 @@
   })();
   S.push(wrapObj("vinyl","ERRER Labs · Aethra Kairos","#7cd7e8",jc));
 
-  /* ---------- charm: floppy + sticky note (front-right) ---------- */
-  var fl = box(480,305,0,58,58,5,"#2e3f66");
+  /* ---------- RESUME.DOC: the floppy on the desk (front-right) ----------
+     A 1999 disk with a current résumé on it: the one-page version of the
+     whole desk, the same disk in both years, which is the joke. The label
+     is written in the label's own little coordinates; the name is held to
+     35 of its 42 units whatever monospace the visitor has (ten letters
+     with spacing between overran the label in the one Linux picks), and
+     the italic line under it is texture at desk size and legible on
+     zoom. A transparent pad a few units wider
+     than the disk makes something this small easy to pick up. Its shadow
+     lives in the shadows block, outside the object, so lifting the disk
+     leaves the shadow on the wood. */
+  var fl = gTop(476,301,0,'<rect width="66" height="66" fill="transparent"/>');
+  fl += box(480,305,0,58,58,5,"#2e3f66");
   fl += gTop(480,305,5,
     '<rect x="15" y="3" width="28" height="16" rx="1" fill="#9aa1ad" stroke="rgba(20,20,30,.5)"/>' +
     '<rect x="31" y="6" width="8" height="10" fill="#2e3f66"/>' +
     '<rect x="8" y="27" width="42" height="26" rx="1" fill="#e8e4d8" stroke="rgba(20,20,30,.4)"/>' +
-    '<g stroke="#5a5647" stroke-width="1.4" opacity=".7" fill="none">' +
-      '<path d="M12 34 h34"/><path d="M12 40 h26"/><path d="M12 46 h30"/></g>');
-  S.push('<g aria-hidden="true">' + fl + "</g>");
+    txt(29,38,"RESUME.DOC",5.2,"#2a2a2a",MONO + ' text-anchor="middle" textLength="35" lengthAdjust="spacing"') +
+    txt(29,47,"k. meves · all of it",4.2,"#5a5647",SERIF + ' text-anchor="middle" font-style="italic"') +
+    '<path d="M12 50 h34" stroke="#5a5647" stroke-width="1" opacity=".5"/>');
+  S.push(wrapObj("cv","RESUME.DOC — the one-page version, on a floppy","#b9c6d8",fl));
 
   /* ---------- offhours: side table + the scratch-built 3D printer ---------- */
   var tbl = isoEllipse(646,120,-132,64,"rgba(12,6,2,.28)",'filter="url(#soft)" stroke="none"');
@@ -3006,8 +3052,39 @@
       story: "I collect the things that make certainty wobble: optical illusions, thought puzzles, thrillers with clean mechanisms, documentaries about how anything actually works. The spiral on the wall isn't moving. But you checked. The little cube on the desk plays for real — pick it up. And when the spiral gets too loud, I journal it out: I built echoesofplay.com, a mindfulness journal that turns wasteful AI use into thoughtful reflection.",
       chips: ["Philosophy","Optical illusions","Thrillers","Documentaries","Thought puzzles","A playable cube","Mindful journaling"],
       links: [{label:"echoesofplay.com", href:"https://echoesofplay.com"}]
+    },
+    /* the floppy's sheet: the whole desk as one page, by hat. Its lines
+       are built from HATS below and every other world's own title and
+       kicker, so it holds no fact of its own and can't drift from them */
+    cv: {
+      kicker: "The one-page version",
+      title: "RESUME.DOC",
+      story: "Everything on this desk, the way I'd tell it to you in a lift: by the hat I was wearing. Every line is a thing on the desk — pick one and it opens. The disk is from 1999. The résumé on it is current.",
+      chips: [],
+      links: [{label:"github.com/kmay89", href:"https://github.com/kmay89"}],
+      cv: true
     }
   };
+
+  /* The hats, the one table behind both the one-page version and the five
+     words in the lede that light up what each hat made. word is the word
+     as the lede says it (Off the clock isn't in the sentence, so it has
+     none). A thing can be under two hats — Hive Mind was a toy and a game
+     — and that's on purpose. Each hat may also take years:"…";
+     those are Karl's to fill in, and they show only once they're there. */
+  var HATS = [
+    {hat:"Engineer",      word:"engineer",      ids:["board","utap","cam","vantage","luma","cubby"]},
+    {hat:"Author",        word:"author",        ids:["toy","series","sun"]},
+    {hat:"Toymaker",      word:"toymaker",      ids:["toy","hive"]},
+    {hat:"Game designer", word:"game designer", ids:["hive","chess","sudoku","domino","well","library"]},
+    {hat:"Founder",       word:"founder",       ids:["scqcs","vinyl","cam"]},
+    {hat:"Off the clock", word:null,            ids:["offhours","chili","outside","puzzle","mandel","prism"]}
+  ];
+  /* Karl: the one line only you can write — e.g. {label:"Say hello", href:"mailto:…"}.
+     Set it and it shows up in the deck, the footer, the one-page version
+     and its plain-text copy at once. Nothing renders until it is set, and
+     nothing here invents an address. */
+  var CONTACT = null;
 
   /* ================================================================
      AUDIO — synthesized, created only on an explicit user gesture
@@ -3210,6 +3287,14 @@
     era: function(){ // time travel
       noise({filter:"bandpass", freq:300, freqEnd:2400, q:1.2, dur:0.5, g:0.1});
       tone(200, {type:"sine", dur:0.5, g:0.05, end:800});
+    },
+    cv: function(){ // a floppy drive seeking: two head steps, then the read
+      tone(880, {type:"square", dur:0.03, g:0.03});
+      tone(1320, {type:"square", at:0.06, dur:0.03, g:0.03});
+      noise({filter:"bandpass", freq:1800, q:3, at:0.1, dur:0.12, g:0.03});
+    },
+    rollcall: function(n){ // a hat clicked: the desk answers roll call, one tick per thing
+      for (var i = 0; i < n; i++) tone(1900 + i * 120, {dur:0.04, g:0.015, at:i * 0.06});
     }
   };
   var HAPTICS = {
@@ -3218,7 +3303,8 @@
     offhours:[15,30,15], outside:[5,45,5,45,5], puzzle:[30,30,30],
     utap:[20,40,20], web:[10,20,10], "switch":[22], vantage:[6,20,8,20,10,60,18],
     well:[6,90,24],                   // the drop, then the stone
-    luma:[8,60,30]                    // the click, then the glow
+    luma:[8,60,30],                   // the click, then the glow
+    cv:[12,40,12]                     // the disk going into the drive
   };
   function buzz(id){
     if (navigator.vibrate) { try { navigator.vibrate(HAPTICS[id] || 15); } catch(e){} }
@@ -3248,6 +3334,15 @@
     if (legendBtns.cv) legendBtns.cv.hidden = false;
     cvBtn.hidden = false;
     cvBtn.addEventListener("click", function(){ activate("cv"); });
+  }
+  /* the front door, once Karl has written it: in the deck and first in the
+     footer (the one-page version adds it to its own links row) */
+  if (CONTACT){
+    var helloBtn = document.getElementById("helloBtn");
+    helloBtn.href = CONTACT.href; helloBtn.textContent = CONTACT.label; helloBtn.hidden = false;
+    var footHello = document.createElement("a");
+    footHello.href = CONTACT.href; footHello.textContent = CONTACT.label;
+    document.querySelector("footer .cols").prepend(footHello);
   }
   var PILL_IDS = Object.keys(legendBtns).filter(function(id){
     return SECRET_IDS.indexOf(id) < 0 && !legendBtns[id].hidden;
@@ -3435,6 +3530,89 @@
     var back = camBack();
     if (lastFocus && lastFocus.focus) lastFocus.focus({preventScroll: back});
   }
+  /* ---------------- RESUME.DOC: the one-page version ----------------
+     Every line of it is another world's own title and kicker, under the
+     hats in HATS, so the résumé can never say something the desk doesn't.
+     The two worlds with no sheet of their own (the impossible object and
+     the light bench) take their legend pill's name and no kicker. */
+  function cvTitle(id){ return WORLDS[id] ? WORLDS[id].title : (legendBtns[id] ? legendBtns[id].textContent : id); }
+  function cvList(){
+    var ol = document.createElement("ol");
+    ol.className = "cv";
+    HATS.forEach(function(h){
+      var li = document.createElement("li");
+      var head = document.createElement("span");
+      head.className = "cv-hat";
+      head.textContent = h.hat;
+      if (h.years){ var yr = document.createElement("i"); yr.textContent = h.years; head.appendChild(yr); }
+      li.appendChild(head);
+      h.ids.forEach(function(id){
+        var b = document.createElement("button");
+        b.className = "cv-line";
+        b.style.setProperty("--a", ACCENT[id] || "#ffc97a");
+        b.textContent = cvTitle(id);
+        if (WORLDS[id]){ var k = document.createElement("small"); k.textContent = WORLDS[id].kicker; b.appendChild(k); }
+        b.addEventListener("pointerdown", function(){ buzz(id); });
+        b.addEventListener("click", function(){
+          /* a world swaps into this same sheet, the way paging does, so
+             putting it back still returns you to whatever opened the disk;
+             the two stages are rooms of their own, and go through the door */
+          if (!WORLDS[id]){ activate(id); return; }
+          ac(true);
+          if (SOUNDS[id]) SOUNDS[id]();
+          openWorld(id, ACCENT[id]);
+        });
+        li.appendChild(b);
+      });
+      ol.appendChild(li);
+    });
+    return ol;
+  }
+  /* the same page as plain text, for anyone who needs a file to attach to
+     something: built at the moment it's saved, from the same tables */
+  function plainWrap(str, indent){
+    var out = [], line = indent;
+    str.split(/\s+/).forEach(function(word){
+      if (line.length > indent.length && line.length + 1 + word.length > 72){ out.push(line); line = indent + word; }
+      else line += (line.length > indent.length ? " " : "") + word;
+    });
+    if (line.length > indent.length) out.push(line);
+    return out;
+  }
+  function plainURL(href){ return /^[a-z]+:/i.test(href) ? href : "https://kmay89.com" + href; }
+  function plainCV(){
+    var L = ["RESUME.DOC", "", "Karl Meves — engineer, author, toymaker, game designer, founder", "kmay89.com"];
+    if (CONTACT) L.push(CONTACT.href.replace(/^mailto:/, ""));   // on paper an address is just the address
+    var seen = {};
+    HATS.forEach(function(h){
+      var head = h.hat + (h.years ? " (" + h.years + ")" : "");
+      L.push("", "", head, head.replace(/./g, "-"));
+      h.ids.forEach(function(id){
+        var w = WORLDS[id];
+        /* a title is never broken; a kicker that won't fit beside it goes under it */
+        var line = "  " + cvTitle(id), kick = w ? "— " + w.kicker : "";
+        if (!kick) L.push("", line);
+        else if (line.length + 1 + kick.length <= 72) L.push("", line + " " + kick);
+        else L.push("", line, "    " + kick);
+        if (!w) return;
+        if (seen[id]){ L.push("    (above, under " + seen[id] + ")"); return; }
+        seen[id] = h.hat;
+        L = L.concat(plainWrap(w.story, "    "));
+        (w.listen || []).concat(w.links).forEach(function(l){ L.push("    " + plainURL(l.href)); });
+      });
+    });
+    return L.join("\n") + "\n";
+  }
+  function plainLink(){
+    var a = document.createElement("a");
+    a.className = "d-plain";
+    a.download = "karl-meves.txt";
+    a.textContent = "Save the plain-text version";
+    var fresh = function(){ a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(plainCV()); };
+    fresh();                              // a link needs an href to be one (and to be a Tab stop)
+    a.addEventListener("click", fresh);   // and it's rebuilt as it's saved
+    return a;
+  }
   function openWorld(id, accent){
     if (eraBusy) return; // the desk sleeps during the era ride
     var w = WORLDS[id]; if (!w) return;
@@ -3469,6 +3647,17 @@
       });
       links.appendChild(row);
     }
+    var oldCv = dossier.querySelector(".cv");
+    if (oldCv) oldCv.remove();
+    if (w.cv){
+      links.parentNode.insertBefore(cvList(), links);
+      if (CONTACT){ // the front door, first, once there is one
+        var hi = document.createElement("a");
+        hi.className = "d-cta"; hi.href = CONTACT.href; hi.textContent = CONTACT.label;
+        if (/^https?:/.test(CONTACT.href)){ hi.target = "_blank"; hi.rel = "noopener"; }
+        links.appendChild(hi);
+      }
+    }
     w.links.forEach(function(l){
       var a = document.createElement("a");
       a.href = l.href; a.textContent = l.label;
@@ -3476,6 +3665,8 @@
       if (!l.sameTab){ a.target = "_blank"; a.rel = "noopener"; }
       links.appendChild(a);
     });
+    if (w.cv) links.appendChild(plainLink());
+    dossier.scrollTop = 0;   // a sheet swapped in reads from its top
     cancelHide();
     pickObjects(id, 0, dossier);
     markFound(id);
@@ -4614,8 +4805,8 @@
   /* a finger lands where a pointer would hover, right on the label, so on
      a touch screen the name sits a thumb's width higher */
   var COARSE = matchMedia("(pointer:coarse)");
-  function showTip(btn, accent){
-    tip.textContent = btn.getAttribute("aria-label");
+  function showTip(btn, accent, text){
+    tip.textContent = text || btn.getAttribute("aria-label");
     tip.style.setProperty("--a", accent);
     var r = btn.getBoundingClientRect(), s = scene.getBoundingClientRect();
     tip.style.left = (r.left - s.left + r.width / 2) + "px";
@@ -4693,6 +4884,61 @@
         return;
       }
       activate(id);
+    });
+  });
+
+  /* ---------------- the hats in the lede light up what they made ----------------
+     "Engineer, author, toymaker, game designer, founder" is the question a
+     visitor came with, so each word answers it: point at one and the things
+     that hat made glow on the desk, in their own colours; click it and the
+     desk comes into view with them still lit for a moment. The count is of
+     what's on the desk this year (the CRT stands in for today's rig, and
+     the other way round). Nothing is marked found: finding is the visitor's. */
+  var NUMS = ["no","one","two","three","four","five","six","seven","eight","nine","ten"];
+  function thingsOn(n){ return (NUMS[n] || n) + (n === 1 ? " thing" : " things") + " on the desk"; }
+  var hatT = 0, hatHeld = false;
+  function litSet(ids, on){
+    document.querySelectorAll(".iso-obj.lit").forEach(function(el){ el.classList.remove("lit"); });
+    if (!on) return 0;
+    var n = 0;
+    ids.forEach(function(id){
+      var vis = shownObjects(id);
+      if (!vis.length && STANDIN[id]) vis = shownObjects(STANDIN[id]);
+      if (vis.length) n++;
+      vis.forEach(function(el){ el.classList.add("lit"); });
+    });
+    return n;
+  }
+  document.querySelectorAll(".hat").forEach(function(btn){
+    var h = HATS.filter(function(x){ return x.word === btn.dataset.hat; })[0];
+    if (!h) return;
+    btn.dataset.ids = h.ids.join(",");
+    btn.setAttribute("aria-label", h.word + " — light up the " + thingsOn(h.ids.length));
+    function on(){
+      clearTimeout(hatT); hatHeld = false;
+      var n = litSet(h.ids, true);
+      showTip(btn, "var(--lamp)", thingsOn(n) + " ↓");
+      return n;
+    }
+    function off(){ hideTip(); if (!hatHeld) litSet(null, false); }
+    /* a finger has no hover: on a touch screen a tap goes straight to the click */
+    btn.addEventListener("pointerenter", function(e){
+      if (e.pointerType === "touch" || COARSE.matches) return;
+      on(); SOUNDS.hover();
+    });
+    btn.addEventListener("pointerleave", off);
+    /* the keyboard gets the same glow, silently, as focus does on the desk */
+    btn.addEventListener("focus", function(){ if (btn.matches(":focus-visible")) on(); });
+    btn.addEventListener("blur", off);
+    btn.addEventListener("click", function(){
+      ac(true);
+      if (lightsOut) flipRoomLight(false);   // a glow under the dark is no answer
+      var n = on();
+      hideTip();
+      hatHeld = true;
+      document.querySelector(".desk-wrap").scrollIntoView({block:"center", behavior: REDUCED ? "auto" : "smooth"});
+      SOUNDS.rollcall(n);
+      hatT = setTimeout(function(){ hatHeld = false; litSet(null, false); }, 2600);
     });
   });
 
