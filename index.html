@@ -496,13 +496,12 @@
   #vase .vl.on:has(+ .vl.on) .vtop{display:none}
   #vase.off{opacity:0}
   /* the night flower: at rest by lamplight the bud is hidden inside the
-     open petals; with the lamp off the petals fold away into it, and the
+     open petals; with the lamp off each petal (--x, --y from the flower's
+     heart) folds away into the bud's tip, 3 above the heart, and the
      butterfly roosts on the upper leaf's tip (13 down, 1.5 left of where
      it hovers) with its wings shut, upright, edge on */
-  .bloom,.bud{transform-box:fill-box;transform-origin:50% 60%}
-  .bud{opacity:0;transform:scale(.7)}
-  body.lights-out .bloom{transform:scale(.3);opacity:0}
-  body.lights-out .bud{opacity:1;transform:none}
+  .pet{transform-box:fill-box;transform-origin:50% 50%}
+  body.lights-out .pet{transform:translate(calc(var(--x)*-1px),calc(var(--y)*-1px - 3px)) scale(.2);opacity:0}
   body.lights-out .bfly{transform:translate(-1.5px,11px)}
   body.lights-out .bfly .bob2{animation:none}
   body.lights-out .bfly .flutter{animation:none;transform:scaleX(.16)}
@@ -1268,10 +1267,11 @@
     /* the flower folds once the dark has come down, and opens as the lamp
        comes back, slower than it closed; the butterfly flutters down onto
        the leaf (two beats of its wings) and only then shuts them */
-    .bloom{transition:transform 2.6s cubic-bezier(.4,0,.2,1) .2s,opacity 1.6s ease .9s}
-    .bud{transition:transform 2.6s cubic-bezier(.4,0,.2,1) .2s,opacity 1.2s ease .2s}
-    body.lights-out .bloom{transition:transform 2.2s cubic-bezier(.4,0,.2,1) 1s,opacity 1.4s ease 1.4s}
-    body.lights-out .bud{transition:transform 2.2s cubic-bezier(.4,0,.2,1) 1s,opacity 1s ease 1.2s}
+    /* the petals come out of the bud already coloured, small, one after
+       another, and open out to their places; at night they go in the same
+       way, and wink out only once they are inside */
+    .pet{transition:transform 1.9s cubic-bezier(.25,.8,.3,1) calc(.4s + var(--i)*.16s),opacity .3s ease calc(.4s + var(--i)*.16s)}
+    body.lights-out .pet{transition:transform 1.8s cubic-bezier(.55,0,.7,1) calc(1s + var(--i)*.16s),opacity .4s ease calc(2.5s + var(--i)*.16s)}
     .bfly{transition:transform 2.6s ease-in-out .3s}
     body.lights-out .bfly{transition:transform 2.8s ease-in-out .2s}
     body.lights-out .bfly .flutter{animation:flutter 1.4s ease-in-out 2}
@@ -2868,12 +2868,15 @@
      folds its wings. You can't watch it happen in the dark, which is the
      point: turn the lamp back on and you see the flower open and the
      butterfly lift off, with the moth flying home and the fireflies going
-     out. Two transitions and no loops (CSS by .bloom and .bfly). */
+     out. The bud is always there, under the open flower; the petals
+     fold into its tip one after another, and open out of it the same
+     way, so the flower opens rather than fading through a ghost of
+     itself. Transitions only, no loops (CSS by .pet and .bfly). */
   pot += '<path class="bud" d="M' + fx + ' ' + (fy+4.5) + ' q -4.6 -2.4 -2.6 -7.4 q 1.4 -2.6 2.6 -4.4 q 1.2 1.8 2.6 4.4 q 2 5 -2.6 7.4 z" fill="#d76a8c" stroke="rgba(120,30,55,.45)" stroke-width=".8"/>' +
     '<path class="bud" d="M' + fx + ' ' + (fy+4.2) + ' q -1.2 -4 0 -11" fill="none" stroke="rgba(120,30,55,.35)" stroke-width=".7"/>';
-  pot += '<g class="bloom">' + [[0,-6],[6,-2],[4,5],[-4,5],[-6,-2]].map(function(o){
-      return '<circle cx="' + (fx+o[0]) + '" cy="' + (fy+o[1]) + '" r="4.4" fill="#ff9ab0" stroke="rgba(120,30,55,.4)"/>';
-    }).join("") + '<circle cx="' + fx + '" cy="' + fy + '" r="3.2" fill="#f5b63f"/></g>';
+  pot += [[0,-6],[6,-2],[4,5],[-4,5],[-6,-2]].map(function(o, i){
+      return '<circle class="pet" style="--x:' + o[0] + ';--y:' + o[1] + ';--i:' + i + '" cx="' + (fx+o[0]) + '" cy="' + (fy+o[1]) + '" r="4.4" fill="#ff9ab0" stroke="rgba(120,30,55,.4)"/>';
+    }).join("") + '<circle class="pet" style="--x:0;--y:0;--i:5" cx="' + fx + '" cy="' + fy + '" r="3.2" fill="#f5b63f"/>';
   var mp = P(548,58,0);
   pot += '<g><rect x="' + (mp[0]-1.5) + '" y="' + (mp[1]-7) + '" width="3" height="7" rx="1.2" fill="#e8ddc4"/>' +
     '<path d="M' + (mp[0]-6) + " " + (mp[1]-6) + " q 6 -8 12 0 z\" fill=\"#c0442e\"/>" +
