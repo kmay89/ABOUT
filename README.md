@@ -50,7 +50,10 @@ near corner is pulled open, with the bins that were printed for it); and
 sessions of small coupons, each carrying its own slicer settings inside
 one Bambu Studio file, for finding the dimensional compensations, fit
 clearances, first-layer, top-surface, ironing, wall and seam settings
-that make a print accurate and good to look at.
+that make a print accurate and good to look at; and
+[Cameo](https://kmay89.com/cameo/) — a photo figurine studio: a photo of
+the dog becomes a relief figurine on a pedestal, cut out and given depth
+by models that run in the browser, printed flat with no supports.
 
 **Live:** <https://kmay89.com>
 
@@ -208,7 +211,7 @@ that make a print accurate and good to look at.
   the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
   `npm run check:hollow` runs its suites.
 - `workshop/` — the workshop: one page listing the 3D printer tools (Luma,
-  Hollow, Cubby and Swatch), reached from the desk by the scratch-built
+  Hollow, Cubby, Swatch and Cameo), reached from the desk by the scratch-built
   printer on the side table;
 - `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
   becomes a grid that fills it exactly; bins cover whole cells, can be
@@ -233,7 +236,17 @@ that make a print accurate and good to look at.
   project with no warning and the user's profiles untouched. The settings
   and their serialization were read from Bambu Studio's source. Notes in
   `swatch/README.md`;
-  `npm run check:swatch` runs its suites.
+  `npm run check:swatch` runs its suites; and
+- `cameo/` — Cameo, a photo figurine studio. The subject is cut out
+  (BRIA RMBG in the browser through transformers.js, or a wand and brush),
+  tidied, and turned into a relief: an exact distance transform rolls the
+  edge over with a quarter-circle profile, Depth Anything V2 lifts the
+  nearer parts and adds fine detail, and one height-field mesher makes the
+  figure (lying on its back, with a tab) and a pedestal with a slot, both
+  closed solids, placed in one 3MF with per-object settings and the sparse
+  Bambu project config. A relief, not a sculpture in the round: that is
+  what a static page can honestly do. Notes in `cameo/README.md`;
+  `npm run check:cameo` runs its suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
