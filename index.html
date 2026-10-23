@@ -465,6 +465,11 @@
   /* the lamp's filament breathes, the tube hums, and with the lamp off
      the moon comes up to fill the room it now has to itself */
   .glint{animation:glint 5.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;opacity:0}
+  /* the bulb's own star at the mouth of the shade holds still. A bulb that
+     is on doesn't twinkle, and a twinkle here would put the whole lamp on
+     a layer of its own, and with it, by overlap, every shadow it throws:
+     they would all be painted again on any hover. */
+  .glint.shine{animation:none;opacity:.6}
   @keyframes glint{
     0%,62%,100%{opacity:0;transform:scale(.2) rotate(0deg)}
     72%{opacity:1;transform:scale(1) rotate(25deg)}
@@ -558,7 +563,10 @@
   @keyframes eraPulse{50%{opacity:1}}
   /* CRT degauss: the whole tube shudders and the colors bloom for a beat */
   .iso-obj > *{transform-box:fill-box;transform-origin:50% 50%}
-  #iso.deg .era-old > *{animation:degauss .8s ease-out}
+  /* ...but not the shades it throws: they lie on the desk, not in the
+     tube, and outside an object they would shudder about the corner of
+     the picture and drop their blur for the beat */
+  #iso.deg .era-old:not(.shade) > *{animation:degauss .8s ease-out}
   @keyframes degauss{
     0%{transform:scale(1.05,.92) skewX(2.5deg);filter:hue-rotate(80deg) saturate(2.6)}
     18%{transform:scale(.94,1.07) skewX(-2deg);filter:hue-rotate(-70deg) saturate(2.2)}
@@ -1686,6 +1694,45 @@
   S.push('<g aria-hidden="true">' +
     gRight(-30,420,200,'<rect width="450" height="260" fill="url(#wallFallB)"/>') +
     gLeft(-30,-30,200,'<rect width="650" height="260" fill="url(#wallFallA)"/>') + "</g>");
+  /* Everything that hangs on a wall touches it, and without a shade on
+     the plaster it reads as a decal stuck on the picture. So each thing
+     gets one, drawn in the wall's own plane and nudged away from the lamp
+     along the wall: the shelf's climbs, because the lamp is below it, and
+     the rest fall a little and lean away from where the lamp stands (y 158
+     on this wall, x 118 on the other). They are soft without a blur: each
+     shape is laid three times, fattened by a stroke of 8, 4 and 0 units, at
+     a third of the darkness each, so the edge fades in steps and the core
+     is as dark as asked. (A blur over the whole wall was tried first; it
+     was re-filtered on every frame the room moved, about a millisecond of
+     raster a frame.) Both groups are under the darkness, so they go out
+     with the lamp like everything else.
+     They are painted here, with the walls and before the plaster and the
+     wall's spill, not just before the bike: the plaster (its grain and
+     its blend) gets a layer of its own, anything painted after it that
+     overlaps it is pulled up onto a layer above it, and the browser paints
+     those layers again whenever something on the desk is hovered. Down
+     here they are part of the walls, which are painted once. */
+  function hush(svg, op){
+    var a = (1 - Math.pow(1 - op, 1/3)).toFixed(3), s = "";
+    [8,4,0].forEach(function(k){
+      s += '<g opacity="' + a + '">' + svg.replace(/stroke-width="([\d.]+)"/g, function(m,w){ return 'stroke-width="' + (+w + k) + '"'; }) + "</g>";
+    });
+    return s;
+  }
+  var HUSH = 'fill="#000" stroke="#000" stroke-width="0" stroke-linejoin="round"';
+  S.push('<g aria-hidden="true">' +
+    gRight(-30,400,190,
+      hush('<rect x="172" y="18" width="96" height="18" ' + HUSH + '/>', .28) +                                  // the shelf
+      '<g transform="translate(-5,7)">' + hush('<g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" transform="translate(0,-30)">' +
+        '<circle cx="120" cy="150" r="38" stroke-width="7"/><circle cx="238" cy="150" r="38" stroke-width="7"/>' +
+        '<path d="M120 150 L168 92 L238 150 M120 150 L182 150 L168 92 M155 96 L146 82 M226 96 L238 150 M138 80 L158 80" stroke-width="5"/></g>', .35) + "</g>" +   // the bike: its wheels and frame, as drawn below, in three elements not thirteen
+      '<g transform="translate(4,7)">' + hush('<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" ' + HUSH + '/>', .32) + "</g>") +   // the shirt
+    gRight(-30,394,190, hush('<rect x="-11" y="-2" width="114" height="78" ' + HUSH + '/>', .4)) +                 // the lithophane
+    gLeft(40,-30,170, hush('<rect x="-1" y="1" width="236" height="126" ' + HUSH + '/>', .35)) +                    // the window
+    gLeft(452,-30,160, hush('<rect x="-3" y="-2" width="104" height="104" ' + HUSH + '/>', .35)) +                  // the spiral
+    gLeft(556,-30,158, '<g transform="translate(3,4) rotate(4)">' + hush('<rect x="-6" y="-6" width="60" height="72" ' + HUSH + '/>', .35) + "</g>") +   // the polaroid
+    gLeft(330,-30,135, hush('<rect x="1.5" y="2" width="18" height="30" rx="2" ' + HUSH + '/>', .45)) +           // the switch plate
+    "</g>");
   S.push('<g aria-hidden="true" style="mix-blend-mode:soft-light" opacity=".14">' +
     gLeft(-30,-30,200,'<rect width="650" height="260" fill="#000" filter="url(#plaster)"/>') +
     gRight(-30,420,200,'<rect width="450" height="260" fill="#000" filter="url(#plaster)"/>') +
@@ -1716,39 +1763,6 @@
     '<path d="M182 150 L196 168" stroke="#241d16" stroke-width="4"/>' +
     '<rect x="112" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/>' +
     '<rect x="230" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/></g>';
-  /* Everything that hangs on a wall touches it, and without a shade on
-     the plaster it reads as a decal stuck on the picture. So each thing
-     gets one, drawn in the wall's own plane and nudged away from the lamp
-     along the wall: the shelf's climbs, because the lamp is below it, and
-     the rest fall a little and lean away from where the lamp stands (y 158
-     on this wall, x 118 on the other). They are soft without a blur: each
-     shape is laid three times, fattened by a stroke of 8, 4 and 0 units, at
-     a third of the darkness each, so the edge fades in steps and the core
-     is as dark as asked. (A blur over the whole wall was tried first; it
-     was re-filtered on every frame the room moved, about a millisecond of
-     raster a frame.) Both groups are under the darkness, so they go out
-     with the lamp like everything else. */
-  function hush(svg, op){
-    var a = (1 - Math.pow(1 - op, 1/3)).toFixed(3), s = "";
-    [8,4,0].forEach(function(k){
-      s += '<g opacity="' + a + '">' + svg.replace(/stroke-width="([\d.]+)"/g, function(m,w){ return 'stroke-width="' + (+w + k) + '"'; }) + "</g>";
-    });
-    return s;
-  }
-  var HUSH = 'fill="#000" stroke="#000" stroke-width="0" stroke-linejoin="round"';
-  S.push('<g aria-hidden="true">' +
-    gRight(-30,400,190,
-      hush('<rect x="172" y="18" width="96" height="18" ' + HUSH + '/>', .28) +                                  // the shelf
-      '<g transform="translate(-5,7)">' + hush('<g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" transform="translate(0,-30)">' +
-        '<circle cx="120" cy="150" r="38" stroke-width="7"/><circle cx="238" cy="150" r="38" stroke-width="7"/>' +
-        '<path d="M120 150 L168 92 L238 150 M120 150 L182 150 L168 92 M155 96 L146 82 M226 96 L238 150 M138 80 L158 80" stroke-width="5"/></g>', .35) + "</g>" +   // the bike: its wheels and frame, as drawn below, in three elements not thirteen
-      '<g transform="translate(4,7)">' + hush('<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" ' + HUSH + '/>', .32) + "</g>") +   // the shirt
-    gRight(-30,394,190, hush('<rect x="-11" y="-2" width="114" height="78" ' + HUSH + '/>', .4)) +                 // the lithophane
-    gLeft(40,-30,170, hush('<rect x="-1" y="1" width="236" height="126" ' + HUSH + '/>', .35)) +                    // the window
-    gLeft(452,-30,160, hush('<rect x="-3" y="-2" width="104" height="104" ' + HUSH + '/>', .35)) +                  // the spiral
-    gLeft(556,-30,158, '<g transform="translate(3,4) rotate(4)">' + hush('<rect x="-6" y="-6" width="60" height="72" ' + HUSH + '/>', .35) + "</g>") +   // the polaroid
-    gLeft(330,-30,135, hush('<rect x="1.5" y="2" width="18" height="30" rx="2" ' + HUSH + '/>', .45)) +           // the switch plate
-    "</g>");
   S.push('<g aria-hidden="true">' + gRight(-30,400,190,bike) + "</g>");
   S.push(box(-28,132,148,52,96,8,"#7a5a38"));
   var vhs = box(-24,146,156,38,24,8,"#17171e") + box(-22,150,164,38,24,8,"#1c1c26");
@@ -1781,7 +1795,7 @@
     gTop(-27,189,VZ,'<rect width="6" height="28" fill="rgba(12,6,2,.30)" filter="url(#soft)"/>') +
     isoEllipse(VX,VY,VZ,18,"rgba(12,6,2,.14)",'filter="url(#soft)" stroke="none"') +
     isoEllipse(VX,VY,VZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
-  S.push('<g class="era-old" aria-hidden="true">' +
+  S.push('<g class="era-old shade" aria-hidden="true">' +
     gTop(-27,187,VZ,'<rect width="5" height="32" fill="rgba(12,6,2,.28)" filter="url(#soft)"/>') +
     gTop(VX-15,VY-11,VZ,'<rect width="30" height="22" fill="rgba(12,6,2,.26)" filter="url(#soft)"/>') + "</g>");
 
@@ -1989,8 +2003,11 @@
     /* the panes are glass, and glass at night is half mirror: the
        lamp-lit corner of the desk shows in it where the reflection lands
        (a wall at y −30 seen along (1,1,1) puts the desk around x 20–60,
-       y 70–110 here), and a second, fainter band of sheen beside the first */
-    '<ellipse cx="97" cy="84" rx="30" ry="15" transform="rotate(-55 97 84)" fill="url(#spill)"/>' +
+       y 70–110 here), and a second, fainter band of sheen beside the first.
+       The bulb's own gradient, not the wall's spill: the spill's .16 at its
+       heart vanished into the night sky; this one has a warm core that
+       still reads at 1×, with no edge to it that would make it a sticker */
+    '<ellipse cx="97" cy="84" rx="36" ry="18" transform="rotate(-55 97 84)" fill="url(#bulb)" opacity=".3"/>' +
     '<polygon points="8,0 60,0 22,110 8,110" fill="rgba(255,255,255,.05)"/>' +
     '<polygon points="70,0 84,0 50,110 36,110" fill="rgba(255,255,255,.035)"/>' +
     '<rect x="108" y="0" width="5" height="110" fill="#5d3a20"/>' +
@@ -2103,7 +2120,7 @@
         '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="url(#bulbMouth)" opacity=".95"/>' +   // switched on: white-hot at the bulb
         '<path d="M-17 9 L17 9" stroke="#ffe3b4" stroke-width="1.3" opacity=".8"/></g>' +      // the rim catching its own light
       '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>' +
-      glint(hd[0]+4, hd[1]+11, 6, 2.2);
+      glint(hd[0]+4, hd[1]+11, 6, 2.2).replace('class="glint"', 'class="glint shine"');   // a star that holds still: see .glint.shine
     S.push('<g aria-hidden="true">' + lamp + "</g>");
   })();
 
@@ -2131,17 +2148,23 @@
       h.push(v); }); h.pop(); return h; }
     return half(p).concat(half(p.slice().reverse()));
   }
-  // castW([[x,y,w,d,h,op], ...]): footprints on the desk, their heights, how dark
+  // castW([[x,y,w,d,h,op,round], ...]): footprints on the desk, their heights,
+  // how dark. A round thing (the mug, the pot, the well, the loaf) says so
+  // with "round", and its footprint is the circle inside that box: a square
+  // swept from the lamp pokes a dark corner out beside the base, on the lit
+  // side, which is the one place a shadow can't be.
   function castW(list){
     var paths = {}, order = [];
     list.forEach(function(c){
-      var x = c[0], y = c[1], w = c[2], d = c[3], h = c[4], op = c[5];
+      var x = c[0], y = c[1], w = c[2], d = c[3], h = c[4], op = c[5], round = c[6] === "round";
       var dx = x + w/2 - LAMP_L[0], dy = y + d/2 - LAMP_L[1], D = Math.hypot(dx,dy) || 1;
       var len = Math.min(h,30) * (.45 + Math.min(D,260)/260 * .35);
       var ox = dx/D*len, oy = dy/D*len;
       [[0,1],[1,.75],[2,.5]].forEach(function(st){
-        var i = st[0], k = st[1], key = (op*.4).toFixed(3) + " " + i;
-        var base = [[x+i,y+i],[x+w-i,y+i],[x+w-i,y+d-i],[x+i,y+d-i]];
+        var i = st[0], k = st[1], key = (op*.4).toFixed(3) + " " + i, base = [];
+        if (round) for (var a = 0; a < 12; a++)
+          base.push([x + w/2 + (w/2 - i) * Math.cos(a * Math.PI / 6), y + d/2 + (d/2 - i) * Math.sin(a * Math.PI / 6)]);
+        else base = [[x+i,y+i],[x+w-i,y+i],[x+w-i,y+d-i],[x+i,y+d-i]];
         if (!(key in paths)){ paths[key] = ""; order.push(key); }
         paths[key] += "M" + hull(base.concat(base.map(function(q){ return [q[0]+ox*k, q[1]+oy*k]; })))
           .map(function(q){ return pj(q[0],q[1],0); }).join(" L") + "Z";
@@ -2151,12 +2174,13 @@
       return '<path d="' + paths[key] + '" fill="rgba(12,6,2,' + key.split(" ")[0] + ')"/>';
     }).join("");
   }
-  S.push('<g aria-hidden="true">' +
-    '<g class="era-old">' + castW([[150,42,150,82,30,.22], [160,200,170,62,10,.18]]) + "</g>" +   // CRT, keyboard
+  // (the id is for tools/desk-check.js, which takes these away to see what they add)
+  S.push('<g id="lampCast" aria-hidden="true">' +
+    '<g class="era-old shade">' + castW([[150,42,150,82,30,.22], [160,200,170,62,10,.18]]) + "</g>" +   // CRT, keyboard
     '<g class="era-now">' + castW([[150,86,170,12,30,.22], [170,204,140,46,5,.16],                // display, keyboard,
       [346,164,62,46,30,.22], [366,146,44,7,30,.18]]) + "</g>" +                                    // MacBook, iPad
     castW([
-      [52,52,40,40,30,.22],                    // mug
+      [52,52,40,40,30,.22,"round"],            // mug
       [386,62,116,78,30,.24],                  // book stack
       [24,196,86,64,10,.18],                   // Lupita book
       [118,208,46,46,30,.24],                  // doll box
@@ -2165,11 +2189,11 @@
       [250,290,64,106,11,.2],                  // game boy
       [382,278,92,7,30,.22], [380,288,96,89,5,.14],   // jewel case: the lid stood up, the tray
       [480,305,58,58,5,.14],                   // floppy
-      [308,34,56,48,24,.2],                    // sourdough boule
+      [313,35,42,42,24,.2,"round"],            // sourdough boule (the loaf; its board lies flat)
       [34,332,24,24,24,.22],                   // rubik's cube
       [504,64,52,88,4,.14],                    // the sudoku paper
       [76,328,60,42,8,.16],                    // Borrowed Sunlight novel
-      [517,27,26,26,20,.2],                    // flower pot
+      [517,27,26,26,20,.2,"round"],            // flower pot
       [518,216,30,30,7,.16],                   // impossible object pedestal
       [150,300,64,64,5,.16],                   // chess board (CHX, CHY: declared further down)
       [330,276,20,20,30,.22]                   // the console tower
@@ -2177,7 +2201,7 @@
 
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
-  S.push('<g class="era-old">' + shadowW(150,50,180,212,12,.30) + "</g>"); // CRT + keyboard (1999)
+  S.push('<g class="era-old shade">' + shadowW(150,50,180,212,12,.30) + "</g>"); // CRT + keyboard (1999)
   S.push('<g class="era-now">' + shadowW(190,88,92,34,8,.26) +
     shadowW(164,198,152,58,8,.24) + shadowW(340,142,72,76,8,.24) + "</g>"); // 2026 rig
   S.push(shadowW(386,58,116,84,9,.30));          // book stack
@@ -2482,7 +2506,7 @@
     '<circle cx="' + (cc[0]+11).toFixed(1) + '" cy="' + (cc[1]-4).toFixed(1) + '" r="1.8" fill="#63e6a9" class="led"/>';
   /* its shade on the tube's lid stays there when the ball lifts; it keeps
      the era class, or 1999's would hang in the air above the 2026 display */
-  S.push('<g class="era-old" aria-hidden="true">' + isoEllipse(225,105,camTopZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
+  S.push('<g class="era-old shade" aria-hidden="true">' + isoEllipse(225,105,camTopZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
   S.push(wrapObj("cam","securaCV — open source","#8fb7ff",cam,"era-old"));
 
   /* cam again in 2026 — perched on the big display */
@@ -2639,7 +2663,7 @@
     [5,1,1],[5,6,4],[6,2,7],[6,3,1],[6,5,8],[6,6,5],[7,0,5],[7,1,8],
     [7,4,6],[7,5,9],[8,0,6],[8,5,5],[8,6,2],[8,7,8]
   ];
-  var sudoku = box(SDX,SDY,0,52,88,4,"#efe3ce");   // its shade is in the shadows block, where it stays when the paper lifts
+  var sudoku = box(SDX,SDY,0,52,88,4,"#efe3ce");   // its shade is pushed just before it, where it stays when the paper lifts
   var page = "";
   // masthead
   page += txt(SDG, 11, "SUDOKU", 5.4, "#3a2c1f", MONO + ' letter-spacing="1.4"');
@@ -2672,6 +2696,11 @@
      column 7 5 6, the box 6; only the full solve rules out 2 and 3) */
   page += txt(5.9,20.6,"1",3.6,"#55606e",SERIF + ' text-anchor="middle" class="rx-digit" opacity="0"');
   sudoku += gTop(SDX,SDY,4, page);
+  /* the paper's own shade, out of the paper so it stays on the desk when
+     the page lifts. It is also, as it happens, what keeps the browser from
+     folding the paper, the chess board and the console into one wide layer
+     that it would paint again on every hover anywhere near them. */
+  S.push('<g aria-hidden="true">' + shadowW(SDX,SDY,52,88,6,.24) + "</g>");
   S.push(wrapObj("sudoku","The sudoku room — the paper, half worked","#ffc97a",sudoku));
 
   /* ---------- domino: a pile of bones on the desk ----------
@@ -2893,7 +2922,7 @@
      painted here, after the console, its soft edge would lie across the
      foot of the pad behind it instead of on the desk in front. */
   S.splice(SHADOWS_END, 0, '<g id="wellShadow" aria-hidden="true">' +
-    castW([[339,336,30,30,12,.2]]) +       // the lamp's, under the stone's own contact shade
+    castW([[339.5,336.5,29,29,12,.2,"round"]]) +   // the lamp's, under the stone's own contact shade
     isoEllipse(WLX + 1.5, WLY + 1.5, 0, WLRO + 2.5, "rgba(12,6,2,.26)", 'filter="url(#soft)" stroke="none"') +
     isoEllipse(WLX + .5, WLY + .5, 0, WLRO + .4, "rgba(12,6,2,.30)", 'filter="url(#soft)" stroke="none"') + "</g>");
 
@@ -3147,7 +3176,7 @@
     txt(44,33,"KAIROS",8,"#7cd7e8",MONO + ' letter-spacing="1.5"') +
     txt(44,49,"Echoes of Us",9,"#e8f4f7",SERIF + ' font-style="italic"') +
     txt(44,58,"I · II · III",7,"#9db8c2",MONO));
-  jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}) + gloss(380,288,5,96,89); // tray
+  jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}); // tray (matte: a sheen here would sit under the bow, which is painted again on every pointer move)
   /* The disc. A CD is a diffraction grating wound into a spiral, so what
      you see is not a colour but a bow-tie: two opposite lobes of rainbow
      that swing round the hub as your eye moves. Drawn as a hundred and
