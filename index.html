@@ -530,10 +530,14 @@
   /* "Show me around": a caption card in the dossier's glass, small and low
      so the room above it stays the subject. It wears the colour of the
      thing under the light, and on a phone it never takes more than the
-     bottom third, so the spotlit object always has the top of the screen. */
+     bottom third, so the spotlit object always has the top of the screen.
+     It's a column whose buttons never shrink: when the room is short (a
+     phone on its side, a small phone) it's the caption that scrolls, so
+     the way on and the way out are always in the card, never below its fold. */
   .tour{
     position:fixed;left:50%;bottom:1.2rem;z-index:42;
-    width:min(34rem,calc(100vw - 1.5rem));max-height:30vh;overflow:auto;
+    display:flex;flex-direction:column;
+    width:min(34rem,calc(100vw - 1.5rem));max-height:30vh;
     transform:translate(-50%,14px);opacity:0;
     transition:opacity .35s ease,transform .35s cubic-bezier(.2,.9,.25,1);
     background:
@@ -545,9 +549,14 @@
     box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 color-mix(in srgb, var(--a,#ffc97a) 30%, rgba(255,255,255,.1));
     padding:.9rem 1.1rem 1rem;
   }
+  .tour[hidden]{display:none}
   .tour.show{opacity:1;transform:translate(-50%,0)}
-  .tour-cap{font-size:1.02rem;line-height:1.5;color:var(--ink);margin:.5rem 0 .8rem}
-  .tour-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .tour > .d-kicker{flex:none}
+  .tour-cap{font-size:1.02rem;line-height:1.5;color:var(--ink);margin:.5rem 0 .8rem;min-height:1.5em;overflow:auto;overscroll-behavior:contain}
+  /* when the caption is longer than the room for it, its last line fades,
+     so a cut-off sentence reads as "there's more" and not as a mistake */
+  .tour-cap.more{-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+  .tour-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;flex:none}
   .tour-row .chip:disabled{opacity:.35;cursor:default;background:transparent}
   .tour-row .deck-go{color:var(--ink);border-color:var(--a,#ffc97a);background:color-mix(in srgb, var(--a,#ffc97a) 20%, transparent)}
   .tour-row .deck-go:hover,.tour-row .deck-go:focus-visible{background:color-mix(in srgb, var(--a,#ffc97a) 32%, transparent)}
@@ -558,6 +567,18 @@
     .tour-cap{font-size:.95rem;margin:.4rem 0 .65rem}
     .tour-row{gap:.4rem}
     #tourEnd{margin-left:0}
+  }
+  /* the smallest phones: the buttons draw their letters closer, so the
+     walk's three fit on one line and the caption keeps a second one */
+  @media (max-width:360px){
+    .tour-row .chip{letter-spacing:.08em;padding:.45em .8em}
+  }
+  /* a short window (a phone held sideways is 390 px tall) gets a little
+     more of the height than a third, and tighter type, so a line or two
+     of the caption shows above the buttons rather than half of one */
+  @media (max-height:520px){
+    .tour{bottom:.5rem;max-height:42vh;padding:.55rem .9rem .65rem}
+    .tour-cap{font-size:.9rem;line-height:1.4;margin:.3rem 0 .5rem}
   }
   .d-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
   /* where this sheet sits in the legend's order, pushed to the right with
@@ -3540,10 +3561,10 @@
   }
   /* highlight the object(s) a dialog belongs to, and pan it into view
      so a legend tag always points back at something on the desk */
-  var pickedEls = [];
+  var pickedEls = [], aimedEl = null;
   function clearPicked(){
     pickedEls.forEach(function(el){ el.classList.remove("picked"); });
-    pickedEls = [];
+    pickedEls = []; aimedEl = null;
     scrim.classList.remove("spot");
   }
   /* the CRT and today's rig are the same desk's computer, a quarter of a
@@ -3568,6 +3589,7 @@
     vis.forEach(function(el){ el.classList.add("picked"); pickedEls.push(el); });
     var el = vis[Math.min(nth || 0, vis.length - 1)];
     var r = el.getBoundingClientRect();
+    aimedEl = el;                       // the tour re-aims at it if the page moves under the light
     spotAt(frameObject(el, sheet), Math.max(r.width, r.height) / 2 + 30);
   }
   function spotAt(c, rad){
@@ -3948,12 +3970,20 @@
      commentary, which is built further down the file. Until it exists
      this is a stub, and the button only puts the tour away; the commentary
      block replaces it (tourToCommentary = function(){ setCommentary(true); })
-     and the click picks up whatever it is at the time. */
-  var tourToCommentary = function(){};
+     and the click picks up whatever it is at the time. While it's still
+     the stub the button stays hidden, the way Say hello waits for CONTACT:
+     a door that only closes the card would be a dead one. */
+  var TOUR_NO_COMM = function(){}, tourToCommentary = TOUR_NO_COMM;
   function startTour(){
     if (eraBusy) return;                // the desk sleeps during the era ride
     if (tourI >= 0){ goStop(0); return; }
-    if (activeModal()){ handoff = true; closeModal(); handoff = false; }
+    if (activeModal()){
+      /* putting the sheet down clears the address; a #tour typed over it
+         should still say where the visitor is */
+      var asked = /^#tour$/i.test(location.hash);
+      handoff = true; closeModal(); handoff = false;
+      if (asked) address("tour");
+    }
     if (lightsOut) flipRoomLight(false);   // a walk round a dark room would be a walk round the wall
     hideTip();
     var a = document.activeElement;
@@ -3961,6 +3991,7 @@
     cancelHide();
     scrim.hidden = false; tour.hidden = false;
     goStop(0, true);
+    tourWatch(true);
     requestAnimationFrame(function(){ scrim.classList.add("show"); tour.classList.add("show"); });
     if (SOUNDS.tourStart) SOUNDS.tourStart();
   }
@@ -3973,7 +4004,7 @@
     tourBack.hidden = tourOpen.hidden = tourNext.hidden = fin;
     tourCv.hidden = !fin || !WORLDS.cv;
     tourHello.hidden = !fin || !CONTACT;
-    tourComm.hidden = !fin;
+    tourComm.hidden = !fin || tourToCommentary === TOUR_NO_COMM;
     tourEnd.textContent = fin ? "Done" : "That's enough, thanks ×";
     if (fin){
       /* the light leaves the last thing and the whole room is the answer:
@@ -3984,6 +4015,7 @@
       tour.style.setProperty("--a", "#ffc97a");
       tourStepEl.textContent = "That's the desk";
       tourCap.textContent = TOUR_DONE;
+      wakeDust();                       // the room is lit again, so the air moves again
     } else {
       var s = TOUR[i];
       if (scrim.classList.contains("thru")){ scrim.classList.remove("thru"); scrim.classList.add("show"); }
@@ -3995,14 +4027,47 @@
          will have: the thing is framed in the room the card leaves */
       pickObjects(s[0], s[1], tour);
     }
+    tourCap.scrollTop = 0;              // a new line starts at its start
+    capMore();
     if (quiet === "era") return;
     (fin ? tourEnd : tourNext).focus({preventScroll: true});
     if (!quiet && SOUNDS.tourStep) SOUNDS.tourStep();
   }
+  function capMore(){
+    tourCap.classList.toggle("more", tourCap.scrollTop + tourCap.clientHeight < tourCap.scrollHeight - 2);
+  }
+  tourCap.addEventListener("scroll", capMore, {passive: true});
   function tourGo(d){
     var i = tourI + d;
+    if (eraBusy) return;                // the desk sleeps during the era ride, and so does the walk
     if (tourI < 0 || i < 0 || i > TOUR.length) return;   // the finale is the end of the road
     goStop(i);
+  }
+  /* The hole is cut in the window, not the page, so a wheel, a swipe or a
+     Tab out of the card moves the room under a light that stays put. Once
+     the scrolling settles, the light finds the thing where it now is (and
+     glides there, like any other step). The tour's own glides land where
+     the light was already aimed, so this is a no-op for them. Capture, so
+     the desk's sideways pan on a phone counts too; the card's own caption
+     scrolling doesn't. */
+  var aimT = 0;
+  function reaim(){
+    aimT = 0;
+    if (tourI < 0 || tourI >= TOUR.length || !aimedEl) return;
+    var r = aimedEl.getBoundingClientRect();
+    scrim.style.setProperty("--sx", (r.left + r.width / 2).toFixed(0) + "px");
+    scrim.style.setProperty("--sy", (r.top + r.height / 2).toFixed(0) + "px");
+  }
+  var SCROLLEND = "onscrollend" in window;
+  function onTourScroll(e){
+    if (tour.contains(e.target)) return;
+    if (e.type === "scrollend"){ reaim(); return; }
+    clearTimeout(aimT); aimT = setTimeout(reaim, 140);   // no scrollend here: a quiet moment will do
+  }
+  function tourWatch(on){
+    var f = on ? addEventListener : removeEventListener;
+    f.call(window, SCROLLEND ? "scrollend" : "scroll", onTourScroll, {capture: true, passive: true});
+    if (!on){ clearTimeout(aimT); aimT = 0; }
   }
   /* into: the tour is giving way to a world that's opening (Pick it up, or
      anything opened from the desk or the legend mid-walk). Then the focus
@@ -4013,6 +4078,7 @@
   function endTour(into){
     if (tourI < 0) return;
     tourI = -1;
+    tourWatch(false);
     cancelHide();
     clearPicked();
     scrim.classList.remove("show", "thru"); tour.classList.remove("show");
@@ -5461,7 +5527,8 @@
         setBackgroundInert(false);
         eraBusy = false;
         eraBtn.disabled = false;
-        eraBtn.focus();
+        // mid-walk the light is aimed where the page is: don't scroll it away
+        eraBtn.focus({preventScroll: tourI >= 0});
       }
     })();
   });
@@ -5624,14 +5691,15 @@
     for (var i3 = 0; i3 < 9; i3++) motes.push(mote(2));
     for (var i4 = 0; i4 < 30; i4++) motes.push(mote(i4 % 3 ? 1 : 0));   // enough to fill two beams
     /* It sleeps when nobody can see it: scrolled away, in a background tab,
-       or under a sheet or the tour's card (where the scrim and the glass's
-       blur would otherwise re-blur the whole viewport sixty times a second
-       over it). Each of those ways back wakes it. And it stops if the
+       or under a sheet or the tour's dimmed room (where the scrim and the
+       glass's blur would otherwise re-blur the whole viewport sixty times a
+       second over it). The tour's finale lifts the dimming, and the air
+       moves again. Each of those ways back wakes it. And it stops if the
        visitor asks for reduced motion while it is running. */
     var last = performance.now(), dustRaf = 0;
     function frame(now){
       if (REDUCED){ cx2.clearRect(0, 0, W, H); dustRaf = 0; return; }
-      if (!SEEN || document.hidden || activeModal() || !tour.hidden){ dustRaf = 0; return; }
+      if (!SEEN || document.hidden || activeModal() || (!tour.hidden && !scrim.classList.contains("thru"))){ dustRaf = 0; return; }
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
       var dark = document.body.classList.contains("lights-out");   // no lamp: only the moon lights them
@@ -5710,7 +5778,7 @@
     var own = function(o){ return Object.prototype.hasOwnProperty.call(o, h); };   // #constructor is not a world
     if (!own(SPECIAL) && !own(WORLDS)) return;
     if (h !== "tour") endTour(true);   // an address typed mid-walk goes where it says
-    if (activeModal()) closeModal();
+    if (activeModal() && h !== "tour") closeModal();   // the tour puts a sheet down itself, and keeps its address
     if (own(SPECIAL)) SPECIAL[h](); else openWorld(h, ACCENT[h]);
     /* nothing was pressed to open it, so putting it back would drop a
        keyboard at the top of the page: it goes back to the thing itself
