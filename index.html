@@ -388,6 +388,15 @@
   /* the room losing its lamp */
   #darkness{opacity:0;transition:opacity .8s ease;pointer-events:none}
   body.lights-out #darkness{opacity:1}
+  /* the lamp is off, not merely covered: under the torch its bulb is a
+     dark mouth, and its pool, its beam and the shadows it threw are gone */
+  body.lights-out .bulb-mouth{fill:#2a231c}
+  body.lights-out :is(.bulb-on,.glint.shine),body.lights-out #iso .pool-warm{opacity:0}
+  #lampCast{transition:opacity .8s ease}
+  body.lights-out #lampCast{opacity:0}
+  #torch{display:none}
+  body.lights-out.torch-on #torch{display:inline;will-change:transform}
+  body.lights-out.torch-on .dk-flat{display:none}
   #eggWall{opacity:0;transition:opacity 1.1s ease .55s;pointer-events:none;text-decoration:none}
   body.lights-out #eggWall{opacity:1;pointer-events:auto}
   #eggWall .eg1{fill:#ffd166}
@@ -1166,7 +1175,7 @@
     .legend button:hover,.d-links a:hover,.d-links a:focus-visible{transform:none}
     #iso.deg .era-old > *{animation:none}
     .pool-warm,.pool-cool{transition:none}
-    #swLever,#swGlow,#darkness,#eggWall,.scene,.intro > *{transition:none}
+    #swLever,#swGlow,#darkness,#lampCast,#eggWall,.scene,.intro > *{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     .lampfx,.crtfx{animation:none}
     .glint{animation:none;opacity:.7;transform:none}
@@ -2450,9 +2459,9 @@
       // shade: a cone aimed at the middle of the desk
       '<g transform="translate(' + hd[0] + "," + hd[1] + ') rotate(50)">' +
         '<path d="M-12 -9 L12 -9 L17 9 L-17 9 Z" fill="#2c2f38" stroke="rgba(10,10,14,.55)" stroke-width="1.4"/>' +
-        '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="url(#bulbMouth)" opacity=".95"/>' +   // switched on: white-hot at the bulb
-        '<path d="M-17 9 L17 9" stroke="#ffe3b4" stroke-width="1.3" opacity=".8"/></g>' +      // the rim catching its own light
-      '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>' +
+        '<path class="bulb-mouth" d="M-17 9 L17 9 L12 15 -12 15 Z" fill="url(#bulbMouth)" opacity=".95"/>' +   // switched on: white-hot at the bulb
+        '<path class="bulb-on" d="M-17 9 L17 9" stroke="#ffe3b4" stroke-width="1.3" opacity=".8"/></g>' +      // the rim catching its own light
+      '<circle class="bulb-on" cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>' +
       glint(hd[0]+4, hd[1]+11, 6, 2.2).replace('class="glint"', 'class="glint shine"');   // a star that holds still: see .glint.shine
     S.push('<g aria-hidden="true">' + lamp + "</g>");
   })();
@@ -3756,7 +3765,24 @@
      the commentary's numbers come later), so it stays findable when
      nothing else is.
      ================================================================ */
-  S.push('<g id="darkness" aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
+  /* The dark is two ways of being dark: a flat sheet (.dk-flat), and the
+     same sheet with a hole in it, the torch you found the switch with
+     (#torch). The hole is a gradient in the sheet's own space, so moving
+     the whole sheet moves the light, and on a layer of its own that move
+     is a composite: nothing in the room is painted again (a moving
+     gradient centre repainted the whole frame, 5.6 ms a move). The sheet
+     is a viewBox past the hole every way, so it covers the room wherever
+     the torch goes; the pool is laid down flat on the desk (.62), and a
+     breath of warm white rides in it, plain alpha, no blend. */
+  S.push('<g id="darkness" aria-hidden="true"><rect class="dk-flat" x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/>' +
+    '<g id="torch"><defs><radialGradient id="torchG" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="180" gradientTransform="scale(1 .62)">' +
+      '<stop offset="0" stop-color="#060403" stop-opacity="0"/><stop offset=".3" stop-color="#060403" stop-opacity=".04"/>' +
+      '<stop offset=".46" stop-color="#060403" stop-opacity=".18"/><stop offset=".52" stop-color="#060403" stop-opacity=".34"/>' +
+      '<stop offset=".7" stop-color="#060403" stop-opacity=".62"/><stop offset=".87" stop-color="#060403" stop-opacity=".82"/>' +
+      '<stop offset="1" stop-color="#060403" stop-opacity=".9"/></radialGradient>' +
+      '<radialGradient id="torchW" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffdcaa" stop-opacity=".10"/>' +
+      '<stop offset=".6" stop-color="#ffcf8a" stop-opacity=".04"/><stop offset="1" stop-color="#ffcf8a" stop-opacity="0"/></radialGradient></defs>' +
+      '<rect x="-1140" y="-820" width="2280" height="1640" fill="url(#torchG)"/><ellipse rx="120" ry="74" fill="url(#torchW)"/></g></g>');
 
 
   /* commentary note 5 — keep in step */
@@ -6464,6 +6490,11 @@
     if (next === lightsOut) return;
     lightsOut = next;
     mothAim(lightsOut);
+    /* the torch comes on with the dark, at the switch you just threw; it
+       goes out only once the lamp's light has filled the room again (.8 s),
+       or the hole would pop to a flat dark on the way */
+    if (lightsOut){ torchTo(369, 35, true); document.body.classList.add("torch-on"); }   // P(339,-30,120), the switch
+    else setTimeout(function(){ if (!lightsOut) document.body.classList.remove("torch-on"); }, REDUCED ? 0 : 820);
     document.body.classList.toggle("lights-out", lightsOut);
     // the light back on by hand: a #lights-out address no longer says true
     if (!lightsOut && /^#(lights-out|dark)$/i.test(location.hash)) address(null);
@@ -7133,6 +7164,54 @@
     if (SEEN){ wakeDust(); syncClock(); }
   }).observe(document.querySelector(".desk-wrap"));
   document.addEventListener("visibilitychange", function(){ wakeDust(); syncClock(); });
+
+  /* ---------------- a torch, for the dark ----------------
+     Lamp off, and you are still holding what you found the switch with:
+     the hole in the dark (#torch) follows the pointer a beat behind it,
+     held rather than pinned (70 ms), and snaps without motion, because it
+     is the visitor's own hand and not an animation. A finger has no
+     hover, so a tap puts the light down where it lands, and picks up
+     whatever is there (the tap's own click): you found it in the dark,
+     which is the point. A pan moves the desk, not the light. The keyboard
+     gets light where its focus is. The rest of the room keeps its own
+     lights (the moon, the well, the lithophane, the wall's words). */
+  var torchEl = document.getElementById("torch"), TORCH = {x:369, y:35, tx:369, ty:35, raf:0, last:0};
+  function toUser(cx, cy){
+    var m = isoEl.getScreenCTM(); if (!m) return null;
+    var q = new DOMPoint(cx, cy).matrixTransform(m.inverse()); return [q.x, q.y];
+  }
+  function torchTick(now){
+    var dt = now - (TORCH.last || now - 16); TORCH.last = now;
+    var k = REDUCED ? 1 : 1 - Math.exp(-dt / 70);
+    TORCH.x += (TORCH.tx - TORCH.x) * k; TORCH.y += (TORCH.ty - TORCH.y) * k;
+    var done = Math.abs(TORCH.tx - TORCH.x) + Math.abs(TORCH.ty - TORCH.y) < .3;
+    if (done){ TORCH.x = TORCH.tx; TORCH.y = TORCH.ty; }
+    torchEl.style.transform = "translate(" + TORCH.x.toFixed(1) + "px," + TORCH.y.toFixed(1) + "px)";
+    TORCH.raf = done ? 0 : requestAnimationFrame(torchTick);
+    if (done) TORCH.last = 0;
+  }
+  function torchTo(x, y, snap){
+    if (!torchEl) return;
+    TORCH.tx = x; TORCH.ty = y;
+    if (snap){ TORCH.x = x; TORCH.y = y; }
+    if (!TORCH.raf) TORCH.raf = requestAnimationFrame(torchTick);
+  }
+  if (torchEl){
+    scene.addEventListener("pointermove", function(e){
+      if (!lightsOut || e.pointerType === "touch" || activeModal()) return;   // under a sheet, your hand is busy
+      var q = toUser(e.clientX, e.clientY); if (q) torchTo(q[0], q[1]);
+    });
+    scene.addEventListener("pointerdown", function(e){
+      if (!lightsOut) return;
+      var q = toUser(e.clientX, e.clientY); if (q) torchTo(q[0], q[1], e.pointerType !== "mouse");
+    });
+    document.addEventListener("focusin", function(e){
+      if (!lightsOut || !e.target.closest) return;
+      var o = e.target.closest(".iso-obj, #eggWall"); if (!o) return;
+      var r = o.getBoundingClientRect(), q = toUser(r.left + r.width / 2, r.top + r.height / 2);
+      if (q) torchTo(q[0], q[1]);
+    });
+  }
 
   /* ---------------- addresses: a link lands on the thing ----------------
      #hive opens Hive Mind, #lights-out arrives in the dark, #2026 in
