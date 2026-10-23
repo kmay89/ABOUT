@@ -41,7 +41,8 @@
         node tools/desk-check.js            compare against them
         --update-perf                       re-measure the frozen idle reference (below);
                                             never needed after the first run on a machine
-        --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone)
+        --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone,
+                                            --only=sky: the moon's and the quiet clocks')
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
 
@@ -244,7 +245,7 @@ async function openDesk(browser, o) {
     }
     window.Date = FixedDate;
     try { sessionStorage.setItem("km_lit", "1"); } catch (e) {}
-  }, FIXED_NOW);
+  }, o.now || FIXED_NOW);
   const page = await ctx.newPage();
   const tag = o.name || "page";
   page.on("console", (m) => {
@@ -484,6 +485,80 @@ async function dom(browser) {
   });
   if (!sleep.gated) notYet("the sleep gate pauses the room under a sheet", "body.modal-open");
   else ok("the sleep gate pauses the room under a sheet", sleep.st.length && sleep.st.every((s) => s === "paused"), ".steam: " + sleep.st.join(","));
+  await ctx.close();
+}
+
+/* =================================================================== sky
+   Tonight's moon (B5) and the three quiet clocks (B6). Like the light's
+   tests, these compare the room with itself or with the date, so they need
+   no baselines.
+   1. The run's fixed evening (22 Oct 2026) is a waxing gibbous: the moon is
+      lit on the right, and the beam's --moonk is .45 + .55 × 0.88. On a new
+      moon (9 Nov 2026) the disc has no lit part and the beam rests at
+      .8 × .45 ≈ .36.
+   2. Exactly three loops run with nobody pointing that weren't there before:
+      the tube's cursor, black's clock and the shooting star. The clock's lap
+      is this minute's seconds, and still is after a sheet has paused it.
+   3. With less motion none of the three runs: the star is gone, the cursor
+      is on. */
+const SKY_NEW_MOON = Date.UTC(2026, 10, 9, 21, 0, 0);
+async function sky(browser) {
+  console.log("\n──  the sky and the quiet clocks");
+  /* 37 s past the run's minute, so a clock that merely started at load can't pass */
+  let { ctx, page } = await openDesk(browser, { name: "sky", dpr: 1, now: FIXED_NOW + 37000 });
+  const r = await page.evaluate(() => {
+    const win = document.querySelector('.iso-obj[data-id="outside"]');
+    const disc = win && win.querySelector('circle[fill="#2b3254"]');
+    const lit = disc && disc.parentNode.querySelector("path");
+    const moon = document.getElementById("moon");
+    const loops = (sel) => { const e = document.querySelector(sel); return e ? e.getAnimations().filter((a) => a.playState === "running").length : -1; };
+    const t = document.querySelector("#iso .tick"), a = t && t.getAnimations()[0], d = new Date();
+    return {
+      disc: !!disc, cx: disc && +disc.getAttribute("cx"), litBox: lit && (() => { const b = lit.getBBox(); return [b.x, b.width]; })(),
+      moonk: moon && +getComputedStyle(moon).getPropertyValue("--moonk"),
+      cur: loops("#crtOS .cur"), tick: loops("#iso .tick"), shoot: loops("#iso .shoot"),
+      lap: a ? a.currentTime % 60000 : null, now: d.getSeconds() * 1000 + d.getMilliseconds()
+    };
+  });
+  const litMid = r.litBox ? r.litBox[0] + r.litBox[1] / 2 : null;
+  ok("B5 the 22 Oct 2026 moon is waxing gibbous, lit on the right", r.disc && litMid > r.cx + 1 && r.litBox[1] > 14,
+    r.litBox ? "lit part " + r.litBox[0].toFixed(1) + "+" + r.litBox[1].toFixed(1) + " about cx " + r.cx : "no lit path");
+  ok("B5 its beam is as strong as it is full", Math.abs(r.moonk - (0.45 + 0.55 * 0.88)) < 0.02, "--moonk " + r.moonk);
+  ok("B6 the cursor, the chess clock and the shooting star run at rest", r.cur === 1 && r.tick === 1 && r.shoot === 1,
+    "cursor " + r.cur + ", clock " + r.tick + ", star " + r.shoot);
+  const off = (lap, now) => { const d = Math.abs(lap - now) % 60000; return Math.min(d, 60000 - d); };
+  ok("B6 the clock's lap is this minute's seconds", r.lap !== null && off(r.lap, r.now) < 1000, Math.round(r.lap) + " vs " + r.now + " ms");
+  /* under a sheet the clock stops; when the sheet goes it catches up */
+  const s = await page.evaluate(async () => {
+    document.querySelector('.iso-obj[data-id="hive"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 2500));
+    const a = document.querySelector("#iso .tick").getAnimations()[0];
+    const held = getComputedStyle(document.querySelector("#iso .tick")).animationPlayState;
+    document.getElementById("dClose").click();
+    await new Promise((r) => setTimeout(r, 400));
+    const d = new Date();
+    return { held, lap: a.currentTime % 60000, now: d.getSeconds() * 1000 + d.getMilliseconds() };
+  });
+  ok("B6 a sheet holds the clock, and it catches up after", s.held === "paused" && off(s.lap, s.now) < 1000,
+    s.held + ", " + Math.round(s.lap) + " vs " + s.now + " ms");
+  await ctx.close();
+
+  ({ ctx, page } = await openDesk(browser, { name: "sky-new", dpr: 1, now: SKY_NEW_MOON }));
+  const n = await page.evaluate(() => {
+    const disc = document.querySelector('.iso-obj[data-id="outside"] circle[fill="#2b3254"]');
+    return { lit: disc ? disc.parentNode.querySelectorAll("path").length : -1, op: +getComputedStyle(document.getElementById("moon")).opacity };
+  });
+  ok("B5 a new moon has no lit part, and a beam at .36", n.lit === 0 && Math.abs(n.op - 0.36) < 0.02, "lit paths " + n.lit + ", #moon opacity " + n.op);
+  await ctx.close();
+
+  ({ ctx, page } = await openDesk(browser, { name: "sky-reduced", dpr: 1, reduced: true }));
+  const q = await page.evaluate(() => {
+    const n = (sel) => { const e = document.querySelector(sel); return e ? e.getAnimations().length : -1; };
+    return { anims: n("#crtOS .cur") + n("#iso .tick") + n("#iso .shoot"),
+      star: getComputedStyle(document.querySelector("#iso .shoot")).opacity, cur: getComputedStyle(document.querySelector("#crtOS .cur")).opacity };
+  });
+  ok("B6 with less motion: no clocks run, the star is gone, the cursor is on", q.anims === 0 && q.star === "0" && q.cur === "1",
+    "animations " + q.anims + ", star " + q.star + ", cursor " + q.cur);
   await ctx.close();
 }
 
@@ -1105,8 +1180,11 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await voices(browser); }
-    else if (ONLY.includes("light")) await light(browser);      // --only=light: just the lamp's tests
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await voices(browser); }
+    else {
+      if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
+      if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
+    }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
     await browser.close();
