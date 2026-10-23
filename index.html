@@ -6972,7 +6972,7 @@
     CAM.live = true;
     document.body.classList.add("cam-live");
     document.getElementById("scene").addEventListener("pointermove", function(e){
-      if (REDUCED || activeModal()) return;       // nobody is looking at the room from under a sheet
+      if (REDUCED || activeModal() || e.pointerType === "touch") return;   // not from under a sheet, nor a finger on a touch laptop
       CAM.tx = e.clientX / innerWidth - .5; CAM.ty = e.clientY / innerHeight - .5;
       camWake();
     });
