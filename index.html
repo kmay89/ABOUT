@@ -2443,11 +2443,11 @@
      thing, which says "it touches the desk" and nothing about the light.
      These say where the light is. Each footprint is swept away from the
      mouth of the shade, LAMP_L, and the sweep is wrapped in a convex hull
-     (Andrew's monotone chain), so every shadow on the desk fans out from
-     the one lamp. A lamp this close would throw them yards long; we keep
-     the direction honest, because that is what the eye checks, and cheat
-     the length to between a third and a half of the height, because that
-     is what would bury the desk. No blur either: three hulls, each shorter
+     (Andrew's monotone chain), so every cast shadow on the desk fans out
+     from the one lamp. A lamp this close would throw them yards long; we
+     keep the direction honest, because that is what the eye checks, and
+     cheat the length to between a third and a half of the height,
+     because that is what would bury the desk. No blur either: three hulls, each shorter
      and inset a unit more than the last, overlap into a dark core that
      fades in steps toward the tip, a penumbra for the price of three
      polygons. And not even that many: every shadow of the same darkness at
@@ -3836,10 +3836,10 @@
      of eight and a half seconds, and once a lap it bumps into the shade
      and reels off it. Its wings beat two and a half times a second, under the
      3 Hz line, which is slow for a moth and right for a drawing of one.
-     Throw the switch and it leaves for the one light still on, the
-     lithophane, and settles over the picture's moon: the flight is two
-     transitions on two wrappers, across slow-fast-slow and up with an
-     overshoot, so it climbs past the moon and drops onto it rather than
+     Throw the switch and it leaves for the lithophane's glow, and settles
+     over the picture's moon: the flight is two transitions on two
+     wrappers, across slow-fast-slow and up with an overshoot, so it
+     climbs past the moon and drops onto it rather than
      sliding there in a straight line. Once it lands it turns into the
      plane of the wall and fans its wings slowly. In the dark it is a
      silhouette (a dark copy of the wings fades in over the pale ones),
@@ -4234,7 +4234,7 @@
     {id:null, at:[560,380,0], off:[36,-8],
      title:"The whole camera is one line",
      chips:["2:1 dimetric","P(x, y, z)","Painter's algorithm","No depth buffer"],
-     story:"Every point in this room reaches your screen as x − y across and (x + y)/2 − z down, and that's the entire camera — the 2:1 projection the old isometric games used. There's no depth buffer, either. One thing is behind another only because it was drawn first, so the order of the code is the order of the room: move a line and you move a thing through space."},
+     story:"Every point in this room reaches your screen as x\u00a0−\u00a0y across and (x\u00a0+\u00a0y)/2\u00a0−\u00a0z down, and that's the entire camera — the 2:1 projection the old isometric games used. There's no depth buffer, either. One thing is behind another only because it was drawn first, so the order of the code is the order of the room: move a line and you move a thing through space."},
     {id:"series", at:[444,62,56], off:[0,-34],
      title:"A hundred boxes, three gradients",
      chips:["Two-pass faces","Light ramps","Lamp hairlines"],
@@ -4243,14 +4243,14 @@
      title:"The one thing you throw",
      chips:["Drawn after the dark","Glow-in-the-dark"],
      story:"Everything else here is a world you pick up; this one you just flip. It's drawn after the darkness, the last thing in the room, so it stays findable when nothing else is — and its plate has the glow-in-the-dark ring, which is the whole point of buying those. Turn it off and the room is finally dark enough to read the wall."},
-    {id:null, at:[290,-30,110], off:[0,0],
+    {id:null, at:[250,-30,116], off:[40,26],
      title:"Only after dark",
      chips:["Photinus pyralis","A J in the air","Off while the lamp is on"],
-     story:"Turn the light off and the room gets a night of its own. The meadow fills with fireflies — Photinus pyralis, whose male flashes as he swoops, so each flash draws a little J in the air: eighteen males in two broods, one flash every five or six seconds, and six females in the grass who answer about two seconds late, which is how he knows it's her. The moth that's been circling the lamp leaves for the one light still on, the lithophane, and settles on its moon. And while the lamp is on the fireflies don't run at all: they aren't just dark, they're switched off."},
+     story:"Turn the light off and the room gets a night of its own. The meadow fills with fireflies — Photinus pyralis, whose male flashes as he swoops, so each flash draws a little J in the air: eighteen males in two broods, one flash every five or six seconds, and six females in the grass who answer about two seconds late, which is how he knows it's her. The moth that's been circling the lamp leaves for the lithophane's glow and settles on its moon. And while the lamp is on the fireflies don't run at all: they aren't just dark, they're switched off."},
     {id:"outside", at:[12,-30,128], off:[0,0],
      title:"Moonlight, cast",
      chips:["Projected light","Mullion shadow","Tonight's phase"],
-     story:"Each corner of the window is carried along one light direction — a little right, into the room, and down — until it lands on the desk, so the patch of moonlight is the window's own shape, mullion shadow and all. It's drawn after the darkness, because the moon has never cared about a light switch. And it's tonight's moon: the phase is worked out from today's date, and the moonlight is as strong as the moon is full."},
+     story:"Each corner of the window is carried along one light direction — a little right, into the room, and down — until it lands on the desk, so the patch of moonlight is the window's own shape, mullion shadow and all. It's drawn after the darkness, because the moon has never cared about a light switch. And it's tonight's moon: the phase is worked out from today's date, and the fuller it is, the stronger its light."},
     {id:null, at:[10,-30,30], off:[0,0],
      title:"A lens full of dust",
      chips:["Three depths","Pre-rendered sprites","Lit by the room"],
@@ -4262,11 +4262,11 @@
     {id:null, at:[112,152,90], off:[0,-44],
      title:"Light, not things",
      chips:["Screen blending","Lens ghosts","Soft-light grade","Key and fill"],
-     story:"Everything drawn after the objects is light rather than stuff: a beam hanging in dusty air, a bloom on the bulb, an anamorphic streak and two lens ghosts — the camera noticing the lamp. All of it is screen-blended, so it can only ever add. Then one soft-light grade pulls the frame together, amber where the lamp reaches and teal where it doesn't: a film set's key and fill, played by a desk lamp and the moon. And the lamp is the key in the other sense too: every shadow on the desk falls away from its shade."},
-    {id:null, at:[118,158,84], off:[-6,26],
+     story:"Everything drawn after the objects is light rather than stuff: a beam hanging in dusty air, a bloom on the bulb, an anamorphic streak and two lens ghosts — the camera noticing the lamp. All of it is screen-blended, so it can only ever add. Then one soft-light grade pulls the frame together, amber where the lamp reaches and teal where it doesn't: a film set's key and fill, played by a desk lamp and the moon."},
+    {id:null, at:[118,158,84], off:[-30,14],
      title:"Every shadow knows where the lamp is",
      chips:["One point light","Convex hulls","A penumbra in three steps"],
-     story:"Each shadow is its thing's footprint swept away from one point, the mouth of the lamp's shade, and wrapped in a convex hull, so every shadow on the desk fans out from the one lamp. A lamp this close would throw them yards long: the direction is kept honest, because that's what the eye checks, and the length is cheated, because that's what would bury the desk. There's no blur. Three hulls, each shorter and inset a little more than the last, overlap into a dark core that fades in steps toward the tip, and every shadow of the same darkness shares one path."},
+     story:"Under each thing there's a soft contact shade that falls straight down and only says it touches the desk. The cast shadow over it is the thing's footprint swept away from one point, the mouth of the lamp's shade, and wrapped in a convex hull, so every cast shadow on the desk fans out from the one lamp. A lamp this close would throw them yards long: the direction is kept honest, because that's what the eye checks, and the length is cheated, because that's what would bury the desk. The cast shadow has no blur: three hulls, each shorter and inset a little more than the last, overlap into a dark core that fades in steps toward the tip, and every shadow of the same darkness shares one path."},
     {id:"prism", at:[100,140,10], off:[0,0],
      title:"Forty wedges of glass",
      chips:["Dispersion","Radial mask"],
@@ -4278,15 +4278,15 @@
     {id:"domino", at:[40,290,10], off:[-6,-30],
      title:"Sorted by x + y",
      chips:["Depth sort","Occlusion budget"],
-     story:"Nearer the viewer means a larger x + y, so the loose bones are sorted by it before they're drawn — that one sort is the entire depth system for this pile. They also all keep to y < 300, because the Rubik's cube was drawn first and its tall top owns the patch of screen just above it."},
+     story:"Nearer the viewer means a larger x\u00a0+\u00a0y, so the loose bones are sorted by it before they're drawn — that one sort is the entire depth system for this pile. They also all keep to y\u00a0<\u00a0300, because the Rubik's cube was drawn first and its tall top owns the patch of screen just above it."},
     {id:"chili", at:[127,281,13], off:[-40,-8],
      title:"Why the chili is exactly there",
      chips:["Placement by projection"],
      story:"Where the bowl sits isn't taste. The doll box beside it stands 44 units tall, which lifts its top a long way up the screen, and a bowl set down anywhere inside that lifted footprint would be painted over the box and read as floating in mid-air. This gap clears it by a hair — and clears the lamp's base, a dark disc that would look exactly like a saucer."},
     {id:"well", at:[354,351,14], off:[-26,34],
      title:"The only perspective in the room",
-     chips:["1/(1 + 5·depth)","Painted largest first"],
-     story:"A 2:1 projection can't show you down a shaft: anything past two-thirds of the radius drops behind the front lip. So the inside of the well gets the one thing nothing else here has — perspective. Eleven courses of stone, each drawn smaller by 1/(1 + 5·depth), slid toward a vanishing point low in the mouth and painted largest first, so a crescent of every one shows at the back. It's deeper than it could possibly be, on purpose."},
+     chips:["1/(1\u00a0+\u00a05·depth)","Painted largest first"],
+     story:"A 2:1 projection can't show you down a shaft: anything past two-thirds of the radius drops behind the front lip. So the inside of the well gets the one thing nothing else here has — perspective. Eleven courses of stone, each drawn smaller by 1/(1\u00a0+\u00a05·depth), slid toward a vanishing point low in the mouth and painted largest first, so a crescent of every one shows at the back. It's deeper than it could possibly be, on purpose."},
     {id:"vinyl", at:[428,332,5], off:[-34,48],
      title:"A rainbow that's really a bow-tie",
      chips:["Diffraction","cos(2θ)^2.2"],
@@ -4294,27 +4294,37 @@
     {id:null, at:[176,212,10], off:[10,-30],
      title:"Not one sound file",
      chips:["Oscillators","Filtered noise","Gesture-gated"],
-     story:"Every tick, clack and chord on this page is synthesized the moment you hear it — oscillators and filtered noise, a few lines each, nothing downloaded. The light switch is a 14-millisecond burst of hiss above 2.8 kHz, a square wave falling from 430 to 170 Hz, and a low thump; the keyboard answers with a key click, the chess board with a piece lifted off the felt. Nothing plays until you've touched the page."}
+     story:"Every tick, clack and chord on this page is synthesized the moment you hear it — oscillators and filtered noise, a few lines each, nothing downloaded. The light switch is a 14-millisecond burst of hiss above 2.8\u00a0kHz, a square wave falling from 430 to 170\u00a0Hz, and a low thump; the keyboard answers with a key click, the chess board with a piece lifted off the felt. Nothing plays until you've touched the page."}
   ];
   /* Their numbers, drawn into the layer the scene left for them, last.
      A pin and a dashed leader where the number had to be moved off what
-     it explains; the disc reads on the brightest wood and in the dark. */
+     it explains; the disc reads on the brightest wood and in the dark.
+     Under a finger the disc grows by a third and the hit circle to r 35
+     (about 44 CSS px on a phone), but never past halfway to the next
+     number: a later node is drawn over an earlier one, so an overlap would
+     hand the earlier one's taps to its neighbour. */
   (function(){
-    var big = matchMedia("(pointer:coarse)").matches ? 35 : 18,   // r 18 is about 23 CSS px on a phone; a finger wants 44
+    var coarse = matchMedia("(pointer:coarse)").matches, k = coarse ? 1.3 : 1,
         esc = function(s){ return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); },
         s = "";
+    var Q = NOTES.map(function(nt){
+      var a = P(nt.at[0], nt.at[1], nt.at[2]);
+      return {a: a, q: [a[0] + nt.off[0], a[1] + nt.off[1]]};
+    });
     NOTES.forEach(function(nt, i){
-      var a = P(nt.at[0], nt.at[1], nt.at[2]), q = [a[0] + nt.off[0], a[1] + nt.off[1]], n = i + 1;
+      var a = Q[i].a, q = Q[i].q, n = i + 1, near = Infinity;
+      Q.forEach(function(o, j){ if (j !== i) near = Math.min(near, Math.hypot(o.q[0] - q[0], o.q[1] - q[1])); });
+      var big = n1(Math.min(coarse ? 35 : 18, near / 2));
       if (nt.off[0] || nt.off[1])
         s += '<g aria-hidden="true" style="pointer-events:none"><line x1="' + n1(a[0]) + '" y1="' + n1(a[1]) + '" x2="' + n1(q[0]) + '" y2="' + n1(q[1]) +
           '" stroke="#ffc97a" stroke-width=".8" stroke-dasharray="2 2" opacity=".8"/><circle cx="' + n1(a[0]) + '" cy="' + n1(a[1]) + '" r="1.8" fill="#ffc97a"/></g>';
       s += '<g class="cnode" data-n="' + n + '" tabindex="-1" role="button" aria-label="Note ' + n + ' of ' + NOTES.length + ': ' + esc(nt.title) +
         '" transform="translate(' + n1(q[0]) + ' ' + n1(q[1]) + ')">' +
         '<circle class="chit" r="' + big + '" fill="transparent"/>' +
-        '<circle r="12.6" fill="rgba(0,0,0,.3)"/>' +
-        '<circle class="cfoc" r="14.4" fill="none" stroke="none" stroke-width="1.2"/>' +
-        '<circle class="cdisc" r="10.5" fill="rgba(14,10,7,.88)" stroke="#ffc97a" stroke-width="1.2"/>' +
-        txt(0, 3.4, String(n), 9, "#ffc97a", 'text-anchor="middle" ' + MONO) + '</g>';
+        '<circle r="' + n1(12.6 * k) + '" fill="rgba(0,0,0,.3)"/>' +
+        '<circle class="cfoc" r="' + n1(14.4 * k) + '" fill="none" stroke="none" stroke-width="1.2"/>' +
+        '<circle class="cdisc" r="' + n1(10.5 * k) + '" fill="rgba(14,10,7,.88)" stroke="#ffc97a" stroke-width="1.2"/>' +
+        txt(0, n1(3.4 * k), String(n), n1(9 * k), "#ffc97a", 'text-anchor="middle" ' + MONO) + '</g>';
     });
     document.getElementById("commLayer").innerHTML = s;
   })();
@@ -5256,11 +5266,14 @@
      the same sheet as a world, under the same walker, which in note mode
      goes round the notes in a loop. A note is read, not found, so it
      never marks anything found. The switch is remembered from visit to
-     visit, the way the sound is; off is where everyone starts. */
+     visit, the way the sound is; off is where everyone starts. Only a
+     choice is remembered (the chip, the tour's last stop, the one-page
+     version's link): someone who followed a #notes address someone sent
+     them sees the notes this once, not on every visit after. */
   var commBtn = document.getElementById("commBtn");
   var cnodes = document.querySelectorAll("#commLayer .cnode");
   var commOn = false;
-  function setCommentary(on, quiet){
+  function setCommentary(on, quiet, passing){
     commOn = !!on;
     document.body.classList.toggle("commentary", commOn);
     commBtn.setAttribute("aria-pressed", commOn ? "true" : "false");
@@ -5268,7 +5281,7 @@
     /* a tab stop only while it can be seen, after every thing on the desk */
     [].forEach.call(cnodes, function(c){ c.setAttribute("tabindex", commOn ? "0" : "-1"); });
     if (!quiet && SOUNDS.hover) SOUNDS.hover();
-    try { localStorage.setItem("km_comm", commOn ? "1" : "0"); } catch(e){}
+    if (!passing) try { localStorage.setItem("km_comm", commOn ? "1" : "0"); } catch(e){}
   }
   commBtn.parentNode.hidden = false;
   commBtn.addEventListener("click", function(){ ac(true); setCommentary(!commOn); });
@@ -5281,7 +5294,7 @@
     var nt = NOTES[n - 1]; if (!nt) return;
     endTour(true);
     if (activeModal() && activeModal() !== dossier){ handoff = true; closeModal(); handoff = false; }
-    if (!commOn) setCommentary(true, true);
+    if (!commOn) setCommentary(true, true, true);
     var node = cnodes[n - 1], a = document.activeElement;
     /* a note swapped in place keeps what opened the first; an address
        pressed nothing, so the way back is the note's own number */
@@ -5305,7 +5318,8 @@
          (the window and the garden are both the world outside) only the
          first on show is lit */
       pickObjects(nt.id, 0, dossier);
-      pickedEls = pickedEls.filter(function(el){ return el === aimedEl || !el.classList.remove("picked"); });
+      pickedEls.forEach(function(el){ if (el !== aimedEl) el.classList.remove("picked"); });
+      pickedEls = aimedEl ? [aimedEl] : [];
     } else {
       /* the light takes in the number and the pin it was moved off */
       clearPicked();
@@ -7064,7 +7078,7 @@
     if (h === "1999"){ eraLand(false); return; }
     var m = /^notes?(?:-(\d{1,2}))?$/.exec(h);
     if (m){
-      setCommentary(true, true);
+      setCommentary(true, true, true);
       if (m[1]) openNote(Math.min(NOTES.length, Math.max(1, +m[1])));
       return;
     }
