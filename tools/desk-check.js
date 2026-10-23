@@ -504,6 +504,60 @@ async function dom(browser) {
    3. With less motion none of the three runs: the star is gone, the cursor
       is on. */
 const SKY_NEW_MOON = Date.UTC(2026, 10, 9, 21, 0, 0);
+/* A12 + B7: the director's commentary. The chip draws one numbered node
+   per note, the nodes are tab stops only while drawn, Enter on one opens
+   its note on the dossier with the walker in note mode (a loop), and the
+   nodes are drawn after the dark, hold still and never mark anything found. */
+async function commentary(browser) {
+  console.log("\n──  the director's commentary");
+  let { ctx, page } = await openDesk(browser, { name: "commentary", dpr: 1, query: "?probe" });
+  const st = () => page.evaluate(() => ({
+    on: document.body.classList.contains("commentary"),
+    nodes: document.querySelectorAll("#commLayer .cnode").length,
+    notes: window.__desk && window.__desk.NOTES ? window.__desk.NOTES.length : -1,
+    tabs: [...document.querySelectorAll("#commLayer .cnode")].filter((n) => n.getAttribute("tabindex") === "0").length,
+    open: !document.getElementById("dossier").hidden, kicker: document.getElementById("dKicker").textContent,
+    pos: document.getElementById("dPos").textContent, hash: location.hash,
+    active: document.activeElement && document.activeElement.getAttribute("data-n"),
+    found: localStorage.getItem("km_found"), anims: [...document.querySelectorAll("#commLayer *")].reduce((k, e) => k + e.getAnimations().length, 0)
+  }));
+  let r = await st();
+  ok("A12 off by default: no node is a tab stop", !r.on && r.tabs === 0, r.tabs + " tab stops");
+  if (!(await page.isVisible("#commBtn"))) { ok("A12 the commentary chip shows in the legend", false); await ctx.close(); return; }
+  await page.click("#commBtn"); await page.waitForTimeout(150);
+  r = await st();
+  const N = r.notes;
+  ok("A12 #commBtn draws one node per note, each a tab stop", r.on && N > 0 && r.nodes === N && r.tabs === N, r.nodes + " nodes, " + N + " notes");
+  await page.focus('#commLayer .cnode[data-n="13"]'); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
+  r = await st();
+  ok("A12 Enter on node 13 opens its note", r.open && /Director's commentary/.test(r.kicker) && r.pos === "13 / " + N && r.hash === "#notes-13",
+    r.kicker + " · " + r.pos + " · " + r.hash);
+  const walked = [];
+  for (let i = 0; i < N; i++) { await page.keyboard.press("ArrowRight"); await page.waitForTimeout(120); walked.push((await st()).pos.split(" ")[0]); }
+  const want = Array.from({ length: N }, (_, i) => String((13 + i) % N + 1));
+  ok("A12 the arrows walk every note and come round", walked.join(",") === want.join(","), walked.join(","));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(600);
+  r = await st();
+  ok("A12 closing a note leaves the commentary on and the focus on its node", !r.open && r.on && r.active === "13", "focus on " + r.active);
+  ok("A12 nothing is marked found, and nothing in the layer moves", (!r.found || r.found === "[]") && r.anims === 0, "found " + r.found + ", " + r.anims + " animations");
+  await page.click('.iso-obj[data-id="switch"]'); await page.waitForTimeout(400);
+  const top = await page.evaluate(() => {
+    const n = document.querySelector('#commLayer .cnode[data-n="1"] .cdisc').getBoundingClientRect();
+    const e = document.elementFromPoint(n.left + n.width / 2, n.top + n.height / 2);
+    return e && e.closest("#commLayer") ? "the node" : e ? (e.id || e.tagName) : "nothing";
+  });
+  ok("B7 lights out, a node is still the top thing where it stands", top === "the node", top);
+  await ctx.close();
+  ({ ctx, page } = await openDesk(browser, { name: "commentary-phone", width: 390, height: 844, dpr: 1, touch: true }));
+  const rad = await page.getAttribute('#commLayer .cnode[data-n="1"] .chit', "r");
+  ok("A12 a finger gets a 35-unit hit circle", rad === "35", "r " + rad);
+  await ctx.close();
+  ({ ctx, page } = await openDesk(browser, { name: "commentary-route", dpr: 1, query: "#notes-5" }));
+  r = await st();
+  ok("A8 #notes-5 turns the commentary on and opens note 5", r.on && r.open && /^5 \//.test(r.pos), r.pos);
+  await ctx.close();
+}
+
 async function sky(browser) {
   console.log("\n──  the sky and the quiet clocks");
   /* 37 s past the run's minute, so a clock that merely started at load can't pass */
@@ -1220,10 +1274,11 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await voices(browser); }
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await voices(browser); }
     else {
       if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
       if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
+      if (ONLY.includes("commentary")) await commentary(browser);   // --only=commentary: the notes
     }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
