@@ -495,11 +495,11 @@ async function dom(browser) {
    photographs above only ever see one hover, so this part checks them all.
 
    1. The lift vocabulary: the keyboard is `still` and its keys ripple; a
-      thing that hasn't got its own voice yet still rises the plain 8 px.
+      thing that is simply picked up (the novel) rises the plain 8 px.
    2. The sounds, with a counting AudioContext in place of a real one: one
       voice on the keyboard is one key click (an oscillator and a noise
       burst), and a fast sweep is held to one voice per 90 ms.
-   3. The hero dozen, each photographed at rest and reacting, compared with
+   3. The hero dozen and the rest of the desk, each photographed at rest and reacting, compared with
       itself in the same page, so no baseline is needed: more than 0.3 % of
       its crop has to change, with motion and without it. The room's own
       loops are held still for both pictures, so only the reaction counts;
@@ -514,7 +514,13 @@ const HEROES = [
   ["camera 1999", '[data-id="cam"].era-old', "old"], ["keypad", '[data-id="scqcs"]', "old"],
   ["tee", '[data-voice="tee"]', "old"], ["printer", '[data-voice="printer"]', "old"],
   ["luma", '[data-id="luma"]', "old"], ["window", '[data-voice="window"]', "old"],
-  ["drone", '[data-voice="drone"]', "now"], ["camera 2026", '[data-id="cam"].era-now', "now"]
+  ["drone", '[data-voice="drone"]', "now"], ["camera 2026", '[data-id="cam"].era-now', "now"],
+  /* batch 2: the rest of the desk */
+  ["rig", '[data-id="web"]', "now"], ["Lupita", '[data-id="toy"]', "old"], ["sunrise", '[data-id="sun"]', "old"],
+  ["chili", '[data-id="chili"]', "old"], ["uTap", '[data-id="utap"]', "old"], ["series", '[data-id="series"]', "old"],
+  ["cube", '[data-id="cube"]', "old"], ["pot", '[data-voice="garden"]', "old"], ["spiral", '[data-id="puzzle"]', "old"],
+  ["boule", '[data-voice="boule"]', "old"], ["loupe", '[data-voice="prints"]', "old"], ["dominoes", '[data-id="domino"]', "old"],
+  ["console", '[data-id="library"]', "old"], ["Game Boy", '[data-id="hive"]', "old"], ["shard", '[data-id="mandel"]', "old"]
 ];
 const RX_MIN = 0.003;
 
@@ -571,11 +577,13 @@ async function voices(browser) {
     ok("D one hover on the keyboard is one key click", a1.osc - a0.osc === 1 && a1.buf - a0.buf === 1,
       (a1.osc - a0.osc) + " oscillator, " + (a1.buf - a0.buf) + " buffer source");
   }
-  const hive = await centreOf(page, '.iso-obj[data-id="hive"]');
-  await page.mouse.move(hive.x, hive.y);
+  /* the plain lift: since batch 2 the novel on the left is the one thing
+     that answers with it alone (its sun rises inside the lifted book) */
+  const plain = await centreOf(page, '.iso-obj[data-id="sun"]');
+  await page.mouse.move(plain.x, plain.y);
   await page.waitForTimeout(700);
-  const hiveT = await page.evaluate(() => getComputedStyle(document.querySelector('.iso-obj[data-id="hive"] > g')).transform);
-  ok("A11 a thing without its own voice yet (the Game Boy) rises the plain 8 px", /,\s*-8\)$/.test(hiveT), hiveT);
+  const plainT = await page.evaluate(() => getComputedStyle(document.querySelector('.iso-obj[data-id="sun"] > g')).transform);
+  ok("A11 a thing that is simply picked up (the novel) rises the plain 8 px", /^matrix\(1, 0, 0, 1, 0, -8\)$/.test(plainT), plainT);
   /* the well's light shows through the dark on its own night copy, which
      has to swell with it: today by a `~` selector, after A13 by the JS lift */
   const night = await page.evaluate(async () => {

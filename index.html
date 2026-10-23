@@ -322,6 +322,54 @@
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-fire{transform:scale(1.35,1.5)}
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-pane{opacity:.22}
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-ember{opacity:.55}
+  /* ...and the rest of the desk. Same rules: a pose on a wrapper, sized to
+     its own box, and anything that loops is in the motion gate. Where a
+     thing turns on its own centre rather than its box's (the spiral's is
+     off to one side; the shard's rosette has seven points), the box is
+     the drawing's own space and the origin its true centre. */
+  .rx-cursor,.rx-book,.rx-box,.rx-sunrise,.rx-fence,.rx-pin,.rx-top,.rx-fly,.rx-loupe,.rx-crown,.rx-pad,.rx-float,.vent{transform-box:fill-box;transform-origin:50% 50%}
+  .rx-book,.rx-box{transform-origin:50% 100%}            /* lifted by the near edge, as a hand would */
+  .rx-spiral{transform-box:view-box;transform-origin:45px 45px}
+  .rx-spin{transform-box:view-box;transform-origin:0 0}
+  .rx-twist{transform-box:view-box;transform-origin:12.8px 12.8px}    /* the middle of the stickers */
+  /* the rig's cursor drifts up to a thumbnail, which takes a ring, and the screen wakes */
+  .iso-obj[data-id="web"]:is(:hover,:focus-visible,.rx) .rx-cursor{transform:translate(10px,-43px)}
+  .iso-obj[data-id="web"]:is(:hover,:focus-visible,.rx) .th{opacity:1}
+  .iso-obj[data-id="web"]:is(:hover,:focus-visible,.rx) .rx-pick{opacity:.9}
+  /* two things, picked up one after the other: the book, then the doll's box */
+  .iso-obj[data-id="toy"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:none}
+  .iso-obj[data-id="toy"]:is(:hover,:focus-visible,.rx,.picked) .rx-book{transform:translateY(-8px) rotate(-1.5deg)}
+  .iso-obj[data-id="toy"]:is(:hover,:focus-visible,.rx,.picked) .rx-box{transform:translateY(-5px)}
+  /* the book lifts, and on its cover the sun comes up out of the sea */
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-sunrise{transform:translateY(-2px)}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-rays{opacity:1}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-road{opacity:.5}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-halo{opacity:.38}
+  /* a full bowl comes up only a little, and its steam runs hot (in the gate) */
+  .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-2px)}
+  /* the phone comes up in the hand, a little turned; its fence and pin come alive (in the gate) */
+  .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-6px) rotate(-3deg)}
+  /* the top book slides toward you off the stack, which stays */
+  .iso-obj[data-id="series"]:is(:hover,:focus-visible,.rx) .rx-top{transform:translate(-5px,2.5px)}
+  /* a quarter-twist that doesn't quite happen */
+  .iso-obj[data-id="cube"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-8px) rotate(-6deg)}
+  /* the pot comes up and the butterfly on it takes off */
+  .iso-obj[data-voice="garden"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-6px)}
+  .iso-obj[data-voice="garden"]:is(:hover,:focus-visible,.rx) .rx-fly{transform:translateY(-12px)}
+  /* the loaf is lifted on its board, tipped a touch to show the scoring */
+  .iso-obj[data-voice="boule"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-8px) rotate(1.5deg)}
+  /* the side table stays put, and the loupe slides along the prints, looking */
+  .iso-obj[data-voice="prints"]:is(:hover,:focus-visible,.rx) .rx-loupe{transform:translate(3px,1.5px)}
+  /* the double six crowning the pile lifts by itself; the pile stays */
+  .iso-obj[data-id="domino"]:is(:hover,:focus-visible,.rx) .rx-crown{transform:translateY(-3px) rotate(2deg)}
+  .iso-obj[data-id="domino"]:is(:hover,:focus-visible,.rx) .rx-under{opacity:.28}
+  /* the console's vent glows up, and the pad comes off the desk */
+  .iso-obj[data-id="library"]:is(:hover,:focus-visible,.rx) .vent{opacity:1;fill:#a3ec7c;transform:scale(1.15)}
+  .iso-obj[data-id="library"]:is(:hover,:focus-visible,.rx) .rx-pad{transform:translateY(-3px)}
+  /* the Game Boy comes up turned toward you (the swarm thinks faster, in the gate) */
+  .iso-obj[data-id="hive"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-8px) rotate(-2deg)}
+  /* the shard floats higher over its pedestal, which stays (it turns, in the gate) */
+  .iso-obj[data-id="mandel"]:is(:hover,:focus-visible,.rx) .rx-float{transform:translateY(-6px)}
   #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
   body.lights-out #swLever{transform:translate(0,9px)}
   /* the glow-in-the-dark plate ring — the whole point of buying those */
@@ -1046,6 +1094,12 @@
     /* the answers that are movements keep one still frame: a key held down, the shirt askew */
     .iso-obj:is([data-id="board"],[data-id="scqcs"]):is(:hover,:focus-visible,.rx) .kd{transform:translate(1.4px,1.4px)}
     .iso-obj[data-id="offhours"]:is(:hover,:focus-visible,.rx) .rx-tee{transform:rotate(2deg)}
+    /* ...the steam up, the fence and the spiral and the shard part-turned, the pin grown */
+    .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx) .steam{transform:translateY(-4px)}
+    .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-fence{transform:rotate(30deg)}
+    .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-pin{transform:scale(1.3)}
+    .iso-obj[data-id="puzzle"]:is(:hover,:focus-visible,.rx) .rx-spiral{transform:rotate(90deg)}
+    .iso-obj[data-id="mandel"]:is(:hover,:focus-visible,.rx) .rx-spin{transform:rotate(25.7deg)}
   }
   /* The motion gate. Stillness is the default and motion is the
      exception: every @keyframes and every animation: added from here on
@@ -1090,6 +1144,34 @@
     .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) .wellmote{animation-duration:2.6s}
     .iso-obj[data-id="offhours"]:is(:hover,:focus-visible,.rx) .nozzle{animation-duration:.4s}
     .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .led{animation-duration:.9s}
+    /* the rest of the desk moves the same way: up springy, down plain */
+    .iso-obj :is(.rx-book,.rx-box,.rx-sunrise,.rx-top,.rx-fly,.rx-loupe,.rx-crown,.rx-pad,.rx-float,.vent){transition:transform var(--t-settle) var(--ease-settle),opacity var(--t-settle) ease,fill var(--t-settle) ease}
+    .iso-obj:is(:hover,:focus-visible,.rx,.picked) :is(.rx-book,.rx-box,.rx-sunrise,.rx-top,.rx-fly,.rx-loupe,.rx-crown,.rx-pad,.rx-float,.vent){transition-duration:var(--t-rx);transition-timing-function:var(--ease-lift),ease}
+    .iso-obj:is(:hover,:focus-visible,.rx,.picked) .rx-box{transition-delay:70ms}   /* one hand, then the other */
+    .rx-cursor{transition:transform .35s ease-in-out}
+    .th,.rx-pick,.rx-rays,.rx-road,.rx-halo,.rx-under{transition:opacity .3s ease}
+    .iso-obj:is(:hover,:focus-visible,.rx) .rx-pick{transition-delay:.3s}   /* once the cursor gets there */
+    /* the steam runs hot: thicker and taller, still slower than a breath */
+    @keyframes steamHot{0%,100%{opacity:.18;transform:translateY(0)}50%{opacity:.6;transform:translateY(-9px)}}
+    .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx) .steam{animation:steamHot 1.7s ease-in-out infinite}
+    .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx) .steam.s2{animation-delay:-.85s}
+    /* things that turn while you look: the phone's geofence, the thinking
+       wall's spiral, the shard (a seven-pointed thing a seventh of a turn
+       a half-second, which is calm, not a strobe) */
+    @keyframes turn{to{transform:rotate(360deg)}}
+    @keyframes pinPulse{50%{transform:scale(1.5)}}
+    .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-fence{animation:turn 5s linear infinite}
+    .iso-obj[data-id="utap"]:is(:hover,:focus-visible,.rx) .rx-pin{animation:pinPulse 1.1s ease-in-out infinite}
+    .iso-obj[data-id="puzzle"]:is(:hover,:focus-visible,.rx) .rx-spiral{animation:turn 14s linear infinite}
+    .iso-obj[data-id="mandel"]:is(:hover,:focus-visible,.rx) .rx-spin{animation:turn 4s linear infinite}
+    /* the cube's top layer starts a quarter turn, thinks better of it, and settles back */
+    @keyframes twist{40%{transform:rotate(9deg)}70%{transform:rotate(-2deg)}}
+    .iso-obj[data-id="cube"]:is(:hover,:focus-visible,.rx) .rx-twist{animation:twist .7s var(--ease-settle) .12s}
+    /* the butterfly's wings beat faster as it lifts off */
+    .iso-obj[data-voice="garden"]:is(:hover,:focus-visible,.rx) .flutter{animation-duration:.55s}
+    /* the swarm on the Game Boy's screen thinks faster, one hex after another */
+    @keyframes hx{50%{opacity:.35}}
+    .iso-obj[data-id="hive"]:is(:hover,:focus-visible,.rx) .hx{animation:hx .9s ease-in-out calc(var(--i) * -.3s) infinite}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1722,15 +1804,16 @@
   (function(){
     var lx = VX + 7, ly = VY - 3, lz = VZ + 1.6;
     var pB = P(lx, ly, lz), pT = P(lx, ly, lz + 2.6), RB = 5.2 * 1.414, RT = 4.1 * 1.414;
+    prints += '<g class="rx-loupe">';             // it slides along the print, looking
     prints += '<path d="M' + n1(pT[0] - RT) + " " + n1(pT[1]) + " L" + n1(pB[0] - RB) + " " + n1(pB[1]) +
       " A" + n1(RB) + " " + n1(RB / 2) + " 0 0 0 " + n1(pB[0] + RB) + " " + n1(pB[1]) +
       " L" + n1(pT[0] + RT) + " " + n1(pT[1]) + ' Z" fill="rgba(220,236,242,.30)" stroke="rgba(240,248,252,.65)" stroke-width=".6"/>';
     prints += cyl(lx, ly, lz + 2.6, 4.1, 4.2, "#1e1f24");
     prints += isoEllipse(lx, ly, lz + 6.85, 3.1, "url(#glassFace)", 'stroke="rgba(235,246,252,.75)" stroke-width=".6"');
     var g = P(lx - 1, ly - 1, lz + 6.9);
-    prints += glint(g[0], g[1], 3, 1.4);
+    prints += glint(g[0], g[1], 3, 1.4) + "</g>";
   })();
-  S.push(wrapObj("vantage","Vantage — aerial prints and a loupe",VLIT,prints,"era-old","prints"));
+  S.push(wrapObj("vantage","Vantage — aerial prints and a loupe",VLIT,prints,"era-old still","prints"));
 
   /* ---------- wall B: the tie-dye shirt on its hanger ---------- */
   var tee = '<circle cx="330" cy="16" r="4" fill="none" stroke="#8a7a5c" stroke-width="2.5"/>' +
@@ -1840,11 +1923,12 @@
   /* ---------- wall A: the spiral frame (thinking wall) ---------- */
   var spiral = '<rect x="-7" y="-7" width="104" height="104" fill="#2a1d12" stroke="rgba(20,10,4,.6)" stroke-width="2"/>' +
     '<rect x="0" y="0" width="90" height="90" fill="#efe8dd"/>' +
+    '<g class="rx-spiral">' +      // turns slowly while you look at it, as these do
     (function(){ var s="", r=40; for (var i=0;i<6;i++){
       s += '<circle cx="' + (45 + (i%2 ? 3.2 : -3.2)) + '" cy="45" r="' + r + '" fill="none" stroke="#191512" stroke-width="' + (5.5 - i*.5) + '"/>';
       r -= 6.8; } return s; })() +
-    '<circle cx="45" cy="45" r="3" fill="#191512"/>';
-  S.push(wrapObj("puzzle","The thinking wall","#d9a0e8",gLeft(452,-30,160,spiral)));
+    '<circle cx="45" cy="45" r="3" fill="#191512"/></g>';
+  S.push(wrapObj("puzzle","The thinking wall","#d9a0e8",gLeft(452,-30,160,spiral),"still"));
 
   // desk legs + modesty panel + tabletop (top surface = z 0)
   S.push(box(30,50,-180,20,280,152,"#6b4527"));
@@ -1977,7 +2061,7 @@
     }
     return p + '<circle cx="' + x + '" cy="' + y + '" r="' + (s*.6).toFixed(1) + '" fill="#ffe37a"/>';
   }
-  var toy = box(24,196,0,86,64,10,"#d8cbb0");
+  var toy = '<g class="rx-book">' + box(24,196,0,86,64,10,"#d8cbb0");
   toy += gLeft(24,260,10,'<rect x="2" y="2" width="82" height="6" fill="#efe6cf" opacity=".9" stroke="rgba(26,14,6,.3)"/>');
   toy += gTop(24,196,10,
     '<rect width="86" height="64" rx="3" fill="url(#lupSky)" stroke="rgba(26,14,6,.45)" stroke-width="1.5"/>' +
@@ -1991,9 +2075,9 @@
     '<path d="M38 33 l10 0 l-2 14 l-6 0 z" fill="#e2603f"/>' +
     '<rect x="40" y="35" width="6" height="7" rx="1" fill="#e8d3a0" transform="rotate(-8 43 38)"/>' +
     '<g fill="#d8f4e2" opacity=".85"><circle cx="38" cy="34" r=".7"/><circle cx="48" cy="30" r=".7"/><circle cx="46" cy="42" r=".7"/><circle cx="39" cy="44" r=".6"/></g>' +
-    txt(43,15,"Lupita",12,"#ffb347",SERIF + ' text-anchor="middle" font-style="italic" font-weight="bold" stroke="rgba(90,40,10,.55)" stroke-width=".6"'));
+    txt(43,15,"Lupita",12,"#ffb347",SERIF + ' text-anchor="middle" font-style="italic" font-weight="bold" stroke="rgba(90,40,10,.55)" stroke-width=".6"')) + "</g>";
   // the doll's box: black, covered in florals, with a window
-  toy += box(118,208,0,46,46,44,"#171215");
+  toy += '<g class="rx-box">' + box(118,208,0,46,46,44,"#171215");
   toy += gLeft(118,254,44,
     '<rect x="1.5" y="1.5" width="43" height="41" fill="#171215" stroke="#2c2026"/>' +
     flor(8,8,3.2,"#ff8ac2") + flor(38,10,2.8,"#7cd7e8") + flor(9,36,2.6,"#f5b63f") + flor(37,37,3,"#e2603f") +
@@ -2003,7 +2087,7 @@
     '<path d="M20 21 l6 0 l-1.4 10 l-3.2 0 z" fill="#e2603f"/>');
   toy += gTop(118,208,44,
     '<rect width="46" height="46" fill="#171215" stroke="#2c2026"/>' +
-    flor(12,12,3,"#7cd7e8") + flor(34,16,2.6,"#ff8ac2") + flor(16,34,2.6,"#e2603f") + flor(36,36,2.8,"#f5b63f"));
+    flor(12,12,3,"#7cd7e8") + flor(34,16,2.6,"#ff8ac2") + flor(16,34,2.6,"#e2603f") + flor(36,36,2.8,"#f5b63f")) + "</g>";
   S.push(wrapObj("toy","Lupita — book + doll · 3 awards","#ff8a5c",toy));
 
   /* ---------- sun: Borrowed Sunlight — a novel, new for summer 2026 ---------- */
@@ -2012,10 +2096,14 @@
   sunb += gTop(76,328,8,
     '<rect width="60" height="42" rx="2.5" fill="#233252" stroke="rgba(26,14,6,.5)" stroke-width="1.5"/>' +
     '<rect y="27" width="60" height="15" fill="#1a2440"/>' +
-    '<circle cx="30" cy="27" r="11" fill="#ffd166" opacity=".22"/>' +
-    '<path d="M21 27 a9 9 0 0 1 18 0 z" fill="#ffd166"/>' +
-    '<polygon points="25,27 35,27 40,42 20,42" fill="rgba(255,209,102,.3)"/>' +
-    '<g stroke="#ffd166" stroke-width="1.4" stroke-linecap="round" opacity=".8">' +
+    /* pointed at, the sun comes up: the disc is a whole one cut off at
+       the horizon, so it can rise out of the sea rather than float; its
+       halo comes with it, and its rays and its road on the water brighten */
+    '<clipPath id="sunSea"><rect width="60" height="27"/></clipPath>' +
+    '<g class="rx-sunrise"><circle class="rx-halo" cx="30" cy="27" r="11" fill="#ffd166" opacity=".22"/></g>' +
+    '<g clip-path="url(#sunSea)"><g class="rx-sunrise"><circle cx="30" cy="27" r="9" fill="#ffd166"/></g></g>' +
+    '<polygon class="rx-road" points="25,27 35,27 40,42 20,42" fill="#ffd166" opacity=".3"/>' +
+    '<g class="rx-rays" stroke="#ffd166" stroke-width="1.4" stroke-linecap="round" opacity=".8">' +
       '<path d="M14 22 l4 2 M46 22 l-4 2 M30 13 l0 4 M20 15.5 l2 3.4 M40 15.5 l-2 3.4"/></g>' +
     '<rect x="49" y="0" width="4" height="9" fill="#e2603f"/>' +
     txt(30,10,"Borrowed",8,"#f4e9d8",SERIF + ' text-anchor="middle" font-style="italic"') +
@@ -2087,14 +2175,17 @@
   rig += box(150,86,30,170,12,104,"#1f2126");                       // main display
   var thumbsMini = "", THC = ["#f5b63f","#b79cff","#63e6a9","#ff8ac2","#8fb7ff","#ff5d5d","#7cd7e8","#e0a458"];
   for (var ti = 0; ti < 8; ti++)
-    thumbsMini += '<rect x="' + (16 + (ti%4)*36 ) + '" y="' + (26 + Math.floor(ti/4)*26) + '" width="28" height="18" rx="2" fill="' + THC[ti] + '" opacity=".82"/>';
+    thumbsMini += '<rect class="th" x="' + (16 + (ti%4)*36 ) + '" y="' + (26 + Math.floor(ti/4)*26) + '" width="28" height="18" rx="2" fill="' + THC[ti] + '" opacity=".82"/>';
+  /* pointed at, the screen wakes and the cursor goes to the fourth
+     thumbnail, which takes a ring the way a link does under a mouse */
+  thumbsMini += '<rect class="rx-pick" x="122.5" y="24.5" width="31" height="21" rx="3" fill="none" stroke="#f4e9d8" stroke-width="1.2" opacity="0"/>';
   rig += gLeft(150,98,134,
     '<rect x="5" y="5" width="160" height="94" rx="4" fill="#0d1420" stroke="#31353c" stroke-width="2"/>' +
     '<rect x="10" y="10" width="150" height="9" rx="2" fill="#1a2334"/>' +
     '<circle cx="16" cy="14.5" r="2" fill="#ff5f57"/><circle cx="23" cy="14.5" r="2" fill="#febc2e"/><circle cx="30" cy="14.5" r="2" fill="#28c840"/>' +
     txt(85,17,"kmay://worlds",6,"#7e8ba0",MONO + ' text-anchor="middle"') +
     thumbsMini +
-    '<polygon points="128,78 128,90 133,86 136,92 139,90 136,85 141,84" fill="#f4e9d8"/>');
+    '<g class="rx-cursor"><polygon points="128,78 128,90 133,86 136,92 139,90 136,85 141,84" fill="#f4e9d8"/></g>');
   rig += box(170,204,0,140,46,5,"#d8dce2");                          // low-profile keyboard
   rig += gTop(170,204,5,'<g stroke="#a8adb6" stroke-width="1.2"><path d="M8 10 h124 M8 19 h124 M8 28 h124"/><rect x="42" y="34" width="56" height="7" rx="2" fill="#c6cbd3" stroke="none"/></g>');
   rig += box(346,170,0,62,44,4,"#b9bec6");                           // MacBook base
@@ -2107,7 +2198,7 @@
   rig += gLeft(366,153,58,'<rect x="3" y="3" width="38" height="52" rx="3" fill="#101828"/>' +
     '<path d="M22 40 q-7 -2 -7 -10 q0 -7 7 -9 q7 2 7 9 q0 8 -7 10 z" fill="none" stroke="#ff9ab0" stroke-width="1.6"/>' +
     '<circle cx="22" cy="30" r="2.2" fill="#f5b63f"/>');
-  S.push(wrapObj("web","Today's rig — browse every site","#ffc97a",rig,"era-now"));
+  S.push(wrapObj("web","Today's rig — browse every site","#ffc97a",rig,"era-now still"));
 
   /* ---------- offhours: sourdough boule on a cutting board ---------- */
   var pb = P(334,56,4);
@@ -2120,7 +2211,7 @@
     '<g fill="#f6ead2" opacity=".8"><circle cx="' + (pb[0]-20) + '" cy="' + (pb[1]-4) + '" r="1.4"/>' +
     '<circle cx="' + (pb[0]+14) + '" cy="' + (pb[1]-24) + '" r="1.2"/>' +
     '<circle cx="' + (pb[0]+22) + '" cy="' + (pb[1]-6) + '" r="1.3"/></g>';
-  S.push(wrapObj("offhours","Sourdough — off the clock","#e0a458",boule));
+  S.push(wrapObj("offhours","Sourdough — off the clock","#e0a458",boule,"","boule"));
 
   /* ---------- chili: a bowl of it, still steaming ----------
      Front-left, in the gap between Lupita's box, the dominoes and the
@@ -2252,8 +2343,8 @@
     '<rect width="46" height="26" rx="4" fill="#17171d" stroke="rgba(26,14,6,.45)"/>' +
     '<rect x="6" y="3" width="34" height="20" rx="2" fill="#12233c"/>' +
     '<g stroke="#27436a" stroke-width="1.4"><path d="M10 8 h26 M10 14 h26 M10 19 h26 M18 3 v20 M30 3 v20"/></g>' +
-    '<circle cx="24" cy="13" r="7.5" fill="none" stroke="#ee6fbb" stroke-width="1.4" stroke-dasharray="2.5 2"/>' +
-    '<circle cx="24" cy="13" r="2.4" fill="#ee6fbb"/>' +
+    '<g class="rx-fence"><circle cx="24" cy="13" r="7.5" fill="none" stroke="#ee6fbb" stroke-width="1.4" stroke-dasharray="2.5 2"/></g>' +
+    '<g class="rx-pin"><circle cx="24" cy="13" r="2.4" fill="#ee6fbb"/></g>' +
     '<circle cx="43" cy="13" r="1.8" fill="none" stroke="#3a3a44" stroke-width="1"/>');
   S.push(wrapObj("utap","uTap — the campus app","#ee6fbb",ph));
 
@@ -2275,14 +2366,15 @@
   var offs = [0,7,-4,3], series = "";
   for (var i = 0; i < 4; i++){
     var bx = 390 + offs[i], bz = i * 14;
+    if (i === 3) series += '<g class="rx-top">';      // the top one slides toward you; see "every object answers"
     series += box(bx,62,bz,108,78,14,bookCols[i]);
     series += gLeft(bx,140,bz+14,'<rect x="2" y="2.5" width="104" height="8" fill="#efe6cf" opacity=".92" stroke="rgba(26,14,6,.3)"/>');
   }
   series += gTop(393,62,56,
     txt(54,32,"Everything",15,"#efe8f8",SERIF + ' text-anchor="middle" font-style="italic"') +
     txt(54,50,"that Glows",13,"#d8c8ff",SERIF + ' text-anchor="middle" font-style="italic"') +
-    '<circle cx="54" cy="62" r="3.5" fill="#ffe37a"/>');
-  S.push(wrapObj("series","The Everything series","#b79cff",series));
+    '<circle cx="54" cy="62" r="3.5" fill="#ffe37a"/>') + "</g>";
+  S.push(wrapObj("series","The Everything series","#b79cff",series,"still"));
 
   /* ---------- puzzle: Rubik's cube in superflip — every piece home, all
      twelve edges flipped; the position that proved God's Number is 20.
@@ -2296,7 +2388,7 @@
     return s;
   }
   var cube = box(34,332,0,24,24,24,"#141414");
-  cube += gTop(34,332,24, stickers([4,5,4,3,4,2,4,0,4]));
+  cube += gTop(34,332,24, '<g class="rx-twist">' + stickers([4,5,4,3,4,2,4,0,4]) + "</g>");   // starts to turn, pointed at
   cube += gLeft(34,356,24, stickers([0,4,0,3,0,2,0,1,0]));
   cube += gRight(58,356,24, stickers([2,4,2,0,2,5,2,1,2]));
   S.push(wrapObj("cube","A pocket puzzle — a whole room hides behind it","#d9a0e8",cube));
@@ -2317,11 +2409,11 @@
     '<path d="M' + (mp[0]-6) + " " + (mp[1]-6) + " q 6 -8 12 0 z\" fill=\"#c0442e\"/>" +
     '<circle cx="' + (mp[0]-2.5) + '" cy="' + (mp[1]-8.5) + '" r="1" fill="#f2e6d0"/>' +
     '<circle cx="' + (mp[0]+2.5) + '" cy="' + (mp[1]-9) + '" r=".8" fill="#f2e6d0"/></g>';
-  pot += '<g class="bob2"><g transform="translate(' + (fx+13) + "," + (fy-12) + ') rotate(-14)">' +
+  pot += '<g class="rx-fly"><g class="bob2"><g transform="translate(' + (fx+13) + "," + (fy-12) + ') rotate(-14)">' +
     '<g class="flutter">' +
       '<path d="M0 0 Q -9 -7 -8 1 Q -8 6 0 2 Z" fill="#f5b63f" stroke="rgba(120,70,10,.5)"/>' +
       '<path d="M0 0 Q 9 -7 8 1 Q 8 6 0 2 Z" fill="#e88a2e" stroke="rgba(120,70,10,.5)"/></g>' +
-    '<ellipse cx="0" cy="1" rx="1.1" ry="3" fill="#3a2415"/></g></g>';
+    '<ellipse cx="0" cy="1" rx="1.1" ry="3" fill="#3a2415"/></g></g></g>';
   S.push(wrapObj("outside","Garden — the world outside","#8fd18a",pot,"","garden"));
 
   /* ---------- chess: the chess room — a game paused mid-Italian ---------- */
@@ -2470,7 +2562,10 @@
   var stack = [[0, 0, 0, 5, 3], [0.6, 0.4, BT, 2, 4], [-0.4, 0.8, BT * 2, 0, 1], [0.3, 0.2, BT * 3, 6, 6]];
   for (var si = 0; si < stack.length; si++) {
     var q = stack[si];
-    domino += domBone(DBX + q[0], DBY + q[1], q[2], q[3], q[4], si < stack.length - 1);
+    var crown = si === stack.length - 1;           // the 6|6 on top lifts by itself; the pile stays
+    /* ...and leaves its shade on the bone under it, so it reads as held just above, not floating */
+    if (crown) domino += gTop(DBX + 1.1, DBY + .8, q[2], '<rect class="rx-under" width="' + (BL - 1.5) + '" height="' + (BW - .2) + '" rx="1.1" fill="#1a0e06" opacity="0"/>');   // inside the bone under it, a hair toward the light's far side
+    domino += (crown ? '<g class="rx-crown">' : "") + domBone(DBX + q[0], DBY + q[1], q[2], q[3], q[4], !crown) + (crown ? "</g>" : "");
   }
 
   /* And a few loose beside it, near ones drawn last. They all live to the
@@ -2489,7 +2584,7 @@
   for (var li = 0; li < loose.length; li++) {
     domino += domBone(loose[li].x, loose[li].y, 0, loose[li].a, loose[li].b, false);
   }
-  S.push(wrapObj("domino","A pile of dominoes — a game waiting to start","#f0a83c",domino));
+  S.push(wrapObj("domino","A pile of dominoes — a game waiting to start","#f0a83c",domino,"still"));
 
   /* ---------- library: a games console, and a pad left on the desk ----------
      Stood next to the Game Boy on purpose: the 1999 handheld and the
@@ -2506,7 +2601,7 @@
   /* the vent across the top, lit from inside */
   lib += gTop(CVX, CVY, CVH,
     '<rect x="2.4" y="2.4" width="' + (CVW - 4.8) + '" height="' + (CVD - 4.8) + '" rx="2" fill="#0d0f12"/>' +
-    '<ellipse cx="' + (CVW / 2) + '" cy="' + (CVD / 2) + '" rx="5.6" ry="5.6" fill="#6cc24a" opacity=".85"/>' +
+    '<ellipse class="vent" cx="' + (CVW / 2) + '" cy="' + (CVD / 2) + '" rx="5.6" ry="5.6" fill="#6cc24a" opacity=".85"/>' +
     '<ellipse cx="' + (CVW / 2) + '" cy="' + (CVD / 2) + '" rx="3.2" ry="3.2" fill="#0d0f12" opacity=".55"/>');
   /* the power light at the foot */
   lib += gLeft(CVX, CVY + CVD, 3, '<circle cx="' + (CVW / 2) + '" cy="0" r="1.1" fill="#6cc24a"/>');
@@ -2514,6 +2609,7 @@
   /* the pad, dropped in front of it */
   var PX = 316, PY = 306;
   lib += shadowW(PX, PY, 26, 15, 4, .22);
+  lib += '<g class="rx-pad">';                    // picked up off its shadow, which stays on the desk
   lib += box(PX, PY, 0, 26, 15, 5, "#2a2e34");
   lib += box(PX + 2, PY + 2, 5, 22, 11, 1.4, "#33383f");
   lib += gTop(PX + 2, PY + 2, 6.4,
@@ -2523,8 +2619,8 @@
     '<rect x="5" y="7.2" width="3.4" height="1.1" rx=".5" fill="#15181c"/>' +
     '<rect x="6.15" y="6.05" width="1.1" height="3.4" rx=".5" fill="#15181c"/>' +
     '<circle cx="17.5" cy="3" r="1.05" fill="#6cc24a"/><circle cx="19.6" cy="4.6" r="1.05" fill="#e5484d"/>' +
-    '<circle cx="15.4" cy="4.6" r="1.05" fill="#4a90e2"/><circle cx="17.5" cy="6.2" r="1.05" fill="#f0b429"/>');
-  S.push(wrapObj("library","The reading room — a block world on a console","#6cc24a",lib));
+    '<circle cx="15.4" cy="4.6" r="1.05" fill="#4a90e2"/><circle cx="17.5" cy="6.2" r="1.05" fill="#f0b429"/>') + "</g>";
+  S.push(wrapObj("library","The reading room — a block world on a console","#6cc24a",lib,"still"));
 
   /* ---------- hive: atomic-purple Game Boy ---------- */
   var gb = box(250,290,0,64,106,11,"#7e63cf");
@@ -2539,7 +2635,8 @@
   gb += gTop(250,290,11,
     '<rect x="6" y="7" width="52" height="52" rx="5" fill="#564a80" stroke="rgba(20,12,40,.5)"/>' +
     '<rect x="11" y="12" width="42" height="40" rx="2" fill="#9bbf3b" stroke="rgba(20,30,8,.5)"/>' +
-    hex(26,26,7,'fill="#33520f"') + hex(38,32,7,'fill="none" stroke="#33520f" stroke-width="2"') + hex(28,40,7,'fill="#33520f"') +
+    '<g class="hx" style="--i:0">' + hex(26,26,7,'fill="#33520f"') + '</g><g class="hx" style="--i:1">' +
+      hex(38,32,7,'fill="none" stroke="#33520f" stroke-width="2"') + '</g><g class="hx" style="--i:2">' + hex(28,40,7,'fill="#33520f"') + "</g>" +
     txt(32,68,"HIVE MIND",6.5,"#ded5f6",MONO + ' text-anchor="middle" letter-spacing="1"') +
     '<rect x="12" y="76" width="8" height="22" rx="2" fill="#2f2a44"/>' +
     '<rect x="5" y="83" width="22" height="8" rx="2" fill="#2f2a44"/>' +
@@ -2805,26 +2902,31 @@
     var c = P(533,231,40); // the shard floats here
     var star = "";
     star += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="17" fill="rgba(199,125,255,.16)" filter="url(#soft)"/>';
-    star += '<g class="bob2">';
-    // a spiky, layered rosette — the flat ghost of the bulb
+    star += '<g class="rx-float"><g class="bob2">';
+    /* a spiky, layered rosette — the flat ghost of the bulb. It is drawn
+       round its own centre and squashed to lie a little toward you, so
+       that pointed at, it can turn in its own plane (.rx-spin) the way a
+       thing hung in the air turns, instead of wobbling about the screen */
     function spikes(n, r1, r2, rot, fill, op){
       var pts = [];
       for (var i = 0; i < n * 2; i++){
         var a = Math.PI * i / n + rot, r = i % 2 ? r1 : r2;
-        pts.push((c[0] + Math.cos(a) * r).toFixed(1) + "," + (c[1] + Math.sin(a) * r * .86).toFixed(1));
+        pts.push((Math.cos(a) * r).toFixed(1) + "," + (Math.sin(a) * r).toFixed(1));
       }
       return '<polygon points="' + pts.join(" ") + '" fill="' + fill + '"' + (op ? ' opacity="' + op + '"' : "") + ' stroke="rgba(40,16,60,.5)" stroke-width=".8"/>';
     }
+    star += '<g transform="translate(' + c[0] + "," + c[1] + ') scale(1,.86)"><g class="rx-spin">';
     star += spikes(7, 5.5, 15, 0.3, "#8a4fd0", ".9");
     star += spikes(7, 4.5, 12, 0.75, "#c77dff");
     star += spikes(7, 3.2, 8.5, 1.2, "#ff8ac2");
+    star += "</g></g>";
     star += '<circle cx="' + c[0] + '" cy="' + c[1] + '" r="3" fill="#ffe9ff"/>';
     star += '<circle cx="' + (c[0]+9) + '" cy="' + (c[1]-11) + '" r="1.1" fill="#e8d4ff" class="led"/>';
     star += '<circle cx="' + (c[0]-11) + '" cy="' + (c[1]+7) + '" r=".9" fill="#e8d4ff" class="led" style="animation-delay:-1.1s"/>';
-    star += "</g>";
+    star += "</g></g>";
     imp += star;
   })();
-  S.push(wrapObj("mandel","The impossible object — a living fractal","#c77dff",imp));
+  S.push(wrapObj("mandel","The impossible object — a living fractal","#c77dff",imp,"still"));
 
   /* ---------- prism: a wedge of glass, quietly taking light apart ----------
      A thin white beam comes in from the lamp side, bends, and leaves as a
@@ -3578,7 +3680,23 @@
     tee: function(){ noise({filter:"bandpass", freq:1200, freqEnd:600, q:0.8, dur:0.12, g:0.03}); }, // cloth, brushed
     printer: function(){ tone(440, {type:"square", end:660, dur:0.05, g:0.006}); }, // a stepper, homing
     luma: function(){ noise({filter:"bandpass", freq:3200, q:3, dur:0.01, g:0.025}); }, // the little LED behind it, clicked brighter
-    window: function(){ for (var p = 0; p < 3; p++) tone(4500, {dur:0.018, g:0.008, at:p * 0.034}); }  // a single cricket, outside
+    window: function(){ for (var p = 0; p < 3; p++) tone(4500, {dur:0.018, g:0.008, at:p * 0.034}); },  // a single cricket, outside
+    /* the rest of the desk, quieter still: each one is the small sound its
+       own material makes, and anything without one keeps the plain tick */
+    web: function(){ noise({filter:"highpass", freq:3500, dur:0.008, g:0.015}); tone(1760, {dur:0.03, g:0.006, at:0.3}); }, // a trackpad tap, and the page answering
+    toy: function(){ noise({filter:"bandpass", freq:1600, q:1.2, dur:0.05, g:0.015}); noise({filter:"lowpass", freq:500, dur:0.03, g:0.015, at:0.07}); }, // a book's cover, then a box lifted
+    sun: function(){ tone(523.3, {end:784, dur:0.18, g:0.008}); }, // the sun coming up, as a sound would if it made one
+    chili: function(){ noise({filter:"highpass", freq:5000, dur:0.09, g:0.008}); }, // a hot bowl's hiss
+    utap: function(){ tone(1975.5, {dur:0.05, g:0.01}); }, // you are inside the fence
+    series: function(){ noise({filter:"lowpass", freq:1400, freqEnd:700, dur:0.08, g:0.015}); }, // cloth cover over cloth cover
+    cube: function(){ noise({filter:"bandpass", freq:2600, q:4, dur:0.015, g:0.015}); }, // a layer catching on its neighbour
+    garden: function(){ noise({filter:"highpass", freq:3200, dur:0.02, g:0.006}); noise({filter:"highpass", freq:3200, dur:0.02, g:0.006, at:0.05}); }, // wings
+    boule: function(){ noise({filter:"lowpass", freq:420, dur:0.05, g:0.015}); }, // a loaf, soft on its board
+    prints: function(){ noise({filter:"bandpass", freq:3800, q:2, dur:0.03, g:0.01}); }, // glass sliding over gloss
+    domino: function(){ noise({filter:"highpass", freq:3000, dur:0.008, g:0.015}); tone(2400, {type:"triangle", dur:0.015, g:0.01}); }, // bone off bone
+    library: function(){ noise({filter:"bandpass", freq:600, q:1, dur:0.14, g:0.01}); }, // the fan coming up
+    hive: function(){ tone(1046.5, {type:"square", dur:0.03, g:0.005}); tone(1568, {type:"square", dur:0.03, g:0.005, at:0.045}); }, // a handheld's two-note blip
+    mandel: function(){ tone(2637, {dur:0.16, g:0.007}); tone(3951, {dur:0.12, g:0.005, at:0.05}); } // a glassy shimmer
   };
 
   var HAPTICS = {
