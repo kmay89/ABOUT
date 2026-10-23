@@ -480,8 +480,12 @@
   @keyframes lampfx{0%,100%{opacity:1}31%{opacity:.9}33%{opacity:1}71%{opacity:.94}72%{opacity:.86}74%{opacity:1}}
   .crtfx{animation:crtfx 3.2s ease-in-out infinite}
   @keyframes crtfx{0%,100%{opacity:1}50%{opacity:.8}}
-  #moon{opacity:.8;transition:opacity 1.4s ease .3s}
-  body.lights-out #moon{opacity:1;filter:brightness(1.3) saturate(1.4)}
+  /* the beam is as strong as tonight's moon is full (--moonk, set once
+     at build from the real phase): .45 of itself at a new moon, so the
+     dark room still has a shape to it */
+  #moon{opacity:calc(.8 * var(--moonk,1));transition:opacity 1.4s ease .3s}
+  body.lights-out #moon{opacity:var(--moonk,1);filter:brightness(1.3) saturate(1.4)}
+  .shoot{opacity:0}   /* the shooting star is only ever in passing (the motion gate) */
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
   .flutter{animation:flutter 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
@@ -1181,6 +1185,23 @@
     /* the swarm on the Game Boy's screen thinks faster, one hex after another */
     @keyframes hx{50%{opacity:.35}}
     .iso-obj[data-id="hive"]:is(:hover,:focus-visible,.rx) .hx{animation:hx .9s ease-in-out calc(var(--i) * -.3s) infinite}
+
+    /* three quiet clocks, the only loops that run with nobody pointing:
+       the tube's cursor (once a second), black's clock (a lap a minute,
+       set to the visitor's seconds by syncClock), and a shooting star in
+       the window every 53 s (lit for under a second, a pixel wide). The
+       sleep gate holds all three; without motion they rest as drawn:
+       cursor on, hand at :00, no star */
+    @keyframes blink{50%{opacity:0}}
+    #crtOS .cur{animation:blink 1s steps(2) infinite}
+    @keyframes tick{to{transform:rotate(360deg)}}
+    .tick{transform-box:fill-box;transform-origin:50% 100%;animation:tick 60s steps(60) infinite}
+    @keyframes shoot{
+      0%,96%{opacity:0;transform:translate(14px,8px)}
+      96.6%{opacity:.9}
+      98.2%{opacity:0;transform:translate(62px,24px)}
+      100%{opacity:0}}
+    .shoot{animation:shoot 53s linear -20s infinite}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1679,6 +1700,9 @@
     // the mouth of the shade, white-hot in the middle where you see the bulb
     '<linearGradient id="bulbMouth" x1="0" y1="0" x2="1" y2="0">' +
       '<stop offset="0" stop-color="#ffb45a"/><stop offset=".5" stop-color="#fff6e4"/><stop offset="1" stop-color="#ffb45a"/></linearGradient>' +
+    '<radialGradient id="moonGlow" cx=".5" cy=".5" r=".5">' +        // the moon's halo: soft, with no edge to it
+      '<stop offset=".35" stop-color="#f2e9d4"/><stop offset=".55" stop-color="#f2e9d4" stop-opacity=".35"/>' +
+      '<stop offset="1" stop-color="#f2e9d4" stop-opacity="0"/></radialGradient>' +
     '<linearGradient id="nightSky" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0" stop-color="#141c3a"/><stop offset=".6" stop-color="#2a2547"/><stop offset="1" stop-color="#3d2f4a"/></linearGradient>' +
     '<linearGradient id="lupSky" x1="0" y1="0" x2="0" y2="1">' +
@@ -1967,11 +1991,49 @@
     '<rect x="16" y="-9" width="16" height="7" fill="rgba(232,220,190,.65)" transform="rotate(-5 24 -6)"/></g>';
   S.push('<g aria-hidden="true">' + gLeft(556,-30,158,pol) + "</g>");
 
+  /* ---------- tonight's moon ----------
+     The moon in the window is the real one. Its age is the days since a
+     known new moon (6 Jan 2000, 18:14 UTC) modulo the synodic month, and
+     how much of it is lit follows from that, so a visitor on a new moon
+     gets a dark disc and a dark room, and the torch matters. It is lit on
+     the right while it waxes, which is the northern sky, like the seasons;
+     from the south it would be mirrored. The lithophane on the other wall
+     is a picture of a full moon, and stays one. */
+  var MOON_SYN = 29.530588853,
+      MOON_PH = ((((Date.now() - Date.UTC(2000,0,6,18,14)) / 864e5) % MOON_SYN) + MOON_SYN) % MOON_SYN / MOON_SYN,
+      MOON_K = (1 - Math.cos(2 * Math.PI * MOON_PH)) / 2,          // the fraction lit
+      MOON_L = .45 + .55 * MOON_K;                                  // the moonlight it sends in: never quite none
+  function moonDisc(cx, cy, r){
+    /* the lit part is two arcs: half the rim on the lit side, then back
+       along the terminator, an ellipse as wide as |cos| of the phase,
+       bulging away from the lit side past the half and toward it before */
+    var wax = MOON_PH < .5, rx = (r * Math.abs(Math.cos(2 * Math.PI * MOON_PH))).toFixed(2);
+    var limb = wax ? 1 : 0, term = (MOON_K > .5) === wax ? 1 : 0;
+    var lit = 'M' + cx + ' ' + (cy - r) + ' A' + r + ' ' + r + ' 0 0 ' + limb + ' ' + cx + ' ' + (cy + r) +
+              ' A' + rx + ' ' + r + ' 0 0 ' + term + ' ' + cx + ' ' + (cy - r) + 'Z';
+    /* the seas, in the earthshine's own colour, so they show grey on the
+       lit part and not at all on the dark part: Imbrium running into
+       Procellarum on the left, Serenitatis into Tranquillitatis right of
+       middle, Crisium at the edge, Nubium low */
+    var seas = [[-.36,-.3,.3,.24],[-.6,.12,.2,.34],[.12,-.32,.17,.15],[.3,-.02,.2,.15],
+                [.66,-.2,.09,.12],[-.14,.42,.16,.11]].map(function(m){
+      return '<ellipse cx="' + (cx + m[0]*r).toFixed(1) + '" cy="' + (cy + m[1]*r).toFixed(1) +
+             '" rx="' + (m[2]*r).toFixed(1) + '" ry="' + (m[3]*r).toFixed(1) + '"/>'; }).join("");
+    /* the window is a picture in the wall's plane, but the moon is a ball
+       a long way off, and a ball is round from any angle: undo the wall's
+       shear about its centre, so it alone is a circle on the screen */
+    return '<g transform="matrix(1,-.5,0,1,0,' + (cx / 2) + ')">' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 2.6) + '" fill="url(#moonGlow)" opacity="' + (.06 + .18 * MOON_K).toFixed(3) + '"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#2b3254"/>' +       // earthshine: the dark part, lit by us
+      (MOON_K < .02 ? '' : '<path d="' + lit + '" fill="#f2e9d4"/>') +
+      '<g fill="#2b3254" opacity=".17">' + seas + '</g></g>';
+  }
+
   /* ---------- wall A: window to the world outside ---------- */
   var win = '<rect x="-8" y="-8" width="236" height="126" fill="#5d3a20" stroke="rgba(20,10,4,.5)" stroke-width="2"/>' +
     '<rect x="0" y="0" width="220" height="110" fill="url(#nightSky)"/>' +
     '<rect width="220" height="110" fill="#8fb7ff" class="rx-pane" opacity="0"/>' +   // the night, to eyes that have adjusted
-    '<circle cx="176" cy="24" r="10" fill="#f2e9d4"/><circle cx="176" cy="24" r="15" fill="#f2e9d4" opacity=".14"/>' +
+    moonDisc(176, 24, 10) +
     '<polygon points="0,72 46,30 76,58 96,40 128,72" fill="#222b4d"/>' +
     '<polygon points="70,72 122,22 158,50 178,38 220,72 220,80 70,80" fill="#171e38"/>' +
     '<path d="M124 30 L123 52" stroke="#cfe6f2" stroke-width="3" opacity=".7" stroke-linecap="round"/>' +
@@ -2011,7 +2073,16 @@
     '<polygon points="8,0 60,0 22,110 8,110" fill="rgba(255,255,255,.05)"/>' +
     '<polygon points="70,0 84,0 50,110 36,110" fill="rgba(255,255,255,.035)"/>' +
     '<rect x="108" y="0" width="5" height="110" fill="#5d3a20"/>' +
-    '<rect x="-12" y="118" width="244" height="9" fill="#5d3a20" stroke="rgba(20,10,4,.5)"/>';
+    '<rect x="-12" y="118" width="244" height="9" fill="#5d3a20" stroke="rgba(20,10,4,.5)"/>' +
+    /* now and then, a shooting star: once every 53 s, under a second long,
+       down the sky from the top left, above the hills and clear of the
+       moon. A bright head, and a tail that thins and fades behind it (a
+       long faint sliver under a short bright one). It is the last thing in
+       the window although it is the farthest thing in it: its run crosses
+       nothing but sky, and a loop drags whatever is painted after it, over
+       it, onto layers of their own that every hover repaints */
+    '<g class="shoot"><path d="M.19 -.52 L-14 -5 L-.19 .52Z" fill="#dfe8ff" opacity=".45"/>' +
+      '<path d="M.15 -.42 L-6 -2.14 L-.15 .42Z" fill="#fff"/><circle r=".65" fill="#fff"/></g>';
   S.push(wrapObj("outside","The world outside","#8fd18a",gLeft(40,-30,170,win),"still","window"));
 
   /* ---------- wall A: the spiral frame (thinking wall) ---------- */
@@ -2293,12 +2364,20 @@
   S.push(wrapObj("sun","Borrowed Sunlight — a novel, new for summer 2026","#ffd166",sunb));
 
   /* ---------- board: beige CRT + keyboard (the machine years) ---------- */
-  var CRT_SELFTEST = '<g class="crt-line" ' + MONO + ' font-size="9" fill="#63e6a9">' +
-    txt(18,26,"C:\\ATM&gt; SELF-TEST",9,"#63e6a9") +
-    txt(18,40,"CARD READER ... OK",9,"#63e6a9") +
-    txt(18,54,"PSU +24V ...... OK",9,"#63e6a9") +
-    txt(18,68,"TOUCH PANEL ... OK",9,"#63e6a9") +
-    txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9") + "</g>";
+  /* the self-test, a line at a time (so the dawn boot can type it out),
+     and the cursor in the next cell after the last line, waiting: the one
+     thing on the tube that blinks (it lives in #crtOS, so only in 1999).
+     A block, not an underscore: the sticky note's top edge crosses that
+     cell just under the baseline, and would hide an underscore entirely */
+  var CRT_G = '<g class="crt-line" ' + MONO + ' font-size="9" fill="#63e6a9">';
+  var CRT_LINES = [
+    txt(18,26,"C:\\ATM&gt; SELF-TEST",9,"#63e6a9"),
+    txt(18,40,"CARD READER ... OK",9,"#63e6a9"),
+    txt(18,54,"PSU +24V ...... OK",9,"#63e6a9"),
+    txt(18,68,"TOUCH PANEL ... OK",9,"#63e6a9"),
+    txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9"),
+    '<rect class="cur" x="115.8" y="75.4" width="4.6" height="6.6" fill="#63e6a9"/>'];
+  var CRT_SELFTEST = CRT_G + CRT_LINES.join("") + "</g>";
   var crt = "";
   crt += box(195,96,0,64,30,14,"#c9bda2");                       // stand
   crt += box(170,42,14,110,52,92,"#c4b89c");                      // tube hump
@@ -2644,8 +2723,14 @@
     '<rect x="1.5" y="1.2" width="27" height="6.6" rx="1.2" fill="#efe6cf" stroke="rgba(26,14,6,.4)"/>' +
     '<circle cx="8.5" cy="4.5" r="2.7" fill="#fdf8ec" stroke="#6b5232" stroke-width=".7"/>' +
     '<circle cx="21.5" cy="4.5" r="2.7" fill="#fdf8ec" stroke="#6b5232" stroke-width=".7"/>' +
-    '<path d="M8.5 4.5 L8.5 2.5 M8.5 4.5 L10 4.9 M21.5 4.5 L21.5 2.6 M21.5 4.5 L20 5.3" stroke="#3a2c1f" stroke-width=".7" stroke-linecap="round"/>');
+    '<path d="M8.5 4.5 L8.5 2.5 M8.5 4.5 L10 4.9 M21.5 4.5 L20 5.3" stroke="#3a2c1f" stroke-width=".7" stroke-linecap="round"/>');
   chess += cyl(175,292,9,1.3,1,"#efe6cf") + cyl(191,292,9,1.3,2,"#332a20");
+  /* black's clock is the one running, so its long hand goes round on the
+     visitor's own seconds (syncClock, after the build); at rest it reads
+     :00. Drawn last on the board, in the face's plane, because a loop
+     drags whatever is painted after it, over it, onto layers of their own
+     (the buttons on top never reach down to the dial) */
+  chess += gLeft(168,297,9,'<g class="tick"><rect x="21.1" y="2.6" width=".8" height="1.9" rx=".4" fill="#3a2c1f"/></g>');
   /* the board's and the clock's shade on the desk, pushed just before
      them rather than inside them: a shadow inside a wrapObj would lift
      with it and read as a sticker peeled off the wood */
@@ -3343,7 +3428,7 @@
     var fl = hit(40,170), fr = hit(260,170), nr = hit(260,60), nl = hit(40,60);
     var Pfr = P(fr[0],fr[1],0), Pfl = P(fl[0],fl[1],0), Pnr = P(nr[0],nr[1],0);
     var m1 = hit(148,170), m2 = hit(148,60), m3 = hit(153,170), m4 = hit(153,60);
-    S.push('<g id="moon" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none">' +
+    S.push('<g id="moon" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none;--moonk:' + MOON_L.toFixed(2) + '">' +
       // the shaft through the air
       '<polygon points="' + q([TL,TR,BR,Pnr,Pfr,Pfl]) + '" fill="url(#moonShaft)" filter="url(#haze)"/>' +
       // the window panes, glowing
@@ -3397,6 +3482,16 @@
   S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
 
   document.getElementById("iso").innerHTML = S.join("");
+
+  /* The chess clock keeps the visitor's time: its hand's lap is a minute
+     long, so its place in the lap is this minute's seconds. Set again
+     whenever the room wakes, because a loop paused under a sheet or
+     scrolled away comes back behind the real clock. */
+  function syncClock(){
+    var d = new Date(), el = document.querySelector("#iso .tick");
+    if (el) el.getAnimations().forEach(function(a){ a.currentTime = d.getSeconds() * 1000 + d.getMilliseconds(); });
+  }
+  syncClock();
 
   /* ================================================================
      WORLDS — dossier content
@@ -4014,7 +4109,7 @@
     /* every sheet opens and closes through here, so this is where the room
        is told to sleep under it, and woken when it goes */
     document.body.classList.toggle("modal-open", on);
-    if (!on) wakeDust();
+    if (!on){ wakeDust(); syncClock(); }
   }
   /* highlight the object(s) a dialog belongs to, and pan it into view
      so a legend tag always points back at something on the desk */
@@ -6180,7 +6275,7 @@
         if (m.x < -0.05) m.x = 1.05;
         if (m.x > 1.05) m.x = -0.05;
         // lit only where a light reaches it: warm in the lamp, blue in the moonbeam
-        var warm = dark ? 0 : falloff(m, LAMP), cool = falloff(m, MOON) * (dark ? 1.3 : .75);
+        var warm = dark ? 0 : falloff(m, LAMP), cool = falloff(m, MOON) * (dark ? 1.3 : .75) * MOON_L;   // as bright as tonight's moon
         var isCool = cool > warm, glow = isCool ? cool : warm;
         var alpha = m.a * glow * (0.62 + 0.38 * Math.sin(m.p));
         if (alpha > 0.008){
@@ -6206,9 +6301,9 @@
   new IntersectionObserver(function(es){
     SEEN = es[0].isIntersecting;
     document.getElementById("iso").classList.toggle("asleep", !SEEN);
-    if (SEEN) wakeDust();
+    if (SEEN){ wakeDust(); syncClock(); }
   }).observe(document.querySelector(".desk-wrap"));
-  document.addEventListener("visibilitychange", function(){ wakeDust(); });
+  document.addEventListener("visibilitychange", function(){ wakeDust(); syncClock(); });
 
   /* ---------------- addresses: a link lands on the thing ----------------
      #hive opens Hive Mind, #lights-out arrives in the dark, #2026 in
