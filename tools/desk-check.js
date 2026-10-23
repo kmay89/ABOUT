@@ -550,11 +550,29 @@ async function commentary(browser) {
   await ctx.close();
   ({ ctx, page } = await openDesk(browser, { name: "commentary-phone", width: 390, height: 844, dpr: 1, touch: true }));
   const rad = await page.getAttribute('#commLayer .cnode[data-n="1"] .chit', "r");
-  ok("A12 a finger gets a 35-unit hit circle", rad === "35", "r " + rad);
+  ok("A12 a finger gets a 35-unit hit circle", +rad === 35, "r " + rad);
+  /* the hit circles can't be read off the r attribute alone: a later node
+     is drawn over an earlier one, so the room asks where each disc is */
+  await page.click("#commBtn"); await page.waitForTimeout(150);
+  const miss = [], away = [];
+  for (let n = 1; n <= N; n++) {
+    const got = await page.evaluate((n) => {
+      const d = document.querySelector('#commLayer .cnode[data-n="' + n + '"] .cdisc');
+      d.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+      const b = d.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+      if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return "off screen";
+      const e = document.elementFromPoint(x, y), h = e && e.closest(".cnode");
+      return h ? h.dataset.n : e ? e.tagName : "nothing";
+    }, n);
+    if (got === "off screen") away.push(n); else if (got !== String(n)) miss.push(n + "→" + got);
+  }
+  ok("A12 on a phone, the middle of every number is that number", miss.length === 0, miss.join(" ") || (N - away.length) + " nodes" + (away.length ? " (off screen: " + away.join(", ") + ")" : ""));
   await ctx.close();
   ({ ctx, page } = await openDesk(browser, { name: "commentary-route", dpr: 1, query: "#notes-5" }));
   r = await st();
   ok("A8 #notes-5 turns the commentary on and opens note 5", r.on && r.open && /^5 \//.test(r.pos), r.pos);
+  const kept = await page.evaluate(() => localStorage.getItem("km_comm"));
+  ok("A12 an address shows the notes without remembering them", kept !== "1", "km_comm " + kept);
   await ctx.close();
 }
 
