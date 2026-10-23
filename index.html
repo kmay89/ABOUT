@@ -520,9 +520,12 @@
   body.lights-out .mTrekX{transform:translateX(-308px)}
   body.lights-out .mTrekY{transform:translateY(-50px)}
   body.lights-out .mPose{transform:skewY(-26.6deg) scale(.9)}
-  /* the fireflies come out a beat after the lamp goes, and go in with it */
-  #fireflies{opacity:0;transition:opacity .4s ease}
-  body.lights-out #fireflies{opacity:1;transition:opacity 1.6s ease 1.2s}
+  /* the fireflies come out a beat after the lamp goes, and go in with it.
+     Hidden, not only transparent, while the lamp is on: invisible but
+     there, they sat over the window's loops and got a layer of their own
+     that the browser repainted for nothing */
+  #fireflies{opacity:0;visibility:hidden;transition:opacity .4s ease,visibility 0s .4s}
+  body.lights-out #fireflies{opacity:1;visibility:visible;transition:opacity 1.6s ease 1.2s,visibility 0s 1.2s}
   .ffm,.fff{opacity:0}
   .iso-obj.done .nozzle{animation:none;opacity:.25}
   .crt-line{animation:crt 5s steps(2) infinite}
