@@ -341,10 +341,11 @@
   .iso-obj[data-id="toy"]:is(:hover,:focus-visible,.rx,.picked) .rx-book{transform:translateY(-8px) rotate(-1.5deg)}
   .iso-obj[data-id="toy"]:is(:hover,:focus-visible,.rx,.picked) .rx-box{transform:translateY(-5px)}
   /* the book lifts, and on its cover the sun comes up out of the sea */
-  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-sunrise{transform:translateY(-2px)}
-  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-rays{opacity:1}
-  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-road{opacity:.5}
-  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-halo{opacity:.38}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-sunrise{transform:translateY(-6px)}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-rays{opacity:.95}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-road{opacity:.8}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-halo{opacity:.3}
+  .iso-obj[data-id="sun"]:is(:hover,:focus-visible,.rx) .rx-dawn{opacity:1}
   /* a full bowl comes up only a little, and its steam runs hot (in the gate) */
   .iso-obj[data-id="chili"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-2px)}
   /* the phone comes up in the hand, a little turned; its fence and pin come alive (in the gate) */
@@ -1207,7 +1208,7 @@
     .iso-obj:is(:hover,:focus-visible,.rx,.picked) :is(.rx-book,.rx-box,.rx-sunrise,.rx-top,.rx-fly,.rx-loupe,.rx-crown,.rx-pad,.rx-float,.vent){transition-duration:var(--t-rx);transition-timing-function:var(--ease-lift),ease}
     .iso-obj:is(:hover,:focus-visible,.rx,.picked) .rx-box{transition-delay:70ms}   /* one hand, then the other */
     .rx-cursor{transition:transform .35s ease-in-out}
-    .th,.rx-pick,.rx-rays,.rx-road,.rx-halo,.rx-under{transition:opacity .3s ease}
+    .th,.rx-pick,.rx-rays,.rx-road,.rx-halo,.rx-under,.rx-dawn{transition:opacity .3s ease}
     .iso-obj:is(:hover,:focus-visible,.rx) .rx-pick{transition-delay:.3s}   /* once the cursor gets there */
     /* the steam runs hot: thicker and taller, still slower than a breath */
     @keyframes steamHot{0%,100%{opacity:.18;transform:translateY(0)}50%{opacity:.6;transform:translateY(-9px)}}
@@ -2551,20 +2552,29 @@
   sunb += gLeft(76,370,8,'<rect x="2" y="1.5" width="56" height="5" fill="#efe6cf" opacity=".9" stroke="rgba(26,14,6,.3)"/>');
   sunb += gTop(76,328,8,
     '<rect width="60" height="42" rx="2.5" fill="#233252" stroke="rgba(26,14,6,.5)" stroke-width="1.5"/>' +
-    '<rect y="27" width="60" height="15" fill="#1a2440"/>' +
+    '<rect y="31" width="60" height="11" fill="#1a2440"/>' +
     /* pointed at, the sun comes up: the disc is a whole one cut off at
-       the horizon, so it can rise out of the sea rather than float; its
-       halo comes with it, and its rays and its road on the water brighten */
-    '<clipPath id="sunSea"><rect width="60" height="27"/></clipPath>' +
-    '<g class="rx-sunrise"><circle class="rx-halo" cx="30" cy="27" r="11" fill="#ffd166" opacity=".22"/></g>' +
-    '<g clip-path="url(#sunSea)"><g class="rx-sunrise"><circle cx="30" cy="27" r="9" fill="#ffd166"/></g></g>' +
-    '<polygon class="rx-road" points="25,27 35,27 40,42 20,42" fill="#ffd166" opacity=".3"/>' +
-    '<g class="rx-rays" stroke="#ffd166" stroke-width="1.4" stroke-linecap="round" opacity=".8">' +
-      '<path d="M14 22 l4 2 M46 22 l-4 2 M30 13 l0 4 M20 15.5 l2 3.4 M40 15.5 l-2 3.4"/></g>' +
+       the horizon, so it can rise out of the sea rather than float. At
+       rest it is a sliver on the water under a warm line of dawn; pointed
+       at, it clears the sea by most of its width, the sky above the water
+       warms, its rays come up with it and its road on the water brightens.
+       The horizon sits low, under the title, and the title has an outline
+       of the cover's own blue, so the sun can come up behind the words and
+       neither one muddies the other */
+    '<defs><linearGradient id="sunDawn" x1="0" y1="0" x2="0" y2="1"><stop offset=".4" stop-color="#e2603f" stop-opacity="0"/>' +
+      '<stop offset=".8" stop-color="#f08a4b" stop-opacity=".4"/><stop offset="1" stop-color="#ffb86b" stop-opacity=".85"/></linearGradient>' +
+      '<clipPath id="sunSea"><rect width="60" height="31"/></clipPath></defs>' +
+    '<rect class="rx-dawn" width="60" height="31" fill="url(#sunDawn)" opacity=".35"/>' +
+    '<g class="rx-sunrise"><g class="rx-rays" stroke="#ffd166" stroke-width="1.3" stroke-linecap="round" opacity="0"><path d="' +
+        [12,36,60,120,144,168].map(function(a){ var r = a * Math.PI / 180, c = Math.cos(r), s = -Math.sin(r);
+          return "M" + n1(30 + 10.5*c) + " " + n1(34.5 + 10.5*s) + "L" + n1(30 + 13*c) + " " + n1(34.5 + 13*s); }).join("") + '"/></g></g>' +
+    '<g clip-path="url(#sunSea)"><g class="rx-sunrise"><circle class="rx-halo" cx="30" cy="34.5" r="11.5" fill="#ffd166" opacity=".12"/>' +
+      '<circle cx="30" cy="34.5" r="7.5" fill="#ffd166"/></g></g>' +
+    '<path class="rx-road" d="M25.5 32.6h9M26.8 34.9h6.6M24.6 37.3h9.4M27.4 39.8h5.6" stroke="#ffd166" stroke-width="1" stroke-linecap="round" opacity=".35"/>' +   // its road on the water, in glints
     '<rect x="49" y="0" width="4" height="9" fill="#e2603f"/>' +
-    txt(30,10,"Borrowed",8,"#f4e9d8",SERIF + ' text-anchor="middle" font-style="italic"') +
-    txt(30,20,"Sunlight",9.5,"#ffd166",SERIF + ' text-anchor="middle" font-style="italic" font-weight="bold"') +
-    txt(30,38,"a novel",5.5,"#efe6cf",SERIF + ' text-anchor="middle" font-style="italic" opacity=".85"'));
+    txt(30,8.5,"Borrowed",7.5,"#f4e9d8",SERIF + ' text-anchor="middle" font-style="italic"') +
+    txt(30,18,"Sunlight",9.5,"#ffd166",SERIF + ' text-anchor="middle" font-style="italic" font-weight="bold" stroke="#233252" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke"') +
+    txt(10.5,39,"a novel",4.6,"#efe6cf",SERIF + ' text-anchor="middle" font-style="italic" opacity=".85"'));
   S.push(wrapObj("sun","Borrowed Sunlight — a novel, new for summer 2026","#ffd166",sunb));
 
   /* ---------- board: beige CRT + keyboard (the machine years) ---------- */
