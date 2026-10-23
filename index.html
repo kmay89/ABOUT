@@ -1679,6 +1679,27 @@
     '<path d="M182 150 L196 168" stroke="#241d16" stroke-width="4"/>' +
     '<rect x="112" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/>' +
     '<rect x="230" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/></g>';
+  /* Everything that hangs on a wall touches it, and without a shade on
+     the plaster it reads as a decal stuck on the picture. So each thing
+     gets one, drawn in the wall's own plane and nudged away from the lamp
+     along the wall: the shelf's climbs, because the lamp is below it, and
+     the rest fall a little and lean away from where the lamp stands (y 158
+     on this wall, x 118 on the other). Two static groups, one blur each,
+     rasterised once and never again; both are under the darkness, so they
+     go out with the lamp like everything else. */
+  S.push('<g aria-hidden="true" filter="url(#soft)">' +
+    gRight(-30,400,190,
+      '<rect x="172" y="18" width="96" height="18" fill="rgba(0,0,0,.28)"/>' +                          // the shelf
+      '<g transform="translate(-5,7)" opacity=".35">' + bike.replace(/#[0-9a-f]{6}/g,"#000") + "</g>" +   // the bike
+      '<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" fill="rgba(0,0,0,.32)" transform="translate(4,7)"/>') +   // the shirt
+    gRight(-30,394,190,'<rect x="-11" y="-2" width="114" height="78" fill="rgba(0,0,0,.4)"/>') +          // the lithophane
+    "</g>");
+  S.push('<g aria-hidden="true" filter="url(#soft)">' +
+    gLeft(40,-30,170,'<rect x="-5" y="-4" width="236" height="126" fill="rgba(0,0,0,.35)" transform="translate(4,5)"/>') +   // the window
+    gLeft(452,-30,160,'<rect x="-7" y="-7" width="104" height="104" fill="rgba(0,0,0,.35)" transform="translate(4,5)"/>') +  // the spiral
+    gLeft(556,-30,158,'<rect x="-6" y="-6" width="60" height="72" fill="rgba(0,0,0,.35)" transform="translate(3,4) rotate(4)"/>') +  // the polaroid
+    gLeft(330,-30,135,'<rect x="1.5" y="2" width="18" height="30" rx="2" fill="rgba(0,0,0,.45)"/>') +   // the switch plate
+    "</g>");
   S.push('<g aria-hidden="true">' + gRight(-30,400,190,bike) + "</g>");
   S.push(box(-28,132,148,52,96,8,"#7a5a38"));
   var vhs = box(-24,146,156,38,24,8,"#17171e") + box(-22,150,164,38,24,8,"#1c1c26");
@@ -2019,6 +2040,61 @@
     S.push('<g aria-hidden="true">' + lamp + "</g>");
   })();
 
+  /* ---------- the lamp throws them: cast shadows away from the shade ----------
+     The shadows below are contact shade, a soft dark straight under each
+     thing, which says "it touches the desk" and nothing about the light.
+     These say where the light is. Each footprint is swept away from the
+     mouth of the shade, LAMP_L, and the sweep is wrapped in a convex hull
+     (Andrew's monotone chain), so every shadow on the desk fans out from
+     the one lamp. A lamp this close would throw them yards long; we keep
+     the direction honest, because that is what the eye checks, and cheat
+     the length to between a third and a half of the height, because that
+     is what would bury the desk. No blur either: three hulls, each shorter
+     and inset a unit more than the last, overlap into a dark core that
+     fades in steps toward the tip, a penumbra for the price of three
+     polygons. */
+  var LAMP_L = [118,158,84];
+  function hull(p){
+    p = p.slice().sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; });
+    function half(q){ var h = []; q.forEach(function(v){
+      while (h.length > 1 && (h[h.length-1][0]-h[h.length-2][0])*(v[1]-h[h.length-2][1]) - (h[h.length-1][1]-h[h.length-2][1])*(v[0]-h[h.length-2][0]) <= 0) h.pop();
+      h.push(v); }); h.pop(); return h; }
+    return half(p).concat(half(p.slice().reverse()));
+  }
+  function castW(x,y,w,d,h,op){
+    var dx = x + w/2 - LAMP_L[0], dy = y + d/2 - LAMP_L[1], D = Math.hypot(dx,dy) || 1;
+    var len = Math.min(h,30) * (.45 + Math.min(D,260)/260 * .35);
+    var ox = dx/D*len, oy = dy/D*len;
+    function sweep(i,k){
+      var base = [[x+i,y+i],[x+w-i,y+i],[x+w-i,y+d-i],[x+i,y+d-i]];
+      return polyW(hull(base.concat(base.map(function(q){ return [q[0]+ox*k, q[1]+oy*k]; })))
+        .map(function(q){ return [q[0],q[1],0]; }), "rgba(12,6,2," + (op*.4).toFixed(3) + ")", NO);
+    }
+    return sweep(0,1) + sweep(1,.75) + sweep(2,.5);
+  }
+  S.push('<g aria-hidden="true">' +
+    castW(52,52,40,40,30,.22) +                                                   // mug
+    '<g class="era-old">' + castW(150,42,150,82,30,.22) + castW(160,200,170,62,10,.18) + "</g>" +   // CRT, keyboard
+    '<g class="era-now">' + castW(150,86,170,12,30,.22) + castW(170,204,140,46,5,.16) +             // display, keyboard,
+      castW(346,164,62,46,30,.22) + castW(366,146,44,7,30,.18) + "</g>" +                            // MacBook, iPad
+    castW(386,62,116,78,30,.24) +              // book stack
+    castW(24,196,86,64,10,.18) +               // Lupita book
+    castW(118,208,46,46,30,.24) +              // doll box
+    castW(252,262,46,26,5,.16) +               // uTap iPhone
+    castW(450,180,64,88,13,.2) +               // keypad
+    castW(250,290,64,106,11,.2) +              // game boy
+    castW(382,278,92,7,30,.22) + castW(380,288,96,89,5,.14) +   // jewel case: the lid stood up, the tray
+    castW(480,305,58,58,5,.14) +               // floppy
+    castW(308,34,56,48,24,.2) +                // sourdough boule
+    castW(34,332,24,24,24,.22) +               // rubik's cube
+    castW(504,64,52,88,4,.14) +                // the sudoku paper
+    castW(76,328,60,42,8,.16) +                // Borrowed Sunlight novel
+    castW(517,27,26,26,20,.2) +                // flower pot
+    castW(518,216,30,30,7,.16) +               // impossible object pedestal
+    castW(150,300,64,64,5,.16) +               // chess board (CHX, CHY: declared further down)
+    castW(330,276,20,20,30,.22) +              // the console tower
+    "</g>");   // no prism (its shadow is the caustic) and no lamp base (the light is above it)
+
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
   S.push('<g class="era-old">' + shadowW(150,50,180,212,12,.30) + "</g>"); // CRT + keyboard (1999)
@@ -2238,8 +2314,7 @@
   var bwT = P(BWX,BWY,BWH), bwB = P(BWX,BWY,1.5);
   var BRT = BWR * 1.414, BRB = 9.5 * 1.414;
   function n1(v){ return v.toFixed(1); }
-  var chili = isoEllipse(BWX,BWY,0,BWR - 1,"rgba(12,6,2,.20)",'filter="url(#soft)" stroke="none"');
-  chili += '<path d="M' + n1(bwT[0]-BRT) + " " + n1(bwT[1]) +
+  var chili = '<path d="M' + n1(bwT[0]-BRT) + " " + n1(bwT[1]) +
     " C" + n1(bwT[0]-BRT) + " " + n1(bwT[1]+7) + " " + n1(bwB[0]-BRB) + " " + n1(bwB[1]-4) + " " + n1(bwB[0]-BRB) + " " + n1(bwB[1]) +
     " A" + n1(BRB) + " " + n1(BRB/2) + " 0 0 0 " + n1(bwB[0]+BRB) + " " + n1(bwB[1]) +
     " C" + n1(bwB[0]+BRB) + " " + n1(bwB[1]-4) + " " + n1(bwT[0]+BRT) + " " + n1(bwT[1]+7) + " " + n1(bwT[0]+BRT) + " " + n1(bwT[1]) +
@@ -2314,28 +2389,31 @@
   chili += '<g fill="none" stroke="#f4e9d8" stroke-width="2.5" stroke-linecap="round">' +
     '<path class="steam" d="M' + n1(bs[0]-7) + " " + n1(bs[1]) + " q 4 -8 -1 -14 q -4 -6 1 -12\"/>" +
     '<path class="steam s2" d="M' + n1(bs[0]+6) + " " + n1(bs[1]-2) + " q 4 -7 -1 -13 q -4 -6 1 -11\"/></g>";
+  S.push('<g aria-hidden="true">' + isoEllipse(BWX,BWY,0,BWR - 1,"rgba(12,6,2,.20)",'filter="url(#soft)" stroke="none"') + "</g>");   // the bowl's shade stays down when it lifts
   S.push(wrapObj("chili","A bowl of chili under a heap of cheddar, crackers beside it — the recipe, and a calculator for it","#ff7454",chili));
 
   /* ---------- cam: ball webcam perched on the CRT ---------- */
   var camTopZ = 126, cc = P(225,105,camTopZ + 15);
-  var cam = isoEllipse(225,105,camTopZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"');
-  cam += cyl(225,105,camTopZ,7,5,"#3a4254");
+  var cam = cyl(225,105,camTopZ,7,5,"#3a4254");
   cam += '<circle cx="' + cc[0].toFixed(1) + '" cy="' + cc[1].toFixed(1) + '" r="15" fill="url(#camGrad)" ' + OUT + "/>" +
     '<g class="rx-eye"><circle cx="' + (cc[0]+3).toFixed(1) + '" cy="' + (cc[1]+2).toFixed(1) + '" r="6.5" fill="#0b1220"/>' +
     '<circle cx="' + (cc[0]+3).toFixed(1) + '" cy="' + (cc[1]+2).toFixed(1) + '" r="3" fill="#22335a"/></g>' +
     '<circle cx="' + (cc[0]-5).toFixed(1) + '" cy="' + (cc[1]-6).toFixed(1) + '" r="2.4" fill="#e9f1ff" opacity=".9"/>' +
     '<circle cx="' + (cc[0]+11).toFixed(1) + '" cy="' + (cc[1]-4).toFixed(1) + '" r="1.8" fill="#63e6a9" class="led"/>';
+  /* its shade on the tube's lid stays there when the ball lifts; it keeps
+     the era class, or 1999's would hang in the air above the 2026 display */
+  S.push('<g class="era-old" aria-hidden="true">' + isoEllipse(225,105,camTopZ,10,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
   S.push(wrapObj("cam","securaCV — open source","#8fb7ff",cam,"era-old"));
 
   /* cam again in 2026 — perched on the big display */
   var cc2 = P(235,92,134 + 15);
-  var cam2 = isoEllipse(235,92,134,9,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"');
-  cam2 += cyl(235,92,134,6,4,"#3a4254");
+  var cam2 = cyl(235,92,134,6,4,"#3a4254");
   cam2 += '<circle cx="' + cc2[0].toFixed(1) + '" cy="' + cc2[1].toFixed(1) + '" r="13" fill="url(#camGrad)" ' + OUT + "/>" +
     '<g class="rx-eye"><circle cx="' + (cc2[0]+3).toFixed(1) + '" cy="' + (cc2[1]+2).toFixed(1) + '" r="5.5" fill="#0b1220"/>' +
     '<circle cx="' + (cc2[0]+3).toFixed(1) + '" cy="' + (cc2[1]+2).toFixed(1) + '" r="2.6" fill="#22335a"/></g>' +
     '<circle cx="' + (cc2[0]-4).toFixed(1) + '" cy="' + (cc2[1]-5).toFixed(1) + '" r="2" fill="#e9f1ff" opacity=".9"/>' +
     '<circle cx="' + (cc2[0]+9.5).toFixed(1) + '" cy="' + (cc2[1]-3.5).toFixed(1) + '" r="1.6" fill="#63e6a9" class="led"/>';
+  S.push('<g class="era-now" aria-hidden="true">' + isoEllipse(235,92,134,9,"rgba(12,6,2,.30)",'filter="url(#soft)" stroke="none"') + "</g>");
   S.push(wrapObj("cam","securaCV — open source","#8fb7ff",cam2,"era-now"));
 
   /* ---------- utap: the college iPhone, geofenced campus map ---------- */
@@ -2443,8 +2521,7 @@
     if (rx) s += "</g>";
     return s;
   }
-  var chess = shadowW(CHX,CHY,64,64,7,.26) + shadowW(168,287,30,10,5,.22);
-  chess += box(CHX,CHY,0,64,64,5,"#54382a");
+  var chess = box(CHX,CHY,0,64,64,5,"#54382a");
   var chSquares = "";
   for (var chr2 = 0; chr2 < 8; chr2++)
     for (var chf = 0; chf < 8; chf++)
@@ -2463,6 +2540,10 @@
     '<circle cx="21.5" cy="4.5" r="2.7" fill="#fdf8ec" stroke="#6b5232" stroke-width=".7"/>' +
     '<path d="M8.5 4.5 L8.5 2.5 M8.5 4.5 L10 4.9 M21.5 4.5 L21.5 2.6 M21.5 4.5 L20 5.3" stroke="#3a2c1f" stroke-width=".7" stroke-linecap="round"/>');
   chess += cyl(175,292,9,1.3,1,"#efe6cf") + cyl(191,292,9,1.3,2,"#332a20");
+  /* the board's and the clock's shade on the desk, pushed just before
+     them rather than inside them: a shadow inside a wrapObj would lift
+     with it and read as a sticker peeled off the wood */
+  S.push('<g aria-hidden="true">' + shadowW(CHX,CHY,64,64,7,.26) + shadowW(168,287,30,10,5,.22) + "</g>");
   S.push(wrapObj("chess","The chess room — a game paused mid-opening","#3fc472",chess,"still"));
 
   /* ---------- sudoku: the sudoku room — the paper, half worked ----------
@@ -2476,8 +2557,7 @@
     [5,1,1],[5,6,4],[6,2,7],[6,3,1],[6,5,8],[6,6,5],[7,0,5],[7,1,8],
     [7,4,6],[7,5,9],[8,0,6],[8,5,5],[8,6,2],[8,7,8]
   ];
-  var sudoku = shadowW(SDX,SDY,52,88,6,.24);
-  sudoku += box(SDX,SDY,0,52,88,4,"#efe3ce");
+  var sudoku = box(SDX,SDY,0,52,88,4,"#efe3ce");   // its shade is in the shadows block, where it stays when the paper lifts
   var page = "";
   // masthead
   page += txt(SDG, 11, "SUDOKU", 5.4, "#3a2c1f", MONO + ' letter-spacing="1.4"');
@@ -2557,7 +2637,7 @@
     return s;
   }
 
-  var domino = shadowW(DBX - 8, DBY - 10, 70, 42, 7, .26);
+  var domino = "";
 
   /* the stack: four squared-up bones with the 6|6 crowning it */
   var stack = [[0, 0, 0, 5, 3], [0.6, 0.4, BT, 2, 4], [-0.4, 0.8, BT * 2, 0, 1], [0.3, 0.2, BT * 3, 6, 6]];
@@ -2585,6 +2665,7 @@
   for (var li = 0; li < loose.length; li++) {
     domino += domBone(loose[li].x, loose[li].y, 0, loose[li].a, loose[li].b, false);
   }
+  S.push('<g aria-hidden="true">' + shadowW(DBX - 8, DBY - 10, 70, 42, 7, .26) + "</g>");   // on the desk, not in the pile
   S.push(wrapObj("domino","A pile of dominoes — a game waiting to start","#f0a83c",domino,"still"));
 
   /* ---------- library: a games console, and a pad left on the desk ----------
@@ -2597,8 +2678,7 @@
      to somebody else — the same care the room it opens takes about
      shipping none of Mojang's artwork. */
   var CVX = 330, CVY = 276, CVW = 20, CVD = 20, CVH = 42;
-  var lib = shadowW(CVX - 3, CVY - 3, CVW + 6, CVD + 6, 6, .30);
-  lib += box(CVX, CVY, 0, CVW, CVD, CVH, "#16181c");
+  var lib = box(CVX, CVY, 0, CVW, CVD, CVH, "#16181c");
   /* the vent across the top, lit from inside */
   lib += gTop(CVX, CVY, CVH,
     '<rect x="2.4" y="2.4" width="' + (CVW - 4.8) + '" height="' + (CVD - 4.8) + '" rx="2" fill="#0d0f12"/>' +
@@ -2609,7 +2689,6 @@
 
   /* the pad, dropped in front of it */
   var PX = 316, PY = 306;
-  lib += shadowW(PX, PY, 26, 15, 4, .22);
   lib += '<g class="rx-pad">';                    // picked up off its shadow, which stays on the desk
   lib += box(PX, PY, 0, 26, 15, 5, "#2a2e34");
   lib += box(PX + 2, PY + 2, 5, 22, 11, 1.4, "#33383f");
@@ -2621,6 +2700,9 @@
     '<rect x="6.15" y="6.05" width="1.1" height="3.4" rx=".5" fill="#15181c"/>' +
     '<circle cx="17.5" cy="3" r="1.05" fill="#6cc24a"/><circle cx="19.6" cy="4.6" r="1.05" fill="#e5484d"/>' +
     '<circle cx="15.4" cy="4.6" r="1.05" fill="#4a90e2"/><circle cx="17.5" cy="6.2" r="1.05" fill="#f0b429"/>') + "</g>";
+  /* the tower's shade and the pad's, on the desk under both, so the pad
+     is picked up off its own and the tower never carries one */
+  S.push('<g aria-hidden="true">' + shadowW(CVX - 3, CVY - 3, CVW + 6, CVD + 6, 6, .30) + shadowW(PX, PY, 26, 15, 4, .22) + "</g>");
   S.push(wrapObj("library","The reading room — a block world on a console","#6cc24a",lib,"still"));
 
   /* ---------- hive: atomic-purple Game Boy ---------- */
