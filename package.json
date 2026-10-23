@@ -8,6 +8,7 @@
     "check:rules": "node tools/rules-check.js",
     "check:ai": "node tools/ai-check.js",
     "check:open": "node tools/open-check.js",
+    "check:desk": "node tools/desk-check.js",
     "check:room": "node tools/room-check.js",
     "check:join": "node tools/join-check.js",
     "check:well": "node tools/well-check.js",
