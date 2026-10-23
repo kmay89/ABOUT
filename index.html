@@ -486,6 +486,15 @@
     opacity:0;transition:opacity .3s ease;
   }
   .scrim.show{opacity:1}
+  /* the tour's finale lifts the dimming and lets taps through to the desk */
+  .scrim.thru{pointer-events:none}
+  /* The spotlight's centre and size are registered as lengths, so they
+     can be eased like any other value: the tour's light glides from one
+     thing to the next instead of jumping (the glide itself is in the
+     motion gate). A browser without @property just jumps, as it always did. */
+  @property --sx{syntax:'<length>';inherits:false;initial-value:0px}
+  @property --sy{syntax:'<length>';inherits:false;initial-value:0px}
+  @property --sr{syntax:'<length>';inherits:false;initial-value:0px}
   /* soft spotlight hole over the picked object so it stays lit while the room dims */
   .scrim.spot{
     -webkit-mask-image:radial-gradient(circle at var(--sx,50%) var(--sy,40%), transparent var(--sr,80px), #000 calc(var(--sr,80px)*2.6));
@@ -517,6 +526,38 @@
   .dossier::before{
     content:"";position:absolute;left:50%;top:.55rem;width:2.6rem;height:4px;margin-left:-1.3rem;
     border-radius:999px;background:color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
+  }
+  /* "Show me around": a caption card in the dossier's glass, small and low
+     so the room above it stays the subject. It wears the colour of the
+     thing under the light, and on a phone it never takes more than the
+     bottom third, so the spotlit object always has the top of the screen. */
+  .tour{
+    position:fixed;left:50%;bottom:1.2rem;z-index:42;
+    width:min(34rem,calc(100vw - 1.5rem));max-height:30vh;overflow:auto;
+    transform:translate(-50%,14px);opacity:0;
+    transition:opacity .35s ease,transform .35s cubic-bezier(.2,.9,.25,1);
+    background:
+      radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--a,#ffc97a) 11%, transparent), transparent 70%),
+      linear-gradient(160deg,rgba(33,25,18,.94),rgba(20,16,9,.96) 55%);
+    -webkit-backdrop-filter:blur(18px) saturate(1.2);backdrop-filter:blur(18px) saturate(1.2);
+    border:1px solid color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
+    border-radius:14px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 1px 0 color-mix(in srgb, var(--a,#ffc97a) 30%, rgba(255,255,255,.1));
+    padding:.9rem 1.1rem 1rem;
+  }
+  .tour.show{opacity:1;transform:translate(-50%,0)}
+  .tour-cap{font-size:1.02rem;line-height:1.5;color:var(--ink);margin:.5rem 0 .8rem}
+  .tour-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .tour-row .chip:disabled{opacity:.35;cursor:default;background:transparent}
+  .tour-row .deck-go{color:var(--ink);border-color:var(--a,#ffc97a);background:color-mix(in srgb, var(--a,#ffc97a) 20%, transparent)}
+  .tour-row .deck-go:hover,.tour-row .deck-go:focus-visible{background:color-mix(in srgb, var(--a,#ffc97a) 32%, transparent)}
+  .tour-row a.chip{text-decoration:none}
+  #tourEnd{margin-left:auto}
+  @media (max-width:640px){
+    .tour{bottom:.75rem;padding:.75rem .9rem .85rem}
+    .tour-cap{font-size:.95rem;margin:.4rem 0 .65rem}
+    .tour-row{gap:.4rem}
+    #tourEnd{margin-left:0}
   }
   .d-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
   /* where this sheet sits in the legend's order, pushed to the right with
@@ -907,7 +948,7 @@
 
   @media (prefers-reduced-motion:reduce){
     #iso{transform:none !important;will-change:auto}
-    .iso-obj > *,.dossier,.scrim{transition:none}
+    .iso-obj > *,.dossier,.scrim,.tour{transition:none}
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
     .pan-cue .cl,.pan-cue .cr{animation:none}
@@ -940,6 +981,9 @@
     /* a sheet paged in place: the card stays, the words turn over */
     .dossier.swap :is(h2,.story,.cv){animation:dFade .22s ease}
     @keyframes dFade{from{opacity:0;transform:translateY(4px)}}
+    /* the spotlight glides to the next thing rather than jumping (the
+       registered --sx/--sy/--sr above are what make it easeable) */
+    .scrim.spot{transition:opacity .3s ease,--sx .6s ease,--sy .6s ease,--sr .6s ease}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -973,9 +1017,9 @@
     <button class="hat" data-hat="founder">founder</button>.
     None of it felt like a career so much as a string of things I couldn&rsquo;t resist
     making. Pick something up; each one has its own light, sound, and pulse.</p>
-    <!-- the tour stays hidden until it's wired, and the one-page version
-         until its sheet exists (the script shows it then); Say hello stays
-         hidden until there's a real address to say it to -->
+    <!-- the tour needs the script to walk anywhere, and the one-page
+         version needs its sheet, so both wait hidden until the script shows
+         them; Say hello stays hidden until there's a real address to say it to -->
     <div class="deck" role="toolbar" aria-label="Desk controls">
       <button id="tourBtn" class="chip deck-go" hidden>Show me around</button>
       <button id="cvBtn" class="chip" hidden>The one-page version</button>
@@ -1134,6 +1178,23 @@
   <ul class="chips" id="dChips"></ul>
   <div class="d-links" id="dLinks"></div>
   <div class="d-nav"><button class="chip" id="dPrev" data-walk="-1" aria-keyshortcuts="ArrowLeft">← Previous</button><button class="chip" id="dNext" data-walk="1" aria-keyshortcuts="ArrowRight">Next on the desk →</button></div>
+</section>
+<!-- "Show me around": a caption card, not a sheet (the desk stays live
+     under it, so it is a dialog that doesn't trap). The three hidden
+     buttons are the finale's: at the end they take the place of the walk's,
+     and the last button becomes Done. -->
+<section class="tour" id="tour" role="dialog" aria-modal="false" aria-labelledby="tourStep" hidden>
+  <p class="d-kicker" id="tourStep"></p>
+  <p class="tour-cap" id="tourCap" aria-live="polite"></p>
+  <div class="tour-row">
+    <button class="chip" id="tourBack" aria-keyshortcuts="ArrowLeft">← Back</button>
+    <button class="chip" id="tourOpen">Pick it up</button>
+    <button class="chip deck-go" id="tourNext" aria-keyshortcuts="ArrowRight">Next →</button>
+    <button class="chip deck-go" id="tourCv" hidden>Read the one-page version</button>
+    <a class="chip" id="tourHello" hidden>Say hello</a>
+    <button class="chip" id="tourComm" hidden>How it's drawn</button>
+    <button class="chip" id="tourEnd">That's enough, thanks ×</button>
+  </div>
 </section>
 
 <footer>
@@ -3340,6 +3401,19 @@
     copied: function(){ // the link is on the clipboard: two small bright notes
       tone(1568, {dur:0.06, g:0.02});
       tone(2093, {at:0.06, dur:0.08, g:0.016});
+    },
+    putBack: function(){ // a thing set down on wood, then the click of it settling
+      noise({filter:"lowpass", freq:340, dur:0.06, g:0.07});
+      tone(150, {dur:0.1, g:0.035, end:105});
+      noise({filter:"bandpass", freq:2400, q:3, at:0.035, dur:0.012, g:0.025});
+    },
+    tourStart: function(){ // the lamp's attention: two soft notes, rising
+      tone(660, {dur:0.12, g:0.02});
+      tone(990, {at:0.08, dur:0.16, g:0.016});
+    },
+    tourEnd: function(){ // and the same two, falling, as it looks away
+      tone(990, {dur:0.12, g:0.02});
+      tone(660, {at:0.08, dur:0.16, g:0.016});
     }
   };
   var HAPTICS = {
@@ -3437,6 +3511,7 @@
 
   var dossier = document.getElementById("dossier");
   var scrim   = document.getElementById("scrim");
+  var tour    = document.getElementById("tour");
   var lastFocus = null;
   var hideTimer = null;
   function cancelHide(){ // finalize any close still animating so its timeout can't hide a reopened modal
@@ -3446,6 +3521,7 @@
     if (!cubeStage.classList.contains("show")) cubeStage.hidden = true;
     if (!mandelStage.classList.contains("show")) mandelStage.hidden = true;
     if (!lightStage.classList.contains("show")) lightStage.hidden = true;
+    if (!tour.classList.contains("show")) tour.hidden = true;
   }
   function scheduleHide(el, ms){
     /* the dust waits for the sheet to be gone, not just going */
@@ -3730,6 +3806,10 @@
     document.getElementById("dClose").focus();
   }
   function closeWorld(){
+    /* the sound is here, not on the button, so the button, a tap on the
+       room and Escape all put it down alike; one sheet giving way to the
+       next (a hand-off) isn't putting anything down */
+    if (!handoff && SOUNDS.putBack) SOUNDS.putBack();
     cancelHide();
     clearPicked();
     setActivePill(null);
@@ -3831,6 +3911,134 @@
       (b.disabled ? mate : b).focus({preventScroll: true});
     });
   });
+  /* ---------------- "Show me around": the desk, as a walk ----------------
+     For the visitor with ninety seconds: nine things, one at a time, under
+     a spotlight that glides from each to the next, with a line or two on
+     what it is and why it's here. It goes at their pace, never a timer's:
+     Next, the arrow keys, or a tap anywhere on the dimmed room. It isn't a
+     sheet, so nothing is made inert and the focus isn't trapped (the desk
+     stays live under the light), and it never marks anything found: finding
+     is still the visitor's to do. Every line is lifted from the world it
+     stands on. [id, which copy on show, the line, the line in 2026] — the
+     beige tube is only on the desk in 1999, so in 2026 the light falls on
+     today's rig (STANDIN) and says so. Off the clock's third copy is the
+     printer. A screen reader hears each line as it lands, which makes the
+     whole walk a spoken résumé. */
+  var TOUR = [
+    ["board", 0, "Start with the beige one: ATMs, inside and out — card readers, power supplies, touch screens. It's where I learned the feel of a thing is engineered, not decorated.",
+                 "In 2026 the beige tube is a slim display, but this is where it started: ATMs, card readers, power supplies. Flip the year to see the old one."],
+    ["toy", 0, "A book and a doll that speak two languages. A Mom's Choice Award, a Target Bullseye Top Pick, an education award at Toy Fair — which still amazes me."],
+    ["hive", 0, "Hive Mind: a game about what a group of minds can do that one mind can't. I designed and produced it myself — box, rules, and all."],
+    ["sun", 0, "The newest thing on the desk: Borrowed Sunlight, a novel, new for summer 2026. The four little books on the right are the Everything series — one verb each."],
+    ["scqcs", 0, "The alarm thread from the machine years kept tugging until it became its own small firm. SCQCS does physical security engineering."],
+    ["cam", 0, "securaCV: an open-source camera that answers only to the person who owns it, built in the open from the PCB to the package."],
+    ["vinyl", 0, "ERRER Labs is my little studio for the things that don't fit anywhere else. One of them was an artist, Aethra Kairos — and somehow, three albums."],
+    ["offhours", 2, "Off the clock I built this 3D printer from scratch around a Merlin board, then wrote the tools for it — Luma, Hollow, Cubby, Swatch. All free, all in your browser."],
+    ["chess", 0, "And the games are real. Chess, sudoku, dominoes, a block world, a well — each one runs in your browser and asks nothing of you."]
+  ];
+  var TOUR_DONE = "That's the desk. Every one of them opens — pick anything up. Three things here aren't on any list; finding them is yours.";
+  var tourBtn = document.getElementById("tourBtn");
+  var tourStepEl = document.getElementById("tourStep"), tourCap = document.getElementById("tourCap");
+  var tourBack = document.getElementById("tourBack"), tourOpen = document.getElementById("tourOpen");
+  var tourNext = document.getElementById("tourNext"), tourEnd = document.getElementById("tourEnd");
+  var tourCv = document.getElementById("tourCv"), tourHello = document.getElementById("tourHello");
+  var tourComm = document.getElementById("tourComm");
+  var tourI = -1;                      // the stop on show; -1 when there's no tour
+  /* The finale's "How it's drawn" is the door to the director's
+     commentary, which is built further down the file. Until it exists
+     this is a stub, and the button only puts the tour away; the commentary
+     block replaces it (tourToCommentary = function(){ setCommentary(true); })
+     and the click picks up whatever it is at the time. */
+  var tourToCommentary = function(){};
+  function startTour(){
+    if (eraBusy) return;                // the desk sleeps during the era ride
+    if (tourI >= 0){ goStop(0); return; }
+    if (activeModal()){ handoff = true; closeModal(); handoff = false; }
+    if (lightsOut) flipRoomLight(false);   // a walk round a dark room would be a walk round the wall
+    hideTip();
+    var a = document.activeElement;
+    lastFocus = a && a !== document.body ? a : tourBtn;   // an address (#tour) pressed nothing
+    cancelHide();
+    scrim.hidden = false; tour.hidden = false;
+    goStop(0, true);
+    requestAnimationFrame(function(){ scrim.classList.add("show"); tour.classList.add("show"); });
+    if (SOUNDS.tourStart) SOUNDS.tourStart();
+  }
+  /* quiet: true shows the stop without its page-turn (the first stop has
+     the tour's own sound); "era" shows it again where it is, without a
+     sound or a move of the focus, because the year changed under it */
+  function goStop(i, quiet){
+    tourI = i;
+    var fin = i >= TOUR.length;
+    tourBack.hidden = tourOpen.hidden = tourNext.hidden = fin;
+    tourCv.hidden = !fin || !WORLDS.cv;
+    tourHello.hidden = !fin || !CONTACT;
+    tourComm.hidden = !fin;
+    tourEnd.textContent = fin ? "Done" : "That's enough, thanks ×";
+    if (fin){
+      /* the light leaves the last thing and the whole room is the answer:
+         the dimming lifts and lets taps through, so "pick anything up"
+         is something you can do from right here */
+      clearPicked();
+      scrim.classList.remove("show"); scrim.classList.add("thru");
+      tour.style.setProperty("--a", "#ffc97a");
+      tourStepEl.textContent = "That's the desk";
+      tourCap.textContent = TOUR_DONE;
+    } else {
+      var s = TOUR[i];
+      if (scrim.classList.contains("thru")){ scrim.classList.remove("thru"); scrim.classList.add("show"); }
+      tour.style.setProperty("--a", ACCENT[s[0]] || "#ffc97a");
+      tourStepEl.textContent = (i + 1) + " / " + TOUR.length;
+      tourCap.textContent = s[3] && isoEl.classList.contains("now") ? s[3] : s[2];
+      tourBack.disabled = i === 0;
+      /* after the words are in, so the card is measured at the height it
+         will have: the thing is framed in the room the card leaves */
+      pickObjects(s[0], s[1], tour);
+    }
+    if (quiet === "era") return;
+    (fin ? tourEnd : tourNext).focus({preventScroll: true});
+    if (!quiet && SOUNDS.tourStep) SOUNDS.tourStep();
+  }
+  function tourGo(d){
+    var i = tourI + d;
+    if (tourI < 0 || i < 0 || i > TOUR.length) return;   // the finale is the end of the road
+    goStop(i);
+  }
+  /* into: the tour is giving way to a world that's opening (Pick it up, or
+     anything opened from the desk or the legend mid-walk). Then the focus
+     and the page stay put for that world's sheet to remember, and the
+     world makes its own sound. Otherwise it's put away like a sheet: the
+     light goes, the page glides back to where the walk began, and the
+     focus goes back to what started it. */
+  function endTour(into){
+    if (tourI < 0) return;
+    tourI = -1;
+    cancelHide();
+    clearPicked();
+    scrim.classList.remove("show", "thru"); tour.classList.remove("show");
+    scheduleHide(tour, 380);
+    if (/^#tour$/i.test(location.hash)) address(null);
+    try { localStorage.km_toured = 1; } catch(e){}
+    if (into){
+      if (tour.contains(document.activeElement) && lastFocus && lastFocus.focus) lastFocus.focus({preventScroll: true});
+      return;
+    }
+    if (SOUNDS.tourEnd) SOUNDS.tourEnd();
+    refocus();
+  }
+  tourBtn.hidden = false;
+  tourBtn.addEventListener("click", function(){ ac(true); startTour(); });
+  tourBack.addEventListener("click", function(){ tourGo(-1); });
+  tourNext.addEventListener("click", function(){ tourGo(1); });
+  tourEnd.addEventListener("click", function(){ endTour(); });
+  tourOpen.addEventListener("click", function(){ if (tourI >= 0 && TOUR[tourI]) activate(TOUR[tourI][0]); });
+  tourCv.addEventListener("click", function(){ activate("cv"); });
+  tourComm.addEventListener("click", function(){ endTour(); tourToCommentary(); });
+  if (CONTACT){
+    tourHello.href = CONTACT.href; tourHello.textContent = CONTACT.label;
+    if (/^https?:/.test(CONTACT.href)){ tourHello.target = "_blank"; tourHello.rel = "noopener"; }
+    tourHello.addEventListener("click", function(){ endTour(true); });
+  }
   /* ---------------- the built-in browser ---------------- */
   var browser = document.getElementById("browser");
   var SITES = [
@@ -4924,10 +5132,11 @@
     else if (!mandelStage.hidden) closeMandel();
     else if (!lightStage.hidden) closeLight();
   }
-  document.getElementById("dClose").addEventListener("click", function(){
-    SOUNDS.hover(); closeWorld();
-  });
+  document.getElementById("dClose").addEventListener("click", function(){ closeWorld(); });
   scrim.addEventListener("click", function(){
+    /* on the walk, a tap anywhere on the dimmed room is "next" (the
+       finale lifts the dimming, and a tap there reaches the desk) */
+    if (tourI >= 0 && !activeModal()){ tourGo(1); return; }
     /* a stray tap outside shouldn't end the cube lesson or drop the
        fractal — those close only via their button or Escape */
     if (!cubeStage.hidden || !mandelStage.hidden || !lightStage.hidden) return;
@@ -4936,6 +5145,18 @@
   document.addEventListener("keydown", function(e){
     var m = activeModal();
     if (!m){
+      /* the walk: the arrows step it and Escape puts it away. Never while
+         typing, and never with a modifier (Alt+← is the browser's Back) */
+      if (tourI >= 0){
+        if (e.key === "Escape"){ endTour(); return; }
+        if ((e.key === "ArrowRight" || e.key === "ArrowLeft") &&
+            !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+            !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable){
+          e.preventDefault();
+          tourGo(e.key === "ArrowRight" ? 1 : -1);
+          return;
+        }
+      }
       // Escape is also the way back to the light, for anyone who'd rather not hunt for the switch
       if (e.key === "Escape" && lightsOut){ SOUNDS["switch"](); flipRoomLight(false); }
       return;
@@ -4995,6 +5216,7 @@
   function activate(id){
     if (eraBusy) return;               // the desk sleeps during the era ride
     ac(true); hideTip();
+    endTour(true);                     // picking a thing up mid-walk ends the walk there
     if (SOUNDS[id]) SOUNDS[id]();
     if (activeModal() && id !== "switch"){ handoff = true; closeModal(); handoff = false; }
     if (id === "web") openBrowser();
@@ -5187,6 +5409,8 @@
     eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
     eraBtn.classList.add("used");
     wakeDust();
+    // mid-walk, the light finds the stop again in the year that's on show
+    if (tourI >= 0 && tourI < TOUR.length) goStop(tourI, "era");
     // the chip rode the other way: a #2026 or #1999 address no longer says true
     if (location.hash.toLowerCase() === (now ? "#1999" : "#2026")) address(null);
   }
@@ -5400,14 +5624,14 @@
     for (var i3 = 0; i3 < 9; i3++) motes.push(mote(2));
     for (var i4 = 0; i4 < 30; i4++) motes.push(mote(i4 % 3 ? 1 : 0));   // enough to fill two beams
     /* It sleeps when nobody can see it: scrolled away, in a background tab,
-       or under a sheet (where the scrim and the sheet's blur would otherwise
-       re-blur the whole viewport sixty times a second over it). Each of
-       those ways back wakes it. And it stops if the visitor asks for
-       reduced motion while it is running. */
+       or under a sheet or the tour's card (where the scrim and the glass's
+       blur would otherwise re-blur the whole viewport sixty times a second
+       over it). Each of those ways back wakes it. And it stops if the
+       visitor asks for reduced motion while it is running. */
     var last = performance.now(), dustRaf = 0;
     function frame(now){
       if (REDUCED){ cx2.clearRect(0, 0, W, H); dustRaf = 0; return; }
-      if (!SEEN || document.hidden || activeModal()){ dustRaf = 0; return; }
+      if (!SEEN || document.hidden || activeModal() || !tour.hidden){ dustRaf = 0; return; }
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
       var dark = document.body.classList.contains("lights-out");   // no lamp: only the moon lights them
@@ -5457,19 +5681,19 @@
      nobody followed one to watch Windows 95 boot. The stages and the secret
      cube go through their own doors; #web is 2026's, so it lands there
      first. Anything else after the # (the skip link's #iso, an old anchor)
-     is left alone. The tour and the commentary hook in here when they
-     exist: until then their addresses land on the plain desk. */
+     is left alone. #tour starts the walk; the commentary hooks in here
+     when it exists, and until then its address lands on the plain desk. */
   var SPECIAL = {
     web: function(){ eraLand(true); openBrowser(); },
     cube: openCubeGame, mandel: openMandel, prism: openLight,
-    tour: function(){ if (typeof startTour === "function") startTour(); }
+    tour: startTour
   };
   function route(){
     var h;
     try { h = decodeURIComponent(location.hash.slice(1)).toLowerCase(); } catch(e){ return; }
     /* Back past an address someone typed: the page they came from had no
        sheet open (the light and the year stay as they are) */
-    if (!h){ if (activeModal()) closeModal(); return; }
+    if (!h){ if (activeModal()) closeModal(); else endTour(); return; }
     /* mid-ride the desk opens nothing, so the bar mustn't say it did */
     if (eraBusy){ address(null); return; }
     if (h === "lights-out" || h === "dark"){ flipRoomLight(true); return; }
@@ -5485,6 +5709,7 @@
     }
     var own = function(o){ return Object.prototype.hasOwnProperty.call(o, h); };   // #constructor is not a world
     if (!own(SPECIAL) && !own(WORLDS)) return;
+    if (h !== "tour") endTour(true);   // an address typed mid-walk goes where it says
     if (activeModal()) closeModal();
     if (own(SPECIAL)) SPECIAL[h](); else openWorld(h, ACCENT[h]);
     /* nothing was pressed to open it, so putting it back would drop a
