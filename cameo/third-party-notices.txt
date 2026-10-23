@@ -1,0 +1,17 @@
+Cameo — Photo Figurine Studio
+Created for Karl Meves · ERRERLabs, 2026.
+
+Three.js r170, including OrbitControls
+Copyright 2010–2024 Three.js Authors
+MIT License; complete license: vendor/THREE-LICENSE.txt
+Source: https://github.com/mrdoob/three.js/tree/r170
+OrbitControls import path adjusted to use the local Three.js module.
+
+Fetched at run time, not vendored (the first time the AI buttons are used):
+  transformers.js (@huggingface/transformers) — Apache-2.0 — from jsDelivr
+  Depth Anything V2 small (onnx-community/depth-anything-v2-small) — Apache-2.0 — from the Hugging Face hub
+  BRIA RMBG-1.4 (briaai/RMBG-1.4) — bria-rmbg-1.4 licence, free for non-commercial use — from the Hugging Face hub
+
+Bambu Lab, Bambu Studio, Prusa and PrusaSlicer are trademarks of their
+respective owners. Cameo is an independent tool, not an official product of
+any of them.
