@@ -486,6 +486,9 @@
   #moon{opacity:calc(.8 * var(--moonk,1));transition:opacity 1.4s ease .3s}
   body.lights-out #moon{opacity:var(--moonk,1);filter:brightness(1.3) saturate(1.4)}
   .shoot{opacity:0}   /* the shooting star is only ever in passing (the motion gate) */
+  /* the wall clock's hands turn about the clock's middle, the origin of
+     the plane they are drawn in (wallClock() sets the angle) */
+  .clkH,.clkM{transform-box:view-box;transform-origin:0 0}
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
   .flutter{animation:flutter 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
@@ -1208,6 +1211,12 @@
       98.2%{opacity:0;transform:translate(62px,24px)}
       100%{opacity:0}}
     .shoot{animation:shoot 53s linear -20s infinite}
+    /* the wall clock's minute hand lands with a kick, the way a stepping
+       one does, and settles; the hour hand just creeps. Not on the first
+       setting (.ticking comes a frame after), or the page would open on
+       the hands spinning round from twelve */
+    #wallClock.ticking .clkM{transition:transform .42s cubic-bezier(.3,2.2,.5,1)}
+    #wallClock.ticking .clkH{transition:transform .6s ease}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1763,6 +1772,7 @@
         '<path d="M120 150 L168 92 L238 150 M120 150 L182 150 L168 92 M155 96 L146 82 M226 96 L238 150 M138 80 L158 80" stroke-width="5"/></g>', .35) + "</g>" +   // the bike: its wheels and frame, as drawn below, in three elements not thirteen
       '<g transform="translate(4,7)">' + hush('<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" ' + HUSH + '/>', .32) + "</g>") +   // the shirt
     gRight(-30,394,190, hush('<rect x="-11" y="-2" width="114" height="78" ' + HUSH + '/>', .4)) +                 // the lithophane
+    gRight(-30,400,190, hush('<circle cx="140" cy="16.5" r="20.4" ' + HUSH + '/>', .34)) +                       // the clock (climbs, and leans left)
     gLeft(40,-30,170, hush('<rect x="-1" y="1" width="236" height="126" ' + HUSH + '/>', .35)) +                    // the window
     gLeft(452,-30,160, hush('<rect x="-3" y="-2" width="104" height="104" ' + HUSH + '/>', .35)) +                  // the spiral
     gLeft(556,-30,158, '<g transform="translate(3,4) rotate(4)">' + hush('<rect x="-6" y="-6" width="60" height="72" ' + HUSH + '/>', .35) + "</g>") +   // the polaroid
@@ -1799,6 +1809,66 @@
     '<rect x="112" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/>' +
     '<rect x="230" y="98" width="16" height="8" rx="2" fill="#3a2c1c" stroke="none"/></g>';
   S.push('<g aria-hidden="true">' + gRight(-30,400,190,bike) + "</g>");
+
+  /* ---------- wall B: a schoolhouse clock that keeps the visitor's time ----------
+     It hangs in the one bare patch of wall B, between the end of the shelf
+     (y 228) and the lithophane's frame (y 287), above the handlebars:
+     centre y 258, z 171, so its rim clears all three. It is not a picture
+     of a clock: the hands are set from the visitor's own clock, and the
+     minute hand steps once a minute, the way a schoolroom clock's does,
+     with a small kick as it lands (wallClock(), after the build). No
+     second hand: a sweep would be one more loop running with nobody
+     looking, and a minute is the right pace for a room you sit in.
+     Drawn in the wall's own plane (u along −y, v down), with depth: the
+     case stands off the wall, and +x out of the wall is (+d, +d) in this
+     plane, so the drum's side is the hull of the back circle and the
+     face pushed out by d. The lamp is in front of it, to its right and
+     below (y 158, z 90), so it lights the drum's lower-right edge and the
+     glass catches it low on the right; the shadow (in the wall shades
+     above, with the others) climbs and leans left, the one shade in the
+     room that goes up. */
+  var CK = (function(){
+    var U = 142, V = 19, R = 16, d = 3.2, k = Math.SQRT1_2, n = (R + 3.6) * k, f = "";
+    function ticks(r0, r1, step, skip){ var p = "";
+      for (var i = 0; i < 60; i += step){ if (skip && i % skip === 0) continue;
+        var a = i * Math.PI / 30, sx = Math.sin(a), cy = -Math.cos(a);
+        p += "M" + n1(sx*r0) + " " + n1(cy*r0) + "L" + n1(sx*r1) + " " + n1(cy*r1); }
+      return p; }
+    f += '<defs><linearGradient id="clkFace" x1="1" y1="1" x2="0" y2="0">' +
+      '<stop offset="0" stop-color="#f6eedb"/><stop offset="1" stop-color="#c9bc9c"/></linearGradient></defs>';
+    // the drum: its side, lit on the edge that faces the lamp
+    f += '<path d="M' + n1(-n) + ' ' + n1(n) + 'L' + n1(d - n) + ' ' + n1(d + n) +
+      'A' + (R + 3.6) + ' ' + (R + 3.6) + ' 0 0 0 ' + n1(d + n) + ' ' + n1(d - n) + 'L' + n1(n) + ' ' + n1(-n) +
+      'A' + (R + 3.6) + ' ' + (R + 3.6) + ' 0 0 1 ' + n1(-n) + ' ' + n1(n) + 'Z" fill="#4a2f1a" stroke="rgba(20,10,4,.6)" stroke-width=".8"/>';
+    f += '<path d="M' + n1(d - n + .6) + ' ' + n1(d + n - .2) + 'A' + (R + 3.4) + ' ' + (R + 3.4) + ' 0 0 0 ' + n1(d + n - .2) + ' ' + n1(d - n + .6) +
+      '" fill="none" stroke="#a0683a" stroke-width="1.1" stroke-linecap="round" opacity=".8"/>';
+    f += '<g transform="translate(' + d + ' ' + d + ')">';
+    // the bezel: walnut, a gilt line, and the face under its glass
+    f += '<circle r="' + (R + 3.6) + '" fill="#3a2515" stroke="rgba(20,10,4,.6)" stroke-width="1"/>';
+    f += '<path d="M' + n1(-(R+2.6)*k) + ' ' + n1((R+2.6)*k) + 'A' + (R+2.6) + ' ' + (R+2.6) + ' 0 0 0 ' + n1((R+2.6)*k) + ' ' + n1(-(R+2.6)*k) +
+      '" fill="none" stroke="#7a4e2c" stroke-width="1.4" stroke-linecap="round"/>';    // the bezel's lit half
+    f += '<circle r="' + (R + 1.5) + '" fill="none" stroke="#b08a4a" stroke-width=".9"/>';
+    f += '<circle r="' + R + '" fill="url(#clkFace)"/>';
+    // a shade inside the rim, at the top left, where the bezel stands proud of the face
+    f += '<path d="M' + n1(-R*k) + ' ' + n1(R*k) + 'A' + R + ' ' + R + ' 0 0 1 ' + n1(R*k) + ' ' + n1(-R*k) +
+      'A' + (R + 2) + ' ' + (R + 2) + ' 0 0 0 ' + n1(-R*k) + ' ' + n1(R*k) + 'Z" fill="rgba(40,24,10,.28)" transform="translate(1.2 1.2)"/>';
+    f += '<path d="' + ticks(R - 1.4, R - 2.3, 1, 5) + '" stroke="#3a2c1f" stroke-width=".3" opacity=".6"/>';
+    f += '<path d="' + ticks(R - 1.4, R - 3.8, 5, 15) + '" stroke="#2a1d12" stroke-width=".9"/>';
+    f += '<path d="' + ticks(R - 1.4, R - 4.8, 15) + '" stroke="#2a1d12" stroke-width="1.5"/>';
+    // the hands, each with its shade on the face (up and left of it,
+    // away from the lamp); wallClock() turns the four together
+    var HH = 'd="M-1.15 2.8 L-.95 -6 L0 -8.8 L.95 -6 L1.15 2.8 Z"',
+        MH = 'd="M-.8 3.6 L-.55 -11 L0 -13.4 L.55 -11 L.8 3.6 Z"';
+    f += '<g fill="rgba(40,24,10,.22)" transform="translate(-.9 -.8)"><g class="clkH"><path ' + HH + '/></g><g class="clkM"><path ' + MH + '/></g></g>';
+    f += '<g fill="#241810"><g class="clkH"><path ' + HH + '/></g><g class="clkM"><path ' + MH + '/></g></g>';
+    f += '<circle r="1.5" fill="#b08a4a" stroke="#2a1d12" stroke-width=".45"/><circle cx="-.4" cy="-.4" r=".45" fill="#f1dcae"/>';
+    // the glass: the lamp low on the right, and a long faint sheen
+    f += '<path d="M13.8 3.2 A14.2 14.2 0 0 1 3.8 13.4" fill="none" stroke="rgba(255,236,200,.5)" stroke-width="1.3" stroke-linecap="round"/>';
+    f += '<path d="M-10.4 -8.5 A13.4 13.4 0 0 1 -2.8 -12.9" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1" stroke-linecap="round"/>';
+    f += '</g>';
+    return { U:U, V:V, R:R, d:d, svg:'<g id="wallClock" aria-hidden="true">' + gRight(-30,400,190,'<g transform="translate(' + U + ' ' + V + ')">' + f + '</g>') + '</g>' };
+  })();
+  S.push(CK.svg);
   S.push(box(-28,132,148,52,96,8,"#7a5a38"));
   var vhs = box(-24,146,156,38,24,8,"#17171e") + box(-22,150,164,38,24,8,"#1c1c26");
   vhs += gLeft(-24,170,164,'<rect x="4" y="1.5" width="22" height="5" rx="1" fill="#e8e4d8"/>' +
@@ -3511,8 +3581,31 @@
   function syncClock(){
     var d = new Date(), el = document.querySelector("#iso .tick");
     if (el) el.getAnimations().forEach(function(a){ a.currentTime = d.getSeconds() * 1000 + d.getMilliseconds(); });
+    wallClock();
+  }
+  /* The wall clock reads the visitor's clock once a minute, on the minute,
+     and the minute hand steps (with a kick as it lands: the motion gate)
+     while the hour hand creeps half a degree. The angles count on from the
+     last twelve o'clock before the page opened, never back to 0, so 12:59
+     to 1:00 steps forward, not a turn backwards round the dial. Asleep
+     (scrolled away, a sheet over it, the tab hidden) it writes nothing,
+     and syncClock() puts it right as the room wakes; if a while has
+     passed, the hands sweep round to now, a clock catching up. */
+  var CLK_H = document.querySelectorAll("#wallClock .clkH"), CLK_M = document.querySelectorAll("#wallClock .clkM"),
+      CLK_0 = null, clkT = 0;
+  function wallClock(){
+    var d = new Date(), t = Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 60000);
+    if (CLK_0 === null) CLK_0 = t - t % 720;
+    clearTimeout(clkT);
+    clkT = setTimeout(wallClock, 60040 - d.getTime() % 60000);
+    var iso = document.getElementById("iso");
+    if (document.hidden || iso.classList.contains("asleep") || document.body.classList.contains("modal-open")) return;
+    t -= CLK_0;
+    CLK_H.forEach(function(e){ e.style.transform = "rotate(" + (t * .5) + "deg)"; });
+    CLK_M.forEach(function(e){ e.style.transform = "rotate(" + (t * 6) + "deg)"; });
   }
   syncClock();
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ document.getElementById("wallClock").classList.add("ticking"); }); });
 
   /* ================================================================
      WORLDS — dossier content
