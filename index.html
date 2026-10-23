@@ -519,8 +519,8 @@
   .mw,.mPose{transform-box:fill-box;transform-origin:50% 50%}
   .mDark{opacity:0}
   body.lights-out .mDark{opacity:1}
-  body.lights-out .mTrekX{transform:translateX(calc(-308px - var(--mox,0px)))}
-  body.lights-out .mTrekY{transform:translateY(calc(-50px - var(--moy,0px)))}
+  body.lights-out .mTrekX{transform:translateX(-308px)}
+  body.lights-out .mTrekY{transform:translateY(-50px)}
   body.lights-out .mPose{transform:skewY(-26.6deg) scale(.9)}
   /* the fireflies come out a beat after the lamp goes, and go in with it.
      Hidden, not only transparent, while the lamp is on: invisible but
@@ -1297,8 +1297,8 @@
     /* the moth's life at the lamp: one wandering loop of 8.7 s round
        the shade, with the bump into it at 87 % (one loop, not two crossed
        ones: each loop is a layer the room paints every frame), and wings
-       at 2.5 beats a second. The switch pauses the loop where it is, and
-       it flies: across slow-fast-slow, and up past the moon and back down
+       at 2.5 beats a second. The switch takes the loop off it where it is
+       (mothAim(), unwinding it as it goes), and it flies: across slow-fast-slow, and up past the moon and back down
        onto it (an overshoot on the Y wrapper), flapping all the way (18
        beats is 3.6 s), then resting, its wings opening and closing slowly.
        These are class-weight rules (the sleep gate and the sheet gate win) */
@@ -1607,6 +1607,7 @@
       requestAnimationFrame(syncClock);
     }
     printStep();                       // the print: finished without motion, going on again with it
+    if (!REDUCED && lightsOut) mothAim(true);   // the moth: no loop of its own while it rests in the dark
   });
 
   /* The skip link works as a plain anchor without script. With script it
@@ -6155,7 +6156,7 @@
     var next = force === undefined ? !lightsOut : force;
     if (next === lightsOut) return;
     lightsOut = next;
-    if (lightsOut) mothAim();
+    mothAim(lightsOut);
     document.body.classList.toggle("lights-out", lightsOut);
     // the light back on by hand: a #lights-out address no longer says true
     if (!lightsOut && /^#(lights-out|dark)$/i.test(location.hash)) address(null);
@@ -6178,16 +6179,25 @@
     }
   }
   /* The moth lands in one place, on the lithophane's moon. The switch
-     stops its loop round the shade wherever it happens to be, and holds
-     it there all night, so the flight is aimed from that point: the trek
-     less the loop's offset at that moment (--mox, --moy on #moth; "none",
-     without motion, is no offset). Read once per throw, not per frame */
-  function mothAim(){
-    var m = document.getElementById("moth"), o = m && m.querySelector(".mOrb");
+     catches its loop round the shade wherever it happens to be, so the
+     loop is taken off it there and then (held where it is, by hand) and
+     unwound to nothing over the same 3.6 s as the flight: wherever it
+     was, it arrives at the one spot. Lamp back on, and its loop is given
+     back at 96 % of a lap, a hair from where it lies (-2, -1), so it flies
+     home without a jump. Without motion there is no loop to take off
+     (and if motion comes back in the dark, the loop that comes back with
+     it is taken off the same way: the reducedQ listener). */
+  function mothAim(dark){
+    var o = document.querySelector("#moth .mOrb");
     if (!o) return;
+    var st = o.style;
+    if (!dark){ st.animation = st.transform = st.transition = ""; st.animationDelay = "-8.35s"; return; }
+    if (REDUCED) return;
     var t = new DOMMatrixReadOnly(getComputedStyle(o).transform);
-    m.style.setProperty("--mox", n1(t.e) + "px");
-    m.style.setProperty("--moy", n1(t.f) + "px");
+    st.transition = "none"; st.animation = "none";
+    st.transform = "translate(" + n1(t.e) + "px," + n1(t.f) + "px)";
+    void o.getBoundingClientRect();                 // the held place counts before it starts to unwind
+    st.transition = "transform 3.6s ease-in-out"; st.transform = "none";
   }
   /* it reads as a switch to a screen reader, not as a thing that opens a dialog */
   (function(){
