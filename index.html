@@ -3855,7 +3855,9 @@
      minute; then it comes off the bed, the gantry homes, and the next one
      begins. It opens part-way through a print, so the first look already
      finds work in progress. Asleep it holds where it is, and with less
-     motion it is simply finished, the gantry at the top, as it was drawn. */
+     motion it is simply finished, the gantry at the top, as it was drawn;
+     a finished vase stays finished when motion comes back (vN with it),
+     cooling, and the next print starts in its turn. */
   var VASE = document.getElementById("vase"), VL = VASE.querySelectorAll(".vl"), ZAX = document.querySelector("#iso .zax"),
       PRN = document.querySelector('#iso .iso-obj[data-voice="printer"]'),
       vN = 4 + Math.floor(Date.now() / 60000) % 6, prT = 0;          // where the print has got to depends on the minute you arrive
@@ -3863,7 +3865,7 @@
   function vLift(n){ ZAX.style.transform = n >= VL.length ? "" : "translateY(" + (VL.length - n) * 3 + "px)"; }
   function printStep(){
     clearTimeout(prT);
-    if (REDUCED){ PRN.classList.remove("done"); VASE.classList.remove("off"); vShow(VL.length); vLift(VL.length); return; }
+    if (REDUCED){ PRN.classList.remove("done"); VASE.classList.remove("off"); vN = VL.length; vShow(vN); vLift(vN); return; }
     var iso = document.getElementById("iso");
     if (document.hidden || iso.classList.contains("asleep") || document.body.classList.contains("modal-open")){ prT = setTimeout(printStep, 14000); return; }
     if (vN < VL.length){ VASE.classList.remove("off"); vN++; vShow(vN); vLift(vN); prT = setTimeout(printStep, 14000); return; }
@@ -3871,7 +3873,8 @@
     PRN.classList.remove("done"); VASE.classList.add("off");           // off the bed (the whole vase at once)...
     prT = setTimeout(function(){ vN = 0; vShow(0); vLift(0); prT = setTimeout(printStep, 6000); }, 1200);   // ...and the gantry homes
   }
-  if (REDUCED){ vShow(VL.length); vLift(VL.length); } else { vShow(vN); vLift(vN); }
+  if (REDUCED) vN = VL.length;
+  vShow(vN); vLift(vN);
   prT = setTimeout(printStep, 14000);
   requestAnimationFrame(function(){ requestAnimationFrame(function(){ PRN.classList.add("live"); }); });
 
