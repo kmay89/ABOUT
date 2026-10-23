@@ -3735,7 +3735,7 @@
      on a warm night (5.6 s here) and moves on between flashes, so each
      male takes three flashes in three places per lap (16.8 s), all in one
      loop of transform and opacity. A meadow is a crowd, though, not a
-     soloist: eighteen males, in two broods at two tempos, and nine
+     soloist: eighteen males, in two broods at two tempos, and six
      females, so that at any moment two or three are lit somewhere and the
      field reads as a field at a glance, never dark for long and never all
      at once. Each flash is a little under a second, one per male every
@@ -3753,20 +3753,25 @@
     function at(u, v){ var p = P(40 + u, -30, 170 - v); return n1(p[0]) + " " + n1(p[1]); }
     var fly = '<circle r="9" fill="url(#ffGlow)"/><circle r="1.3" fill="#f8ffc8"/>',
         her = '<circle r="6" fill="url(#ffGlow)"/><circle r="1" fill="#f8ffc8"/>',
-        /* [u, v, delay (s), lap (s)]: two broods at two tempos, 5.6 s and
-           6.4 s between flashes (a cooler patch of grass flashes slower),
-           so the meadow's pattern never quite repeats; within each brood
-           the flashes are spread evenly round the interval, so the field
-           is never dark for long and never all at once */
-        HIM = [[30,64,0,16.8],[58,56,-2.1,16.8],[84,72,-4.3,16.8],[134,62,-7.9,16.8],[150,76,-10.6,16.8],
-               [172,58,-13.2,16.8],[196,70,-1.3,16.8],[48,78,-15.5,16.8],[18,52,-9.6,16.8],
-               [96,64,-.7,19.2],[160,88,-3.6,19.2],[206,84,-6.5,19.2],[70,62,-9.4,19.2],[140,90,-12.3,19.2],
-               [190,48,-15.2,19.2],[38,70,-18.1,19.2],[124,80,-5.1,19.2],[214,58,-11,19.2]],
-        /* each female answers one male, two seconds late, at his tempo */
-        SHE = [[14,104,0],[80,104,2],[142,101,4],[176,106,5],[48,108,10],[126,106,12],[160,108,13],[214,104,15],[98,108,17]],
+        /* [u, v, u2, v2, delay (s), lap (s)]: two broods at two tempos,
+           5.6 s and 6.4 s between flashes (a cooler patch of grass flashes
+           slower), so the meadow's pattern never quite repeats; within each
+           brood the flashes are spread evenly round the interval, so the
+           field is never dark for long and never all at once. Each loop
+           carries two males, far apart in the field (u, v and u2, v2),
+           who flash together: every running loop in the dark is work the
+           room does each frame, and two strangers across a meadow
+           flashing at once is something a meadow does anyway */
+        HIM = [[30,64,150,76,0,16.8],[58,56,172,58,-6.7,16.8],[84,72,206,84,-2.2,16.8],[134,62,18,52,-14.6,16.8],[48,78,196,70,-4.5,16.8],
+               [96,64,214,58,-.8,19.2],[160,88,38,70,-8.8,19.2],[70,62,190,48,-4,19.2],[140,90,10,76,-18.4,19.2]],
+        /* each female answers one loop, two seconds late, at its tempo */
+        SHE = [[14,104,0],[80,104,1],[142,101,3],[176,106,5],[48,108,6],[214,104,7]],
         s = "";
-    HIM.forEach(function(m){ s += '<g transform="translate(' + at(m[0], m[1]) + ')"><g class="ffm" style="animation-delay:' + m[2] + 's;animation-duration:' + m[3] + 's">' + fly + '</g></g>'; });
-    SHE.forEach(function(f){ var m = HIM[f[2]]; s += '<g transform="translate(' + at(f[0], f[1]) + ')"><g class="fff" style="animation-delay:' + (m[2] + .2).toFixed(1) + 's;animation-duration:' + (m[3] / 3).toFixed(1) + 's">' + her + '</g></g>'; });
+    HIM.forEach(function(m){
+      var a = P(40 + m[0], -30, 170 - m[1]), b = P(40 + m[2], -30, 170 - m[3]);
+      s += '<g transform="translate(' + at(m[0], m[1]) + ')"><g class="ffm" style="animation-delay:' + m[4] + 's;animation-duration:' + m[5] + 's">' +
+        fly + '<g transform="translate(' + n1(b[0] - a[0]) + ' ' + n1(b[1] - a[1]) + ')">' + fly + '</g></g></g>'; });
+    SHE.forEach(function(f){ var m = HIM[f[2]]; s += '<g transform="translate(' + at(f[0], f[1]) + ')"><g class="fff" style="animation-delay:' + (m[4] + .2).toFixed(1) + 's;animation-duration:' + (m[5] / 3).toFixed(1) + 's">' + her + '</g></g>'; });
     S.push('<g id="fireflies" aria-hidden="true" style="pointer-events:none"><defs><radialGradient id="ffGlow">' +
       '<stop offset="0" stop-color="#f2ffb0"/><stop offset=".14" stop-color="#e2fa86" stop-opacity=".8"/><stop offset=".4" stop-color="#c8ec6a" stop-opacity=".28"/>' +
       '<stop offset="1" stop-color="#b8e05a" stop-opacity="0"/></radialGradient></defs>' + s + '</g>');
