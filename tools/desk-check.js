@@ -43,7 +43,8 @@
                                             never needed after the first run on a machine
         --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone,
                                             --only=sky: the moon's and the quiet clocks',
-                                            --only=camera: the planes', --only=torch: the torch's)
+                                            --only=camera: the planes', --only=torch: the torch's,
+                                            --only=arrival: the lamp catching on a first visit)
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
 
@@ -239,15 +240,23 @@ async function openDesk(browser, o) {
     deviceScaleFactor: o.dpr || DESK.dpr, hasTouch: !!o.touch, isMobile: !!o.touch,
     reducedMotion: o.reduced ? "reduce" : "no-preference", timezoneId: "UTC"
   });
-  await ctx.addInitScript((t0) => {
+  await ctx.addInitScript(([t0, dawn]) => {
     const D = Date, shift = t0 - D.now();
     class FixedDate extends D {
       constructor(...a) { if (a.length) super(...a); else super(D.now() + shift); }
       static now() { return D.now() + shift; }
     }
     window.Date = FixedDate;
-    try { sessionStorage.setItem("km_lit", "1"); } catch (e) {}
-  }, o.now || FIXED_NOW);
+    if (!dawn) try { sessionStorage.setItem("km_lit", "1"); } catch (e) {}
+    /* o.dawn "held": a first visit in a tab nobody is looking at yet, so the
+       arrival waits in the dark until the check calls __show() */
+    if (dawn === "held") {
+      let shown = false;
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => !shown });
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (shown ? "visible" : "hidden") });
+      window.__show = () => { shown = true; document.dispatchEvent(new Event("visibilitychange")); };
+    }
+  }, [o.now || FIXED_NOW, o.dawn || ""]);
   const page = await ctx.newPage();
   const tag = o.name || "page";
   page.on("console", (m) => {
@@ -256,7 +265,7 @@ async function openDesk(browser, o) {
   page.on("pageerror", (e) => errors.push(tag + ": " + e.message));
   await page.goto(URL0 + (o.query || ""), { waitUntil: "load" });
   await page.evaluate(() => document.fonts && document.fonts.ready);
-  await page.waitForTimeout(700);
+  if (!o.dawn) await page.waitForTimeout(700);
   return { ctx, page };
 }
 
@@ -1498,6 +1507,79 @@ async function perf(browser) {
   });
 }
 
+/* A15: the arrival. A first visit opens moonlit and the lamp catches a beat
+   later; every other way in (a reload, a link, reduced motion) starts lit.
+   The light may only ever come up: the dark's opacity never rises, the
+   lamp's pool never falls, and the headline is never dimmed on the way. */
+async function arrival(browser) {
+  console.log("\n──  the arrival");
+  let { ctx, page } = await openDesk(browser, { name: "arrival", dpr: 1, dawn: "held" });
+  const st = () => page.evaluate(() => ({ cls: document.documentElement.className.trim(),
+    dk: +getComputedStyle(document.getElementById("darkness")).opacity, h1: getComputedStyle(document.querySelector(".intro h1")).opacity,
+    text: document.querySelectorAll("#crtOS text").length, cur: document.querySelectorAll("#crtOS .cur").length,
+    lit: sessionStorage.getItem("km_lit"), out: document.body.classList.contains("lights-out") }));
+  const s0 = await st();
+  if (!/\bdawn\b/.test(s0.cls)) { notYet("A15 the arrival", "html.dawn"); await ctx.close(); return; }
+  /* mean luminance of the room: patches on the desk, the walls and the tube (dust hidden: it is random) */
+  const lum = async (pg) => {
+    const pts = await pg.evaluate(() => [[240,200,0],[380,250,0],[120,300,0],[200,-30,110],[-30,250,110],[225,124,72]].map(([x, y, z]) => {
+      const q = new DOMPoint(x - y, (x + y) / 2 - z).matrixTransform(document.getElementById("iso").getScreenCTM()); return [q.x, q.y]; }));
+    const b64 = (await pg.screenshot({ style: "#dust{visibility:hidden !important}" })).toString("base64");
+    return pg.evaluate(async ([b64, pts]) => {
+      const im = new Image(); im.src = "data:image/png;base64," + b64; await im.decode();
+      const c = document.createElement("canvas"); c.width = im.width; c.height = im.height; const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+      let s = 0; pts.forEach(([px, py]) => { const d = x.getImageData(Math.round(px) - 8, Math.round(py) - 8, 17, 17).data;
+        for (let i = 0; i < d.length; i += 4) s += .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]; });
+      return s / (pts.length * 289);
+    }, [b64, pts]);
+  };
+  const lit = await (async () => { const o = await openDesk(browser, { name: "arrival-lit", dpr: 1 }); const v = await lum(o.page); await o.ctx.close(); return v; })();
+  const dark = await lum(page);
+  ok("A15 a first visit arrives moonlit, the tube off", s0.dk === 1 && s0.text === 0 && dark < lit * .4,
+    "room " + dark.toFixed(1) + " against " + lit.toFixed(1) + " lit, " + s0.text + " lines on the tube");
+  ok("A15 the headline is never dimmed", s0.h1 === "1");
+  /* looked at: sample every frame until the lamp has caught */
+  const run = await page.evaluate(() => new Promise((res) => {
+    const s = [], t0 = performance.now(); window.__show();
+    (function f() { const t = performance.now() - t0;
+      s.push([t, +getComputedStyle(document.getElementById("darkness")).opacity, +getComputedStyle(document.querySelector(".pool-warm")).opacity,
+        getComputedStyle(document.querySelector(".intro h1")).opacity]);
+      if (t < 2500) requestAnimationFrame(f); else res(s); })();
+  }));
+  let up = 0, down = 0, h1 = 0, gone = null;
+  run.forEach((r, i) => { if (i) { up = Math.max(up, r[1] - run[i - 1][1]); down = Math.max(down, run[i - 1][2] - r[2]); }
+    if (r[3] !== "1") h1++; if (gone === null && r[1] <= .1) gone = r[0]; });
+  ok("A15 the light only comes up (the dark never deepens, the lamp's pool never fades)", up < .002 && down < .002,
+    "largest rise of the dark " + up.toFixed(3) + ", largest fall of the pool " + down.toFixed(3) + ", " + run.length + " frames");
+  ok("A15 the room nine-tenths lit within 1.5 s of being looked at, the headline bright throughout", gone !== null && gone <= 1500 && !h1,
+    "lit at " + (gone === null ? "never" : Math.round(gone) + " ms"));
+  const s1 = await st(), end = await lum(page);
+  ok("A15 the lamp caught: the tube booted line by line, remembered for the session", s1.cls === "" && s1.text === 5 && s1.cur === 1 && s1.lit === "1" && Math.abs(end - lit) < lit * .03,
+    "room " + end.toFixed(1) + " against " + lit.toFixed(1) + ", " + s1.text + " lines and " + s1.cur + " cursor");
+  await page.reload({ waitUntil: "load" });
+  ok("A15 a second look in the same session starts lit", !/dawn|waking/.test((await st()).cls));
+  await ctx.close();
+  /* every other way in starts lit; any key or touch catches the lamp at once */
+  for (const [what, o] of [["reduced motion", { reduced: true }], ["a link (#hive)", { query: "#hive" }]]) {
+    ({ ctx, page } = await openDesk(browser, Object.assign({ name: "arrival", dpr: 1, dawn: "fresh" }, o)));
+    const s = await st(); ok("A15 " + what + " starts lit", !/dawn|waking/.test(s.cls) && s.text === 5, s.cls || "lit"); await ctx.close();
+  }
+  ({ ctx, page } = await openDesk(browser, { name: "arrival", dpr: 1, dawn: "held" }));
+  await page.keyboard.press("Tab");
+  ok("A15 a key catches the lamp at once", !/dawn/.test((await st()).cls));
+  await ctx.close();
+  /* the switch thrown in the dark of the arrival: lights-out, and not a frame of lamplight on the way */
+  ({ ctx, page } = await openDesk(browser, { name: "arrival", dpr: 1, dawn: "held" }));
+  const minDk = await page.evaluate(() => new Promise((res) => {
+    document.querySelector('.iso-obj[data-id="switch"]').dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    let m = 1; const t0 = performance.now(); (function f() { m = Math.min(m, +getComputedStyle(document.getElementById("darkness")).opacity);
+      if (performance.now() - t0 < 1500) requestAnimationFrame(f); else res(m); })();
+  }));
+  const s2 = await st();
+  ok("A15 the switch in the arrival's dark keeps it dark", s2.out && !/dawn|waking/.test(s2.cls) && minDk > .99, "darkest " + minDk.toFixed(3));
+  await ctx.close();
+}
+
 /* ================================================================== main */
 (async () => {
   await new Promise((r) => server.listen(PORT, r));
@@ -1512,13 +1594,14 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await torch(browser); await voices(browser); }
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await torch(browser); await arrival(browser); await voices(browser); }
     else {
       if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
       if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
       if (ONLY.includes("commentary")) await commentary(browser);   // --only=commentary: the notes
       if (ONLY.includes("camera")) await camera(browser);           // --only=camera: the planes
       if (ONLY.includes("torch")) await torch(browser);             // --only=torch: the torch in the dark
+      if (ONLY.includes("arrival")) await arrival(browser);         // --only=arrival: the room waking up
     }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
