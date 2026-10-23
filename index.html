@@ -1579,7 +1579,7 @@
       '<stop offset="0" stop-color="#ffc97a" stop-opacity=".16"/><stop offset=".5" stop-color="#ffc97a" stop-opacity=".06"/>' +
       '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
     '<radialGradient id="bulb" cx=".5" cy=".5" r=".5">' +
-      '<stop offset="0" stop-color="#fff3d6" stop-opacity=".75"/><stop offset=".25" stop-color="#ffd08a" stop-opacity=".32"/>' +
+      '<stop offset="0" stop-color="#fff3d6" stop-opacity=".85"/><stop offset=".25" stop-color="#ffd08a" stop-opacity=".32"/>' +
       '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
     '<linearGradient id="streak" x1="0" y1="0" x2="1" y2="0">' +
       '<stop offset="0" stop-color="#ffc97a" stop-opacity="0"/><stop offset=".5" stop-color="#ffe8c0" stop-opacity=".5"/>' +
@@ -1636,19 +1636,43 @@
       '<stop offset="0" stop-color="#c6d8f2"/><stop offset=".55" stop-color="#7f97ba"/><stop offset="1" stop-color="#46536d"/></radialGradient>' +
     '<radialGradient id="screenGlow" cx=".5" cy=".5" r=".7">' +
       '<stop offset="0" stop-color="rgba(99,230,169,.35)"/><stop offset="1" stop-color="rgba(99,230,169,0)"/></radialGradient>' +
-    '<linearGradient id="wallA" x1="0" y1="-235" x2="0" y2="150" gradientUnits="userSpaceOnUse">' +
-      '<stop offset="0" stop-color="#39291b"/><stop offset=".72" stop-color="#241a10"/><stop offset="1" stop-color="#0e0a07"/></linearGradient>' +
-    '<linearGradient id="wallB" x1="0" y1="-235" x2="0" y2="200" gradientUnits="userSpaceOnUse">' +
-      '<stop offset="0" stop-color="#2e2115"/><stop offset=".72" stop-color="#1d150c"/><stop offset="1" stop-color="#0e0a07"/></linearGradient>' +
+    // the walls, lit by a desk lamp: dark up in the ceiling corner, warmest
+    // in a band just above the desk line (z 0 is offset .77 of the wall,
+    // which runs z 200 down to −60), and black below it, under the desk.
+    // The fall below the line is soft (to z −26, .87): behind the desk the
+    // slab hides it, and past the ends of the desk a hard step would hang
+    // in the air like a ledge nobody built.
+    // Wall B is the one the lamp turns its back on, so it is a step darker.
+    '<linearGradient id="wallAp" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#120c08"/><stop offset=".42" stop-color="#20160e"/><stop offset=".70" stop-color="#3a2919"/>' +
+      '<stop offset=".77" stop-color="#4a3521"/><stop offset=".87" stop-color="#1a120b"/><stop offset="1" stop-color="#090604"/></linearGradient>' +
+    '<linearGradient id="wallBp" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#100a06"/><stop offset=".42" stop-color="#1b120b"/><stop offset=".70" stop-color="#33241a"/>' +
+      '<stop offset=".77" stop-color="#42301e"/><stop offset=".87" stop-color="#17100a"/><stop offset="1" stop-color="#080503"/></linearGradient>' +
+    // ...and along each wall the light thins with distance from the lamp
+    // (x 118 on wall A, y 158 on wall B), so the far ends sink into the room
+    '<linearGradient id="wallFallA" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient>' +
+    '<linearGradient id="wallFallB" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#000" stop-opacity=".4"/><stop offset=".36" stop-color="#000" stop-opacity="0"/></linearGradient>' +
+    // the mouth of the shade, white-hot in the middle where you see the bulb
+    '<linearGradient id="bulbMouth" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#ffb45a"/><stop offset=".5" stop-color="#fff6e4"/><stop offset="1" stop-color="#ffb45a"/></linearGradient>' +
     '<linearGradient id="nightSky" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0" stop-color="#141c3a"/><stop offset=".6" stop-color="#2a2547"/><stop offset="1" stop-color="#3d2f4a"/></linearGradient>' +
     '<linearGradient id="lupSky" x1="0" y1="0" x2="0" y2="1">' +
       '<stop offset="0" stop-color="#4a3a72"/><stop offset=".5" stop-color="#c05a80"/><stop offset="1" stop-color="#ff9a52"/></linearGradient>' +
   '</defs>');
 
-  /* ---------- the room: two fading walls behind the desk ---------- */
-  S.push(polyW([[-30,-30,200],[-30,420,200],[-30,420,-60],[-30,-30,-60]], "url(#wallB)", 'stroke="none"'));
-  S.push(polyW([[-30,-30,200],[620,-30,200],[620,-30,-60],[-30,-30,-60]], "url(#wallA)", 'stroke="none"'));
+  /* ---------- the room: two fading walls behind the desk ----------
+     Each wall is painted in its own plane, so its light runs up the wall
+     the way lamplight does, not down the screen: brightest just above the
+     desk, falling away into the ceiling corner. */
+  S.push(gRight(-30,420,200,'<rect width="450" height="260" fill="url(#wallBp)"/>'));
+  S.push(gLeft(-30,-30,200,'<rect width="650" height="260" fill="url(#wallAp)"/>'));
+  S.push('<g aria-hidden="true">' +
+    gRight(-30,420,200,'<rect width="450" height="260" fill="url(#wallFallB)"/>') +
+    gLeft(-30,-30,200,'<rect width="650" height="260" fill="url(#wallFallA)"/>') + "</g>");
   S.push('<g aria-hidden="true" style="mix-blend-mode:soft-light" opacity=".14">' +
     gLeft(-30,-30,200,'<rect width="650" height="260" fill="#000" filter="url(#plaster)"/>') +
     gRight(-30,420,200,'<rect width="450" height="260" fill="#000" filter="url(#plaster)"/>') +
@@ -1657,8 +1681,8 @@
      behind it, brightest in the corner nearest the shade, and a dark pool
      gathers on the floor under the desk where no light reaches at all */
   S.push('<g class="pool-warm" aria-hidden="true">' +
-    gLeft(-30,-30,200,'<ellipse cx="200" cy="130" rx="200" ry="130" fill="url(#spill)"/>') +
-    gRight(-30,420,200,'<ellipse cx="270" cy="130" rx="180" ry="130" fill="url(#spill)"/>') +
+    gLeft(-30,-30,200,'<ellipse cx="148" cy="130" rx="200" ry="130" fill="url(#spill)"/>') +    // x 118, where the lamp stands
+    gRight(-30,420,200,'<ellipse cx="262" cy="130" rx="180" ry="130" fill="url(#spill)"/>') +   // y 158
     '</g>');
   S.push('<g aria-hidden="true">' +
     gTop(-60,-40,-180,'<ellipse cx="340" cy="250" rx="360" ry="260" fill="url(#floorShadow)"/>') + '</g>');
@@ -1882,7 +1906,7 @@
       '<polygon points="9,36 12.5,43 11,43 14,49 4,49 7,43 5.5,43"/></g>' +
     '<rect width="100" height="64" fill="none" stroke="rgba(60,32,12,.35)" stroke-width="1.6"/>';
   var LITHO_HALO = '<g class="lumaglow"><ellipse cx="50" cy="32" rx="86" ry="56" fill="#ffcf8a" opacity=".3" filter="url(#soft)"/></g>';
-  var litho = LITHO_HALO.replace('opacity=".3"','opacity=".14"') +
+  var litho = LITHO_HALO.replace('opacity=".3"','opacity=".07"') +    // by day the lamp is the key; the halo only whispers
     '<rect x="-7" y="-7" width="114" height="78" fill="#3a2515" stroke="rgba(20,10,4,.6)" stroke-width="2"/>' +
     '<rect x="-2" y="-2" width="104" height="68" fill="none" stroke="#9b7843" stroke-width="1.4"/>' +
     LITHO +
@@ -2014,10 +2038,18 @@
         '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="poolC" cx=".5" cy=".5" r=".5">' +
         '<stop offset="0" stop-color="#bed8ff" stop-opacity=".22"/><stop offset=".45" stop-color="#8fb7ff" stop-opacity=".10"/>' +
-        '<stop offset="1" stop-color="#8fb7ff" stop-opacity="0"/></radialGradient></defs>' +
+        '<stop offset="1" stop-color="#8fb7ff" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="poolHot" cx=".5" cy=".5" r=".5">' +
+        '<stop offset="0" stop-color="#fff1d6" stop-opacity=".30"/><stop offset=".5" stop-color="#ffc97a" stop-opacity=".12"/>' +
+        '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient></defs>' +
+    /* the wash pulled in so the far right of the desk falls darker than
+       the middle, and a hot disc where the beam actually lands (the beam's
+       far corners are 320,110 · 250,290 · 140,290): the brightest wood in
+       the room is under the lamp, and that is where the eye goes first */
     '<g class="pool-warm">' +
-      '<ellipse cx="250" cy="160" rx="360" ry="280" fill="url(#poolW)"/>' +
-      '<ellipse cx="190" cy="130" rx="200" ry="160" fill="url(#poolW)"/></g>' +
+      '<ellipse cx="230" cy="160" rx="300" ry="280" fill="url(#poolW)"/>' +
+      '<ellipse cx="190" cy="130" rx="200" ry="160" fill="url(#poolW)"/>' +
+      '<ellipse cx="235" cy="195" rx="125" ry="92" fill="url(#poolHot)"/></g>' +
     '<g class="pool-cool">' +
       '<ellipse cx="250" cy="150" rx="360" ry="280" fill="url(#poolC)"/>' +
       '<ellipse cx="235" cy="140" rx="200" ry="150" fill="url(#poolC)"/></g>', ''));
@@ -2035,8 +2067,10 @@
       // shade: a cone aimed at the middle of the desk
       '<g transform="translate(' + hd[0] + "," + hd[1] + ') rotate(50)">' +
         '<path d="M-12 -9 L12 -9 L17 9 L-17 9 Z" fill="#2c2f38" stroke="rgba(10,10,14,.55)" stroke-width="1.4"/>' +
-        '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="#ffc97a" opacity=".95"/></g>' +
-      '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>';
+        '<path d="M-17 9 L17 9 L12 15 -12 15 Z" fill="url(#bulbMouth)" opacity=".95"/>' +   // switched on: white-hot at the bulb
+        '<path d="M-17 9 L17 9" stroke="#ffe3b4" stroke-width="1.3" opacity=".8"/></g>' +      // the rim catching its own light
+      '<circle cx="' + (hd[0]+7) + '" cy="' + (hd[1]+11) + '" r="17" fill="rgba(255,201,122,.38)" filter="url(#soft)"/>' +
+      glint(hd[0]+4, hd[1]+11, 6, 2.2);
     S.push('<g aria-hidden="true">' + lamp + "</g>");
   })();
 
