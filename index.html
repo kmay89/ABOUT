@@ -226,18 +226,14 @@
     min-width:720px;
     max-width:1180px;
     margin:0 auto;
-    /* no transform here, ever: the desk is the camera's pivot and holds
-       still (see "the camera: one orbit, three planes"). The room keeps a
-       layer of its own, as the old parallax's translate3d gave it. */
+    /* no transform here, ever: the room holds still under the pointer
+       (see "the eye and the light"). It keeps a layer of its own, as the
+       old parallax's translate3d gave it. */
     will-change:transform;
   }
-  /* the planes the camera slides, each on a layer of its own while it is
-     live, so a move is a composite and never a repaint */
-  body.cam-live .lyr-wall,body.cam-live #dust,body.cam-live #moth,body.cam-live #cdBow,body.cam-live #prismFan{will-change:transform}
-  /* the walls get layers in their own skewed spaces, and a layer whose own
-     transform isn't marked as moving is repainted at every fraction of a
-     pixel it lands on (5 ms a frame of the glide): so each is marked too */
-  body.cam-live .walls > *{will-change:transform}
+  /* the CD's rainbow and the prism's fan turn with the pointer, each on a
+     small layer of its own so a turn is a composite, not a repaint */
+  body.cam-live #cdBow,body.cam-live #prismFan{will-change:transform}
   .iso-obj{cursor:pointer;outline:none}
   /* The plain lift, for everything that hasn't a voice of its own yet:
      up springy in a third of a second, down in half of one with no
@@ -1193,7 +1189,6 @@
 
   @media (prefers-reduced-motion:reduce){
     #iso{transform:none !important;will-change:auto}
-    .lyr-wall,#dust,#moth{transform:none !important}   /* no camera: the planes hold still */
     .iso-obj > *,.dossier,.scrim,.tour{transition:none}
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
@@ -1383,11 +1378,10 @@
     .mTrekY{transition:transform 3.6s cubic-bezier(.3,1.7,.5,1)}
     .mDark{transition:opacity 1.2s ease .3s}
     #moth.lit .mDark{transition:opacity .4s ease}
-    /* a torch is held, not mounted: at rest the light drifts a few units,
-       slower than a breath (the hand inside the layer the pointer moves;
-       a light selector, so the sleep gate's #iso.asleep * still holds it) */
-    .torch-on .hand{animation:hand 9.4s ease-in-out infinite}
-    @keyframes hand{0%,100%{transform:translate(0,0)}23%{transform:translate(3.5px,-1.6px)}51%{transform:translate(.8px,2px)}77%{transform:translate(-3px,.3px)}}
+    /* The torch used to drift a few units at rest, held rather than
+       mounted. It went: in a browser that can't give part of an SVG a
+       layer of its own (Safari), every step of the drift redrew the whole
+       dark room, and the room got slow. It still follows your hand. */
     .ff{transition:opacity 1.4s ease 1.6s}                 /* it takes them a while to dare again */
     .ff.hush{transition:opacity .3s ease}
     .mPose{transition:transform .5s ease}
@@ -1938,9 +1932,10 @@
      Each wall is painted in its own plane, so its light runs up the wall
      the way lamplight does, not down the screen: brightest just above the
      desk, falling away into the ceiling corner.
-     The walls are a plane of their own to the camera ("the camera: one
-     orbit, three planes"): this group, up to the lamp's spill, slides as
-     one; the floor's shade under the desk stays with the desk. */
+     The walls, up to the lamp's spill, are kept as one group (.lyr-wall).
+     They once leaned with the pointer, as a plane of their own; they hold
+     still now (see "the eye and the light"), and the groups only keep the
+     room's own order legible: what is wall, and what is desk. */
   S.push('<g class="lyr-wall walls">');
   S.push(gRight(-30,420,200,'<rect width="450" height="260" fill="url(#wallBp)"/>'));
   S.push(gLeft(-30,-30,200,'<rect width="650" height="260" fill="url(#wallAp)"/>'));
@@ -2003,7 +1998,7 @@
     gTop(-60,-40,-180,'<ellipse cx="340" cy="250" rx="360" ry="260" fill="url(#floorShadow)"/>') + '</g>');
 
   /* Everything hung on the walls, from the bike to the thinking wall, is
-     one more sheet in the walls' plane, so it slides with the plaster. */
+     one more sheet in the walls' plane. */
   S.push('<g class="lyr-wall">');
 
   /* ---------- wall B: the hung bike (rides) + VHS shelf (movie nights) ---------- */
@@ -3790,7 +3785,7 @@
 
   /* Corner occlusion: where two walls meet, light has to bounce twice to
      get in, so the seam goes darker than either wall. */
-  S.push('<g class="lyr-wall" aria-hidden="true" style="pointer-events:none">' +   // in the walls, so it rides with them
+  S.push('<g class="lyr-wall" aria-hidden="true" style="pointer-events:none">' +   // in the walls' group
     gLeft(-30,-30,200,'<rect width="70" height="260" fill="url(#aoL)"/>') +
     gRight(-30,420,200,'<rect x="380" width="70" height="260" fill="url(#aoR)"/>') +
     '</g>');
@@ -3869,8 +3864,7 @@
 
   /* What hangs on the walls and shows in the dark (the panes' moonglow,
      the fireflies, the lithophane, the moth, the egg, the switch) is one
-     more sheet in the walls' plane. The moon's shaft stays with the desk:
-     it is blurred too far for the few units it parts from the window to show. */
+     more sheet in the walls' plane. */
   S.push('<g class="lyr-wall">');
   S.push('<g id="moonPane" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none;--moonk:' + MOON_L.toFixed(2) + '">' +   // the window panes, glowing, as bright as the moon (see #moon)
     gLeft(40,-30,170,'<rect x="-6" y="-6" width="232" height="122" fill="#5f86e8" opacity=".09" filter="url(#soft)"/>') + '</g>');
@@ -4425,9 +4419,8 @@
       var a = Q[i].a, q = Q[i].q, n = i + 1, near = Infinity;
       Q.forEach(function(o, j){ if (j !== i) near = Math.min(near, Math.hypot(o.q[0] - q[0], o.q[1] - q[1])); });
       var big = n1(Math.min(coarse ? 35 : 18, near / 2));
-      /* a note pinned to a thing on a wall rides in the walls' plane, pin
-         and number together, so the camera never slides it off what it explains
-         (the dust's, pinned to nothing, hangs in the air with the desk) */
+      /* a note pinned to a thing on a wall is drawn in the walls' group,
+         pin and number together (the dust's, pinned to nothing, is not) */
       var onWall = (nt.at[0] <= -30 || nt.at[1] <= -30) && (nt.id || nt.off[0] || nt.off[1]);
       if (onWall) s += '<g class="lyr-wall">';
       if (nt.off[0] || nt.off[1])
@@ -6593,7 +6586,6 @@
     if (!o) return;
     clearTimeout(mothT); MOTH_IN = dark && !REDUCED ? performance.now() + 3600 : 0;
     if (MOTH_IN) mothT = setTimeout(function(){ if (SEEN_BY) torchSees(); }, 3650);   // landed under a torch already there
-    if (CAM) camMoth(dark);                         // and it changes planes on the way (the camera)
     var st = o.style;
     if (!dark){ st.animation = st.transform = st.transition = ""; st.animationDelay = "-8.35s"; return; }
     if (REDUCED) return;
@@ -7044,39 +7036,24 @@
   /* a tap on the desk means they've found it too, slid or not */
   wrap.addEventListener("pointerdown", cueDismiss);
 
-  /* ---------------- the camera: one orbit, three planes ----------------
-     Turn your head a little and each point slides sideways by θ·(x + y − d0):
-     the further from the pivot in depth, the further, and what is in front
-     of it the other way. The pivot is the middle of the desk (x + y = 470),
-     so the desk holds still under the pointer, the walls (x + y ≈ 270) lean
-     with it and the dust near the glass drifts against it, twice as far.
-     Two planes move, each on a layer of its own while body.cam-live, so a
-     move is a composite, not a repaint; the transform goes straight onto
-     each (a custom property on #iso once restyled all ~2,200 nodes a move).
-     It eases on 140 ms, so it leans rather than drags, and stops asking for
-     frames once it arrives. The CD's rainbow and the prism's fan turn with
-     it: real diffraction moves with your eye. Under a sheet it holds still;
-     no fine pointer, reduced motion or a small device: no camera at all. */
-  var CAM = {tx:0, ty:0, x:0, y:0, raf:0, last:0, live:false, mw:0, m0:0, m1:0, mt:0, fa:""},
-      LYR = [].slice.call(document.querySelectorAll("#iso .lyr-wall")),
-      dustEl = document.getElementById("dust"), mothEl = document.getElementById("moth"),
+  /* ---------------- the eye and the light ----------------
+     A CD's colours follow your eye, not the disc, and a caustic moves when
+     you do: so the CD's rainbow swings round its hub and the prism's fan
+     leans a few degrees as the pointer crosses the room. Nothing else
+     moves with it. The walls used to lean with the pointer, as a plane of
+     their own, and the dust drift against them; it read as the walls
+     swaying, and in a browser that can't give part of an SVG a layer of
+     its own (Safari) every frame of it redrew the plaster's noise across
+     both walls, so the room went slow. Now the room holds still.
+     The two turns ease on 140 ms, the same at any frame rate, and stop
+     asking for frames once they arrive. The rainbow turns on a small layer
+     of its own, its blur never redone; the fan's blend and blur are redone
+     each step, so it steps by half a degree. Under a sheet they hold
+     still; no fine pointer, reduced motion or a small device: no turning. */
+  var CAM = {tx:0, ty:0, x:0, y:0, raf:0, last:0, live:false, fa:""},
       cdBow = document.getElementById("cdBow"), pFan = document.getElementById("prismFan");
-  function camApply(now){
-    var x = CAM.x, y = CAM.y, w = "translate(" + (x * 12).toFixed(2) + "px," + (y * 7).toFixed(2) + "px)";
-    for (var i = 0; i < LYR.length; i++) LYR[i].style.transform = w;
-    dustEl.style.transform = "translate3d(" + (x * -24).toFixed(2) + "px," + (y * -14).toFixed(2) + "px,0)";
-    if (mothEl){
-      /* the moth hangs in the walls' plane for its nights on the lithophane;
-         round the lamp it is moved back with the desk, and it changes planes
-         over its 3.6 s flight (camMoth), not in a jump */
-      var k = Math.min(1, (now - CAM.mt) / 3600); k = k * k * (3 - 2 * k);
-      CAM.mw = CAM.m0 + (CAM.m1 - CAM.m0) * k;
-      var b = CAM.mw - 1;
-      mothEl.style.transform = b ? "translate(" + (x * 12 * b).toFixed(2) + "px," + (y * 7 * b).toFixed(2) + "px)" : "";
-    }
-    var a = x + y * .4;
-    /* the rainbow turns on its own layer, its blur never redone; the fan's
-       blend and blur are redone each step, so it steps by half a degree */
+  function camApply(){
+    var a = CAM.x + CAM.y * .4;
     if (cdBow) cdBow.style.transform = "rotate(" + (-30 + a * 150).toFixed(2) + "deg)";
     var fa = (24 + Math.round(a * 28) / 2) + "deg";
     if (pFan && fa !== CAM.fa){ CAM.fa = fa; pFan.style.transform = "rotate(" + fa + ")"; }
@@ -7085,19 +7062,13 @@
     var dt = now - (CAM.last || now - 16); CAM.last = now;
     var e = 1 - Math.exp(-dt / 140);                           // the same ease at any frame rate, a slow one too
     CAM.x += (CAM.tx - CAM.x) * e; CAM.y += (CAM.ty - CAM.y) * e;
-    var done = Math.abs(CAM.tx - CAM.x) + Math.abs(CAM.ty - CAM.y) < .0005 && (now - CAM.mt >= 3600 || !(CAM.x || CAM.y));
+    var done = Math.abs(CAM.tx - CAM.x) + Math.abs(CAM.ty - CAM.y) < .0005;
     if (done){ CAM.x = CAM.tx; CAM.y = CAM.ty; }
-    camApply(now);
+    camApply();
     CAM.raf = done ? 0 : requestAnimationFrame(camTick);
     if (done) CAM.last = 0;
   }
   function camWake(){ if (CAM.live && !CAM.raf) CAM.raf = requestAnimationFrame(camTick); }
-  function camMoth(dark){                 // with the switch (mothAim)
-    var now = performance.now();
-    CAM.m0 = CAM.mw; CAM.m1 = dark ? 1 : 0; CAM.mt = REDUCED ? now - 3600 : now;
-    camWake();
-  }
-  CAM.mw = CAM.m0 = CAM.m1 = lightsOut ? 1 : 0; CAM.mt = -1e9;
   if (!REDUCED && matchMedia("(pointer: fine)").matches && !(navigator.deviceMemory < 4)){
     CAM.live = true;
     document.body.classList.add("cam-live");
@@ -7109,7 +7080,7 @@
     /* reduced motion turned on with the page open: back to the middle */
     if (reducedQ.addEventListener) reducedQ.addEventListener("change", function(){
       if (!REDUCED) return;
-      CAM.tx = CAM.ty = CAM.x = CAM.y = 0; camApply(performance.now());
+      CAM.tx = CAM.ty = CAM.x = CAM.y = 0; camApply();
     });
   }
 
@@ -7139,11 +7110,15 @@
   if (canvas.getContext && !REDUCED){
     var cx2 = canvas.getContext("2d");
     var motes = [], W = 0, H = 0;
+    /* One canvas pixel per CSS pixel, on any screen. The canvas covers the
+       whole scene and is redrawn and handed to the GPU every frame; at a
+       retina screen's own density that was four times the pixels (about
+       eight megapixels a frame) for motes that are soft discs anyway, and
+       nobody can tell the difference but the fan. */
     function resize(){
       W = canvas.clientWidth; H = canvas.clientHeight;
-      var dpr = Math.min(devicePixelRatio || 1, 2);
-      canvas.width = W * dpr; canvas.height = H * dpr;
-      cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.width = W; canvas.height = H;
+      cx2.setTransform(1, 0, 0, 1, 0, 0);
     }
     resize(); addEventListener("resize", resize);
     /* commentary note 6 — keep in step */

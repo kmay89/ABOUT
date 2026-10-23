@@ -43,7 +43,7 @@
                                             never needed after the first run on a machine
         --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone,
                                             --only=sky: the moon's and the quiet clocks',
-                                            --only=camera: the planes', --only=torch: the torch's,
+                                            --only=camera: the room holding still, --only=torch: the torch's,
                                             --only=arrival: the lamp catching on a first visit)
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
@@ -588,78 +588,46 @@ async function commentary(browser) {
 }
 
 /* ================================================================ camera */
-/* A13: one camera, three planes. The walls (every .lyr-wall group) lean
-   with the pointer, the dust drifts against it and the desk holds still;
-   the night copies and the moth go with the plane they hang in. Poses are
-   the pointer parked in two opposite corners of the viewport, which is the
-   camera at its extremes. Photographs of both, lit and dark, go to OUT
-   (cam-*.png) for a person to look at the seams: no rule here can. */
+/* The eye and the light. The walls once leaned with the pointer, as a
+   plane of their own (A13), and it read as the walls swaying, and in a
+   browser that can't layer part of an SVG it redrew the plaster every
+   frame. So the room holds still: the pointer, parked in two opposite
+   corners of the viewport, moves nothing in it but the CD's rainbow and
+   the prism's fan, which follow your eye the way the real things do. */
 async function camera(browser) {
-  console.log("\n──  the camera");
+  console.log("\n──  the room holds still");
   let { ctx, page } = await openDesk(browser, { name: "camera", dpr: 1 });
-  const live = await page.evaluate(() => document.body.classList.contains("cam-live"));
-  if (!live && !(await page.$(".lyr-wall"))) { notYet("A13 the camera", "body.cam-live / .lyr-wall"); await ctx.close(); return; }
-  ok("A13 a fine pointer gets the camera (body.cam-live)", live);
   await alignDesk(page);
   const pose = async (x, y) => { await page.mouse.move(x, y, { steps: 3 }); await page.waitForTimeout(1300); };
   const read = () => page.evaluate(() => {
     const box = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
     const vis = (sel) => [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0);
-    const m = (el) => new DOMMatrixReadOnly(getComputedStyle(el).transform === "none" ? undefined : getComputedStyle(el).transform);
-    const lyr = [...document.querySelectorAll("#iso .lyr-wall")].map((e) => { const t = m(e); return [t.e, t.f]; });
-    const moth = document.getElementById("moth"), mt = moth ? m(moth) : null, wb = document.querySelector("#moth ellipse"),
-          moon = [...document.querySelectorAll("#lumaNight circle")].find((c) => c.getAttribute("r") === "6.5");
-    return {
-      lyr, iso: getComputedStyle(document.getElementById("iso")).transform,
-      dust: [m(document.getElementById("dust")).e, m(document.getElementById("dust")).f],
+    const moved = [...document.querySelectorAll("#iso .lyr-wall, #dust, #moth")].filter((e) => { const t = getComputedStyle(e).transform; return t !== "none" && t !== "matrix(1, 0, 0, 1, 0, 0)"; }).length;
+    const bow = document.getElementById("cdBow");
+    return { moved, iso: getComputedStyle(document.getElementById("iso")).transform,
       desk: box(vis('.iso-obj[data-id="hive"]')), wall: box(vis('.iso-obj[data-id="luma"]')),
-      litD: box(document.querySelector('.iso-obj[data-id="luma"] .rx-lit')), litN: box(document.querySelector("#lumaNight .rx-lit")),
-      moth: mt ? [mt.e, mt.f] : null, body: box(wb), moon: box(moon),
-      lift: !!document.querySelector("#lumaNight.lift"),
-      node: box([...document.querySelectorAll("#commLayer .lyr-wall .cnode")].find((n) => n.getBoundingClientRect().width > 0))
-    };
+      bow: bow ? getComputedStyle(bow).transform : "none",
+      layered: [...document.querySelectorAll("#iso .lyr-wall, #iso .walls > *, #dust, #moth")].filter((e) => getComputedStyle(e).willChange.includes("transform")).length };
   });
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   await pose(2, 2); const L = await read();
-  await page.screenshot({ path: path.join(OUT, "cam-L.png"), style: "#dust{visibility:hidden !important}" });
   await pose(DESK.width - 2, DESK.height - 2); const R = await read();
-  await page.screenshot({ path: path.join(OUT, "cam-R.png"), style: "#dust{visibility:hidden !important}" });
-  const same = (r) => r.lyr.every((t) => Math.abs(t[0] - r.lyr[0][0]) < .01 && Math.abs(t[1] - r.lyr[0][1]) < .01);
-  ok("A13 every wall plane leans the same way, with the pointer", same(L) && same(R) && L.lyr[0][0] < -4 && R.lyr[0][0] > 4 && L.lyr[0][1] < -2 && R.lyr[0][1] > 2,
-    L.lyr.length + " planes, " + L.lyr[0].map((v) => v.toFixed(1)) + " → " + R.lyr[0].map((v) => v.toFixed(1)));
-  ok("A13 the dust drifts against it, twice as far", L.dust[0] > 8 && R.dust[0] < -8 && Math.abs(R.dust[0] + 2 * R.lyr[0][0]) < 1, L.dust.map((v) => v.toFixed(1)) + " → " + R.dust.map((v) => v.toFixed(1)));
-  ok("A13 the desk holds still (#iso has no transform; the Game Boy doesn't move)", L.iso === "none" && d(L.desk, R.desk) < .5, "moved " + d(L.desk, R.desk).toFixed(2) + " px");
-  ok("A13 the lithophane moves with its wall", d(L.wall, R.wall) > 10, "moved " + d(L.wall, R.wall).toFixed(1) + " px");
-  ok("A13 lit, the moth is held back with the desk", R.moth && Math.abs(R.moth[0] + R.lyr[0][0]) < .2 && Math.abs(R.moth[1] + R.lyr[0][1]) < .2, R.moth && R.moth.map((v) => v.toFixed(1)).join(","));
-  await clickJS(page, "#commBtn", 150);              // by script: a real click would move the pointer, and the camera
-  const nR = (await read()).node; await pose(2, 2); const nL = (await read()).node;
-  ok("A13 a note pinned to a wall rides with it", nR && nL && Math.abs(d(nL, nR) - d(L.wall, R.wall)) < .6,
-    nR && nL ? "node " + d(nL, nR).toFixed(1) + ", wall " + d(L.wall, R.wall).toFixed(1) + " px" : "no note in a wall's plane");
-  await clickJS(page, "#commBtn", 150);
-  /* the dark: the night copy over its original, the moth on its moon in both poses */
-  await page.locator('.iso-obj[data-id="switch"]').first().click();
-  await page.waitForTimeout(4500);                   // the moth's flight is 3.6 s
-  await page.evaluate(() => document.querySelector('.iso-obj[data-id="luma"]').classList.add("rx"));
-  await pose(2, 2); const DL = await read();
-  await page.screenshot({ path: path.join(OUT, "cam-dark-L.png"), style: "#dust{visibility:hidden !important}" });
-  await pose(DESK.width - 2, DESK.height - 2); const DR = await read();
-  await page.screenshot({ path: path.join(OUT, "cam-dark-R.png"), style: "#dust{visibility:hidden !important}" });
-  ok("A13 pointed at in the dark, the lithophane's night copy turns up with it (.lift)", DL.lift && DR.lift);
-  ok("A13 the lithophane's night copy stays on its frame at both extremes", d(DL.litD, DL.litN) < .5 && d(DR.litD, DR.litN) < .5,
-    d(DL.litD, DL.litN).toFixed(2) + " / " + d(DR.litD, DR.litN).toFixed(2) + " px");
-  const oL = { x: DL.body.x - DL.moon.x, y: DL.body.y - DL.moon.y }, oR = { x: DR.body.x - DR.moon.x, y: DR.body.y - DR.moon.y };
-  ok("A13 in the dark the moth rides the wall, on the lithophane's moon", d(oL, oR) < 1 && Math.hypot(oR.x, oR.y) < 6,
-    "off the moon by " + Math.hypot(oR.x, oR.y).toFixed(1) + " px, and " + d(oL, oR).toFixed(2) + " px between the poses");
+  ok("the walls, the dust and the moth never move with the pointer", L.moved === 0 && R.moved === 0, L.moved + " / " + R.moved + " moved");
+  ok("the room holds still (#iso has no transform; the Game Boy and the lithophane stay put)",
+    L.iso === "none" && d(L.desk, R.desk) < .5 && d(L.wall, R.wall) < .5,
+    "desk " + d(L.desk, R.desk).toFixed(2) + " px, wall " + d(L.wall, R.wall).toFixed(2) + " px");
+  ok("nothing on the walls is marked for a layer of its own", R.layered === 0, R.layered + " marked");
+  ok("the CD's rainbow still follows your eye", L.bow !== R.bow, L.bow + " → " + R.bow);
   await ctx.close();
-  /* no camera without motion, or without a fine pointer */
+  /* no turning without motion, or without a fine pointer */
   ({ ctx, page } = await openDesk(browser, { name: "camera reduced", dpr: 1, reduced: true }));
   await page.mouse.move(2, 2, { steps: 3 }); await page.waitForTimeout(800);
   const red = await page.evaluate(() => ({ live: document.body.classList.contains("cam-live"),
     moved: [...document.querySelectorAll("#iso .lyr-wall, #dust")].filter((e) => getComputedStyle(e).transform !== "none").length }));
-  ok("A13 reduced motion: no camera, nothing leans", !red.live && red.moved === 0, red.moved + " moved");
+  ok("reduced motion: nothing turns, nothing moves", !red.live && red.moved === 0, red.moved + " moved");
   await ctx.close();
   ({ ctx, page } = await openDesk(browser, { name: "camera phone", width: 390, height: 844, dpr: 1, touch: true }));
-  ok("A13 a finger gets no camera", !(await page.evaluate(() => document.body.classList.contains("cam-live"))));
+  ok("a finger doesn't turn the rainbow", !(await page.evaluate(() => document.body.classList.contains("cam-live"))));
   await ctx.close();
 }
 
@@ -1599,7 +1567,7 @@ async function arrival(browser) {
       if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
       if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
       if (ONLY.includes("commentary")) await commentary(browser);   // --only=commentary: the notes
-      if (ONLY.includes("camera")) await camera(browser);           // --only=camera: the planes
+      if (ONLY.includes("camera")) await camera(browser);           // --only=camera: the room holds still
       if (ONLY.includes("torch")) await torch(browser);             // --only=torch: the torch in the dark
       if (ONLY.includes("arrival")) await arrival(browser);         // --only=arrival: the room waking up
     }
