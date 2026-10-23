@@ -224,13 +224,18 @@
     min-width:720px;
     max-width:1180px;
     margin:0 auto;
-    /* no transform here: the parallax writes #iso's style.transform itself.
-       It used to set two custom properties on #iso for this rule to read,
-       and a custom property set on an element restyles everything under it
-       — about 2,200 nodes, every pointer move. It keeps its own layer, as
-       the old translate3d(0,0,0) gave it, so moving it is a composite. */
+    /* no transform here, ever: the desk is the camera's pivot and holds
+       still (see "the camera: one orbit, three planes"). The room keeps a
+       layer of its own, as the old parallax's translate3d gave it. */
     will-change:transform;
   }
+  /* the planes the camera slides, each on a layer of its own while it is
+     live, so a move is a composite and never a repaint */
+  body.cam-live .lyr-wall,body.cam-live #dust,body.cam-live #moth,body.cam-live #cdBow,body.cam-live #prismFan{will-change:transform}
+  /* the walls get layers in their own skewed spaces, and a layer whose own
+     transform isn't marked as moving is repainted at every fraction of a
+     pixel it lands on (5 ms a frame of the glide): so each is marked too */
+  body.cam-live .walls > *{will-change:transform}
   .iso-obj{cursor:pointer;outline:none}
   /* The plain lift, for everything that hasn't a voice of its own yet:
      up springy in a third of a second, down in half of one with no
@@ -295,12 +300,13 @@
   .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-3px)}
   .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx) .rx-pencil{transform:translate(2.5px,1px)}
   .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx) .rx-digit{opacity:.85}
-  /* the light from below swells up the shaft, and its night copy with it.
-     The swell is on a wrapper inside .wellglow, so the slow breathing goes
-     on under it: stopping the breath for a hover restarts it on the way
-     out, and in the dark that drop read as a blink. */
+  /* the light from below swells up the shaft, and its night copy with it
+     (the copy is told by script: see "the night copies answer with their
+     originals"). The swell is on a wrapper inside .wellglow, so the slow
+     breathing goes on under it: stopping the breath for a hover restarts
+     it on the way out, and in the dark that drop read as a blink. */
   .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) .rx-swell,
-  .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) ~ #wellNight .rx-swell{transform:scale(1.3)}
+  #wellNight.lift .rx-swell{transform:scale(1.3)}
   /* the drone takes off by itself, banking a touch as it climbs, light
      steady, props a blur rather than a stick; the controller stays on the shelf */
   .iso-obj[data-id="vantage"]:is(:hover,:focus-visible,.rx) .rx-hover{transform:translateY(-6px) rotate(-2deg)}
@@ -317,7 +323,8 @@
   .iso-obj[data-id="offhours"]:is(:hover,:focus-visible,.rx) .carriage{transform:translate(-26px,-13px)}
   /* the lithophane's light, turned up */
   .iso-obj[data-id="luma"]:is(:hover,:focus-visible,.rx) .lumaglow ellipse{opacity:.3}
-  .iso-obj[data-id="luma"]:is(:hover,:focus-visible,.rx) .rx-lit{opacity:.16}
+  .iso-obj[data-id="luma"]:is(:hover,:focus-visible,.rx) .rx-lit,
+  #lumaNight.lift .rx-lit{opacity:.16}
   /* outside, to eyes used to the dark: the night gets lighter, the campfire catches */
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-fire{transform:scale(1.35,1.5)}
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-pane{opacity:.22}
@@ -392,11 +399,13 @@
   /* the words dim with the room; the controls don't, because "Year" and
      "Sound" are the way out of the dark, not part of it */
   body.lights-out .intro > :not(.deck){opacity:.5}
+  /* the name tag: no frosted glass (backdrop-filter) any more, because the
+     room under it is always moving and the frost was redone every frame,
+     most of what a hover cost (3 ms a frame); a darker glass reads the same */
   .tip{
     position:absolute;z-index:6;
     transform:translate(-50%,-100%);
-    background:rgba(22,15,9,.78);
-    -webkit-backdrop-filter:blur(10px) saturate(1.3);backdrop-filter:blur(10px) saturate(1.3);
+    background:rgba(22,15,9,.9);
     border:1px solid color-mix(in srgb, var(--a,#ffc97a) 70%, transparent);
     border-radius:999px;
     box-shadow:0 10px 30px rgba(0,0,0,.45), 0 0 18px color-mix(in srgb, var(--a,#ffc97a) 25%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
@@ -505,8 +514,8 @@
   /* the beam is as strong as tonight's moon is full (--moonk, set once
      at build from the real phase): .45 of itself at a new moon, so the
      dark room still has a shape to it */
-  #moon{opacity:calc(.8 * var(--moonk,1));transition:opacity 1.4s ease .3s}
-  body.lights-out #moon{opacity:var(--moonk,1);filter:brightness(1.3) saturate(1.4)}
+  #moon,#moonPane{opacity:calc(.8 * var(--moonk,1));transition:opacity 1.4s ease .3s}
+  body.lights-out :is(#moon,#moonPane){opacity:var(--moonk,1);filter:brightness(1.3) saturate(1.4)}
   .shoot{opacity:0}   /* the shooting star is only ever in passing (the motion gate) */
   /* the wall clock's hands turn about the clock's middle, the origin of
      the plane they are drawn in (wallClock() sets the angle) */
@@ -580,8 +589,8 @@
   #wellNight{opacity:0;transition:opacity 1.1s ease .2s}
   body.lights-out #wellNight{opacity:1}
   /* the lithophane on the wall is lit from behind, so it outlasts the lamp
-     too (see lumaNight in the scene). It hangs on the wall and stays there,
-     so its copy has nothing to follow */
+     too (see lumaNight in the scene). It hangs on the wall and stays there;
+     pointed at in the dark, its copy turns its light up with it */
   #lumaNight{opacity:0;transition:opacity 1.1s ease .35s}
   body.lights-out #lumaNight{opacity:1}
   .lumaglow{animation:lumaBreathe 7s ease-in-out infinite}
@@ -1148,6 +1157,7 @@
 
   @media (prefers-reduced-motion:reduce){
     #iso{transform:none !important;will-change:auto}
+    .lyr-wall,#dust,#moth{transform:none !important}   /* no camera: the planes hold still */
     .iso-obj > *,.dossier,.scrim,.tour{transition:none}
     .iso-obj.picked{animation:none}
     .cs-arrow{animation:none}
@@ -1168,7 +1178,7 @@
     body.lights-out #fireflies > g:nth-of-type(2n) > g{opacity:0}    /* every other one: a whole crowd held still is a rash */
     #fireflies,body.lights-out #fireflies{transition:none}
     .lumaglow{animation:none}
-    #moon{transition:none}
+    #moon,#moonPane{transition:none}
     html{scroll-behavior:auto}
     /* the answers that are movements keep one still frame: a key held down, the shirt askew */
     .iso-obj:is([data-id="board"],[data-id="scqcs"]):is(:hover,:focus-visible,.rx) .kd{transform:translate(1.4px,1.4px)}
@@ -1871,7 +1881,11 @@
   /* ---------- the room: two fading walls behind the desk ----------
      Each wall is painted in its own plane, so its light runs up the wall
      the way lamplight does, not down the screen: brightest just above the
-     desk, falling away into the ceiling corner. */
+     desk, falling away into the ceiling corner.
+     The walls are a plane of their own to the camera ("the camera: one
+     orbit, three planes"): this group, up to the lamp's spill, slides as
+     one; the floor's shade under the desk stays with the desk. */
+  S.push('<g class="lyr-wall walls">');
   S.push(gRight(-30,420,200,'<rect width="450" height="260" fill="url(#wallBp)"/>'));
   S.push(gLeft(-30,-30,200,'<rect width="650" height="260" fill="url(#wallAp)"/>'));
   S.push('<g aria-hidden="true">' +
@@ -1928,8 +1942,13 @@
     gLeft(-30,-30,200,'<ellipse cx="148" cy="130" rx="200" ry="130" fill="url(#spill)"/>') +    // x 118, where the lamp stands
     gRight(-30,420,200,'<ellipse cx="262" cy="130" rx="180" ry="130" fill="url(#spill)"/>') +   // y 158
     '</g>');
+  S.push('</g>');   // the walls' plane
   S.push('<g aria-hidden="true">' +
     gTop(-60,-40,-180,'<ellipse cx="340" cy="250" rx="360" ry="260" fill="url(#floorShadow)"/>') + '</g>');
+
+  /* Everything hung on the walls, from the bike to the thinking wall, is
+     one more sheet in the walls' plane, so it slides with the plaster. */
+  S.push('<g class="lyr-wall">');
 
   /* ---------- wall B: the hung bike (rides) + VHS shelf (movie nights) ---------- */
   var bike = '<g fill="none" stroke-linecap="round" transform="translate(0,-30)">' +
@@ -2336,6 +2355,7 @@
       r -= 6.8; } return s; })() +
     '<circle cx="45" cy="45" r="3" fill="#191512"/></g>';
   S.push(wrapObj("puzzle","The thinking wall","#d9a0e8",gLeft(452,-30,160,spiral),"still"));
+  S.push('</g>');   // the hung things' plane
 
   // desk legs + modesty panel + tabletop (top surface = z 0)
   S.push(box(30,50,-180,20,280,152,"#6b4527"));
@@ -3714,7 +3734,7 @@
 
   /* Corner occlusion: where two walls meet, light has to bounce twice to
      get in, so the seam goes darker than either wall. */
-  S.push('<g aria-hidden="true" style="pointer-events:none">' +
+  S.push('<g class="lyr-wall" aria-hidden="true" style="pointer-events:none">' +   // in the walls, so it rides with them
     gLeft(-30,-30,200,'<rect width="70" height="260" fill="url(#aoL)"/>') +
     gRight(-30,420,200,'<rect x="380" width="70" height="260" fill="url(#aoR)"/>') +
     '</g>');
@@ -3756,14 +3776,28 @@
     S.push('<g id="moon" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none;--moonk:' + MOON_L.toFixed(2) + '">' +
       // the shaft through the air
       '<polygon points="' + q([TL,TR,BR,Pnr,Pfr,Pfl]) + '" fill="url(#moonShaft)" filter="url(#haze)"/>' +
-      // the window panes, glowing
-      gLeft(40,-30,170,'<rect x="-6" y="-6" width="232" height="122" fill="#5f86e8" opacity=".09" filter="url(#soft)"/>') +
       // the pool on the desk, split by the mullion's shadow
       gTop(0,0,0,'<g fill="#8fb2ff" filter="url(#soft)">' +
         '<polygon points="' + q([nl,m2,m1,fl]) + '" opacity=".16"/>' +
         '<polygon points="' + q([m4,nr,fr,m3]) + '" opacity=".16"/></g>') +
       '</g>');
   })();
+
+  /* commentary note 11 — keep in step */
+  /* The well's own light, again, for when the lamp is off. It shares the
+     pool and the column the well itself draws (WL_POOL, WL_RISE), and it
+     swells with the well when you point at it, so the two never part.
+     Plain alpha for the same reason as the well's: no blend layers. */
+  S.push('<g id="wellNight" aria-hidden="true" style="pointer-events:none"><g>' +
+    WL_POOL + '<g class="wellglow"><g class="rx-swell">' + WL_RISE + "</g></g></g></g>");
+
+  /* What hangs on the walls and shows in the dark (the panes' moonglow,
+     the fireflies, the lithophane, the moth, the egg, the switch) is one
+     more sheet in the walls' plane. The moon's shaft stays with the desk:
+     it is blurred too far for the few units it parts from the window to show. */
+  S.push('<g class="lyr-wall">');
+  S.push('<g id="moonPane" aria-hidden="true" style="mix-blend-mode:screen;pointer-events:none;--moonk:' + MOON_L.toFixed(2) + '">' +   // the window panes, glowing, as bright as the moon (see #moon)
+    gLeft(40,-30,170,'<rect x="-6" y="-6" width="232" height="122" fill="#5f86e8" opacity=".09" filter="url(#soft)"/>') + '</g>');
 
   /* commentary note 4 — keep in step */
   /* Lights out, and the meadow outside fills with fireflies: Photinus
@@ -3815,19 +3849,13 @@
       '<stop offset="1" stop-color="#b8e05a" stop-opacity="0"/></radialGradient></defs>' + s + '</g>');
   })();
 
-  /* commentary note 11 — keep in step */
-  /* The well's own light, again, for when the lamp is off. It shares the
-     pool and the column the well itself draws (WL_POOL, WL_RISE), and it
-     lifts with the well when you point at it, so the two never part.
-     Plain alpha for the same reason as the well's: no blend layers. */
-  S.push('<g id="wellNight" aria-hidden="true" style="pointer-events:none"><g>' +
-    WL_POOL + '<g class="wellglow"><g class="rx-swell">' + WL_RISE + "</g></g></g></g>");
-
   /* The lithophane, again, for when the lamp is off: its own LED is still on,
      so the panel and the glow it throws on the wall come through the dark —
-     a little brighter than by lamplight, the way a backlit picture is. */
+     a little brighter than by lamplight, the way a backlit picture is.
+     Point at the lithophane and the copy turns its light up too. */
   S.push('<g id="lumaNight" aria-hidden="true" style="pointer-events:none"><g>' +
-    gRight(-30,394,190,LITHO_HALO + LITHO.replace(/id="litho(Sky|Water)"/g,'id="lithoN$1"').replace(/url\(#litho(Sky|Water)\)/g,"url(#lithoN$1)")) +
+    gRight(-30,394,190,LITHO_HALO + LITHO.replace(/id="litho(Sky|Water)"/g,'id="lithoN$1"').replace(/url\(#litho(Sky|Water)\)/g,"url(#lithoN$1)") +
+      '<rect width="100" height="64" fill="#fff8e6" class="rx-lit" opacity="0"/>') +   // turned up when the lithophane is pointed at, as by day
     "</g></g>");
 
   /* commentary note 4 — keep in step */
@@ -3893,6 +3921,7 @@
     "</g>" +
     '<rect x="-9" y="-9" width="36" height="48" fill="transparent"/>';          // a hit area worth aiming at
   S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
+  S.push('</g>');   // the walls' plane, after dark
 
   /* The director's commentary goes on last of all, over the switch and
      over the dark, so its numbers can still be read with the lamp off and
@@ -4315,6 +4344,10 @@
       var a = Q[i].a, q = Q[i].q, n = i + 1, near = Infinity;
       Q.forEach(function(o, j){ if (j !== i) near = Math.min(near, Math.hypot(o.q[0] - q[0], o.q[1] - q[1])); });
       var big = n1(Math.min(coarse ? 35 : 18, near / 2));
+      /* a note pinned to a wall rides in the walls' plane, pin and number
+         together, so the camera never slides its pin off what it explains */
+      var onWall = nt.at[0] <= -30 || nt.at[1] <= -30;
+      if (onWall) s += '<g class="lyr-wall">';
       if (nt.off[0] || nt.off[1])
         s += '<g aria-hidden="true" style="pointer-events:none"><line x1="' + n1(a[0]) + '" y1="' + n1(a[1]) + '" x2="' + n1(q[0]) + '" y2="' + n1(q[1]) +
           '" stroke="#ffc97a" stroke-width=".8" stroke-dasharray="2 2" opacity=".8"/><circle cx="' + n1(a[0]) + '" cy="' + n1(a[1]) + '" r="1.8" fill="#ffc97a"/></g>';
@@ -4325,6 +4358,7 @@
         '<circle class="cfoc" r="' + n1(14.4 * k) + '" fill="none" stroke="none" stroke-width="1.2"/>' +
         '<circle class="cdisc" r="' + n1(10.5 * k) + '" fill="rgba(14,10,7,.88)" stroke="#ffc97a" stroke-width="1.2"/>' +
         txt(0, n1(3.4 * k), String(n), n1(9 * k), "#ffc97a", 'text-anchor="middle" ' + MONO) + '</g>';
+      if (onWall) s += '</g>';
     });
     document.getElementById("commLayer").innerHTML = s;
   })();
@@ -6462,6 +6496,7 @@
   function mothAim(dark){
     var o = document.querySelector("#moth .mOrb");
     if (!o) return;
+    if (CAM) camMoth(dark);                         // and it changes planes on the way (the camera)
     var st = o.style;
     if (!dark){ st.animation = st.transform = st.transition = ""; st.animationDelay = "-8.35s"; return; }
     if (REDUCED) return;
@@ -6878,48 +6913,94 @@
   /* a tap on the desk means they've found it too, slid or not */
   wrap.addEventListener("pointerdown", cueDismiss);
 
-  /* ---------------- gentle whole-scene parallax ----------------
-     The transform is written straight onto #iso. Setting a custom property
-     there instead (as this once did) restyles all ~2,200 nodes of the room
-     on every frame; a transform restyles one, and the room stays on
-     its own layer (see #iso in the CSS), so moving it is a composite
-     rather than a repaint. Reduced motion's !important rule still wins
-     over the inline style. */
-  var iso = document.getElementById("iso");
-  if (!REDUCED && matchMedia("(pointer: fine)").matches){
-    var raf = null, mx = 0, my = 0;
+  /* ---------------- the camera: one orbit, three planes ----------------
+     Turn your head a little and each point slides sideways by θ·(x + y − d0):
+     the further from the pivot in depth, the further, and what is in front
+     of it the other way. The pivot is the middle of the desk (x + y = 470),
+     so the desk holds still under the pointer, the walls (x + y ≈ 270) lean
+     with it and the dust near the glass drifts against it, twice as far.
+     Two planes move, each on a layer of its own while body.cam-live, so a
+     move is a composite, not a repaint; the transform goes straight onto
+     each (a custom property on #iso once restyled all ~2,200 nodes a move).
+     It eases on 140 ms, so it leans rather than drags, and stops asking for
+     frames once it arrives. The CD's rainbow and the prism's fan turn with
+     it: real diffraction moves with your eye. Under a sheet it holds still;
+     no fine pointer, reduced motion or a small device: no camera at all. */
+  var CAM = {tx:0, ty:0, x:0, y:0, raf:0, last:0, live:false, mw:0, m0:0, m1:0, mt:0, fa:""},
+      LYR = [].slice.call(document.querySelectorAll("#iso .lyr-wall")),
+      dustEl = document.getElementById("dust"), mothEl = document.getElementById("moth"),
+      cdBow = document.getElementById("cdBow"), pFan = document.getElementById("prismFan");
+  function camApply(now){
+    var x = CAM.x, y = CAM.y, w = "translate(" + (x * 12).toFixed(2) + "px," + (y * 7).toFixed(2) + "px)";
+    for (var i = 0; i < LYR.length; i++) LYR[i].style.transform = w;
+    dustEl.style.transform = "translate3d(" + (x * -24).toFixed(2) + "px," + (y * -14).toFixed(2) + "px,0)";
+    if (mothEl){
+      /* the moth hangs in the walls' plane for its nights on the lithophane;
+         round the lamp it is moved back with the desk, and it changes planes
+         over its 3.6 s flight (camMoth), not in a jump */
+      var k = Math.min(1, (now - CAM.mt) / 3600); k = k * k * (3 - 2 * k);
+      CAM.mw = CAM.m0 + (CAM.m1 - CAM.m0) * k;
+      var b = CAM.mw - 1;
+      mothEl.style.transform = b ? "translate(" + (x * 12 * b).toFixed(2) + "px," + (y * 7 * b).toFixed(2) + "px)" : "";
+    }
+    var a = x + y * .4;
+    /* the rainbow turns on its own layer, its blur never redone; the fan's
+       blend and blur are redone each step, so it steps by half a degree */
+    if (cdBow) cdBow.style.transform = "rotate(" + (-30 + a * 150).toFixed(2) + "deg)";
+    var fa = (24 + Math.round(a * 28) / 2) + "deg";
+    if (pFan && fa !== CAM.fa){ CAM.fa = fa; pFan.style.transform = "rotate(" + fa + ")"; }
+  }
+  function camTick(now){
+    var dt = Math.min(64, now - (CAM.last || now - 16)); CAM.last = now;
+    var e = 1 - Math.exp(-dt / 140);                           // the same ease at any frame rate
+    CAM.x += (CAM.tx - CAM.x) * e; CAM.y += (CAM.ty - CAM.y) * e;
+    var done = Math.abs(CAM.tx - CAM.x) + Math.abs(CAM.ty - CAM.y) < .0005 && (now - CAM.mt >= 3600 || !(CAM.x || CAM.y));
+    if (done){ CAM.x = CAM.tx; CAM.y = CAM.ty; }
+    camApply(now);
+    CAM.raf = done ? 0 : requestAnimationFrame(camTick);
+    if (done) CAM.last = 0;
+  }
+  function camWake(){ if (CAM.live && !CAM.raf) CAM.raf = requestAnimationFrame(camTick); }
+  function camMoth(dark){                 // with the switch (mothAim)
+    var now = performance.now();
+    CAM.m0 = CAM.mw; CAM.m1 = dark ? 1 : 0; CAM.mt = REDUCED ? now - 3600 : now;
+    camWake();
+  }
+  CAM.mw = CAM.m0 = CAM.m1 = lightsOut ? 1 : 0; CAM.mt = -1e9;
+  if (!REDUCED && matchMedia("(pointer: fine)").matches && !(navigator.deviceMemory < 4)){
+    CAM.live = true;
+    document.body.classList.add("cam-live");
     document.getElementById("scene").addEventListener("pointermove", function(e){
-      mx = (e.clientX / innerWidth  - 0.5);
-      my = (e.clientY / innerHeight - 0.5);
-      if (!raf) raf = requestAnimationFrame(function(){
-        raf = null;
-        iso.style.transform = "translate3d(" + (mx * -10).toFixed(1) + "px," + (my * -6).toFixed(1) + "px,0)";
-      });
+      if (REDUCED || activeModal()) return;       // nobody is looking at the room from under a sheet
+      CAM.tx = e.clientX / innerWidth - .5; CAM.ty = e.clientY / innerHeight - .5;
+      camWake();
+    });
+    /* reduced motion turned on with the page open: back to the middle */
+    if (reducedQ.addEventListener) reducedQ.addEventListener("change", function(){
+      if (!REDUCED) return;
+      CAM.tx = CAM.ty = CAM.x = CAM.y = 0; camApply(performance.now());
     });
   }
 
-  /* ---------------- the disc turns, the caustic sways ----------------
-     Real diffraction moves with the viewer's eye, so the CD's rainbow
-     swings round its hub and the prism's fan leans a few degrees as the
-     pointer crosses the room. Eased toward the target so it glides. */
-  var cdBow = document.getElementById("cdBow"), pFan = document.getElementById("prismFan");
-  if (cdBow && pFan && !REDUCED && matchMedia("(pointer: fine)").matches){
-    var tgtA = 0, curA = 0, lightRaf = null;
-    document.getElementById("scene").addEventListener("pointermove", function(e){
-      if (REDUCED) return;   /* turned on with the page open: no more swinging */
-      /* nobody is looking at the disc from under a sheet, so it stops
-         swinging there (each step re-rasters the filtered bow). The era
-         ride isn't a sheet: the desk is in full view through it. */
-      if (activeModal()) return;
-      tgtA = e.clientX / innerWidth - 0.5 + (e.clientY / innerHeight - 0.5) * 0.4;
-      if (!lightRaf) lightRaf = requestAnimationFrame(function ease(){
-        curA += (tgtA - curA) * 0.12;
-        cdBow.setAttribute("transform", "rotate(" + (-30 + curA * 150).toFixed(1) + ")");
-        pFan.setAttribute("transform", "rotate(" + (24 + curA * 14).toFixed(1) + ")");
-        lightRaf = Math.abs(tgtA - curA) > 0.002 && !activeModal() && !REDUCED ? requestAnimationFrame(ease) : null;
-      });
+  /* ---------------- the night copies answer with their originals ----------------
+     The well's light and the lithophane are drawn again after the darkness.
+     A sibling selector (well:hover ~ #wellNight) can't reach a copy in
+     another plane's group, so each copy gets "lift" from here whenever its
+     original is pointed at, focused or touched (.rx). The class itself is
+     watched, so every door that sets .rx (a tap, the tour, a test) counts. */
+  [["well", "wellNight"], ["luma", "lumaNight"]].forEach(function(pr){
+    var cp = document.getElementById(pr[1]);
+    if (!cp) return;
+    [].forEach.call(document.querySelectorAll('.iso-obj[data-id="' + pr[0] + '"]'), function(el){
+      var hov = false;
+      function sync(){ cp.classList.toggle("lift", hov || el.classList.contains("rx") || el.matches(":focus-visible")); }
+      el.addEventListener("pointerenter", function(){ hov = true; sync(); });
+      el.addEventListener("pointerleave", function(){ hov = false; sync(); });
+      el.addEventListener("focus", sync);
+      el.addEventListener("blur", sync);
+      if (window.MutationObserver) new MutationObserver(sync).observe(el, {attributes: true, attributeFilter: ["class"]});
     });
-  }
+  });
 
   /* ---------------- dust motes in the lamp light ---------------- */
   var canvas = document.getElementById("dust");
