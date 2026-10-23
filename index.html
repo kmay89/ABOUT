@@ -392,8 +392,8 @@
      dark mouth, and its pool, its beam and the shadows it threw are gone */
   body.lights-out .bulb-mouth{fill:#2a231c}
   body.lights-out :is(.bulb-on,.glint.shine),body.lights-out #iso .pool-warm{opacity:0}
-  #lampCast{transition:opacity .8s ease}
-  body.lights-out #lampCast{opacity:0}
+  #lampCast,#prismFan{transition:opacity .8s ease}
+  body.lights-out :is(#lampCast,#prismFan){opacity:0}   /* the prism's rainbow is the lamp's beam, split */
   #torch{display:none}
   body.lights-out.torch-on #torch{display:inline;will-change:transform}
   body.lights-out.torch-on .dk-flat{display:none}
@@ -1178,7 +1178,7 @@
     .legend button:hover,.d-links a:hover,.d-links a:focus-visible{transform:none}
     #iso.deg .era-old > *{animation:none}
     .pool-warm,.pool-cool{transition:none}
-    #swLever,#swGlow,#darkness,#lampCast,#eggWall,.scene,.intro > *{transition:none}
+    #swLever,#swGlow,#darkness,#lampCast,#prismFan,#eggWall,.scene,.intro > *{transition:none}
     .steam,.led,.crt-line,.flutter,.bob2,.flame,.nozzle,.wave{animation:none}
     .lampfx,.crtfx{animation:none}
     .glint{animation:none;opacity:.7;transform:none}
