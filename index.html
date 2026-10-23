@@ -519,6 +519,22 @@
     border-radius:999px;background:color-mix(in srgb, var(--a,#ffc97a) 45%, transparent);
   }
   .d-head{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+  /* where this sheet sits in the legend's order, pushed to the right with
+     the buttons: plain text, so a screen reader reads it with the head */
+  .d-pos{margin-left:auto;font:.62rem var(--mono);letter-spacing:.18em;color:var(--ink-faint);white-space:nowrap}
+  /* the walker: the whole desk read as a deck, without putting a thing back */
+  .d-nav{display:flex;justify-content:space-between;gap:.6rem;margin-top:1.4rem;padding-top:1rem;border-top:1px solid color-mix(in srgb,var(--a) 25%,transparent)}
+  .d-nav .chip:disabled{opacity:.35;cursor:default;background:transparent}
+  .d-nav.top{display:none}
+  /* on a phone the head would be four things on one line: the kicker gets
+     its own, and the walker comes up to the top as well as the bottom */
+  @media (max-width:640px){
+    .d-head{flex-wrap:wrap;row-gap:.6rem}
+    .d-kicker{flex-basis:100%;padding-top:.5rem}
+    .d-nav.top{display:flex;margin-top:.8rem;padding:0 0 .8rem;border-top:0;border-bottom:1px solid color-mix(in srgb,var(--a) 25%,transparent)}
+  }
+  /* words for a screen reader only (the Share confirmation) */
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
   .d-kicker{
     font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;
     text-transform:uppercase;color:var(--a)
@@ -908,6 +924,9 @@
     /* an unfound secret's pill shakes its head: not from here */
     .legend button.nudge{animation:nudge .3s ease}
     @keyframes nudge{25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+    /* a sheet paged in place: the card stays, the words turn over */
+    .dossier.swap :is(h2,.story,.cv){animation:dFade .22s ease}
+    @keyframes dFade{from{opacity:0;transform:translateY(4px)}}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1090,12 +1109,18 @@
 <section class="dossier" id="dossier" role="dialog" aria-modal="true" aria-labelledby="dTitle" hidden>
   <div class="d-head">
     <p class="d-kicker" id="dKicker"></p>
+    <span class="d-pos" id="dPos"></span>
+    <button class="chip" id="dShare">Share</button><span class="sr-only" id="dShareMsg" aria-live="polite"></span>
     <button class="chip" id="dClose">Put it back ×</button>
   </div>
+  <!-- the walker, again at the top on a phone, where a long story would
+       otherwise put it a thumb's scroll away -->
+  <div class="d-nav top"><button class="chip" data-walk="-1">← Previous</button><button class="chip" data-walk="1">Next on the desk →</button></div>
   <h2 id="dTitle"></h2>
   <p class="story" id="dStory"></p>
   <ul class="chips" id="dChips"></ul>
   <div class="d-links" id="dLinks"></div>
+  <div class="d-nav"><button class="chip" id="dPrev" data-walk="-1" aria-keyshortcuts="ArrowLeft">← Previous</button><button class="chip" id="dNext" data-walk="1" aria-keyshortcuts="ArrowRight">Next on the desk →</button></div>
 </section>
 
 <footer>
@@ -3295,6 +3320,13 @@
     },
     rollcall: function(n){ // a hat clicked: the desk answers roll call, one tick per thing
       for (var i = 0; i < n; i++) tone(1900 + i * 120, {dur:0.04, g:0.015, at:i * 0.06});
+    },
+    tourStep: function(){ // a page turn: the walker's, and the tour's
+      noise({filter:"bandpass", freq:900, freqEnd:2400, q:1, dur:0.07, g:0.035});
+    },
+    copied: function(){ // the link is on the clipboard: two small bright notes
+      tone(1568, {dur:0.06, g:0.02});
+      tone(2093, {at:0.06, dur:0.08, g:0.016});
     }
   };
   var HAPTICS = {
@@ -3671,6 +3703,12 @@
     pickObjects(id, 0, dossier);
     markFound(id);
     setActivePill(id);
+    address(id);
+    shareReset();
+    /* world mode: the walker pages through the legend, and stops at its ends */
+    var order = walkOrder();
+    WALK.mode = "world"; WALK.id = id; WALK.go = walkWorld;
+    walkShow(order.indexOf(id), order.length, false, "← Previous", "Next on the desk →");
     setBackgroundInert(true);
     scrim.hidden = false; dossier.hidden = false;
     requestAnimationFrame(function(){
@@ -3682,11 +3720,101 @@
     cancelHide();
     clearPicked();
     setActivePill(null);
+    address(null);
+    dossier.classList.remove("swap");
     scrim.classList.remove("show"); dossier.classList.remove("show");
     scheduleHide(dossier, 460);
     setBackgroundInert(false);
     refocus();
   }
+  /* ---------------- addresses: every world has one ----------------
+     The address bar follows whatever is picked up, so the link you copy is
+     the thing you're looking at, and putting it back gives the bare page
+     back. replaceState, never pushState: there's no trail of sheets for
+     Back to step through, so Back leaves the page, as it does anywhere. */
+  function address(id){
+    var want = id ? "#" + id : "";
+    if (location.hash === want) return;
+    try { history.replaceState(null, "", want || location.pathname + location.search); } catch(e){}
+  }
+  /* Share: the phone's own share sheet where there is one; elsewhere the
+     link goes on the clipboard, and the button (and a screen reader) says so */
+  var dShare = document.getElementById("dShare");
+  var dShareMsg = document.getElementById("dShareMsg");
+  var shareT = null;
+  function shareReset(){
+    clearTimeout(shareT); shareT = null;
+    dShare.textContent = "Share"; dShareMsg.textContent = "";
+  }
+  dShare.addEventListener("click", function(){
+    ac(true);
+    var url = (location.origin !== "null" ? location.origin : location.protocol + "//") + location.pathname + location.hash;
+    if (navigator.share){
+      navigator.share({title: document.getElementById("dTitle").textContent + " — Karl Meves", url: url}).catch(function(){});
+      return;
+    }
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(url).then(function(){
+      shareReset();
+      dShare.textContent = dShareMsg.textContent = "Link copied ✓";
+      if (SOUNDS.copied) SOUNDS.copied();
+      shareT = setTimeout(shareReset, 1600);
+    }, function(){});
+  });
+  /* ---------------- the walker: the desk read as a deck ----------------
+     Previous and next on every sheet, with its place in the head, so a
+     visitor can read the whole desk without ever putting a thing back.
+     The order is read off the legend itself, so the two can't disagree.
+     This is the dossier's one paging engine, and WALK is its hook: world
+     mode is the default, and openWorld puts it back every time. Anything
+     else that pages through this sheet (the commentary's notes) sets
+     WALK.mode, points WALK.go at its own stepper (called with -1 or +1),
+     and calls walkShow with its own place, labels and whether it loops. */
+  var WALK = {mode: "world", id: null, go: null};
+  var walkBtns = dossier.querySelectorAll("[data-walk]");
+  var dPos = document.getElementById("dPos");
+  var dPrev = document.getElementById("dPrev"), dNext = document.getElementById("dNext");
+  function walkOrder(){
+    return [].map.call(document.querySelectorAll(
+      '.legend .lg:not(.lg-backstage) button[data-id]:not(.secret):not([hidden])'), function(b){ return b.dataset.id; });
+  }
+  function walkShow(k, n, loop, prev, next){
+    dPos.textContent = k < 0 ? "" : (k + 1) + " / " + n;
+    [].forEach.call(walkBtns, function(b){
+      var d = +b.dataset.walk;
+      b.textContent = d < 0 ? prev : next;
+      b.disabled = k < 0 || (!loop && (d < 0 ? k <= 0 : k >= n - 1));
+    });
+  }
+  function walkWorld(d){
+    var order = walkOrder(), id = order[order.indexOf(WALK.id) + d];
+    if (id) walkTo(id);
+  }
+  function walkTo(id){
+    /* the impossible object and the light bench are rooms of their own,
+       so they go through the door (which puts this sheet back first) */
+    if (!WORLDS[id]){ activate(id); return; }
+    ac(true);
+    if (SOUNDS.tourStep) SOUNDS.tourStep();
+    openWorld(id, ACCENT[id]);
+    dossier.classList.remove("swap");
+    void dossier.offsetWidth;            // so a second page turn plays again
+    dossier.classList.add("swap");
+  }
+  [].forEach.call(walkBtns, function(b){
+    b.addEventListener("click", function(){
+      var d = +b.dataset.walk;
+      /* the hand is on the chip before the page turns (Safari doesn't focus
+         a clicked button), so the sheet keeps what opened it */
+      b.focus({preventScroll: true});
+      if (WALK.go) WALK.go(d);
+      if (!dossier.classList.contains("show")) return;   // it went through a door
+      /* and it stays there, so the next press is the next page; at an end,
+         on the one that still goes */
+      var mate = b.parentNode.querySelector('[data-walk="' + (-d) + '"]');
+      (b.disabled ? mate : b).focus({preventScroll: true});
+    });
+  });
   /* ---------------- the built-in browser ---------------- */
   var browser = document.getElementById("browser");
   var SITES = [
@@ -3739,6 +3867,7 @@
     cancelHide();
     pickObjects("web", 0, browser);
     markFound("web");
+    address("web");
     setBackgroundInert(true);
     scrim.hidden = false; browser.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); browser.classList.add("show"); });
@@ -3747,6 +3876,7 @@
   function closeBrowser(){
     cancelHide();
     clearPicked();
+    address(null);
     scrim.classList.remove("show"); browser.classList.remove("show");
     scheduleHide(browser, 320);
     setBackgroundInert(false);
@@ -4153,6 +4283,7 @@
     cancelHide();
     pickObjects("cube", 0, cubeStage);
     markFound("cube");
+    address("cube");
     setBackgroundInert(true);
     scrim.hidden = false; cubeStage.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); cubeStage.classList.add("show"); });
@@ -4164,6 +4295,7 @@
     csAutoAbort();
     cancelHide();
     clearPicked();
+    address(null);
     scrim.classList.remove("show"); cubeStage.classList.remove("show");
     scheduleHide(cubeStage, 320);
     setBackgroundInert(false);
@@ -4342,6 +4474,7 @@
     pickObjects("mandel", 0, mandelStage);
     markFound("mandel");
     setActivePill("mandel");
+    address("mandel");
     setBackgroundInert(true);
     scrim.hidden = false; mandelStage.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); mandelStage.classList.add("show"); });
@@ -4358,6 +4491,7 @@
     cancelHide();
     clearPicked();
     setActivePill(null);
+    address(null);
     scrim.classList.remove("show"); mandelStage.classList.remove("show");
     scheduleHide(mandelStage, 320);
     setBackgroundInert(false);
@@ -4684,6 +4818,7 @@
     pickObjects("prism", 0, lightStage);
     markFound("prism");
     setActivePill("prism");
+    address("prism");
     setBackgroundInert(true);
     scrim.hidden = false; lightStage.hidden = false;
     requestAnimationFrame(function(){ scrim.classList.add("show"); lightStage.classList.add("show"); });
@@ -4698,6 +4833,7 @@
     cancelHide();
     clearPicked();
     setActivePill(null);
+    address(null);
     scrim.classList.remove("show"); lightStage.classList.remove("show");
     scheduleHide(lightStage, 320);
     setBackgroundInert(false);
@@ -4787,8 +4923,22 @@
       return;
     }
     if (e.key === "Escape"){ closeModal(); return; }
+    /* the walker's arrows: on the sheet only, never while typing, and
+       never with a modifier (Alt+← is the browser's own Back) */
+    if (m === dossier && dossier.classList.contains("show") &&
+        (e.key === "ArrowRight" || e.key === "ArrowLeft") &&
+        !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+        !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable){
+      e.preventDefault();
+      (e.key === "ArrowRight" ? dNext : dPrev).click();
+      return;
+    }
     if (e.key === "Tab"){ // keep focus inside the open dialog
-      var f = m.querySelectorAll("button, a[href], input");
+      /* only what can take focus right now: a walker chip at an end is
+         disabled, and the phone's top copy is display:none on a desk */
+      var f = [].filter.call(m.querySelectorAll("button, a[href], input"), function(el){
+        return !el.disabled && el.getClientRects().length;
+      });
       if (!f.length) return;
       var first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first){ last.focus(); e.preventDefault(); }
@@ -5011,6 +5161,15 @@
       osTitle("macOS", 50, "#f4f6fa", 10); },
     function(){ return osBG("#05070c") + txt(75,56,"→ 2026",12,"#8fb7ff",MONO + ' text-anchor="middle"'); }
   ];
+  /* the year itself, without the ceremony: the chip's click rides there
+     through the boot screens, and an address (#2026) just arrives */
+  function eraLand(now){
+    isoEl.classList.toggle("now", now);
+    eraBtn.setAttribute("aria-pressed", String(now));
+    eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
+    eraBtn.classList.add("used");
+    wakeDust();
+  }
   eraBtn.addEventListener("click", function(){
     if (eraBusy) return;
     ac(true);
@@ -5018,9 +5177,7 @@
     eraBtn.classList.add("used");
     var goingNow = !isoEl.classList.contains("now");
     function land(now){
-      isoEl.classList.toggle("now", now);
-      eraBtn.setAttribute("aria-pressed", String(now));
-      eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
+      eraLand(now);
       if (navigator.vibrate){ try { navigator.vibrate([10,30,10,30,40]); } catch(err){} }
     }
     if (!goingNow){
@@ -5272,6 +5429,46 @@
     if (SEEN) wakeDust();
   }).observe(document.querySelector(".desk-wrap"));
   document.addEventListener("visibilitychange", function(){ wakeDust(); });
+
+  /* ---------------- addresses: a link lands on the thing ----------------
+     #hive opens Hive Mind, #lights-out arrives in the dark, #2026 in
+     today's rig. Last in the file because a landing can touch anything
+     above (the pan, the era chip, the dust). A link skips the ceremony:
+     nobody followed one to watch Windows 95 boot. The stages and the secret
+     cube go through their own doors; #web is 2026's, so it lands there
+     first. Anything else after the # (the skip link's #iso, an old anchor)
+     is left alone. The tour and the commentary hook in here when they
+     exist: until then their addresses land on the plain desk. */
+  var SPECIAL = {
+    web: function(){ eraLand(true); openBrowser(); },
+    cube: openCubeGame, mandel: openMandel, prism: openLight,
+    tour: function(){ if (typeof startTour === "function") startTour(); }
+  };
+  function route(){
+    var h;
+    try { h = decodeURIComponent(location.hash.slice(1)).toLowerCase(); } catch(e){ return; }
+    /* Back past an address someone typed: the page they came from had no
+       sheet open (the light and the year stay as they are) */
+    if (!h){ if (activeModal()) closeModal(); return; }
+    if (eraBusy) return;
+    if (h === "lights-out" || h === "dark"){ flipRoomLight(true); return; }
+    if (h === "2026"){ eraLand(true); return; }
+    if (h === "1999"){ eraLand(false); return; }
+    var m = /^notes?(?:-(\d{1,2}))?$/.exec(h);
+    if (m){
+      if (typeof setCommentary === "function"){
+        setCommentary(true);
+        if (m[1]) openNote(Math.min(NOTES.length, Math.max(1, +m[1])));
+      }
+      return;
+    }
+    var own = function(o){ return Object.prototype.hasOwnProperty.call(o, h); };   // #constructor is not a world
+    if (!own(SPECIAL) && !own(WORLDS)) return;
+    if (activeModal()) closeModal();
+    if (own(SPECIAL)) SPECIAL[h](); else openWorld(h, ACCENT[h]);
+  }
+  addEventListener("hashchange", route);
+  route();
 })();
 </script>
 </body>
