@@ -41,7 +41,7 @@
         node tools/desk-check.js            compare against them
         --update-perf                       re-measure the frozen idle reference (below);
                                             never needed after the first run on a machine
-        --only=visual,dom,perf              just those parts
+        --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone)
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
 
@@ -484,6 +484,149 @@ async function dom(browser) {
   });
   if (!sleep.gated) notYet("the sleep gate pauses the room under a sheet", "body.modal-open");
   else ok("the sleep gate pauses the room under a sheet", sleep.st.length && sleep.st.every((s) => s === "paused"), ".steam: " + sleep.st.join(","));
+  await ctx.close();
+}
+
+/* ================================================================= light
+   The lamp is the key light (B3, B4), and its tests are pictures of the
+   room taken apart, so they need no baselines: each one compares the room
+   with itself, a layer removed.
+   1. The lamp's cast shadows fan away from it: to the right of the tube in
+      1999 (and of the display in 2026) there is a band of shade at least
+      6 px wide that #lampCast puts there.
+   2. Pointing at the chess board leaves its shade on the desk where it was
+      (a shadow inside a lifting object would go up with it).
+   3. The light adds no blur to speak of: #iso holds at most FILTERS_MAX
+      [filter] elements (57 before B3 moved the shadows, plus its 2).
+   4. With every object, the beam and the night taken away, the brightest
+      wood is under the lamp: within 40 px of P(235,195,0). */
+const FILTERS_MAX = 59;
+async function light(browser) {
+  console.log("\n──  the lamp's light");
+  const { ctx, page } = await openDesk(browser, { name: "light", dpr: 1 });
+  await alignDesk(page);
+  await page.mouse.move(4, 4);
+  await page.waitForTimeout(1200);
+  const hold = () => page.evaluate(() => {
+    document.getAnimations().forEach((a) => { try { a.pause(); } catch (e) {} });
+    document.querySelectorAll("canvas").forEach((c) => (c.style.visibility = "hidden"));
+    const t = document.getElementById("tip"); if (t) t.style.visibility = "hidden";
+    /* and the parallax, which would otherwise follow the pointer onto the board */
+    const iso = document.getElementById("iso"), k = document.getElementById("holdCam") || document.head.appendChild(document.createElement("style"));
+    k.id = "holdCam";
+    k.textContent = "#iso{transform:" + getComputedStyle(iso).transform + " !important}";
+  });
+  const unhold = () => page.evaluate(() => {
+    document.getAnimations().forEach((a) => { try { a.play(); } catch (e) {} });
+    const k = document.getElementById("holdCam"); if (k) k.remove();
+  });
+  /* where the world point (x,y,z) lands on the page */
+  const at = (pts) => page.evaluate((pts) => {
+    const m = document.getElementById("iso").getScreenCTM();
+    return pts.map((q) => { const v = new DOMPoint(q[0] - q[1], (q[0] + q[1]) / 2 - q[2]).matrixTransform(m); return [v.x, v.y]; });
+  }, pts);
+  const lumRow = (buf, x0, y, w) => page.evaluate(async ({ u, x0, y, w }) => {
+    const i = new Image(); await new Promise((r) => { i.onload = r; i.src = u; });
+    const c = document.createElement("canvas"); c.width = i.width; c.height = i.height;
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(i, 0, 0);
+    const d = g.getImageData(Math.round(x0), Math.round(y) - 1, w, 3).data, out = [];
+    for (let k = 0; k < w; k++) { let s = 0; for (let r = 0; r < 3; r++) { const o = (r * w + k) * 4; s += .2126 * d[o] + .7152 * d[o + 1] + .0722 * d[o + 2]; } out.push(s / 3); }
+    return out;
+  }, { u: "data:image/png;base64," + buf.toString("base64"), x0, y, w });
+  /* sx,sy: a point in the picture (the scene's own units) just right of
+     the thing's silhouette, on the desk, where its cast shadow should lie */
+  const fan = async (label, sx, sy) => {
+    await hold();
+    const p = await page.evaluate(([x, y]) => { const v = new DOMPoint(x, y).matrixTransform(document.getElementById("iso").getScreenCTM()); return [v.x, v.y]; }, [sx, sy]);
+    const on = await page.screenshot();
+    await page.evaluate(() => (document.getElementById("lampCast").style.visibility = "hidden"));
+    const off = await page.screenshot();
+    await page.evaluate(() => (document.getElementById("lampCast").style.visibility = ""));
+    const a = await lumRow(on, p[0] + 1, p[1], 48), b = await lumRow(off, p[0] + 1, p[1], 48);
+    let run = 0, best = 0;
+    a.forEach((v, k) => { run = b[k] - v >= 2 ? run + 1 : 0; best = Math.max(best, run); });
+    ok("B3 " + label + ": the lamp's shade runs off to the right of it", best >= 6, best + " px of shade (≥ 6)");
+  };
+  if (!(await page.$("#lampCast"))) notYet("B3 the lamp's cast shadows", "#lampCast");
+  else await fan("1999, the tube", 238, 162);             // right of the tube's hump, P(280,42,14) = (238,147)
+
+  /* 2. the chess board's shade, before and while it is pointed at */
+  const CH = [150, 300, 64, 64, 7];
+  const ring = [];
+  for (let u = -CH[4] + .5; u < CH[2] + CH[4]; u += 1.5)
+    for (let v = -CH[4] + .5; v < CH[3] + CH[4]; v += 1.5)
+      if (u > CH[2] + 1.5 || v > CH[3] + 1.5) ring.push([CH[0] + u, CH[1] + v, 0]);   // the front of it, where nothing hides the desk
+  const rp = await at(ring);
+  await hold();
+  const s0 = await page.screenshot();
+  await hoverObj(page, "chess");
+  await page.evaluate(() => { const t = document.getElementById("tip"); if (t) t.style.visibility = "hidden"; });
+  const s1 = await page.screenshot();
+  const moved = await page.evaluate(async ({ a, b, pts, B }) => {
+    const load = async (u) => { const i = new Image(); await new Promise((r) => { i.onload = r; i.src = u; });
+      const c = document.createElement("canvas"); c.width = i.width; c.height = i.height;
+      const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height); };
+    const [A, Bm] = [await load(a), await load(b)];
+    let bad = 0;
+    pts.forEach((q) => { const o = (Math.round(q[1]) * A.width + Math.round(q[0])) * 4;
+      if ([0, 1, 2].some((c) => Math.abs(A.data[o + c] - Bm.data[o + c]) > B)) bad++; });
+    return bad / pts.length;
+  }, { a: "data:image/png;base64," + s0.toString("base64"), b: "data:image/png;base64," + s1.toString("base64"), pts: rp, B: 4 });
+  ok("B3 pointing at the chess board leaves its shade on the desk", moved <= 0.002, (moved * 100).toFixed(2) + "% of the shade's pixels changed (≤ 0.2%)");
+  await unhold();
+  await page.mouse.move(4, 4);
+  await page.waitForTimeout(1200);
+
+  /* 3. filters */
+  const nf = await page.evaluate(() => document.querySelectorAll("#iso [filter]").length);
+  ok("B3 the light adds no blur: #iso [filter] count", nf <= FILTERS_MAX, nf + " (≤ " + FILTERS_MAX + ")");
+
+  /* 4. the hot pool: everything after the desk's pool taken away */
+  const hot = await page.evaluate(() => {
+    const e = document.querySelector('#iso ellipse[fill="url(#poolW)"]');
+    if (!e) return null;
+    let g = e; const iso = document.getElementById("iso");
+    while (g.parentNode !== iso) g = g.parentNode;
+    const hid = [];
+    for (let s = g.nextElementSibling; s; s = s.nextElementSibling) { hid.push(s); s.style.visibility = "hidden"; }
+    window.__hid = hid;
+    const m = iso.getScreenCTM(), P = (x, y) => { const v = new DOMPoint(x - y, (x + y) / 2).matrixTransform(m); return [v.x, v.y]; };
+    return { desk: [[0, 0], [560, 0], [560, 380], [0, 380]].map((q) => P(q[0], q[1])), target: P(235, 195) };
+  });
+  if (!hot) notYet("B4 the hot pool", "the desk's pool");
+  else {
+    await hold();
+    const buf = await page.screenshot();
+    const best = await page.evaluate(async ({ u, desk }) => {
+      const i = new Image(); await new Promise((r) => { i.onload = r; i.src = u; });
+      const c = document.createElement("canvas"); c.width = i.width; c.height = i.height;
+      const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(i, 0, 0);
+      const d = g.getImageData(0, 0, i.width, i.height).data, W = i.width;
+      const inside = (x, y) => { let k = false; for (let a = 0, b = desk.length - 1; a < desk.length; b = a++) {
+        const [xa, ya] = desk[a], [xb, yb] = desk[b];
+        if ((ya > y) !== (yb > y) && x < (xb - xa) * (y - ya) / (yb - ya) + xa) k = !k; } return k; };
+      const L = (x, y) => { const o = (y * W + x) * 4; return .2126 * d[o] + .7152 * d[o + 1] + .0722 * d[o + 2]; };
+      let top = { v: -1 };
+      for (let y = 6; y < i.height - 6; y += 3) for (let x = 6; x < W - 6; x += 3) {
+        if (!inside(x, y)) continue;
+        let s = 0, n = 0; for (let dy = -6; dy <= 6; dy += 3) for (let dx = -6; dx <= 6; dx += 3) { if (inside(x + dx, y + dy)) { s += L(x + dx, y + dy); n++; } }
+        if (n === 25 && s / n > top.v) top = { v: s / n, x, y };
+      }
+      return top;
+    }, { u: "data:image/png;base64," + buf.toString("base64"), desk: hot.desk });
+    const dist = Math.hypot(best.x - hot.target[0], best.y - hot.target[1]);
+    ok("B4 the brightest wood is under the lamp", dist <= 40, dist.toFixed(0) + " px from P(235,195,0) (≤ 40)");
+    await page.evaluate(() => (window.__hid || []).forEach((s) => (s.style.visibility = "")));
+  }
+
+  /* 1 again, in 2026: the display's shade */
+  if (await page.$("#lampCast")) {
+    await unhold();
+    await toNow(page);
+    await page.mouse.move(4, 4);
+    await page.waitForTimeout(1200);
+    await fan("2026, the display", 234, 202);             // right of the neck, under the display's corner P(320,86,0)
+  }
   await ctx.close();
 }
 
@@ -962,7 +1105,8 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await voices(browser); }
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await voices(browser); }
+    else if (ONLY.includes("light")) await light(browser);      // --only=light: just the lamp's tests
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
     await browser.close();
