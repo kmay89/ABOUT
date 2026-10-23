@@ -3822,7 +3822,8 @@
      finds work in progress. Asleep it holds where it is, and with less
      motion it is simply finished, the gantry at the top, as it was drawn. */
   var VASE = document.getElementById("vase"), VL = VASE.querySelectorAll(".vl"), ZAX = document.querySelector("#iso .zax"),
-      PRN = document.querySelector('#iso .iso-obj[data-voice="printer"]'), vN = 4 + (Math.random() * 6 | 0), prT = 0;
+      PRN = document.querySelector('#iso .iso-obj[data-voice="printer"]'),
+      vN = 4 + Math.floor(Date.now() / 60000) % 6, prT = 0;          // where the print has got to depends on the minute you arrive
   function vShow(n){ VL.forEach(function(b, i){ b.classList.toggle("on", i < n); }); }
   function vLift(n){ ZAX.style.transform = n >= VL.length ? "" : "translateY(" + (VL.length - n) * 3 + "px)"; }
   function printStep(){
