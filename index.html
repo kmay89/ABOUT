@@ -566,6 +566,9 @@
   #fireflies{opacity:0;visibility:hidden;transition:opacity .4s ease,visibility 0s .4s}
   body.lights-out #fireflies{opacity:1;visibility:visible;transition:opacity 1.6s ease 1.2s,visibility 0s 1.2s}
   .ffm,.fff{opacity:0}
+  /* in the torch's beam a firefly goes quiet, as they do in a porch light,
+     and the moth shows pale: lit from the front, not a shape against a glow */
+  .ff.hush,body.lights-out #moth.lit .mDark{opacity:0}
   .iso-obj.done .nozzle{animation:none;opacity:.25}
   .crt-line{animation:crt 5s steps(2) infinite}
   @keyframes crt{0%,92%,100%{opacity:1}94%{opacity:.55}}
@@ -1355,6 +1358,9 @@
     .mTrekX{transition:transform 3.6s cubic-bezier(.45,.05,.4,1)}
     .mTrekY{transition:transform 3.6s cubic-bezier(.3,1.7,.5,1)}
     .mDark{transition:opacity 1.2s ease .3s}
+    #moth.lit .mDark{transition:opacity .4s ease}
+    .ff{transition:opacity 1.4s ease 1.6s}                 /* it takes them a while to dare again */
+    .ff.hush{transition:opacity .3s ease}
     .mPose{transition:transform .5s ease}
     body.lights-out .mPose{transition:transform .9s ease 3.3s}
     /* each male: three J-shaped flashes per lap, each half a second
@@ -3865,11 +3871,14 @@
         /* each female answers one loop, two seconds late, at its tempo */
         SHE = [[14,104,0],[80,104,1],[142,101,3],[176,106,5],[48,108,6],[214,104,7]],
         s = "";
+    /* each light is its own .ff, which knows where it is (data-at), so the
+       torch can find it: a firefly in the beam goes quiet (see the torch) */
+    var ff = function(u, v, f, t){ return '<g class="ff" data-at="' + at(u, v) + '"' + (t || "") + ">" + f + "</g>"; };
     HIM.forEach(function(m){
       var a = P(40 + m[0], -30, 170 - m[1]), b = P(40 + m[2], -30, 170 - m[3]);
       s += '<g transform="translate(' + at(m[0], m[1]) + ')"><g class="ffm" style="animation-delay:' + m[4] + 's;animation-duration:' + m[5] + 's">' +
-        fly + '<g transform="translate(' + n1(b[0] - a[0]) + ' ' + n1(b[1] - a[1]) + ')">' + fly + '</g></g></g>'; });
-    SHE.forEach(function(f){ var m = HIM[f[2]]; s += '<g transform="translate(' + at(f[0], f[1]) + ')"><g class="fff" style="animation-delay:' + (m[4] + .2).toFixed(1) + 's;animation-duration:' + (m[5] / 3).toFixed(1) + 's">' + her + '</g></g>'; });
+        ff(m[0], m[1], fly) + ff(m[2], m[3], fly, ' transform="translate(' + n1(b[0] - a[0]) + ' ' + n1(b[1] - a[1]) + ')"') + '</g></g>'; });
+    SHE.forEach(function(f){ var m = HIM[f[2]]; s += '<g transform="translate(' + at(f[0], f[1]) + ')"><g class="fff" style="animation-delay:' + (m[4] + .2).toFixed(1) + 's;animation-duration:' + (m[5] / 3).toFixed(1) + 's">' + ff(f[0], f[1], her) + '</g></g>'; });
     S.push('<g id="fireflies" aria-hidden="true" style="pointer-events:none"><defs><radialGradient id="ffGlow">' +
       '<stop offset="0" stop-color="#f2ffb0"/><stop offset=".14" stop-color="#e2fa86" stop-opacity=".8"/><stop offset=".4" stop-color="#c8ec6a" stop-opacity=".28"/>' +
       '<stop offset="1" stop-color="#b8e05a" stop-opacity="0"/></radialGradient></defs>' + s + '</g>');
@@ -3917,7 +3926,7 @@
         '<g class="mDark">' + wings("#2a1f15", "#22190f", "rgba(10,6,3,.7)") + '</g></g>' +
       '<ellipse rx=".95" ry="2.8" cy=".6" fill="#6b5638"/>' +
       '<path d="M-.3 -2 q-1 -1.6 -2.2 -2 M.3 -2 q1 -1.6 2.2 -2" fill="none" stroke="#5a4730" stroke-width=".35"/>';
-    S.push('<g id="moth" aria-hidden="true" style="pointer-events:none"><g transform="translate(' + n1(ax) + ' ' + n1(ay) + ')">' +
+    S.push('<g id="moth" data-at="' + n1(land[0]) + " " + n1(land[1]) + '" aria-hidden="true" style="pointer-events:none"><g transform="translate(' + n1(ax) + ' ' + n1(ay) + ')">' +
       '<g class="mTrekX"><g class="mTrekY"><g class="mOrb"><g class="mPose">' + MOTH + '</g></g></g></g></g></g>');
   })();
 
@@ -4309,7 +4318,7 @@
     {id:null, at:[10,-30,30], off:[0,0],
      title:"A lens full of dust",
      chips:["Three depths","Pre-rendered sprites","Lit by the room"],
-     story:"Three depths of dust, the way a lens sees them: sharp specks in the focal plane, a few big soft discs drifting close to the glass, a haze of tiny ones far back. Near ones move faster, which is all parallax is. Each mote is a pre-rendered sprite, so a disc of any softness costs one drawImage, and it only shows where a light reaches it — warm in the lamp, blue in the moonbeam, and with the lamp off, only the moon. And it sleeps when you can't see it."},
+     story:"Three depths of dust, the way a lens sees them: sharp specks in the focal plane, a few big soft discs drifting close to the glass, a haze of tiny ones far back. Near ones move faster, which is all parallax is. Each mote is a pre-rendered sprite, so a disc of any softness costs one drawImage, and it only shows where a light reaches it — warm in the lamp, blue in the moonbeam, and with the lamp off, wherever your torch is. And it sleeps when you can't see it."},
     {id:null, at:[10,140,0], off:[0,0],
      title:"Wood that was grown",
      chips:["No image files","Fractal noise"],
@@ -6494,7 +6503,10 @@
        goes out only once the lamp's light has filled the room again (.8 s),
        or the hole would pop to a flat dark on the way */
     if (lightsOut){ torchTo(369, 35, true); document.body.classList.add("torch-on"); }   // P(339,-30,120), the switch
-    else setTimeout(function(){ if (!lightsOut) document.body.classList.remove("torch-on"); }, REDUCED ? 0 : 820);
+    else {
+      if (SEEN_BY) torchSees();                 // the meadow and the moth, back as they were
+      setTimeout(function(){ if (!lightsOut) document.body.classList.remove("torch-on"); }, REDUCED ? 0 : 820);
+    }
     document.body.classList.toggle("lights-out", lightsOut);
     // the light back on by hand: a #lights-out address no longer says true
     if (!lightsOut && /^#(lights-out|dark)$/i.test(location.hash)) address(null);
@@ -7052,7 +7064,9 @@
        in the focal plane, a few big soft discs drifting close to the glass
        (out of focus, so they're barely there), and a haze of tiny ones far
        back. Near things move faster, which is all parallax is. Each mote is
-       a pre-rendered sprite, so a disc of any softness costs one drawImage. */
+       a pre-rendered sprite, so a disc of any softness costs one drawImage.
+       It shows only where a light reaches it: warm in the lamp, blue in the
+       moonbeam, and with the lamp off, warm wherever your torch is. */
     function sprite(soft, cool){
       var c = document.createElement("canvas"), s = 64, g;
       c.width = c.height = s;
@@ -7082,7 +7096,8 @@
        the desk is panned, letterboxed or scrolled on a phone): the mouth of
        the lamp shade, and the middle of the moonbeam. */
     var isoEl = document.getElementById("iso"), sceneEl = document.getElementById("scene");
-    var LAMP = {x:.42, y:.45, r:.35}, MOON = {x:.5, y:.4, r:.2}, lightsAge = 99;
+    var LAMP = {x:.42, y:.45, r:.35}, MOON = {x:.5, y:.4, r:.2}, lightsAge = 99,
+        TORCH_N = {x:-9, y:-9, r:.1, q:1.6}, VB = {ox:0, oy:0, k:1, sl:0, st:0};   // the torch's pool is flat on the desk (.62)
     function placeLights(){
       var sr = sceneEl.getBoundingClientRect(), ir = isoEl.getBoundingClientRect();
       var k = Math.min(ir.width / 1135, ir.height / 815);
@@ -7090,10 +7105,11 @@
       function at(x, y){ return { x: (ox + (x + 465) * k - sr.left) / W, y: (oy + (y + 245) * k - sr.top) / H }; }
       var l = at(20, 130), mn = at(160, 40);
       LAMP.x = l.x; LAMP.y = l.y; LAMP.r = 330 * k / W;
+      VB.ox = ox; VB.oy = oy; VB.k = k; VB.sl = sr.left; VB.st = sr.top;
       MOON.x = mn.x; MOON.y = mn.y; MOON.r = 190 * k / W;
     }
     function falloff(m, L){
-      var dx = m.x - L.x, dy = (m.y - L.y) * (H / W) * 1.1;
+      var dx = m.x - L.x, dy = (m.y - L.y) * (H / W) * (L.q || 1.1);
       var g = Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / L.r);
       return g * g * (3 - 2 * g);
     }
@@ -7125,8 +7141,13 @@
       if (!SEEN || document.hidden || activeModal() || (!tour.hidden && !scrim.classList.contains("thru"))){ dustRaf = 0; return; }
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
-      var dark = document.body.classList.contains("lights-out");   // no lamp: only the moon lights them
+      var dark = document.body.classList.contains("lights-out");   // no lamp: the moon and the torch light them
       if (++lightsAge > 20){ lightsAge = 0; placeLights(); }
+      var torch = dark && document.body.classList.contains("torch-on");
+      if (torch){                                   // where the torch is this frame, by the same map as the lamp's
+        TORCH_N.x = (VB.ox + (TORCH.x + 465) * VB.k - VB.sl) / W; TORCH_N.y = (VB.oy + (TORCH.y + 245) * VB.k - VB.st) / H;
+        TORCH_N.r = 165 * VB.k / W;
+      }
       cx2.globalCompositeOperation = "lighter";
       motes.forEach(function(m){
         m.x += m.vx * dt; m.y += m.vy * dt; m.p += m.tw * dt / 16;
@@ -7135,7 +7156,7 @@
         if (m.x < -0.05) m.x = 1.05;
         if (m.x > 1.05) m.x = -0.05;
         // lit only where a light reaches it: warm in the lamp, blue in the moonbeam
-        var warm = dark ? 0 : falloff(m, LAMP), cool = falloff(m, MOON) * (dark ? 1.3 : .75) * MOON_L;   // as bright as tonight's moon
+        var warm = dark ? (torch ? falloff(m, TORCH_N) * .9 : 0) : falloff(m, LAMP), cool = falloff(m, MOON) * (dark ? 1.3 : .75) * MOON_L;   // as bright as tonight's moon
         var isCool = cool > warm, glow = isCool ? cool : warm;
         var alpha = m.a * glow * (0.62 + 0.38 * Math.sin(m.p));
         if (alpha > 0.008){
@@ -7189,6 +7210,23 @@
     torchEl.style.transform = "translate(" + TORCH.x.toFixed(1) + "px," + TORCH.y.toFixed(1) + "px)";
     TORCH.raf = done ? 0 : requestAnimationFrame(torchTick);
     if (done) TORCH.last = 0;
+    torchSees();
+  }
+  /* What the beam falls on, by the lights' own positions (data-at), not by
+     asking the page where things are, which would cost a style pass a
+     frame: the fireflies in it go dark, and the moth on the lithophane,
+     if the torch finds it, is lit pale. Only the clear middle of the pool
+     counts (125 units, flat on the desk like the pool). */
+  var SEEN_BY = [].map.call(document.querySelectorAll("#fireflies .ff, #moth"), function(el){
+    var a = (el.getAttribute("data-at") || "").split(" ");
+    return {el: el, x: +a[0], y: +a[1], on: false, cl: el.id === "moth" ? "lit" : "hush"};
+  });
+  function torchSees(){
+    for (var i = 0; i < SEEN_BY.length; i++){
+      var g = SEEN_BY[i], dx = (g.x - TORCH.x) / 125, dy = (g.y - TORCH.y) / 78,
+          on = lightsOut && dx * dx + dy * dy < 1;
+      if (on !== g.on){ g.on = on; g.el.classList.toggle(g.cl, on); }
+    }
   }
   function torchTo(x, y, snap){
     if (!torchEl) return;
