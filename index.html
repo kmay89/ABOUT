@@ -1359,6 +1359,11 @@
     .mTrekY{transition:transform 3.6s cubic-bezier(.3,1.7,.5,1)}
     .mDark{transition:opacity 1.2s ease .3s}
     #moth.lit .mDark{transition:opacity .4s ease}
+    /* a torch is held, not mounted: at rest the light drifts a few units,
+       slower than a breath (the hand inside the layer the pointer moves;
+       a light selector, so the sleep gate's #iso.asleep * still holds it) */
+    .torch-on .hand{animation:hand 9.4s ease-in-out infinite}
+    @keyframes hand{0%,100%{transform:translate(0,0)}23%{transform:translate(3.5px,-1.6px)}51%{transform:translate(.8px,2px)}77%{transform:translate(-3px,.3px)}}
     .ff{transition:opacity 1.4s ease 1.6s}                 /* it takes them a while to dare again */
     .ff.hush{transition:opacity .3s ease}
     .mPose{transition:transform .5s ease}
@@ -3788,7 +3793,7 @@
       '<stop offset="1" stop-color="#060403" stop-opacity=".9"/></radialGradient>' +
       '<radialGradient id="torchW" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffdcaa" stop-opacity=".10"/>' +
       '<stop offset=".6" stop-color="#ffcf8a" stop-opacity=".04"/><stop offset="1" stop-color="#ffcf8a" stop-opacity="0"/></radialGradient></defs>' +
-      '<rect x="-1140" y="-820" width="2280" height="1640" fill="url(#torchG)"/><ellipse rx="120" ry="74" fill="url(#torchW)"/></g></g>');
+      '<g class="hand"><rect x="-1140" y="-820" width="2280" height="1640" fill="url(#torchG)"/><ellipse rx="120" ry="74" fill="url(#torchW)"/></g></g></g>');
 
 
   /* commentary note 5 — keep in step */
