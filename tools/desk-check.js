@@ -43,7 +43,7 @@
                                             never needed after the first run on a machine
         --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone,
                                             --only=sky: the moon's and the quiet clocks',
-                                            --only=camera: the planes')
+                                            --only=camera: the planes', --only=torch: the torch's)
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
 
@@ -651,6 +651,122 @@ async function camera(browser) {
   await ctx.close();
   ({ ctx, page } = await openDesk(browser, { name: "camera phone", width: 390, height: 844, dpr: 1, touch: true }));
   ok("A13 a finger gets no camera", !(await page.evaluate(() => document.body.classList.contains("cam-live"))));
+  await ctx.close();
+}
+
+/* A14: the torch. Lights out by script (a real click would move the
+   pointer), then the pointer, the keyboard, a finger and reduced motion,
+   each asked where the light is and what it falls on. */
+async function torch(browser) {
+  console.log("\n──  the torch");
+  let { ctx, page } = await openDesk(browser, { name: "torch", dpr: 1 });
+  if (!(await page.$("#torch"))) { notYet("A14 the torch", "#torch"); await ctx.close(); return; }
+  await alignDesk(page);
+  const at = (x, y) => page.evaluate(([x, y]) => {
+    const q = new DOMPoint(x, y).matrixTransform(document.getElementById("iso").getScreenCTM()); return { x: q.x, y: q.y }; }, [x, y]);
+  const st = () => page.evaluate(() => {
+    const t = getComputedStyle(document.getElementById("torch")).transform, m = new DOMMatrixReadOnly(t === "none" ? undefined : t);
+    const moth = document.getElementById("moth");
+    return { on: document.body.classList.contains("torch-on"), shown: getComputedStyle(document.getElementById("torch")).display !== "none",
+      x: m.e, y: m.f, flat: getComputedStyle(document.querySelector("#darkness .dk-flat")).display,
+      hush: [...document.querySelectorAll("#fireflies .ff.hush")].map((e) => e.getAttribute("data-at").split(" ").map(Number)),
+      lit: !!moth && moth.classList.contains("lit"), at: moth && moth.getAttribute("data-at").split(" ").map(Number) };
+  });
+  /* mean luminance of a 9×9 patch round each point, from a screenshot (dust hidden: it is random) */
+  const lum = async (pts) => {
+    const b64 = (await page.screenshot({ style: "#dust{visibility:hidden !important}" })).toString("base64");
+    return page.evaluate(async ([b64, pts]) => {
+      const im = new Image(); im.src = "data:image/png;base64," + b64; await im.decode();
+      const c = document.createElement("canvas"); c.width = im.width; c.height = im.height;
+      const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+      return pts.map((p) => { const d = x.getImageData(Math.round(p.x) - 4, Math.round(p.y) - 4, 9, 9).data; let s = 0;
+        for (let i = 0; i < d.length; i += 4) s += .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]; return s / 81; });
+    }, [b64, pts]);
+  };
+  const s0 = await st();
+  ok("A14 with the lamp on there is no torch", !s0.on && !s0.shown && s0.flat !== "none");
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="switch"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(1000);
+  const s1 = await st();
+  ok("A14 the switch hands you the torch, at the switch", s1.on && s1.shown && s1.flat === "none" && Math.abs(s1.x - 369) < 1 && Math.abs(s1.y - 35) < 1,
+    "torch-on " + s1.on + ", at " + s1.x.toFixed(1) + "," + s1.y.toFixed(1) + ", flat dark " + s1.flat);
+  const [near, far] = await lum([await at(369, 75), await at(-300, 300)]);
+  ok("A14 the wall under the torch is brighter than the far dark", near > far + 8, near.toFixed(1) + " against " + far.toFixed(1));
+  /* the pointer: the light follows it, and lights what it is over */
+  const hb = await objBox(page, "hive");
+  await page.mouse.move(hb.x, hb.y, { steps: 4 }); await page.waitForTimeout(700);
+  const s2 = await st(), want = await page.evaluate(([x, y]) => {
+    const q = new DOMPoint(x, y).matrixTransform(document.getElementById("iso").getScreenCTM().inverse()); return [q.x, q.y]; }, [hb.x, hb.y]);
+  ok("A14 the torch follows the pointer", Math.hypot(s2.x - want[0], s2.y - want[1]) < 1.5, s2.x.toFixed(1) + "," + s2.y.toFixed(1) + " for " + want.map((v) => v.toFixed(1)));
+  const below = { x: hb.x, y: hb.y + 40 };                  // the wood in front of the Game Boy, not the Game Boy lifting
+  const [lit] = await lum([below]);
+  await page.evaluate(() => document.body.classList.remove("torch-on"));
+  const [flat] = await lum([below]);
+  await page.evaluate(() => document.body.classList.add("torch-on"));
+  ok("A14 under the torch the desk shows (against the flat dark)", lit > flat * 2 + 6, lit.toFixed(1) + " against " + flat.toFixed(1));
+  /* the dust in the beam */
+  const dust = await page.evaluate((pt) => new Promise((res) => {
+    const c = document.getElementById("dust"), x = c.getContext("2d"), r = c.getBoundingClientRect(), k = c.width / r.width;
+    const sum = (cx, cy) => { const d = x.getImageData((cx - r.left - 170) * k, (cy - r.top - 100) * k, 340 * k, 200 * k).data; let s = 0;
+      for (let i = 3; i < d.length; i += 4) s += d[i]; return s / 255; };
+    let a = 0, n = 0; (function f() { a += sum(pt.x, pt.y); if (++n < 120) requestAnimationFrame(f); else res(a); })();
+  }), hb);
+  ok("A14 the dust in the beam is lit", dust > 0, dust.toFixed(0) + " (summed alpha over 120 frames)");
+  /* the meadow: the fireflies in the beam go quiet, and only those */
+  const win = await at(150, -60);
+  await page.mouse.move(win.x, win.y, { steps: 4 }); await page.waitForTimeout(900);
+  const s3 = await st(), inside = (p, t) => ((p[0] - t.x) / 125) ** 2 + ((p[1] - t.y) / 78) ** 2 < 1;
+  const op = await page.evaluate(() => { const e = document.querySelector("#fireflies .ff.hush"); return e ? +getComputedStyle(e).opacity : -1; });
+  ok("A14 the fireflies in the beam go quiet, and only those", s3.hush.length >= 3 && s3.hush.every((p) => inside(p, s3)) && op === 0,
+    s3.hush.length + " quiet, opacity " + op);
+  await page.mouse.move(hb.x, hb.y, { steps: 4 }); await page.waitForTimeout(300);
+  ok("A14 out of the beam they may flash again", (await st()).hush.length === 0);
+  /* the moth, landed on the lithophane: found by the torch, it shows pale */
+  const mp = await at(s3.at[0], s3.at[1]);
+  await page.mouse.move(mp.x, mp.y, { steps: 4 }); await page.waitForTimeout(800);
+  const dk = await page.evaluate(() => +getComputedStyle(document.querySelector("#moth .mDark")).opacity);
+  ok("A14 the torch finds the moth, and it shows pale", (await st()).lit && dk === 0, "dark wings at " + dk);
+  /* the keyboard: light where focus is */
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="chess"]').focus());
+  await page.waitForTimeout(700);
+  const s4 = await st(), cb = await page.evaluate(() => { const r = document.querySelector('.iso-obj[data-id="chess"]').getBoundingClientRect();
+    const q = new DOMPoint(r.left + r.width / 2, r.top + r.height / 2).matrixTransform(document.getElementById("iso").getScreenCTM().inverse()); return [q.x, q.y]; });
+  ok("A14 the torch follows keyboard focus", Math.hypot(s4.x - cb[0], s4.y - cb[1]) < 2, s4.x.toFixed(1) + "," + s4.y.toFixed(1) + " for the chess board " + cb.map((v) => v.toFixed(1)));
+  /* Escape: the lamp comes back, and the torch goes out only once the room is lit */
+  await page.keyboard.press("Escape"); await page.waitForTimeout(250);
+  const s5 = await st(); await page.waitForTimeout(900); const s6 = await st();
+  ok("A14 relit, the torch stays until the lamp has filled the room, then goes", s5.on && !s6.on && !s6.shown && s6.flat !== "none" && !s6.lit && !s6.hush.length,
+    "at .25 s " + s5.on + ", at 1.15 s " + s6.on);
+  await ctx.close();
+  /* without motion it snaps (it is your hand, not an animation) */
+  ({ ctx, page } = await openDesk(browser, { name: "torch reduced", dpr: 1, reduced: true }));
+  await alignDesk(page);
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="switch"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(300);
+  const rb = await objBox(page, "hive");
+  await page.mouse.move(rb.x, rb.y);
+  const snap = await page.evaluate(([x, y]) => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const q = new DOMPoint(x, y).matrixTransform(document.getElementById("iso").getScreenCTM().inverse());
+    const m = new DOMMatrixReadOnly(getComputedStyle(document.getElementById("torch")).transform);
+    r(Math.hypot(m.e - q.x, m.f - q.y)); }))), [rb.x, rb.y]);
+  ok("A14 reduced motion: the torch is where the pointer is, the next frame", snap < .5, snap.toFixed(2) + " units off");
+  await ctx.close();
+  /* a finger: a tap puts the light down and picks up what it lands on */
+  ({ ctx, page } = await openDesk(browser, { name: "torch phone", width: 390, height: 844, dpr: 1, touch: true }));
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="switch"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(900);
+  await page.evaluate(() => [...document.querySelectorAll('.iso-obj[data-id="hive"]')].find((e) => e.getBoundingClientRect().width).scrollIntoView({ block: "center", inline: "center" }));
+  await page.waitForTimeout(400);
+  const tb = await objBox(page, "hive");
+  await page.touchscreen.tap(tb.x, tb.y);
+  const tp = await page.evaluate(([x, y]) => {
+    const q = new DOMPoint(x, y).matrixTransform(document.getElementById("iso").getScreenCTM().inverse());
+    const m = new DOMMatrixReadOnly(getComputedStyle(document.getElementById("torch")).transform);
+    return Math.hypot(m.e - q.x, m.f - q.y); }, [tb.x, tb.y]);
+  await page.waitForTimeout(600);
+  const opened = await page.evaluate(() => !document.getElementById("dossier").hidden && /hive/i.test(location.hash + document.getElementById("dossier").textContent));
+  ok("A14 a tap in the dark puts the torch down there at once, and picks up what it lands on", tp < 1.5 && opened,
+    "torch " + tp.toFixed(2) + " units from the tap, sheet " + (opened ? "open" : "not open"));
   await ctx.close();
 }
 
@@ -1369,12 +1485,13 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await voices(browser); }
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await torch(browser); await voices(browser); }
     else {
       if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
       if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
       if (ONLY.includes("commentary")) await commentary(browser);   // --only=commentary: the notes
       if (ONLY.includes("camera")) await camera(browser);           // --only=camera: the planes
+      if (ONLY.includes("torch")) await torch(browser);             // --only=torch: the torch in the dark
     }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
