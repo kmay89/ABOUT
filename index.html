@@ -526,11 +526,24 @@
   .d-nav{display:flex;justify-content:space-between;gap:.6rem;margin-top:1.4rem;padding-top:1rem;border-top:1px solid color-mix(in srgb,var(--a) 25%,transparent)}
   .d-nav .chip:disabled{opacity:.35;cursor:default;background:transparent}
   .d-nav.top{display:none}
-  /* on a phone the head would be four things on one line: the kicker gets
-     its own, and the walker comes up to the top as well as the bottom */
+  /* the sheet's head holds four things, and the buttons never fold inside
+     their pills: the kicker is the one that gives way */
+  .dossier .d-head .chip{white-space:nowrap;flex:none}
+  #dKicker{min-width:0;flex:1 1 auto}
+  /* on a phone the head would be four things on one line, so it's two:
+     the kicker and its place in the order, then the two buttons, right
+     where Put it back always is. The kicker's basis leaves room for the
+     place and nothing more, which is what sends the buttons down a row.
+     With a row to themselves, Share keeps room for "Link copied ✓" and
+     the confirmation moves nothing (on the very narrowest, Put it back
+     takes a row of its own, still on the right). The dossier's alone:
+     the stages share the head's markup and keep their one row. The
+     walker comes up to the top as well as the bottom */
   @media (max-width:640px){
-    .d-head{flex-wrap:wrap;row-gap:.6rem}
-    .d-kicker{flex-basis:100%;padding-top:.5rem}
+    .dossier .d-head{flex-wrap:wrap;justify-content:flex-end;gap:.6rem}
+    #dKicker{flex:1 1 calc(100% - 4.5rem);padding-top:.5rem}
+    #dPos{padding-top:.5rem}
+    #dShare{min-width:12.3em;text-align:center}
     .d-nav.top{display:flex;margin-top:.8rem;padding:0 0 .8rem;border-top:0;border-bottom:1px solid color-mix(in srgb,var(--a) 25%,transparent)}
   }
   /* words for a screen reader only (the Share confirmation) */
@@ -3797,6 +3810,9 @@
     ac(true);
     if (SOUNDS.tourStep) SOUNDS.tourStep();
     openWorld(id, ACCENT[id]);
+    /* the page turns under a hand that stays on Next, so say what it
+       turned to, or a screen reader hears nothing happen at all */
+    dShareMsg.textContent = WORLDS[id].title + ", " + dPos.textContent;
     dossier.classList.remove("swap");
     void dossier.offsetWidth;            // so a second page turn plays again
     dossier.classList.add("swap");
@@ -4864,6 +4880,8 @@
     if (next === lightsOut) return;
     lightsOut = next;
     document.body.classList.toggle("lights-out", lightsOut);
+    // the light back on by hand: a #lights-out address no longer says true
+    if (!lightsOut && /^#(lights-out|dark)$/i.test(location.hash)) address(null);
     var el = document.querySelector('.iso-obj[data-id="switch"]');
     if (el) el.setAttribute("aria-checked", lightsOut ? "true" : "false");
     // the writing on the wall is only a tab stop while it's legible
@@ -5169,6 +5187,8 @@
     eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
     eraBtn.classList.add("used");
     wakeDust();
+    // the chip rode the other way: a #2026 or #1999 address no longer says true
+    if (location.hash.toLowerCase() === (now ? "#1999" : "#2026")) address(null);
   }
   eraBtn.addEventListener("click", function(){
     if (eraBusy) return;
@@ -5450,7 +5470,8 @@
     /* Back past an address someone typed: the page they came from had no
        sheet open (the light and the year stay as they are) */
     if (!h){ if (activeModal()) closeModal(); return; }
-    if (eraBusy) return;
+    /* mid-ride the desk opens nothing, so the bar mustn't say it did */
+    if (eraBusy){ address(null); return; }
     if (h === "lights-out" || h === "dark"){ flipRoomLight(true); return; }
     if (h === "2026"){ eraLand(true); return; }
     if (h === "1999"){ eraLand(false); return; }
@@ -5466,6 +5487,15 @@
     if (!own(SPECIAL) && !own(WORLDS)) return;
     if (activeModal()) closeModal();
     if (own(SPECIAL)) SPECIAL[h](); else openWorld(h, ACCENT[h]);
+    /* nothing was pressed to open it, so putting it back would drop a
+       keyboard at the top of the page: it goes back to the thing itself
+       on the desk (or its pill, when the desk doesn't show it) */
+    if (activeModal() && (!lastFocus || lastFocus === document.body)){
+      var home = shownObjects(h);
+      if (!home.length && STANDIN[h]) home = shownObjects(STANDIN[h]);
+      var pill = legendBtns[h];
+      lastFocus = home[0] || (pill && pill.getClientRects().length ? pill : lastFocus);
+    }
   }
   addEventListener("hashchange", route);
   route();
