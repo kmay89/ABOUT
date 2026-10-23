@@ -1721,21 +1721,33 @@
      gets one, drawn in the wall's own plane and nudged away from the lamp
      along the wall: the shelf's climbs, because the lamp is below it, and
      the rest fall a little and lean away from where the lamp stands (y 158
-     on this wall, x 118 on the other). Two static groups, one blur each,
-     rasterised once and never again; both are under the darkness, so they
-     go out with the lamp like everything else. */
-  S.push('<g aria-hidden="true" filter="url(#soft)">' +
+     on this wall, x 118 on the other). They are soft without a blur: each
+     shape is laid three times, fattened by a stroke of 8, 4 and 0 units, at
+     a third of the darkness each, so the edge fades in steps and the core
+     is as dark as asked. (A blur over the whole wall was tried first; it
+     was re-filtered on every frame the room moved, about a millisecond of
+     raster a frame.) Both groups are under the darkness, so they go out
+     with the lamp like everything else. */
+  function hush(svg, op){
+    var a = (1 - Math.pow(1 - op, 1/3)).toFixed(3), s = "";
+    [8,4,0].forEach(function(k){
+      s += '<g opacity="' + a + '">' + svg.replace(/stroke-width="([\d.]+)"/g, function(m,w){ return 'stroke-width="' + (+w + k) + '"'; }) + "</g>";
+    });
+    return s;
+  }
+  var HUSH = 'fill="#000" stroke="#000" stroke-width="0" stroke-linejoin="round"';
+  S.push('<g aria-hidden="true">' +
     gRight(-30,400,190,
-      '<rect x="172" y="18" width="96" height="18" fill="rgba(0,0,0,.28)"/>' +                          // the shelf
-      '<g transform="translate(-5,7)" opacity=".35">' + bike.replace(/#[0-9a-f]{6}/g,"#000") + "</g>" +   // the bike
-      '<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" fill="rgba(0,0,0,.32)" transform="translate(4,7)"/>') +   // the shirt
-    gRight(-30,394,190,'<rect x="-11" y="-2" width="114" height="78" fill="rgba(0,0,0,.4)"/>') +          // the lithophane
-    "</g>");
-  S.push('<g aria-hidden="true" filter="url(#soft)">' +
-    gLeft(40,-30,170,'<rect x="-5" y="-4" width="236" height="126" fill="rgba(0,0,0,.35)" transform="translate(4,5)"/>') +   // the window
-    gLeft(452,-30,160,'<rect x="-7" y="-7" width="104" height="104" fill="rgba(0,0,0,.35)" transform="translate(4,5)"/>') +  // the spiral
-    gLeft(556,-30,158,'<rect x="-6" y="-6" width="60" height="72" fill="rgba(0,0,0,.35)" transform="translate(3,4) rotate(4)"/>') +  // the polaroid
-    gLeft(330,-30,135,'<rect x="1.5" y="2" width="18" height="30" rx="2" fill="rgba(0,0,0,.45)"/>') +   // the switch plate
+      hush('<rect x="172" y="18" width="96" height="18" ' + HUSH + '/>', .28) +                                  // the shelf
+      '<g transform="translate(-5,7)">' + hush('<g fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" transform="translate(0,-30)">' +
+        '<circle cx="120" cy="150" r="38" stroke-width="7"/><circle cx="238" cy="150" r="38" stroke-width="7"/>' +
+        '<path d="M120 150 L168 92 L238 150 M120 150 L182 150 L168 92 M155 96 L146 82 M226 96 L238 150 M138 80 L158 80" stroke-width="5"/></g>', .35) + "</g>" +   // the bike: its wheels and frame, as drawn below, in three elements not thirteen
+      '<g transform="translate(4,7)">' + hush('<path d="M310 36 L296 50 L306 60 L314 53 L314 108 L346 108 L346 53 L354 60 L364 50 L350 36 Q340 42 330 42 Q320 42 310 36 Z" ' + HUSH + '/>', .32) + "</g>") +   // the shirt
+    gRight(-30,394,190, hush('<rect x="-11" y="-2" width="114" height="78" ' + HUSH + '/>', .4)) +                 // the lithophane
+    gLeft(40,-30,170, hush('<rect x="-1" y="1" width="236" height="126" ' + HUSH + '/>', .35)) +                    // the window
+    gLeft(452,-30,160, hush('<rect x="-3" y="-2" width="104" height="104" ' + HUSH + '/>', .35)) +                  // the spiral
+    gLeft(556,-30,158, '<g transform="translate(3,4) rotate(4)">' + hush('<rect x="-6" y="-6" width="60" height="72" ' + HUSH + '/>', .35) + "</g>") +   // the polaroid
+    gLeft(330,-30,135, hush('<rect x="1.5" y="2" width="18" height="30" rx="2" ' + HUSH + '/>', .45)) +           // the switch plate
     "</g>");
   S.push('<g aria-hidden="true">' + gRight(-30,400,190,bike) + "</g>");
   S.push(box(-28,132,148,52,96,8,"#7a5a38"));
@@ -2059,7 +2071,8 @@
         '<stop offset="0" stop-color="#bed8ff" stop-opacity=".22"/><stop offset=".45" stop-color="#8fb7ff" stop-opacity=".10"/>' +
         '<stop offset="1" stop-color="#8fb7ff" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="poolHot" cx=".5" cy=".5" r=".5">' +
-        '<stop offset="0" stop-color="#fff1d6" stop-opacity=".30"/><stop offset=".5" stop-color="#ffc97a" stop-opacity=".12"/>' +
+        '<stop offset="0" stop-color="#fff1d6" stop-opacity=".32"/><stop offset=".3" stop-color="#ffd9a0" stop-opacity=".18"/>' +
+        '<stop offset=".6" stop-color="#ffc97a" stop-opacity=".08"/>' +
         '<stop offset="1" stop-color="#ffc97a" stop-opacity="0"/></radialGradient></defs>' +
     /* the wash pulled in so the far right of the desk falls darker than
        the middle, and a hot disc where the beam actually lands (the beam's
@@ -2067,8 +2080,7 @@
        the room is under the lamp, and that is where the eye goes first */
     '<g class="pool-warm">' +
       '<ellipse cx="230" cy="160" rx="300" ry="280" fill="url(#poolW)"/>' +
-      '<ellipse cx="190" cy="130" rx="200" ry="160" fill="url(#poolW)"/>' +
-      '<ellipse cx="235" cy="195" rx="125" ry="92" fill="url(#poolHot)"/></g>' +
+      '<ellipse cx="210" cy="160" rx="200" ry="150" fill="url(#poolHot)"/></g>' +
     '<g class="pool-cool">' +
       '<ellipse cx="250" cy="150" rx="360" ry="280" fill="url(#poolC)"/>' +
       '<ellipse cx="235" cy="140" rx="200" ry="150" fill="url(#poolC)"/></g>', ''));
@@ -2107,7 +2119,10 @@
      is what would bury the desk. No blur either: three hulls, each shorter
      and inset a unit more than the last, overlap into a dark core that
      fades in steps toward the tip, a penumbra for the price of three
-     polygons. */
+     polygons. And not even that many: every shadow of the same darkness at
+     the same step goes into one path, so the whole desk's worth is a few
+     dozen elements (the room re-records them all whenever anything in it
+     moves, so the count is what costs). */
   var LAMP_L = [118,158,84];
   function hull(p){
     p = p.slice().sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; });
@@ -2116,39 +2131,49 @@
       h.push(v); }); h.pop(); return h; }
     return half(p).concat(half(p.slice().reverse()));
   }
-  function castW(x,y,w,d,h,op){
-    var dx = x + w/2 - LAMP_L[0], dy = y + d/2 - LAMP_L[1], D = Math.hypot(dx,dy) || 1;
-    var len = Math.min(h,30) * (.45 + Math.min(D,260)/260 * .35);
-    var ox = dx/D*len, oy = dy/D*len;
-    function sweep(i,k){
-      var base = [[x+i,y+i],[x+w-i,y+i],[x+w-i,y+d-i],[x+i,y+d-i]];
-      return polyW(hull(base.concat(base.map(function(q){ return [q[0]+ox*k, q[1]+oy*k]; })))
-        .map(function(q){ return [q[0],q[1],0]; }), "rgba(12,6,2," + (op*.4).toFixed(3) + ")", NO);
-    }
-    return sweep(0,1) + sweep(1,.75) + sweep(2,.5);
+  // castW([[x,y,w,d,h,op], ...]): footprints on the desk, their heights, how dark
+  function castW(list){
+    var paths = {}, order = [];
+    list.forEach(function(c){
+      var x = c[0], y = c[1], w = c[2], d = c[3], h = c[4], op = c[5];
+      var dx = x + w/2 - LAMP_L[0], dy = y + d/2 - LAMP_L[1], D = Math.hypot(dx,dy) || 1;
+      var len = Math.min(h,30) * (.45 + Math.min(D,260)/260 * .35);
+      var ox = dx/D*len, oy = dy/D*len;
+      [[0,1],[1,.75],[2,.5]].forEach(function(st){
+        var i = st[0], k = st[1], key = (op*.4).toFixed(3) + " " + i;
+        var base = [[x+i,y+i],[x+w-i,y+i],[x+w-i,y+d-i],[x+i,y+d-i]];
+        if (!(key in paths)){ paths[key] = ""; order.push(key); }
+        paths[key] += "M" + hull(base.concat(base.map(function(q){ return [q[0]+ox*k, q[1]+oy*k]; })))
+          .map(function(q){ return pj(q[0],q[1],0); }).join(" L") + "Z";
+      });
+    });
+    return order.map(function(key){
+      return '<path d="' + paths[key] + '" fill="rgba(12,6,2,' + key.split(" ")[0] + ')"/>';
+    }).join("");
   }
   S.push('<g aria-hidden="true">' +
-    castW(52,52,40,40,30,.22) +                                                   // mug
-    '<g class="era-old">' + castW(150,42,150,82,30,.22) + castW(160,200,170,62,10,.18) + "</g>" +   // CRT, keyboard
-    '<g class="era-now">' + castW(150,86,170,12,30,.22) + castW(170,204,140,46,5,.16) +             // display, keyboard,
-      castW(346,164,62,46,30,.22) + castW(366,146,44,7,30,.18) + "</g>" +                            // MacBook, iPad
-    castW(386,62,116,78,30,.24) +              // book stack
-    castW(24,196,86,64,10,.18) +               // Lupita book
-    castW(118,208,46,46,30,.24) +              // doll box
-    castW(252,262,46,26,5,.16) +               // uTap iPhone
-    castW(450,180,64,88,13,.2) +               // keypad
-    castW(250,290,64,106,11,.2) +              // game boy
-    castW(382,278,92,7,30,.22) + castW(380,288,96,89,5,.14) +   // jewel case: the lid stood up, the tray
-    castW(480,305,58,58,5,.14) +               // floppy
-    castW(308,34,56,48,24,.2) +                // sourdough boule
-    castW(34,332,24,24,24,.22) +               // rubik's cube
-    castW(504,64,52,88,4,.14) +                // the sudoku paper
-    castW(76,328,60,42,8,.16) +                // Borrowed Sunlight novel
-    castW(517,27,26,26,20,.2) +                // flower pot
-    castW(518,216,30,30,7,.16) +               // impossible object pedestal
-    castW(150,300,64,64,5,.16) +               // chess board (CHX, CHY: declared further down)
-    castW(330,276,20,20,30,.22) +              // the console tower
-    "</g>");   // no prism (its shadow is the caustic) and no lamp base (the light is above it)
+    '<g class="era-old">' + castW([[150,42,150,82,30,.22], [160,200,170,62,10,.18]]) + "</g>" +   // CRT, keyboard
+    '<g class="era-now">' + castW([[150,86,170,12,30,.22], [170,204,140,46,5,.16],                // display, keyboard,
+      [346,164,62,46,30,.22], [366,146,44,7,30,.18]]) + "</g>" +                                    // MacBook, iPad
+    castW([
+      [52,52,40,40,30,.22],                    // mug
+      [386,62,116,78,30,.24],                  // book stack
+      [24,196,86,64,10,.18],                   // Lupita book
+      [118,208,46,46,30,.24],                  // doll box
+      [252,262,46,26,5,.16],                   // uTap iPhone
+      [450,180,64,88,13,.2],                   // keypad
+      [250,290,64,106,11,.2],                  // game boy
+      [382,278,92,7,30,.22], [380,288,96,89,5,.14],   // jewel case: the lid stood up, the tray
+      [480,305,58,58,5,.14],                   // floppy
+      [308,34,56,48,24,.2],                    // sourdough boule
+      [34,332,24,24,24,.22],                   // rubik's cube
+      [504,64,52,88,4,.14],                    // the sudoku paper
+      [76,328,60,42,8,.16],                    // Borrowed Sunlight novel
+      [517,27,26,26,20,.2],                    // flower pot
+      [518,216,30,30,7,.16],                   // impossible object pedestal
+      [150,300,64,64,5,.16],                   // chess board (CHX, CHY: declared further down)
+      [330,276,20,20,30,.22]                   // the console tower
+    ]) + "</g>");   // no prism (its shadow is the caustic) and no lamp base (the light is above it); the well's is with its own, below
 
   /* ---------- cast shadows (stay put when objects lift) ---------- */
   S.push(shadowW(52,50,44,44,8,.26));            // mug
@@ -2868,6 +2893,7 @@
      painted here, after the console, its soft edge would lie across the
      foot of the pad behind it instead of on the desk in front. */
   S.splice(SHADOWS_END, 0, '<g id="wellShadow" aria-hidden="true">' +
+    castW([[339,336,30,30,12,.2]]) +       // the lamp's, under the stone's own contact shade
     isoEllipse(WLX + 1.5, WLY + 1.5, 0, WLRO + 2.5, "rgba(12,6,2,.26)", 'filter="url(#soft)" stroke="none"') +
     isoEllipse(WLX + .5, WLY + .5, 0, WLRO + .4, "rgba(12,6,2,.30)", 'filter="url(#soft)" stroke="none"') + "</g>");
 
