@@ -26,6 +26,9 @@
       can't check. Rules about things a later piece of work adds (the
       regrouped legend, the commentary notes, the no-JS index) say "not yet
       present" until those things exist, and are enforced from then on.
+      With them (under --only=dom), every object in its own voice: the
+      lift vocabulary, the hover sounds against a counting AudioContext, and
+      each of the hero dozen photographed at rest and reacting.
    4. Performance probes, traced: idle work with the desk in view, scrolled
       away, and under a sheet; a pointer sweep; a hover; a torch sweep in the
       dark. Each at 1× and again at 4× CPU throttle and DPR 2.
@@ -484,6 +487,272 @@ async function dom(browser) {
   await ctx.close();
 }
 
+/* ================================================================ voices
+   Every object answers in its own voice (A11, B2, D). A reaction is a pose,
+   a move and a sound, and the three can each break without the others
+   noticing: a regrouped wall drops a `~` selector, a moved shadow lands
+   inside a wrapper, a new listener plays every voice a sweep crosses. The
+   photographs above only ever see one hover, so this part checks them all.
+
+   1. The lift vocabulary: the keyboard is `still` and its keys ripple; a
+      thing that hasn't got its own voice yet still rises the plain 8 px.
+   2. The sounds, with a counting AudioContext in place of a real one: one
+      voice on the keyboard is one key click (an oscillator and a noise
+      burst), and a fast sweep is held to one voice per 90 ms.
+   3. The hero dozen, each photographed at rest and reacting, compared with
+      itself in the same page, so no baseline is needed: more than 0.3 % of
+      its crop has to change, with motion and without it. The room's own
+      loops are held still for both pictures, so only the reaction counts;
+      a one-shot (the key ripple, the shirt's swing) is held at 30 % of its
+      run, which is near its widest. And the prism's light must stay on the
+      desk when the glass is picked up. */
+const HEROES = [
+  /* [what, selector of the copy that reacts, era] */
+  ["keyboard", '[data-id="board"]', "old"], ["CD", '[data-id="vinyl"]', "old"],
+  ["chess", '[data-id="chess"]', "old"], ["sudoku", '[data-id="sudoku"]', "old"],
+  ["well", '[data-id="well"]', "old"], ["prism", '[data-id="prism"]', "old"],
+  ["camera 1999", '[data-id="cam"].era-old', "old"], ["keypad", '[data-id="scqcs"]', "old"],
+  ["tee", '[data-voice="tee"]', "old"], ["printer", '[data-voice="printer"]', "old"],
+  ["luma", '[data-id="luma"]', "old"], ["window", '[data-voice="window"]', "old"],
+  ["drone", '[data-voice="drone"]', "now"], ["camera 2026", '[data-id="cam"].era-now', "now"]
+];
+const RX_MIN = 0.003;
+
+/* a stand-in AudioContext that only counts what it is asked to make */
+function countingAudio() {
+  window.__au = { osc: 0, buf: 0 };
+  const param = () => ({ value: 1, setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} });
+  const node = (extra) => Object.assign({ connect() {}, disconnect() {}, start() {}, stop() {} }, extra);
+  window.AudioContext = window.webkitAudioContext = class {
+    constructor() { this.currentTime = 0; this.sampleRate = 8000; this.state = "running"; this.destination = {}; }
+    createGain() { return node({ gain: param() }); }
+    createOscillator() { window.__au.osc++; return node({ frequency: param(), detune: param() }); }
+    createBufferSource() { window.__au.buf++; return node({}); }
+    createBiquadFilter() { return node({ frequency: param(), Q: param(), gain: param() }); }
+    createBuffer(c, n) { return { getChannelData: () => new Float32Array(n) }; }
+    resume() { return Promise.resolve(); }
+  };
+}
+
+const centreOf = (page, sel) => page.evaluate((sel) => {
+  const e = [...document.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0);
+  if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}, sel);
+
+async function voices(browser) {
+  console.log("\n──  every object in its own voice");
+  /* 1 and 2, on one page with the counting AudioContext */
+  const { ctx, page } = await openDesk(browser, { name: "voices" });
+  await page.evaluate(countingAudio);
+  await alignDesk(page);
+  await page.mouse.click(5, 5);                       // the first gesture, which lets sound start
+  await page.waitForTimeout(150);
+  const au = () => page.evaluate(() => Object.assign({}, window.__au));
+  let a0 = await au();
+  const key = await page.evaluate(() => {          // a key in the middle row, so the pointer lands on the board
+    const k = document.querySelectorAll('.iso-obj[data-id="board"] .k')[18];
+    if (!k) return null;
+    const r = k.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  if (!key) notYet("the keyboard's keys", ".k");
+  else {
+    await page.mouse.move(key.x, key.y);
+    await page.waitForTimeout(150);
+    const a1 = await au();
+    const lift = await page.evaluate(() => ({
+      anims: [...document.querySelectorAll('.iso-obj[data-id="board"] .k')].reduce((n, k) => n + k.getAnimations().length, 0),
+      board: getComputedStyle(document.querySelector('.iso-obj[data-id="board"] > g')).transform
+    }));
+    ok("A11 hovering the keyboard: the keys go down, the board stays put", lift.anims > 0 && lift.board === "none",
+      lift.anims + " key animations, board > g " + lift.board);
+    ok("D one hover on the keyboard is one key click", a1.osc - a0.osc === 1 && a1.buf - a0.buf === 1,
+      (a1.osc - a0.osc) + " oscillator, " + (a1.buf - a0.buf) + " buffer source");
+  }
+  const hive = await centreOf(page, '.iso-obj[data-id="hive"]');
+  await page.mouse.move(hive.x, hive.y);
+  await page.waitForTimeout(700);
+  const hiveT = await page.evaluate(() => getComputedStyle(document.querySelector('.iso-obj[data-id="hive"] > g')).transform);
+  ok("A11 a thing without its own voice yet (the Game Boy) rises the plain 8 px", /,\s*-8\)$/.test(hiveT), hiveT);
+  /* the well's light shows through the dark on its own night copy, which
+     has to swell with it: today by a `~` selector, after A13 by the JS lift */
+  const night = await page.evaluate(async () => {
+    const w = document.querySelector('.iso-obj[data-id="well"]'), sw = document.querySelector("#wellNight .rx-swell");
+    if (!w || !sw) return null;
+    w.classList.add("rx");
+    await new Promise((r) => setTimeout(r, 700));
+    const t = getComputedStyle(sw).transform;
+    w.classList.remove("rx");
+    return t;
+  });
+  if (night == null) notYet("A11 the well's night copy swells with it", "#wellNight .rx-swell");
+  else ok("A11 the well's night copy swells with it", night !== "none", "#wellNight .rx-swell " + night);
+  /* the sweep: ten things entered 20 ms apart, as a flick of the wrist would */
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(300);
+  const sweep = await page.evaluate(async () => {
+    const seen = new Set(), objs = [];
+    for (const e of document.querySelectorAll(".iso-obj")) {
+      if (objs.length === 10) break;
+      if (e.getBoundingClientRect().width > 0 && e.dataset.id !== "switch" && !seen.has(e.dataset.id)) { seen.add(e.dataset.id); objs.push(e); }
+    }
+    let n = 0;
+    const t0 = performance.now();
+    for (const e of objs) {
+      const before = window.__au.osc + window.__au.buf;
+      e.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false, pointerType: "mouse" }));
+      e.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false, pointerType: "mouse" }));
+      if (window.__au.osc + window.__au.buf > before) n++;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { n, objs: objs.length, ms: Math.round(performance.now() - t0) };
+  });
+  ok("D a sweep across " + sweep.objs + " things in " + sweep.ms + " ms plays at most 3 voices", sweep.n >= 1 && sweep.n <= 3, sweep.n + " voices");
+  /* the keyboard reaches everything, and says nothing doing it */
+  await page.waitForTimeout(200);
+  a0 = await au();
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="chess"]').focus());
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await page.waitForTimeout(300);
+  const a2 = await au();
+  ok("D keyboard focus stays silent", a2.osc === a0.osc && a2.buf === a0.buf);
+  await ctx.close();
+
+  /* 3: the hero dozen, rest against reaction, each era with motion and without */
+  const runs = [];
+  for (const reduced of [false, true]) for (const era of ["old", "now"]) runs.push({ reduced, era });
+  const results = await Promise.all(runs.map((r) => heroRun(browser, r)));
+  const diffCtx = await browser.newContext();
+  const dp = await diffCtx.newPage();
+  await dp.goto(URL0 + "__blank");
+  for (let i = 0; i < runs.length; i++) {
+    const tag = runs[i].reduced ? ", reduced motion" : "";
+    for (const h of results[i].heroes) {
+      if (!h.rest) { ok("B2 " + h.what + tag + " is on the desk", false, "no visible " + h.sel); continue; }
+      const f = await pngDiff(dp, h.rest, h.rx);
+      const stem = "rx-" + h.what.replace(/\W+/g, "-") + (runs[i].reduced ? "-reduced" : "");
+      fs.writeFileSync(path.join(OUT, stem + "-rest.png"), h.rest);      // for a person to look at
+      fs.writeFileSync(path.join(OUT, stem + ".png"), h.rx);
+      ok("B2 " + h.what + tag + " answers a hover", f > RX_MIN, (f * 100).toFixed(2) + "% of its crop changed (> " + RX_MIN * 100 + "%)");
+    }
+    const fan = results[i].fan;
+    if (fan) ok("B2 the prism's light stays on the desk" + tag, fan.ok, fan.detail);
+  }
+  await diffCtx.close();
+}
+
+async function heroRun(browser, { reduced, era }) {
+  const { ctx, page } = await openDesk(browser, { name: "heroes " + era + (reduced ? " reduced" : ""), reduced });
+  const out = { heroes: [], fan: null };
+  try {
+    if (era === "now") await toNow(page);
+    await alignDesk(page);
+    await page.mouse.move(2, 2);                      // the parallax settles, and stays
+    await page.waitForTimeout(700);
+    for (const [what, sel, e] of HEROES) {
+      if (e !== era) continue;
+      const box = await page.evaluate((sel) => {
+        const el = [...document.querySelectorAll(".iso-obj" + sel)].find((e) => e.getBoundingClientRect().width > 0);
+        if (!el) return null;
+        document.querySelectorAll("[data-rx-shot]").forEach((x) => x.removeAttribute("data-rx-shot"));
+        el.setAttribute("data-rx-shot", "");
+        const r = el.getBoundingClientRect();
+        /* the object's own box, plus headroom for the highest lift (8 px) and
+           a hair round the rest: a wider margin is only more of the room,
+           which dilutes a small answer like the knight's */
+        return { x: Math.max(0, r.left - 2), y: Math.max(0, r.top - 10), width: r.width + 4, height: r.height + 12 };
+      }, sel);
+      if (!box) { out.heroes.push({ what, sel }); continue; }
+      const shot = () => page.screenshot({ clip: box, style: "#dust{visibility:hidden !important}" });
+      /* the room's loops held where they are, for both pictures */
+      await page.evaluate(() => {
+        window.__held = new Set(document.getAnimations());
+        window.__held.forEach((a) => a.pause());
+      });
+      const fan0 = what === "prism" ? await fanBoxes(page) : null;
+      const rest = await shot();
+      /* a one-shot is caught in its first frame and held at 30 % (a swing
+         without a fill is gone once it ends); the moves between poses, which
+         are transitions, then run to the end. The slowest, the carriage, is .7 s. */
+      await page.evaluate(async () => {
+        const el = document.querySelector("[data-rx-shot]");
+        el.classList.add("rx");
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        for (const a of el.getAnimations({ subtree: true })) {
+          if (window.__held.has(a) || !(a instanceof CSSAnimation)) continue;
+          const t = a.effect.getTiming(), d = typeof t.duration === "number" ? t.duration : 0;
+          a.pause();
+          a.currentTime = (t.delay || 0) + 0.3 * d;
+        }
+      });
+      await page.waitForTimeout(reduced ? 250 : 1000);
+      const fan1 = what === "prism" ? await fanBoxes(page) : null;
+      const rx = await shot();
+      await page.evaluate(() => {
+        const el = document.querySelector("[data-rx-shot]");
+        el.getAnimations({ subtree: true }).forEach((a) => { if (!window.__held.has(a)) a.cancel(); });
+        el.classList.remove("rx");
+        const live = new Set(document.getAnimations());   // a loop the pose turned off is gone, not held
+        window.__held.forEach((a) => { if (live.has(a)) a.play(); });
+      });
+      await page.waitForTimeout(reduced ? 100 : 700);
+      out.heroes.push({ what, sel, rest, rx });
+      if (fan0) out.fan = fanVerdict(fan0, fan1);
+    }
+  } finally { await ctx.close(); }
+  return out;
+}
+
+/* The prism's light, in screen px: the beam arriving and the glow where it
+   enters the glass (which must not move at all), and the spectrum leaving
+   (which grows from the point where it leaves the glass, and nowhere else). */
+function fanBoxes(page) {
+  return page.evaluate(() => {
+    const box = (e) => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; };
+    const fan = document.querySelector(".rx-stay .rx-fan");
+    if (!fan) return null;
+    const exit = new DOMPoint(fan.getBBox().x, fan.getBBox().y + fan.getBBox().height / 2).matrixTransform(fan.parentNode.getScreenCTM());
+    return {
+      fixed: [...document.querySelectorAll(".rx-stay #prismFan > :not(.rx-fan)")].map(box),
+      fan: box(fan), exit: [exit.x, exit.y]
+    };
+  });
+}
+function fanVerdict(a, b) {
+  if (!a || !b) return { ok: false, detail: "no .rx-stay .rx-fan" };
+  const moved = Math.max(0, ...a.fixed.map((r, i) => Math.max(...r.map((v, j) => Math.abs(v - b.fixed[i][j])))));
+  /* a scale s about a point O maps every edge x to O + s(x − O), so the
+     two boxes give s, and then O, which has to be where the light leaves */
+  const s = (b.fan[2] - b.fan[0]) / (a.fan[2] - a.fan[0]);
+  const O = [(b.fan[0] - s * a.fan[0]) / (1 - s), (b.fan[1] - s * a.fan[1]) / (1 - s)];
+  const off = Math.hypot(O[0] - a.exit[0], O[1] - a.exit[1]);
+  const scaled = s > 1.01;
+  return {
+    ok: moved < 0.5 && (!scaled || off < 1.5),
+    detail: "the beam moved " + moved.toFixed(2) + " px; the spectrum " +
+      (scaled ? "grows ×" + s.toFixed(3) + " from " + off.toFixed(2) + " px off where it leaves the glass" : "keeps its size")
+  };
+}
+
+/* the share of pixels that moved by more than the usual 24, between two PNGs of one size */
+function pngDiff(page, a, b) {
+  return page.evaluate(async ({ a, b, B }) => {
+    const load = (u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
+    const [ia, ib] = await Promise.all([load(a), load(b)]);
+    const data = (img) => { const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0); return g.getImageData(0, 0, img.width, img.height).data; };
+    const da = data(ia), db = data(ib);
+    let bad = 0;
+    for (let i = 0; i < da.length; i += 4) {
+      if (Math.abs(da[i] - db[i]) > B || Math.abs(da[i + 1] - db[i + 1]) > B || Math.abs(da[i + 2] - db[i + 2]) > B) bad++;
+    }
+    return bad / (da.length / 4);
+  }, { a: "data:image/png;base64," + a.toString("base64"), b: "data:image/png;base64," + b.toString("base64"), B: BUDGET.pixelDelta });
+}
+
 /* ================================================================== perf */
 /* "Main-thread render work" is the sum of these trace events, which is how
    the spec's ~95 ms/s was measured. Raster runs on worker threads and is
@@ -685,7 +954,7 @@ async function perf(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) await dom(browser);
+    if (ONLY.includes("dom")) { await dom(browser); await voices(browser); }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
     await browser.close();
