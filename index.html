@@ -6547,10 +6547,14 @@
      back at 96 % of a lap, a hair from where it lies (-2, -1), so it flies
      home without a jump. Without motion there is no loop to take off
      (and if motion comes back in the dark, the loop that comes back with
-     it is taken off the same way: the reducedQ listener). */
+     it is taken off the same way: the reducedQ listener). Until it has
+     landed the torch can't find it there (MOTH_IN: torchSees). */
+  var MOTH_IN = 0, mothT = 0;
   function mothAim(dark){
     var o = document.querySelector("#moth .mOrb");
     if (!o) return;
+    clearTimeout(mothT); MOTH_IN = dark && !REDUCED ? performance.now() + 3600 : 0;
+    if (MOTH_IN) mothT = setTimeout(function(){ if (SEEN_BY) torchSees(); }, 3650);   // landed under a torch already there
     if (CAM) camMoth(dark);                         // and it changes planes on the way (the camera)
     var st = o.style;
     if (!dark){ st.animation = st.transform = st.transition = ""; st.animationDelay = "-8.35s"; return; }
@@ -7235,7 +7239,7 @@
   function torchSees(){
     for (var i = 0; i < SEEN_BY.length; i++){
       var g = SEEN_BY[i], dx = (g.x - TORCH.x) / 125, dy = (g.y - TORCH.y) / 78,
-          on = lightsOut && dx * dx + dy * dy < 1;
+          on = lightsOut && dx * dx + dy * dy < 1 && (g.cl !== "lit" || performance.now() >= MOTH_IN);
       if (on !== g.on){ g.on = on; g.el.classList.toggle(g.cl, on); }
     }
   }
