@@ -21,6 +21,8 @@
 <meta name="twitter:image" content="https://kmay89.com/og-image.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Karl Meves — The Desk of Worlds</title>
+<!-- a fresh tab arrives in the dark (the lamp catches a beat later); set before first paint, so there is never a lit frame first -->
+<script>try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&!location.hash&&!sessionStorage.getItem('km_lit'))document.documentElement.className+=' dawn'}catch(e){}</script>
 <style>
   :root{
     --room:#0e0a07;
@@ -410,6 +412,26 @@
   /* the words dim with the room; the controls don't, because "Year" and
      "Sound" are the way out of the dark, not part of it */
   body.lights-out .intro > :not(.deck){opacity:.5}
+  /* arrival: a fresh tab opens moonlit with the lamp off (html.dawn, set
+     in the head before first paint), then the lamp catches (html.waking,
+     the motion gate): the dark lifts a little, holds a breath while the
+     filament takes, and lets go. The light only ever comes up. Transitions
+     are off for the ride, because a transition outranks an animation and
+     would cut the hold out of it. The headline is never touched */
+  html.dawn #darkness,html.dawn :is(#wellNight,#lumaNight){opacity:1;transition:none}
+  html.dawn :is(#moon,#moonPane){opacity:var(--moonk,1);transition:none}
+  html.dawn :is(.pool-warm,.crtfx,.lampfx,.bulb-on,.glint.shine,#lampCast,#prismFan){opacity:0;animation:none;transition:none}
+  html.dawn .bulb-mouth{fill:#2a231c}
+  /* the same dark over the page round the drawing (under the words and
+     the legend), or the room would be a dark box on a lit page. It lies
+     behind the drawing too, so the room's own dark leaves the sky over the
+     walls to it (#dkSky), or that would be dark twice over */
+  html:is(.dawn,.waking) body::before{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;background:rgba(6,4,3,.9)}
+  html:is(.dawn,.waking) .dk-flat{clip-path:url(#dkSky)}
+  html.waking :is(#darkness,.pool-warm,#lampCast,#prismFan){transition:none}
+  /* the lithophane's and the well's own light hand over only once the dark
+     has nearly gone, so neither dips on its way to lamplight */
+  html.waking :is(#wellNight,#lumaNight){transition:opacity .45s ease .75s}
   /* the name tag: no frosted glass (backdrop-filter) any more, because the
      room under it is always moving and the frost was redone every frame,
      most of what a hover cost (3 ms a frame); a darker glass reads the same */
@@ -1383,6 +1405,17 @@
     @keyframes fff{0%,35%,45.5%,100%{opacity:0}37.5%{opacity:.85}41.5%{opacity:.5}}
     body.lights-out .ffm{animation:ffm 16.8s linear infinite}
     body.lights-out .fff{animation:fff 5.6s ease-in-out infinite}
+    /* the lamp catching (see html.dawn): the bulb first, then the room.
+       No 100% in wakeIn, so each light ends at its own level (2026's
+       pool rests at .3, the bulb's rim at .8) */
+    html.waking #darkness,html.waking body::before{animation:wake 1.1s cubic-bezier(.4,0,.2,1) both}
+    html.waking :is(.bulb-on,.glint.shine){animation:wakeIn .3s ease-out both}
+    html.waking .bulb-mouth{animation:wakeMouth .3s both}
+    html.waking :is(.pool-warm,.lampfx,#lampCast,#prismFan){animation:wakeIn 1.1s ease-out both}
+    html.waking .crtfx{animation:wakeIn .9s ease-out .35s both}
+    @keyframes wake{0%{opacity:1}22%{opacity:.82}34%{opacity:.82}100%{opacity:0}}
+    @keyframes wakeIn{0%,28%{opacity:0}}
+    @keyframes wakeMouth{0%,30%{fill:#2a231c}}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1649,9 +1682,10 @@
      just stays what it was at load, as it always did.) */
   var reducedQ = matchMedia("(prefers-reduced-motion: reduce)");
   var REDUCED = reducedQ.matches;
+  var DAWN = document.documentElement.classList.contains("dawn");   // arriving in the dark: "the lamp catches"
   if (reducedQ.addEventListener) reducedQ.addEventListener("change", function(e){
     REDUCED = e.matches;
-    if (REDUCED) document.documentElement.classList.remove("dawn", "waking");
+    if (REDUCED){ ignite(); document.documentElement.classList.remove("waking"); }   // no lamp to watch catching: it's on
     else {
       wakeDust();
       /* the chess clock's loop is born again with motion, at :00; a frame
@@ -2691,7 +2725,7 @@
   crt += box(150,90,14,150,34,112,"#d5c9ad");                     // bezel slab
   crt += gLeft(150,124,126,                                        // screen face
     '<rect x="10" y="10" width="130" height="84" rx="6" fill="#0a1a10" stroke="#8f8368" stroke-width="2"/>' +
-    '<g id="crtOS">' + CRT_SELFTEST + "</g>" +
+    '<g id="crtOS">' + (DAWN ? "" : CRT_SELFTEST) + "</g>" +   // arriving in the dark, the tube is off
     '<polygon points="16,12 52,12 26,92 16,92" fill="rgba(255,255,255,.07)"/>' +
     '<circle cx="136" cy="102" r="2.6" fill="#63e6a9" class="led"/>' +
     txt(14,104,"MAYTRONIC 1500",6,"#8f8368",MONO) +
@@ -3790,6 +3824,7 @@
      never quite clear (.08), so nothing under the torch is brighter than
      it is under the lamp. */
   S.push('<g id="darkness" aria-hidden="true"><rect class="dk-flat" x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/>' +
+    '<clipPath id="dkSky"><polygon points="-465,570 -465,262 -462,262 -462,-7 0,-238 662,93 662,362 670,362 670,570"/></clipPath>' +   // over the walls (with room for the camera's lean) and the floor
     '<g id="torch"><defs><radialGradient id="torchG" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="180" gradientTransform="scale(1 .62)">' +
       '<stop offset="0" stop-color="#060403" stop-opacity=".08"/><stop offset=".3" stop-color="#060403" stop-opacity=".1"/>' +
       '<stop offset=".46" stop-color="#060403" stop-opacity=".18"/><stop offset=".52" stop-color="#060403" stop-opacity=".34"/>' +
@@ -5210,6 +5245,7 @@
   var tourI = -1;                      // the stop on show; -1 when there's no tour
   function startTour(){
     if (eraBusy) return;                // the desk sleeps during the era ride
+    ignite();                           // nobody is shown round a dark room
     if (tourI >= 0){ goStop(0); return; }
     if (activeModal()){
       /* putting the sheet down clears the address; a #tour typed over it
@@ -6509,6 +6545,8 @@
     var next = force === undefined ? !lightsOut : force;
     if (next === lightsOut) return;
     lightsOut = next;
+    ignite();                                 // the arrival's lamp has caught by now; going dark, it stops catching
+    if (lightsOut) document.documentElement.classList.remove("waking");
     mothAim(lightsOut);
     /* the torch comes on with the dark, at the switch you just threw; it
        goes out only once the lamp's light has filled the room again (.8 s),
@@ -6884,6 +6922,7 @@
   }
   eraBtn.addEventListener("click", function(){
     if (eraBusy) return;
+    bootDone();                          // the ride writes the tube now, not the arrival's boot
     ac(true);
     hideTip();
     eraBtn.classList.add("used");
@@ -6934,6 +6973,39 @@
       }
     })();
   });
+
+  /* ---------------- the lamp catches ----------------
+     A fresh tab arrives moonlit (html.dawn, from the head script): the
+     lamp off, the tube dark, the dust blue in the moon's shaft. A beat
+     after the page is up, or at once on any key or touch, the lamp
+     catches and the tube types its self-test a line at a time. Once a
+     session, never on a link (it lands somewhere), never without motion,
+     and silent: nobody has touched the page yet, so it doesn't speak. */
+  var dawnLit = !DAWN, bootT = [];
+  function bootDone(){ bootT.forEach(clearTimeout); bootT = []; }
+  function ignite(){
+    if (dawnLit){ if (REDUCED && bootT.length && !eraBusy){ bootDone(); crtShow(CRT_SELFTEST); } return; }   // motion gone mid-boot: the rest at once
+    dawnLit = true;
+    var root = document.documentElement;
+    try { sessionStorage.setItem("km_lit", "1"); } catch(e){}
+    root.classList.remove("dawn");
+    if (REDUCED){ crtShow(CRT_SELFTEST); return; }
+    root.classList.add("waking");
+    CRT_LINES.forEach(function(_, i){   // five lines, then the cursor; a ride (eraBusy) owns the tube
+      bootT.push(setTimeout(function(){ if (!eraBusy) crtShow(CRT_G + CRT_LINES.slice(0, i + 1).join("") + "</g>"); }, 300 + i * 120));
+    });
+    setTimeout(function(){ root.classList.remove("waking"); }, 1200);   // the lamp's and the tube's own flicker back
+  }
+  if (DAWN){
+    var dawnGo = function(){   // a tab opened in the background waits until it's looked at
+      if (document.hidden) return;
+      document.removeEventListener("visibilitychange", dawnGo);
+      setTimeout(ignite, 400);
+    };
+    document.addEventListener("visibilitychange", dawnGo);
+    dawnGo();
+    ["pointerdown", "keydown"].forEach(function(ev){ addEventListener(ev, ignite, {once: true, capture: true}); });
+  }
 
   /* ---------------- sound toggle ---------------- */
   var sndBtn = document.getElementById("sndBtn");
@@ -7156,7 +7228,7 @@
       if (!SEEN || document.hidden || activeModal() || (!tour.hidden && !scrim.classList.contains("thru"))){ dustRaf = 0; return; }
       var dt = Math.min(48, (now || last) - last) || 16; last = now || last;
       cx2.clearRect(0, 0, W, H);
-      var dark = document.body.classList.contains("lights-out");   // no lamp: the moon and the torch light them
+      var dark = !dawnLit || document.body.classList.contains("lights-out");   // no lamp: the moon and the torch light them
       if (++lightsAge > 20){ lightsAge = 0; placeLights(); }
       var torch = dark && document.body.classList.contains("torch-on");
       if (torch){                                   // where the torch is this frame, by the same map as the lamp's
