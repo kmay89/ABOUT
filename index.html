@@ -1259,6 +1259,14 @@
        the hands spinning round from twelve */
     #wallClock.ticking .clkM{transition:transform .42s cubic-bezier(.3,2.2,.5,1)}
     #wallClock.ticking .clkH{transition:transform .6s ease}
+    /* ...but only a one-minute step kicks. Catching up after a sleep (or
+       the visitor's clock going back) the hands sweep round together and
+       slow into place, no kick: a kick scales with the step, and on half
+       an hour it whipped the hand a third of the way round again. An hour
+       or more behind, the hands are simply set: a minute hand spinning
+       round the dial is a fan, not a clock */
+    #wallClock.ticking.catch :is(.clkM,.clkH){transition:transform 1.4s cubic-bezier(.45,0,.2,1)}
+    #wallClock.ticking.snap :is(.clkM,.clkH){transition:none}
     /* each band of the vase lays down in under a second, and the gantry
        climbs after it; .live comes a frame after the build, so the page
        opens on the print as it stands, not on it being made from nothing */
@@ -3818,9 +3826,10 @@
      to 1:00 steps forward, not a turn backwards round the dial. Asleep
      (scrolled away, a sheet over it, the tab hidden) it writes nothing,
      and syncClock() puts it right as the room wakes; if a while has
-     passed, the hands sweep round to now, a clock catching up. */
+     passed, the hands sweep round to now, a clock catching up (and only
+     a one-minute step gets the kick: .catch and .snap in the gate). */
   var CLK_H = document.querySelectorAll("#wallClock .clkH"), CLK_M = document.querySelectorAll("#wallClock .clkM"),
-      CLK_0 = null, clkT = 0;
+      CLK_0 = null, clkT = 0, clkAt = null;
   function wallClock(){
     var d = new Date(), t = Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 60000);
     if (CLK_0 === null) CLK_0 = t - t % 720;
@@ -3829,6 +3838,11 @@
     var iso = document.getElementById("iso");
     if (document.hidden || iso.classList.contains("asleep") || document.body.classList.contains("modal-open")) return;
     t -= CLK_0;
+    if (t === clkAt) return;
+    var ck = document.getElementById("wallClock").classList, dt = clkAt === null ? 1 : t - clkAt;
+    ck.toggle("catch", dt !== 1 && Math.abs(dt) < 60);
+    ck.toggle("snap", Math.abs(dt) >= 60);
+    clkAt = t;
     CLK_H.forEach(function(e){ e.style.transform = "rotate(" + (t * .5) + "deg)"; });
     CLK_M.forEach(function(e){ e.style.transform = "rotate(" + (t * 6) + "deg)"; });
   }
