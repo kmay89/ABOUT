@@ -4376,7 +4376,8 @@
     window: function(){ for (var p = 0; p < 3; p++) tone(4500, {dur:0.018, g:0.008, at:p * 0.034}); },  // a single cricket, outside
     /* the rest of the desk, quieter still: each one is the small sound its
        own material makes, and anything without one keeps the plain tick */
-    web: function(){ noise({filter:"highpass", freq:3500, dur:0.008, g:0.015}); tone(1760, {dur:0.03, g:0.006, at:0.3}); }, // a trackpad tap, and the page answering
+    web: function(btn){ noise({filter:"highpass", freq:3500, dur:0.008, g:0.015});   // a trackpad tap, and the page answering,
+      setTimeout(function(){ if (btn && btn.matches(":hover")) tone(1760, {dur:0.03, g:0.006}); }, 300); }, // if you're still there to hear it
     toy: function(){ noise({filter:"bandpass", freq:1600, q:1.2, dur:0.05, g:0.015}); noise({filter:"lowpass", freq:500, dur:0.03, g:0.015, at:0.07}); }, // a book's cover, then a box lifted
     sun: function(){ tone(523.3, {end:784, dur:0.18, g:0.008}); }, // the sun coming up, as a sound would if it made one
     chili: function(){ noise({filter:"highpass", freq:5000, dur:0.09, g:0.008}); }, // a hot bowl's hiss
@@ -6268,7 +6269,7 @@
     var now = performance.now();
     if (now - hoverAt < 90) return;
     hoverAt = now;
-    (HOVERS[btn.dataset.voice || btn.dataset.id] || SOUNDS.hover)();
+    (HOVERS[btn.dataset.voice || btn.dataset.id] || SOUNDS.hover)(btn);
   }
   document.querySelectorAll(".iso-obj").forEach(function(btn){
     var id = btn.dataset.id;
