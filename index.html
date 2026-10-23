@@ -1282,14 +1282,14 @@
     @keyframes lean{30%{transform:skewX(16deg)}62%{transform:skewX(5deg)}}
     .teeSwing.gust{animation:teeSwing 4.2s ease-in-out}
     .lean.gust{animation:lean 4.2s ease-in-out .35s}
-    /* the moth's life at the lamp: one loop of 8.7 s round the shade,
-       never the same way twice in a lap, with the bump into the shade at
-       87 % (one loop, not two crossed ones: each loop is a layer the room
-       paints every frame), and wings at 2.5 beats a second. The switch pauses the loops where they are, and it flies:
-       across slow-fast-slow, and up past the moon and back down onto it
-       (an overshoot on the Y wrapper), flapping all the way (18 beats is
-       3.6 s), then resting, its wings opening and closing slowly. These
-       are class-weight rules (the sleep gate and the sheet gate win) */
+    /* the moth's life at the lamp: one wandering loop of 8.7 s round
+       the shade, with the bump into it at 87 % (one loop, not two crossed
+       ones: each loop is a layer the room paints every frame), and wings
+       at 2.5 beats a second. The switch pauses the loop where it is, and
+       it flies: across slow-fast-slow, and up past the moon and back down
+       onto it (an overshoot on the Y wrapper), flapping all the way (18
+       beats is 3.6 s), then resting, its wings opening and closing slowly.
+       These are class-weight rules (the sleep gate and the sheet gate win) */
     @keyframes mOrb{
       0%,100%{transform:translate(-12px,-5px)} 14%{transform:translate(7px,-9px)} 28%{transform:translate(15px,2px)}
       42%{transform:translate(2px,7px)} 56%{transform:translate(-13px,-1px)} 67%{transform:translate(-4px,-9px)}
