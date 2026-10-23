@@ -4344,9 +4344,10 @@
       var a = Q[i].a, q = Q[i].q, n = i + 1, near = Infinity;
       Q.forEach(function(o, j){ if (j !== i) near = Math.min(near, Math.hypot(o.q[0] - q[0], o.q[1] - q[1])); });
       var big = n1(Math.min(coarse ? 35 : 18, near / 2));
-      /* a note pinned to a wall rides in the walls' plane, pin and number
-         together, so the camera never slides its pin off what it explains */
-      var onWall = nt.at[0] <= -30 || nt.at[1] <= -30;
+      /* a note pinned to a thing on a wall rides in the walls' plane, pin
+         and number together, so the camera never slides it off what it explains
+         (the dust's, pinned to nothing, hangs in the air with the desk) */
+      var onWall = (nt.at[0] <= -30 || nt.at[1] <= -30) && (nt.id || nt.off[0] || nt.off[1]);
       if (onWall) s += '<g class="lyr-wall">';
       if (nt.off[0] || nt.off[1])
         s += '<g aria-hidden="true" style="pointer-events:none"><line x1="' + n1(a[0]) + '" y1="' + n1(a[1]) + '" x2="' + n1(q[0]) + '" y2="' + n1(q[1]) +
@@ -6993,7 +6994,8 @@
     if (!cp) return;
     [].forEach.call(document.querySelectorAll('.iso-obj[data-id="' + pr[0] + '"]'), function(el){
       var hov = false;
-      function sync(){ cp.classList.toggle("lift", hov || el.classList.contains("rx") || el.matches(":focus-visible")); }
+      function fv(){ try { return el.matches(":focus-visible"); } catch (e){ return document.activeElement === el; } }   // an old browser without it
+      function sync(){ cp.classList.toggle("lift", hov || el.classList.contains("rx") || fv()); }
       el.addEventListener("pointerenter", function(){ hov = true; sync(); });
       el.addEventListener("pointerleave", function(){ hov = false; sync(); });
       el.addEventListener("focus", sync);
