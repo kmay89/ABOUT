@@ -282,33 +282,36 @@
      transform attribute (CSS would replace it), sized to its own box. Only
      the poses are here; the moves between them, and anything that loops,
      are in the motion gate, so with less motion a hover is a change of pose. */
-  .rx-tilt,.rx-piece,.rx-pencil,.rx-hover,.rx-eye,.rx-glass,.carriage,.rx-rotor,.rx-fan,.rx-tee,.rx-fire,.wellglow{transform-box:fill-box;transform-origin:50% 50%}
-  .rx-tilt,.rx-fire,.wellglow{transform-origin:50% 100%}   /* the case on its hinge edge; flame and light from their base */
+  .rx-tilt,.rx-piece,.rx-pencil,.rx-hover,.rx-eye,.rx-glass,.carriage,.rx-rotor,.rx-fan,.rx-tee,.rx-fire,.rx-swell{transform-box:fill-box;transform-origin:50% 50%}
+  .rx-tilt,.rx-fire,.rx-swell{transform-origin:50% 100%}   /* the case on its hinge edge; flame and light from their base */
   .rx-fan{transform-origin:0 50%}                          /* from where the beam leaves the glass */
   .rx-tee{transform-origin:50% 0}                          /* from the shoulders, on the hanger */
   .iso-obj[data-id="board"]:is(:hover,:focus-visible,.rx) .rx-bloom{opacity:1}   /* the phosphor warms as the keys go down */
   /* the case rocks back toward the lamp; the disc doesn't spin, because a CD's colours follow your eye */
-  .iso-obj[data-id="vinyl"]:is(:hover,:focus-visible,.rx) > *{transform:translateY(-6px)}
+  .iso-obj[data-id="vinyl"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-6px)}
   .iso-obj[data-id="vinyl"]:is(:hover,:focus-visible,.rx) .rx-tilt{transform:rotate(-2deg)}
   .iso-obj[data-id="chess"]:is(:hover,:focus-visible,.rx) .rx-piece{transform:translateY(-3.5px)}   /* the knight comes off f3 */
   /* the pencil moves, and the right answer is pencilled into the corner */
-  .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx) > *{transform:translateY(-3px)}
+  .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-3px)}
   .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx) .rx-pencil{transform:translate(2.5px,1px)}
   .iso-obj[data-id="sudoku"]:is(:hover,:focus-visible,.rx) .rx-digit{opacity:.85}
-  /* the light from below swells up the shaft, and its night copy with it */
-  .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) .wellglow,
-  .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) ~ #wellNight .wellglow{animation:none;opacity:1;transform:scale(1.3)}
-  /* the drone takes off by itself, nose a little down, light steady, props
-     a blur rather than a stick; the controller stays on the shelf */
+  /* the light from below swells up the shaft, and its night copy with it.
+     The swell is on a wrapper inside .wellglow, so the slow breathing goes
+     on under it: stopping the breath for a hover restarts it on the way
+     out, and in the dark that drop read as a blink. */
+  .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) .rx-swell,
+  .iso-obj[data-id="well"]:is(:hover,:focus-visible,.rx) ~ #wellNight .rx-swell{transform:scale(1.3)}
+  /* the drone takes off by itself, banking a touch as it climbs, light
+     steady, props a blur rather than a stick; the controller stays on the shelf */
   .iso-obj[data-id="vantage"]:is(:hover,:focus-visible,.rx) .rx-hover{transform:translateY(-6px) rotate(-2deg)}
   .iso-obj[data-id="vantage"]:is(:hover,:focus-visible,.rx) .rx-rotor{opacity:.45}
   /* the glass comes up; the light it threw stays where light lands, a little wider */
   .iso-obj[data-id="prism"]:is(:hover,:focus-visible,.rx) .rx-glass{transform:translateY(-5px)}
   .iso-obj[data-id="prism"]:is(:hover,:focus-visible,.rx) .rx-fan{transform:scale(1.14);opacity:1}
   /* the camera's lens turns to look at you; the keypad's code goes in */
-  .iso-obj[data-id="cam"]:is(:hover,:focus-visible,.rx) > *{transform:translateY(-4px)}
+  .iso-obj[data-id="cam"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-4px)}
   .iso-obj[data-id="cam"]:is(:hover,:focus-visible,.rx) .rx-eye{transform:translate(-2.5px,-1.8px)}
-  .iso-obj[data-id="scqcs"]:is(:hover,:focus-visible,.rx) > *{transform:translateY(-3px)}
+  .iso-obj[data-id="scqcs"]:is(:hover,:focus-visible,.rx,.picked) > *{transform:translateY(-3px)}
   .iso-obj:is([data-id="cam"],[data-id="scqcs"],[data-id="vantage"]):is(:hover,:focus-visible,.rx) .led{animation:none;opacity:1}
   /* the printer homes its carriage to the left end of the gantry, as before a print */
   .iso-obj[data-id="offhours"]:is(:hover,:focus-visible,.rx) .carriage{transform:translate(-26px,-13px)}
@@ -317,7 +320,8 @@
   .iso-obj[data-id="luma"]:is(:hover,:focus-visible,.rx) .rx-lit{opacity:.16}
   /* outside, to eyes used to the dark: the night gets lighter, the campfire catches */
   .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-fire{transform:scale(1.35,1.5)}
-  .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-pane{opacity:.12}
+  .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-pane{opacity:.22}
+  .iso-obj[data-id="outside"]:is(:hover,:focus-visible,.rx) .rx-ember{opacity:.55}
   #swLever{transition:transform .16s cubic-bezier(.3,1.5,.5,1)}
   body.lights-out #swLever{transform:translate(0,9px)}
   /* the glow-in-the-dark plate ring — the whole point of buying those */
@@ -1065,10 +1069,10 @@
     .iso-obj :is(.rx-tilt,.rx-piece,.rx-pencil,.rx-hover,.rx-eye,.rx-glass,.rx-fan,.rx-fire){transition:transform var(--t-settle) var(--ease-settle),opacity var(--t-settle) ease}
     .iso-obj:is(:hover,:focus-visible,.rx) :is(.rx-tilt,.rx-piece,.rx-pencil,.rx-hover,.rx-eye,.rx-glass,.rx-fan,.rx-fire){transition-duration:var(--t-rx);transition-timing-function:var(--ease-lift),ease}
     .rx-bloom,.rx-rotor{transition:opacity .3s ease}
-    .rx-pane,.rx-lit,.lumaglow ellipse{transition:opacity .4s ease}
+    .rx-pane,.rx-ember,.rx-lit,.lumaglow ellipse{transition:opacity .4s ease}
     .rx-digit{transition:opacity .2s ease}
     .iso-obj:is(:hover,:focus-visible,.rx) .rx-digit{transition:opacity .25s ease .18s}   /* once the pencil has moved */
-    .wellglow{transition:transform .5s ease,opacity .5s ease}
+    .rx-swell{transition:transform .5s ease}
     .carriage{transition:transform .7s ease-in-out}
     /* keys going down under invisible fingers, one after another from the top-left */
     @keyframes keypress{35%{transform:translate(1.4px,1.4px)}}
@@ -1812,7 +1816,7 @@
     '<path d="M108 104 l0 -9" stroke="#8a8f6a" stroke-width="2" stroke-linecap="round"/>' +
     '<path d="M104 95 h8" stroke="#8a8f6a" stroke-width="2" stroke-linecap="round"/>' +
     '<g fill="#7cd7e8" opacity=".85"><circle cx="100" cy="90" r="1.3"/><circle cx="108" cy="87" r="1.3"/><circle cx="116" cy="90" r="1.3"/></g>' +
-    '<ellipse cx="30" cy="100" rx="13" ry="5" fill="#ff9a3d" opacity=".28"/>' +
+    '<ellipse class="rx-ember" cx="30" cy="100" rx="13" ry="5" fill="#ff9a3d" opacity=".28"/>' +
     '<path d="M24 102 L36 102 M26 104 L34 104" stroke="#4a3018" stroke-width="2.5" stroke-linecap="round"/>' +
     '<g class="rx-fire"><path class="flame" d="M30 101 q -4 -6 0 -12 q 1.5 4 4 6 q 2 3 -1 6 z" fill="#ffb347"/></g>' +
     '<g fill="#0c1020">' + // deer, watching the fire
@@ -2773,7 +2777,7 @@
      blurred rainbow on the CD, painted after it, a little differently,
      and over this much dark the two look the same anyway. */
   var WL_RISE = wlEll(WLM[0], WLM[1] - 7, 10, 14, 'fill="url(#wellRise)"');
-  well += '<g style="pointer-events:none"><g class="wellglow">' + WL_RISE + "</g>" +
+  well += '<g style="pointer-events:none"><g class="wellglow"><g class="rx-swell">' + WL_RISE + "</g></g>" +
     '<g fill="#e4e8ff">' +
       '<circle class="wellmote" cx="' + n1(WLM[0] - 3.4) + '" cy="' + n1(WLM[1] - .4) + '" r=".7"/>' +
       '<circle class="wellmote" style="animation-delay:-2.3s" cx="' + n1(WLM[0] + 2.8) + '" cy="' + n1(WLM[1] - 1.8) + '" r=".55"/>' +
@@ -3059,7 +3063,7 @@
      lifts with the well when you point at it, so the two never part.
      Plain alpha for the same reason as the well's: no blend layers. */
   S.push('<g id="wellNight" aria-hidden="true" style="pointer-events:none"><g>' +
-    WL_POOL + '<g class="wellglow">' + WL_RISE + "</g></g></g>");
+    WL_POOL + '<g class="wellglow"><g class="rx-swell">' + WL_RISE + "</g></g></g></g>");
 
   /* The lithophane, again, for when the lamp is off: its own LED is still on,
      so the panel and the glow it throws on the wall come through the dark —
@@ -5453,11 +5457,12 @@
     btn.addEventListener("pointerdown", function(e){
       buzz(id);
       /* a finger has no hover, so a tap shows the reaction a pointer gets
-         on the way in — for as long as it takes to be seen. The sheet
-         doesn't wait for it. */
+         on the way in — held long enough for the longest one (the board's
+         ripple, the shirt's swing) to finish rather than snap back. The
+         sheet doesn't wait for it. */
       if (e.pointerType === "touch"){
         btn.classList.add("rx");
-        setTimeout(function(){ btn.classList.remove("rx"); }, 450);
+        setTimeout(function(){ btn.classList.remove("rx"); }, 950);
       }
     });
     btn.addEventListener("click", function(){ activate(id); });
