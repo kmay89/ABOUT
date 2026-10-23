@@ -6951,8 +6951,8 @@
     if (pFan && fa !== CAM.fa){ CAM.fa = fa; pFan.style.transform = "rotate(" + fa + ")"; }
   }
   function camTick(now){
-    var dt = Math.min(64, now - (CAM.last || now - 16)); CAM.last = now;
-    var e = 1 - Math.exp(-dt / 140);                           // the same ease at any frame rate
+    var dt = now - (CAM.last || now - 16); CAM.last = now;
+    var e = 1 - Math.exp(-dt / 140);                           // the same ease at any frame rate, a slow one too
     CAM.x += (CAM.tx - CAM.x) * e; CAM.y += (CAM.ty - CAM.y) * e;
     var done = Math.abs(CAM.tx - CAM.x) + Math.abs(CAM.ty - CAM.y) < .0005 && (now - CAM.mt >= 3600 || !(CAM.x || CAM.y));
     if (done){ CAM.x = CAM.tx; CAM.y = CAM.ty; }
