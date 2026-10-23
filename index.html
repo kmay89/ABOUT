@@ -1191,9 +1191,15 @@
        set to the visitor's seconds by syncClock), and a shooting star in
        the window every 53 s (lit for under a second, a pixel wide). The
        sleep gate holds all three; without motion they rest as drawn:
-       cursor on, hand at :00, no star */
+       cursor on, hand at :00, no star.
+       The cursor's rule keeps #crtOS inside :where() so it weighs no more
+       than a class: as #crtOS .cur it outweighed the sleep rule above, and
+       its shorthand set the play-state back to running, so the tube blinked
+       on (and the compositor drew sixty frames a second) with the desk
+       scrolled away. step-end, because a timing function steps each half
+       of the keyframes on its own: steps(2) went on, half, off, half */
     @keyframes blink{50%{opacity:0}}
-    #crtOS .cur{animation:blink 1s steps(2) infinite}
+    :where(#crtOS) .cur{animation:blink 1s step-end infinite}
     @keyframes tick{to{transform:rotate(360deg)}}
     .tick{transform-box:fill-box;transform-origin:50% 100%;animation:tick 60s steps(60) infinite}
     @keyframes shoot{
@@ -1471,7 +1477,12 @@
   if (reducedQ.addEventListener) reducedQ.addEventListener("change", function(e){
     REDUCED = e.matches;
     if (REDUCED) document.documentElement.classList.remove("dawn", "waking");
-    else wakeDust();
+    else {
+      wakeDust();
+      /* the chess clock's loop is born again with motion, at :00; a frame
+         later it exists, and can be set to the visitor's seconds */
+      requestAnimationFrame(syncClock);
+    }
   });
 
   /* The skip link works as a plain anchor without script. With script it
@@ -2376,7 +2387,7 @@
     txt(18,54,"PSU +24V ...... OK",9,"#63e6a9"),
     txt(18,68,"TOUCH PANEL ... OK",9,"#63e6a9"),
     txt(18,82,"ALARM LOOP .... OK",9,"#63e6a9"),
-    '<rect class="cur" x="115.8" y="75.4" width="4.6" height="6.6" fill="#63e6a9"/>'];
+    '<rect class="cur" x="116.4" y="75.2" width="4.4" height="6" fill="#63e6a9"/>'];
   var CRT_SELFTEST = CRT_G + CRT_LINES.join("") + "</g>";
   var crt = "";
   crt += box(195,96,0,64,30,14,"#c9bda2");                       // stand

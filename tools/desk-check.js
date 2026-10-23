@@ -498,7 +498,9 @@ async function dom(browser) {
       .8 × .45 ≈ .36.
    2. Exactly three loops run with nobody pointing that weren't there before:
       the tube's cursor, black's clock and the shooting star. The clock's lap
-      is this minute's seconds, and still is after a sheet has paused it.
+      is this minute's seconds, and still is after a sheet has paused it
+      or motion has been turned off and on again. Scrolled away, none of
+      them runs, and the cursor is on or off, never half.
    3. With less motion none of the three runs: the star is gone, the cursor
       is on. */
 const SKY_NEW_MOON = Date.UTC(2026, 10, 9, 21, 0, 0);
@@ -541,6 +543,44 @@ async function sky(browser) {
   });
   ok("B6 a sheet holds the clock, and it catches up after", s.held === "paused" && off(s.lap, s.now) < 1000,
     s.held + ", " + Math.round(s.lap) + " vs " + s.now + " ms");
+  /* Scrolled away, nothing in the room runs. The perf row for this state
+     adds up main-thread work only, and a lone CSS loop costs none there
+     (it costs the compositor sixty frames a second), so this row asks the
+     animations themselves. The cursor once slipped the gate this way: its
+     rule outweighed the sleep rule, and its shorthand reset the play-state. */
+  const z = await page.evaluate(async () => {
+    const pad = document.createElement("div"); pad.style.height = "300vh"; document.body.appendChild(pad);
+    window.scrollTo({ top: 1e6, behavior: "instant" });
+    await new Promise((r) => setTimeout(r, 1200));
+    const iso = document.getElementById("iso");
+    const run = document.getAnimations().filter((a) => a.effect && a.effect.target && iso.contains(a.effect.target) && a.playState === "running");
+    const out = { asleep: iso.classList.contains("asleep"), running: run.map((a) => a.animationName || "?") };
+    pad.remove();
+    return out;
+  });
+  ok("B6 scrolled away, every loop in the room is paused", z.asleep && z.running.length === 0,
+    (z.asleep ? "asleep" : "not asleep") + ", running: " + (z.running.join(" ") || "none"));
+  /* motion turned back on while the page is open: the clock's new loop is set to the visitor's seconds */
+  await alignDesk(page);
+  await page.waitForTimeout(500);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.waitForTimeout(300);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.waitForTimeout(300);
+  const m = await page.evaluate(() => {
+    const a = document.querySelector("#iso .tick").getAnimations()[0], d = new Date();
+    return { lap: a ? a.currentTime % 60000 : null, now: d.getSeconds() * 1000 + d.getMilliseconds() };
+  });
+  ok("B6 motion turned back on: the clock picks up the visitor's seconds", m.lap !== null && off(m.lap, m.now) < 1000,
+    m.lap === null ? "no clock loop" : Math.round(m.lap) + " vs " + m.now + " ms");
+  /* the cursor is on or off, never half: sampled through one blink (last, since seeking it by hand takes it out of CSS's hands) */
+  const bl = await page.evaluate(() => {
+    const e = document.querySelector("#crtOS .cur"), a = e.getAnimations()[0];
+    if (!a) return null;
+    a.pause();
+    return [0, 260, 510, 760].map((t) => { a.currentTime = t; return +getComputedStyle(e).opacity; });
+  });
+  ok("B6 the cursor blinks on and off, 500 ms each", !!bl && bl.join() === "1,1,0,0", bl ? "opacity " + bl.join(" ") : "no cursor loop");
   await ctx.close();
 
   ({ ctx, page } = await openDesk(browser, { name: "sky-new", dpr: 1, now: SKY_NEW_MOON }));
