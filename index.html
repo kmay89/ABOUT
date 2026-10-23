@@ -516,8 +516,8 @@
   .mw,.mPose{transform-box:fill-box;transform-origin:50% 50%}
   .mDark{opacity:0}
   body.lights-out .mDark{opacity:1}
-  body.lights-out .mTrekX{transform:translateX(-308px)}
-  body.lights-out .mTrekY{transform:translateY(-50px)}
+  body.lights-out .mTrekX{transform:translateX(calc(-308px - var(--mox,0px)))}
+  body.lights-out .mTrekY{transform:translateY(calc(-50px - var(--moy,0px)))}
   body.lights-out .mPose{transform:skewY(-26.6deg) scale(.9)}
   /* the fireflies come out a beat after the lamp goes, and go in with it.
      Hidden, not only transparent, while the lamp is on: invisible but
@@ -6091,6 +6091,7 @@
     var next = force === undefined ? !lightsOut : force;
     if (next === lightsOut) return;
     lightsOut = next;
+    if (lightsOut) mothAim();
     document.body.classList.toggle("lights-out", lightsOut);
     // the light back on by hand: a #lights-out address no longer says true
     if (!lightsOut && /^#(lights-out|dark)$/i.test(location.hash)) address(null);
@@ -6111,6 +6112,18 @@
         behavior: REDUCED ? "auto" : "smooth"
       });
     }
+  }
+  /* The moth lands in one place, on the lithophane's moon. The switch
+     stops its loop round the shade wherever it happens to be, and holds
+     it there all night, so the flight is aimed from that point: the trek
+     less the loop's offset at that moment (--mox, --moy on #moth; "none",
+     without motion, is no offset). Read once per throw, not per frame */
+  function mothAim(){
+    var m = document.getElementById("moth"), o = m && m.querySelector(".mOrb");
+    if (!o) return;
+    var t = new DOMMatrixReadOnly(getComputedStyle(o).transform);
+    m.style.setProperty("--mox", n1(t.e) + "px");
+    m.style.setProperty("--moy", n1(t.f) + "px");
   }
   /* it reads as a switch to a screen reader, not as a thing that opens a dialog */
   (function(){
