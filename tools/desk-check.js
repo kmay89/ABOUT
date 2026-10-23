@@ -735,8 +735,35 @@ async function torch(browser) {
   /* Escape: the lamp comes back, and the torch goes out only once the room is lit */
   await page.keyboard.press("Escape"); await page.waitForTimeout(250);
   const s5 = await st(); await page.waitForTimeout(900); const s6 = await st();
-  ok("A14 relit, the torch stays until the lamp has filled the room, then goes", s5.on && !s6.on && !s6.shown && s6.flat !== "none" && !s6.lit && !s6.hush.length,
-    "at .25 s " + s5.on + ", at 1.15 s " + s6.on);
+  ok("A14 relit, the torch stays until the lamp has filled the room, then goes", s5.on && s5.shown && s5.flat === "none" && !s6.on && !s6.shown && s6.flat !== "none" && !s6.lit && !s6.hush.length,
+    "at .25 s torch-on " + s5.on + ", hole " + (s5.shown && s5.flat === "none" ? "open" : "shut") + "; at 1.15 s " + s6.on);
+  await ctx.close();
+  /* the light never leaves the room: reach for the chips, the legend or
+     the margin in the dark, and every far corner is still dark */
+  ({ ctx, page } = await openDesk(browser, { name: "torch edges", width: 1920, height: 1080, dpr: 1 }));
+  await page.evaluate(() => document.querySelector('.iso-obj[data-id="switch"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(1000);
+  for (const [name, sel] of [["a deck chip", "#sndBtn"], ["the legend", ".legend button"], ["the left margin", null]]) {
+    if (sel) await page.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: "center" }), sel);
+    else await alignDesk(page);
+    const pt = await page.evaluate((sel) => { if (!sel) { const r = document.getElementById("iso").getBoundingClientRect(); return { x: Math.max(2, r.left / 2), y: innerHeight / 2 }; }
+      const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    await page.mouse.move(pt.x, pt.y); await page.waitForTimeout(700);
+    const s = await st();
+    /* the room's edges on screen, well away from the light, against the flat dark */
+    const far = await page.evaluate((t) => { const m = document.getElementById("iso").getScreenCTM();
+      return [[-340, 200], [-240, -40], [60, -100], [560, 140], [260, 500]].filter(([x, y]) => Math.hypot(x - t.x, y - t.y) > 350)
+        .map(([x, y]) => new DOMPoint(x, y).matrixTransform(m)).filter((q) => q.x > 4 && q.y > 4 && q.x < innerWidth - 4 && q.y < innerHeight - 4)
+        .map((q) => ({ x: q.x, y: q.y })); }, s);
+    const inside = s.x >= -465 && s.x <= 670 && s.y >= -245 && s.y <= 570;
+    const tl = await lum(far);
+    await page.evaluate(() => document.body.classList.remove("torch-on"));
+    const fl = await lum(far);
+    await page.evaluate(() => document.body.classList.add("torch-on"));
+    const worst = Math.max(0, ...tl.map((v, i) => v - fl[i]));
+    ok("A14 the pointer on " + name + " leaves the light in the room", inside && far.length >= 2 && worst < 4,
+      "torch at " + s.x.toFixed(0) + "," + s.y.toFixed(0) + "; " + far.length + " far edges of the room, at most " + worst.toFixed(1) + " over the flat dark");
+  }
   await ctx.close();
   /* without motion it snaps (it is your hand, not an animation) */
   ({ ctx, page } = await openDesk(browser, { name: "torch reduced", dpr: 1, reduced: true }));
