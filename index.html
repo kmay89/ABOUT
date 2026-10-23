@@ -2310,6 +2310,16 @@
   var mh = P(96,72,20);
   mug += '<path d="M' + mh[0] + ' ' + (mh[1]-8) + ' q 16 2 12 14 q -3 9 -14 8" fill="none" stroke="' + shade("#c8502f",-.18) + '" stroke-width="6" stroke-linecap="round"/>';
   var ms = P(72,72,40);
+  /* The mug says when. The code has called it "est. '89" all along, and
+     the headline says the same year, so it is printed on the side that
+     faces you, in the cream of the steam, small and a little worn (the
+     dishwasher has had thirty-odd years at it). And the coffee takes a
+     crescent of lamplight across its surface: without it a full mug reads
+     as a dark disc, with it, as something that moves when you lift it */
+  mug += txt(-1, 72, "&#8217;89", 9, "#f4e3c8", SERIF + ' text-anchor="middle" font-style="italic" opacity=".82"');
+  var mc = P(72,72,36);                                                  // the coffee's middle
+  mug += '<path d="M' + n1(mc[0]-19.4) + ' ' + n1(mc[1]-1.4) + ' A19.5 9.6 0 0 1 ' + n1(mc[0]+3) + ' ' + n1(mc[1]-9.5) +
+    ' A17 7.6 0 0 0 ' + n1(mc[0]-19.4) + ' ' + n1(mc[1]-1.4) + 'Z" fill="rgba(255,222,165,.5)"/>';
   mug += '<g fill="none" stroke="#f4e9d8" stroke-width="2.5" stroke-linecap="round">' +
     '<path class="steam" d="M' + (ms[0]-8) + " " + ms[1] + " q 4 -8 -1 -14 q -4 -6 1 -12\"/>" +
     '<path class="steam s2" d="M' + (ms[0]+7) + " " + (ms[1]-3) + " q 4 -7 -1 -13 q -4 -6 1 -11\"/></g>";
