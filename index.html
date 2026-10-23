@@ -1505,6 +1505,15 @@
   function gTop(x,y,z,inner,extra){ return '<g transform="' + mTop(x,y,z) + (extra||"") + '">' + inner + "</g>"; }
   function gLeft(x,y,z,inner){ return '<g transform="' + mLeft(x,y,z) + '">' + inner + "</g>"; }
   function gRight(x,y,z,inner){ return '<g transform="' + mRight(x,y,z) + '">' + inner + "</g>"; }
+  /* Most of this desk is matte, and should be: wood, paper, card. The few
+     things that are shiny plastic or glass get the lamp in their top face,
+     a sheen from the corner nearest it, and a hairline of light along the
+     edge that faces it (−x: everything glossy stands to the right of the
+     lamp). Drawn inside the object, so the sheen lifts with it. */
+  function gloss(x,y,z,w,d){
+    return gTop(x,y,z,'<rect width="' + w + '" height="' + d + '" fill="url(#glossT)"/>' +
+      '<path d="M0 0 V' + d + '" stroke="rgba(255,244,224,.45)" stroke-width="1"/>');
+  }
   function shadowW(x,y,w,d,g,op){
     g = g || 7;
     return polyW([[x-g,y-g,0],[x+w+g,y-g,0],[x+w+g,y+d+g,0],[x-g,y+d+g,0]],
@@ -1655,6 +1664,10 @@
       '<stop offset=".45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient>' +
     '<linearGradient id="wallFallB" x1="0" y1="0" x2="1" y2="0">' +
       '<stop offset="0" stop-color="#000" stop-opacity=".4"/><stop offset=".36" stop-color="#000" stop-opacity="0"/></linearGradient>' +
+    // gloss: the lamp seen in a plastic or glass face, brightest at the
+    // corner nearest the lamp and gone a third of the way across
+    '<linearGradient id="glossT" x1="0" y1="0" x2=".6" y2=".9">' +
+      '<stop offset="0" stop-color="#fff" stop-opacity=".20"/><stop offset=".4" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
     // the mouth of the shade, white-hot in the middle where you see the bulb
     '<linearGradient id="bulbMouth" x1="0" y1="0" x2="1" y2="0">' +
       '<stop offset="0" stop-color="#ffb45a"/><stop offset=".5" stop-color="#fff6e4"/><stop offset="1" stop-color="#ffb45a"/></linearGradient>' +
@@ -1961,7 +1974,13 @@
       '<circle cx="92" cy="58" r="1.5" class="led"/>' +
       '<circle cx="142" cy="46" r="1.3" class="led" style="animation-delay:-.9s"/>' +
       '<circle cx="58" cy="48" r="1.2" class="led" style="animation-delay:-1.6s"/></g>' +
+    /* the panes are glass, and glass at night is half mirror: the
+       lamp-lit corner of the desk shows in it where the reflection lands
+       (a wall at y −30 seen along (1,1,1) puts the desk around x 20–60,
+       y 70–110 here), and a second, fainter band of sheen beside the first */
+    '<ellipse cx="97" cy="84" rx="30" ry="15" transform="rotate(-55 97 84)" fill="url(#spill)"/>' +
     '<polygon points="8,0 60,0 22,110 8,110" fill="rgba(255,255,255,.05)"/>' +
+    '<polygon points="70,0 84,0 50,110 36,110" fill="rgba(255,255,255,.035)"/>' +
     '<rect x="108" y="0" width="5" height="110" fill="#5d3a20"/>' +
     '<rect x="-12" y="118" width="244" height="9" fill="#5d3a20" stroke="rgba(20,10,4,.5)"/>';
   S.push(wrapObj("outside","The world outside","#8fd18a",gLeft(40,-30,170,win),"still","window"));
@@ -2063,6 +2082,8 @@
       isoEllipse(52,148,10,13,"#3a3f4a",'stroke="rgba(10,10,14,.5)" stroke-width="1.2"') +
       '<path d="M' + b1[0] + " " + b1[1] + " L" + j1[0] + " " + j1[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
       '<path d="M' + j1[0] + " " + j1[1] + " L" + hd[0] + " " + hd[1] + '" stroke="#2c2f38" stroke-width="5.5" stroke-linecap="round"/>' +
+      // the arm is metal: a bright line down the side that faces the room's light
+      '<path d="M' + b1[0] + " " + b1[1] + " L" + j1[0] + " " + j1[1] + " L" + hd[0] + " " + hd[1] + '" fill="none" stroke="#7a8090" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(-1.2,-1.2)"/>' +
       '<circle cx="' + j1[0] + '" cy="' + j1[1] + '" r="3.6" fill="#454a58"/>' +
       // shade: a cone aimed at the middle of the desk
       '<g transform="translate(' + hd[0] + "," + hd[1] + ') rotate(50)">' +
@@ -2459,6 +2480,7 @@
     '<g class="rx-fence"><circle cx="24" cy="13" r="7.5" fill="none" stroke="#ee6fbb" stroke-width="1.4" stroke-dasharray="2.5 2"/></g>' +
     '<g class="rx-pin"><circle cx="24" cy="13" r="2.4" fill="#ee6fbb"/></g>' +
     '<circle cx="43" cy="13" r="1.8" fill="none" stroke="#3a3a44" stroke-width="1"/>');
+  ph += gloss(252,262,5,46,26);                     // over the glass, where a phone's shine is
   S.push(wrapObj("utap","uTap — the campus app","#ee6fbb",ph));
 
   /* ---------- charm: sticky note (front-left) ---------- */
@@ -2481,7 +2503,8 @@
     var bx = 390 + offs[i], bz = i * 14;
     if (i === 3) series += '<g class="rx-top">';      // the top one slides toward you; see "every object answers"
     series += box(bx,62,bz,108,78,14,bookCols[i]);
-    series += gLeft(bx,140,bz+14,'<rect x="2" y="2.5" width="104" height="8" fill="#efe6cf" opacity=".92" stroke="rgba(26,14,6,.3)"/>');
+    series += gLeft(bx,140,bz+14,'<rect x="2" y="2.5" width="104" height="8" fill="#efe6cf" opacity=".92" stroke="rgba(26,14,6,.3)"/>' +
+      '<path d="M4 4.5 H104 M4 6.5 H104 M4 8.5 H104" stroke="rgba(120,90,50,.28)" stroke-width=".5"/>');   // the edges of the pages, so it reads as paper
   }
   series += gTop(393,62,56,
     txt(54,32,"Everything",15,"#efe8f8",SERIF + ' text-anchor="middle" font-style="italic"') +
@@ -2740,7 +2763,7 @@
   S.push(wrapObj("library","The reading room — a block world on a console","#6cc24a",lib,"still"));
 
   /* ---------- hive: atomic-purple Game Boy ---------- */
-  var gb = box(250,290,0,64,106,11,"#7e63cf");
+  var gb = box(250,290,0,64,106,11,"#7e63cf") + gloss(250,290,11,64,106);
   var hex = function(cx,cy,r,fill){
     var p = [];
     for (var a = 0; a < 6; a++){
@@ -2999,7 +3022,7 @@
   S.push(wrapObj("well","well — a falling-blocks game, lit from far below",WGLOW,well,"still"));
 
   /* ---------- scqcs: alarm keypad ---------- */
-  var kp = box(450,180,0,64,88,13,"#cfc6b4");
+  var kp = box(450,180,0,64,88,13,"#cfc6b4") + gloss(450,180,13,64,88);
   var kpList = [];                                                 // keycaps(): see the board's keyboard
   for (var kr = 0; kr < 4; kr++)
     for (var kc = 0; kc < 3; kc++) kpList.push([9 + kc*16.5, 32 + kr*13.5, 13, 10, kr*3 + kc, kr === 1 && kc === 1]);
@@ -3098,7 +3121,7 @@
     txt(44,33,"KAIROS",8,"#7cd7e8",MONO + ' letter-spacing="1.5"') +
     txt(44,49,"Echoes of Us",9,"#e8f4f7",SERIF + ' font-style="italic"') +
     txt(44,58,"I · II · III",7,"#9db8c2",MONO));
-  jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}); // tray
+  jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}) + gloss(380,288,5,96,89); // tray
   /* The disc. A CD is a diffraction grating wound into a spiral, so what
      you see is not a colour but a bow-tie: two opposite lobes of rainbow
      that swing round the hub as your eye moves. Drawn as a hundred and
@@ -3143,7 +3166,7 @@
      lives in the shadows block, outside the object, so lifting the disk
      leaves the shadow on the wood. */
   var fl = gTop(476,301,0,'<rect width="66" height="66" fill="transparent"/>');
-  fl += box(480,305,0,58,58,5,"#2e3f66");
+  fl += box(480,305,0,58,58,5,"#2e3f66") + gloss(480,305,5,58,58);
   fl += gTop(480,305,5,
     '<rect x="15" y="3" width="28" height="16" rx="1" fill="#9aa1ad" stroke="rgba(20,20,30,.5)"/>' +
     '<rect x="31" y="6" width="8" height="10" fill="#2e3f66"/>' +
