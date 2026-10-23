@@ -457,6 +457,25 @@
      takes its own name and the colour of the thing it is */
   .legend button.secret{--a:var(--ink-faint);color:var(--ink-faint);border-style:dashed;min-width:2.4em}
   .legend button.secret.found{border-style:solid;color:var(--ink)}
+  /* backstage: the commentary is a switch, so on it wears the lamp the way
+     a picked pill wears its world */
+  .legend #commBtn[aria-pressed="true"]{
+    color:var(--room);background:var(--a);border-color:var(--a);
+    box-shadow:0 0 14px color-mix(in srgb, var(--a) 45%, transparent);
+  }
+  /* The director's commentary: numbered notes pinned in the room to what
+     they explain. Off, the layer isn't drawn at all, so it costs nothing.
+     The numerals hold still (no pulsing rings): a room full of things
+     breathing at you is a room you can't read. The hit circle is wider
+     than the disc, and wider again under a finger (set where the notes
+     are built). */
+  #commLayer{display:none}
+  body.commentary #commLayer{display:inline}
+  .cnode{cursor:pointer;outline:none}
+  .cnode:hover .cdisc,.cnode:focus-visible .cdisc{fill:#ffc97a}
+  .cnode:hover text,.cnode:focus-visible text{fill:#0e0a07}
+  .cnode:focus-visible .cfoc{stroke:#ffc97a}
+  .d-links a.d-notes::after{content:" →"}
   .steam{animation:steam 3.6s ease-in-out infinite;transform-origin:center bottom}
   .steam.s2{animation-delay:-1.7s}
   @keyframes steam{
@@ -1624,6 +1643,7 @@
     to.scrollIntoView({ behavior: REDUCED ? "auto" : "smooth", block: "start" });
   });
 
+  /* commentary note 1 — keep in step */
   /* ================================================================
      ISOMETRIC SCENE — classic 2:1 dimetric projection, generated
      programmatically so light, outlines, and perspective stay consistent.
@@ -1641,6 +1661,7 @@
     return '<polygon points="' + cs.map(function(c){ return pj(c[0],c[1],c[2]); }).join(" ") + '" fill="' + fill + '" ' + (extra || OUT) + "/>";
   }
   // A box drawn with its three visible faces: left (y+d), right (x+w), top.
+  /* commentary note 2 — keep in step */
   /* Each face is painted twice: once flat, the way it always was, and once
      more with a shared light ramp laid over it — the lamp is up and to the
      left, so tops brighten toward the back, sides darken toward the desk
@@ -1772,6 +1793,7 @@
     '<radialGradient id="grade" cx=".5" cy=".5" r=".5" fx=".36" fy=".42">' +
       '<stop offset="0" stop-color="#ffb468" stop-opacity=".42"/><stop offset=".35" stop-color="#ff9a52" stop-opacity=".12"/>' +
       '<stop offset=".64" stop-color="#15384a" stop-opacity=".22"/><stop offset="1" stop-color="#15384a" stop-opacity="0"/></radialGradient>' +
+    // commentary note 7 — keep in step
     // textures, grown rather than shipped: turbulence stretched along one
     // axis is wood; left round and slow it is old plaster
     '<filter id="woodTex" filterUnits="userSpaceOnUse" x="0" y="0" width="560" height="380">' +
@@ -2159,6 +2181,7 @@
         '<path d="M330 22 L330 108"/><path d="M296 62 L364 78"/><path d="M300 92 L360 50"/></g></g></g></g>';
   S.push(wrapObj("offhours","Tie-dye — off the clock","#e0a458",gRight(-30,400,190,tee),"still","tee"));
 
+  /* commentary note 11 — keep in step */
   /* ---------- wall B: a lithophane, lit from behind (Luma) ----------
      The one bare stretch of wall left is the far end of wall B, above the
      bike: y 290–398, z 122–196, clear of the back wheel by about fifteen
@@ -2209,6 +2232,7 @@
     '<rect x="16" y="-9" width="16" height="7" fill="rgba(232,220,190,.65)" transform="rotate(-5 24 -6)"/></g>';
   S.push('<g aria-hidden="true">' + gLeft(556,-30,158,pol) + "</g>");
 
+  /* commentary note 5 — keep in step */
   /* ---------- tonight's moon ----------
      The moon in the window is the real one. Its age is the days since a
      known new moon (6 Jan 2000, 18:14 UTC) modulo the synodic month, and
@@ -2413,6 +2437,7 @@
     S.push('<g aria-hidden="true">' + lamp + "</g>");
   })();
 
+  /* commentary note 9 — keep in step */
   /* ---------- the lamp throws them: cast shadows away from the shade ----------
      The shadows below are contact shade, a soft dark straight under each
      thing, which says "it touches the desk" and nothing about the light.
@@ -2710,6 +2735,7 @@
     '<circle cx="' + (pb[0]+22) + '" cy="' + (pb[1]-6) + '" r="1.3"/></g>';
   S.push(wrapObj("offhours","Sourdough — off the clock","#e0a458",boule,"","boule"));
 
+  /* commentary note 13 — keep in step */
   /* ---------- chili: a bowl of it, still steaming ----------
      Front-left, in the gap between Lupita's box, the dominoes and the
      chess board — the one patch of desk still clear enough to put a
@@ -3048,6 +3074,7 @@
   S.push('<g aria-hidden="true">' + shadowW(SDX,SDY,52,88,6,.24) + "</g>");
   S.push(wrapObj("sudoku","The sudoku room — the paper, half worked","#ffc97a",sudoku));
 
+  /* commentary note 12 — keep in step */
   /* ---------- domino: a pile of bones on the desk ----------
      Just dominoes. A stack somebody has squared up, a few loose ones
      face up beside it, and the 6|6 sitting on top of the pile where it
@@ -3105,6 +3132,7 @@
     domino += (crown ? '<g class="rx-crown">' : "") + domBone(DBX + q[0], DBY + q[1], q[2], q[3], q[4], !crown) + (crown ? "</g>" : "");
   }
 
+  /* commentary note 12 — keep in step */
   /* And a few loose beside it, near ones drawn last. They all live to the
      +x side of the stack, and that is not decoration: the desk paints in
      push order and the pile is pushed after the Rubik's cube, so a bone
@@ -3334,6 +3362,7 @@
   }
   well += '<path d="' + wlLoop(WLRO) + wlLoop(WLRI) + '" fill="url(#litT)" fill-rule="evenodd"/>';
 
+  /* commentary note 14 — keep in step */
   /* The inside, clipped to the mouth: eleven courses going down, each
      an equal step deeper than the last. */
   var WRX = WLRI * 1.414, WRY = WLRI * .707, WNR = 11, WPERSP = 5, WEND = 1 / (1 + WPERSP);
@@ -3468,6 +3497,7 @@
   })();
   S.push(wrapObj("mandel","The impossible object — a living fractal","#c77dff",imp,"still"));
 
+  /* commentary note 10 — keep in step */
   /* ---------- prism: a wedge of glass, quietly taking light apart ----------
      A thin white beam comes in from the lamp side, bends, and leaves as a
      spectrum: forty narrow wedges walking the hue wheel from red to violet,
@@ -3522,6 +3552,7 @@
     txt(44,49,"Echoes of Us",9,"#e8f4f7",SERIF + ' font-style="italic"') +
     txt(44,58,"I · II · III",7,"#9db8c2",MONO));
   jc += box(380,288,0,96,89,5,"#aab2b8",{top:shade("#aab2b8",.10)}); // tray (matte: a sheen here would sit under the bow, which is painted again on every pointer move)
+  /* commentary note 15 — keep in step */
   /* The disc. A CD is a diffraction grating wound into a spiral, so what
      you see is not a colour but a bow-tie: two opposite lobes of rainbow
      that swing round the hub as your eye moves. Drawn as a hundred and
@@ -3635,6 +3666,7 @@
     '<g stroke="#8a3a52" stroke-width="1.5" opacity=".6" fill="none"><path d="M5 11 h22"/><path d="M5 17 h16"/><path d="M5 23 h19"/></g>',
     " rotate(-7)") + "</g>");
 
+  /* commentary note 8 — keep in step */
   /* ================================================================
      LIGHTING PASS — everything below is light, not objects. Two sources
      share the room the way they do in any good night scene: a warm key
@@ -3693,18 +3725,21 @@
   S.push('<ellipse cx="102" cy="162" rx="560" ry="400" fill="url(#grade)" aria-hidden="true" ' +
     'style="mix-blend-mode:soft-light;pointer-events:none"/>');
 
+  /* commentary note 3 — keep in step */
   /* ================================================================
      THE LIGHT SWITCH — wall A, at the height a light switch actually
      lives (the desk is 180 units tall, so z 120 is about waist-high on
      the wall behind it). Everything else here is a world you pick up;
      this is the one thing you throw. It turns the room off for real,
      which is the only condition under which the wall has anything to
-     say. Drawn dead last, after the darkness, so it stays findable
-     when nothing else is.
+     say. Drawn after the darkness, the last thing in the room (only
+     the commentary's numbers come later), so it stays findable when
+     nothing else is.
      ================================================================ */
   S.push('<g id="darkness" aria-hidden="true"><rect x="-465" y="-245" width="1135" height="815" fill="rgba(6,4,3,.9)"/></g>');
 
 
+  /* commentary note 5 — keep in step */
   /* Moonlight, cast in the plane it actually lands in: every corner of the
      window is carried along one light direction (a little right, into the
      room, and down) until it hits the desk, so the patch on the desk is
@@ -3730,6 +3765,7 @@
       '</g>');
   })();
 
+  /* commentary note 4 — keep in step */
   /* Lights out, and the meadow outside fills with fireflies: Photinus
      pyralis, the common one, whose male flies low over the grass and
      flashes as he swoops, a dip and then a climb, so each flash draws a
@@ -3779,6 +3815,7 @@
       '<stop offset="1" stop-color="#b8e05a" stop-opacity="0"/></radialGradient></defs>' + s + '</g>');
   })();
 
+  /* commentary note 11 — keep in step */
   /* The well's own light, again, for when the lamp is off. It shares the
      pool and the column the well itself draws (WL_POOL, WL_RISE), and it
      lifts with the well when you point at it, so the two never part.
@@ -3793,6 +3830,7 @@
     gRight(-30,394,190,LITHO_HALO + LITHO.replace(/id="litho(Sky|Water)"/g,'id="lithoN$1"').replace(/url\(#litho(Sky|Water)\)/g,"url(#lithoN$1)")) +
     "</g></g>");
 
+  /* commentary note 4 — keep in step */
   /* A moth at the lamp. Someone's lamp has been on for hours, and a pale
      moth has found it: it loops about the shade, a wandering circuit
      of eight and a half seconds, and once a lap it bumps into the shade
@@ -3855,6 +3893,12 @@
     "</g>" +
     '<rect x="-9" y="-9" width="36" height="48" fill="transparent"/>';          // a hit area worth aiming at
   S.push(wrapObj("switch","A light switch","#ffd166",gLeft(330,-30,135,wallsw),"wallsw"));
+
+  /* The director's commentary goes on last of all, over the switch and
+     over the dark, so its numbers can still be read with the lamp off and
+     nothing in the room can paint over one. It is pushed empty here, to
+     hold its place, and filled in where the notes are written (NOTES). */
+  S.push('<g id="commLayer" role="group" aria-label="Director\'s commentary"></g>');
 
   document.getElementById("iso").innerHTML = S.join("");
 
@@ -4173,6 +4217,109 @@
      nothing here invents an address. */
   var CONTACT = null;
 
+  /* ---------------- the director's commentary: the notes ----------------
+     The room explaining how it was drawn, in numbered notes pinned to the
+     things they describe: the file's own comments, told to a visitor.
+     Every fact in them is one the code here can be checked against, and
+     each comment a note retells carries "commentary note n — keep in
+     step", so whoever changes the one finds the other. [id] is the thing
+     the light falls on, or null when the note is about the room itself
+     (and the light falls on the note); never an id drawn in one year
+     only, so every note works in both. [at] is where the note is pinned,
+     in the room's own x, y, z; [off] moves its number clear of what it
+     points at, in screen units, with a leader back to the pin. They walk
+     the room roughly anticlockwise, from the near corner round the walls
+     to the keyboard. */
+  var NOTES = [
+    {id:null, at:[560,380,0], off:[36,-8],
+     title:"The whole camera is one line",
+     chips:["2:1 dimetric","P(x, y, z)","Painter's algorithm","No depth buffer"],
+     story:"Every point in this room reaches your screen as x − y across and (x + y)/2 − z down, and that's the entire camera — the 2:1 projection the old isometric games used. There's no depth buffer, either. One thing is behind another only because it was drawn first, so the order of the code is the order of the room: move a line and you move a thing through space."},
+    {id:"series", at:[444,62,56], off:[0,-34],
+     title:"A hundred boxes, three gradients",
+     chips:["Two-pass faces","Light ramps","Lamp hairlines"],
+     story:"Every box on this desk is painted twice: once flat, then again with a light ramp over each face. Tops brighten toward the back, sides darken toward the desk they stand on — the contact shadow a flat fill never has — and the two edges facing the room catch a hairline of lamp. The ramps are sized to whatever face they land on, so all of it costs three gradient definitions."},
+    {id:"switch", at:[339,-30,120], off:[0,42],
+     title:"The one thing you throw",
+     chips:["Drawn after the dark","Glow-in-the-dark"],
+     story:"Everything else here is a world you pick up; this one you just flip. It's drawn after the darkness, the last thing in the room, so it stays findable when nothing else is — and its plate has the glow-in-the-dark ring, which is the whole point of buying those. Turn it off and the room is finally dark enough to read the wall."},
+    {id:null, at:[290,-30,110], off:[0,0],
+     title:"Only after dark",
+     chips:["Photinus pyralis","A J in the air","Off while the lamp is on"],
+     story:"Turn the light off and the room gets a night of its own. The meadow fills with fireflies — Photinus pyralis, whose male flashes as he swoops, so each flash draws a little J in the air: eighteen males in two broods, one flash every five or six seconds, and six females in the grass who answer about two seconds late, which is how he knows it's her. The moth that's been circling the lamp leaves for the one light still on, the lithophane, and settles on its moon. And while the lamp is on the fireflies don't run at all: they aren't just dark, they're switched off."},
+    {id:"outside", at:[12,-30,128], off:[0,0],
+     title:"Moonlight, cast",
+     chips:["Projected light","Mullion shadow","Tonight's phase"],
+     story:"Each corner of the window is carried along one light direction — a little right, into the room, and down — until it lands on the desk, so the patch of moonlight is the window's own shape, mullion shadow and all. It's drawn after the darkness, because the moon has never cared about a light switch. And it's tonight's moon: the phase is worked out from today's date, and the moonlight is as strong as the moon is full."},
+    {id:null, at:[10,-30,30], off:[0,0],
+     title:"A lens full of dust",
+     chips:["Three depths","Pre-rendered sprites","Lit by the room"],
+     story:"Three depths of dust, the way a lens sees them: sharp specks in the focal plane, a few big soft discs drifting close to the glass, a haze of tiny ones far back. Near ones move faster, which is all parallax is. Each mote is a pre-rendered sprite, so a disc of any softness costs one drawImage, and it only shows where a light reaches it — warm in the lamp, blue in the moonbeam, and with the lamp off, only the moon. And it sleeps when you can't see it."},
+    {id:null, at:[10,140,0], off:[0,0],
+     title:"Wood that was grown",
+     chips:["No image files","Fractal noise"],
+     story:"There isn't an image file in this room. The grain is noise: fractal turbulence stretched hard along one axis turns into wood, and the same noise left round is the plaster on the walls. Two materials from one filter primitive, and nothing to download."},
+    {id:null, at:[112,152,90], off:[0,-44],
+     title:"Light, not things",
+     chips:["Screen blending","Lens ghosts","Soft-light grade","Key and fill"],
+     story:"Everything drawn after the objects is light rather than stuff: a beam hanging in dusty air, a bloom on the bulb, an anamorphic streak and two lens ghosts — the camera noticing the lamp. All of it is screen-blended, so it can only ever add. Then one soft-light grade pulls the frame together, amber where the lamp reaches and teal where it doesn't: a film set's key and fill, played by a desk lamp and the moon. And the lamp is the key in the other sense too: every shadow on the desk falls away from its shade."},
+    {id:null, at:[118,158,84], off:[-6,26],
+     title:"Every shadow knows where the lamp is",
+     chips:["One point light","Convex hulls","A penumbra in three steps"],
+     story:"Each shadow is its thing's footprint swept away from one point, the mouth of the lamp's shade, and wrapped in a convex hull, so every shadow on the desk fans out from the one lamp. A lamp this close would throw them yards long: the direction is kept honest, because that's what the eye checks, and the length is cheated, because that's what would bury the desk. There's no blur. Three hulls, each shorter and inset a little more than the last, overlap into a dark core that fades in steps toward the tip, and every shadow of the same darkness shares one path."},
+    {id:"prism", at:[100,140,10], off:[0,0],
+     title:"Forty wedges of glass",
+     chips:["Dispersion","Radial mask"],
+     story:"A prism doesn't make a rainbow, it un-mixes one. A thin white beam comes in from the lamp side and leaves as forty narrow wedges walking the hue wheel from red to violet, blurred just enough that neighbours melt the way a real caustic does, and faded out by a radial mask. It leans a few degrees as you move, because a caustic moves when you do — and it stays on the desk when you lift the glass."},
+    {id:"luma", at:[-30,350,78], off:[0,0],
+     title:"Lights the switch can't reach",
+     chips:["Night copies","Drawn after the dark"],
+     story:"The lithophane is lit from behind, so the switch can't put it out: a second copy of its glowing panel is drawn after the darkness and only shows once the lamp is off. The well does the same with its own light. They're the two lamps the room keeps for itself, and the well's copy swells with the well when you point at it, so the two never part."},
+    {id:"domino", at:[40,290,10], off:[-6,-30],
+     title:"Sorted by x + y",
+     chips:["Depth sort","Occlusion budget"],
+     story:"Nearer the viewer means a larger x + y, so the loose bones are sorted by it before they're drawn — that one sort is the entire depth system for this pile. They also all keep to y < 300, because the Rubik's cube was drawn first and its tall top owns the patch of screen just above it."},
+    {id:"chili", at:[127,281,13], off:[-40,-8],
+     title:"Why the chili is exactly there",
+     chips:["Placement by projection"],
+     story:"Where the bowl sits isn't taste. The doll box beside it stands 44 units tall, which lifts its top a long way up the screen, and a bowl set down anywhere inside that lifted footprint would be painted over the box and read as floating in mid-air. This gap clears it by a hair — and clears the lamp's base, a dark disc that would look exactly like a saucer."},
+    {id:"well", at:[354,351,14], off:[-26,34],
+     title:"The only perspective in the room",
+     chips:["1/(1 + 5·depth)","Painted largest first"],
+     story:"A 2:1 projection can't show you down a shaft: anything past two-thirds of the radius drops behind the front lip. So the inside of the well gets the one thing nothing else here has — perspective. Eleven courses of stone, each drawn smaller by 1/(1 + 5·depth), slid toward a vanishing point low in the mouth and painted largest first, so a crescent of every one shows at the back. It's deeper than it could possibly be, on purpose."},
+    {id:"vinyl", at:[428,332,5], off:[-34,48],
+     title:"A rainbow that's really a bow-tie",
+     chips:["Diffraction","cos(2θ)^2.2"],
+     story:"A CD is a diffraction grating wound into a spiral, so what you see on one isn't a colour but a bow-tie: two opposite lobes of rainbow. Here that's a hundred and twenty thin sectors in the plane of the disc, each lobe shaped by cos(2θ) raised to the 2.2. Move the pointer and it swings round the hub, because real diffraction moves with your eye — not with the disc, which is why pointing at the case tips it but never spins it."},
+    {id:null, at:[176,212,10], off:[10,-30],
+     title:"Not one sound file",
+     chips:["Oscillators","Filtered noise","Gesture-gated"],
+     story:"Every tick, clack and chord on this page is synthesized the moment you hear it — oscillators and filtered noise, a few lines each, nothing downloaded. The light switch is a 14-millisecond burst of hiss above 2.8 kHz, a square wave falling from 430 to 170 Hz, and a low thump; the keyboard answers with a key click, the chess board with a piece lifted off the felt. Nothing plays until you've touched the page."}
+  ];
+  /* Their numbers, drawn into the layer the scene left for them, last.
+     A pin and a dashed leader where the number had to be moved off what
+     it explains; the disc reads on the brightest wood and in the dark. */
+  (function(){
+    var big = matchMedia("(pointer:coarse)").matches ? 35 : 18,   // r 18 is about 23 CSS px on a phone; a finger wants 44
+        esc = function(s){ return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); },
+        s = "";
+    NOTES.forEach(function(nt, i){
+      var a = P(nt.at[0], nt.at[1], nt.at[2]), q = [a[0] + nt.off[0], a[1] + nt.off[1]], n = i + 1;
+      if (nt.off[0] || nt.off[1])
+        s += '<g aria-hidden="true" style="pointer-events:none"><line x1="' + n1(a[0]) + '" y1="' + n1(a[1]) + '" x2="' + n1(q[0]) + '" y2="' + n1(q[1]) +
+          '" stroke="#ffc97a" stroke-width=".8" stroke-dasharray="2 2" opacity=".8"/><circle cx="' + n1(a[0]) + '" cy="' + n1(a[1]) + '" r="1.8" fill="#ffc97a"/></g>';
+      s += '<g class="cnode" data-n="' + n + '" tabindex="-1" role="button" aria-label="Note ' + n + ' of ' + NOTES.length + ': ' + esc(nt.title) +
+        '" transform="translate(' + n1(q[0]) + ' ' + n1(q[1]) + ')">' +
+        '<circle class="chit" r="' + big + '" fill="transparent"/>' +
+        '<circle r="12.6" fill="rgba(0,0,0,.3)"/>' +
+        '<circle class="cfoc" r="14.4" fill="none" stroke="none" stroke-width="1.2"/>' +
+        '<circle class="cdisc" r="10.5" fill="rgba(14,10,7,.88)" stroke="#ffc97a" stroke-width="1.2"/>' +
+        txt(0, 3.4, String(n), 9, "#ffc97a", 'text-anchor="middle" ' + MONO) + '</g>';
+    });
+    document.getElementById("commLayer").innerHTML = s;
+  })();
+
+  /* commentary note 16 — keep in step */
   /* ================================================================
      AUDIO — synthesized, created only on an explicit user gesture
      ================================================================ */
@@ -4812,7 +4959,7 @@
       if (!l.sameTab){ a.target = "_blank"; a.rel = "noopener"; }
       links.appendChild(a);
     });
-    if (w.cv) links.appendChild(plainLink());
+    if (w.cv){ links.appendChild(notesLink()); links.appendChild(plainLink()); }
     dossier.scrollTop = 0;   // a sheet swapped in reads from its top
     cancelHide();
     pickObjects(id, 0, dossier);
@@ -4970,14 +5117,6 @@
   var tourCv = document.getElementById("tourCv"), tourHello = document.getElementById("tourHello");
   var tourComm = document.getElementById("tourComm");
   var tourI = -1;                      // the stop on show; -1 when there's no tour
-  /* The finale's "How it's drawn" is the door to the director's
-     commentary, which is built further down the file. Until it exists
-     this is a stub, and the button only puts the tour away; the commentary
-     block replaces it (tourToCommentary = function(){ setCommentary(true); })
-     and the click picks up whatever it is at the time. While it's still
-     the stub the button stays hidden, the way Say hello waits for CONTACT:
-     a door that only closes the card would be a dead one. */
-  var TOUR_NO_COMM = function(){}, tourToCommentary = TOUR_NO_COMM;
   function startTour(){
     if (eraBusy) return;                // the desk sleeps during the era ride
     if (tourI >= 0){ goStop(0); return; }
@@ -5008,7 +5147,7 @@
     tourBack.hidden = tourOpen.hidden = tourNext.hidden = fin;
     tourCv.hidden = !fin || !WORLDS.cv;
     tourHello.hidden = !fin || !CONTACT;
-    tourComm.hidden = !fin || tourToCommentary === TOUR_NO_COMM;
+    tourComm.hidden = !fin;
     tourEnd.textContent = fin ? "Done" : "That's enough, thanks ×";
     if (fin){
       /* the light leaves the last thing and the whole room is the answer:
@@ -5103,12 +5242,130 @@
   tourEnd.addEventListener("click", function(){ endTour(); });
   tourOpen.addEventListener("click", function(){ if (tourI >= 0 && TOUR[tourI]) activate(TOUR[tourI][0]); });
   tourCv.addEventListener("click", function(){ activate("cv"); });
-  tourComm.addEventListener("click", function(){ endTour(); tourToCommentary(); });
+  /* the finale's "How it's drawn": the walk gives way to the commentary's
+     first note, which is the same sheet as any world's (see openNote) */
+  tourComm.addEventListener("click", function(){ ac(true); endTour(true); setCommentary(true); openNote(1); });
   if (CONTACT){
     tourHello.href = CONTACT.href; tourHello.textContent = CONTACT.label;
     if (/^https?:/.test(CONTACT.href)){ tourHello.target = "_blank"; tourHello.rel = "noopener"; }
     tourHello.addEventListener("click", function(){ endTour(true); });
   }
+  /* ---------------- the director's commentary ----------------
+     The room explains how it was drawn: a switch in the legend's back row
+     puts the numbered notes (NOTES) into the room, and a note opens on
+     the same sheet as a world, under the same walker, which in note mode
+     goes round the notes in a loop. A note is read, not found, so it
+     never marks anything found. The switch is remembered from visit to
+     visit, the way the sound is; off is where everyone starts. */
+  var commBtn = document.getElementById("commBtn");
+  var cnodes = document.querySelectorAll("#commLayer .cnode");
+  var commOn = false;
+  function setCommentary(on, quiet){
+    commOn = !!on;
+    document.body.classList.toggle("commentary", commOn);
+    commBtn.setAttribute("aria-pressed", commOn ? "true" : "false");
+    commBtn.textContent = "Director's commentary: " + (commOn ? "on" : "off");
+    /* a tab stop only while it can be seen, after every thing on the desk */
+    [].forEach.call(cnodes, function(c){ c.setAttribute("tabindex", commOn ? "0" : "-1"); });
+    if (!quiet && SOUNDS.hover) SOUNDS.hover();
+    try { localStorage.setItem("km_comm", commOn ? "1" : "0"); } catch(e){}
+  }
+  commBtn.parentNode.hidden = false;
+  commBtn.addEventListener("click", function(){ ac(true); setCommentary(!commOn); });
+  try { if (localStorage.getItem("km_comm") === "1") setCommentary(true, true); } catch(e){}
+  /* openWorld's twin, for a note: the lamp's own amber, the kicker that
+     says whose voice this is, and the light on the thing it explains (or,
+     for a note about the room itself, on the note and its pin) */
+  function openNote(n){
+    if (eraBusy) return;               // the desk sleeps during the era ride
+    var nt = NOTES[n - 1]; if (!nt) return;
+    endTour(true);
+    if (activeModal() && activeModal() !== dossier){ handoff = true; closeModal(); handoff = false; }
+    if (!commOn) setCommentary(true, true);
+    var node = cnodes[n - 1], a = document.activeElement;
+    /* a note swapped in place keeps what opened the first; an address
+       pressed nothing, so the way back is the note's own number */
+    if (!dossier.contains(a)) lastFocus = a && a !== document.body ? a : node;
+    dossier.style.setProperty("--a", "#ffc97a");
+    document.getElementById("dKicker").textContent = "Director's commentary";
+    document.getElementById("dTitle").textContent = nt.title;
+    document.getElementById("dStory").textContent = nt.story;
+    var chips = document.getElementById("dChips");
+    chips.innerHTML = "";
+    nt.chips.forEach(function(c){
+      var li = document.createElement("li"); li.textContent = c; chips.appendChild(li);
+    });
+    document.getElementById("dLinks").innerHTML = "";
+    var oldCv = dossier.querySelector(".cv");
+    if (oldCv) oldCv.remove();
+    dossier.scrollTop = 0;
+    cancelHide();
+    if (nt.id){
+      /* a note is about one thing, so of a world drawn in several places
+         (the window and the garden are both the world outside) only the
+         first on show is lit */
+      pickObjects(nt.id, 0, dossier);
+      pickedEls = pickedEls.filter(function(el){ return el === aimedEl || !el.classList.remove("picked"); });
+    } else {
+      /* the light takes in the number and the pin it was moved off */
+      clearPicked();
+      var c = frameObject(node, dossier), k = isoEl.getScreenCTM().a;
+      spotAt({x: c.x - nt.off[0] * k / 2, y: c.y - nt.off[1] * k / 2},
+        70 + Math.hypot(nt.off[0], nt.off[1]) * k / 2);
+    }
+    setActivePill(null);
+    address("notes-" + n);
+    shareReset();
+    WALK.mode = "note"; WALK.id = n; WALK.go = noteStep;
+    walkShow(n - 1, NOTES.length, true, "← Previous note", "Next note →");
+    setBackgroundInert(true);
+    scrim.hidden = false; dossier.hidden = false;
+    requestAnimationFrame(function(){
+      scrim.classList.add("show"); dossier.classList.add("show");
+    });
+    document.getElementById("dClose").focus();
+  }
+  /* a page turn to note n, on a sheet that's already open (the walker,
+     and the one-page version's "How this room is drawn") */
+  function noteTurn(n){
+    ac(true);
+    if (SOUNDS.tourStep) SOUNDS.tourStep();
+    openNote(n);
+    dShareMsg.textContent = NOTES[n - 1].title + ", " + dPos.textContent;
+    dossier.classList.remove("swap");
+    void dossier.offsetWidth;            // so a second page turn plays again
+    dossier.classList.add("swap");
+  }
+  function noteStep(d){
+    var N = NOTES.length;
+    noteTurn(((WALK.id - 1 + d) % N + N) % N + 1);
+  }
+  /* the one-page version's way backstage */
+  function notesLink(){
+    var a = document.createElement("a");
+    a.className = "d-notes"; a.href = "#notes-1";
+    a.textContent = "How this room is drawn";
+    a.addEventListener("click", function(e){ e.preventDefault(); ac(true); setCommentary(true, true); noteTurn(1); });
+    return a;
+  }
+  /* a number in the room is a button, like the things it explains: its
+     title on hover or focus, its note on a click, Enter or Space. The
+     pointer gets the room's plain tick; the keyboard stays silent. */
+  [].forEach.call(cnodes, function(c){
+    var n = +c.dataset.n, title = NOTES[n - 1].title;
+    c.addEventListener("pointerenter", function(){ hoverVoice(c); showTip(c, "#ffc97a", title); });
+    c.addEventListener("pointerleave", hideTip);
+    c.addEventListener("focus", function(){ showTip(c, "#ffc97a", title); });
+    c.addEventListener("blur", hideTip);
+    c.addEventListener("click", function(){ ac(true); hideTip(); openNote(n); });
+    c.addEventListener("keydown", function(e){
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        c.dispatchEvent(new MouseEvent("click", {bubbles:true, cancelable:true}));
+      }
+    });
+  });
+
   /* ---------------- the built-in browser ---------------- */
   var browser = document.getElementById("browser");
   var SITES = [
@@ -6662,6 +6919,7 @@
       cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     resize(); addEventListener("resize", resize);
+    /* commentary note 6 — keep in step */
     /* Three depths of dust, like a lens focused on the desk: sharp specks
        in the focal plane, a few big soft discs drifting close to the glass
        (out of focus, so they're barely there), and a haze of tiny ones far
@@ -6786,8 +7044,8 @@
      nobody followed one to watch Windows 95 boot. The stages and the secret
      cube go through their own doors; #web is 2026's, so it lands there
      first. Anything else after the # (the skip link's #iso, an old anchor)
-     is left alone. #tour starts the walk; the commentary hooks in here
-     when it exists, and until then its address lands on the plain desk. */
+     is left alone. #tour starts the walk; #notes turns the director's
+     commentary on, and #notes-7 opens its seventh note. */
   var SPECIAL = {
     web: function(){ eraLand(true); openBrowser(); },
     cube: openCubeGame, mandel: openMandel, prism: openLight,
@@ -6806,10 +7064,8 @@
     if (h === "1999"){ eraLand(false); return; }
     var m = /^notes?(?:-(\d{1,2}))?$/.exec(h);
     if (m){
-      if (typeof setCommentary === "function"){
-        setCommentary(true);
-        if (m[1]) openNote(Math.min(NOTES.length, Math.max(1, +m[1])));
-      }
+      setCommentary(true, true);
+      if (m[1]) openNote(Math.min(NOTES.length, Math.max(1, +m[1])));
       return;
     }
     var own = function(o){ return Object.prototype.hasOwnProperty.call(o, h); };   // #constructor is not a world
