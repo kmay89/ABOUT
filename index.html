@@ -1279,23 +1279,24 @@
     @keyframes lean{30%{transform:skewX(16deg)}62%{transform:skewX(5deg)}}
     .teeSwing.gust{animation:teeSwing 4.2s ease-in-out}
     .lean.gust{animation:lean 4.2s ease-in-out .35s}
-    /* the moth's life at the lamp: two loops (2.9 s across, 7.3 s up and
-       down with the bump into the shade at 86 %), and wings at 2.5 beats
-       a second. The switch pauses the loops where they are, and it flies:
+    /* the moth's life at the lamp: one loop of 8.7 s round the shade,
+       never the same way twice in a lap, with the bump into the shade at
+       87 % (one loop, not two crossed ones: each loop is a layer the room
+       paints every frame), and wings at 2.5 beats a second. The switch pauses the loops where they are, and it flies:
        across slow-fast-slow, and up past the moon and back down onto it
        (an overshoot on the Y wrapper), flapping all the way (18 beats is
        3.6 s), then resting, its wings opening and closing slowly. These
        are class-weight rules (the sleep gate and the sheet gate win) */
-    @keyframes mOrbX{from{transform:translateX(-13px)}to{transform:translateX(15px)}}
-    @keyframes mOrbY{0%,100%{transform:translateY(-6px)}25%{transform:translateY(6px)}50%{transform:translateY(-9px)}
-      72%{transform:translateY(2px)}82%{transform:translateY(-3px)}86%{transform:translateY(15px)}88.5%{transform:translateY(8px)}
-      91%{transform:translateY(12px)}95%{transform:translateY(-2px)}}
+    @keyframes mOrb{
+      0%,100%{transform:translate(-12px,-5px)} 14%{transform:translate(7px,-9px)} 28%{transform:translate(15px,2px)}
+      42%{transform:translate(2px,7px)} 56%{transform:translate(-13px,-1px)} 67%{transform:translate(-4px,-9px)}
+      78%{transform:translate(10px,-3px)} 84%{transform:translate(12px,0)} 87%{transform:translate(9px,15px)}
+      89.5%{transform:translate(7px,8px)} 92%{transform:translate(9px,12px)} 96%{transform:translate(-2px,-1px)}}
     @keyframes mFlap{to{transform:scaleX(.4)}}
     @keyframes mRest{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.62)}}
-    .mOrbX{animation:mOrbX 2.9s ease-in-out infinite alternate}
-    .mOrbY{animation:mOrbY 7.3s ease-in-out infinite}
+    .mOrb{animation:mOrb 8.7s ease-in-out infinite}
     .mw{animation:mFlap .2s linear infinite alternate}
-    body.lights-out .mOrbX,body.lights-out .mOrbY{animation-play-state:paused}
+    body.lights-out .mOrb{animation-play-state:paused}
     body.lights-out .mw{animation:mFlap .2s linear 18 alternate,mRest 2.6s ease-in-out 3.6s infinite}
     .mTrekX{transition:transform 3.6s cubic-bezier(.45,.05,.4,1)}
     .mTrekY{transition:transform 3.6s cubic-bezier(.3,1.7,.5,1)}
@@ -3716,10 +3717,9 @@
     "</g></g>");
 
   /* A moth at the lamp. Someone's lamp has been on for hours, and a pale
-     moth has found it: it loops about the shade (two loops of different
-     lengths, 2.9 s across and 7.3 s up and down, so its path never quite
-     repeats) and every seven seconds or so it bumps into the shade and
-     reels off it. Its wings beat two and a half times a second, under the
+     moth has found it: it loops about the shade, a wandering circuit
+     of eight and a half seconds, and once a lap it bumps into the shade
+     and reels off it. Its wings beat two and a half times a second, under the
      3 Hz line, which is slow for a moth and right for a drawing of one.
      Throw the switch and it leaves for the one light still on, the
      lithophane, and settles over the picture's moon: the flight is two
@@ -3749,7 +3749,7 @@
       '<ellipse rx=".95" ry="2.8" cy=".6" fill="#6b5638"/>' +
       '<path d="M-.3 -2 q-1 -1.6 -2.2 -2 M.3 -2 q1 -1.6 2.2 -2" fill="none" stroke="#5a4730" stroke-width=".35"/>';
     S.push('<g id="moth" aria-hidden="true" style="pointer-events:none"><g transform="translate(' + n1(ax) + ' ' + n1(ay) + ')">' +
-      '<g class="mTrekX"><g class="mTrekY"><g class="mOrbX"><g class="mOrbY"><g class="mPose">' + MOTH + '</g></g></g></g></g></g></g>');
+      '<g class="mTrekX"><g class="mTrekY"><g class="mOrb"><g class="mPose">' + MOTH + '</g></g></g></g></g></g>');
   })();
 
   /* what the dark writes on the wall, in the plane of the wall itself */
