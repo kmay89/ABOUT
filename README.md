@@ -53,7 +53,11 @@ clearances, first-layer, top-surface, ironing, wall and seam settings
 that make a print accurate and good to look at; and
 [Cameo](https://kmay89.com/cameo/) — a photo figurine studio: a photo of
 the dog becomes a relief figurine on a pedestal, cut out and given depth
-by models that run in the browser, printed flat with no supports.
+by models that run in the browser, printed flat with no supports; and
+[Knurl](https://kmay89.com/knurl/) — a surface texture studio: any STL
+gets a knurl, hexagons, flutes, scales or wood grain cut into its walls,
+shaped so it prints with no supports, and its first layer painted in a
+second colour from a pattern, text or a logo, all in one Bambu Studio file.
 
 **Live:** <https://kmay89.com>
 
@@ -211,7 +215,7 @@ by models that run in the browser, printed flat with no supports.
   the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
   `npm run check:hollow` runs its suites.
 - `workshop/` — the workshop: one page listing the 3D printer tools (Luma,
-  Hollow, Cubby, Swatch and Cameo), reached from the desk by the scratch-built
+  Hollow, Cubby, Swatch, Cameo and Knurl), reached from the desk by the scratch-built
   printer on the side table;
 - `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
   becomes a grid that fills it exactly; bins cover whole cells, can be
@@ -246,7 +250,19 @@ by models that run in the browser, printed flat with no supports.
   closed solids, placed in one 3MF with per-object settings and the sparse
   Bambu project config. A relief, not a sculpture in the round: that is
   what a static page can honestly do. Notes in `cameo/README.md`;
-  `npm run check:cameo` runs its suites.
+  `npm run check:cameo` runs its suites; and
+- `knurl/` — Knurl, a surface texture studio. An STL or OBJ is welded,
+  its faces sorted into walls, tops, undersides and the bottom, the chosen
+  faces subdivided to a fine, watertight mesh and displaced along their
+  normals by a procedural height field (knurl, hex, flutes, ripples,
+  scales, leather, peel, wood, brick, dots) with a flat or around-the-axis
+  mapping whose period closes the seam. The relief is cut in by default,
+  fades to nothing at the texture's edges and stays clear of the plate, and
+  a readout gives the steepest real overhang it made. The bottom face is
+  rasterised and a second-colour inlay (a pattern, a border, text or an
+  image) is meshed as a closed solid two layers tall, exported as a second
+  part on extruder 2 in the same object so Bambu Studio clips it out of the
+  body. Notes in `knurl/README.md`; `npm run check:knurl` runs its suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
