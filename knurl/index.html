@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="Give a 3D printed part a beautiful surface texture that still prints easily — knurl, honeycomb, flutes, leather, orange peel, wood grain — cut into the surface so the part still fits; and a two-colour first layer with a pattern, text or logo for almost no extra filament. Free, private, in your browser.">
+  <title>Knurl — Surface Texture Studio · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/knurl/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Knurl — Surface Texture Studio">
+  <meta property="og:description" content="Textures that make a print interesting and still print easily, and a two-colour first layer for nearly nothing. Drop in an STL, get a 3MF back.">
+  <meta property="og:url" content="https://kmay89.com/knurl/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Knurl, Surface Texture Studio home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M4 12l8-8 8 8 8-8 8 8M4 20l8-8 8 8 8-8 8 8M4 28l8-8 8 8 8-8 8 8M4 36l8-8 8 8 8-8 8 8"/></svg>
+      <span class="brand-name">Knurl<span class="brand-description">SURFACE TEXTURE STUDIO</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Studio help">
+      <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <a class="desk-link" href="/workshop/">The workshop</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>The guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> A PLAIN PART IN. A BEAUTIFUL ONE OUT.</p>
+        <h1 id="pageTitle">Texture that prints,<br>on <em>any</em> part.</h1>
+      </div>
+      <div class="intro-note">
+        <p>Drop in an STL. Pick a knurl, a honeycomb, flutes, leather, orange peel. It is cut <em>into</em> the surface, so the part still fits where it did and nothing overhangs; a readout says how steep it got. Then give the first layer a second colour — a pattern, a name, a logo — for a few grams of filament. One 3MF back, two parts on two filaments.</p>
+        <span class="intro-steps">STL <span>→</span> Texture <span>→</span> First-layer colour <span>→</span> Print</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="stage-pane" aria-label="The part">
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <span class="stage-label" id="stageLabel">Drop an STL here, or try a sample</span>
+            <div class="stage-actions">
+              <button id="viewBelowBtn" class="icon-button stage-reset" type="button" title="Look at the bottom" aria-label="Look at the bottom"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13m0 0 5-5m-5 5-5-5M4 21h16"/></svg></button>
+              <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+            </div>
+          </div>
+          <div id="viewer" class="viewer drop" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom.">
+            <div class="viewer-empty" id="viewerEmpty">
+              <p><strong>Drop an STL or OBJ</strong> or</p>
+              <label class="button button-primary"><input id="fileInput" type="file" accept=".stl,.obj,model/stl,application/sla" hidden>Choose a file</label>
+              <div class="chips" id="sampleChips" role="group" aria-label="Sample parts"></div>
+              <p class="help">Millimetres, Z up, as your slicer would see it. The part never leaves this page.</p>
+            </div>
+            <p id="viewerFallback" class="viewer-fallback" hidden>3D preview needs WebGL, which this browser has turned off. The downloads still work.</p>
+          </div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Waiting for a part</span>
+            <span class="orbit-hint">Drag to orbit · scroll to zoom</span>
+          </div>
+        </div>
+        <section class="card readout" aria-labelledby="readTitle">
+          <div class="card-head"><span class="step">✓</span><h2 id="readTitle">Will it print?</h2></div>
+          <div class="read-grid" id="readGrid"></div>
+          <p class="help" id="readNote">Load a part to see.</p>
+        </section>
+      </section>
+
+      <aside class="panel" aria-label="Texture controls">
+        <section class="card" aria-labelledby="texTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="texTitle">The texture</h2></div>
+          <div class="chips" id="textureChips" role="group" aria-label="Texture"></div>
+          <p class="help" id="textureBlurb"></p>
+          <div class="field-grid">
+            <div class="field"><label for="periodInput">Repeat</label><input id="periodInput" type="number" inputmode="decimal" min="0.6" max="40" step="0.1"><span class="unit">mm</span></div>
+            <div class="field"><label for="depthInput">Depth</label><input id="depthInput" type="number" inputmode="decimal" min="0" max="3" step="0.05"><span class="unit">mm</span></div>
+            <div class="field"><label for="angleInput">Turn</label><input id="angleInput" type="number" inputmode="decimal" min="0" max="180" step="5" value="0"><span class="unit">°</span></div>
+          </div>
+          <div class="field-grid" id="knobGrid"></div>
+          <div class="segmented" role="group" aria-label="Cut in or raise out">
+            <button id="dirIn" type="button" aria-pressed="true" title="Valleys recede into the part; the outside stays where it was">Cut in</button>
+            <button id="dirOut" type="button" aria-pressed="false" title="Peaks stand proud of the original surface">Raise out</button>
+          </div>
+          <p class="help small">Cut in keeps every outside dimension: a lid still fits, a hole still takes its pin. Raise out grows the part by the depth.</p>
+        </section>
+
+        <section class="card" aria-labelledby="whereTitle">
+          <div class="card-head"><span class="step">2</span><h2 id="whereTitle">Where</h2></div>
+          <div class="chips" id="whereChips" role="group" aria-label="Which faces"></div>
+          <p class="help" id="whereBlurb"></p>
+          <div class="field-grid">
+            <div class="field"><label for="bottomClearInput">Clear of plate</label><input id="bottomClearInput" type="number" inputmode="decimal" min="0" max="10" step="0.2" value="1.2"><span class="unit">mm</span></div>
+            <div class="field"><label for="edgeFadeInput">Fade at edges</label><input id="edgeFadeInput" type="number" inputmode="decimal" min="0" max="5" step="0.25" value="1"><span class="unit">mm</span></div>
+            <div class="field"><label for="mappingSelect">Wrap</label><select id="mappingSelect"><option value="auto">Auto</option><option value="flat">Flat faces</option><option value="around">Around the axis</option></select></div>
+          </div>
+          <label class="toggle"><input id="insideToggle" type="checkbox"><span>Texture inside walls too<small>The inside of a cup or box. Off keeps them smooth.</small></span></label>
+          <label class="toggle"><input id="fineToggle" type="checkbox"><span>Fine mesh<small>Twice the triangles for small repeats; slower, bigger file.</small></span></label>
+        </section>
+
+        <section class="card" aria-labelledby="inlayTitle">
+          <div class="card-head"><span class="step">3</span><h2 id="inlayTitle">First layer, second colour</h2></div>
+          <p class="help">The bottom face gets a pattern, text or a picture in a second filament, one or two layers thick. It is a second part of the same object on filament 2; the slicer clips it into the body. Two colour changes a layer, a few grams at most.</p>
+          <div class="chips" id="inlayChips" role="group" aria-label="First-layer pattern"></div>
+          <div class="field-grid" id="inlayFields">
+            <div class="field"><label for="inlayPeriodInput">Repeat</label><input id="inlayPeriodInput" type="number" inputmode="decimal" min="1" max="60" step="0.5" value="6"><span class="unit">mm</span></div>
+            <div class="field"><label for="inlayWeightInput">Weight</label><input id="inlayWeightInput" type="number" inputmode="decimal" min="0.05" max="0.95" step="0.05" value="0.35"><span class="unit">×</span></div>
+            <div class="field"><label for="inlayAngleInput">Turn</label><input id="inlayAngleInput" type="number" inputmode="decimal" min="0" max="180" step="5" value="0"><span class="unit">°</span></div>
+            <div class="field"><label for="inlayLayersInput">Layers</label><input id="inlayLayersInput" type="number" inputmode="numeric" min="1" max="4" step="1" value="2"><span class="unit">×0.2</span></div>
+            <div class="field"><label for="inlayMarginInput">Edge margin</label><input id="inlayMarginInput" type="number" inputmode="decimal" min="0" max="10" step="0.2" value="1"><span class="unit">mm</span></div>
+            <div class="field"><label for="inlayColour">Colour</label><input id="inlayColour" type="color" value="#2b2b2b"></div>
+          </div>
+          <div class="field wide" id="textField" hidden><label for="inlayText">Text</label><input id="inlayText" type="text" maxlength="40" placeholder="Made by Karl · 2026"><span class="help small">Set in a bold sans serif, as big as the bottom allows; mirrored so it reads from underneath.</span></div>
+          <div class="field wide" id="imageField" hidden><label for="inlayImage">Picture</label><input id="inlayImage" type="file" accept="image/*"><span class="help small">Dark parts of the picture become the second colour. A logo on white works best.</span></div>
+          <label class="toggle"><input id="mirrorToggle" type="checkbox" checked><span>Reads right from underneath<small>Mirrored in the file, since the bottom is seen flipped.</small></span></label>
+          <p class="help" id="inlayStatus"></p>
+        </section>
+
+        <section class="card" aria-labelledby="printTitle">
+          <div class="card-head"><span class="step">4</span><h2 id="printTitle">Print</h2></div>
+          <div class="two-fields">
+            <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+            <div class="field wide" id="bedField"><label for="bedSelect">Plate</label><select id="bedSelect"></select></div>
+          </div>
+          <div class="field wide"><label for="bodyColour">Body colour (for the preview and the file)</label><input id="bodyColour" type="color" value="#f0ece2"></div>
+          <p class="totals" id="totalsLine">Nothing to print yet.</p>
+          <div class="warnings" id="warnings" role="status"></div>
+          <div class="downloads">
+            <button id="download3mf" class="button button-primary" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — one object, body on filament 1, inlay on filament 2</small></span></button>
+            <button id="downloadBody" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Textured part STL</span></button>
+            <button id="downloadInlay" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Inlay STL</span></button>
+          </div>
+          <p class="help open-note" id="profileNote"></p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="guide" class="guide" aria-labelledby="guideTitle">
+    <div class="guide-inner">
+      <div class="guide-head">
+        <h2 id="guideTitle">The guide</h2>
+        <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <h3>Why textures print well here</h3>
+      <p>A texture is a height over the surface, between 0 and 1. Cut in, 1 is the original surface and 0 is the full depth below it, so nothing grows and the part still fits; raise out does the opposite. The surface is divided into triangles about half a millimetre across, each new vertex is moved along the face it belongs to, and the texture fades to nothing over the last millimetre before any face it does not cover, and before the plate, so edges stay crisp and the first layer stays clean. Faces that touch the plate are never textured.</p>
+      <h3>The readout</h3>
+      <p>On a wall, what matters is slope in the vertical direction: a surface that leans outward going up is an overhang. The readout gives the steepest one on the part, ignoring the slivers subdivision leaves behind, and the area steeper than 50°. Under 45° prints cleanly on any printer; up to 60° with cooling; above that, pick a gentler texture, a longer repeat or a shallower depth. Flutes, ripples, orange peel and leather are the safest; knurl, honeycomb and brick have crisp grooves and want a longer repeat on a wall.</p>
+      <h3>Wrap</h3>
+      <p>Flat faces take the texture by the two world axes along them; a round part takes it around its axis, with the repeat nudged so a whole number fits and the seam closes. Auto picks by how many walls face outward from the axis.</p>
+      <h3>The first layer</h3>
+      <p>The bottom face is rasterised at a quarter millimetre, the pattern laid over it a margin inside the edge, and the cells where both hold become a thin solid one or two layers tall. In the 3MF it is a second part of the same object on filament 2; Bambu Studio clips a later part out of an earlier one where they overlap, so the body loses nothing but those cells, and the slicer changes colour twice per layer for one or two layers. Text is set in the browser’s bold sans serif and mirrored so it reads from below. After opening, check the filament list shows two filaments and that the inlay part is on the second; drag it to another if you like.</p>
+      <h3>Printing</h3>
+      <p>Open the 3MF as a project. Print as placed; textured walls like a little extra cooling and a slower outer wall, and benefit from the <a href="/swatch/#walls">walls test</a> in Swatch. On a textured plate the body’s bottom is matte and the inlay sits flush.</p>
+      <p class="guide-foot">Knurl runs entirely in your browser; nothing is uploaded. Bambu Lab and Bambu Studio are trademarks of their owner; Knurl is an independent tool.</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="page-width site-footer">
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/workshop/">The workshop</a>
+      <a href="/cameo/">Cameo — photo figurines</a>
+      <a href="/swatch/">Swatch — surface tests</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/hollow/">Hollow — molds</a>
+      <a href="/cubby/">Cubby — drawer organizers</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/legal/">Legal</a>
+      <a href="https://github.com/kmay89/ABOUT/tree/main/knurl">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
