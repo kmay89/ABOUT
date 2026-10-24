@@ -210,10 +210,19 @@ h1 em { color: #957332; font-weight: 400; }
 
 /* looks, swatch, picking, stamps, bands */
 .eyebrow-small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #7a7366); margin: 2px 0 6px; }
-.chips.looks .chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; text-align: left; border-radius: 12px; }
-.chips.looks .chip small { font-size: 11px; opacity: .72; font-weight: 400; }
-.texture-row { display: flex; gap: 12px; align-items: flex-start; }
-.texture-row .chips { flex: 1; min-width: 0; }
+.chips.looks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.chips.looks .chip { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; text-align: left; border-radius: 12px; min-width: 0; }
+.chips.looks .chip canvas { width: 52px; height: 52px; border-radius: 9px; flex: none; }
+.chips.looks .chip .tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.chips.looks .chip .tx > span { font-weight: 600; }
+.chips.looks .chip small { font-size: 11px; opacity: .72; font-weight: 400; line-height: 1.3; }
+.chips.tiles, #textureChips, #inlayChips { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 8px; width: 100%; }
+.chip.tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 5px 4px 7px; border-radius: 12px; font-size: 11px; line-height: 1.15; text-align: center; min-width: 0; }
+.chip.tile canvas { width: 56px; height: 56px; border-radius: 9px; display: block; }
+.chip.tile span { display: block; max-width: 100%; }
+.chip.tile[aria-pressed="true"] canvas { box-shadow: 0 0 0 2px #e8ae39; }
+.swatch-row { display: flex; gap: 14px; align-items: center; margin: 12px 0 4px; }
+.swatch-row .help { margin: 0; flex: 1; min-width: 0; }
 .swatch { flex: none; width: 132px; height: 132px; border-radius: 12px; border: 1px solid var(--line, #e2ddd1); background: #ddd; image-rendering: auto; }
 .stamp-fields { display: grid; gap: 10px; margin-top: 10px; }
 .pick-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; margin: 6px 0 10px; border-radius: 10px; background: rgba(232,174,57,.12); border: 1px solid rgba(232,174,57,.4); }
@@ -224,4 +233,12 @@ h1 em { color: #957332; font-weight: 400; }
 #shareBtn { margin-top: 12px; width: 100%; justify-content: center; }
 .icon-button[aria-pressed="true"] { background: #e8ae39; color: #1b1a17; border-color: #e8ae39; }
 .viewer.picking { cursor: crosshair; }
-@media (max-width: 520px) { .texture-row { flex-direction: column; } .swatch { width: 100%; height: 110px; } .pick-bar { flex-direction: column; align-items: flex-start; } }
+.more-looks { margin: 8px 0 14px; width: 100%; justify-content: center; }
+@media (max-width: 520px) {
+  .swatch { width: 96px; height: 96px; } .pick-bar { flex-direction: column; align-items: flex-start; }
+  .chips.looks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .chips.looks .chip { flex-direction: column; align-items: center; padding: 5px 4px 7px; text-align: center; gap: 5px; }
+  .chips.looks .chip canvas { width: 100%; height: auto; aspect-ratio: 1; }
+  .chips.looks .chip .tx > span { font-size: 11px; font-weight: 500; line-height: 1.15; }
+  .chips.looks .chip small { display: none; }
+}

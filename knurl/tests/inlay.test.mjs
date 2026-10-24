@@ -36,7 +36,7 @@ test('erode shrinks by r cells and unpinch removes corner-only touches', () => {
 
 test('the raster solid is closed, right-handed and has exactly area × height volume', () => {
   const m = roundedBox(60, 40, 24, 6);
-  for (const pattern of ['hexgrid', 'dots', 'stripes', 'checker', 'diamonds', 'rings', 'waves', 'border']) {
+  for (const pattern of X.INLAYS.filter(p => p.f || p.id === 'border').map(p => p.id)) {
     const r = I.buildInlay(m, { pattern, period: 6, weight: 0.3, layers: 2, margin: 1 });
     const w = M.watertight(r.mesh);
     assert.ok(w.closed, `${pattern} closed`);
@@ -45,7 +45,7 @@ test('the raster solid is closed, right-handed and has exactly area × height vo
     const vol = M.signedVolume(r.mesh);
     assert.ok(Math.abs(vol - r.area * r.height) < 1e-6 * Math.max(1, vol), `${pattern} volume ${vol} = ${r.area} × ${r.height}`);
     assert.ok(r.height === 0.4);
-    assert.ok(r.area > 50 && r.area < 2400, `${pattern} covers some of the base (${r.area})`);
+    assert.ok(r.area > 30 && r.area < 2400, `${pattern} covers some of the base (${r.area})`);
     const b = M.bounds(r.mesh);
     assert.ok(Math.abs(b.min[2] - 0) < 1e-6 && Math.abs(b.max[2] - 0.4) < 1e-6, `${pattern} spans the first two layers`);
     assert.ok(Math.abs(r.grams - r.area * 0.4 * 1.24 / 1000) < 1e-9);

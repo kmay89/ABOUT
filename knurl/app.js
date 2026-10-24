@@ -13,10 +13,11 @@ import { PRINTERS, threeMF } from './export.js';
 import { LOOKS, lookById } from './looks.js';
 import { encodeSettings, decodeSettings } from './settings.js';
 import { PartPreview } from './preview.js';
+import { shadeTile, patternTile, rgb } from './swatch.js';
 
 const $ = id => document.getElementById(id);
 const ids = ['printerSelect', 'printerSelect2', 'bedField', 'bedSelect', 'guideBtn', 'guide', 'guideClose', 'stageLabel', 'viewBelowBtn', 'resetViewBtn', 'heatBtn', 'originalBtn', 'viewer', 'viewerEmpty', 'viewerFallback', 'viewerStatus', 'fileInput', 'sampleChips', 'readGrid', 'readNote', 'tuneBtn',
-  'lookChips', 'textureChips', 'swatch', 'textureBlurb', 'periodInput', 'depthInput', 'angleInput', 'knobGrid', 'dirIn', 'dirOut', 'stampField', 'stampText', 'stampImage', 'stampOnce', 'stampTile',
+  'lookChips', 'moreLooksBtn', 'textureChips', 'swatch', 'textureBlurb', 'periodInput', 'depthInput', 'angleInput', 'knobGrid', 'dirIn', 'dirOut', 'stampField', 'stampText', 'stampImage', 'stampOnce', 'stampTile',
   'whereChips', 'whereBlurb', 'pickBar', 'pickCount', 'clearPicksBtn', 'bottomClearInput', 'edgeFadeInput', 'mappingSelect', 'bandFromInput', 'bandToInput', 'rampSelect', 'insideToggle', 'draftToggle', 'fineToggle',
   'inlayChips', 'inlayFields', 'inlayPeriodInput', 'inlayWeightInput', 'inlayAngleInput', 'inlayLayersInput', 'inlayMarginInput', 'inlayColour', 'textField', 'inlayText', 'imageField', 'inlayImage', 'mirrorToggle', 'inlayStatus',
   'bodyColour', 'totalsLine', 'warnings', 'download3mf', 'downloadBody', 'downloadInlay', 'profileNote', 'shareBtn', 'toast'];
@@ -94,21 +95,67 @@ for (const s of SAMPLES) {
 
 /* ---------- looks ---------- */
 
+/** A shaded tile of a texture into a small canvas (for the chips). */
+function tileCanvas(size, h, { span, depth, out = false } = {}) {
+  const c = document.createElement('canvas'); c.width = c.height = size; c.setAttribute('aria-hidden', 'true');
+  const ctx = c.getContext('2d'); if (!ctx) return c;
+  const img = ctx.createImageData(size, size);
+  shadeTile(img.data, size, size, h, { span, depth, out, colour: rgb(els.bodyColour.value) });
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+function textureTile(size, t, { period = t.defaults.period, depth = t.defaults.depth, knobs = {}, out = false } = {}) {
+  if (t.id === 'stamp') {
+    const c = document.createElement('canvas'); c.width = c.height = size; c.setAttribute('aria-hidden', 'true');
+    const ctx = c.getContext('2d'); if (!ctx) return c;
+    const [r, g, b] = rgb(els.bodyColour.value);
+    ctx.fillStyle = `rgb(${r * 0.82 | 0},${g * 0.82 | 0},${b * 0.82 | 0})`; ctx.fillRect(0, 0, size, size);
+    ctx.font = `700 ${size * 0.5}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgb(${r * 0.5 | 0},${g * 0.5 | 0},${b * 0.5 | 0})`; ctx.fillText('Aa', size / 2 + 1, size / 2 + 2);
+    ctx.fillStyle = `rgb(${Math.min(255, r * 1.05) | 0},${Math.min(255, g * 1.05) | 0},${Math.min(255, b * 1.05) | 0})`; ctx.fillText('Aa', size / 2, size / 2);
+    return c;
+  }
+  const k = {}; for (const x of t.knobs) k[x.key] = knobs[x.key] ?? x.value;
+  return tileCanvas(size, (u, v) => t.h(u, v, period, k), { span: period * 2.5, depth, out });
+}
+function patternCanvas(size, p, { period = 6, weight = 0.35 } = {}) {
+  const c = document.createElement('canvas'); c.width = c.height = size; c.setAttribute('aria-hidden', 'true');
+  const ctx = c.getContext('2d'); if (!ctx) return c;
+  const ink = rgb(els.inlayColour.value), paper = rgb(els.bodyColour.value);
+  const img = ctx.createImageData(size, size);
+  const f = p.f ? (u, v) => p.f(u, v, period, { weight })
+    : p.id === 'border' ? (u, v) => Math.max(Math.abs(u), Math.abs(v)) > 9 && Math.max(Math.abs(u), Math.abs(v)) < 12
+    : () => 0;
+  patternTile(img.data, size, size, f, { span: 26, ink, paper });
+  ctx.putImageData(img, 0, 0);
+  if (p.id === 'text' || p.id === 'image') {
+    ctx.font = `700 ${size * 0.42}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgb(${ink.join(',')})`; ctx.fillText(p.id === 'text' ? 'Aa' : '🖼', size / 2, size / 2 + 1);
+  }
+  return c;
+}
+const LOOKS_SHOWN = 8;
 function renderLookChips() {
   els.lookChips.innerHTML = '';
-  for (const l of LOOKS) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.id = l.id;
-    b.setAttribute('aria-pressed', String(l.id === state.look)); b.innerHTML = `<span>${l.name}</span><small>${l.blurb}</small>`;
+  LOOKS.forEach((l, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip look'; b.dataset.id = l.id;
+    if (i >= LOOKS_SHOWN && !state.allLooks && l.id !== state.look) b.hidden = true;
+    b.setAttribute('aria-pressed', String(l.id === state.look));
+    b.append(textureTile(52, textureById(l.texture), { period: l.period, depth: l.depth, knobs: l.knobs, out: l.direction === 'out' }));
+    const tx = document.createElement('span'); tx.className = 'tx'; tx.innerHTML = `<span>${l.name}</span><small>${l.blurb}</small>`; b.append(tx);
     b.addEventListener('click', () => applyLook(l));
     els.lookChips.append(b);
-  }
+  });
+  els.moreLooksBtn.textContent = state.allLooks ? 'Show fewer looks' : `Show all ${LOOKS.length} looks`;
+  els.moreLooksBtn.setAttribute('aria-expanded', String(!!state.allLooks));
 }
+els.moreLooksBtn.addEventListener('click', () => { state.allLooks = !state.allLooks; renderLookChips(); });
 function applyLook(l) {
   selectTexture(l.texture, { quiet: true });
   els.periodInput.value = l.period; els.depthInput.value = l.depth; els.angleInput.value = l.angle || 0;
   setDirection(l.direction);
   for (const [k, v] of Object.entries(l.knobs)) { state.knobs[k] = v; const input = $(`knob-${k}`); if (input) input.value = v; }
-  els.rampSelect.value = l.ramp || 'none'; els.bandFromInput.value = 0; els.bandToInput.value = '';
+  els.rampSelect.value = l.ramp || 'none'; els.bandFromInput.value = 0; els.bandToInput.value = ''; els.edgeFadeInput.value = l.edgeFade || 1;
   selectWhere(l.where, { quiet: true });
   state.inlayPattern = l.inlay.pattern; setPressed(els.inlayChips, l.inlay.pattern);
   if (l.inlay.period) els.inlayPeriodInput.value = l.inlay.period;
@@ -126,8 +173,10 @@ function clearLook() { if (state.look) { state.look = null; setPressed(els.lookC
 function renderTextureChips() {
   els.textureChips.innerHTML = '';
   for (const t of ALL_TEXTURES) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.id = t.id;
-    b.setAttribute('aria-pressed', String(t.id === state.texture)); b.textContent = t.name;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip tile'; b.dataset.id = t.id; b.title = t.blurb;
+    b.setAttribute('aria-pressed', String(t.id === state.texture));
+    b.append(textureTile(56, t));
+    const label = document.createElement('span'); label.textContent = t.name; b.append(label);
     b.addEventListener('click', () => selectTexture(t.id));
     els.textureChips.append(b);
   }
@@ -169,8 +218,10 @@ function selectWhere(id, { quiet = false } = {}) {
 function renderInlayChips() {
   els.inlayChips.innerHTML = '';
   for (const p of INLAYS) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.id = p.id;
-    b.setAttribute('aria-pressed', String(p.id === state.inlayPattern)); b.textContent = p.name;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip tile'; b.dataset.id = p.id;
+    b.setAttribute('aria-pressed', String(p.id === state.inlayPattern));
+    b.append(patternCanvas(56, p));
+    const label = document.createElement('span'); label.textContent = p.name; b.append(label);
     b.addEventListener('click', () => { state.inlayPattern = p.id; setPressed(els.inlayChips, p.id); clearLook(); syncInlayFields(); scheduleInlay(); });
     els.inlayChips.append(b);
   }
@@ -206,8 +257,10 @@ els.stampImage.addEventListener('change', async () => {
 });
 for (const el of [els.inlayPeriodInput, els.inlayWeightInput, els.inlayAngleInput, els.inlayLayersInput, els.inlayMarginInput, els.inlayText]) el.addEventListener('input', scheduleInlay);
 els.mirrorToggle.addEventListener('change', scheduleInlay);
-els.inlayColour.addEventListener('input', () => { preview?.setColours(els.bodyColour.value, els.inlayColour.value); setOutputs(); });
-els.bodyColour.addEventListener('input', () => { preview?.setColours(els.bodyColour.value, els.inlayColour.value); drawSwatch(); setOutputs(); });
+let tileTimer = 0;
+const redrawTiles = () => { clearTimeout(tileTimer); tileTimer = setTimeout(() => { renderLookChips(); renderTextureChips(); renderInlayChips(); }, 250); };
+els.inlayColour.addEventListener('input', () => { preview?.setColours(els.bodyColour.value, els.inlayColour.value); redrawTiles(); setOutputs(); });
+els.bodyColour.addEventListener('input', () => { preview?.setColours(els.bodyColour.value, els.inlayColour.value); drawSwatch(); redrawTiles(); setOutputs(); });
 els.inlayImage.addEventListener('change', async () => {
   const f = els.inlayImage.files[0]; if (!f) return;
   try {
@@ -314,27 +367,8 @@ function drawSwatch() {
     span = state.stampTile ? period * 2 : Math.max(period, period * r.height / r.width) * 1.15;
     h = (u, v) => t.h(u, v, period, k);
   } else h = (u, v) => t.h(u, v, period, knobs);
-  const img = ctx.createImageData(W, H), d = img.data;
-  const mm = span / W, step = mm;
-  const body = els.bodyColour.value || '#f0ece2';
-  const br = parseInt(body.slice(1, 3), 16), bg = parseInt(body.slice(3, 5), 16), bb = parseInt(body.slice(5, 7), 16);
-  const lx = -0.55, ly = 0.6, lz = 0.58;
-  const grid = new Float32Array((W + 1) * (H + 1));
-  for (let y = 0; y <= H; y++) for (let x = 0; x <= W; x++) {
-    const u = (x - W / 2) * mm, v = (H / 2 - y) * mm;
-    const hv = h(u, v);
-    grid[y * (W + 1) + x] = (out ? hv : hv - 1) * depth;
-  }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * (W + 1) + x;
-    const dx = (grid[i + 1] - grid[i]) / step, dy = (grid[i] - grid[i + W + 1]) / step;
-    let nx = -dx, ny = -dy, nz = 1; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
-    const lit = Math.max(0, nx * lx + ny * ly + nz * lz);
-    const ao = 0.75 + 0.25 * Math.min(1, Math.max(0, 1 + grid[i] / Math.max(depth, 0.05)));
-    const s = (0.35 + 0.75 * lit) * ao;
-    const o = (y * W + x) * 4;
-    d[o] = Math.min(255, br * s); d[o + 1] = Math.min(255, bg * s); d[o + 2] = Math.min(255, bb * s); d[o + 3] = 255;
-  }
+  const img = ctx.createImageData(W, H);
+  shadeTile(img.data, W, H, h, { span, depth, out, colour: rgb(els.bodyColour.value) });
   ctx.putImageData(img, 0, 0);
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(6, H - 20, 54, 14);
   ctx.fillStyle = '#fff'; ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(`${span.toFixed(0)} mm across`, 9, H - 9);
@@ -490,7 +524,7 @@ els.tuneBtn.addEventListener('click', async () => {
   if (tuning || !state.texStats) return;
   tuning = true; els.tuneBtn.disabled = true;
   try {
-    for (let round = 0; round < 3 && state.texStats && state.texStats.overhang > 45; round++) {
+    for (let round = 0; round < 3 && state.texStats && state.texStats.overhang > 45.5; round++) {
       const t = textureById(state.texture);
       const depth = num(els.depthInput, t.defaults.depth), next = tuneDepth(depth, state.texStats.overhang, 42);
       if (next >= depth) break;
@@ -498,7 +532,7 @@ els.tuneBtn.addEventListener('click', async () => {
       clearTimeout(rebuildTimer);
       await rebuild();
     }
-    toast(state.texStats && state.texStats.overhang <= 45 ? `Depth ${els.depthInput.value} mm: every slope is under 45°.` : 'Still steep: try a longer repeat or a gentler texture.');
+    toast(state.texStats && state.texStats.overhang <= 45.5 ? `Depth ${els.depthInput.value} mm: every slope is under 45°.` : 'Still steep: try a longer repeat or a gentler texture.');
   } finally { tuning = false; els.tuneBtn.disabled = false; }
 });
 
@@ -516,17 +550,17 @@ function setOutputs() {
     return;
   }
   const over = s.overhang;
-  const cls = over < 45 ? 'good' : over < 60 ? 'warn' : 'bad';
+  const cls = over <= 45.5 ? 'good' : over < 60 ? 'warn' : 'bad';   // a 45° chamfer is the classic safe slope
   const steep = s.steepArea || 0;
   els.readGrid.innerHTML = `
     <div class="read ${cls}"><small>Steepest overhang</small><strong>${over.toFixed(0)}°</strong></div>
     <div class="read ${steep < 20 ? 'good' : steep < 200 ? 'warn' : 'bad'}"><small>Area past 50°</small><strong>${steep < 1 ? '0' : steep.toFixed(0)} mm²</strong></div>
     <div class="read"><small>Triangles</small><strong>${(s.triangles / 1000).toFixed(0)}k</strong></div>
     <div class="read"><small>Volume</small><strong>${(s.volume / 1000).toFixed(1)} cm³</strong></div>`;
-  els.readNote.textContent = over < 45 ? 'Prints cleanly on any printer, no supports: every slope is under 45°.'
+  els.readNote.textContent = over <= 45.5 ? 'Prints cleanly on any printer, no supports: every slope is 45° or less.'
     : over < 60 ? 'Prints with good cooling; the steepest slopes are between 45° and 60°. A longer repeat or a shallower depth brings them down.'
     : 'Some slopes are past 60° and will sag or need supports. Choose a gentler texture (flutes, ripples, orange peel, leather), a longer repeat, or less depth.';
-  els.tuneBtn.hidden = !(over > 45 && state.texturedShare > 0 && num(els.depthInput, 0) > 0.05);
+  els.tuneBtn.hidden = !(over > 45.5 && state.texturedShare > 0 && num(els.depthInput, 0) > 0.05);
   const grams = s.volume * 1.24 / 1000 * 0.45 + (state.inlayInfo ? state.inlayInfo.grams : 0);
   const mins = (s.volume * 0.45 / (0.42 * 0.2) / 100) / 60 * 1.6;
   els.totalsLine.innerHTML = `${state.name}: <strong>${s.size.map(v => v.toFixed(0)).join(' × ')} mm</strong>; about <strong>${Math.round(grams)} g</strong> and <strong>${minutes(mins)}</strong> at 15 % infill, roughly — the slicer knows better.${state.inlay && state.inlayInfo?.count ? ` The inlay adds ${state.inlayInfo.grams.toFixed(1)} g in the second colour.` : ''}`;

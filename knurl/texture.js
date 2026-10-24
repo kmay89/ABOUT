@@ -136,7 +136,7 @@ export function applyTexture(mesh, options = {}) {
   // Per vertex: is every face around it textured? (else it is on a texture
   // boundary and stays put), which way does its textured face point, which
   // axis dominates for the flat mapping, and the mean wall radius for the wrap.
-  const allOn = new Uint8Array(vcount).fill(1), anyOnV = new Uint8Array(vcount);
+  const allOn = new Uint8Array(vcount).fill(1), anyOnV = new Uint8Array(vcount), texCount = new Uint16Array(vcount);
   const texNormal = new Float32Array(vcount * 3), axisVotes = new Float32Array(vcount * 3);
   let rSum = 0, rN = 0;
   const n = cls.normals;
@@ -145,10 +145,18 @@ export function applyTexture(mesh, options = {}) {
     const w = cls.on[src];
     for (let k = 0; k < 3; k++) {
       const v = ix[t * 3 + k];
-      if (!w) allOn[v] = 0; else { anyOnV[v] = 1; texNormal[v * 3] += n[src * 3]; texNormal[v * 3 + 1] += n[src * 3 + 1]; texNormal[v * 3 + 2] += n[src * 3 + 2]; }
+      if (!w) allOn[v] = 0; else { anyOnV[v] = 1; texCount[v]++; texNormal[v * 3] += n[src * 3]; texNormal[v * 3 + 1] += n[src * 3 + 1]; texNormal[v * 3 + 2] += n[src * 3 + 2]; }
       axisVotes[v * 3] += Math.abs(n[src * 3]); axisVotes[v * 3 + 1] += Math.abs(n[src * 3 + 1]); axisVotes[v * 3 + 2] += Math.abs(n[src * 3 + 2]);
     }
     if (w && cls.kind[src] === 1) for (let k = 0; k < 3; k++) { const v = ix[t * 3 + k] * 3; rSum += Math.hypot(p[v] - cx, p[v + 1] - cy); rN++; }
+  }
+  // a sharp crease between textured faces (the top edge of a box) is a
+  // boundary too: its vertices stay put and the texture fades in from it,
+  // so the edge stays crisp and no triangle there leans past the pattern's slope
+  for (let v = 0; v < vcount; v++) {
+    if (!allOn[v] || texCount[v] < 2) continue;
+    const l = Math.hypot(texNormal[v * 3], texNormal[v * 3 + 1], texNormal[v * 3 + 2]) / texCount[v];
+    if (l < 0.866) allOn[v] = 0;   // the mean of the unit normals is short when they disagree by more than about 30°
   }
   const R = rN ? rSum / rN : 1;
   // distance from every textured vertex to the nearest texture boundary, in
