@@ -10,11 +10,12 @@ fetched at run time. MIT licensed, like the rest of the site.
 
 ## What makes it quick
 
-- **Looks.** Ten one-tap recipes (Machinist grip, Honeycomb shell, Art
-  deco, Dragon scale, Saddle leather, Driftwood, Brickwork, Soft touch,
-  Golf ball, Ripple glass): a texture with its settings, where it goes,
-  an ombré where it suits, and a first-layer inlay that matches. Tap one,
-  then tune.
+- **Looks.** Twenty-two one-tap recipes, from Machinist grip and
+  Honeycomb shell to Quilted bag, Wicker, Parquet, Topo map, Hammered
+  copper, Low poly, Kyoto, Seigaiha, Alhambra, Chevron, Dunes and Linen:
+  a texture with its settings, where it goes, an ombré where it suits,
+  and a first-layer inlay that matches. Every chip carries a shaded
+  thumbnail of its texture, in your body colour. Tap one, then tune.
 - **A live swatch.** A shaded tile of the texture at the current repeat,
   depth and knobs, redrawn on every keystroke, so the feel is visible
   before the mesh is rebuilt.
@@ -106,12 +107,38 @@ a logo into the bottom face as a second part on filament 2.
 
 ## Textures
 
-Knurl (crossed diamonds), hexagons, flutes, ripples, scales, leather
-(cellular noise), peel (orange skin), wood grain, brick, dots, and the
-stamp (a raster sampled bilinearly). Each has a repeat and a depth, and
-one or two knobs of its own (sharpness, groove width, mortar width,
-roughness, softness). Defaults are tuned to print clean on a 0.4 mm
-nozzle at 0.2 mm layers: repeats of 2.4–8 mm, depths of 0.4–0.5 mm.
+Twenty-three height fields and the stamp, each with a repeat, a depth and
+a knob or two of its own, with defaults tuned to print clean on a 0.4 mm
+nozzle at 0.2 mm layers:
+
+- **Machined and technical:** knurl (crossed diamonds), honeycomb, flutes,
+  ripples, dimples, chevron, low poly (a triangular lattice of flat
+  facets at three heights).
+- **Woven and stitched:** basket weave (strands over and under, dipping
+  where they cross), quilted (diamond tufting with a seam), linen (a fine
+  cloth with slub), herringbone (2 × 1 blocks in 45° courses, bevelled).
+- **Organic:** leather (cellular grain), orange peel, wood grain, dunes
+  (wind ripples that wander), hammered (overlapping round dents), topo
+  lines (contours of a noise landscape, engraved at a constant width in
+  mm by dividing the level distance by the field's gradient).
+- **Ornament:** brick, fish scales, seigaiha (staggered scallops, each a
+  shallow bowl with concentric ridges rising to its rim, so every step
+  faces up on a wall), asanoha (the hemp-leaf star: a triangular lattice
+  plus spokes from each triangle's centroid to its corners), arabesque
+  (the octagon-and-square lattice of a mashrabiya), trellis (overlapping
+  circles, the quatrefoil lattice).
+
+The engraved-line patterns use one smooth groove profile, so a line's
+flank slope is depth over the groove's half width. A sharp crease between
+textured faces (the top edge of a box) counts as a texture boundary: its
+vertices stay put and the relief fades in from it, so the edge stays
+crisp and no triangle there leans past the pattern's own slope.
+
+The first-layer patterns match: honeycomb lines, dots, stripes, checker,
+diamonds, rings, waves, chevron, herringbone, basket weave, seigaiha,
+asanoha, arabesque, trellis, topo lines, quilted, concentric squares,
+sunburst, halftone (dots that grow across 60 mm), a border, text and a
+picture; each chip shows its pattern in the two filament colours.
 
 ## Checks
 
@@ -145,7 +172,8 @@ nozzle at 0.2 mm layers: repeats of 2.4–8 mm, depths of 0.4–0.5 mm.
   non-Bambu printer gets no project config.
 - `tests/settings.test.mjs` — settings round-trip through the link,
   unknown keys are dropped and numbers clamped; every look names a real
-  texture, knobs, place and inlay.
+  texture, knobs, place and inlay; the shared swatch shades every
+  texture's tile with relief and keeps the colour.
 
 ## Files
 
@@ -153,6 +181,8 @@ nozzle at 0.2 mm layers: repeats of 2.4–8 mm, depths of 0.4–0.5 mm.
 - `mesh.js` — weld, parsers, bounds, volume, area, normals, watertight,
   binary STL.
 - `textures.js` — the height fields, the stamp and the inlay patterns.
+- `swatch.js` — the shaded tile and the two-colour pattern tile, shared
+  by the live swatch, the chip thumbnails and the tests.
 - `looks.js` — the one-tap recipes.
 - `settings.js` — settings to and from the link.
 - `subdivide.js` — watertight uniform subdivision with a source map.

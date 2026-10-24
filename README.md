@@ -255,14 +255,18 @@ second colour from a pattern, text or a logo, all in one Bambu Studio file.
   its faces sorted into walls, tops, undersides and the bottom (or picked
   by tapping smooth regions in the 3D view), the chosen faces subdivided
   to a fine, watertight mesh and displaced along their normals by a
-  procedural height field (knurl, hex, flutes, ripples, scales, leather,
-  peel, wood, brick, dots, or a stamp of your text or picture) with a flat
+  procedural height field (twenty-three of them: knurl, hex, flutes,
+  ripples, scales, leather, peel, wood, brick, dots, quilted, basket
+  weave, herringbone, topo lines, hammered, low poly, seigaiha, arabesque,
+  asanoha, chevron, dunes, linen, trellis, or a stamp of your text or
+  picture) with a flat
   or around-the-axis mapping whose period closes the seam, within a height
   band, with an ombré if wanted. The relief is cut in by default, fades to
   nothing at the texture's edges and stays clear of the plate; a readout
   and a heat view give the steepest real overhang, and one button scales
-  the depth until it prints. Ten one-tap looks, a live swatch, a fast
-  preview with full-detail export, and a link that carries the settings. The bottom face is
+  the depth until it prints. Twenty-two one-tap looks with shaded
+  thumbnails, a live swatch, a fast preview with full-detail export, and
+  a link that carries the settings. The bottom face is
   rasterised and a second-colour inlay (a pattern, a border, text or an
   image) is meshed as a closed solid two layers tall, exported as a second
   part on extruder 2 in the same object so Bambu Studio clips it out of the

@@ -84,12 +84,13 @@
           <div class="card-head"><span class="step">1</span><h2 id="texTitle">The texture</h2></div>
           <p class="eyebrow-small">Looks — one tap sets everything, then tune</p>
           <div class="chips looks" id="lookChips" role="group" aria-label="Looks"></div>
+          <button id="moreLooksBtn" class="button button-small button-quiet more-looks" type="button" aria-expanded="false">Show all looks</button>
           <p class="eyebrow-small">Or build your own</p>
-          <div class="texture-row">
-            <div class="chips" id="textureChips" role="group" aria-label="Texture"></div>
+          <div class="chips" id="textureChips" role="group" aria-label="Texture"></div>
+          <div class="swatch-row">
             <canvas id="swatch" class="swatch" width="132" height="132" aria-label="A live tile of the texture at this depth and repeat" role="img"></canvas>
+            <p class="help" id="textureBlurb"></p>
           </div>
-          <p class="help" id="textureBlurb"></p>
           <div class="stamp-fields" id="stampField" hidden>
             <div class="field wide"><label for="stampText">Text</label><input id="stampText" type="text" maxlength="40" placeholder="KARL · 2026"></div>
             <div class="field wide"><label for="stampImage">Or a picture (used as a height map: dark is deep)</label><input id="stampImage" type="file" accept="image/*"></div>

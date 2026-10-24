@@ -34,5 +34,32 @@ test('every look names a real texture, real knobs, a real place and a real inlay
     assert.equal(X.inlayById(l.inlay.pattern).id, l.inlay.pattern, `${l.id} inlay`);
     assert.ok(l.name.length < 20 && l.blurb.length < 90);
   }
-  assert.ok(LOOKS.length >= 8);
+  assert.ok(LOOKS.length >= 20);
+});
+
+test('the shared swatch shades a tile with relief, and the pattern tile follows its function', async () => {
+  const W = await import('../swatch.js');
+  const t = X.textureById('knurl');
+  const data = new Uint8ClampedArray(32 * 32 * 4);
+  W.shadeTile(data, 32, 32, (u, v) => t.h(u, v, 2.4, { sharp: 0.6 }), { span: 6, depth: 0.4 });
+  let lo = 255, hi = 0; for (let i = 0; i < data.length; i += 4) { lo = Math.min(lo, data[i]); hi = Math.max(hi, data[i]); assert.equal(data[i + 3], 255); }
+  assert.ok(hi - lo > 60, `the tile has light and shade (${lo}..${hi})`);
+  const flat = new Uint8ClampedArray(8 * 8 * 4);
+  W.shadeTile(flat, 8, 8, () => 1, { span: 6, depth: 0.4, colour: [200, 100, 50] });
+  for (let i = 0; i < flat.length; i += 4) { assert.equal(flat[i], flat[0]); assert.ok(Math.abs(flat[i] / flat[i + 1] - 2) < 0.1, 'keeps the colour'); }
+  const pat = new Uint8ClampedArray(10 * 10 * 4);
+  W.patternTile(pat, 10, 10, (u, v) => u > 0, { span: 10 });
+  assert.equal(pat[(5 * 10 + 7) * 4], 43, 'ink on the right');
+  assert.equal(pat[(5 * 10 + 2) * 4], 240, 'paper on the left');
+  assert.deepEqual(W.rgb('#ff8000'), [255, 128, 0]);
+  assert.deepEqual(W.rgb('nope'), [240, 236, 226]);
+  // every texture's tile has relief at its defaults
+  for (const tex of X.ALL_TEXTURES) {
+    if (tex.id === 'stamp') continue;
+    const k = Object.fromEntries(tex.knobs.map(x => [x.key, x.value]));
+    const d = new Uint8ClampedArray(24 * 24 * 4);
+    W.shadeTile(d, 24, 24, (u, v) => tex.h(u, v, tex.defaults.period, k), { span: tex.defaults.period * 2.5, depth: tex.defaults.depth });
+    let a = 255, b = 0; for (let i = 0; i < d.length; i += 4) { a = Math.min(a, d[i]); b = Math.max(b, d[i]); }
+    assert.ok(b - a > 20, `${tex.id} tile has relief (${a}..${b})`);
+  }
 });
