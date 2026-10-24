@@ -40,7 +40,7 @@
         <h1 id="pageTitle">Texture that prints,<br>on <em>any</em> part.</h1>
       </div>
       <div class="intro-note">
-        <p>Drop in an STL. Pick a knurl, a honeycomb, flutes, leather, orange peel. It is cut <em>into</em> the surface, so the part still fits where it did and nothing overhangs; a readout says how steep it got. Then give the first layer a second colour — a pattern, a name, a logo — for a few grams of filament. One 3MF back, two parts on two filaments.</p>
+        <p>Drop in an STL. Tap a look, or pick a knurl, a honeycomb, flutes, leather, a stamp of your own name, and tap the faces it should go on. It is cut <em>into</em> the surface, so the part still fits where it did; a readout and a heat view say how steep it got, and one button makes it print. Then give the first layer a second colour — a pattern, a name, a logo — for a few grams of filament. One 3MF back, two parts on two filaments.</p>
         <span class="intro-steps">STL <span>→</span> Texture <span>→</span> First-layer colour <span>→</span> Print</span>
       </div>
     </section>
@@ -51,6 +51,8 @@
           <div class="stage-toolbar">
             <span class="stage-label" id="stageLabel">Drop an STL here, or try a sample</span>
             <div class="stage-actions">
+              <button id="heatBtn" class="icon-button stage-reset" type="button" title="Show overhangs: green prints, amber needs cooling, red sags" aria-label="Show overhangs" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-3 5-6 7.5-6 11.5a6 6 0 0 0 12 0C18 10.5 15 8 12 3z"/><path d="M12 13c-1 1.6-2 2.5-2 3.8a2 2 0 0 0 4 0c0-1.3-1-2.2-2-3.8z"/></svg></button>
+              <button id="originalBtn" class="icon-button stage-reset" type="button" title="Hold to see the part without its texture" aria-label="Show the original part" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
               <button id="viewBelowBtn" class="icon-button stage-reset" type="button" title="Look at the bottom" aria-label="Look at the bottom"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13m0 0 5-5m-5 5-5-5M4 21h16"/></svg></button>
               <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
             </div>
@@ -73,14 +75,29 @@
           <div class="card-head"><span class="step">✓</span><h2 id="readTitle">Will it print?</h2></div>
           <div class="read-grid" id="readGrid"></div>
           <p class="help" id="readNote">Load a part to see.</p>
+          <button id="tuneBtn" class="button button-small" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4M14 4h6v6"/></svg><span>Make it print: shallow the depth until every slope is under 45°</span></button>
         </section>
       </section>
 
       <aside class="panel" aria-label="Texture controls">
         <section class="card" aria-labelledby="texTitle">
           <div class="card-head"><span class="step">1</span><h2 id="texTitle">The texture</h2></div>
-          <div class="chips" id="textureChips" role="group" aria-label="Texture"></div>
+          <p class="eyebrow-small">Looks — one tap sets everything, then tune</p>
+          <div class="chips looks" id="lookChips" role="group" aria-label="Looks"></div>
+          <p class="eyebrow-small">Or build your own</p>
+          <div class="texture-row">
+            <div class="chips" id="textureChips" role="group" aria-label="Texture"></div>
+            <canvas id="swatch" class="swatch" width="132" height="132" aria-label="A live tile of the texture at this depth and repeat" role="img"></canvas>
+          </div>
           <p class="help" id="textureBlurb"></p>
+          <div class="stamp-fields" id="stampField" hidden>
+            <div class="field wide"><label for="stampText">Text</label><input id="stampText" type="text" maxlength="40" placeholder="KARL · 2026"></div>
+            <div class="field wide"><label for="stampImage">Or a picture (used as a height map: dark is deep)</label><input id="stampImage" type="file" accept="image/*"></div>
+            <div class="segmented" role="group" aria-label="Place once or tile">
+              <button id="stampOnce" type="button" aria-pressed="true" title="One stamp, centred on the textured faces">Place once</button>
+              <button id="stampTile" type="button" aria-pressed="false" title="Repeat it as a pattern, one tile per repeat">Tile it</button>
+            </div>
+          </div>
           <div class="field-grid">
             <div class="field"><label for="periodInput">Repeat</label><input id="periodInput" type="number" inputmode="decimal" min="0.6" max="40" step="0.1"><span class="unit">mm</span></div>
             <div class="field"><label for="depthInput">Depth</label><input id="depthInput" type="number" inputmode="decimal" min="0" max="3" step="0.05"><span class="unit">mm</span></div>
@@ -103,7 +120,18 @@
             <div class="field"><label for="edgeFadeInput">Fade at edges</label><input id="edgeFadeInput" type="number" inputmode="decimal" min="0" max="5" step="0.25" value="1"><span class="unit">mm</span></div>
             <div class="field"><label for="mappingSelect">Wrap</label><select id="mappingSelect"><option value="auto">Auto</option><option value="flat">Flat faces</option><option value="around">Around the axis</option></select></div>
           </div>
+          <div class="pick-bar" id="pickBar" hidden>
+            <p class="help"><strong>Tap faces in the 3D view.</strong> Tap again to remove one. <span id="pickCount">Nothing picked yet.</span></p>
+            <button id="clearPicksBtn" class="button button-small" type="button">Clear picks</button>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label for="bandFromInput">Band from</label><input id="bandFromInput" type="number" inputmode="decimal" min="0" max="1000" step="0.5" value="0"><span class="unit">mm</span></div>
+            <div class="field"><label for="bandToInput">Band to</label><input id="bandToInput" type="number" inputmode="decimal" min="0" max="1000" step="0.5" placeholder="top"><span class="unit">mm</span></div>
+            <div class="field"><label for="rampSelect">Fade along</label><select id="rampSelect"><option value="none">Even depth</option><option value="up">Deeper going up</option><option value="down">Deeper going down</option></select></div>
+          </div>
+          <p class="help small">A band keeps the texture between two heights above the plate; the fade makes an ombré, from nothing to the full depth across the band.</p>
           <label class="toggle"><input id="insideToggle" type="checkbox"><span>Texture inside walls too<small>The inside of a cup or box. Off keeps them smooth.</small></span></label>
+          <label class="toggle"><input id="draftToggle" type="checkbox" checked><span>Fast preview<small>A lighter mesh while you tune; the full-detail one is built when you download.</small></span></label>
           <label class="toggle"><input id="fineToggle" type="checkbox"><span>Fine mesh<small>Twice the triangles for small repeats; slower, bigger file.</small></span></label>
         </section>
 
@@ -140,6 +168,7 @@
             <button id="downloadInlay" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Inlay STL</span></button>
           </div>
           <p class="help open-note" id="profileNote"></p>
+          <button id="shareBtn" class="button button-small" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7L11.5 6.8"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/></svg><span>Copy a link to these settings</span></button>
         </section>
       </aside>
     </div>
@@ -155,6 +184,10 @@
       <p>A texture is a height over the surface, between 0 and 1. Cut in, 1 is the original surface and 0 is the full depth below it, so nothing grows and the part still fits; raise out does the opposite. The surface is divided into triangles about half a millimetre across, each new vertex is moved along the face it belongs to, and the texture fades to nothing over the last millimetre before any face it does not cover, and before the plate, so edges stay crisp and the first layer stays clean. Faces that touch the plate are never textured.</p>
       <h3>The readout</h3>
       <p>On a wall, what matters is slope in the vertical direction: a surface that leans outward going up is an overhang. The readout gives the steepest one on the part, ignoring the slivers subdivision leaves behind, and the area steeper than 50°. Under 45° prints cleanly on any printer; up to 60° with cooling; above that, pick a gentler texture, a longer repeat or a shallower depth. Flutes, ripples, orange peel and leather are the safest; knurl, honeycomb and brick have crisp grooves and want a longer repeat on a wall.</p>
+      <h3>Picking faces, bands and stamps</h3>
+      <p>Tap to pick turns the 3D view into a picker: a tap adds the smooth region under it (a flat face, or a whole cylinder whose facets step less than 8°) and a second tap removes it; picked faces glow amber. A band keeps the texture between two heights above the plate, and the fade along it makes an ombré, so a vase can go from smooth at the base to deep scales at the lip. The stamp texture uses your text, set in a bold sans serif, or any picture as a height map (dark is deep), placed once at the centre of the textured faces or tiled with one tile per repeat; the softness knob blurs its edges so the slopes stay gentle.</p>
+      <h3>The heat view and Make it print</h3>
+      <p>The flame button colours every face by its overhang: green under 45°, amber to 60°, red beyond. Make it print scales the depth by the ratio of the tangents, which on a wall brings the steepest slope straight to 42°, and rebuilds; a second press, if the first fell short, finishes the job.</p>
       <h3>Wrap</h3>
       <p>Flat faces take the texture by the two world axes along them; a round part takes it around its axis, with the repeat nudged so a whole number fits and the seam closes. Auto picks by how many walls face outward from the axis.</p>
       <h3>The first layer</h3>

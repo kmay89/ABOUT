@@ -8,6 +8,36 @@ It is a buildless static page: plain ES modules, Three.js vendored for the
 3D view, a web worker for the geometry, no server, no upload, nothing
 fetched at run time. MIT licensed, like the rest of the site.
 
+## What makes it quick
+
+- **Looks.** Ten one-tap recipes (Machinist grip, Honeycomb shell, Art
+  deco, Dragon scale, Saddle leather, Driftwood, Brickwork, Soft touch,
+  Golf ball, Ripple glass): a texture with its settings, where it goes,
+  an ombré where it suits, and a first-layer inlay that matches. Tap one,
+  then tune.
+- **A live swatch.** A shaded tile of the texture at the current repeat,
+  depth and knobs, redrawn on every keystroke, so the feel is visible
+  before the mesh is rebuilt.
+- **Tap to pick.** Choose "Tap to pick" and tap faces in the 3D view: a
+  flat face picks as one region, a finely faceted cylinder (facets under
+  8° apart) as one too; picked faces glow amber. Tap again to remove.
+- **Bands and ombré.** Keep the texture between two heights above the
+  plate, and fade its depth up or down across the band.
+- **Stamps.** Your text, or any picture as a height map (dark is deep),
+  placed once at the centre of the textured faces or tiled with one tile
+  per repeat, with a softness knob that blurs the edges. It reads the
+  right way round on every wall.
+- **The heat view.** A flame button colours each face by its overhang:
+  green under 45°, amber to 60°, red beyond.
+- **Make it print.** When the steepest slope passes 45°, one button
+  scales the depth by the ratio of the tangents (slope on a wall is
+  proportional to depth) and rebuilds until it is under.
+- **Fast preview, full export.** A lighter mesh while you tune; the
+  full-detail one is built the moment you download.
+- **Compare and share.** An eye button shows the part without its
+  texture; a link carries every setting (not the part), and the page
+  remembers them in its address as you work.
+
 ## Why texture a part at all
 
 A flat printed wall shows every layer line, every seam, every small wobble
@@ -35,7 +65,9 @@ a logo into the bottom face as a second part on filament 2.
    touches the plate), a wall (normal within 30° of horizontal), a top or
    an underside. Walls whose normal points toward the part's axis are
    inside walls (the inside of a cup) and stay smooth unless asked. The
-   bottom is never textured.
+   bottom is never textured. For tap-to-pick, triangles are first joined
+   into smooth regions (a flood fill across edges whose normals agree
+   within 8°), and the picked regions are the textured set.
 3. **Subdivide.** The mesh is split uniformly to a target edge length
    (half a millimetre, or a fifth of the texture's repeat, whichever is
    smaller) with per-edge segment counts snapped to the same fractions on
@@ -43,14 +75,17 @@ a logo into the bottom face as a second part on filament 2.
    that coarsens the target when a part is large.
 4. **Displace.** Each texture is a height field *h(u, v)* in [0, 1] with
    1 the original surface, parameterised in millimetres on the part: flat
-   (the dominant axis of each face) or around the axis (cylindrical, with
-   the repeat snapped to a whole number of times around the circumference
-   so the seam closes). Vertices move along the normal of their textured
-   faces, inward by (1 − h) × depth or outward by h × depth. Vertices on the
-   boundary of the textured region stay put, and the displacement fades in
-   over a chosen distance (a breadth-first hop count from the boundary), so
-   the texture never produces a knife edge where it meets a top or the
-   plate clearance band.
+   (the dominant axis of each face, with u running to the right as the
+   face is seen from outside) or around the axis (cylindrical, with the
+   repeat snapped to a whole number of times around the circumference so
+   the seam closes). Vertices move along the normal of their textured
+   faces, inward by (1 − h) × depth or outward by h × depth, the depth
+   scaled along the band for an ombré. Vertices on the boundary of the
+   textured region stay put, and the displacement fades in over a chosen
+   distance (a breadth-first hop count from the boundary) and at the band
+   edges, so the texture never produces a knife edge where it meets a top
+   or the plate clearance band. A stamp placed once is centred on the
+   (u, v) box of the textured vertices.
 5. **Read.** The steepest real overhang: for every down-facing triangle of
    at least 0.01 mm² the angle asin(−n_z), with 0° a vertical wall and 90°
    a flat ceiling, and the area beyond 50°. Under 45° prints without
@@ -72,14 +107,15 @@ a logo into the bottom face as a second part on filament 2.
 ## Textures
 
 Knurl (crossed diamonds), hexagons, flutes, ripples, scales, leather
-(cellular noise), peel (orange skin), wood grain, brick and dots. Each has
-a repeat and a depth, and one or two knobs of its own (sharpness, groove
-width, mortar width, roughness). Defaults are tuned to print clean on a
-0.4 mm nozzle at 0.2 mm layers: repeats of 2.4–8 mm, depths of 0.4–0.5 mm.
+(cellular noise), peel (orange skin), wood grain, brick, dots, and the
+stamp (a raster sampled bilinearly). Each has a repeat and a depth, and
+one or two knobs of its own (sharpness, groove width, mortar width,
+roughness, softness). Defaults are tuned to print clean on a 0.4 mm
+nozzle at 0.2 mm layers: repeats of 2.4–8 mm, depths of 0.4–0.5 mm.
 
 ## Checks
 
-`npm run check:knurl` runs three suites with `node --test`:
+`npm run check:knurl` runs four suites with `node --test`:
 
 - `tests/geometry.test.mjs` — the samples are closed right-handed solids;
   binary STL, ASCII STL and OBJ round-trip; watertight counts open and
@@ -90,7 +126,11 @@ width, mortar width, roughness). Defaults are tuned to print clean on a
   adds material; the clearance bands are untouched; a cup wraps around with
   a period near the one asked and its inside wall is left alone; the
   overhang readout sees a 45° chamfer rising from the plate; height fields
-  stay in [0, 1].
+  stay in [0, 1]; regions join flat faces and a fine cylinder but stop at
+  creases, and picked regions texture only themselves; a band leaves the
+  rest flat and the ombré deepens the right way; the stamp samples
+  bilinearly, tiles or places once, centres on the picked wall and reads
+  the right way round on all four walls; tuneDepth scales by the tangents.
 - `tests/inlay.test.mjs` — the footprint area is exact to a percent; erode
   and unpinch behave; every pattern's solid is closed, manifold and has
   exactly area × height volume; the margin is respected and the border
@@ -103,21 +143,28 @@ width, mortar width, roughness). Defaults are tuned to print clean on a
   naming the P2S presets with two filaments and two colours and nothing
   differing from system; colours and object settings come through; a
   non-Bambu printer gets no project config.
+- `tests/settings.test.mjs` — settings round-trip through the link,
+  unknown keys are dropped and numbers clamped; every look names a real
+  texture, knobs, place and inlay.
 
 ## Files
 
 - `index.html`, `styles.css`, `app.js` — the page.
 - `mesh.js` — weld, parsers, bounds, volume, area, normals, watertight,
   binary STL.
-- `textures.js` — the height fields and the inlay patterns.
+- `textures.js` — the height fields, the stamp and the inlay patterns.
+- `looks.js` — the one-tap recipes.
+- `settings.js` — settings to and from the link.
 - `subdivide.js` — watertight uniform subdivision with a source map.
-- `texture.js` — classify, roundness, applyTexture, stats.
+- `texture.js` — classify, regions, roundness, applyTexture (bands,
+  ombré, picks, stamps), stats, tuneDepth.
 - `inlay.js` — footprint, erode, unpinch, inlayRaster, rasterSolid,
   buildInlay.
 - `samples.js` — the box, cup and knob samples (revolve, roundedBox,
   prism).
 - `export.js` — zipStore, PRINTERS, projectSettings, threeMF.
 - `worker.js` — runs texture and inlay off the main thread.
-- `preview.js` — the Three.js view.
+- `preview.js` — the Three.js view, with the pick highlight, the heat
+  colouring and the raycast.
 - `vendor/` — Three.js r170 and OrbitControls (MIT, see
   `third-party-notices.txt`).

@@ -92,6 +92,7 @@ test('subdivision keeps the solid closed, keeps its volume, hits the target edge
 test('classify picks walls, tops and bottoms; the bottom is never textured', () => {
   const m = box();
   for (const w of T.WHERE) {
+    if (w.id === 'picked') continue;
     const c = T.classify(m, w.id);
     const { positions: p, indices: ix } = m;
     for (let t = 0; t < ix.length / 3; t++) {
@@ -195,4 +196,120 @@ test('texture functions stay in [0, 1] and their knobs have sane ranges', () => 
   }
   assert.equal(X.textureById('nope'), X.TEXTURES[0]);
   assert.equal(X.inlayById('hexgrid').name, 'Honeycomb lines');
+});
+
+test('regions join flat faces across edges and keep curved ones apart; picked regions texture only themselves', () => {
+  const m = box();
+  const r = T.regions(m);
+  const n = M.faceNormals(m);
+  // the top and the bottom are each one region; the four flat walls are each one region
+  const byNormal = new Map();
+  for (let t = 0; t < r.id.length; t++) {
+    const key = [n[t * 3], n[t * 3 + 1], n[t * 3 + 2]].map(v => Math.round(v * 100) / 100).join(',');
+    if (!byNormal.has(key)) byNormal.set(key, new Set());
+    byNormal.get(key).add(r.id[t]);
+  }
+  for (const key of ['0,0,1', '0,0,-1', '1,0,0', '-1,0,0', '0,1,0', '0,-1,0']) assert.equal(byNormal.get(key).size, 1, `${key} is one region`);
+  assert.ok(r.count >= 6 && r.count < 60, `${r.count} regions`);
+  // a finely faceted cylinder is one region: the cup's outer wall
+  const c = cup(), rc = T.regions(c), pc = c.positions, ic = c.indices;
+  const outer = new Set();
+  for (let t = 0; t < rc.id.length; t++) { const a = ic[t * 3] * 3; const rad = Math.hypot(pc[a], pc[a + 1]), z = pc[a + 2]; if (rad > 28.4 && z > 3 && z < 67) outer.add(rc.id[t]); }
+  assert.equal(outer.size, 1, 'the cup wall is one region');
+  assert.equal(r.area.length, r.count);
+  assert.ok(Math.abs(r.area.reduce((a, b) => a + b, 0) - M.surfaceArea(m)) < 1e-2);
+  // pick the +X wall only
+  const wall = byNormal.get('1,0,0').values().next().value;
+  const pick = new Uint8Array(r.id.length); for (let t = 0; t < pick.length; t++) pick[t] = r.id[t] === wall ? 1 : 0;
+  const cls = T.classify(m, 'picked', { pick });
+  for (let t = 0; t < cls.on.length; t++) assert.equal(cls.on[t], pick[t]);
+  const res = T.applyTexture(m, { texture: 'flutes', where: 'picked', pick, depth: 0.6, maxTriangles: 100000 });
+  assert.ok(M.watertight(res.mesh).closed);
+  assert.ok(res.textured > 0 && res.textured < 0.5, 'only one wall moved');
+  const { positions: p } = res.mesh;
+  let moved = 0;
+  for (let i = 0; i < p.length; i += 3) { if (Math.abs(p[i] - 30) < 1e-3) continue; if (p[i] > 29 && p[i] < 30 - 1e-3 && Math.abs(p[i + 1]) < 19.5) moved++; if (p[i] < -29.9 && Math.abs(p[i + 1]) < 13) assert.ok(p[i] <= -30 + 1e-3 && p[i] >= -30 - 1e-3, 'the -X wall is untouched'); }
+  assert.ok(moved > 100, 'the +X wall carries the flutes');
+  assert.equal(res.source.length, res.mesh.indices.length / 3, 'a source map per triangle');
+  assert.equal(T.applyTexture(m, { texture: 'flutes', where: 'picked', pick: null, depth: 0.6 }).textured, 0);
+});
+
+test('a height band leaves the rest of the wall flat and an ombré ramp deepens along it', () => {
+  const m = box();
+  const r = T.applyTexture(m, { texture: 'flutes', where: 'walls', depth: 0.6, bandFrom: 8, bandTo: 16, edgeFade: 0.5, maxTriangles: 150000 });
+  assert.ok(M.watertight(r.mesh).closed);
+  const { positions: p } = r.mesh;
+  let inside = 0, outside = 0, worstOut = 0;
+  for (let i = 0; i < p.length; i += 3) {
+    const z = p[i + 2], off = 30 - Math.abs(p[i]);
+    if (Math.abs(p[i + 1]) > 13 || off > 1) continue; // the flat part of the ±X walls only
+    if (z > 9 && z < 15) { if (off > 0.05) inside++; }
+    else if (z < 7 || z > 17) { worstOut = Math.max(worstOut, off); outside++; }
+  }
+  assert.ok(inside > 50, 'the band is textured');
+  assert.ok(outside > 50 && worstOut < 1e-3, `outside the band the wall is flat (${worstOut})`);
+  const up = T.applyTexture(m, { texture: 'flutes', where: 'walls', depth: 0.6, ramp: 'up', bottomClear: 0.5, maxTriangles: 150000 });
+  const q = up.mesh.positions;
+  const deepest = z0 => { let d = 0; for (let i = 0; i < q.length; i += 3) if (Math.abs(q[i + 2] - z0) < 0.6 && Math.abs(q[i + 1]) < 15) d = Math.max(d, 30 - Math.abs(q[i])); return d; };
+  const low = deepest(4), high = deepest(21);
+  assert.ok(high > low * 2 && high > 0.4, `ramp up: ${low} at the bottom, ${high} near the top`);
+  const down = T.applyTexture(m, { texture: 'flutes', where: 'walls', depth: 0.6, ramp: 'down', bottomClear: 0.5, maxTriangles: 150000 });
+  const q2 = down.mesh.positions;
+  let dLow = 0, dHigh = 0;
+  for (let i = 0; i < q2.length; i += 3) { if (Math.abs(q2[i + 1]) > 15) continue; const off = 30 - Math.abs(q2[i]); if (Math.abs(q2[i + 2] - 4) < 0.6) dLow = Math.max(dLow, off); if (Math.abs(q2[i + 2] - 21) < 0.6) dHigh = Math.max(dHigh, off); }
+  assert.ok(dLow > dHigh * 2, `ramp down: ${dLow} at the bottom, ${dHigh} near the top`);
+});
+
+test('the stamp samples a raster bilinearly, tiles or places once, and centres on the textured faces', () => {
+  // a 4×4 raster with a full-cut 2×2 block in the middle
+  const raster = { width: 4, height: 4, data: new Uint8Array(16) };
+  for (const i of [5, 6, 9, 10]) raster.data[i] = 255;
+  const k = { raster, tile: false, cu: 0, cv: 0 };
+  assert.equal(X.stampHeight(0, 0, 4, k), 0, 'the middle is fully cut');            // 1 mm per px: centre of the block
+  assert.equal(X.stampHeight(-1.75, -1.75, 4, k), 1, 'the corner is untouched');
+  assert.equal(X.stampHeight(3, 0, 4, k), 1, 'outside a placed stamp: nothing');
+  const mid = X.stampHeight(-1, 0, 4, k);
+  assert.ok(mid > 0.2 && mid < 0.8, `the edge is bilinear (${mid})`);
+  const tiled = { ...k, tile: true };
+  assert.equal(X.stampHeight(4, 0, 4, tiled), 0, 'tiles repeat every period');
+  assert.equal(X.stampHeight(0, 8, 4, tiled), 0);
+  assert.equal(X.stampHeight(0, 0, 4, { raster: null }), 1);
+  // placed on the box's +X wall it lands at the wall's centre (y = 0, z = 12)
+  const m = box();
+  const reg = T.regions(m), n = M.faceNormals(m);
+  const pick = new Uint8Array(reg.id.length);
+  let wallId = -1; for (let t = 0; t < n.length / 3; t++) if (n[t * 3] > 0.99) { wallId = reg.id[t]; break; }
+  for (let t = 0; t < pick.length; t++) pick[t] = reg.id[t] === wallId ? 1 : 0;
+  const res = T.applyTexture(m, { texture: 'stamp', where: 'picked', pick, period: 12, depth: 0.5, knobs: { raster, tile: false }, edgeFade: 0.5, bottomClear: 0.5, maxTriangles: 150000 });
+  const p = res.mesh.positions;
+  let sy = 0, sz = 0, cnt = 0;
+  for (let i = 0; i < p.length; i += 3) if (p[i] > 29 && p[i] < 30 - 0.2) { sy += p[i + 1]; sz += p[i + 2]; cnt++; }
+  assert.ok(cnt > 20, 'the stamp cut something');
+  assert.ok(Math.abs(sy / cnt) < 1 && Math.abs(sz / cnt - 12) < 1.5, `centred at y=${(sy / cnt).toFixed(2)} z=${(sz / cnt).toFixed(2)}`);
+  assert.ok(M.watertight(res.mesh).closed);
+});
+
+test('a stamp reads the right way round on every wall: its left half lands on the viewer\'s left', () => {
+  // a raster whose left half is cut
+  const raster = { width: 8, height: 4, data: new Uint8Array(32) };
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) raster.data[y * 8 + x] = 255;
+  const m = box(), reg = T.regions(m), n = M.faceNormals(m);
+  const wallPick = (nx, ny) => { let id = -1; for (let t = 0; t < n.length / 3; t++) if (n[t * 3] * nx + n[t * 3 + 1] * ny > 0.99) { id = reg.id[t]; break; } const pick = new Uint8Array(reg.id.length); for (let t = 0; t < pick.length; t++) pick[t] = reg.id[t] === id ? 1 : 0; return pick; };
+  const cutCentroid = (res, axis, sign) => { const wall = axis === 0 ? 30 : 20, flat = axis === 0 ? 13 : 23; const p = res.mesh.positions; let s = 0, c = 0; for (let i = 0; i < p.length; i += 3) { const along = p[i + axis] * sign; const across = p[i + (axis === 0 ? 1 : 0)]; if (along > wall - 1 && along < wall - 0.1 && Math.abs(across) < flat) { s += across; c++; } } return s / c; };
+  // seen from +X (looking toward -X, Z up), the viewer's left is -Y; from -X it is +Y; from -Y it is -X; from +Y it is +X
+  for (const [nx, ny, axis, sign, leftSign] of [[1, 0, 0, 1, -1], [-1, 0, 0, -1, 1], [0, -1, 1, -1, -1], [0, 1, 1, 1, 1]]) {
+    const res = T.applyTexture(m, { texture: 'stamp', where: 'picked', pick: wallPick(nx, ny), period: 20, depth: 0.5, knobs: { raster, tile: false }, edgeFade: 0.5, bottomClear: 0.5, maxTriangles: 150000 });
+    const c = cutCentroid(res, axis, sign);
+    assert.ok(Math.sign(c) === leftSign && Math.abs(c) > 2, `wall (${nx},${ny}): cut centroid ${c.toFixed(2)} should be on the ${leftSign > 0 ? '+' : '-'} side`);
+  }
+});
+
+test('tuneDepth scales the depth by the tangents, rounds to 0.05 and never deepens', () => {
+  assert.equal(T.tuneDepth(0.5, 30), 0.5);
+  const d = T.tuneDepth(0.5, 60);
+  assert.ok(d > 0.2 && d < 0.3, `60° → ${d}`);
+  assert.equal(T.tuneDepth(0.5, 89.9), 0.05);
+  assert.equal(T.tuneDepth(0.5, NaN), 0.5);
+  assert.ok(T.tuneDepth(0.6, 55) < 0.6);
+  assert.equal(Math.round(T.tuneDepth(0.6, 55) * 20) / 20, T.tuneDepth(0.6, 55));
 });
