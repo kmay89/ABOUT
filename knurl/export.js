@@ -100,7 +100,8 @@ function meshXML(mesh) {
  * print-priority order (a later part wins where it overlaps an earlier
  * one). The object is placed with its XY centre at (x, y) on the plate.
  */
-export async function threeMF(parts, { printer, plate = 'Textured PEI Plate', colours, title = 'Knurl part', x, y, objectSettings = {} } = {}) {
+const KNURL_APP = Object.freeze({ name: 'Knurl (kmay89.com/knurl)', description: 'A textured part with a first-layer inlay as a second part on filament 2. Open as a project in Bambu Studio.' });
+export async function threeMF(parts, { printer, plate = 'Textured PEI Plate', colours, title = 'Knurl part', x, y, objectSettings = {}, app = KNURL_APP } = {}) {
   const bedW = printer ? printer.bed[0] : 256, bedD = printer ? printer.bed[1] : 256;
   // centre the body on the plate (all parts share the body's frame)
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -110,8 +111,8 @@ export async function threeMF(parts, { printer, plate = 'Textured PEI Plate', co
   const objectId = parts.length + 1;
   const model = ['<?xml version="1.0" encoding="UTF-8"?>',
     '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">',
-    `<metadata name="Title">${esc(title)}</metadata>`, '<metadata name="Application">Knurl (kmay89.com/knurl)</metadata>',
-    `<metadata name="Description">${esc('A textured part with a first-layer inlay as a second part on filament 2. Open as a project in Bambu Studio.')}</metadata>`,
+    `<metadata name="Title">${esc(title)}</metadata>`, `<metadata name="Application">${esc(app.name)}</metadata>`,
+    `<metadata name="Description">${esc(app.description)}</metadata>`,
     '<resources>'];
   parts.forEach((p, i) => model.push(`<object id="${i + 1}" name="${esc(p.name)}" type="model">${meshXML(p.mesh)}</object>`));
   model.push(`<object id="${objectId}" name="${esc(title)}" type="model"><components>`);

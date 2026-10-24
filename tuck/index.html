@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tuck — Fold-up Box Studio · kmay89.com</title>
+<meta name="description" content="Tuck prints a box flat, in one piece: living hinges, corner flaps whose tongues lock through the side walls, a tuck lid with a thumb notch, and your name on the first layer in a second colour so it reads on the outside once folded. Size it to the millimetre, pick a window and a pattern, watch it fold in 3D, download a 3MF for Bambu Studio or a die-line for card. Free, in the browser, nothing uploaded.">
+<meta name="theme-color" content="#14110e">
+<link rel="canonical" href="https://kmay89.com/tuck/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="page-width topbar">
+    <a class="brand" href="/" aria-label="Back to the desk">
+      <svg viewBox="0 0 64 64" aria-hidden="true" width="40" height="40"><g fill="none" stroke="#b88b32" stroke-width="4" stroke-linejoin="round"><path d="M14 26h36v24H14z"/><path d="M14 26l8-10h20l8 10"/></g></svg>
+      <span><strong>Tuck</strong><small>Fold-up Box Studio</small></span>
+    </a>
+    <nav class="topnav" aria-label="Site">
+      <a href="/">← The desk</a>
+      <a href="/workshop/">The workshop</a>
+      <label class="printer-pick"><span class="dot" aria-hidden="true"></span><select id="printerSelect" aria-label="Printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>The guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro">
+      <div>
+        <p class="eyebrow">— Printed flat. Folded by hand. Yours by name.</p>
+        <h1 id="pageTitle">A box that folds up,<br>with <em>your</em> name on it.</h1>
+      </div>
+      <div class="intro-note">
+        <p>Size it inside to the millimetre. It prints as one flat sheet with living hinges; the corner flaps fold in and their tongues lock out through the side walls, the lid tucks shut, a thumb notch opens it. The name goes on the first layer in a second colour, placed so it reads the right way on the lid once the box is closed. Watch it fold, then download a 3MF for Bambu Studio, or the die-line to cut it from card.</p>
+        <span class="intro-steps">Size <span>→</span> Hinges &amp; locks <span>→</span> Name <span>→</span> Print</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="stage-pane" aria-label="The box">
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <span class="stage-label" id="stageLabel">Your box</span>
+            <div class="stage-actions">
+              <button id="flatBtn" class="icon-button stage-reset" type="button" title="Show the flat sheet as it prints" aria-label="Show the flat sheet" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17h18M6 17V9h12v8M9 9V6h6v3"/></svg></button>
+              <button id="viewTopBtn" class="icon-button stage-reset" type="button" title="Look from above" aria-label="Look from above"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V7m0 0 5 5m-5-5-5 5M4 3h16"/></svg></button>
+              <button id="viewBelowBtn" class="icon-button stage-reset" type="button" title="Look at the bottom" aria-label="Look at the bottom"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v13m0 0 5-5m-5 5-5-5M4 21h16"/></svg></button>
+              <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+            </div>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom.">
+            <p id="viewerFallback" class="viewer-fallback" hidden>3D preview needs WebGL, which this browser has turned off. The downloads still work.</p>
+          </div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Building…</span>
+            <label class="fold-control"><span>Flat</span><input id="foldRange" type="range" min="0" max="100" value="100" aria-label="Fold the box"><span>Closed</span></label>
+          </div>
+        </div>
+        <section class="card readout" aria-labelledby="readTitle">
+          <div class="card-head"><span class="step">✓</span><h2 id="readTitle">Will it print, and fold?</h2></div>
+          <div class="read-grid" id="readGrid"></div>
+          <p class="help" id="readNote"></p>
+        </section>
+      </section>
+
+      <aside class="panel" aria-label="Box controls">
+        <section class="card" aria-labelledby="sizeTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="sizeTitle">The box</h2></div>
+          <p class="eyebrow-small">Quick sizes</p>
+          <div class="chips" id="sizeChips" role="group" aria-label="Quick sizes"></div>
+          <div class="field-grid">
+            <div class="field"><label for="widthInput">Inside width</label><input id="widthInput" type="number" inputmode="decimal" min="20" max="240" step="1" value="80"><span class="unit">mm</span></div>
+            <div class="field"><label for="depthInput">Inside depth</label><input id="depthInput" type="number" inputmode="decimal" min="20" max="240" step="1" value="60"><span class="unit">mm</span></div>
+            <div class="field"><label for="heightInput">Inside height</label><input id="heightInput" type="number" inputmode="decimal" min="10" max="150" step="1" value="40"><span class="unit">mm</span></div>
+            <div class="field"><label for="thicknessInput">Sheet</label><input id="thicknessInput" type="number" inputmode="decimal" min="0.8" max="2.4" step="0.2" value="1.2"><span class="unit">mm</span></div>
+            <div class="field"><label for="cornerInput">Rounded corners</label><input id="cornerInput" type="number" inputmode="decimal" min="0" max="6" step="0.5" value="3"><span class="unit">mm</span></div>
+            <div class="field"><label for="windowSelect">Lid window</label><select id="windowSelect"></select></div>
+          </div>
+          <div class="field-grid" id="windowFields">
+            <div class="field"><label for="windowSizeInput">Window size</label><input id="windowSizeInput" type="number" inputmode="decimal" min="8" max="120" step="1" value="24"><span class="unit">mm</span></div>
+          </div>
+          <label class="toggle"><input id="lidToggle" type="checkbox" checked><span>Tuck lid<small>Off makes an open tray with locked corners.</small></span></label>
+          <label class="toggle"><input id="notchToggle" type="checkbox" checked><span>Thumb notch<small>A half-moon in the front wall to lift the lid.</small></span></label>
+        </section>
+
+        <section class="card" aria-labelledby="hingeTitle">
+          <div class="card-head"><span class="step">2</span><h2 id="hingeTitle">Hinges and locks</h2></div>
+          <div class="chips" id="hingeChips" role="group" aria-label="Filament for the hinges"></div>
+          <p class="help" id="hingeBlurb"></p>
+          <div class="field-grid">
+            <div class="field"><label for="grooveInput">Hinge groove</label><input id="grooveInput" type="number" inputmode="decimal" min="0.8" max="4" step="0.1"><span class="unit">mm</span></div>
+            <div class="field"><label for="residualInput">Hinge left</label><input id="residualInput" type="number" inputmode="decimal" min="0.2" max="1.2" step="0.1"><span class="unit">mm</span></div>
+            <div class="field"><label for="fitInput">Lock fit</label><input id="fitInput" type="number" inputmode="decimal" min="0" max="0.6" step="0.05" value="0.2"><span class="unit">mm</span></div>
+            <div class="field"><label for="flapInput">Corner flap</label><input id="flapInput" type="number" inputmode="decimal" min="6" max="30" step="1" value="10"><span class="unit">mm</span></div>
+            <div class="field"><label for="tongueInput">Tongue stick-out</label><input id="tongueInput" type="number" inputmode="decimal" min="0.5" max="6" step="0.5" value="2"><span class="unit">mm</span></div>
+          </div>
+          <p class="help small">The hinge is a groove on the inside, leaving a few layers that fold. Each corner flap folds in against the side wall and its tongue folds out through a slot: the lock fit is the slot's clearance on each side. The tongue sticks out past the wall by the amount you set.</p>
+        </section>
+
+        <section class="card" aria-labelledby="nameTitle">
+          <div class="card-head"><span class="step">3</span><h2 id="nameTitle">Name and pattern</h2></div>
+          <div class="field wide"><label for="nameInput">Name on the box</label><input id="nameInput" type="text" maxlength="30" placeholder="Rima" value=""></div>
+          <div class="field-grid">
+            <div class="field"><label for="fontSelect">Letters</label><select id="fontSelect"><option value="700 48px system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">Bold sans</option><option value="italic 700 48px Georgia, 'Times New Roman', serif">Italic serif</option><option value="900 48px Impact, 'Arial Black', system-ui, sans-serif">Heavy</option><option value="400 48px 'Comic Sans MS', 'Chalkboard SE', cursive">Playful</option></select></div>
+            <div class="field"><label for="layersInput">Layers</label><input id="layersInput" type="number" inputmode="numeric" min="1" max="6" step="1" value="2"><span class="unit">×0.2</span></div>
+            <div class="field"><label for="inlayColour">Name colour</label><input id="inlayColour" type="color" value="#ffffff"></div>
+          </div>
+          <div class="chips" id="whereChips" role="group" aria-label="Where the name goes"></div>
+          <p class="eyebrow-small">A pattern on the first layer</p>
+          <div class="chips" id="patternChips" role="group" aria-label="Pattern"></div>
+          <div class="field-grid" id="patternFields" hidden>
+            <div class="field"><label for="patternPeriodInput">Repeat</label><input id="patternPeriodInput" type="number" inputmode="decimal" min="2" max="40" step="0.5" value="8"><span class="unit">mm</span></div>
+            <div class="field"><label for="patternWeightInput">Weight</label><input id="patternWeightInput" type="number" inputmode="decimal" min="0.1" max="0.9" step="0.05" value="0.35"><span class="unit">×</span></div>
+          </div>
+          <p class="help" id="inlayStatus"></p>
+        </section>
+
+        <section class="card" aria-labelledby="printTitle">
+          <div class="card-head"><span class="step">4</span><h2 id="printTitle">Print</h2></div>
+          <div class="two-fields">
+            <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+            <div class="field wide" id="bedField"><label for="bedSelect">Plate</label><select id="bedSelect"></select></div>
+          </div>
+          <div class="field wide"><label for="bodyColour">Box colour (for the preview and the file)</label><input id="bodyColour" type="color" value="#f2c200"></div>
+          <p class="totals" id="totalsLine"></p>
+          <div class="warnings" id="warnings" role="status"></div>
+          <div class="downloads">
+            <button id="download3mf" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — the sheet on filament 1, the name on filament 2</small></span></button>
+            <button id="downloadStl" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Sheet STL</span></button>
+            <button id="downloadSvg" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M4 12h16M12 4v16" stroke-dasharray="2 2"/></svg><span>Die-line SVG <small>cut it from card or a laser</small></span></button>
+          </div>
+          <p class="help open-note" id="profileNote"></p>
+          <button id="shareBtn" class="button button-small" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7L11.5 6.8"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/></svg><span>Copy a link to this box</span></button>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="guide" class="guide" aria-labelledby="guideTitle">
+    <div class="guide-inner">
+      <div class="guide-head">
+        <h2 id="guideTitle">The guide</h2>
+        <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <h3>How it folds</h3>
+      <p>The sheet prints flat with the hinge grooves facing up, so every panel folds up toward the top of the print and the first layer becomes the outside. Fold the four walls up. Fold each corner flap inward so it lies against the inside of the side wall, then fold its tongue outward through the slot in the wall: the tongue is hinged by a groove on the <em>underside</em>, so it folds the other way. Four tongues lock four corners. Fold the lid over and tuck its flap down inside the front wall; the thumb notch lifts it.</p>
+      <h3>Hinges that last</h3>
+      <p>A living hinge is the few layers left under the groove. PLA takes a handful of folds (fold slowly; warm the hinge with your fingers first); PETG takes hundreds; TPU is a hinge for life, in a softer box. The presets set the groove width and what is left for each; the first layer under a hinge runs along it, which helps. Print the sheet as placed, at 0.2 mm layers, with no supports.</p>
+      <h3>The name</h3>
+      <p>The name is a second part in the same 3MF, two layers tall, sitting under the sheet's first layers on filament 2; Bambu Studio clips it into the sheet and changes colour twice per layer for two layers. It is placed on the lid turned so that, once the lid is folded over the back and closed, it reads left to right from the front. On the front wall it stands upright. A pattern can cover the whole first layer the same way, inset a little from every edge.</p>
+      <h3>The locks</h3>
+      <p>The slot in each side wall is as wide as the sheet plus the lock fit on each side, and as tall as the tongue plus the fit, centred at the tongue's height. A fit of 0.2 mm is a firm push on a well-tuned printer; use 0.3 if the tongues fight, 0.1 if they slip. The tongue sticks out past the wall by the amount you set; 2 mm is a neat ear, 4 mm a handle.</p>
+      <h3>The die-line</h3>
+      <p>The SVG is the same outline in millimetres: solid lines to cut, red dashes to valley-fold (toward you, the print's top side), blue dots to mountain-fold (the tongues). It cuts a card box with the same locks, the slots and all.</p>
+      <p class="guide-foot">Tuck runs entirely in your browser; nothing is uploaded. Bambu Lab and Bambu Studio are trademarks of their owner; Tuck is an independent tool.</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="page-width site-footer">
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/workshop/">The workshop</a>
+      <a href="/knurl/">Knurl — surface textures</a>
+      <a href="/cameo/">Cameo — photo figurines</a>
+      <a href="/swatch/">Swatch — surface tests</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/hollow/">Hollow — molds</a>
+      <a href="/cubby/">Cubby — drawer organizers</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/legal/">Legal</a>
+      <a href="https://github.com/kmay89/ABOUT/tree/main/tuck">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

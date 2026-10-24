@@ -57,7 +57,11 @@ by models that run in the browser, printed flat with no supports; and
 [Knurl](https://kmay89.com/knurl/) — a surface texture studio: any STL
 gets a knurl, hexagons, flutes, scales or wood grain cut into its walls,
 shaped so it prints with no supports, and its first layer painted in a
-second colour from a pattern, text or a logo, all in one Bambu Studio file.
+second colour from a pattern, text or a logo, all in one Bambu Studio file;
+and [Tuck](https://kmay89.com/tuck/) — a fold-up box studio: a box printed
+flat with living hinges, corner flaps whose tongues lock through the side
+walls, a tuck lid, and a name on the first layer that reads right once it
+is closed.
 
 **Live:** <https://kmay89.com>
 
@@ -215,7 +219,7 @@ second colour from a pattern, text or a logo, all in one Bambu Studio file.
   the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
   `npm run check:hollow` runs its suites.
 - `workshop/` — the workshop: one page listing the 3D printer tools (Luma,
-  Hollow, Cubby, Swatch, Cameo and Knurl), reached from the desk by the scratch-built
+  Hollow, Cubby, Swatch, Cameo, Knurl and Tuck), reached from the desk by the scratch-built
   printer on the side table;
 - `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
   becomes a grid that fills it exactly; bins cover whole cells, can be
@@ -268,7 +272,18 @@ second colour from a pattern, text or a logo, all in one Bambu Studio file.
   triangles; readouts and a heat view give the steepest real overhang,
   the finest feature against the nozzle's line and the thinnest wall
   under the cut, and one button scales the depth until it prints. The
-  3MF carries per-object slicer settings that suit textured walls. Twenty-two one-tap looks with shaded
+  3MF carries per-object slicer settings that suit textured walls.
+- `tuck/` — Tuck, a fold-up box studio. The box is a set of regions of
+  the plane with a bottom and a top height (panels, hinge grooves from
+  above, tongue grooves from below) that tile a sheet; the mesher caps
+  each region, raises walls where height intervals differ and bands them
+  at the sheet's levels, and welds one closed solid whose volume is the
+  sum of area × height. Corner flaps fold in and their tongues lock out
+  through slots placed where the folded tongue lands; a tuck lid with a
+  thumb notch; a name on the first layer turned so it reads once the lid
+  is closed, as a second part on filament 2; a folding 3D view; a die-line
+  SVG for card. Notes in `tuck/README.md`; `npm run check:tuck` runs its
+  suites. Twenty-two one-tap looks with shaded
   thumbnails, a live swatch, a fast preview with full-detail export, and
   a link that carries the settings. The bottom face is
   rasterised and a second-colour inlay (a pattern, a border, text or an
