@@ -8,7 +8,7 @@ export const LOOKS = Object.freeze([
     texture: 'knurl', period: 2.0, depth: 0.35, knobs: { sharp: 0.6 }, where: 'walls', direction: 'in', angle: 0, ramp: 'none',
     inlay: { pattern: 'hexgrid', period: 6, weight: 0.3 } },
   { id: 'shell', name: 'Honeycomb shell', blurb: 'Hex cells over walls and top, honeycomb lines underneath.',
-    texture: 'hex', period: 5, depth: 0.4, knobs: { groove: 0.3 }, where: 'walls-top', direction: 'in', angle: 0, ramp: 'none',
+    texture: 'hex', period: 5, depth: 0.4, knobs: { groove: 0.4 }, where: 'walls-top', direction: 'in', angle: 0, ramp: 'none',
     inlay: { pattern: 'hexgrid', period: 5, weight: 0.25 } },
   { id: 'deco', name: 'Art deco', blurb: 'Tall flutes, cut deep. Rings on the bottom.',
     texture: 'flutes', period: 3.5, depth: 0.7, knobs: { round: 0.9 }, where: 'walls', direction: 'in', angle: 0, ramp: 'none',

@@ -262,9 +262,13 @@ second colour from a pattern, text or a logo, all in one Bambu Studio file.
   picture) with a flat
   or around-the-axis mapping whose period closes the seam, within a height
   band, with an ombré if wanted. The relief is cut in by default, fades to
-  nothing at the texture's edges and stays clear of the plate; a readout
-  and a heat view give the steepest real overhang, and one button scales
-  the depth until it prints. Twenty-two one-tap looks with shaded
+  nothing at the texture's edges and stays clear of the plate; only the
+  textured faces are subdivided (long thin ones as stitched strips), so
+  a cup gets the same 0.4 mm detail as a box at a fraction of the
+  triangles; readouts and a heat view give the steepest real overhang,
+  the finest feature against the nozzle's line and the thinnest wall
+  under the cut, and one button scales the depth until it prints. The
+  3MF carries per-object slicer settings that suit textured walls. Twenty-two one-tap looks with shaded
   thumbnails, a live swatch, a fast preview with full-detail export, and
   a link that carries the settings. The bottom face is
   rasterised and a second-colour inlay (a pattern, a border, text or an
