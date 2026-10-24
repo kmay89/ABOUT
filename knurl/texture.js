@@ -16,18 +16,70 @@ export const WHERE = Object.freeze([
   { id: 'walls-top', name: 'Walls and tops', blurb: 'Everything but faces that look down, and the bottom.' },
   { id: 'top', name: 'Tops only', blurb: 'Faces that look up: within 45° of flat.' },
   { id: 'all', name: 'Everything but the bottom', blurb: 'Undersides too — mind the overhang readout.' },
+  { id: 'picked', name: 'Tap to pick', blurb: 'Tap faces in the 3D view to add or remove them. A flat face picks as one; a curved one picks as a strip.' },
 ]);
 
 export const DEFAULTS = Object.freeze({
   texture: 'knurl', where: 'walls', mapping: 'auto', period: 2.4, depth: 0.5, direction: 'in', angle: 0,
   bottomClear: 1.2, topClear: 0, edgeFade: 1.0, insideWalls: false, target: 0.5, maxTriangles: 1200000, knobs: {},
+  bandFrom: 0, bandTo: null, ramp: 'none', pick: null,
 });
+
+/**
+ * Smooth regions: triangles joined across an edge whose normals agree
+ * within `angle` degrees share an id, so a flat face is one region and a
+ * finely faceted cylinder (steps under the angle) is one region too,
+ * while a crease stops the fill. Returns { id, count, area }.
+ */
+export function regions(mesh, angle = 8) {
+  const { indices: ix } = mesh, n = faceNormals(mesh), count = ix.length / 3;
+  const vcount = mesh.positions.length / 3;
+  const edges = new Map();
+  for (let t = 0; t < count; t++) for (let k = 0; k < 3; k++) {
+    const a = ix[t * 3 + k], b = ix[t * 3 + (k + 1) % 3];
+    const key = a < b ? a * vcount + b : b * vcount + a;
+    const e = edges.get(key); if (e) e.push(t); else edges.set(key, [t]);
+  }
+  const adj = Array.from({ length: count }, () => []);
+  for (const ts of edges.values()) for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) { adj[ts[i]].push(ts[j]); adj[ts[j]].push(ts[i]); }
+  const id = new Int32Array(count).fill(-1), cosA = Math.cos(angle * Math.PI / 180);
+  let next = 0;
+  const { positions: p } = mesh;
+  const triArea = t => { const a = ix[t * 3] * 3, b = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3; const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2], vx = p[c] - p[a], vy = p[c + 1] - p[a + 1], vz = p[c + 2] - p[a + 2]; return Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2; };
+  const areas = [];
+  for (let s = 0; s < count; s++) {
+    if (id[s] >= 0) continue;
+    const r = next++; id[s] = r; let area = triArea(s);
+    const stack = [s];
+    while (stack.length) {
+      const t = stack.pop();
+      for (const u of adj[t]) {
+        if (id[u] >= 0) continue;
+        const d = n[t * 3] * n[u * 3] + n[t * 3 + 1] * n[u * 3 + 1] + n[t * 3 + 2] * n[u * 3 + 2];
+        if (d >= cosA) { id[u] = r; area += triArea(u); stack.push(u); }
+      }
+    }
+    areas.push(area);
+  }
+  return { id, count: next, area: Float32Array.from(areas) };
+}
+
+/**
+ * The depth that brings an overhang of `angle` degrees down to `target`:
+ * on a wall the slope is proportional to depth, so scale by the tangents.
+ * Never below 0.05 mm; never up.
+ */
+export function tuneDepth(depth, angle, target = 42) {
+  if (!(angle > target) || !(depth > 0)) return depth;
+  const scaled = depth * Math.tan(target * Math.PI / 180) / Math.tan(Math.min(angle, 89) * Math.PI / 180);
+  return Math.max(0.05, Math.round(scaled * 20) / 20);
+}
 
 /**
  * Classify every original triangle: 0 none (bottom or excluded), 1 textured.
  * Also returns per-triangle class names for the page.
  */
-export function classify(mesh, where, { bottomTolerance = 0.05, insideWalls = false } = {}) {
+export function classify(mesh, where, { bottomTolerance = 0.05, insideWalls = false, pick = null } = {}) {
   const n = faceNormals(mesh), b = bounds(mesh), { positions: p, indices: ix } = mesh;
   const count = ix.length / 3;
   const on = new Uint8Array(count), kind = new Uint8Array(count), inward = new Uint8Array(count); // kind: 0 bottom, 1 wall, 2 top, 3 underside
@@ -43,7 +95,7 @@ export function classify(mesh, where, { bottomTolerance = 0.05, insideWalls = fa
     const mx = (p[a] + p[bb] + p[c]) / 3 - cx, my = (p[a + 1] + p[bb + 1] + p[c + 1]) / 3 - cy;
     inward[t] = k === 1 && (mx * n[t * 3] + my * n[t * 3 + 1]) < -0.3 * (Math.hypot(mx, my) || 1) ? 1 : 0;
     const wall = k === 1 && !(inward[t] && !insideWalls);
-    on[t] = k === 0 ? 0 : where === 'walls' ? (wall ? 1 : 0) : where === 'walls-top' ? (wall || k === 2 ? 1 : 0) : where === 'top' ? (k === 2 ? 1 : 0) : (k === 1 ? (wall ? 1 : 0) : 1);
+    on[t] = k === 0 ? 0 : where === 'picked' ? (pick && pick[t] ? 1 : 0) : where === 'walls' ? (wall ? 1 : 0) : where === 'walls-top' ? (wall || k === 2 ? 1 : 0) : where === 'top' ? (k === 2 ? 1 : 0) : (k === 1 ? (wall ? 1 : 0) : 1);
   }
   return { on, kind, inward, bounds: b, normals: n };
 }
@@ -72,9 +124,9 @@ export function applyTexture(mesh, options = {}) {
   const o = { ...DEFAULTS, ...options, knobs: { ...options.knobs } };
   const tex = textureById(o.texture);
   for (const knob of tex.knobs) if (!(knob.key in o.knobs)) o.knobs[knob.key] = knob.value;
-  const cls = classify(mesh, o.where, { insideWalls: o.insideWalls });
+  const cls = classify(mesh, o.where, { insideWalls: o.insideWalls, pick: o.pick });
   const anyOn = cls.on.some(v => v);
-  if (!anyOn || o.depth <= 0) return { mesh, stats: stats(mesh, cls.bounds), mapping: o.mapping, textured: 0 };
+  if (!anyOn || o.depth <= 0) return { mesh, stats: stats(mesh, cls.bounds), mapping: o.mapping, textured: 0, source: null, on: cls.on };
   const sub = subdivide(mesh, { target: Math.min(o.target, o.period / 5), maxTriangles: o.maxTriangles });
   const { positions: p, indices: ix } = sub.mesh;
   const vcount = p.length / 3;
@@ -109,30 +161,52 @@ export function applyTexture(mesh, options = {}) {
   const ca = Math.cos(o.angle * Math.PI / 180), sa = Math.sin(o.angle * Math.PI / 180);
   const zmin = b.min[2], zmax = b.max[2];
   const sign = o.direction === 'out' ? 1 : -1;
+  // a height band: the texture lives between bandFrom and bandTo above the plate, fading in over the edge-fade distance
+  const z0 = zmin + Math.max(0, o.bandFrom || 0), z1 = o.bandTo == null ? zmax : Math.min(zmax, zmin + o.bandTo);
+  const bandFade = Math.max(0.3, o.edgeFade);
+  const banded = z0 > zmin + 1e-6 || z1 < zmax - 1e-6;
+  // (u, v) per vertex, with u running to the right as the face is seen from
+  // outside, so a stamp reads the right way round on every wall
+  const uvOf = v => {
+    const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+    const ax = axisVotes[v * 3], ay = axisVotes[v * 3 + 1], az = axisVotes[v * 3 + 2];
+    let u, vv;
+    if (mapping === 'around' && az < Math.max(ax, ay)) { u = Math.atan2(y - cy, x - cx) * R; vv = z; }
+    else if (az >= ax && az >= ay) { u = texNormal[v * 3 + 2] >= 0 ? x : -x; vv = y; }
+    else if (ax >= ay) { u = texNormal[v * 3] >= 0 ? y : -y; vv = z; }
+    else { u = texNormal[v * 3 + 1] >= 0 ? -x : x; vv = z; }
+    return [u * ca - vv * sa, u * sa + vv * ca];
+  };
+  // a stamp placed once sits at the centre of the textured faces' (u, v) box
+  if (tex.id === 'stamp' && !o.knobs.tile && o.knobs.raster) {
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (let v = 0; v < vcount; v++) { if (weight[v] <= 0) continue; const [uu, vv] = uvOf(v); if (uu < u0) u0 = uu; if (uu > u1) u1 = uu; if (vv < v0) v0 = vv; if (vv > v1) v1 = vv; }
+    o.knobs = { ...o.knobs, cu: (u0 + u1) / 2, cv: (v0 + v1) / 2 };
+  }
   for (let v = 0; v < vcount; v++) {
     let w = weight[v];
     if (w <= 0) continue;
-    const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+    const z = p[v * 3 + 2];
     if (o.bottomClear > 0) w *= smooth((z - zmin - 0.2) / o.bottomClear);
     if (o.topClear > 0) w *= smooth((zmax - z) / o.topClear);
+    if (banded) w *= smooth((z - z0) / bandFade) * smooth((z1 - z) / bandFade);
     if (w <= 0) continue;
     let nx = texNormal[v * 3], ny = texNormal[v * 3 + 1], nz = texNormal[v * 3 + 2];
     const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
-    let u, vv;
-    const ax = axisVotes[v * 3], ay = axisVotes[v * 3 + 1], az = axisVotes[v * 3 + 2];
-    if (mapping === 'around' && az < Math.max(ax, ay)) { u = Math.atan2(y - cy, x - cx) * R; vv = z; }
-    else if (az >= ax && az >= ay) { u = x; vv = y; }
-    else if (ax >= ay) { u = y; vv = z; }
-    else { u = x; vv = z; }
-    const ur = u * ca - vv * sa, vr = u * sa + vv * ca;
+    const [ur, vr] = uvOf(v);
     const h = tex.h(ur, vr, period, o.knobs);               // 1 = original surface, 0 = full depth
-    const d = sign < 0 ? -(1 - h) * o.depth : h * o.depth; // cut in: valleys recede; raise out: peaks stand proud
+    let depth = o.depth;
+    if (o.ramp === 'up' || o.ramp === 'down') {            // ombré: the depth grows along the band
+      const t = Math.min(1, Math.max(0, (z - z0) / Math.max(1e-6, z1 - z0)));
+      depth *= o.ramp === 'up' ? t : 1 - t;
+    }
+    const d = sign < 0 ? -(1 - h) * depth : h * depth;     // cut in: valleys recede; raise out: peaks stand proud
     out[v * 3] += nx * d * w; out[v * 3 + 1] += ny * d * w; out[v * 3 + 2] += nz * d * w;
   }
   const result = { positions: out, indices: ix };
   let texturedCount = 0; for (let v = 0; v < vcount; v++) if (weight[v] > 0) texturedCount++;
   const textured = texturedCount / vcount;
-  return { mesh: result, stats: { ...stats(result, b), period, target: sub.target }, mapping, textured };
+  return { mesh: result, stats: { ...stats(result, b), period, target: sub.target }, mapping, textured, source: sub.source, on: cls.on };
 }
 
 function smooth(x) { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); }

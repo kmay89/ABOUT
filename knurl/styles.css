@@ -207,3 +207,21 @@ h1 em { color: #957332; font-weight: 400; }
 .toggle input { margin: 2px 0 0; accent-color: var(--accent-dark); }
 .toggle small { display: block; color: var(--muted); font-size: 11.5px; }
 .field input[type="color"] { padding: 2px; height: 36px; cursor: pointer; }
+
+/* looks, swatch, picking, stamps, bands */
+.eyebrow-small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #7a7366); margin: 2px 0 6px; }
+.chips.looks .chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; text-align: left; border-radius: 12px; }
+.chips.looks .chip small { font-size: 11px; opacity: .72; font-weight: 400; }
+.texture-row { display: flex; gap: 12px; align-items: flex-start; }
+.texture-row .chips { flex: 1; min-width: 0; }
+.swatch { flex: none; width: 132px; height: 132px; border-radius: 12px; border: 1px solid var(--line, #e2ddd1); background: #ddd; image-rendering: auto; }
+.stamp-fields { display: grid; gap: 10px; margin-top: 10px; }
+.pick-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; margin: 6px 0 10px; border-radius: 10px; background: rgba(232,174,57,.12); border: 1px solid rgba(232,174,57,.4); }
+.pick-bar .help { margin: 0; }
+.button.button-small { padding: 9px 12px; font-size: 13px; }
+.button.button-small svg { width: 16px; height: 16px; }
+#tuneBtn { margin-top: 12px; }
+#shareBtn { margin-top: 12px; width: 100%; justify-content: center; }
+.icon-button[aria-pressed="true"] { background: #e8ae39; color: #1b1a17; border-color: #e8ae39; }
+.viewer.picking { cursor: crosshair; }
+@media (max-width: 520px) { .texture-row { flex-direction: column; } .swatch { width: 100%; height: 110px; } .pick-bar { flex-direction: column; align-items: flex-start; } }

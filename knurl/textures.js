@@ -154,7 +154,38 @@ export const TEXTURES = Object.freeze([
   },
 ]);
 
-export const textureById = id => TEXTURES.find(t => t.id === id) || TEXTURES[0];
+/**
+ * The stamp: a raster (text set by the page, or any picture as a height
+ * map) as the relief. k.raster = { data: Uint8Array 0..255 (255 = full
+ * cut), width, height }, k.tile (repeat it as a pattern) or placed once at
+ * (k.cu, k.cv), which applyTexture sets to the centre of the textured
+ * faces. One tile is `p` mm wide. Bilinear, so letters have smooth edges.
+ */
+export function stampHeight(u, v, p, k) {
+  const r = k.raster;
+  if (!r || !r.width || !r.height) return 1;
+  const mmPerPx = p / r.width;
+  let lx = (u - (k.cu || 0)) / mmPerPx + r.width / 2, ly = (v - (k.cv || 0)) / mmPerPx + r.height / 2;
+  if (k.tile) { lx -= Math.floor(lx / r.width) * r.width; ly -= Math.floor(ly / r.height) * r.height; }
+  else if (lx < 0 || ly < 0 || lx >= r.width || ly >= r.height) return 1;
+  const x0 = Math.floor(lx - 0.5), y0 = Math.floor(ly - 0.5), fx = lx - 0.5 - x0, fy = ly - 0.5 - y0;
+  const at = (x, y) => {
+    if (k.tile) { x = ((x % r.width) + r.width) % r.width; y = ((y % r.height) + r.height) % r.height; }
+    else if (x < 0 || y < 0 || x >= r.width || y >= r.height) return 0;
+    return r.data[y * r.width + x];
+  };
+  const val = (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+  return 1 - val / 255;
+}
+
+export const STAMP = Object.freeze({
+  id: 'stamp', name: 'Stamp', blurb: 'Your own text or picture as the relief: a name across a wall, a logo, any photo as a height map. Place it once, centred on the textured faces, or tile it as a pattern.',
+  defaults: { period: 40, depth: 0.5 }, knobs: [{ key: 'soft', label: 'Softness', min: 0, max: 1, step: 0.05, value: 0.2 }],
+  h: stampHeight,
+});
+
+export const ALL_TEXTURES = Object.freeze([...TEXTURES, STAMP]);
+export const textureById = id => ALL_TEXTURES.find(t => t.id === id) || TEXTURES[0];
 
 /**
  * Patterns for the first-layer inlay: 1 where the second colour goes.
