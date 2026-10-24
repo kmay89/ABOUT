@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>The Workshop — tools for the 3D printer on kmay89.com</title>
-<meta name="description" content="Free, open-source tools for a home 3D printer, in the browser: Luma turns a photo into a lithophane; Hollow turns any STL into a printable mold for concrete, plaster, resin, wax or soap; Cubby designs a drawer organizer that fits to the millimetre; Swatch prints a grid of test coupons to find the settings that make a surface look right; Cameo turns a photo into a relief figurine on a pedestal; Knurl lays one of twenty-three printable textures into the walls of any STL and paints its first layer in a second colour. No accounts, no uploads, nothing tracked; they work offline.">
+<meta name="description" content="Free, open-source tools for a home 3D printer, in the browser: Luma turns a photo into a lithophane; Hollow turns any STL into a printable mold for concrete, plaster, resin, wax or soap; Cubby designs a drawer organizer that fits to the millimetre; Swatch prints a grid of test coupons to find the settings that make a surface look right; Cameo turns a photo into a relief figurine on a pedestal; Knurl lays one of twenty-three printable textures into the walls of any STL and paints its first layer in a second colour; Tuck prints a fold-up box flat, with locking corners, a tuck lid and your name on it. No accounts, no uploads, nothing tracked; they work offline.">
 <meta name="theme-color" content="#14110e">
 <link rel="canonical" href="https://kmay89.com/workshop/">
 <link rel="icon" href="/apple-touch-icon.png" type="image/png">
@@ -106,13 +106,19 @@
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#f4f2eb"/><g fill="none" stroke="#b88b32" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><path d="M14 14l36 36M24 10l30 30M10 24l30 30M34 10l20 20M10 34l20 20"/><path d="M50 14L14 50M40 10L10 40M54 24L24 54M30 10L10 30M54 34L34 54"/></g><rect x="12" y="46" width="40" height="6" rx="2" fill="#e8ae39"/></svg>
       <span class="tx"><b>Knurl — Surface Texture Studio</b>
       <small>Drop in any STL and tap a look: quilted, wicker, parquet, hammered copper, seigaiha, asanoha, arabesque, topo lines, low poly, chevron, dunes, linen, knurl, honeycomb, scales, leather, or a stamp of your own name — twenty-three textures with shaded thumbnails. Tap the faces it should go on, band it, fade it; a heat view, a finest-detail check against the nozzle, a thinnest-wall check under the cut and one button make sure it prints with no supports. Then paint the first layer in a second colour from a matching library of patterns, text or a logo, as a second part in the same 3MF: two layers of filament, one swap.</small>
-      <span class="tags"><span class="tag">23 textures</span><span class="tag">22 looks</span><span class="tag">Two-colour first layer</span><span class="tag warm">New</span></span></span>
+      <span class="tags"><span class="tag">23 textures</span><span class="tag">22 looks</span><span class="tag">Two-colour first layer</span></span></span>
+    </a>
+    <a class="tool" href="/tuck/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#f4f2eb"/><g fill="none" stroke="#b88b32" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><path d="M14 28h36v22H14z"/><path d="M14 28l8-10h20l8 10"/><path d="M22 18v10M42 18v10"/></g><path d="M26 40h12" stroke="#e8ae39" stroke-width="3.5" stroke-linecap="round"/></svg>
+      <span class="tx"><b>Tuck — Fold-up Box Studio</b>
+      <small>A box printed flat in one piece: living hinges, corner flaps whose tongues lock out through the side walls, a tuck lid with a thumb notch, a window if you like, and your name on the first layer in a second colour, placed so it reads the right way once the lid is closed. Size it inside to the millimetre, watch it fold in 3D, download the 3MF, or the die-line to cut the same box from card.</small>
+      <span class="tags"><span class="tag">Living hinges</span><span class="tag">Locking corners</span><span class="tag">Name on the lid</span><span class="tag warm">New</span></span></span>
     </a>
   </div>
 
   <section class="bench">
     <h2>On the bench</h2>
-    <p>These tools are hand-written static pages: ES modules, a vendored copy of Three.js for the 3D view, and a web worker for the heavy geometry so the page stays alive while it thinks. There is no build step — clone the repo, serve the folder, and they run. Each has a README that explains the maths and a test suite that proves the files it writes are closed solids: <code>npm run check:luma</code>, <code>npm run check:hollow</code>, <code>npm run check:cubby</code>, <code>npm run check:swatch</code>, <code>npm run check:cameo</code>, <code>npm run check:knurl</code>.</p>
+    <p>These tools are hand-written static pages: ES modules, a vendored copy of Three.js for the 3D view, and a web worker for the heavy geometry so the page stays alive while it thinks. There is no build step — clone the repo, serve the folder, and they run. Each has a README that explains the maths and a test suite that proves the files it writes are closed solids: <code>npm run check:luma</code>, <code>npm run check:hollow</code>, <code>npm run check:cubby</code>, <code>npm run check:swatch</code>, <code>npm run check:cameo</code>, <code>npm run check:knurl</code>, <code>npm run check:tuck</code>.</p>
     <p>They print on a Bambu Lab P2S here, but the files are ordinary STL and 3MF at 100 % scale, and the printer menu knows the plates of the common machines. If a tool gets something wrong for your printer, the source is the place to say so.</p>
   </section>
 
