@@ -77,7 +77,7 @@ export const TEXTURES = Object.freeze([
   },
   {
     id: 'hex', name: 'Honeycomb', blurb: 'Hexagonal cells with a groove between them, each cell a shallow dome. Reads as a technical, even surface from any angle.',
-    defaults: { period: 4, depth: 0.45 }, knobs: [{ key: 'groove', label: 'Groove width', min: 0.05, max: 0.6, step: 0.05, value: 0.3 }],
+    defaults: { period: 4, depth: 0.4 }, knobs: [{ key: 'groove', label: 'Groove width', min: 0.05, max: 0.8, step: 0.05, value: 0.4 }],
     h: (u, v, p, k) => {
       // hex lattice distance: fold into one cell
       const s = p / Math.sqrt(3);

@@ -7,7 +7,7 @@
  */
 import { parseModel, bounds, watertight, binarySTL, translate } from './mesh.js';
 import { ALL_TEXTURES, INLAYS, textureById } from './textures.js';
-import { WHERE, DEFAULTS, tuneDepth } from './texture.js';
+import { WHERE, DEFAULTS, tuneDepth, featureSize } from './texture.js';
 import { SAMPLES } from './samples.js';
 import { PRINTERS, threeMF } from './export.js';
 import { LOOKS, lookById } from './looks.js';
@@ -20,7 +20,7 @@ const ids = ['printerSelect', 'printerSelect2', 'bedField', 'bedSelect', 'guideB
   'lookChips', 'moreLooksBtn', 'textureChips', 'swatch', 'textureBlurb', 'periodInput', 'depthInput', 'angleInput', 'knobGrid', 'dirIn', 'dirOut', 'stampField', 'stampText', 'stampImage', 'stampOnce', 'stampTile',
   'whereChips', 'whereBlurb', 'pickBar', 'pickCount', 'clearPicksBtn', 'bottomClearInput', 'edgeFadeInput', 'mappingSelect', 'bandFromInput', 'bandToInput', 'rampSelect', 'insideToggle', 'draftToggle', 'fineToggle',
   'inlayChips', 'inlayFields', 'inlayPeriodInput', 'inlayWeightInput', 'inlayAngleInput', 'inlayLayersInput', 'inlayMarginInput', 'inlayColour', 'textField', 'inlayText', 'imageField', 'inlayImage', 'mirrorToggle', 'inlayStatus',
-  'bodyColour', 'totalsLine', 'warnings', 'download3mf', 'downloadBody', 'downloadInlay', 'profileNote', 'shareBtn', 'toast'];
+  'bodyColour', 'tuneSlicerToggle', 'totalsLine', 'warnings', 'download3mf', 'downloadBody', 'downloadInlay', 'profileNote', 'shareBtn', 'toast'];
 const els = Object.fromEntries(ids.map(id => [id, $(id)]));
 const BED_TYPES = [['Textured PEI Plate', 'Textured PEI plate'], ['Cool Plate', 'Cool plate (smooth PEI)'], ['Supertack Plate', 'Cool Plate SuperTack'], ['High Temp Plate', 'High temperature plate'], ['Engineering Plate', 'Engineering plate']];
 const FONT = '700 {size}px system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -443,7 +443,7 @@ function textureOptions(quality) {
     period: num(els.periodInput, t.defaults.period), depth: num(els.depthInput, t.defaults.depth), angle: num(els.angleInput, 0),
     bottomClear: num(els.bottomClearInput, 1.2), edgeFade: num(els.edgeFadeInput, 1), insideWalls: els.insideToggle.checked,
     bandFrom: num(els.bandFromInput, 0), bandTo, ramp: els.rampSelect.value, pick: pickMask(),
-    target: quality === 'fine' ? 0.3 : DEFAULTS.target, maxTriangles: quality === 'draft' ? 260000 : quality === 'fine' ? 2000000 : 900000, knobs,
+    target: quality === 'fine' ? 0.25 : quality === 'draft' ? 0.5 : DEFAULTS.target, maxTriangles: quality === 'draft' ? 200000 : quality === 'fine' ? 2500000 : 1200000, knobs,
   };
 }
 
@@ -455,7 +455,7 @@ async function rebuild(quality = previewQuality()) {
   try {
     const r = await ask('texture', state.source, textureOptions(quality));
     if (seq !== buildSeq) return;
-    state.textured = r.mesh; state.texStats = r.stats; state.mapping = r.mapping; state.texturedShare = r.textured; state.lastSource = r.source || null; state.quality = quality;
+    state.textured = r.mesh; state.texStats = r.stats; state.mapping = r.mapping; state.texturedShare = r.textured; state.lastSource = r.source || null; state.quality = quality; state.wall = r.wall || null;
     if (preview) { preview.show(state.textured, state.inlay, { size: r.stats.size }); showPicks(); }
     setOutputs();
     rememberSettings();
@@ -552,22 +552,38 @@ function setOutputs() {
   const over = s.overhang;
   const cls = over <= 45.5 ? 'good' : over < 60 ? 'warn' : 'bad';   // a 45° chamfer is the classic safe slope
   const steep = s.steepArea || 0;
+  // the finest ridge or groove of the pattern against the nozzle's line, and the wall left under the cut
+  const t = textureById(state.texture);
+  const fine = state.texturedShare > 0 ? featureSize(t, num(els.periodInput, t.defaults.period), state.knobs) : null;
+  const fineCls = fine == null ? '' : fine >= 0.5 ? 'good' : fine >= 0.3 ? 'warn' : 'bad';
+  const depth = num(els.depthInput, t.defaults.depth), wall = state.wall;
+  const left = wall ? (state.direction === 'in' ? wall.min - depth : wall.min) : null;
+  const wallCls = !wall ? '' : state.direction === 'out' ? 'good' : left >= 1.2 && depth <= wall.min / 3 ? 'good' : left >= 0.8 ? 'warn' : 'bad';
   els.readGrid.innerHTML = `
     <div class="read ${cls}"><small>Steepest overhang</small><strong>${over.toFixed(0)}°</strong></div>
     <div class="read ${steep < 20 ? 'good' : steep < 200 ? 'warn' : 'bad'}"><small>Area past 50°</small><strong>${steep < 1 ? '0' : steep.toFixed(0)} mm²</strong></div>
+    <div class="read ${fineCls}"><small>Finest detail</small><strong>${fine == null ? '—' : fine.toFixed(2) + ' mm'}</strong></div>
+    <div class="read ${wallCls}"><small>Thinnest wall</small><strong>${wall ? wall.min.toFixed(1) + ' mm' : '> 40 mm'}</strong></div>
     <div class="read"><small>Triangles</small><strong>${(s.triangles / 1000).toFixed(0)}k</strong></div>
     <div class="read"><small>Volume</small><strong>${(s.volume / 1000).toFixed(1)} cm³</strong></div>`;
-  els.readNote.textContent = over <= 45.5 ? 'Prints cleanly on any printer, no supports: every slope is 45° or less.'
-    : over < 60 ? 'Prints with good cooling; the steepest slopes are between 45° and 60°. A longer repeat or a shallower depth brings them down.'
-    : 'Some slopes are past 60° and will sag or need supports. Choose a gentler texture (flutes, ripples, orange peel, leather), a longer repeat, or less depth.';
+  const notes = [];
+  notes.push(over <= 45.5 ? 'Every slope is 45° or less: prints cleanly on any printer, no supports.'
+    : over < 60 ? 'The steepest slopes are between 45° and 60°: prints with good cooling. A longer repeat or a shallower depth brings them down.'
+    : 'Some slopes are past 60° and will sag or need supports. Choose a gentler texture (flutes, ripples, orange peel, leather), a longer repeat, or less depth.');
+  if (fineCls === 'bad') notes.push(`The finest detail (${fine.toFixed(2)} mm) is narrower than a 0.4 mm nozzle’s line (about 0.42 mm): the slicer will merge or drop it. A longer repeat keeps it.`);
+  else if (fineCls === 'warn') notes.push(`The finest detail (${fine.toFixed(2)} mm) is about one nozzle line wide; it will print, but softer than the preview.`);
+  if (wallCls === 'bad') notes.push(`The cut leaves only ${Math.max(0, left).toFixed(1)} mm of wall under the texture. Shallow the depth, or raise the texture out instead.`);
+  else if (wallCls === 'warn') notes.push(`The cut takes a good share of the thinnest wall (${wall.min.toFixed(1)} mm): ${left.toFixed(1)} mm is left. Fine for PLA; shallow it for a load-bearing part.`);
+  els.readNote.textContent = notes.join(' ');
   els.tuneBtn.hidden = !(over > 45.5 && state.texturedShare > 0 && num(els.depthInput, 0) > 0.05);
   const grams = s.volume * 1.24 / 1000 * 0.45 + (state.inlayInfo ? state.inlayInfo.grams : 0);
   const mins = (s.volume * 0.45 / (0.42 * 0.2) / 100) / 60 * 1.6;
   els.totalsLine.innerHTML = `${state.name}: <strong>${s.size.map(v => v.toFixed(0)).join(' × ')} mm</strong>; about <strong>${Math.round(grams)} g</strong> and <strong>${minutes(mins)}</strong> at 15 % infill, roughly — the slicer knows better.${state.inlay && state.inlayInfo?.count ? ` The inlay adds ${state.inlayInfo.grams.toFixed(1)} g in the second colour.` : ''}`;
   els.download3mf.disabled = els.downloadBody.disabled = false; els.downloadInlay.disabled = !(state.inlay && state.inlayInfo?.count);
+  const tuned = els.tuneSlicerToggle.checked ? ' The object carries its own seam-at-the-back, 120 mm/s outer wall and three-wall settings.' : '';
   els.profileNote.innerHTML = pr.presets
-    ? `<strong>Opens as a project with no warning.</strong> The file names the ${pr.short}’s own presets and the ${BED_TYPES.find(b => b[0] === state.bed)[1].toLowerCase()}${state.inlay && state.inlayInfo?.count ? ', with two filaments in your two colours; the inlay part is on filament 2' : ''}. Pick your real filament${state.inlay ? 's' : ''} and process after it opens.`
-    : `<strong>Open it as a project</strong> (File › Open Project). The object has ${state.inlay && state.inlayInfo?.count ? 'two parts: set the inlay part to your second filament' : 'one part'}.`;
+    ? `<strong>Opens as a project with no warning.</strong> The file names the ${pr.short}’s own presets and the ${BED_TYPES.find(b => b[0] === state.bed)[1].toLowerCase()}${state.inlay && state.inlayInfo?.count ? ', with two filaments in your two colours; the inlay part is on filament 2' : ''}. Pick your real filament${state.inlay ? 's' : ''} and process after it opens.${tuned}`
+    : `<strong>Open it as a project</strong> (File › Open Project). The object has ${state.inlay && state.inlayInfo?.count ? 'two parts: set the inlay part to your second filament' : 'one part'}.${tuned}`;
 }
 
 for (const sel of [els.printerSelect, els.printerSelect2]) {
@@ -577,6 +593,7 @@ for (const sel of [els.printerSelect, els.printerSelect2]) {
 }
 for (const [id, name] of BED_TYPES) { const o = document.createElement('option'); o.value = id; o.textContent = name; els.bedSelect.append(o); }
 els.bedSelect.addEventListener('change', () => { state.bed = els.bedSelect.value; setOutputs(); });
+els.tuneSlicerToggle.addEventListener('change', setOutputs);
 
 els.download3mf.addEventListener('click', async () => {
   if (!state.textured || els.download3mf.disabled) return;
@@ -587,7 +604,8 @@ els.download3mf.addEventListener('click', async () => {
     const hasInlay = state.inlay && state.inlayInfo?.count;
     if (hasInlay) parts.push({ name: 'First-layer inlay', mesh: state.inlay, extruder: 2 });
     const colours = hasInlay ? [els.bodyColour.value.toUpperCase(), els.inlayColour.value.toUpperCase()] : [els.bodyColour.value.toUpperCase()];
-    download(`knurl-${state.name}.3mf`, await threeMF(parts, { printer: printer(), plate: state.bed, colours, title: `${state.name} — ${textureById(state.texture).name}` }), 'model/3mf');
+    const objectSettings = els.tuneSlicerToggle.checked ? { seam_position: 'back', outer_wall_speed: '120', wall_loops: '3' } : {};
+    download(`knurl-${state.name}.3mf`, await threeMF(parts, { printer: printer(), plate: state.bed, colours, title: `${state.name} — ${textureById(state.texture).name}`, objectSettings }), 'model/3mf');
     toast(printer().presets ? 'Open it as a project in Bambu Studio; then pick your filaments.' : 'Open it as a project in Bambu Studio.');
   } finally { els.download3mf.disabled = false; }
 });

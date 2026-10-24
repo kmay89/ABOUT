@@ -63,17 +63,26 @@ a logo into the bottom face as a second part on filament 2.
    and stood on the plate, and its closedness is checked (boundary,
    non-manifold and inconsistently wound edges are counted).
 2. **Classify.** Every original triangle is a bottom (looks down and
-   touches the plate), a wall (normal within 30° of horizontal), a top or
-   an underside. Walls whose normal points toward the part's axis are
+   touches the plate), a wall (normal within 30° of horizontal and leaning
+   outward by no more than 15°, since texturing a face that already
+   overhangs only makes it worse), a top or an underside. Walls whose normal points toward the part's axis are
    inside walls (the inside of a cup) and stay smooth unless asked. The
    bottom is never textured. For tap-to-pick, triangles are first joined
    into smooth regions (a flood fill across edges whose normals agree
    within 8°), and the picked regions are the textured set.
-3. **Subdivide.** The mesh is split uniformly to a target edge length
-   (half a millimetre, or a fifth of the texture's repeat, whichever is
-   smaller) with per-edge segment counts snapped to the same fractions on
-   both sides, so the result is still watertight, within a triangle budget
-   that coarsens the target when a part is large.
+3. **Subdivide, where it matters.** Only the textured triangles are split
+   to the target edge length (0.4 mm, or a sixth of the texture's repeat,
+   whichever is smaller), with per-edge segment counts snapped to the same
+   fractions on both sides so the result stays watertight. A long thin
+   triangle (a wall quad cut in two) becomes a ruled strip of rows between
+   its two long edges, each row with as many points as its length needs
+   and neighbouring rows stitched, so it costs about nShort × nLong
+   triangles instead of nLong² and every triangle stays well shaped. An
+   untextured triangle stays whole, or becomes a fan from its centroid
+   over any edge it shares with a textured one. The budget coarsens the
+   target only when the textured area alone demands it, so a cup gets the
+   same 0.4 mm detail as a box (before this, the cup's inside and bottom
+   ate the budget and its texture was built at 1.2 mm).
 4. **Displace.** Each texture is a height field *h(u, v)* in [0, 1] with
    1 the original surface, parameterised in millimetres on the part: flat
    (the dominant axis of each face, with u running to the right as the
@@ -89,8 +98,16 @@ a logo into the bottom face as a second part on filament 2.
    (u, v) box of the textured vertices.
 5. **Read.** The steepest real overhang: for every down-facing triangle of
    at least 0.01 mm² the angle asin(−n_z), with 0° a vertical wall and 90°
-   a flat ceiling, and the area beyond 50°. Under 45° prints without
-   supports on any sensible printer; 45–60° is marginal.
+   a flat ceiling, and the area beyond 50°. 45° and under prints without
+   supports on any sensible printer; 45–60° is marginal. The *finest
+   detail* of the pattern at this repeat: the height field is sampled on a
+   fine grid, split at mid-height, and a low percentile of the run lengths
+   of either phase is taken; under a nozzle's line width (about 0.42 mm)
+   the slicer merges or drops it. The *thinnest wall* under the texture: a
+   ray is cast inward from a sample of textured triangles (bucketed in a
+   uniform grid, walked with a 3D DDA) and the shortest distance to the
+   surface behind is reported; a cut that takes more than a third of it,
+   or leaves less than 0.8 mm, is flagged.
 6. **Inlay.** The bottom face is rasterised at 0.25 mm, eroded by the edge
    margin, and the chosen pattern sampled per cell (or the page's raster of
    text or an image, centred and mirrored in X because the first layer is
@@ -104,6 +121,10 @@ a logo into the bottom face as a second part on filament 2.
    printer the sparse project config names the printer's own system presets
    with two filaments and the two colours, so the file opens as a project
    with no warning and nothing to fix; the plate type is set on the plate.
+   With "Tune the slicer for texture" on (the default), the object carries
+   three per-object settings that suit textured walls and leave the user's
+   profiles untouched: `seam_position` back, `outer_wall_speed` 120 and
+   `wall_loops` 3.
 
 ## Textures
 
@@ -152,7 +173,12 @@ picture; each chip shows its pattern in the two filament colours.
   inside its envelope when cut in, with overhangs under 60°; raising out
   adds material; the clearance bands are untouched; a cup wraps around with
   a period near the one asked and its inside wall is left alone; the
-  overhang readout sees a 45° chamfer rising from the plate; height fields
+  overhang readout sees a 45° chamfer rising from the plate; adaptive
+  subdivision spends under half the triangles of uniform, keeps the solid
+  closed with its volume, leaves the top nearly whole, keeps wall
+  triangles well shaped and costs a 2 × 40 strip about nShort × nLong;
+  featureSize scales with the repeat and wallThickness finds the cup's
+  2 mm wall and the box's 24 mm top-to-bottom; height fields
   stay in [0, 1]; regions join flat faces and a fine cylinder but stop at
   creases, and picked regions texture only themselves; a band leaves the
   rest flat and the ombré deepens the right way; the stamp samples
@@ -185,9 +211,10 @@ picture; each chip shows its pattern in the two filament colours.
   by the live swatch, the chip thumbnails and the tests.
 - `looks.js` — the one-tap recipes.
 - `settings.js` — settings to and from the link.
-- `subdivide.js` — watertight uniform subdivision with a source map.
+- `subdivide.js` — watertight adaptive subdivision (grids, ruled strips,
+  fans) with a source map.
 - `texture.js` — classify, regions, roundness, applyTexture (bands,
-  ombré, picks, stamps), stats, tuneDepth.
+  ombré, picks, stamps), stats, tuneDepth, featureSize, wallThickness.
 - `inlay.js` — footprint, erode, unpinch, inlayRaster, rasterSolid,
   buildInlay.
 - `samples.js` — the box, cup and knob samples (revolve, roundedBox,

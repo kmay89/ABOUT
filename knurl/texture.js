@@ -12,7 +12,7 @@ import { subdivide } from './subdivide.js';
 import { textureById } from './textures.js';
 
 export const WHERE = Object.freeze([
-  { id: 'walls', name: 'Walls', blurb: 'Faces that stand up: within 30° of vertical.' },
+  { id: 'walls', name: 'Walls', blurb: 'Faces that stand up: within 30° of vertical, leaning outward no more than 15°.' },
   { id: 'walls-top', name: 'Walls and tops', blurb: 'Everything but faces that look down, and the bottom.' },
   { id: 'top', name: 'Tops only', blurb: 'Faces that look up: within 45° of flat.' },
   { id: 'all', name: 'Everything but the bottom', blurb: 'Undersides too — mind the overhang readout.' },
@@ -21,9 +21,105 @@ export const WHERE = Object.freeze([
 
 export const DEFAULTS = Object.freeze({
   texture: 'knurl', where: 'walls', mapping: 'auto', period: 2.4, depth: 0.5, direction: 'in', angle: 0,
-  bottomClear: 1.2, topClear: 0, edgeFade: 1.0, insideWalls: false, target: 0.5, maxTriangles: 1200000, knobs: {},
+  bottomClear: 1.2, topClear: 0, edgeFade: 1.0, insideWalls: false, target: 0.4, maxTriangles: 1200000, knobs: {},
   bandFrom: 0, bandTo: null, ramp: 'none', pick: null,
 });
+
+/**
+ * The finest feature of a texture at a repeat, in mm: sample the height
+ * field on a fine grid over a few repeats, split it at mid-height, scan it
+ * along four directions (rows, columns and both diagonals), take the
+ * lower quartile of the run lengths of either phase in each direction,
+ * and report the smallest. Below a nozzle's line width (about 0.42 mm)
+ * the slicer will merge or drop it. null for a texture that has no field
+ * of its own.
+ */
+export function featureSize(tex, period, knobs = {}) {
+  if (!tex || !tex.h || tex.id === 'stamp') return null;
+  const k = {}; for (const x of tex.knobs || []) k[x.key] = knobs[x.key] ?? x.value;
+  const span = period * 3, N = 240, step = span / N;
+  const grid = new Float32Array(N * N);
+  let lo = Infinity, hi = -Infinity;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const h = tex.h((i - N / 2) * step, (j - N / 2) * step, period, k); grid[j * N + i] = h; if (h < lo) lo = h; if (h > hi) hi = h; }
+  if (!(hi - lo > 1e-6)) return null;
+  const mid = (lo + hi) / 2;
+  // only runs that both begin and end at a phase change count (the window's edges would cut the others short)
+  const scan = (runs, at, len) => { let run = 0, phase = -1, changes = 0; for (let n = 0; n < len; n++) { const ph = grid[at(n)] >= mid ? 1 : 0; if (ph === phase) run++; else { if (changes >= 2) runs.push(run); changes++; phase = ph; run = 1; } } };
+  const quartile = (runs, unit) => { if (runs.length < 8) return Infinity; runs.sort((a, b) => a - b); return runs[Math.floor(runs.length * 0.25)] * unit; };
+  const rows = [], cols = [], diag = [], anti = [];
+  for (let j = 0; j < N; j += 3) scan(rows, i => j * N + i, N);
+  for (let i = 0; i < N; i += 3) scan(cols, j => j * N + i, N);
+  for (let s = 0; s < N; s += 4) { scan(diag, n => (s + n) * N + n, N - s); scan(diag, n => n * N + (s + n), N - s); scan(anti, n => (s + n) * N + (N - 1 - n), N - s); scan(anti, n => n * N + (N - 1 - s - n), N - s); }
+  const best = Math.min(quartile(rows, step), quartile(cols, step), quartile(diag, step * Math.SQRT2), quartile(anti, step * Math.SQRT2));
+  return Number.isFinite(best) ? best : null;
+}
+
+/**
+ * How thick the part is under its textured faces: from the centroid of a
+ * sample of textured triangles, cast a ray inward along the normal and
+ * find the first surface it meets. Triangles are bucketed in a uniform
+ * grid so a big STL stays quick. Returns { min, median, count } in mm, or
+ * null when nothing was hit.
+ */
+export function wallThickness(mesh, on, { samples = 400, maxDistance = 40 } = {}) {
+  const { positions: p, indices: ix } = mesh, n = faceNormals(mesh), count = ix.length / 3;
+  const b = bounds(mesh);
+  const cells = Math.max(4, Math.min(40, Math.round(Math.cbrt(count / 4))));
+  const size = [0, 1, 2].map(i => Math.max(1e-6, b.size[i]) / cells);
+  const cellOf = (x, y, z) => [0, 1, 2].map(i => Math.min(cells - 1, Math.max(0, Math.floor(([x, y, z][i] - b.min[i]) / size[i]))));
+  const buckets = new Map();
+  const key = (cx, cy, cz) => (cx * cells + cy) * cells + cz;
+  for (let t = 0; t < count; t++) {
+    const a = ix[t * 3] * 3, bb = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3;
+    const lo = cellOf(Math.min(p[a], p[bb], p[c]), Math.min(p[a + 1], p[bb + 1], p[c + 1]), Math.min(p[a + 2], p[bb + 2], p[c + 2]));
+    const hi = cellOf(Math.max(p[a], p[bb], p[c]), Math.max(p[a + 1], p[bb + 1], p[c + 1]), Math.max(p[a + 2], p[bb + 2], p[c + 2]));
+    for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) { const kk = key(x, y, z); const arr = buckets.get(kk); if (arr) arr.push(t); else buckets.set(kk, [t]); }
+  }
+  // Möller–Trumbore
+  const hit = (t, o, d) => {
+    const a = ix[t * 3] * 3, bb = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3;
+    const e1x = p[bb] - p[a], e1y = p[bb + 1] - p[a + 1], e1z = p[bb + 2] - p[a + 2], e2x = p[c] - p[a], e2y = p[c + 1] - p[a + 1], e2z = p[c + 2] - p[a + 2];
+    const px = d[1] * e2z - d[2] * e2y, py = d[2] * e2x - d[0] * e2z, pz = d[0] * e2y - d[1] * e2x;
+    const det = e1x * px + e1y * py + e1z * pz;
+    if (Math.abs(det) < 1e-12) return Infinity;
+    const inv = 1 / det, tx = o[0] - p[a], ty = o[1] - p[a + 1], tz = o[2] - p[a + 2];
+    const u = (tx * px + ty * py + tz * pz) * inv; if (u < -1e-6 || u > 1 + 1e-6) return Infinity;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const w = (d[0] * qx + d[1] * qy + d[2] * qz) * inv; if (w < -1e-6 || u + w > 1 + 1e-6) return Infinity;
+    const dist = (e2x * qx + e2y * qy + e2z * qz) * inv;
+    return dist > 1e-4 ? dist : Infinity;
+  };
+  const textured = []; for (let t = 0; t < count; t++) if (!on || on[t]) textured.push(t);
+  if (!textured.length) return null;
+  const stride = Math.max(1, Math.floor(textured.length / samples));
+  const found = [];
+  for (let s = 0; s < textured.length; s += stride) {
+    const t = textured[s];
+    const a = ix[t * 3] * 3, bb = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3;
+    const o = [(p[a] + p[bb] + p[c]) / 3, (p[a + 1] + p[bb + 1] + p[c + 1]) / 3, (p[a + 2] + p[bb + 2] + p[c + 2]) / 3];
+    const d = [-n[t * 3], -n[t * 3 + 1], -n[t * 3 + 2]];
+    // walk the grid cells along the ray (3D DDA), testing each cell's triangles
+    let cell = cellOf(o[0], o[1], o[2]);
+    const stepDir = d.map(v => (v > 0 ? 1 : v < 0 ? -1 : 0));
+    const tMax = [0, 1, 2].map(i => { if (!stepDir[i]) return Infinity; const edge = b.min[i] + (cell[i] + (stepDir[i] > 0 ? 1 : 0)) * size[i]; return (edge - o[i]) / d[i]; });
+    const tDelta = [0, 1, 2].map(i => (stepDir[i] ? size[i] / Math.abs(d[i]) : Infinity));
+    let best = Infinity, travelled = 0;
+    const tested = new Set();
+    while (travelled < maxDistance && best === Infinity) {
+      const arr = buckets.get(key(cell[0], cell[1], cell[2]));
+      if (arr) for (const tt of arr) { if (tt === t || tested.has(tt)) continue; tested.add(tt); const dist = hit(tt, o, d); if (dist < best) best = dist; }
+      const axis = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
+      travelled = tMax[axis];
+      if (best <= travelled) break;
+      cell[axis] += stepDir[axis]; tMax[axis] += tDelta[axis];
+      if (cell[axis] < 0 || cell[axis] >= cells) break;
+    }
+    if (best < maxDistance) found.push(best);
+  }
+  if (!found.length) return null;
+  found.sort((a, b) => a - b);
+  return { min: found[0], median: found[Math.floor(found.length / 2)], count: found.length };
+}
 
 /**
  * Smooth regions: triangles joined across an edge whose normals agree
@@ -89,7 +185,9 @@ export function classify(mesh, where, { bottomTolerance = 0.05, insideWalls = fa
     const a = ix[t * 3] * 3, bb = ix[t * 3 + 1] * 3, c = ix[t * 3 + 2] * 3;
     const zmin = Math.min(p[a + 2], p[bb + 2], p[c + 2]);
     const isBottom = nz < -0.7 && zmin <= b.min[2] + bottomTolerance;
-    const k = isBottom ? 0 : Math.abs(nz) < 0.5 ? 1 : nz > 0 ? 2 : 3;
+    // a wall stands within 30° of vertical but leans outward (downward-facing) by no more than 15°:
+    // texturing a face that already overhangs only makes it worse
+    const k = isBottom ? 0 : nz < -0.26 ? 3 : Math.abs(nz) < 0.5 ? 1 : nz > 0 ? 2 : 3;
     kind[t] = k;
     // a wall whose normal points toward the part's axis is an inside wall (the inside of a cup)
     const mx = (p[a] + p[bb] + p[c]) / 3 - cx, my = (p[a + 1] + p[bb + 1] + p[c + 1]) / 3 - cy;
@@ -127,7 +225,7 @@ export function applyTexture(mesh, options = {}) {
   const cls = classify(mesh, o.where, { insideWalls: o.insideWalls, pick: o.pick });
   const anyOn = cls.on.some(v => v);
   if (!anyOn || o.depth <= 0) return { mesh, stats: stats(mesh, cls.bounds), mapping: o.mapping, textured: 0, source: null, on: cls.on };
-  const sub = subdivide(mesh, { target: Math.min(o.target, o.period / 5), maxTriangles: o.maxTriangles });
+  const sub = subdivide(mesh, { target: Math.min(o.target, o.period / 6), maxTriangles: o.maxTriangles, on: cls.on });
   const { positions: p, indices: ix } = sub.mesh;
   const vcount = p.length / 3;
   const b = cls.bounds;
@@ -159,9 +257,9 @@ export function applyTexture(mesh, options = {}) {
     if (l < 0.866) allOn[v] = 0;   // the mean of the unit normals is short when they disagree by more than about 30°
   }
   const R = rN ? rSum / rN : 1;
-  // distance from every textured vertex to the nearest texture boundary, in
-  // hops of about one edge length, so the texture fades in over edgeFade mm
-  const weight = fadeFromBoundary(ix, vcount, allOn, anyOnV, o.edgeFade, sub.target);
+  // distance from every textured vertex to the nearest texture boundary,
+  // along the mesh's edges, so the texture fades in over edgeFade mm
+  const weight = fadeFromBoundary(ix, vcount, allOn, anyOnV, o.edgeFade, p);
   // a period that fits a whole number of times around, so the seam closes
   let period = o.period;
   if (mapping === 'around') { const nAround = Math.max(3, Math.round(2 * Math.PI * R / period)); period = 2 * Math.PI * R / nAround; }
@@ -221,12 +319,13 @@ function smooth(x) { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); 
 
 /**
  * Per-vertex weight 0..1: 0 on and outside a texture boundary, rising to 1
- * `fade` mm in, measured in hops along edges of about `step` mm.
+ * `fade` mm in, by distance along the mesh's edges (a breadth-first
+ * sweep from the boundary with edge lengths, then two relaxations, which
+ * is within a few percent of the geodesic distance on these fine meshes).
  */
-function fadeFromBoundary(ix, vcount, allOn, anyOnV, fade, step) {
+function fadeFromBoundary(ix, vcount, allOn, anyOnV, fade, p) {
   const weight = new Float32Array(vcount);
-  const hops = Math.max(1, Math.ceil(fade / Math.max(step, 1e-6)));
-  const dist = new Int32Array(vcount).fill(-1);
+  const dist = new Float32Array(vcount).fill(Infinity);
   let frontier = [];
   for (let v = 0; v < vcount; v++) if (anyOnV[v] && !allOn[v]) { dist[v] = 0; frontier.push(v); }
   if (!frontier.length) { for (let v = 0; v < vcount; v++) weight[v] = anyOnV[v]; return weight; }
@@ -236,15 +335,24 @@ function fadeFromBoundary(ix, vcount, allOn, anyOnV, fade, step) {
   for (let v = 0; v < vcount; v++) deg[v + 1] += deg[v];
   const adj = new Int32Array(deg[vcount]), fill = Int32Array.from(deg.subarray(0, vcount));
   for (let t = 0; t < ix.length; t += 3) for (let k = 0; k < 3; k++) { const a = ix[t + k], b = ix[t + (k + 1) % 3]; adj[fill[a]++] = b; adj[fill[b]++] = a; }
-  for (let d = 1; d <= hops && frontier.length; d++) {
+  const len = (a, b) => Math.hypot(p[a * 3] - p[b * 3], p[a * 3 + 1] - p[b * 3 + 1], p[a * 3 + 2] - p[b * 3 + 2]);
+  const limit = fade * 1.5, touched = [];
+  const seen = new Uint8Array(vcount);
+  for (const v of frontier) seen[v] = 1;
+  while (frontier.length) {
     const next = [];
-    for (const v of frontier) for (let e = deg[v]; e < deg[v + 1]; e++) { const u = adj[e]; if (dist[u] < 0 && allOn[u]) { dist[u] = d; next.push(u); } }
+    for (const v of frontier) for (let e = deg[v]; e < deg[v + 1]; e++) {
+      const u = adj[e]; if (!allOn[u]) continue;
+      const d = dist[v] + len(v, u);
+      if (d < dist[u]) { dist[u] = d; if (!seen[u]) { seen[u] = 1; if (d < limit) { next.push(u); touched.push(u); } } }
+    }
     frontier = next;
   }
+  for (let pass = 0; pass < 2; pass++) for (const v of touched) for (let e = deg[v]; e < deg[v + 1]; e++) { const u = adj[e]; const d = dist[u] + len(u, v); if (d < dist[v]) dist[v] = d; }
   for (let v = 0; v < vcount; v++) {
     if (!anyOnV[v]) continue;
     if (!allOn[v]) continue;                                  // a boundary vertex stays put
-    weight[v] = dist[v] < 0 ? 1 : smooth(dist[v] / hops);
+    weight[v] = dist[v] >= fade ? 1 : smooth(dist[v] / Math.max(fade, 1e-6));
   }
   return weight;
 }
