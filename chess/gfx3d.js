@@ -2940,7 +2940,7 @@ function create(canvas, opts) {
     if (drag) {
       var held = (a ? a.after : R.board)[drag.sq];
       var ll = Math.hypot(drag.lx || 0, drag.lz || 0);
-      if (ll > 0.002) touchLive = true;
+      if (ll > 0) touchLive = true;          /* until the snap has put him exactly upright */
       if (held) pushPiece(held, drag.wx, drag.wz, drag.lift, 1, 1,
         ll > 1e-4 ? { lean: ll, ax: drag.lz / ll, az: -drag.lx / ll } : null);
     }

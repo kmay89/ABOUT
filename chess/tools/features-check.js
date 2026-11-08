@@ -75,7 +75,9 @@ const SIZES = [
     const ctx = await browser.newContext({ viewport: size.viewport, hasTouch: size.touch, isMobile: size.touch });
     const page = await ctx.newPage();
     const errs = [];
-    page.on("pageerror", (e) => errs.push("" + e.message));
+    /* the message alone has sent people hunting through four thousand
+       lines for a null; the first line of where it happened is kept */
+    page.on("pageerror", (e) => errs.push("" + e.message + (e.stack ? " @ " + String(e.stack).split("\n").slice(1, 3).join(" ").trim() : "")));
     page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
     const press = (sel) => page.click(sel);
     const play = (san, src) => page.evaluate(([f, a]) => eval(f)(a), [PLAY, [san, src]]);
