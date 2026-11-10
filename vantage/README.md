@@ -37,7 +37,8 @@ ready to paste back in when `film/` has something in it.
 
 `aurora-park/` is a real site, published with the client's go-ahead: aerial
 photographs of the new park from March to October 2026, lined up and turned
-into curtains and scrubs. It lives in a private project repo; to refresh it,
+into curtains and scrubs, opening on the Oct. 25, 2026 opening-day aerial, with
+the closed park in October 2020 in its timeline. It lives in a private project repo; to refresh it,
 rebuild there with `vantage build --release` and copy `dist/aurora-park/site/`
 over this folder, then put back `share.jpg` (March | October split with the
 curtain handle over a navy band with the Aurora Park logo, 1200 × 630) and update its size and hash in
