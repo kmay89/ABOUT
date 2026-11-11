@@ -141,6 +141,17 @@ is closed.
   research can and can't say — and it makes no health claim. Reached
   from the desk by a small stone well with a faint glow coming up out of
   it, and from the games room. Notes in `well/README.md`.
+- `sunlight/` — *Borrowed Sunlight: The Back of the World*, an
+  open-world adventure through the novel, opened by the Game Boy on the
+  desk (a second cartridge beside Hive Mind) and the book itself.
+  Gran's hill, house, cellar, shed, the woods, the hollow, the pond and
+  the pit, Monday noon to Friday morning, every beat from the book. The
+  world opens the old adventure way, key by key — except every key is
+  real science (dark adaptation, induction, energy conversion, a
+  water-drop lens, chemotaxis, mycorrhiza, nurse logs, the angle of
+  repose, cryptobiosis, dormancy). Pixels, sound and music are all
+  made by code as it runs: no image or audio files. Notes and the full
+  design in `sunlight/README.md`.
 - `library/` — the reading room: a voxel engine written from scratch
   that renders block worlds in a browser. An NBT reader and an Anvil
   region reader built from the documented formats, our own palette of

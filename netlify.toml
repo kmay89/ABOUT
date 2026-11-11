@@ -139,6 +139,11 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
+  for = "/sunlight/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
   for = "/hollow/sw.js"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
