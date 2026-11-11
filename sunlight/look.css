@@ -229,8 +229,8 @@ input[type=checkbox]{accent-color:var(--gold);width:18px;height:18px}
 .help{font:.92rem/1.6 var(--serif);color:#ddd0b6;border-top:1px solid var(--line);margin-top:1em;padding-top:.6em}
 
 /* ---------- touch ---------- */
-.touch{display:none}
-body.touch.playing .touch{display:block}
+#touch{display:none}
+body.touch.playing #touch{display:block}
 .stick{position:fixed;left:calc(18px + env(safe-area-inset-left,0px));bottom:calc(22px + var(--safe-b));width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);z-index:20;touch-action:none}
 .stick i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px;border-radius:50%;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.35);transition:transform .06s}
 .btns{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(22px + var(--safe-b));display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;gap:10px;z-index:20}
@@ -348,3 +348,4 @@ body.touch .region{top:calc(124px + var(--safe-t))}
 @keyframes drop{0%{transform:scale(.04);filter:blur(3px)}55%{transform:scale(1.04,.96)}75%{transform:scale(.98,1.02)}100%{transform:scale(1);filter:none}}
 .lens.on .lcap{animation:capin .8s .25s both ease}
 @keyframes capin{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+body.touch .caption{bottom:calc(160px + var(--safe-b))}
