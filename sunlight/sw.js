@@ -6,7 +6,7 @@
    memory, so a new version can take over at once without losing anybody's
    week. Bump VERSION on every release. Only this room's old caches are
    deleted on activate — the cache store belongs to the whole site. */
-var VERSION = "sunlight-v3";
+var VERSION = "sunlight-v4";
 var SHELL = ["./", "./index.html", "./look.css", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
   "./engine.js", "./minis.js", "./story.js", "./juice.js", "./ui.js", "./manifest.webmanifest"];
 var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];

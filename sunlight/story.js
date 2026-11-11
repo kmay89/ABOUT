@@ -52,6 +52,71 @@
   var lastNote = 0;
   function note(text) { if (G.time() - lastNote < 1.4) return; lastNote = G.time(); G.toast(text, 3200); }
 
+  /* the line on screen when the book says more; the whole passage goes into her book, under Story */
+  S.SHORT = [
+    ["Gran's refrigerator had hummed", "The refrigerator had gone quiet, and the silence it left behind had edges."],
+    ["Plums and peaches and blackberries", "Plums and peaches and blackberries dark as a bruise \u2014 summers she'd caught in glass."],
+    ["He reached into an open box", "He held a jar up to the window, and the light came through it deep and slow and red."],
+    ["We had come to this exact place", "Four days ago we came here with a plan. Now: a jam jar, a dead crumb, and me not believing."],
+    ["Which was true, and which was also", "Which was true. It was also the first real lie I ever told my father."],
+    ["It was Gran's, and I knew it the second", "Gran's lantern \u2014 fat, sturdy, ugly, wonderful \u2014 with a crank folded at its side."],
+    ["I bent the wire into a little arm", "Wire, a rubber band, a great deal of swearing \u2014 and the crank rode against the wheel."],
+    ["And there was a charging port", "A charging port under a rubber flap \u2014 Gran had thought of everything \u2014 and my cable fit."],
+    ["I stood at the top where the road", "One foot on the deck beside my dead phone. And I pushed off."],
+    ["I set the lantern on the fallen shelf", "White light filled the cellar \u2014 and the gold went pale, the way stars go when you turn a light on."],
+    ["My plain, boring, back-of-the-hand", "The back of my own hand: a vast dry country of ridges and plates. A drop had bent the world bigger."],
+    ["And far down in the gold", "Far down in the gold, the rivers paused all together \u2014 then poured, all at once, the other way."],
+    ["We crouched there in the wet grass", "Somebody next to me, looking at the same thing. I'd forgotten how much I missed that."],
+    ["When I cranked Gran's lantern", "I got to watch a kid who'd named a nickel slug bounty go absolutely silent."],
+    ["Under the woods the threads thinned", "At the foot of a great gray beech the gold ran out, the way a river runs out into sand."],
+    ["A fold of the woods where the ground", "A fold in the woods where a spring came up, and the air ran cold and wet and dark."],
+    ["The biggest tree I had ever seen", "A fallen giant \u2014 more alive lying on its side than anything standing."],
+    ["She nodded, once, like we'd shaken", "She nodded, once, and led us out \u2014 and I followed, which I was getting better at."],
+    ["We ran for the gap in the fence", "We ran until there was only the hot quiet lane. Beck wouldn't look at me."],
+    ["I washed the sand off under the garden tap", "Two thoughts on a loop: *the pump comes tomorrow.* And: *Beck is gone.*"],
+    ["She opened it herself, and stepped out", "She stepped out, arms crossed, and made me do it."],
+    ["Beck went straight to a big pale rock", "Beck peeled a patch of moss off the pale rock \u2014 dry as paper, dead-looking \u2014 and put it in my hand."],
+    ["She set the corner of wet moss", "She set it back on the wet rock, where it had waited a hundred years for somebody to look long enough."],
+    ["A fat, lumbering, faintly ridiculous", "A fat, ridiculous, gloriously alive little bear. A minute ago it was a dead crumb of dust."],
+    ["I grabbed for one of Gran's jars", "My hands shook so badly I knocked two jars down. They just rolled, heavy, into the dark."],
+    ["I scraped at the shelf with the edge", "I scraped a smear of gold into the glass and put my face down close."],
+    ["I tipped the jar against the wet wood", "The crumb slid out onto the moss: a dull flake, no bigger than a cornflake."],
+    ["I had my hand on the wood to push", "My hand came down on the book instead."],
+    ["It came back the way the bear had", "It came back the way the bear had \u2014 the gold reaching into the oldest, most alive wood there was."],
+    ["I put my face down in the cold moss", "My changed, gone-and-returned, entirely real friend. I cried until I laughed."],
+    ["And then he did a thing I had never", "He did a thing I'd never seen my father do: nothing at all. He just let it be sad."],
+    ["I gave it to my dad in the echoey", "I watched his face when he heard her voice, and went outside to give them the dark."],
+    ["I sat on the back step and looked", "The first stars over the woods where my friend was. For the first time in a week: completely all right."],
+    ["I took out her book, and I uncapped", "On the last blank page, in my own hand under hers, I began to write it all down."],
+    ["And if you've read this far", "If you've read this far, then it crossed again. It made it all the way to you."],
+    ["So here is the only thing I know", "So here is the only thing I know. The thing she knew:"],
+    ["She wasn't dying.", "She wasn't dying \u2014 I should say that right at the start. She was fine. Better than fine."],
+    ["Cranked: light.", "Cranked: light. Stopped: dark. And my arm got tired in about forty seconds."],
+    ["The crank handle turned in a circle", "The crank turned in a circle. So did the scooter's back wheel."],
+    ["It was a city.", "It was a city. A galaxy. Rivers seen from space \u2014 and the rivers were *moving.*"],
+    ["I stopped. Did it remember", "I stopped. Did it remember being dry? Was it the *same* one?"],
+    ["Not yet. First the question", "Not yet. First the question \u2014 down in the cellar."],
+    ["A jar. I needed", "A jar. I needed one of her jars."],
+    ["Not the foxfire.", "Work lights. All that soft green-gold dark \u2014 washed out. Erased."],
+    ["And I made the only real decision", "I decided I didn't have to know. Mine was not the same as fake. Mine was not *just*."],
+    ["Today was Tuesday.", "Tuesday. Friday, the keys. Monday, the concrete. And it can't get up and leave."],
+    ["I thought, as hard as I could think", "I thought it as hard as I could: *I'm not going to let them.*"],
+    ["The shelves came first.", "The shelves came first. Then the jars. Then the beams \u2014 and along them ran a light."],
+    ["The dark had not been empty.", "The dark had not been empty. Not for one second."],
+    ["It looked arranged.", "It looked arranged. It looked like it was paying attention."],
+    ["There was a deer path.", "There was a deer path. I couldn't see it. Beck could."],
+    ["I cleared the leaf litter.", "I dug down through the soil \u2014 and wrapped around every rootlet of that beech was white."],
+    ["You cannot dig up a cellar.", "You cannot dig up a cellar. Mo wasn't a thing in a bucket. Mo was the whole place."],
+    ["DEWATER THURS.", "DEWATER THURS. POUR MON. Pumped dry \u2014 tomorrow."],
+    ["She didn't finish it.", "She didn't finish it. I'd heard the whole sentence already, in my own voice, for years."],
+    ["I went up into it changed.", "I went up into it changed. The back of the world had just rolled over and said hello."],
+    ["The hill took me.", "The hill took me \u2014 orange thread, white glow, full white beam. And a sliver of green on the phone."],
+    ["And again.", "And again, until the evening went blue and the stars came out."],
+    ["And then the cold went out", "And then the cold went out of the air \u2014 and the voice, mid-word, just stopped."],
+    ["It didn't say my name.", "It didn't say my name. But when I look long enough, it says the only thing it needs to: *oh \u2014 you can see us.*"],
+    ["And the dark began, very slowly", "And the dark began, very slowly, to give things back."]
+  ];
+
   /* ---------------- the keys ---------------- */
   var ITEMS = {
     eyes: { name: "Patient eyes", icon: "eyes", kind: "Your own", sci: "Dark adaptation",
@@ -503,7 +568,7 @@
       .then(function () { return say("wren", "What is it?"); })
       .then(function () { return say("dad", "Some kind of jam. Long gone, whatever it was. We're not hauling forty pounds of old preserves clear across the county."); })
       .then(function () { return nar("And something in me went quiet and a little bit wrong — the way your foot goes wrong when you come down onto a step that isn't there. I didn't have the words for it yet."); })
-      .then(function () { return say("dad", "Make yourself useful. Go on down to the cellar and see what's down there. Anything that isn't nailed down is getting left, so don't go falling in love with it. Just make sure there's nothing fixing to grow legs and walk up the stairs at the new owners."); })
+      .then(function () { return say("dad", "Make yourself useful. Go on down to the cellar and see what's down there. And don't go falling in love with anything."); })
       .then(function () { set("dadSentCellar"); G.objective("Go down to the cellar — the low door under the stairs."); G.save(); });
   }
   function jamBox() {
@@ -747,18 +812,18 @@
     return say("beck", "That is the weirdest thing I have ever seen, and last summer I watched a grown man lose a fight to a goose.")
       .then(function () { return nar("I came up off the ground so fast I nearly went face-first into the compost. A kid at the gap in the hedge with a bike, maybe my age, sunburned nose, a scab on one knee the size of a quarter, and an expression of total, settled, scientific judgment."); })
       .then(function () { return G.walkTo("beck", 50.6, 20.8); })
-      .then(function () { return say("beck", "You're the granddaughter. Grandkid. Whatever. From the city. Mrs. A's. I'm Beck. I live over the back field. Why are you feeding breakfast to the dirt?"); })
+      .then(function () { return say("beck", "You're the granddaughter. Grandkid. Whatever. Mrs. A's. I'm Beck. Why are you feeding breakfast to the dirt?"); })
       .then(function () { return say("wren", "I'm not."); })
       .then(function () { return say("beck", "Okay. So what is it. Slugs? My gran pays me a nickel a slug but you have to bring her the slug, she doesn't take your word for it."); })
-      .then(function () { return say("wren", "It eats oats. It doesn't have a mouth, it just sort of flows over the food — and overnight it ate a whole path of oatmeal I laid out for it, the exact path, every flake, and then — it's complicated."); })
-      .then(function () { return say("beck", "It's a slime mold. What. I'm not an idiot. They did one in science that solved a maze. Mr. Petrillo showed us a video. Put oats at the two ends of a maze and the slime grows down every hallway at once and then pulls itself out of all the dead ends and leaves itself sitting in the one shortest path, like a wire. No brain. They timed it. It beat half the class."); })
+      .then(function () { return say("wren", "It eats oats. It doesn't have a mouth — it just flows over the food. Overnight it ate the exact path I laid out."); })
+      .then(function () { return say("beck", "It's a slime mold. What, I'm not an idiot. One solved a maze in science. No brain. It beat half the class."); })
       .then(function () { return say("wren", "It beat the class."); })
       .then(function () { return say("beck", "It beat the class."); })
       .then(function () { return nar("We crouched there in the wet grass with the sun coming up over the back field, and I felt something I had not felt since I'd lost my last bar of signal: somebody next to me, looking at the same thing."); })
       .then(function () { return say("beck", "What's it doing out here, though. In the heap. I thought they lived in the woods."); })
       .then(function () { return say("wren", "It comes out of the cellar. The whole thing's down there. It runs out under the garden. It's all one."); })
       .then(function () { return say("beck", "Yeah, well. Not for long."); })
-      .then(function () { return say("beck", "The cellar. You know they're filling it in, right? The people who bought the place. The Renners. They're gutting the whole house. And that cellar's wet, so they're pumping it dry and filling it. Concrete. Floor to ceiling. Closing's Friday. My dad's start crew goes in Monday."); })
+      .then(function () { return say("beck", "They're filling the cellar in. Concrete, floor to ceiling. Closing's Friday. My dad's crew goes in Monday."); })
       .then(function () { set("knowClose"); set("knowPour"); G.hud(); A.sfx("cynic"); return nar("Today was Tuesday. Friday was the keys. Monday was the concrete. And down in the cold there was a thing made of gold that ate oats out of my hand and could not get up and leave."); })
       .then(function () { return say("wren", "It can't move. Beck. It can't move."); })
       .then(function () { return say("beck", "Yeah. I know. That's why I said not for long. — It's just a slime mold, though. Right?"); })
@@ -776,7 +841,7 @@
       .then(function () { return mo("Oh, child. Is that what's bothering you?"); })
       .then(function () { return mo("We have been getting out of things since long before there were houses to get out of."); })
       .then(function () { return say("beck", "Hey. Hey. What. You went weird again. What's it doing?"); })
-      .then(function () { return say("wren", "I'll explain on the way up. Come on. We've got four days, and I need a shovel, and a bucket, and I need to find out everything you know about these woods."); })
+      .then(function () { return say("wren", "I'll explain on the way up. We've got four days. I need a shovel, a bucket — and everything you know about these woods."); })
       .then(function () { return say("beck", "Now *this* is the best summer I have had in my entire life."); })
       .then(function () { return G.chapter("Chapter Four", "What the Trees Are Saying"); })
       .then(function () { G.lamp.fixed = null; G.setTime("afternoon"); beat("woods"); return G.go("hill", 39.6, 25.6, 0); })
@@ -793,14 +858,14 @@
   function woodsIn() {
     var b = G.ent("beck");
     G.reveal("deer");
-    return say("beck", "Keep up. And once we're under the trees, stay on the deer path. You step off the deer path in there and you'll be picking briars out of your shins till Christmas.")
+    return say("beck", "Keep up. And stay on the deer path, or you'll be picking briars out of your shins till Christmas.")
       .then(function () { return nar("There was a deer path. I couldn't see it. Beck could. For the first time I could remember I walked behind somebody into a place I didn't understand and let them be the one who knew — and the sky did not fall."); })
       .then(function () { return give("beck"); })
       .then(function () { return nar("The woods took us in the way the cellar had. The temperature dropped like a hand closing a door on the sun. *They're the same place,* I thought. The cellar and the woods. Two rooms of the one cold green house, breathing in the dark."); })
       .then(function () {
         if (b) { b.lead = [[39.5, 57.8], [37, 59.6], [34, 59.8], [32.6, 61.2]]; }
         G.objective("Follow the gold threads along the deer path, and Beck.");
-        setTimeout(function () { if (is("woods") && !G.cut) scene(function () { return say("wren", "You're out here a lot.").then(function () { return say("beck", "It's quiet. I got four brothers. You ever lived with four brothers? It's like living inside a drum somebody's always hitting. Out here nobody's hitting the drum."); }); }); }, 7000);
+        setTimeout(function () { if (is("woods") && !G.cut) scene(function () { return say("wren", "You're out here a lot.").then(function () { return say("beck", "It's quiet. I got four brothers. It's like living inside a drum somebody's always hitting."); }); }); }, 7000);
       });
   }
   function atBeech() {
@@ -818,7 +883,7 @@
         .then(function () { return say("beck", "So when my dad's crew clears a lot. When they take the trees."); })
         .then(function () { return mo("Oh. Now you're seeing it. You spend your whole lives walking along the front of the world, child. This is the back of it."); })
         .then(function () { G.lensState.lock = false; G.closeLens(); return give("roots"); })
-        .then(function () { return say("beck", "We need somewhere cold and wet and dark. I know a place — down in a fold, where a spring comes up. I always find it by the cold. I don't know the way from here."); })
+        .then(function () { return say("beck", "I know a place — a fold, where a spring comes up. I always find it by the cold. Not from here, though."); })
         .then(function () { G.objective("Somewhere cold, wet and dark. Look closely (L) at the ground here: which way do the roots run thickest?"); });
     });
   }
@@ -830,12 +895,12 @@
       .then(function () { return say("wren", "This is it. Beck, this is perfect, it's cold, it's wet, it's dark — this is where Mo can live. We'll dig it up and we'll carry it down here and —"); })
       .then(function () { return wait(900); })
       .then(function () { return nar("You cannot dig up a cellar. Mo was not a clump. Mo was the cold of it and the dark of it and the damp running down the stone and the hundred summers in their jars and the foxfire in the beams, and the gold was only the part you could see."); })
-      .then(function () { return say("wren", "We can't move it. Beck. It's not a thing. It's a whole place. You can't pick up a place. You can't keep anything. Nothing keeps anything. Even the forest doesn't keep anything, it just —"); })
+      .then(function () { return say("wren", "We can't move it. It's not a thing, Beck. It's a whole place. You can't pick up a place. Nothing keeps anything, it just —"); })
       .then(function () { return mo("— it just hands it on. Look at the old one, child. Look what it's doing. It isn't sad to be the floor."); })
       .then(function () { return mo("Nothing down here is trying to stay the same. That's the whole trick of it. That's how it all keeps going."); })
       .then(function () { return give("log"); })
-      .then(function () { G.setTime("dusk"); return say("beck", "Hey. I'm not being a baby, but we need to be out of these woods before full dark. — We're really not going to be able to save it, are we. The slime. Your Mo."); })
-      .then(function () { return say("wren", "I don't know. I think — maybe not the way I wanted to. But I don't think that's the same as not saving it. I think there's another way. I just have to figure out what it is before Monday."); })
+      .then(function () { G.setTime("dusk"); return say("beck", "We need to be out before full dark. — We're really not going to be able to save it, are we."); })
+      .then(function () { return say("wren", "Maybe not the way I wanted to. But that's not the same as not saving it. There's another way. I'll find it before Monday."); })
       .then(function () { return nar("She nodded, once, like we'd shaken on something, and found the deer path I still couldn't see, and led us up out of the cold green dark — and I went up behind her, following, which I was getting better at."); })
       .then(function () { beat("hollow"); return G.chapter("Chapter Five", "One Grain at a Time"); })
       .then(function () { G.setTime("morning", "Wednesday"); beat("pit"); return G.go("hill", 49.6, 17.6, 2); })
@@ -847,7 +912,7 @@
     return nar("The whole thing was my idea, which is important, because the whole thing was also my fault. We did not actually know our deadline. Start crews change, and I was not going to bet a life on a thing somebody's brother heard.")
       .then(function () { return say("wren", "So we go look. Your dad's crew. The pit. There's a board, right? A schedule?"); })
       .then(function () { return say("beck", "There's a board, in the site office. At the pit. Which is my dad's *work*. Which has a fence. And dogs. Okay, one dog, and he's old, but still."); })
-      .then(function () { return say("beck", "Wren. I'm telling you right now, the pit is the one place out here that is actually dangerous. Not pretend dangerous. You stay off the piles. The big sand piles. You do not climb them, you do not go near the bottom of them —"); })
+      .then(function () { return say("beck", "The pit is the one place out here that's actually dangerous. Stay off the piles. You do exactly what I say."); })
       .then(function () { return say("wren", "I just want to read a board, Beck."); })
       .then(function () { return say("beck", "Okay. We read the board, we leave. In and out. You do exactly what I say."); })
       .then(function () { return say("wren", "I'll do exactly what you say."); })
@@ -893,7 +958,7 @@
   function askMo() {
     if (F("asked")) return nar("*It is not us you are afraid of losing. Sit with that one.*");
     set("asked");
-    return say("wren", "Tomorrow they're going to dry you out. All the way. And I need you to tell me the truth. When you dry out — is that you *sleeping?* Or is that you *dying?* I have to know if I'm saving you or just watching.")
+    return say("wren", "Tomorrow they dry you out. Tell me the truth. Is that you *sleeping*? Or *dying*?")
       .then(function () { return mo("Child. We have been dry before. Many times. Longer than you would believe. And we have always come back."); })
       .then(function () { return mo("But we will not lie to you, because you asked us not to. We do not come back the way you mean it. We come back. We do not always come back the same. Something carries over. Not everything."); })
       .then(function () { return mo("It is not us you are afraid of losing. Sit with that one. You'll get there."); })
@@ -924,17 +989,17 @@
     });
   }
   function apology() {
-    return say("wren", "You were right. About the pile. About all of it. You told me the first thing and I did it anyway, because I always — because I always have to be the one who knows. I can't stand not being the one who knows. And it almost got me killed and it got you caught, and that's mine, that's all mine, and I'm sorry. I'm really sorry, Beck.")
-      .then(function () { return say("beck", "He didn't yell. That's the thing. I came in covered in sand and he just — he went white. He grabbed me and he just held on. He's seen a guy go under a pile, Wren. A grown man. He wasn't mad. He was scared. Which is worse. Being yelled at I can do."); })
-      .then(function () { return say("beck", "I'm grounded till I'm forty. I had to climb out my window to answer the dumb door. — Okay. Okay. But you're buying me oatmeal till we're old. And you do what I say at the pit forever. Deal?"); })
+    return say("wren", "You were right. About the pile. About all of it. I always have to be the one who knows. And it got you caught. I'm sorry, Beck. I'm really sorry.")
+      .then(function () { return say("beck", "He didn't yell. He went white, and just held on. He's seen a guy go under a pile. He was scared. Which is worse."); })
+      .then(function () { return say("beck", "I'm grounded till I'm forty. — Okay. But you're buying me oatmeal till we're old. And you do what I say at the pit forever. Deal?"); })
       .then(function () { A.sfx("swell", "joy"); return say("wren", "Deal."); })
       .then(function () { return say("beck", "So why'd you really come. What is it. The pump?"); })
       .then(function () { return nar("And I told her. The whole thing, fast, on the step in the dark — that I had to *see* a thing come back from all the way dried out, or I'd never be brave enough to let it happen."); })
       .then(function () { return say("beck", "Water bears."); })
-      .then(function () { return say("beck", "Tardigrades. Petrillo did them, right after the slime mold. They're microscopic, eight legs, they look like tiny gross bears in spacesuits, and they're *everywhere*, in moss, and the whole entire thing about them is they dry out. Till they're basically dead, a little dead crumb, for *years*. They found some in dried-up moss in a museum that were a hundred years old and they put water on them and they got up and walked away. They sent them to *space*, Wren. They came back."); })
+      .then(function () { return say("beck", "Tardigrades. Tiny eight-legged bears. They dry out to a dead crumb for *years* — add water, and they get up and walk. They sent them to *space*. They're in the moss by my pond right now."); })
       .then(function () { return say("beck", "They're the toughest thing alive and they're in the moss by my pond *right now* and we can go get one."); })
       .then(function () { return say("wren", "You knew that. You knew that the whole time."); })
-      .then(function () { return say("beck", "I know lots of things. You're not the only one who reads the plaque. Get your lantern and your water-drop thing. I'll get the moss. *Now* who's the one who knows."); })
+      .then(function () { return say("beck", "I know lots of things. Get your lantern and your water-drop thing. *Now* who's the one who knows."); })
       .then(function () {
         G.setTime("night"); beat("pond");
         var b = G.ent("beck"); b.follow = false; b.solid = false;
@@ -982,7 +1047,7 @@
     return say("beck", "It's so *ugly*. Oh my gosh. It's so ugly. It's the best thing I've ever seen.")
       .then(function () { G.lensState.lock = false; G.closeLens(); return nar("A fat, lumbering, faintly ridiculous, gloriously alive little bear of a thing, walking across the screen on eight legs, a creature that one minute ago had been a dead crumb of dust. A thing could dry all the way down to nothing, and then water could come, and it could *get up and walk away.*"); })
       .then(function () { return give("proof"); })
-      .then(function () { return say("wren", "It works. Beck. It works. When they dry Mo out tomorrow — it won't die, it'll be a dry crumb that's really sleeping, and we take it down to the hollow, and we give it water, and —"); })
+      .then(function () { return say("wren", "It works, Beck. When they dry Mo out, it'll be a crumb that's really sleeping. And we give it water, and —"); })
       .then(function () { return nar("I stopped. Did it remember being dry? Was it the *same* one that had curled up however many years ago — or only the same little body, walking, with the someone-who-curled-up gone?"); })
       .then(function () { return mo("We do not always come back the same. It is not us you are afraid of losing."); })
       .then(function () { return say("beck", "Come on. We've got till morning to figure out the rest. And we should let the little guy go home."); })
@@ -1031,7 +1096,7 @@
       .then(function () { return give("crumb"); })
       .then(function () { return G.fade(true, 700); })
       .then(function () { set("escorted"); G.drop("w1"); G.drop("w2"); G.workLights = false; G.go("house", 19, 8, 0, { instant: true }); G.put({ id: "w1", map: "house", who: "worker", x: 19 * T, y: 9.4 * T, dir: 1, solid: true }); A.loop("pump", true, 0.35); return G.fade(false, 700); })
-      .then(function () { return say("worker", "Hey. Hey, now. It's just an old cellar, bud. I know it's sad, the old place changing hands. My nan's house got sold, I know how it is. But it's just an old wet cellar. Okay? Go on and find your dad."); })
+      .then(function () { return say("worker", "Hey, now. It's just an old cellar, bud. My nan's house got sold — I know how it is. Go on and find your dad."); })
       .then(function () { G.drop("w1"); return cynicKitchen(); });
   }
   function cynicKitchen() {
@@ -1044,7 +1109,7 @@
       .then(function () { G.put({ id: "beck", map: "house", who: "beck", x: 21 * T, y: 11.6 * T, dir: 3, solid: true }); return G.walkTo("beck", 19.6, 9.4); })
       .then(function () { return say("beck", "Did you get it? The crumb. Did you get a piece. Is it in the jar?"); })
       .then(function () { return say("wren", "It's dead, Beck. It stopped. The voice stopped. It was just slime, I think I made the whole —"); })
-      .then(function () { return say("beck", "*No.* You don't get to do that. You showed *me*. The dead thing got up and *walked*, I saw it, you saw it. This is the same. It's a dry crumb that's *sleeping*, and we are going to take it to the hollow and give it water, exactly like the bear, and you are not allowed to decide it's dead before we even try. You don't *know* it's dead. You're just scared."); })
+      .then(function () { return say("beck", "*No.* You don't get to do that. You showed *me*. The dead thing got up and *walked*. This is the same. You're not dead-sure — you're just scared."); })
       .then(function () { return say("beck", "So we go to the woods. Right now. And we find out."); })
       .then(function () {
         G.musicOverride = null; beat("revive"); G.setTime("morning");
@@ -1066,7 +1131,7 @@
       .then(function () { return say("beck", "Now the water."); })
       .then(function () { A.sfx("splash"); return nar("I cupped my hands in the cold spring and let the water fall on it. And then we waited."); })
       .then(function () { var ln = ["Nothing's happening.", "The bear moved in a minute.", "It's not going to move.", "a single-celled smear", "you made the words", "waiting for it to love you back"]; ln.forEach(function (l, i) { setTimeout(function () { G.cynic(l, 6); }, i * 900); }); return wait(ln.length * 900); })
-      .then(function () { return say("wren", "It's not working. Beck. It's dead. I think — I think I made it up. The whole thing. I think I was just lonely, and there was a slime mold, and I needed there to be somebody so badly that I —"); })
+      .then(function () { return say("wren", "It's not working. It's dead. I think I made it up, Beck. I was just lonely, and I needed there to be somebody so badly that I —"); })
       .then(function () { return say("beck", "Stop it. It just — maybe it needs more — I don't know. Maybe —"); })
       .then(function () { return nar("She didn't finish, and the not-finishing was the loneliest sound I had ever heard. And I almost stood up."); })
       .then(function () { return G.choice("My hand on the cold wet wood, to push myself up —", ["Stand up. Walk away. Be a person who knows dead is dead.", "— and my hand came down on the book."]); })
@@ -1115,7 +1180,7 @@
 
   /* Chapter Nine — Marginalia */
   function handInHand() {
-    return say("dad", "My dad put that up. When I was about your age. The clock came from his dad. It's at your grandmother's now, in the new place, on the wall by the window. It's a good clock.")
+    return say("dad", "My dad put that up. The clock's at your grandmother's now, by the window. It's a good clock.")
       .then(function () { return nar("And then he did a thing I had never once seen my father do, which was nothing at all — he just stood there and let it be sad, without taping it shut or calling it *just* anything. There was a whole cold cellar in him too, that he kept the door shut on."); })
       .then(function () { return nar("I put my hand in his. He squeezed it. Neither of us said one word about it, which was how he needed it."); })
       .then(function () { return say("dad", "Go on. Go say your goodbyes to the place. I know you got attached. — You always do."); })
@@ -1129,10 +1194,10 @@
         .then(function () { A.sfx("ring"); setTimeout(function () { A.sfx("swell", "warm"); }, 1900); return wait(1800); })
         .then(function () { G.s.flags.called = 1; return say("gran", "Well. There you are. I was wondering when you'd find it down there."); })
         .then(function () { return say("wren", "You knew."); })
-        .then(function () { return say("gran", "Of course I knew. I've been going down those steps for forty years, my love. You think I never once stayed long enough to let my eyes go? The light in the beams? The gold on the old shelf that's cleverer than it has any business being?"); })
-        .then(function () { return say("gran", "I wrapped that book and put it down there a long time ago. For whoever came along that was the kind of person to go down into the dark and stand still long enough to see it wasn't dark at all. I rather hoped it'd be you. But you can't pick. You just leave the door open and hope the right one comes through it."); })
+        .then(function () { return say("gran", "Of course I knew. Forty years down those steps, my love. You think I never stayed long enough to let my eyes go?"); })
+        .then(function () { return say("gran", "I left that book for whoever would stand still long enough to see it wasn't dark at all. I rather hoped it'd be you."); })
         .then(function () { return say("wren", "They sold the house, Gran. They filled in the cellar. The gold — Mo — I couldn't —"); })
-        .then(function () { return say("gran", "I know they did, sweetheart. It's a great deal of house for these old bones, and a garden I can't keep, and I'd rather be in town near all of you. A place is just a place. You can't keep a place. — But you didn't lose it, did you. I can hear it in your voice. You got it out."); })
+        .then(function () { return say("gran", "I know, sweetheart. You can't keep a place. — But you didn't lose it, did you. I can hear it in your voice. You got it out."); })
         .then(function () { return nar("So I told her. Standing on the hill with one bar of signal, I told my grandmother everything — the lantern and the scooter and the drop of water, Beck and the pit and the sand, the water bears, the pump, the long dark, and the hollow, and the gold coming back, changed, but alive."); })
         .then(function () { return say("gran", "There. You see? It isn't the keeping. It was never the keeping. It's the carrying-on."); })
         .then(function () { return say("gran", "Now. Put your father on, would you. I don't think he's called his mother in two weeks, and I'd like to hear him try to wriggle out of why."); })
@@ -1157,7 +1222,7 @@
       return nar("She was sitting on her bike at the gap in the hedge, grounded-till-forty and out anyway, eating my oatmeal straight out of the bag.")
         .then(function () { return say("beck", "So you're going."); })
         .then(function () { return say("wren", "I'm going."); })
-        .then(function () { return say("beck", "You'll come back, though. Christmas. Summer. Whenever. Because somebody's got to keep an eye on the woods, and I can't be hiking down to that log feeding oatmeal to a slime mold by myself, people will think I'm strange."); })
+        .then(function () { return say("beck", "You'll come back, though. Somebody's got to keep an eye on the woods. I can't be feeding oatmeal to a slime mold alone. People will think I'm strange."); })
         .then(function () { return say("wren", "People already think you're strange."); })
         .then(function () { return say("beck", "People think *you're* strange, and I'm the one who has to be seen with you."); })
         .then(function () { return say("beck", "Go on. Before I cry and have to deny it forever."); })
@@ -1198,6 +1263,24 @@
     if (id === "house" && is("call") && !F("handedPhone")) { set("handedPhone"); scene(phoneToDad); }
     if (id === "cellar" && is("lens") && G.lamp.level < 0.1 && G.eyes.adapt < 0.3) note("Dark. Crank (C), or stand still and let your eyes open.");
   };
+
+  /* ---------------- goals: a short checklist per chapter ---------------- */
+  function parts() { return ["bungee", "wire", "tape", "band"].filter(function (k) { return F("p_" + k); }).length; }
+  S.GOALS = [
+    { ch: 0, steps: [["Talk to Dad", function () { return F("dadSentCellar"); }], ["Go down to the cellar", function () { return from("cellar1"); }], ["Stand still. Let your eyes adjust", function () { return has("eyes"); }], ["See what's on the fallen shelf", function () { return has("book"); }]] },
+    { ch: 1, steps: [["Haul open the shed", function () { return F("shedOpen"); }], ["Find a light", function () { return has("lantern"); }], ["Find a better way to turn the crank", function () { return from("build"); }], ["Gather the parts", function () { return parts() >= 4 || has("scooter"); }, function () { return [parts(), 4]; }], ["Build it", function () { return has("scooter"); }], ["Ride the hill to charge the phone", function () { return from("lens"); }, function () { return [Math.min(3, G.s.rides || 0), 3]; }], ["Look at the gold through a drop of water", function () { return F("moSpoke"); }]] },
+    { ch: 2, steps: [["Lay oats at the compost heap", function () { return F("slime1"); }], ["Lead the gold toward the hedge", function () { return F("slime2"); }], ["Meet whoever's at the hedge", function () { return F("beckMet"); }]] },
+    { ch: 3, steps: [["Follow Beck into the woods", function () { return F("woodsIn"); }], ["Find where the gold runs out", function () { return F("atBeech"); }], ["Dig at the beech", function () { return has("roots"); }], ["Find the hidden way — look closely", function () { return !G.maps.hill.hidden.root; }], ["Reach somewhere cold, wet and dark", function () { return F("inHollow"); }]] },
+    { ch: 4, steps: [["Follow Beck to the pit", function () { return F("sawBoard") || (G.p.y / T > 34 && is("pit")); }], ["Sneak to the trailer window", function () { return F("sawBoard"); }], ["Get out of the pile", function () { return has("still"); }]] },
+    { ch: 5, steps: [["Ask Mo the truth", function () { return F("asked"); }], ["Make it right with Beck", function () { return from("pond"); }], ["Go to the pond", function () { return F("atPond"); }], ["Wake a water bear", function () { return has("proof"); }], ["Let it go home", function () { return F("mossBack"); }]] },
+    { ch: 6, steps: [["Grab one of Gran's jars", function () { return F("hasJar"); }], ["Get Mo into the jar", function () { return F("pumped"); }], ["Get out", function () { return F("escorted"); }]] },
+    { ch: 7, steps: [["Bring the crumb to the hollow", function () { return F("atSeam"); }], ["Look long", function () { return F("revived"); }]] },
+    { ch: 8, steps: [["Stand with Dad", function () { return F("handHeld"); }], ["Charge the phone on the hill", function () { return G.s.battery >= 10 || F("called"); }], ["Find one bar. Call Gran", function () { return F("called"); }], ["Give Dad the phone", function () { return F("handedPhone"); }], ["Say goodbye to Beck", function () { return F("beckDone"); }], ["Visit the hollow one last time", function () { return has("pen"); }], ["Write on the last page", function () { return F("wrote"); }]] }
+  ];
+  S.chapterIndex = function () { var idx = 0; S.CHAPTERS.forEach(function (c, i) { if (from(c[2])) idx = i; }); return idx; };
+  S.goals = function () { var g = S.GOALS[S.chapterIndex()]; return g ? g.steps.map(function (s2) { return { t: s2[0], done: !!s2[1](), n: s2[2] ? s2[2]() : null }; }) : []; };
+  /* badges for looking closely */
+  S.BADGES = [[3, "Close Looker", "Three small things, seen properly."], [8, "Field Naturalist", "Eight small things in the book."], [15, "Patient Eye", "Fifteen. The hill is full of countries."], [26, "Everything Small", "Every small thing on the hill. Look long."]];
 
   /* ---------------- where to go next (the gold pointer) ---------------- */
   S.target = function () {

@@ -46,17 +46,28 @@
     ui.lastTab = t;
     document.querySelectorAll("[data-tab]").forEach(function (b) { var on = b.getAttribute("data-tab") === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     document.querySelectorAll(".bpane").forEach(function (p) { p.hidden = p.id !== "p-" + t; });
-    ({ pages: pages, keys: keys, seen: seen, map: map, phone: phone, yours: yours })[t]();
+    ({ pages: pages, story: story, keys: keys, seen: seen, map: map, phone: phone, yours: yours })[t]();
   }
   function from(b) { return S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf(b); }
   function pages() {
     var el = $("p-pages"), html = "";
     var chs = S.CHAPTERS.filter(function (c) { return from(c[2]); });
+    var ci = S.chapterIndex(), C = S.CHAPTERS[ci];
+    html += '<h3 class="goalh">Chapter ' + C[0] + ' · ' + C[1] + '</h3><ul class="goals">' + S.goals().map(function (g) { return '<li class="' + (g.done ? "done" : "") + '"><i></i>' + G.fmt(g.t) + (g.n && !g.done ? ' <small>' + g.n[0] + " / " + g.n[1] + "</small>" : "") + "</li>"; }).join("") + "</ul>";
+    if (G.s.objective) html += '<p class="now"><span>Now</span> ' + G.fmt(G.s.objective) + "</p>";
+    html += "<h3>Her pages</h3>";
     html += '<p class="hand first">' + G.fmt(S.PAGES[0].text) + "</p>";
     S.PAGES.slice(1).forEach(function (p) { if (from(p.after)) html += '<p class="hand">' + G.fmt(p.text) + "</p>"; });
     html += '<h3>The week, so far</h3><ol class="chs">' + chs.map(function (c) { return "<li><b>Chapter " + c[0] + "</b> " + c[1] + "</li>"; }).join("") + "</ol>";
-    if (G.s.objective) html += '<p class="now"><span>Now</span> ' + G.fmt(G.s.objective) + "</p>";
     el.innerHTML = html;
+  }
+  /* the novel's own words, every passage so far, in full */
+  function story() {
+    var el = $("p-story"), list = G.s.story || [], day = "", html = '<p class="lede">In my own words — the whole of it, as it happened. (On screen I keep it short.)</p>';
+    if (!list.length) html += '<p class="lede">Nothing yet.</p>';
+    list.forEach(function (q) { if (q.d !== day) { day = q.d; html += "<h3>" + day + "</h3>"; } html += '<p class="prose">' + G.fmt(q.t) + "</p>"; });
+    el.innerHTML = html;
+    el.scrollTop = el.scrollHeight;
   }
   function keys() {
     var el = $("p-keys"), got = Object.keys(S.ITEMS).filter(function (k) { return G.s.items[k]; });
@@ -75,7 +86,9 @@
       var s = G.s.seen[l.id];
       html += '<button class="look' + (s ? "" : " locked") + '" data-look="' + l.id + '"' + (s ? "" : " disabled") + '><canvas width="64" height="64"></canvas><span>' + (s ? l.name : "?") + "</span></button>";
     });
-    el.innerHTML = html + "</div><div id='seenNote' class='seennote' hidden></div>";
+    html += "</div>";
+    html += '<h3>Badges</h3><div class="badges">' + S.BADGES.map(function (b) { var got = (G.s.badges || {})[b[1]]; return '<span class="bdg' + (got ? " got" : "") + '"><b>' + (got ? "★" : "☆") + " " + b[1] + "</b><small>" + (got ? b[2] : b[0] + " small things") + "</small></span>"; }).join("") + "</div>";
+    el.innerHTML = html + "<div id='seenNote' class='seennote' hidden></div>";
     el.querySelectorAll(".look").forEach(function (b) {
       var l = BS.lens.byId[b.getAttribute("data-look")], c = b.querySelector("canvas");
       if (G.s.seen[l.id]) BS.lens.draw(c.getContext("2d"), 64, l.scene, 2.5, {});
@@ -134,7 +147,7 @@
   /* ---------------- the menu ---------------- */
   function syncMenu() {
     $("o-text").value = G.prefs.text; $("o-cap").checked = G.prefs.captions; $("o-red").checked = G.prefs.reduced; $("o-hap").checked = G.prefs.haptics;
-    $("o-tilt").checked = G.prefs.tilt !== false; $("o-ptr").checked = G.prefs.pointer !== false;
+    $("o-full").checked = !!G.prefs.fullText; $("o-tilt").checked = G.prefs.tilt !== false; $("o-ptr").checked = G.prefs.pointer !== false;
     $("o-vol").value = G.prefs.master; $("o-mus").value = G.prefs.music; $("o-amb").value = G.prefs.amb; $("o-big").checked = G.prefs.big;
     var mins = Math.round(G.s.playMs / 60000);
     $("mstat").textContent = G.s.day + " · " + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + mins + " min";
@@ -147,6 +160,7 @@
   bindPref("o-red", "reduced", false, applyPrefs);
   bindPref("o-hap", "haptics", false);
   bindPref("o-tilt", "tilt", false);
+  bindPref("o-full", "fullText", false);
   bindPref("o-ptr", "pointer", false);
   bindPref("o-big", "big", false, applyPrefs);
   bindPref("o-vol", "master", true, function () { A.setVolume("master", G.prefs.master); });
@@ -177,8 +191,10 @@
   var saved = G.load();
   $("t-continue").hidden = !saved;
   if (saved) $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60);
-  function begin(load) {
+  function begin(load, afterHow) {
+    if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
     A.init();
+    G.camFocus = null; G.hidePlayer = false; G.titleRun = false; G.snapCam && G.snapCam();
     A.setVolume("master", G.prefs.master); A.setVolume("mus", G.prefs.music); A.setVolume("amb", G.prefs.amb);
     $("title").classList.add("off");
     setTimeout(function () { $("title").hidden = true; }, 900);
@@ -206,9 +222,60 @@
   });
   $("t-continue").addEventListener("click", function () { begin(true); });
   $("t-sound").addEventListener("click", function () { A.init(); A.theme(); });
+  $("t-how").addEventListener("click", function () { A.init(); showHow(function () { }); });
+
+  /* ---------------- how to play: three cards ---------------- */
+  function showHow(done) {
+    var h = $("howto"), slides = h.querySelectorAll(".hs"), dots = h.querySelectorAll(".hdots i"), i = 0;
+    h.hidden = false; requestAnimationFrame(function () { h.classList.add("on"); });
+    drawHowArt();
+    function show(k) { i = k; slides.forEach(function (s, j) { s.classList.toggle("on", j === i); }); dots.forEach(function (d, j) { d.classList.toggle("on", j === i); }); $("h-next").textContent = i === slides.length - 1 ? "Let's go" : "Next"; A.sfx("page"); }
+    function close() { h.classList.remove("on"); setTimeout(function () { h.hidden = true; }, 400); document.removeEventListener("keydown", key); done(); }
+    function key(e) { if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE" || e.code === "ArrowRight") { e.preventDefault(); next(); } if (e.code === "Escape") close(); }
+    function next() { if (i < slides.length - 1) show(i + 1); else close(); }
+    $("h-next").onclick = next; $("h-skip").onclick = close;
+    document.addEventListener("keydown", key);
+    show(0);
+    setTimeout(function () { $("h-next").focus({ preventScroll: true }); }, 50);
+  }
+  function drawHowArt() {
+    document.querySelectorAll(".hart").forEach(function (c) {
+      var x = c.getContext("2d"), k = c.getAttribute("data-art"), W = c.width, H = c.height;
+      x.clearRect(0, 0, W, H);
+      var g = x.createRadialGradient(W / 2, H / 2, 4, W / 2, H / 2, W * 0.6); g.addColorStop(0, "rgba(255,210,120,.18)"); g.addColorStop(1, "rgba(255,210,120,0)"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      if (k === "move") {
+        var sp = BS.sprite("wren", 0, 0); x.drawImage(sp, W / 2 - 24, 18, 48, 72);
+        x.fillStyle = "rgba(255,226,170,.85)"; x.font = "bold 18px system-ui"; x.textAlign = "center";
+        x.fillText("◀", W / 2 - 52, 62); x.fillText("▶", W / 2 + 52, 62); x.fillText("▲", W / 2, 16); x.fillText("▼", W / 2, 112);
+        x.font = "bold 13px system-ui"; x.fillStyle = "#ffd166"; x.fillText("✦", W / 2 + 74, 30);
+      }
+      if (k === "keys") { BS.icons.lantern(x, 96); x.save(); x.translate(72, 12); BS.icons.lens(x, 96); x.restore(); x.save(); x.translate(144, 12); BS.icons.tun(x, 96); x.restore(); }
+      if (k === "goal") {
+        x.save(); x.translate(W / 2 - 60, 10); x.scale(0.5, 0.5); x.restore();
+        x.fillStyle = "#e8e2d2"; x.fillRect(70, 40, 100, 52); x.fillStyle = "#7a3a2c"; x.beginPath(); x.moveTo(62, 42); x.lineTo(120, 12); x.lineTo(178, 42); x.fill();
+        x.fillStyle = "#2a3a48"; x.fillRect(86, 54, 18, 18); x.fillRect(136, 54, 18, 18); x.fillStyle = "#3e5a46"; x.fillRect(112, 62, 16, 30);
+        x.fillStyle = "rgba(255,200,80,.9)"; for (var q = 0; q < 14; q++) { x.fillRect(80 + q * 6, 100 + Math.sin(q) * 3, 3, 1.5); }
+        x.font = "bold 12px system-ui"; x.fillStyle = "#ffb08a"; x.fillText("FRI · THU · MON", 120, 116); x.textAlign = "center";
+      }
+    });
+  }
+
+  /* ---------------- the hill behind the title ---------------- */
+  function titleBackdrop() {
+    G.mapId = "hill"; G.map = G.maps.hill; G.s.tod = "golden"; G.sky.snap = true; G.hidePlayer = true; G.titleRun = true;
+    var t0 = performance.now(), pts = [[40, 13], [46, 22], [41, 31], [36, 42], [44, 33], [52, 20], [40, 13]];
+    (function pan(now) {
+      if (!G.titleRun) return;
+      var t = Math.max(0, now - t0) / 1000 / 14, seg = Math.floor(t) % (pts.length - 1), u = t - Math.floor(t), e = u * u * (3 - 2 * u);
+      var a = pts[seg], b = pts[seg + 1];
+      G.camFocus = { x: (a[0] + (b[0] - a[0]) * e) * T, y: (a[1] + (b[1] - a[1]) * e) * T };
+      requestAnimationFrame(pan);
+    })(t0);
+  }
+  titleBackdrop();
   /* a living title: dust in a slat of light, a glow down the cellar steps */
   (function titleArt() {
-    var c = $("titlecv"); if (!c) return;
+    var c = $("titlecv"); if (!c || c.hidden) return;
     var x = c.getContext("2d"), t0 = performance.now();
     function draw(now) {
       if ($("title").hidden) return;
@@ -266,6 +333,39 @@
   /* service worker: offline, installable */
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function () { });
 
+  /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
+  setInterval(function () {
+    var gc = $("goalcard");
+    if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
+    var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];
+    if (!gs.length || S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf("after")) { gc.hidden = true; return; }
+    gc.hidden = false;
+    $("gch").textContent = "Ch. " + C[0] + " · " + C[1];
+    $("gpips").innerHTML = gs.map(function (g) { return "<i" + (g.done ? ' class="d"' : "") + "></i>"; }).join("");
+    var label = next ? next.t + (next.n ? " (" + next.n[0] + "/" + next.n[1] + ")" : "") : "Chapter complete";
+    if ($("gstep").textContent !== label) { $("gstep").textContent = label; gc.classList.remove("tick"); void gc.offsetWidth; gc.classList.add("tick"); }
+  }, 400);
+  $("goalcard").addEventListener("click", function () { if (!G.cut) ui.open("book", "pages"); });
+  ui.bookPing = function () { var b = $("hudbook"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping"); };
+  ui.flyToBook = function () {
+    var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);
+    var r = $("hudbook").getBoundingClientRect();
+    f.style.left = (window.innerWidth / 2 - 22) + "px"; f.style.top = (window.innerHeight / 2 - 22) + "px";
+    requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.transform = "translate(" + (r.left + r.width / 2 - window.innerWidth / 2) + "px," + (r.top + r.height / 2 - window.innerHeight / 2) + "px) scale(.3)"; f.style.opacity = ".2"; }); });
+    setTimeout(function () {
+      f.remove(); ui.bookPing(); A.sfx("seen");
+      var n = Object.keys(G.s.seen).length;
+      G.toast("Seen through the drop: " + n + " of " + BS.lens.LOOKS.length, 2400);
+      G.s.badges = G.s.badges || {};
+      S.BADGES.forEach(function (b) { if (n >= b[0] && !G.s.badges[b[1]]) { G.s.badges[b[1]] = 1; setTimeout(function () { badge(b); }, 900); } });
+    }, G.prefs.reduced ? 50 : 800);
+  };
+  function badge(b) {
+    var d = document.createElement("div"); d.className = "badgepop"; d.innerHTML = "<i>★</i><b>" + b[1] + "</b><small>" + b[2] + "</small>"; document.body.appendChild(d);
+    A.sfx("badge"); if (G.burst) G.burst(G.p.x, G.p.y - 16, 26);
+    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); }, 600); }, 3200);
+  }
+
   /* debug: ?beat=pit jumps (for testing only) */
   var q = new URLSearchParams(location.search);
   if (q.get("beat")) {
@@ -274,7 +374,7 @@
     });
   }
   ui.debugBeat = function (b) {
-    A.init(); $("title").hidden = true; document.body.classList.add("playing");
+    A.init(); $("title").hidden = true; document.body.classList.add("playing"); G.titleRun = false; G.camFocus = null; G.hidePlayer = false;
     S.init(); G.s = G.fresh(); G.mode = "walk";
     var order = S.ORDER, idx = order.indexOf(b);
     var give = { eyes: "cellar1", book: "cellar1", lantern: "shed", scooter: "build", lens: "lens", oats: "dawn", beck: "woods", roots: "woods", log: "hollow", still: "pit", proof: "pond", crumb: "pump", looklong: "revive", onebar: "evening" };

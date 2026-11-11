@@ -230,6 +230,8 @@
   S.region = function () { pluck(587.33, { g: 0.07, dur: 2.4, bright: 0.35 }); pluck(880, { at: 0.22, g: 0.06, dur: 2.6, bright: 0.35 }); tone(1174.66, { at: 0.44, g: 0.012, dur: 1.6, verb: 1, bus: musBus }); };
   S.twinkle = function () { tone(1568, { g: 0.012, dur: 0.18, verb: 1 }); tone(2093, { g: 0.008, dur: 0.22, at: 0.06, verb: 1 }); };
   S.rustle = function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; burst({ type: "highpass", f: 2500, g: 0.03 * P.g, dur: 0.18, a: 0.04, pan: P.p }); };
+  S.goal = function () { tone(880, { type: "triangle", g: 0.025, dur: 0.12 }); tone(1318.5, { type: "triangle", g: 0.022, dur: 0.3, at: 0.1, verb: 1 }); };
+  S.badge = function () { [659.25, 783.99, 987.77, 1318.5].forEach(function (f, i) { pluck(f, { at: i * 0.1, g: 0.09, dur: 1.8, bright: 0.55 }); }); };
   S.charge = function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, { type: "triangle", g: 0.035, dur: 0.18, at: i * 0.09 }); }); };
   A.sfx = function (name) {
     if (!ctx) return;

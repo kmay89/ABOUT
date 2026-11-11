@@ -163,6 +163,26 @@ A toy diorama under a low sun, painted by code (`art.js`):
 * **The time of day eases between states,** so sunsets happen rather
   than snap. The lens forms like a drop; prompts pop in with a twinkle.
 
+### Pacing: Nintendo-short, novel-true
+
+* **Narration** shows one short line on screen — the book's own first
+  sentence, or a hand-cut line from the passage — and the **whole
+  passage** goes into Gran's book under **Story**, so the novel's words
+  are all there for anyone who wants them. (Menu setting to read the
+  full text as you play.)
+* **Speech** is trimmed to the lines that carry the scene and paged
+  into short bubbles of a sentence or two.
+* **A title screen** where the painted hill slowly pans behind the logo
+  at golden hour; **How to play** in three cards (shown once, before
+  the first game, and from the title any time).
+* **Goals:** a chapter card in the corner (chapter, progress pips, the
+  next step, with counters like parts 2/4 and rides 1/3) and the full
+  checklist in the book. Each chapter card opens with a **✓ chapter
+  complete** line and your tally.
+* **Discoveries:** Wren holds the new thing up in a pool of light before
+  its card; each new small thing seen through the lens flies into the
+  book, which pulses; badges at 3, 8, 15 and all 26.
+
 ### The soundscapes
 
 All synthesized in `audio.js`: the house's silence with edges, the fly,
