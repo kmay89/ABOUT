@@ -183,6 +183,40 @@ A toy diorama under a low sun, painted by code (`art.js`):
   its card; each new small thing seen through the lens flies into the
   book, which pulses; badges at 3, 8, 15 and all 26.
 
+### Holding it up to the light
+
+Every key, and Gran's plum jam, gets an **inspect view** like the ones in
+big adventure games. Wren holds the thing up, the world goes dark, and
+it spins in out of nowhere, settles with a flash, and turns slowly in a
+pool of light. You can turn it in your hands (drag, arrows, the stick)
+and lean in (wheel or pinch).
+
+The objects are real 3D, built from lathed profiles, boxes and tubes in
+`inspect.js` and drawn by a small painter's-algorithm renderer on a 2D
+canvas: key and rim light, specular glints, see-through glass, parts
+that glow. The models are:
+
+* the jam, with its label and gold lid
+* Gran's book, with Mo's gold threads across the cover
+* the crank lantern
+* the phone, with its water-drop lens
+* the oats
+* the scooter, with the lantern taped on
+* the jar holding the crumb
+* the mossy rock
+* the fallen log, with its seedlings
+* the root, furred with white threads
+* the pen
+* the phone, with its one bar of signal
+
+Abstract keys spin as gold coins.
+
+A beat later the card arrives: what it is, the science, what it opens.
+It also shows the collection: a bar filling to the new count, the new
+slot popping in among the gold ones, the empty slots marked "?", and a
+line saying how many keys are still out there. It can't be dismissed for
+the first second, so nobody skips the moment by accident.
+
 ### The soundscapes
 
 All synthesized in `audio.js`: the house's silence with edges, the fly,
