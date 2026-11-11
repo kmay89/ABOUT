@@ -69,22 +69,30 @@
   }
   makeBirds();
   function day() { var t = G.s.tod; return t !== "night" && t !== "dusk"; }
+  /* stillness: stand quietly and the hill stops being afraid of you */
+  function calm() { return G.mode === "walk" && !G.cut && G.p.still > 3.5; }
   function birdTick(dt) {
     if (G.mapId !== "hill") return;
-    var p = G.p, fled = {};
+    var p = G.p, fled = {}, still = calm();
     birds.forEach(function (b) {
       b.t += dt;
       if (b.state === "ground") {
+        /* one by one, the nearest few hop over to see what you are */
+        if (b.ox == null) { b.ox = b.hx; b.oy = b.hy; }
+        var near = Math.hypot(b.ox - p.x, b.oy - p.y) < 170;
+        if (still && near && !b.curious && Math.random() < dt * 0.35) { var ca = Math.random() * 6.283, cr = 20 + Math.random() * 16; b.curious = 1; b.hx = p.x + Math.cos(ca) * cr; b.hy = p.y + 4 + Math.sin(ca) * cr * 0.6; }
+        if (!still && b.curious && !p.moving) { b.curious = 0; b.hx = b.ox; b.hy = b.oy; }
         if (!day()) { b.state = "away"; b.back = 1e9; return; }
         /* hop, peck, look about */
         b.peck = Math.max(0, b.peck - dt);
         if (Math.random() < dt * 0.9) { b.vx = (Math.random() - 0.5) * 30; b.vy = (Math.random() - 0.5) * 20; b.vz = 22; b.face = b.vx > 0 ? 1 : -1; }
         if (Math.random() < dt * 0.8) b.peck = 0.25;
         if (b.z > 0 || b.vz > 0) { b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.vz -= 120 * dt; if (b.z <= 0) { b.z = 0; b.vz = 0; } }
-        b.x += (b.hx - b.x) * dt * 0.2; b.y += (b.hy - b.y) * dt * 0.2;
+        b.x += (b.hx - b.x) * dt * (b.curious ? 0.55 : 0.2); b.y += (b.hy - b.y) * dt * (b.curious ? 0.55 : 0.2);
         if (Math.random() < dt * 0.08) A.sfx("chirp", b.x, b.y);
         var d = Math.hypot(b.x - p.x, b.y - p.y);
-        if (d < (p.moving ? 42 : 26)) {
+        if (d < (p.moving ? 42 : b.curious ? 10 : 26)) {
+          if (b.curious) { b.curious = 0; b.hx = b.ox; b.hy = b.oy; }
           b.state = "fly"; var a = Math.atan2(b.y - p.y, b.x - p.x) + (Math.random() - 0.5) * 0.8;
           b.vx = Math.cos(a) * (70 + Math.random() * 40); b.vy = Math.sin(a) * 40 - 20; b.vz = 55 + Math.random() * 25; b.face = b.vx > 0 ? 1 : -1;
           fled[b.fl] = b;
@@ -126,6 +134,12 @@
         if (Math.hypot(c.x - p.x, c.y - p.y) < 26) { c.hidden = true; c.back = 10 + Math.random() * 8; A.sfx("plop", c.x, c.y); ripple(c.x + 6, c.y + 4, 1.2); }
       }
       if (c.kind === "butterfly") {
+        /* stand still long enough and it comes and rests on you */
+        var wasLand = c.land;
+        c.land = calm() && p.still > 6 && day() && Math.hypot(c.hx - p.x, c.hy - p.y) < 190;
+        if (c.land && !wasLand) c.landT = 0;
+        if (c.land) { c.landT = (c.landT || 0) + dt; if (c.landT > 2.2 && !c.chimed) { c.chimed = 1; A.sfx("twinkle"); G.burst(p.x + 2.5, p.y - 21, 7, "255,250,220", 8); } return; }
+        if (wasLand) { c.chimed = 0; c.hx = p.x + (Math.random() - 0.5) * 30; c.hy = Math.max(3 * T, p.y - 30); }
         var d = Math.hypot(c.x - p.x, c.y - p.y);
         if (d < 30) { c.hx += (c.x - p.x) / d * 60 * dt; c.hy += (c.y - p.y) / d * 30 * dt - 10 * dt; }
         c.hx = Math.max(28 * T, Math.min(52 * T, c.hx)); c.hy = Math.max(3 * T, Math.min(22 * T, c.hy));
@@ -217,11 +231,44 @@
     promptWas = on;
   }
 
+  /* ---------------- dragonflies over the pond ---------------- */
+  /* they hang in the air, then are suddenly somewhere else: hover, dash,
+     hover. Blue as the bit of sky the pond is holding. */
+  var flies = [];
+  function dfTick(dt) {
+    if (G.mapId !== "hill" || !day()) { flies.length = 0; return; }
+    var pd = h.pond, p = G.p;
+    if (!flies.length) for (var i = 0; i < 3; i++) flies.push({ x: (pd.x + Math.random() * pd.w) * T, y: (pd.y + Math.random() * pd.h) * T, tx: 0, ty: 0, wait: Math.random() * 2, col: i === 2 ? "200,90,60" : "70,150,210", face: 0 });
+    flies.forEach(function (f) {
+      f.wait -= dt;
+      var near = Math.hypot(f.x - p.x, f.y - p.y) < 28;
+      if (f.wait <= 0 || near) {
+        f.tx = (pd.x - 1 + Math.random() * (pd.w + 2)) * T; f.ty = (pd.y - 1 + Math.random() * (pd.h + 2)) * T;
+        if (near) { f.tx += (f.x - p.x) * 2; f.ty += (f.y - p.y) * 2; }
+        f.wait = 0.8 + Math.random() * 2.4; f.face = Math.atan2(f.ty - f.y, f.tx - f.x);
+      }
+      var k = Math.min(1, dt * 7); f.x += (f.tx - f.x) * k; f.y += (f.ty - f.y) * k;
+    });
+  }
+  function drawFly(ctx, cam, f, t) {
+    var sx = f.x - cam.x + Math.sin(t * 9 + f.col.length) * 0.4, sy = f.y - cam.y - 12 + Math.sin(t * 7) * 0.5;
+    G.shadowAt(f.x, f.y, 1.6, 0.12);
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(f.face);
+    var w = 0.55 + Math.abs(Math.sin(t * 60)) * 0.45;
+    ctx.fillStyle = "rgba(235,245,255," + (0.35 * w) + ")";
+    BS.ell(ctx, -0.3, -2.1, 0.7, 2.2, null, 0.25); ctx.fill(); BS.ell(ctx, -0.3, 2.1, 0.7, 2.2, null, -0.25); ctx.fill();
+    BS.ell(ctx, 0.9, -1.9, 0.6, 1.9, null, -0.2); ctx.fill(); BS.ell(ctx, 0.9, 1.9, 0.6, 1.9, null, 0.2); ctx.fill();
+    ctx.fillStyle = "rgb(" + f.col + ")"; ctx.fillRect(-4, -0.3, 4.6, 0.6);
+    BS.ell(ctx, 1.2, 0, 1, 0.75); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.7)"; BS.ell(ctx, 1.5, -0.25, 0.3, 0.25); ctx.fill();
+    ctx.restore();
+  }
+
   /* ---------------- hooks from the engine ---------------- */
   J.update = function (dt, cam) {
     if (G.mode === "title") { birdTick(dt); return; }
     regionTick(); showPending();
-    birdTick(dt); critterTick(dt); printTick(dt); partTick(dt); rideTick(dt); promptTick();
+    birdTick(dt); critterTick(dt); dfTick(dt); printTick(dt); partTick(dt); rideTick(dt); promptTick();
   };
   J.under = function (ctx, cam, t) {
     prints.forEach(function (f) {
@@ -243,6 +290,7 @@
       if (b.x < cam.x - 30 || b.x > cam.x + G.view().w + 30 || b.y < cam.y - 30 || b.y > cam.y + G.view().h + 60) return;
       list.push({ y: b.y, d: function () { drawBird(ctx, cam, b, t); } });
     });
+    flies.forEach(function (f) { list.push({ y: f.y + 6, d: function () { drawFly(ctx, cam, f, t); } }); });
   };
   J.world = function (ctx, cam, t) {
     if (!parts.length) return;
