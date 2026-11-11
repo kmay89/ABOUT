@@ -132,6 +132,37 @@ A toy diorama under a low sun, painted by code (`art.js`):
 * **Dynamic resolution:** the loop measures its own frame time and trades
   a little sharpness to hold the frame rate.
 
+### The moments
+
+* **Places say their names:** walk into the hollow, the pond or the pit,
+  and the name rises at the top with a line of description and a
+  two-note harp.
+* **People have faces and voices:** each speaker gets a portrait in the
+  dialogue box that blinks and bobs as they talk. Each also has a little
+  instrument voice — Dad low, Beck bright and quick, Gran warm with a
+  wobble. Gran's portrait is the phone, since she is only ever a voice.
+* **Mo's words surface one by one** out of a blur, each few words with a
+  soft celesta note from a slowly rising scale, while gold motes drift
+  up the screen. Mo still has no name tag and no source.
+* **A held chord rises under each big beat:** wonder as your eyes adapt
+  and the foxfire brightens in a wave; Mo's chord before "Oh. You can
+  see us."; joy when Beck arrives, when she forgives, and when the bear
+  walks; tension as the pile lets go and the work lights snap on; and
+  silence, then sadness, when the pump takes the cold out of the air.
+* **When something becomes yours,** gold bursts from Wren, rays turn
+  slowly behind the card, and the name catches the light.
+* **The revival grows:** gold races through the fallen giant over
+  several seconds, with motes rising off it.
+* **The hill is inhabited:** sparrows hop and peck, and burst away if
+  you come close. Frogs plop into the pond. The butterfly shies off, and
+  something rises in the pond now and then.
+* **Feet leave prints** in sand and mud that slowly fill back in, and
+  water rings out where something touches it.
+* **The ride** streams speed lines, and at the bottom the battery fills
+  in front of you with a little chime.
+* **The time of day eases between states,** so sunsets happen rather
+  than snap. The lens forms like a drop; prompts pop in with a twinkle.
+
 ### The soundscapes
 
 All synthesized in `audio.js`: the house's silence with edges, the fly,

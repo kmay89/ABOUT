@@ -161,6 +161,18 @@
     G.wipe(); location.reload();
   });
 
+  /* ---------------- the portrait in the dialogue box ---------------- */
+  var pT = 0, pcv = $("portrait"), px = pcv.getContext("2d");
+  ui.portraitTick = function (dt) {
+    if (!$("dlg").classList.contains("on") || !G.portrait) return;
+    pT += dt;
+    var blink = (pT % 3.6) < 0.12, img = BS.portrait(G.portrait, blink);
+    if (!img) return;
+    var bob = G.talking && !G.prefs.reduced ? Math.abs(Math.sin(pT * 11)) * 3 : Math.sin(pT * 1.6) * 1.2;
+    px.clearRect(0, 0, 144, 144);
+    px.drawImage(img, 4, 10 - bob, 136, 136);
+  };
+
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
@@ -172,6 +184,7 @@
     setTimeout(function () { $("title").hidden = true; }, 900);
     document.body.classList.add("playing");
     S.init();
+    if (BS.juice) BS.juice.reset();
     if (load && saved) {
       G.s = saved; for (var k in G.fresh()) if (G.s[k] == null) G.s[k] = G.fresh()[k];
       G.mode = "walk";

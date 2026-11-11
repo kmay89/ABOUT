@@ -51,7 +51,7 @@
 <div id="live" class="sr" aria-live="polite"></div>
 
 <!-- words -->
-<div id="dlg" class="dlg" role="dialog" aria-live="polite"><b id="who"></b><p id="line"></p><span id="more" class="more" hidden>▾</span></div>
+<div id="dlg" class="dlg" role="dialog" aria-live="polite"><div id="pframe" class="pframe" aria-hidden="true"><canvas id="portrait" width="144" height="144"></canvas></div><b id="who"></b><p id="line"></p><span id="more" class="more" hidden>▾</span></div>
 <div id="narr" class="narr"><p id="ntext"></p><span id="nmore" class="more" hidden>▾</span></div>
 <div id="mo" class="mo"><p id="motext"></p></div>
 <div id="cyn" class="cyn" aria-hidden="true"></div>
@@ -67,6 +67,7 @@
 
 <!-- the moment a thing becomes yours -->
 <div id="get" class="get" role="dialog" aria-modal="true" aria-labelledby="gname">
+  <div class="rays" aria-hidden="true"></div>
   <div class="gcard">
     <canvas id="gicon" width="96" height="96" aria-hidden="true"></canvas>
     <small id="gkick"></small>
@@ -77,7 +78,9 @@
     <button id="gok" class="primary">Keep it</button>
   </div>
 </div>
-<div id="chap" class="chap" aria-live="polite"><small id="chn"></small><h2 id="cht"></h2></div>
+<div id="chap" class="chap" aria-live="polite"><small id="chn"></small><h2 id="cht"></h2><i class="chline" aria-hidden="true"></i></div>
+<div id="region" class="region" aria-live="polite"><i></i><span id="rname"></span><i></i><small id="rsub"></small></div>
+<div id="charge" class="charge" aria-hidden="true"><span class="cbat"><i id="cfill"></i></span><b id="cpct"></b></div>
 
 <!-- set pieces -->
 <div id="ridehud" class="ridehud" aria-hidden="true"><span>dynamo</span><i id="rspeed"></i><b id="rcharge">+0%</b></div>
@@ -214,6 +217,7 @@
 <script src="engine.js"></script>
 <script src="minis.js"></script>
 <script src="story.js"></script>
+<script src="juice.js"></script>
 <script src="ui.js"></script>
 <script>BS.G.start();</script>
 </body>

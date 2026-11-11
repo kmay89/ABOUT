@@ -179,6 +179,7 @@
     var wash = G.workLights ? 1 : Math.min(1, Math.max(0, (G.lamp.level - 0.35) * 1.6) + (G.lamp.fixed && G.lamp.fixed.map === "cellar" && !F("tipped") ? 0.7 : 0));
     if (G.mapId === "cellar") {
       var ad = G.eyes.adapt, vis = Math.max(0.08, ad) * (1 - wash);
+      if (S.foxPulse) vis *= 1 + Math.max(0, 1 - (G.time() - S.foxPulse) / 3) * 1.4;
       if (vis > 0.02) {
         drawBaked(ctx, cam, bake("fox", cellar.w * T, cellar.h * T, foxfire, [["rgba(120,220,100,.07)", 5], ["rgba(150,230,110,.22)", 1.6], ["rgba(200,255,160,.55)", 0.5]]), vis);
         /* each jar holds a thin cold line of light down its side */
@@ -202,9 +203,12 @@
         });
       }
       if (F("revived")) {
-        var q = 0.7 + 0.3 * Math.sin(t * 0.6);
-        strokePolys(ctx, cam, moHollow, "rgba(255,190,60," + (0.35 * q * (0.4 + night)) + ")", 1.6);
-        strokePolys(ctx, cam, moHollow, "rgba(255,240,170," + (0.75 * q * (0.4 + night)) + ")", 0.5);
+        var q = 0.7 + 0.3 * Math.sin(t * 0.6), grow = S.reviveT ? Math.min(1, (G.time() - S.reviveT) / 7) : 1;
+        var shown = grow >= 1 ? moHollow : moHollow.map(function (pts) { return pts.slice(0, Math.max(2, Math.ceil(pts.length * grow))); });
+        if (grow < 1) { q *= 1 + (1 - grow) * 1.5; }
+        strokePolys(ctx, cam, shown, "rgba(255,180,60," + (0.1 * q * (0.4 + night)) + ")", 5);
+        strokePolys(ctx, cam, shown, "rgba(255,190,60," + (0.35 * q * (0.4 + night)) + ")", 1.6);
+        strokePolys(ctx, cam, shown, "rgba(255,240,170," + (0.75 * q * (0.4 + night)) + ")", 0.5);
       }
       if (S.crumbOnWood && !F("revived")) { ctx.fillStyle = "rgba(170,150,80,.9)"; ctx.fillRect(Math.round(15.6 * T - cam.x), Math.round(66.2 * T - cam.y), 3, 2); }
       /* fireflies in the field at dusk, frogs' eyes at the pond — handled as motes */
@@ -545,7 +549,7 @@
       .then(function () { return nar("It looked arranged. It looked like it had been going somewhere. It looked — and I was embarrassed even as the thought came — like it was paying attention."); })
       .then(function () { G.cynic("It's mold. It's a fungus on a damp book in a damp cellar.", 5); return wait(900); })
       .then(function () { return nar("Where the threads ran nearest my hand they seemed to draw back. Only slightly. The way the skin on warm milk draws back from the spoon. I felt that I had been expected. That the dark had set a place."); })
-      .then(function () { return give("book"); })
+      .then(function () { A.sfx("swell", "mo"); return give("book"); })
       .then(function () { return nar("Very carefully, so as not to break a single golden thread, I lifted the corner of the cloth. Her small, upright hand, every letter standing straight as though she had planted it there and waited for it to take root. It said:"); })
       .then(function () { return nar("*If you are reading this, the lights have gone out — and that is the only reason you can see.*"); })
       .then(function () { A.loop("heart", false); A.sfx("rip", 6 * T, -40 * T); return nar("Far above me, the tape gave its long tearing scream. And down in the cold, something gold and patient and entirely alive drew itself half an inch closer to my hand — and waited for me to turn the page."); })
@@ -558,7 +562,7 @@
         return nar("And the dark began, very slowly, to give things back. I never caught it happening — the same way you can't catch the tide.")
           .then(function () { return nar("The shelves came first. Then the round shoulders of the jars. Then the low beams overhead — and along the underside of the old wood ran a light. A pale cold green-gold light, fanned out in fine branching lines like rivers seen from very high up, like frost, like veins."); })
           .then(function () { return nar("The dark had not been empty. Not for one second. I'd come straight down out of that loud bright certain day, and my eyes had been shut to this the way a fist is shut."); })
-          .then(function () { return give("eyes"); })
+          .then(function () { A.sfx("swell", "wonder"); S.foxPulse = G.time(); return give("eyes"); })
           .then(function () { G.objective("Something lies on the fallen shelf, in the far corner, in the strongest of the glow."); });
       });
     }
@@ -712,7 +716,7 @@
     return wait(2400)
       .then(function () { return nar("It was a city. It was a galaxy. It was rivers seen from space, except the rivers were gold, and the rivers were moving — pouring one way and then, as I watched, pausing all together, and pouring back the other, like one slow enormous heart that had no center and was beating everywhere at once."); })
       .then(function () { return say("wren", "What *are* you."); })
-      .then(function () { return wait(900); })
+      .then(function () { A.sfx("swell", "mo"); return wait(1400); })
       .then(function () { return mo("Oh. You can see us."); })
       .then(function () { return mo("That's more than most ever manage. Most of you only ever look. You — you looked long enough."); })
       .then(function () { return mo("We were just about to ask you the same thing."); })
@@ -739,6 +743,7 @@
   }
   function meetBeck() {
     G.put({ id: "beck", map: "hill", who: "beck", x: 53.5 * T, y: 17.6 * T, dir: 3, solid: true });
+    A.sfx("swell", "joy");
     return say("beck", "That is the weirdest thing I have ever seen, and last summer I watched a grown man lose a fight to a goose.")
       .then(function () { return nar("I came up off the ground so fast I nearly went face-first into the compost. A kid at the gap in the hedge with a bike, maybe my age, sunburned nose, a scab on one knee the size of a quarter, and an expression of total, settled, scientific judgment."); })
       .then(function () { return G.walkTo("beck", 50.6, 20.8); })
@@ -819,6 +824,7 @@
   }
   function hollowScene() {
     var b = G.ent("beck"); if (b) { b.follow = false; b.lead = null; G.walkTo("beck", 19.5, 62.2); }
+    A.sfx("swell", "wonder"); if (G.fountain) G.fountain(18 * T, 64 * T, 9, "200,240,150");
     return nar("A fold of the woods where the ground dropped away and a spring came up out of the hillside, so the air was colder than anywhere else, and wetter. And lying across the whole hollow, mossed over so thick it was more green than brown, was a tree.")
       .then(function () { return nar("The biggest tree I had ever seen, a giant, come down who knew how many years ago — and more alive lying on its side than anything else in that forest. Moss in a deep wet pelt. Ferns in green fountains. A whole row of seedlings, hand-high, grew straight up out of its back, reaching for the gap it had opened when it came down."); })
       .then(function () { return say("wren", "This is it. Beck, this is perfect, it's cold, it's wet, it's dark — this is where Mo can live. We'll dig it up and we'll carry it down here and —"); })
@@ -921,7 +927,7 @@
     return say("wren", "You were right. About the pile. About all of it. You told me the first thing and I did it anyway, because I always — because I always have to be the one who knows. I can't stand not being the one who knows. And it almost got me killed and it got you caught, and that's mine, that's all mine, and I'm sorry. I'm really sorry, Beck.")
       .then(function () { return say("beck", "He didn't yell. That's the thing. I came in covered in sand and he just — he went white. He grabbed me and he just held on. He's seen a guy go under a pile, Wren. A grown man. He wasn't mad. He was scared. Which is worse. Being yelled at I can do."); })
       .then(function () { return say("beck", "I'm grounded till I'm forty. I had to climb out my window to answer the dumb door. — Okay. Okay. But you're buying me oatmeal till we're old. And you do what I say at the pit forever. Deal?"); })
-      .then(function () { return say("wren", "Deal."); })
+      .then(function () { A.sfx("swell", "joy"); return say("wren", "Deal."); })
       .then(function () { return say("beck", "So why'd you really come. What is it. The pump?"); })
       .then(function () { return nar("And I told her. The whole thing, fast, on the step in the dark — that I had to *see* a thing come back from all the way dried out, or I'd never be brave enough to let it happen."); })
       .then(function () { return say("beck", "Water bears."); })
@@ -972,6 +978,7 @@
     scene(function () { return nar("Curled up in among the brittle dead leaves were specks. Tiny barrel-shaped specks, shriveled, motionless. If you'd told me they were grains of dust I'd have believed you, and if you'd told me they were corpses I'd have believed that too.").then(function () { return say("wren", "They look dead."); }).then(function () { return say("beck", "They're not dead. Watch. *Watch.* (Press E — let her tip one drop of pond water on.)"); }); });
   }
   function afterTuns() {
+    A.sfx("swell", "joy");
     return say("beck", "It's so *ugly*. Oh my gosh. It's so ugly. It's the best thing I've ever seen.")
       .then(function () { G.lensState.lock = false; G.closeLens(); return nar("A fat, lumbering, faintly ridiculous, gloriously alive little bear of a thing, walking across the screen on eight legs, a creature that one minute ago had been a dead crumb of dust. A thing could dry all the way down to nothing, and then water could come, and it could *get up and walk away.*"); })
       .then(function () { return give("proof"); })
@@ -1004,7 +1011,7 @@
       .then(function () {
         G.put({ id: "w1", map: "cellar", who: "worker", x: 4 * T, y: 3.2 * T, dir: 0, solid: true });
         G.put({ id: "w2", map: "cellar", who: "worker2", x: 6 * T, y: 4 * T, dir: 0, solid: true });
-        A.sfx("lights"); G.workLights = true; G.eyes.adapt = 0;
+        A.sfx("lights"); A.sfx("swell", "tension"); G.workLights = true; G.eyes.adapt = 0;
         return wait(600);
       })
       .then(function () { return nar("Not the foxfire. Not Gran's little crank lantern with its honest warm beam. Work lights, the kind that turn night into a flat white surgical day. All that soft green-gold dark vanished in an instant, washed out, erased, the way the stars go the second somebody turns on a porch light."); })
@@ -1019,7 +1026,7 @@
       .then(function () { return nar("I scraped at the shelf with the edge of the jar, scooping, frantic, getting a smear of it, a clot of the gold, into the glass — and I put my face down close, close as I had that first night."); })
       .then(function () { return say("wren", "Come back. You said you come back. Come back, please — be in here, be in the crumb, come with me, *please* —"); })
       .then(function () { return mo("Be brave, child. You'll get there. Look long, and you'll —"); })
-      .then(function () { set("pumped"); A.sfx("cynic"); return wait(900); })
+      .then(function () { set("pumped"); A.sfx("cynic"); A.music("none"); setTimeout(function () { A.sfx("swell", "sad"); }, 1600); return wait(900); })
       .then(function () { return nar("And then the cold went out of the air. I felt the pump pull the wet up out of the stone, and the cellar's whole hundred-year breath of cold go thin and then go warm and ordinary — and the voice, mid-word, mid-*you'll*, did not finish. It just stopped."); })
       .then(function () { return give("crumb"); })
       .then(function () { return G.fade(true, 700); })
@@ -1088,12 +1095,13 @@
       };
     }).then(function () {
       return scene(function () {
-        set("revived"); S.crumbOnWood = false; A.sfx("mo");
+        set("revived"); S.crumbOnWood = false; A.sfx("mo"); S.reviveT = G.time(); A.sfx("swell", "wonder");
+        if (G.burst) G.burst(15.8 * T, 66 * T, 40); if (G.fountain) G.fountain(16 * T, 65.6 * T, 14);
         return nar("And the crumb of gold drank. It softened. At one edge, so faint I'd have called it nothing if I'd been letting myself call things nothing, a single thread of gold reached out across the wet wood. Then another. Then, very slowly, beginning — just beginning — to shine.")
           .then(function () { return nar("It came back the way the bear had, the way the seedlings had come up out of the dead tree — reaching out into the seams of the fallen giant, the richest, oldest, most alive wood in the whole woods, the gold spreading and branching and beginning, faintly, to pulse."); })
           .then(function () { return nar("And what came — fainter than it had ever been in the cellar and somehow wider, as if it had more room now — was not the same. It did not say my name. Some of it had stayed behind in the cellar, and I would miss it, quietly, for the rest of my life. But it was not gone."); })
           .then(function () { return wait(1200); })
-          .then(function () { return mo("Oh."); })
+          .then(function () { A.sfx("swell", "mo"); return mo("Oh."); })
           .then(function () { return mo("Oh. You can see us."); })
           .then(function () { return give("looklong"); })
           .then(function () { return nar("I put my face down in the cold moss next to my friend — my changed, gone-and-returned, never-the-same, entirely real friend — and I cried until I laughed, and Beck cried too, and called it ugly. Saved. Not kept, never kept, but saved — the only way anything alive has ever, ever been."); })
@@ -1118,7 +1126,7 @@
       G.cut--;
       G.toast("Hold the phone up to the sky. Keep perfectly still.", 3000);
       return G.findSignal().then(function () { G.cut++; return give("onebar"); })
-        .then(function () { A.sfx("ring"); return wait(1800); })
+        .then(function () { A.sfx("ring"); setTimeout(function () { A.sfx("swell", "warm"); }, 1900); return wait(1800); })
         .then(function () { G.s.flags.called = 1; return say("gran", "Well. There you are. I was wondering when you'd find it down there."); })
         .then(function () { return say("wren", "You knew."); })
         .then(function () { return say("gran", "Of course I knew. I've been going down those steps for forty years, my love. You think I never once stayed long enough to let my eyes go? The light in the beams? The gold on the old shelf that's cleverer than it has any business being?"); })
