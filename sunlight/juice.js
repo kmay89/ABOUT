@@ -219,7 +219,7 @@
 
   /* ---------------- hooks from the engine ---------------- */
   J.update = function (dt, cam) {
-    if (G.mode === "title") return;
+    if (G.mode === "title") { birdTick(dt); return; }
     regionTick(); showPending();
     birdTick(dt); critterTick(dt); printTick(dt); partTick(dt); rideTick(dt); promptTick();
   };
@@ -255,7 +255,16 @@
     });
     ctx.restore();
   };
-  J.screen = function (ctx, VW, VH, t) {
+  J.screen = function (ctx, VW, VH, t, cam) {
+    if (G.holdUp && cam) {
+      var k = Math.min(1, (t - G.holdUp.t0) / 0.45), sx = G.p.x - cam.x, sy = G.p.y - 22 - cam.y;
+      var g = ctx.createRadialGradient(sx, sy, 10, sx, sy, Math.max(VW, VH) * 0.6);
+      g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.25, "rgba(8,6,2," + (0.35 * k) + ")"); g.addColorStop(1, "rgba(8,6,2," + (0.7 * k) + ")");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(sx, sy - 8);
+      for (var r = 0; r < 12; r++) { ctx.rotate(Math.PI / 6 + t * 0.02); ctx.fillStyle = "rgba(255,220,140," + (0.06 * k) + ")"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-4, -70); ctx.lineTo(4, -70); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
     if (streaks.length) {
       ctx.save(); ctx.lineCap = "round";
       streaks.forEach(function (s) { var a = Math.sin(Math.PI * s.t / s.life) * 0.45; ctx.strokeStyle = "rgba(255,250,230," + a + ")"; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x, s.y + s.len); ctx.stroke(); });

@@ -43,6 +43,7 @@
   </div>
 </header>
 <p id="obj" class="obj" hidden></p>
+<button id="goalcard" class="goalcard" hidden aria-label="This chapter's goals"><small id="gch"></small><span id="gpips" class="pips"></span><b id="gstep"></b></button>
 <div id="arm" class="arm" aria-hidden="true"><span>arm</span><i></i></div>
 <div id="flash" class="flash" aria-hidden="true"></div>
 <div id="toast" class="toast" role="status"></div>
@@ -78,7 +79,7 @@
     <button id="gok" class="primary">Keep it</button>
   </div>
 </div>
-<div id="chap" class="chap" aria-live="polite"><small id="chn"></small><h2 id="cht"></h2><i class="chline" aria-hidden="true"></i></div>
+<div id="chap" class="chap" aria-live="polite"><p id="chdone" class="chdone" hidden></p><small id="chn"></small><h2 id="cht"></h2><i class="chline" aria-hidden="true"></i></div>
 <div id="region" class="region" aria-live="polite"><i></i><span id="rname"></span><i></i><small id="rsub"></small></div>
 <div id="charge" class="charge" aria-hidden="true"><span class="cbat"><i id="cfill"></i></span><b id="cpct"></b></div>
 
@@ -112,7 +113,8 @@
 <section id="book" class="book" aria-hidden="true" aria-label="Gran's book">
   <div class="bcard">
     <nav class="tabs" role="tablist">
-      <button data-tab="pages" role="tab">Her pages</button>
+      <button data-tab="pages" role="tab">Goals</button>
+      <button data-tab="story" role="tab">Story</button>
       <button data-tab="keys" role="tab">Field notes</button>
       <button data-tab="seen" role="tab">Seen</button>
       <button data-tab="map" role="tab">Map</button>
@@ -122,6 +124,7 @@
     </nav>
     <div class="bbody">
       <div id="p-pages" class="bpane"></div>
+      <div id="p-story" class="bpane" hidden></div>
       <div id="p-keys" class="bpane" hidden></div>
       <div id="p-seen" class="bpane" hidden></div>
       <div id="p-map" class="bpane" hidden></div>
@@ -145,6 +148,7 @@
       <label class="ck"><input id="o-big" type="checkbox"> Larger text</label>
       <label class="ck"><input id="o-red" type="checkbox"> Reduce motion</label>
       <label class="ck"><input id="o-hap" type="checkbox"> Haptics</label>
+      <label class="ck"><input id="o-full" type="checkbox"> Full passages from the novel as you play</label>
       <label class="ck"><input id="o-tilt" type="checkbox"> Diorama focus (soft top &amp; bottom)</label>
       <label class="ck"><input id="o-ptr" type="checkbox"> Gold pointer to the next thing</label>
     </div>
@@ -175,8 +179,10 @@
 
 <!-- the title -->
 <section id="title" class="title">
-  <canvas id="titlecv" aria-hidden="true"></canvas>
+  <canvas id="titlecv" aria-hidden="true" hidden></canvas>
+  <div class="tshade" aria-hidden="true"></div>
   <div class="tin">
+    <div class="tmark" aria-hidden="true"><i></i><i></i><i></i></div>
     <p class="tkick">An adventure through the novel</p>
     <h1><span>Borrowed</span> Sunlight</h1>
     <p class="tsub">The Back of the World</p>
@@ -184,10 +190,39 @@
     <div class="tbtns">
       <button id="t-continue" class="primary" hidden>Continue <small></small></button>
       <button id="t-new" class="primary">Begin</button>
-      <button id="t-sound" class="ghost">Hear the theme</button>
+      <button id="t-how" class="ghost">How to play</button>
+      <button id="t-sound" class="ghost">♪ Theme</button>
     </div>
     <p class="tfine">Best with sound. Arrows/WASD, E to act, L to look, hold C to crank, B for the book. Touch and gamepads work.<br>Free, offline, no account, nothing tracked. Saves on this device.</p>
     <p class="tfine"><a href="https://borrowedsunlightnovel.com">Read the novel</a> · <a href="/">Back to the desk</a></p>
+  </div>
+</section>
+
+<!-- how to play -->
+<section id="howto" class="howto" hidden aria-label="How to play">
+  <div class="hcard">
+    <div class="hslides">
+      <div class="hs on">
+        <canvas class="hart" data-art="move" width="240" height="120" aria-hidden="true"></canvas>
+        <h2>Walk the hill</h2>
+        <p><b>Move</b> with the arrows, WASD or the thumb-stick. <b>E</b> (or <b>A</b>) does things — talk, open, pick up. Hold <b>Shift</b> to run.</p>
+        <p class="hhint">A twinkle ✦ means there's something you can do there.</p>
+      </div>
+      <div class="hs">
+        <canvas class="hart" data-art="keys" width="240" height="120" aria-hidden="true"></canvas>
+        <h2>Every key is real science</h2>
+        <p>The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (<b>hold C</b>), a drop of water that turns a dead phone into a microscope (<b>L</b>).</p>
+        <p class="hhint">Look closely at everything. Twenty-six small things are hiding on the hill.</p>
+      </div>
+      <div class="hs">
+        <canvas class="hart" data-art="goal" width="240" height="120" aria-hidden="true"></canvas>
+        <h2>You have until Friday</h2>
+        <p>Gran's house is being emptied. Something is living in the cellar, and the concrete comes Monday. Find what she left in the dark — and find a way to save it.</p>
+        <p class="hhint">The gold ◆ points to what's next. <b>B</b> opens Gran's book: goals, field notes, the map.</p>
+      </div>
+    </div>
+    <div class="hdots"><i class="on"></i><i></i><i></i></div>
+    <div class="row"><button id="h-skip" class="ghost">Skip</button><button id="h-next" class="primary">Next</button></div>
   </div>
 </section>
 

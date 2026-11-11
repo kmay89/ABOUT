@@ -287,7 +287,11 @@
     var c = document.createElement("span"); c.className = "chip" + (hot ? " hot" : "") + (done ? " done" : "");
     c.innerHTML = "<small>" + a + "</small><b>" + b + "</b>"; el.appendChild(c);
   }
-  G.objective = function (t) { G.s.objective = t; G.hud(); if (t) { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); } };
+  G.objective = function (t) {
+    var changed = t && t !== G.s.objective;
+    G.s.objective = t; G.hud();
+    if (changed) { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); setTimeout(function () { A.sfx("goal"); }, 250); }
+  };
   G.flash = function (t) { var f = $("flash"); f.textContent = t; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); };
   G.toast = function (t, ms) { var f = $("toast"); f.textContent = t; f.classList.add("on"); clearTimeout(G._tt); G._tt = setTimeout(function () { f.classList.remove("on"); }, ms || 2600); };
 
@@ -311,6 +315,7 @@
       if (voice && i % 2 === 0 && /[a-z]/i.test(text[i - 1] || "")) A.sfx("voice", voice, text.charCodeAt(i - 1)); else if (!voice && i % 4 === 0) A.sfx("text");
       if (i >= text.length) { t.done = true; el.innerHTML = fmt(text); cb && cb(); return; }
       var ch = text[i - 1], d = 1000 / speed;
+      if (G.held("act")) d /= 4;
       if (".!?".indexOf(ch) >= 0) d *= 6; else if (",;:—".indexOf(ch) >= 0) d *= 3;
       t.timer = setTimeout(tick, d);
     };
@@ -328,7 +333,21 @@
     gran: { name: "Gran", cls: "gran" }, worker: { name: "The man with the coffee", cls: "worker" },
     beckdad: { name: "Beck's dad", cls: "dad" }, phone: { name: "Phone", cls: "phone" }
   };
+  /* short pages, a sentence or two each, like a speech bubble */
+  function pages(text) {
+    if (text.length <= 120) return [text];
+    var parts = text.match(/[^.!?—]+(?:[.!?]+|—)\*?\s*/g) || [text], out = [], cur = "";
+    parts.forEach(function (p) { if ((cur + p).length > 120 && cur) { out.push(cur.trim()); cur = p; } else cur += p; });
+    if (cur.trim()) out.push(cur.trim());
+    var joined = out.join(" ").replace(/\s+/g, " ").length, orig = text.replace(/\s+/g, " ").length;
+    return Math.abs(joined - orig) < 3 ? out : [text];
+  }
   G.say = function (who, text) {
+    var ps = pages(text);
+    if (ps.length > 1) return ps.reduce(function (p, pg) { return p.then(function () { return sayOne(who, pg); }); }, Promise.resolve());
+    return sayOne(who, text);
+  };
+  function sayOne(who, text) {
     return new Promise(function (res) {
       var box = $("dlg"), w = WHO[who] || { name: who, cls: "" }; $("region").classList.remove("on");
       box.className = "dlg on " + w.cls;
@@ -340,11 +359,27 @@
       talk = { t: t, res: function () { box.className = "dlg"; G.talking = false; res(); } };
       $("live").textContent = w.name + ": " + text.replace(/\*/g, "");
     });
-  };
+  }
+  /* Nintendo-short on screen; the whole passage is kept in Gran's book,
+     under Story, for anyone who wants the novel's own words */
+  function brief(text) {
+    var L = BS.story && BS.story.SHORT;
+    if (L) for (var i = 0; i < L.length; i++) if (text.indexOf(L[i][0]) === 0) return L[i][1];
+    var m = text.match(/^(.+?[.!?])(\s|\*?$)/), f = m ? m[1] : text;
+    if (f.length > 150) { f = f.slice(0, 140); f = f.slice(0, f.lastIndexOf(" ")) + "…"; }
+    return f;
+  }
+  G.brief = brief;
   G.narrate = function (text) {
     return new Promise(function (res) {
       var n = $("narr"); n.classList.add("on"); $("region").classList.remove("on");
       $("nmore").hidden = true;
+      var shown = G.prefs.fullText ? text : brief(text), more = shown !== text;
+      G.s.story = G.s.story || [];
+      if (!G.s.story.some(function (q) { return q.t === text; })) G.s.story.push({ t: text, d: G.s.day });
+      n.classList.toggle("hasmore", more);
+      if (more) BS.ui && BS.ui.bookPing && BS.ui.bookPing();
+      text = shown;
       var t = typeInto($("ntext"), text, function () { $("nmore").hidden = false; });
       talk = { t: t, res: function () { n.classList.remove("on"); res(); } };
       $("live").textContent = text.replace(/\*/g, "");
@@ -411,11 +446,18 @@
   };
 
   /* the moment a thing becomes yours */
+  /* the moment a thing becomes yours: Wren holds it up in a pool of light,
+     the world hushes, then the card */
   G.item = function (o) {
     return new Promise(function (res) {
       A.sfx("found");
-      if (G.burst) { G.burst(G.p.x, G.p.y - 14, 34); }
       if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([20, 40, 30]);
+      var ic0 = BS.wc(24, 24, 6); if (BS.icons && BS.icons[o.icon]) BS.icons[o.icon](ic0.getContext("2d"), 144);
+      G.holdUp = { icon: ic0, t0: time };
+      G.p.dir = 0; G.p.frame = 0;
+      setTimeout(function () { if (G.burst) G.burst(G.p.x, G.p.y - 34, 30, "255,220,130", 20); }, G.skipWaits ? 0 : 520);
+      setTimeout(card, G.skipWaits || G.prefs.reduced ? 0 : 1250);
+      function card() {
       var m = $("get");
       $("gkick").textContent = o.kind || "Found";
       $("gname").textContent = o.name;
@@ -425,8 +467,9 @@
       var ic = $("gicon").getContext("2d"); ic.clearRect(0, 0, 96, 96);
       if (BS.icons && BS.icons[o.icon]) BS.icons[o.icon](ic, 96);
       m.classList.add("on");
-      G.modal = function () { m.classList.remove("on"); G.modal = null; res(); };
+      G.modal = function () { m.classList.remove("on"); G.modal = null; G.holdUp = null; res(); };
       $("gok").focus({ preventScroll: true });
+      }
     });
   };
   $("gok").addEventListener("click", function () { if (G.modal) G.modal(); });
@@ -434,8 +477,13 @@
   G.chapter = function (n, title) {
     return new Promise(function (res) {
       var c = $("chap"); $("chn").textContent = n; $("cht").textContent = title;
+      var CH = BS.story && BS.story.CHAPTERS, prev = null;
+      if (CH) for (var i = 1; i < CH.length; i++) if (CH[i][1] === title) prev = CH[i - 1];
+      var done = $("chdone");
+      if (prev) { done.hidden = false; done.innerHTML = "<b>✓</b> Chapter " + prev[0] + " · " + prev[1] + " <span>" + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen</span>"; }
+      else done.hidden = true;
       c.classList.add("on"); A.sfx("chapter");
-      setTimeout(function () { c.classList.remove("on"); setTimeout(res, 700); }, G.skipWaits ? 10 : 3200);
+      setTimeout(function () { c.classList.remove("on"); setTimeout(res, 700); }, G.skipWaits ? 10 : prev ? 4200 : 3200);
     });
   };
 
@@ -519,7 +567,7 @@
     $("lname").textContent = target.look ? target.look.name : target.label || "Close up";
     $("lnote").hidden = true; $("lnew").hidden = true;
     if (target.look && !G.s.seen[target.look.id]) {
-      G.s.seen[target.look.id] = Date.now();
+      G.s.seen[target.look.id] = Date.now(); G.freshSeen = true;
       $("lnew").hidden = false;
       $("lnote").hidden = false; $("lnote").innerHTML = fmt(target.look.note);
       A.sfx("seen");
@@ -532,6 +580,7 @@
   };
   G.closeLens = function () {
     $("lens").classList.remove("on"); G.mode = "walk"; var st = G.lensState; G.lensState = null;
+    if (G.freshSeen) { G.freshSeen = false; if (BS.ui && BS.ui.flyToBook) BS.ui.flyToBook(); }
     if (BS.story && BS.story.onLookClose) BS.story.onLookClose(st);
   };
   function pickLook() {
@@ -815,6 +864,7 @@
     var p = G.p;
     if (G.mode === "ride") return drawRider();
     shadowAt(p.x, p.y, 6.5);
+    if (G.holdUp) { var hk = Math.min(1, (time - G.holdUp.t0) / 0.5), ease = 1 - Math.pow(1 - hk, 3); img(BS.sprite(p.who, 0, 0), p.x - 8, p.y - 23.4 - ease * 1.5); var ic = G.holdUp.icon; ctx.save(); ctx.translate(p.x - cam.x, p.y - 30 - ease * 8 - cam.y); ctx.drawImage(ic, -9, -9, 18, 18); ctx.restore(); return; }
     var sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1));
     var bob = p.frame % 2 ? -0.8 : 0, breathe = p.moving ? 0 : Math.sin(time * 2.2) * 0.25;
     img(sp, p.x - 8, p.y - 23.4 + bob + breathe);
@@ -1086,6 +1136,7 @@
   /* a twinkle where something can be done, and a gold pointer to the goal */
   function hints() {
     if (G.cut || G.mode !== "walk") return;
+    if (G.titleRun) return;
     ctx.save(); ctx.globalCompositeOperation = "lighter";
     G.spots.forEach(function (s) {
       if (s.map !== G.mapId || (s.when && !s.when())) return;
@@ -1132,7 +1183,6 @@
     if (!props) buildProps();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = G.mapId === "cellar" ? "#000" : "#0b0906"; ctx.fillRect(0, 0, cvs.width, cvs.height);
-    if (G.mode === "title") return;
     camera(dt || 0.016);
     ctx.setTransform(K, 0, 0, K, 0, 0);
     drawGround();

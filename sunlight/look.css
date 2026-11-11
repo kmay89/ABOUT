@@ -349,3 +349,74 @@ body.touch .region{top:calc(124px + var(--safe-t))}
 .lens.on .lcap{animation:capin .8s .25s both ease}
 @keyframes capin{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
 body.touch .caption{bottom:calc(160px + var(--safe-b))}
+
+/* ================= title, how-to, goals ================= */
+.tshade{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,rgba(10,8,4,.62),rgba(10,8,4,.2) 55%,rgba(10,8,4,.55));pointer-events:none}
+.title{background:transparent}
+.title .tin{animation:tin 1.6s .2s both cubic-bezier(.2,.7,.2,1)}
+@keyframes tin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.title h1{text-shadow:0 2px 24px rgba(0,0,0,.65),0 0 40px rgba(255,190,80,.35)}
+.tline,.tsub{text-shadow:0 1px 10px rgba(0,0,0,.8)}
+.tmark{position:relative;width:64px;height:64px;margin:0 auto 10px}
+.tmark i{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#fff6d6 0,#ffd166 30%,rgba(255,180,60,0) 70%);animation:sunpulse 4s ease-in-out infinite}
+.tmark i:nth-child(2){inset:-14px;background:repeating-conic-gradient(rgba(255,214,110,.35) 0 8deg,transparent 8deg 30deg);-webkit-mask:radial-gradient(circle,transparent 30%,#000 32%,transparent 70%);mask:radial-gradient(circle,transparent 30%,#000 32%,transparent 70%);animation:spin2 30s linear infinite}
+.tmark i:nth-child(3){inset:22px;background:#fffbe8;filter:blur(2px)}
+@keyframes sunpulse{50%{transform:scale(1.12);opacity:.85}}
+@keyframes spin2{to{transform:rotate(360deg)}}
+.tbtns button.ghost{background:rgba(10,8,6,.45);border-color:rgba(255,255,255,.25)}
+.tfine{text-shadow:0 1px 6px rgba(0,0,0,.9);color:#cfc2a8}
+
+.howto{position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:rgba(6,5,3,.72);opacity:0;transition:opacity .35s}
+.howto.on{opacity:1}
+.hcard{width:min(520px,92vw);background:radial-gradient(circle at 50% 0,rgba(255,209,102,.14),transparent 60%),var(--card);border:1px solid rgba(255,209,102,.35);border-radius:18px;padding:1.2em 1.4em 1em;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.hslides{position:relative;min-height:300px}
+.hs{position:absolute;inset:0;opacity:0;transform:translateX(24px);transition:opacity .35s,transform .45s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.hs.on{opacity:1;transform:none;pointer-events:auto}
+.hart{width:240px;height:120px;display:block;margin:0 auto .4em}
+.hs h2{font:italic 1.5rem var(--serif);margin:.2em 0;color:var(--gold)}
+.hs p{font:1rem/1.55 var(--serif);color:#e6d9bd;margin:.4em 0}
+.hhint{font-size:.9rem!important;color:var(--soft)!important}
+.hdots{display:flex;gap:8px;justify-content:center;margin:.4em 0}
+.hdots i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);transition:background .3s,transform .3s}
+.hdots i.on{background:var(--gold);transform:scale(1.3)}
+
+.goalcard{position:fixed;left:12px;top:calc(96px + var(--safe-t));z-index:11;display:flex;flex-direction:column;align-items:flex-start;gap:3px;max-width:min(300px,62vw);padding:.45em .8em .5em;background:rgba(12,10,7,.62);border:1px solid rgba(255,209,102,.22);border-radius:12px;text-align:left;pointer-events:auto}
+.goalcard small{font:600 .62rem var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.goalcard b{font:italic .9rem/1.25 var(--serif);color:var(--ink);font-weight:400}
+.pips{display:flex;gap:4px}
+.pips i{width:12px;height:4px;border-radius:2px;background:rgba(255,255,255,.18)}
+.pips i.d{background:linear-gradient(90deg,#ffd166,#ffe9a8)}
+.goalcard.tick{animation:gtick .7s cubic-bezier(.2,1.5,.4,1)}
+@keyframes gtick{0%{transform:translateX(-8px);border-color:var(--gold)}100%{transform:none}}
+body.touch .goalcard{top:calc(92px + var(--safe-t))}
+body.touch .obj{top:calc(160px + var(--safe-t))}
+
+.chdone{font:600 .8rem var(--sans);letter-spacing:.08em;color:#9fe0a0;margin:0 0 1.4em;opacity:0;transform:translateY(-6px);transition:opacity .8s,transform .8s}
+.chdone b{display:inline-block;width:20px;height:20px;line-height:20px;border-radius:50%;background:#9fe0a0;color:#0e1a0e;margin-right:.4em}
+.chdone span{display:block;color:var(--soft);font-weight:400;letter-spacing:.04em;margin-top:.4em}
+.chap.on .chdone{opacity:1;transform:none}
+
+.goalh{color:#2f5a2a!important}
+.goals{list-style:none;padding:0;margin:.4em 0 1em}
+.goals li{display:flex;align-items:center;gap:.6em;font:1rem/1.5 var(--serif);padding:.25em 0;color:#3a2c1c}
+.goals li i{flex:none;width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(60,40,20,.45)}
+.goals li.done{color:#7a6a54;text-decoration:line-through;text-decoration-color:rgba(60,40,20,.35)}
+.goals li.done i{background:#4e8a3a;border-color:#4e8a3a;box-shadow:inset 0 0 0 3px #efe4c8}
+.goals li small{color:#7a5a2a;font:600 .75rem var(--sans)}
+.prose{font:1.02rem/1.7 var(--serif);color:#2c2014;margin:0 0 1em;text-indent:1.2em}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.bdg{display:flex;flex-direction:column;padding:.4em .7em;border-radius:10px;background:rgba(255,255,255,.3);border:1px solid rgba(60,40,20,.15);opacity:.55}
+.bdg.got{opacity:1;background:rgba(255,209,102,.35)}
+.bdg b{font:600 .85rem var(--sans)}
+.bdg small{font:italic .8rem var(--serif);color:#5a4a34}
+
+.narr.hasmore #nmore::after{content:"  · more in the book";font:italic .7rem var(--serif);color:var(--soft)}
+#hudbook.ping{animation:ping 1.4s ease}
+@keyframes ping{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0)}30%{box-shadow:0 0 0 6px rgba(255,209,102,.45);transform:scale(1.12)}}
+.fly{position:fixed;width:44px;height:44px;border-radius:50%;z-index:80;pointer-events:none;background:radial-gradient(circle at 40% 35%,#fffbe8,#ffd166 45%,rgba(255,170,60,.4) 70%,transparent 72%);box-shadow:0 0 24px rgba(255,200,90,.8);transition:transform .8s cubic-bezier(.5,-0.3,.6,1),opacity .8s ease-in}
+.badgepop{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:85;display:flex;flex-direction:column;align-items:center;gap:2px;padding:1em 1.6em;border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(255,209,102,.3),transparent 70%),rgba(16,12,8,.92);border:1px solid rgba(255,209,102,.5);animation:bin .7s cubic-bezier(.2,1.6,.4,1);pointer-events:none}
+.badgepop i{font-style:normal;font-size:2rem;color:var(--gold);text-shadow:0 0 18px rgba(255,200,90,.8)}
+.badgepop b{font:italic 1.3rem var(--serif);color:var(--ink)}
+.badgepop small{font:.85rem var(--serif);color:var(--soft)}
+.badgepop.out{opacity:0;transform:translate(-50%,-60%);transition:all .6s}
+@keyframes bin{from{opacity:0;transform:translate(-50%,-40%) scale(.6)}to{opacity:1;transform:translate(-50%,-50%)}}
