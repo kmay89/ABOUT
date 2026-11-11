@@ -128,37 +128,59 @@
     var pts = [[x, y]];
     for (var i = 0; i < n; i++) {
       a += (r() - 0.5) * turn; x += Math.cos(a) * step; y += Math.sin(a) * step;
-      if (bandY != null) { if (y < bandY - bandH) { y = bandY - bandH; a = -a; } if (y > bandY + bandH) { y = bandY + bandH; a = -a; } }
+      if (bandY != null) { a += (bandY - y) * 0.025; }
       pts.push([x, y]);
       if (r() < 0.12 && out.length < 400) branch(x, y, a + (r() < 0.5 ? 0.8 : -0.8), Math.floor(n * 0.4), step * 0.8, turn, out, bandY, bandH);
     }
     out.push(pts);
   }
   var foxfire = [];
-  cellar.beams.forEach(function (by) { for (var k = 0; k < 7; k++) branch(16 + r() * 300, by * T + 8, (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.4, 14, 5, 0.9, foxfire, by * T + 8, 6); });
+  cellar.beams.forEach(function (by) { for (var k = 0; k < 8; k++) branch(16 + r() * 300, by * T + 8, (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.4, 18, 4, 0.42, foxfire, by * T + 8, 6); });
   var moCellar = [];
   for (var k2 = 0; k2 < 9; k2++) branch(20 * T + 6, 11.6 * T, Math.PI + (r() - 0.5) * 2.2, 10, 4, 1.1, moCellar);
   var moHollow = [];
   for (k2 = 0; k2 < 12; k2++) branch(16 * T, 65.8 * T, (r() - 0.5) * 3 + (k2 % 2 ? 0 : Math.PI), 16, 4, 0.9, moHollow);
-  function wig(pts) { var out = []; for (var i = 0; i < pts.length - 1; i++) { var a = pts[i], b = pts[i + 1], n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 6); for (var j = 0; j < n; j++) { var u = j / n; out.push([(a[0] + (b[0] - a[0]) * u) * T + Math.sin(i * 7 + j) * 3, (a[1] + (b[1] - a[1]) * u) * T + Math.cos(i * 5 + j * 2) * 3]); } } out.push([pts[pts.length - 1][0] * T, pts[pts.length - 1][1] * T]); return out; }
+  function wig(pts) { var out = []; for (var i = 0; i < pts.length - 1; i++) { var a = pts[i], b = pts[i + 1], n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 3); for (var j = 0; j < n; j++) { var u = j / n, wx = (a[0] + (b[0] - a[0]) * u) * T, wy = (a[1] + (b[1] - a[1]) * u) * T; out.push([wx + (BS.vn(wx, wy, 14, 3) - 0.5) * 12 + (BS.vn(wx, wy, 4, 5) - 0.5) * 3, wy + (BS.vn(wx, wy, 14, 7) - 0.5) * 12 + (BS.vn(wx, wy, 4, 9) - 0.5) * 3]); } } out.push([pts[pts.length - 1][0] * T, pts[pts.length - 1][1] * T]); return out; }
   var threads = [
     wig([[37, 15.2], [41, 17], [45, 18.6], [48.6, 20.2]]),
     wig([[48.6, 20.4], [51, 19], [53.5, 18.3], [55, 17]]),
     wig([[38.6, 15.2], [38.4, 20], [39.4, 24.5], [40.2, 28], [44, 31], [47.6, 35], [45.5, 39], [38.5, 42], [34, 45], [35, 49], [40, 52], [41, 55.5], [39.6, 58], [36.5, 60], [33.4, 60.6], [31.6, 62]])
   ];
 
+  /* little side-threads, so the gold looks like it is reaching */
+  threads.slice().forEach(function (th, ti) { for (var i = 6; i < th.length - 6; i += 9) { var p = th[i], a = r() * 6.28, out = [[p[0], p[1]]], x = p[0], y = p[1]; for (var k = 0; k < 6; k++) { a += (r() - 0.5) * 0.9; x += Math.cos(a) * 3; y += Math.sin(a) * 3; out.push([x, y]); } out.wood = ti === 2; threads.push(out); } });
   function strokePolys(ctx, cam, list, col, w) {
-    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = "round";
-    list.forEach(function (pts) { ctx.beginPath(); ctx.moveTo(pts[0][0] - cam.x, pts[0][1] - cam.y); for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] - cam.x, pts[i][1] - cam.y); ctx.stroke(); });
+    /* smooth curves through the midpoints, so light flows instead of zigzags */
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath();
+    list.forEach(function (pts) {
+      if (pts.length < 2) return;
+      ctx.moveTo(pts[0][0] - cam.x, pts[0][1] - cam.y);
+      for (var i = 1; i < pts.length - 1; i++) {
+        var mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(pts[i][0] - cam.x, pts[i][1] - cam.y, mx - cam.x, my - cam.y);
+      }
+      var L = pts[pts.length - 1]; ctx.lineTo(L[0] - cam.x, L[1] - cam.y);
+    });
+    ctx.stroke();
   }
+
+  /* the veins don't move, only their brightness does: bake them once */
+  var baked = {};
+  function bake(key, w, h, list, layers) {
+    if (baked[key]) return baked[key];
+    var c = BS.wc(w, h, 2.5), x = c.x;
+    layers.forEach(function (L) { strokePolys(x, { x: 0, y: 0 }, list, L[0], L[1]); });
+    baked[key] = c; return c;
+  }
+  function drawBaked(ctx, cam, c, a) { if (a <= 0.003) return; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(c, -cam.x, -cam.y, c.w, c.h); ctx.globalAlpha = 1; }
   /* the glow pass (additive): foxfire, Mo, jars catching it */
   S.glow = function (ctx, cam, dark, t) {
     var wash = G.workLights ? 1 : Math.min(1, Math.max(0, (G.lamp.level - 0.35) * 1.6) + (G.lamp.fixed && G.lamp.fixed.map === "cellar" && !F("tipped") ? 0.7 : 0));
     if (G.mapId === "cellar") {
       var ad = G.eyes.adapt, vis = Math.max(0.08, ad) * (1 - wash);
       if (vis > 0.02) {
-        strokePolys(ctx, cam, foxfire, "rgba(150,230,110," + (0.22 * vis) + ")", 3);
-        strokePolys(ctx, cam, foxfire, "rgba(200,255,160," + (0.55 * vis) + ")", 1);
+        drawBaked(ctx, cam, bake("fox", cellar.w * T, cellar.h * T, foxfire, [["rgba(120,220,100,.07)", 5], ["rgba(150,230,110,.22)", 1.6], ["rgba(200,255,160,.55)", 0.5]]), vis);
         /* each jar holds a thin cold line of light down its side */
         for (var y = 0; y < cellar.h; y++) for (var x = 0; x < cellar.w; x++) if (cellar.get(x, y) === TL.SHELF) {
           for (var j = 0; j < 4; j++) { ctx.fillStyle = "rgba(170,240,140," + (0.35 * vis * (0.6 + 0.4 * Math.sin(t * 0.6 + x + j))) + ")"; ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 3 - cam.y, 1, 4); ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 10 - cam.y, 1, 4); }
@@ -166,8 +188,7 @@
       }
       if (!F("pumped")) {
         var mv = (G.workLights ? 0.05 : Math.max(0.25, ad) * (1 - wash * 0.85)) * (0.75 + 0.25 * Math.sin(t * 0.7));
-        strokePolys(ctx, cam, moCellar, "rgba(255,190,60," + (0.35 * mv) + ")", 3);
-        strokePolys(ctx, cam, moCellar, "rgba(255,240,170," + (0.8 * mv) + ")", 1);
+        drawBaked(ctx, cam, bake("mo", cellar.w * T, cellar.h * T, moCellar, [["rgba(255,180,60,.1)", 5], ["rgba(255,190,60,.35)", 1.6], ["rgba(255,240,170,.8)", 0.5]]), mv);
       }
     }
     if (G.mapId === "hill") {
@@ -175,15 +196,15 @@
       if (F("threads") && !F("pumped")) {
         var p = 0.6 + 0.4 * Math.sin(t * 0.7);
         threads.forEach(function (th, i) {
-          if (i === 2 && !from("woods")) return;
-          strokePolys(ctx, cam, [th], "rgba(255,200,80," + (0.22 * night * p) + ")", 2);
-          strokePolys(ctx, cam, [th], "rgba(255,240,170," + (0.5 * night * p) + ")", 0.7);
+          if ((i === 2 || th.wood) && !from("woods")) return;
+          strokePolys(ctx, cam, [th], "rgba(255,200,80," + (0.22 * night * p) + ")", 1.2);
+          strokePolys(ctx, cam, [th], "rgba(255,240,170," + (0.5 * night * p) + ")", 0.4);
         });
       }
       if (F("revived")) {
         var q = 0.7 + 0.3 * Math.sin(t * 0.6);
-        strokePolys(ctx, cam, moHollow, "rgba(255,190,60," + (0.35 * q * (0.4 + night)) + ")", 3);
-        strokePolys(ctx, cam, moHollow, "rgba(255,240,170," + (0.75 * q * (0.4 + night)) + ")", 1);
+        strokePolys(ctx, cam, moHollow, "rgba(255,190,60," + (0.35 * q * (0.4 + night)) + ")", 1.6);
+        strokePolys(ctx, cam, moHollow, "rgba(255,240,170," + (0.75 * q * (0.4 + night)) + ")", 0.5);
       }
       if (S.crumbOnWood && !F("revived")) { ctx.fillStyle = "rgba(170,150,80,.9)"; ctx.fillRect(Math.round(15.6 * T - cam.x), Math.round(66.2 * T - cam.y), 3, 2); }
       /* fireflies in the field at dusk, frogs' eyes at the pond — handled as motes */
@@ -196,7 +217,7 @@
     }
     if (G.mapId === "hill" && F("threads") && !F("pumped")) {
       /* the threads in daylight: so faint you had to know to look */
-      threads.forEach(function (th, i) { if (i === 2 && !from("woods")) return; strokePolys(ctx, cam, [th], "rgba(230,180,60,.28)", 1); });
+      threads.forEach(function (th, i) { if ((i === 2 || th.wood) && !from("woods")) return; strokePolys(ctx, cam, [th], "rgba(230,180,60,.22)", 0.5); });
     }
     /* Mo's reach runs out at the beech, the way a river runs out into sand */
   };
@@ -305,14 +326,14 @@
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
     c.fillStyle = "rgba(0,0,0,.3)"; c.fillRect(x - 9, y - 1, 18, 3);
     c.fillStyle = "#2f5a7a"; c.fillRect(x - 8, y - 12, 16, 9); c.fillStyle = "#555"; c.fillRect(x - 8, y - 3, 1, 4); c.fillRect(x + 7, y - 3, 1, 4);
-    var sp = BS.sprite("dadDay1", 0, 0); c.drawImage(sp, x - 8, y - 26);
+    G.blit(c, BS.sprite("dadDay1", 0, 0), x - 8, y - 26);
     c.fillStyle = "rgba(255,255,255,.7)"; c.font = "6px monospace"; if (Math.sin(G.time() * 1.5) > 0) c.fillText("z", x + 8, y - 24);
   }
   function drawBeckBike(c, e, cam) {
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
     c.fillStyle = "#1c1c1c"; c.beginPath(); c.arc(x - 7, y - 3, 4, 0, 6.3); c.fill(); c.beginPath(); c.arc(x + 7, y - 3, 4, 0, 6.3); c.fill();
     c.fillStyle = "#a33"; c.fillRect(x - 7, y - 8, 14, 2);
-    c.drawImage(BS.sprite("beck", 3, 0), x - 8, y - 26);
+    G.blit(c, BS.sprite("beck", 3, 0), x - 8, y - 26);
   }
 
   /* ---------------- the pit: the loader, the foreman ---------------- */
@@ -1168,6 +1189,37 @@
     _enter(id);
     if (id === "house" && is("call") && !F("handedPhone")) { set("handedPhone"); scene(phoneToDad); }
     if (id === "cellar" && is("lens") && G.lamp.level < 0.1 && G.eyes.adapt < 0.3) note("Dark. Crank (C), or stand still and let your eyes open.");
+  };
+
+  /* ---------------- where to go next (the gold pointer) ---------------- */
+  S.target = function () {
+    var b = at();
+    if (b === "arrive") return F("dadSentCellar") ? ["cellar", 3, 3] : ["house", 6.5, 8];
+    if (b === "cellar1") return has("eyes") && !has("book") ? ["cellar", 19.6, 11.6] : null;
+    if (b === "shed") return !F("shedOpen") ? ["hill", 30.5, 22.4] : !has("lantern") ? ["shed", 8.5, 1.9] : ["shed", 9.4, 4.4];
+    if (b === "build") {
+      if (!F("p_bungee")) return ["shed", 2.5, 1.9]; if (!F("p_wire")) return ["shed", 5.5, 1.9]; if (!F("p_tape")) return ["shed", 9.5, 5.4];
+      if (!F("p_band")) return ["house", 9.5, 8.5]; return ["shed", 9.4, 4.4];
+    }
+    if (b === "hill") return ["hill", 40, 26.5];
+    if (b === "lens") return ["cellar", 19.6, 11.6];
+    if (b === "dawn") return F("beckMet") ? null : ["hill", 48.9, 21.6];
+    if (b === "woods") {
+      if (!F("woodsIn")) return ["hill", 40.5, 53];
+      if (!F("atBeech")) return ["hill", 31.6, 61.6];
+      if (!has("roots")) return ["hill", 31.3, 62.2];
+      if (G.maps.hill.hidden.root) return ["hill", 33, 64];
+      return ["hill", 17, 62];
+    }
+    if (b === "pit") { if (F("sawBoard")) return null; return G.p.y / T < 34 ? ["hill", 63.5, 33.4] : ["hill", 76.5, 42.6]; }
+    if (b === "apology") return !F("asked") ? ["cellar", 19.6, 11.6] : ["hill", 67.5, 16.6];
+    if (b === "pond") { if (!F("atPond")) return ["hill", 53, 59.5]; if (!F("mossPeeled") || (F("tunsSeen") && !F("mossBack"))) return ["hill", 52.5, 62.5]; if (!F("tunsSeen")) return ["hill", 51.5, 64.5]; return null; }
+    if (b === "pump") return F("escorted") ? null : !F("hasJar") ? ["cellar", 10.5, 1.6] : ["cellar", 19.6, 11.6];
+    if (b === "revive") return F("revived") ? null : ["hill", 15.8, 66.4];
+    if (b === "evening") return !F("handHeld") ? ["house", 13.5, 2.8] : G.s.battery < 10 ? ["hill", 40, 26.5] : ["hill", 40, 25.4];
+    if (b === "call") return ["house", 6, 12];
+    if (b === "friday") return !F("beckDone") ? ["hill", 52.5, 17.4] : !has("pen") ? ["hill", 15.8, 66.4] : null;
+    return null;
   };
 
   /* ---------------- a fresh start, or a loaded one ---------------- */

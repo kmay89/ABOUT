@@ -99,6 +99,39 @@ field note. That's the collectible layer; there are no coins.
   is a villain: the workmen are kind, Dad is tired.
 * US spelling throughout.
 
+### The look
+
+A toy diorama under a low sun, painted by code (`art.js`):
+
+* The ground is painted in chunks. A soft color field per material sits
+  underneath, with its edges wandered by noise so paths meander and grass
+  laps over stone. On top go thousands of seeded strokes: blades, daisies,
+  buttercups, pebbles with highlights, leaves with veins, mushrooms. Chunks
+  are cached, and the ring around the view is warmed one chunk a frame, so
+  walking never stalls.
+* Everything that stands up has height, a light from the upper left, and
+  a soft shadow down-right: fences, plump hedges, raised beds, the tap,
+  chain-link, the houses (weatherboard, tiled roof, window boxes still
+  full of Gran's geraniums), the shed leaning on one hip, the trailer, and
+  the culvert pipes.
+* People are round-headed and small-bodied with soft shading. They blink,
+  breathe when they stand still, and bob when they walk.
+* Life in the wind: long-grass tufts and lavender sway, and part when you
+  walk through them. Trees rock. Dust puffs rise from your feet. Bees,
+  the butterfly, frogs and fireflies move about.
+* Light: a soft darkness layer with lights cut into it, bloom on warm
+  lights, sunbeams laid across the house floor, slats of light in the
+  shed, light shafts through the woods canopy, drifting cloud shadows,
+  and water that shimmers by day and holds the stars by night.
+* The lens: a warm/cool grade, a vignette, and a **tilt-shift focus** that
+  softens the top and bottom of the frame, so the hill reads as a small
+  real thing on a table. It can be turned off in the menu.
+* Playability: a smooth camera with look-ahead, eased movement, a twinkle
+  on anything you can interact with, and a gold pointer toward the next
+  thing (it can be turned off).
+* **Dynamic resolution:** the loop measures its own frame time and trades
+  a little sharpness to hold the frame rate.
+
 ### The soundscapes
 
 All synthesized in `audio.js`: the house's silence with edges, the fly,

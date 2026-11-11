@@ -134,6 +134,7 @@
   /* ---------------- the menu ---------------- */
   function syncMenu() {
     $("o-text").value = G.prefs.text; $("o-cap").checked = G.prefs.captions; $("o-red").checked = G.prefs.reduced; $("o-hap").checked = G.prefs.haptics;
+    $("o-tilt").checked = G.prefs.tilt !== false; $("o-ptr").checked = G.prefs.pointer !== false;
     $("o-vol").value = G.prefs.master; $("o-mus").value = G.prefs.music; $("o-amb").value = G.prefs.amb; $("o-big").checked = G.prefs.big;
     var mins = Math.round(G.s.playMs / 60000);
     $("mstat").textContent = G.s.day + " · " + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + mins + " min";
@@ -145,6 +146,8 @@
   bindPref("o-cap", "captions", false);
   bindPref("o-red", "reduced", false, applyPrefs);
   bindPref("o-hap", "haptics", false);
+  bindPref("o-tilt", "tilt", false);
+  bindPref("o-ptr", "pointer", false);
   bindPref("o-big", "big", false, applyPrefs);
   bindPref("o-vol", "master", true, function () { A.setVolume("master", G.prefs.master); });
   bindPref("o-mus", "music", true, function () { A.setVolume("mus", G.prefs.music); });

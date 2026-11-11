@@ -181,6 +181,7 @@
     /* a working pile beside the trailer, my own height plus a little */
     m.rect(73, 40, 2, 2, TL.PILE);
     m.workPile = { x: 73, y: 40 };
+    m.piles = [[60, 36, 4, 4], [60, 41, 4, 5], [65, 44, 4, 4], [73, 40, 2, 2]];
     /* the green trailer — the site office */
     m.rect(75, 39, 5, 3, TL.TRAILER);
     m.trailer = { x: 75, y: 39, w: 5, h: 3 };
