@@ -170,7 +170,7 @@
     if (has(id)) return Promise.resolve();
     G.s.items[id] = Date.now(); G.s.notes[id] = 1;
     var it = ITEMS[id];
-    return G.item({ name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { G.hud(); G.save(); });
+    return G.item({ key: id, name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { G.hud(); G.save(); });
   }
 
   /* ---------------- Gran's pages (unlocked as the book is read) ---------------- */
@@ -576,6 +576,13 @@
       if (is("build") && !F("p_band")) { part("band", "A rubber band, off one of the jars in the box that isn't coming."); return; }
       if (F("jamKept")) return nar("The plum jar, in the other box now. The box that's coming with us.");
       return nar("Plum. I knew the taste of it: sweet up to a thin dark line and then a little sharp behind it, the way the best sweet things keep something almost not-sweet hidden underneath.")
+        .then(function () {
+          if (F("jamSeen")) return;
+          set("jamSeen"); A.sfx("found");
+          return BS.inspect.show({ key: "jam", keepsake: true, kind: "A summer, in glass", name: "Gran's plum jam", sci: "Preserving with sugar",
+            text: "Jam keeps because of sugar: so much is dissolved in the fruit that there is almost no free water left for a mold or a bacterium to live on. Gran caught summers in glass by taking the water away. *Get them right at the edge of too-ripe, the day before the wasps do, or it isn't worth the doing.*",
+            opens: "Nothing you need. A summer, kept." });
+        })
         .then(function () { if (!from("shed")) return; return G.choice("The jar, in the box that isn't coming with us.", ["Move it to the other box.", "Leave it."]).then(function (i) { if (i === 0) { set("jamKept"); return nar("I moved it to the other box. If he saw, he didn't say anything."); } }); });
     });
   }

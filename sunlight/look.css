@@ -420,3 +420,36 @@ body.touch .obj{top:calc(160px + var(--safe-t))}
 .badgepop small{font:.85rem var(--serif);color:var(--soft)}
 .badgepop.out{opacity:0;transform:translate(-50%,-60%);transition:all .6s}
 @keyframes bin{from{opacity:0;transform:translate(-50%,-40%) scale(.6)}to{opacity:1;transform:translate(-50%,-50%)}}
+
+/* ================= the object, held up to the light ================= */
+.insp{position:fixed;inset:0;z-index:72;background:radial-gradient(ellipse at 36% 50%,rgba(40,28,12,.95),rgba(4,3,2,.985) 70%);opacity:0;transition:opacity .4s}
+.insp.on{opacity:1}
+#icv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#icv:active{cursor:grabbing}
+.ipanel{position:absolute;right:max(4vw,24px);top:50%;transform:translateY(-50%);width:min(420px,40vw);max-height:90vh;overflow:auto;padding:1.2em 1.3em;border-radius:16px;background:rgba(18,14,9,.72);border:1px solid rgba(255,209,102,.3);box-shadow:0 20px 60px rgba(0,0,0,.5);opacity:0;transition:opacity .6s .75s,transform .7s .75s cubic-bezier(.2,1.2,.4,1)}
+.insp.on .ipanel{opacity:1}
+.ipanel small{font:600 .7rem var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.ipanel h2{margin:.15em 0;font:600 clamp(1.4rem,3.4vw,2rem)/1.15 var(--serif);background:linear-gradient(90deg,#f6e2b0,#ffd166,#fff3cc,#ffd166,#f6e2b0);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 3.6s linear infinite}
+.isci{margin:0 0 .6em;color:var(--fox);font:600 .85rem var(--sans)}
+.ipanel p{font:.98rem/1.6 var(--serif);color:#e6d9bd}
+.iopens{border-top:1px solid var(--line);padding-top:.6em}
+.iopens span{font:600 .66rem var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-right:.4em}
+.iprog{margin:.6em 0 .9em;padding:.7em .8em;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.irow{display:flex;align-items:center;gap:.7em}
+.irow b{font:600 .8rem var(--sans);white-space:nowrap;color:var(--ink)}
+.ibarw{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;display:block}
+#ibar{display:block;height:100%;width:0;background:linear-gradient(90deg,#f0a83c,#ffe9a8);box-shadow:0 0 12px rgba(255,209,102,.7);transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.islots{display:flex;flex-wrap:wrap;gap:5px;margin:.6em 0 .2em}
+.islots i{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.25);display:grid;place-items:center;font:700 9px var(--sans);color:rgba(255,255,255,.35)}
+.islots i::after{content:"?"}
+.islots i.got{background:radial-gradient(circle at 40% 35%,#fff3c0,#e8b840 60%,#9a6a18);border:none}
+.islots i.got::after,.islots i.new::after{content:""}
+.islots i.new{background:radial-gradient(circle at 40% 35%,#fffbe8,#ffd166 55%,#c88a20);border:none;box-shadow:0 0 0 0 rgba(255,209,102,.8);animation:slotpop 1s 1.3s both cubic-bezier(.2,1.8,.4,1),slotglow 1.6s 2.3s ease-in-out infinite}
+@keyframes slotpop{from{transform:scale(0)}to{transform:scale(1)}}
+@keyframes slotglow{50%{box-shadow:0 0 0 5px rgba(255,209,102,.25)}}
+.itease{margin:.2em 0 0!important;font:italic .88rem var(--serif)!important;color:var(--soft)!important}
+.ipanel .primary{width:100%;justify-content:center;font-size:1.05rem;padding:.75em}
+.ihint{text-align:center;font:.75rem var(--sans)!important;color:var(--dim)!important;margin:.6em 0 0}
+@media (max-aspect-ratio:11/10){
+  .ipanel{left:50%;right:auto;top:auto;bottom:max(3vh,12px);transform:translateX(-50%);width:min(560px,94vw);max-height:52vh}
+}

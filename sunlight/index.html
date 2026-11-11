@@ -79,6 +79,19 @@
     <button id="gok" class="primary">Keep it</button>
   </div>
 </div>
+<section id="insp" class="insp" hidden role="dialog" aria-modal="true" aria-labelledby="iname">
+  <canvas id="icv" aria-label="The object, turning in your hands. Drag to turn it; scroll or pinch to lean in."></canvas>
+  <div class="ipanel">
+    <small id="ikick"></small>
+    <h2 id="iname"></h2>
+    <p id="isci" class="isci"></p>
+    <p id="itext"></p>
+    <p id="iopens" class="iopens"></p>
+    <div id="iprog" class="iprog"><div class="irow"><b id="icount"></b><i class="ibarw"><i id="ibar"></i></i></div><div id="islots" class="islots"></div><p id="itease" class="itease"></p></div>
+    <button id="iok" class="primary">Keep it</button>
+    <p class="ihint">Drag to turn it over · scroll or pinch to lean in</p>
+  </div>
+</section>
 <div id="chap" class="chap" aria-live="polite"><p id="chdone" class="chdone" hidden></p><small id="chn"></small><h2 id="cht"></h2><i class="chline" aria-hidden="true"></i></div>
 <div id="region" class="region" aria-live="polite"><i></i><span id="rname"></span><i></i><small id="rsub"></small></div>
 <div id="charge" class="charge" aria-hidden="true"><span class="cbat"><i id="cfill"></i></span><b id="cpct"></b></div>
@@ -253,6 +266,7 @@
 <script src="minis.js"></script>
 <script src="story.js"></script>
 <script src="juice.js"></script>
+<script src="inspect.js"></script>
 <script src="ui.js"></script>
 <script>BS.G.start();</script>
 </body>

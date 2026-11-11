@@ -232,6 +232,8 @@
   S.rustle = function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; burst({ type: "highpass", f: 2500, g: 0.03 * P.g, dur: 0.18, a: 0.04, pan: P.p }); };
   S.goal = function () { tone(880, { type: "triangle", g: 0.025, dur: 0.12 }); tone(1318.5, { type: "triangle", g: 0.022, dur: 0.3, at: 0.1, verb: 1 }); };
   S.badge = function () { [659.25, 783.99, 987.77, 1318.5].forEach(function (f, i) { pluck(f, { at: i * 0.1, g: 0.09, dur: 1.8, bright: 0.55 }); }); };
+  S.whoosh = function () { burst({ f: 400, sweep: 2600, q: 0.8, g: 0.12, dur: 0.75, a: 0.3 }); tone(220, { slide: 880, g: 0.03, dur: 0.8, a: 0.4, type: "triangle" }); };
+  S.land = function () { tone(1174.66, { g: 0.05, dur: 1.4, verb: 1 }); tone(1760, { g: 0.03, dur: 1.2, at: 0.05, verb: 1 }); burst({ f: 6000, type: "highpass", g: 0.04, dur: 0.5, a: 0.01 }); };
   S.charge = function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, { type: "triangle", g: 0.035, dur: 0.18, at: i * 0.09 }); }); };
   A.sfx = function (name) {
     if (!ctx) return;

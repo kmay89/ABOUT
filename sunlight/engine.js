@@ -458,6 +458,7 @@
       setTimeout(function () { if (G.burst) G.burst(G.p.x, G.p.y - 34, 30, "255,220,130", 20); }, G.skipWaits ? 0 : 520);
       setTimeout(card, G.skipWaits || G.prefs.reduced ? 0 : 1250);
       function card() {
+      if (BS.inspect) { BS.inspect.show(o).then(function () { G.holdUp = null; res(); }); return; }
       var m = $("get");
       $("gkick").textContent = o.kind || "Found";
       $("gname").textContent = o.name;
