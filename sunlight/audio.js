@@ -192,6 +192,45 @@
     truck: function () { burst({ buf: brownBuf, type: "lowpass", f: 200, g: 0.5, dur: 3, a: 0.8 }); tone(48, { type: "sawtooth", g: 0.06, dur: 3, a: 0.8 }); cap("[the diesel grind of something big, pulling up the lane]"); },
     lights: function () { tone(120, { type: "square", g: 0.03, dur: 0.05 }); burst({ f: 6000, type: "highpass", g: 0.05, dur: 0.6, a: 0.05 }); cap("[the work lights snap on]"); }
   };
+  /* voices: each person a little instrument, so a line sounds like who says it */
+  var VOICE = {
+    wren: { f: 520, type: "triangle", g: 0.022, spread: 0.18 },
+    beck: { f: 660, type: "square", g: 0.012, spread: 0.3, quick: 1 },
+    dad: { f: 240, type: "triangle", g: 0.03, spread: 0.12 },
+    gran: { f: 600, type: "sine", g: 0.03, spread: 0.1, vib: 1 },
+    worker: { f: 300, type: "triangle", g: 0.026, spread: 0.15 },
+    beckdad: { f: 200, type: "sawtooth", g: 0.012, spread: 0.2 },
+    phone: { f: 900, type: "square", g: 0.008, spread: 0 }
+  };
+  S.voice = function (who, code) {
+    var v = VOICE[who]; if (!v) return;
+    var f = v.f * (1 + ((code % 7) / 7 - 0.5) * v.spread);
+    tone(f, { type: v.type, g: v.g, dur: v.quick ? 0.035 : 0.05, slide: v.vib ? f * 1.04 : f * 0.97 });
+  };
+  /* Mo: a soft celesta note per few words, from a slow rising scale */
+  var moIdx = 0, MO_SC = [523.25, 587.33, 659.25, 783.99, 880, 987.77, 1174.66];
+  S.moword = function () { var f = MO_SC[moIdx++ % MO_SC.length]; tone(f, { g: 0.018, dur: 1.4, a: 0.02, verb: 1, bus: musBus }); tone(f * 2, { g: 0.006, dur: 0.9, a: 0.01, verb: 1, bus: musBus }); };
+  /* a held chord that rises under a moment: wonder, mo, joy, sad, warm, tension */
+  S.swell = function (kind) {
+    if (!ctx) return;
+    var C = { wonder: [146.83, 220, 293.66, 369.99, 440, 659.25], mo: [261.63, 392, 523.25, 659.25, 783.99], joy: [196, 293.66, 392, 493.88, 587.33], sad: [123.47, 185, 246.94, 293.66, 369.99], warm: [174.61, 261.63, 349.23, 440, 523.25], tension: [110, 116.54, 164.81, 233.08] }[kind] || [];
+    var t = ctx.currentTime, dur = kind === "tension" ? 3 : 6.5;
+    var out = gain(0); out.connect(musBus); out.connect(A.reverb.node);
+    var lp = filt("lowpass", 500, 0.7); lp.connect(out);
+    lp.frequency.setValueAtTime(400, t); lp.frequency.linearRampToValueAtTime(kind === "sad" ? 900 : 2400, t + dur * 0.45); lp.frequency.linearRampToValueAtTime(600, t + dur);
+    out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(kind === "tension" ? 0.07 : 0.05, t + dur * 0.4); out.gain.linearRampToValueAtTime(0.0001, t + dur);
+    C.forEach(function (f, i) {
+      [-0.6, 0.6].forEach(function (d) { var o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f * Math.pow(2, d / 1200 * 8); var pn = panner(d * 0.6); var g = gain(0.12 / C.length); o.connect(g); g.connect(pn); pn.connect(lp); o.start(t + i * (kind === "joy" ? 0.12 : 0.05)); o.stop(t + dur + 0.1); });
+    });
+    if (kind === "joy" || kind === "wonder" || kind === "mo") C.forEach(function (f, i) { pluck(f * 2, { at: 0.2 + i * 0.16, g: 0.06, dur: 2.5, bright: 0.4 }); });
+  };
+  S.flutter = function (x, y) { var P = place(x, y, 200); if (P.g < 0.03) return; for (var i = 0; i < 7; i++) burst({ f: 1400 + Math.random() * 800, q: 2, g: 0.05 * P.g, dur: 0.03, at: i * 0.035, pan: P.p }); tone(3200, { slide: 4200, g: 0.01 * P.g, dur: 0.08, at: 0.05, pan: P.p }); };
+  S.chirp = function (x, y) { var P = place(x, y, 220); if (P.g < 0.03) return; var f = 3000 + Math.random() * 1500; for (var i = 0; i < 2; i++) tone(f, { slide: f * 1.3, g: 0.015 * P.g, dur: 0.05, at: i * 0.09, pan: P.p }); };
+  S.plop = function (x, y) { var P = place(x, y, 200); tone(600, { slide: 180, g: 0.08 * Math.max(0.3, P.g), dur: 0.12, pan: P.p }); burst({ f: 1200, q: 1, g: 0.05 * Math.max(0.3, P.g), dur: 0.2, at: 0.04, pan: P.p }); };
+  S.region = function () { pluck(587.33, { g: 0.07, dur: 2.4, bright: 0.35 }); pluck(880, { at: 0.22, g: 0.06, dur: 2.6, bright: 0.35 }); tone(1174.66, { at: 0.44, g: 0.012, dur: 1.6, verb: 1, bus: musBus }); };
+  S.twinkle = function () { tone(1568, { g: 0.012, dur: 0.18, verb: 1 }); tone(2093, { g: 0.008, dur: 0.22, at: 0.06, verb: 1 }); };
+  S.rustle = function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; burst({ type: "highpass", f: 2500, g: 0.03 * P.g, dur: 0.18, a: 0.04, pan: P.p }); };
+  S.charge = function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, { type: "triangle", g: 0.035, dur: 0.18, at: i * 0.09 }); }); };
   A.sfx = function (name) {
     if (!ctx) return;
     var f = S[name]; if (f) f.apply(null, Array.prototype.slice.call(arguments, 1));

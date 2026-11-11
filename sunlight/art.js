@@ -563,8 +563,8 @@
     beckdad: { adult: 1, hair: "#7a5a2a", style: "short", skin: "#e4ac88", shirt: "#9a3a2e", plaid: 1, pants: "#3a4a6a", shoes: "#4a3420", cap: "#2f4a2f" }
   };
   BS.CAST = CAST;
-  function person(o, dir, f, blink) {
-    var c = wc(16, 24, SPR), x = c.x;
+  function person(o, dir, f, blink, res) {
+    var c = wc(16, 24, res || SPR), x = c.x;
     var mirror = dir === 3; if (mirror) { x.translate(16, 0); x.scale(-1, 1); dir = 2; }
     var ph = f === 1 ? 1 : f === 2 ? -1 : 0, adult = o.adult;
     var hr = adult ? 4.6 : 5.4, hx = 8, hy = adult ? 6.2 : 8.2;
@@ -657,6 +657,30 @@
     var k = who + dir + "_" + (f % 4) + (blink ? "b" : "");
     if (!spriteCache[k]) spriteCache[k] = person(CAST[who], dir, f % 4 === 1 ? 1 : f % 4 === 3 ? 2 : 0, blink);
     return spriteCache[k];
+  };
+
+  /* portraits for the dialogue box: the same person, much finer, head and
+     shoulders. Gran is a voice on a phone, so hers is the phone. */
+  var portCache = {};
+  BS.portrait = function (who, blink) {
+    var map = { wren: "wren", beck: "beck", dad: "dad", worker: "worker", beckdad: "beckdad", gran: "gran" };
+    var cast = map[who]; if (!cast) return null;
+    var k = cast + (blink ? "b" : "");
+    if (portCache[k]) return portCache[k];
+    var c;
+    if (cast === "gran") {
+      c = wc(16, 16, 12); var x = c.x;
+      rr(x, 5, 2.5, 6, 11, 1.2, "#22222a"); rr(x, 5.6, 3.6, 4.8, 8, 0.6, lg(x, 0, 3, 0, 12, [[0, "#3a4a5a"], [1, "#1e2630"]]));
+      x.strokeStyle = "rgba(230,201,240,.85)"; x.lineWidth = 0.5; x.lineCap = "round";
+      for (var r2 = 1; r2 < 4; r2++) { x.beginPath(); x.arc(8, 2.6, r2 * 1.5, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+      ell(x, 8, 7.6, 1.6, 1.6, "rgba(255,240,210,.9)");
+    } else {
+      var full = person(CAST[cast], 0, 0, blink, 12);
+      var adult = CAST[cast].adult;
+      c = wc(16, 16, 12); c.x.drawImage(full, 0, (adult ? 0 : 2.4) * 12, 16 * 12, 16 * 12, 0, 0, 16, 16);
+    }
+    portCache[k] = c;
+    return c;
   };
 
   /* the dog by the pit gate: old, chained, asleep */

@@ -217,6 +217,16 @@
     morning: { dark: 0, tint: "rgba(255,240,200,.05)", label: "morning" }
   };
   G.TOD = TOD;
+  /* the light moves between times of day; it never snaps */
+  function parseRGBA(s) { var m = s.match(/[\d.]+/g); return [+m[0], +m[1], +m[2], +m[3]]; }
+  G.sky = { dark: 0, tint: [255, 214, 120, 0.06], snap: true };
+  function skyTick(dt) {
+    var tgt = TOD[G.s.tod], tt = parseRGBA(tgt.tint), k = G.sky.snap || $("fade").classList.contains("on") ? 1 : Math.min(1, dt * 0.55);
+    G.sky.dark += (tgt.dark - G.sky.dark) * k;
+    for (var i = 0; i < 4; i++) G.sky.tint[i] += (tt[i] - G.sky.tint[i]) * k;
+    G.sky.snap = false;
+  }
+  G.skyTick = skyTick;
   G.setTime = function (tod, day) { G.s.tod = tod; if (day) G.s.day = day; G.hud(); };
 
   /* ---------------- the lantern, your eyes, the phone ---------------- */
@@ -290,7 +300,7 @@
 
   /* ---------------- words: dialogue, narration, Mo, the cynic ---------------- */
   var talk = null;     // {resolve, el, full, shown, done}
-  function typeInto(el, text, cb) {
+  function typeInto(el, text, cb, voice) {
     var i = 0, speed = G.prefs.text;
     el.textContent = "";
     var t = { full: text, el: el, done: false, cb: cb, timer: null };
@@ -298,7 +308,7 @@
     var tick = function () {
       i += 1;
       el.innerHTML = fmt(text.slice(0, i)) + '<span class="gh">' + esc(text.slice(i)) + "</span>";
-      if (i % 3 === 0) A.sfx("text");
+      if (voice && i % 2 === 0 && /[a-z]/i.test(text[i - 1] || "")) A.sfx("voice", voice, text.charCodeAt(i - 1)); else if (!voice && i % 4 === 0) A.sfx("text");
       if (i >= text.length) { t.done = true; el.innerHTML = fmt(text); cb && cb(); return; }
       var ch = text[i - 1], d = 1000 / speed;
       if (".!?".indexOf(ch) >= 0) d *= 6; else if (",;:—".indexOf(ch) >= 0) d *= 3;
@@ -311,7 +321,7 @@
   /* *italics* in the script become <em> */
   function fmt(s) { return esc(s).replace(/\*([^*]+)\*?/g, "<em>$1</em>"); }
   G.fmt = fmt;
-  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); t.done = true; t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
+  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); t.done = true; if (t.finishNow) { t.finishNow(); return; } t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
 
   var WHO = {
     wren: { name: "Me", cls: "wren" }, dad: { name: "Dad", cls: "dad" }, beck: { name: "Beck", cls: "beck" },
@@ -320,18 +330,20 @@
   };
   G.say = function (who, text) {
     return new Promise(function (res) {
-      var box = $("dlg"), w = WHO[who] || { name: who, cls: "" };
+      var box = $("dlg"), w = WHO[who] || { name: who, cls: "" }; $("region").classList.remove("on");
       box.className = "dlg on " + w.cls;
       $("who").textContent = w.name;
       $("more").hidden = true;
-      var t = typeInto($("line"), text, function () { $("more").hidden = false; });
-      talk = { t: t, res: function () { box.className = "dlg"; res(); } };
+      G.portrait = who; G.talking = true;
+      $("pframe").hidden = !BS.portrait(who);
+      var t = typeInto($("line"), text, function () { $("more").hidden = false; G.talking = false; }, who);
+      talk = { t: t, res: function () { box.className = "dlg"; G.talking = false; res(); } };
       $("live").textContent = w.name + ": " + text.replace(/\*/g, "");
     });
   };
   G.narrate = function (text) {
     return new Promise(function (res) {
-      var n = $("narr"); n.classList.add("on");
+      var n = $("narr"); n.classList.add("on"); $("region").classList.remove("on");
       $("nmore").hidden = true;
       var t = typeInto($("ntext"), text, function () { $("nmore").hidden = false; });
       talk = { t: t, res: function () { n.classList.remove("on"); res(); } };
@@ -342,9 +354,16 @@
   G.mo = function (text) {
     return new Promise(function (res) {
       var m = $("mo"); m.classList.add("on");
-      A.sfx("mo");
-      var t = typeInto($("motext"), text, function () { });
-      talk = { t: t, res: function () { m.classList.remove("on"); res(); } };
+      A.sfx("mo"); G.moOn = G.time ? G.time() : 0;
+      /* word by word, each one surfacing out of the dark like the gold did */
+      var words = text.split(/(\s+)/), el = $("motext"), html = "", k = 0, step = G.prefs.reduced ? 0 : Math.max(0.06, 7 / Math.max(20, G.prefs.text));
+      words.forEach(function (w) { if (/^\s+$/.test(w)) { html += w; return; } html += '<span class="mw" style="animation-delay:' + (k * step).toFixed(2) + 's">' + esc(w) + "</span>"; k++; });
+      el.innerHTML = html;
+      var total = k * step + 0.9, chimeT = [];
+      for (var q = 0; q < k; q += 3) chimeT.push(setTimeout(function () { A.sfx("moword"); }, q * step * 1000));
+      var t = { full: text, el: el, done: false, timer: setTimeout(function () { t.done = true; }, total * 1000) };
+      t.finishNow = function () { el.querySelectorAll(".mw").forEach(function (s) { s.style.animationDelay = "0s"; s.style.animationDuration = ".25s"; }); chimeT.forEach(clearTimeout); };
+      talk = { t: t, res: function () { m.classList.remove("on"); G.moOn = null; chimeT.forEach(clearTimeout); res(); } };
       $("live").textContent = text;
     });
   };
@@ -395,6 +414,7 @@
   G.item = function (o) {
     return new Promise(function (res) {
       A.sfx("found");
+      if (G.burst) { G.burst(G.p.x, G.p.y - 14, 34); }
       if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([20, 40, 30]);
       var m = $("get");
       $("gkick").textContent = o.kind || "Found";
@@ -448,6 +468,7 @@
       G.p.x = tx * T; G.p.y = ty * T; if (dir != null) G.p.dir = dir;
       G.p.trail = [];
       G.s.visited[id] = 1;
+      if (opts.instant) G.sky.snap = true;
       var f = G.ent("beck"); if (f && f.follow) { f.map = id; f.x = G.p.x; f.y = G.p.y + 2; }
       G.looks = BS.lens.LOOKS.filter(function (l) { return l.where && l.where[0] === id; });
       if (BS.story && BS.story.enter) BS.story.enter(id);
@@ -628,7 +649,7 @@
     if (near) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "A" : "E") + "</kbd> " + (typeof near.label === "function" ? near.label() : near.label); pr.classList.add("on"); }
     else if (!G.cut && G.s.items.lens && G.lensNear()) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "Look" : "L") + "</kbd> Something small here — look closer"; pr.classList.add("on"); }
     else pr.classList.remove("on");
-    if (!G.cut && G.tap("act") && near) { A.sfx("ui"); near.act(); }
+    if (!G.cut && G.tap("act") && near) { A.sfx("ui"); if (G.burst && near.x != null) G.burst(near.x * T, near.y * T - 6, 8, "255,236,180", 18); near.act(); }
     if (!G.cut && G.tap("lens")) {
       if (G.s.items.lens) G.openLens();
       else if (G.s.items.phone !== false) { G.phoneGlare = 0.8; G.eyes.adapt *= 0.4; G.toast(G.s.battery > 0 ? "No Service · " + Math.round(G.s.battery) + "%" : "The screen stays black. A flat dead stone."); A.sfx("nosignal"); }
@@ -755,8 +776,9 @@
       list.push({ y: e.y, d: function () { drawEnt(e); } });
     });
     if (!G.hidePlayer) list.push({ y: G.p.y + 0.1, d: drawPlayer });
-    creatures.forEach(function (c) { if (c.map === G.mapId) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? 6 : 20))), c.x - 4, c.y - 4); } }); });
+    creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? 6 : 20))), c.x - 4, c.y - 4); } }); });
     puffs.forEach(function (pf) { list.push({ y: pf.y + 0.2, d: function () { drawPuff(pf); } }); });
+    if (BS.juice && BS.juice.sorted) BS.juice.sorted(list, ctx, cam, time);
     list.sort(function (a, b) { return a.y - b.y; });
     return list;
   }
@@ -853,7 +875,7 @@
   }
   function darkness() {
     var m = G.map, tod = TOD[G.s.tod];
-    var dark = m.outdoor ? tod.dark : (m.dark || 0);
+    var dark = m.outdoor ? G.sky.dark : (m.dark || 0);
     if (G.mapId === "house" && (G.s.tod === "night" || G.s.tod === "dusk")) dark = 0.9;
     if (m.outdoor && G.p.y / T > 52) dark = Math.min(0.95, dark + 0.16);            // under the trees
     if (G.mapId === "cellar") dark = G.workLights ? 0 : 0.985 - G.eyes.adapt * 0.5;
@@ -940,7 +962,7 @@
   }
   function grade(dark) {
     var m = G.map;
-    if (m.outdoor) { ctx.fillStyle = TOD[G.s.tod].tint; ctx.fillRect(0, 0, VW, VH); }
+    if (m.outdoor) { var tn = G.sky.tint; ctx.fillStyle = "rgba(" + (tn[0] | 0) + "," + (tn[1] | 0) + "," + (tn[2] | 0) + "," + tn[3].toFixed(3) + ")"; ctx.fillRect(0, 0, VW, VH); }
     /* a warm top, a cool bottom: depth in a single wash */
     ctx.save(); ctx.globalCompositeOperation = "soft-light";
     var g = ctx.createLinearGradient(0, 0, 0, VH);
@@ -1116,7 +1138,9 @@
     drawGround();
     water();
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
+    if (BS.juice) BS.juice.under(ctx, cam, time);
     drawables().forEach(function (d) { d.d(); });
+    if (BS.juice) BS.juice.world(ctx, cam, time);
     drawCanopy();
     if (BS.story && BS.story.over) BS.story.over(ctx, cam, time);
     var dark = darkness();
@@ -1130,6 +1154,7 @@
     tiltShift();
     ctx.setTransform(K, 0, 0, K, 0, 0);
     hints();
+    if (BS.juice) BS.juice.screen(ctx, VW, VH, time, cam);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -1152,7 +1177,9 @@
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 20);
     if (!document.hidden) {
       update(dt);
-      lifeTick(dt); moteTick(dt);
+      lifeTick(dt); moteTick(dt); skyTick(dt);
+      if (BS.juice) BS.juice.update(dt, cam);
+      if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);
     }

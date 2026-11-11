@@ -94,7 +94,9 @@
     $("ridehud").classList.remove("on");
     G.mode = "walk";
     var got = Math.max(5, Math.round(r.charge));
+    var before = G.s.battery;
     G.s.battery = Math.min(100, G.s.battery + got);
+    if (BS.juice) BS.juice.charge(before, G.s.battery);
     G.s.rides = (G.s.rides || 0) + 1;
     G.lamp.level = 0;
     G.hud(); G.setAmbience();
@@ -301,7 +303,7 @@
           P.t = 0; P.steps++; A.sfx("step", "sand");
           $("mhint").textContent = ["", "It held me. Firm as a stair.", "It held.", "It held. And held.", "Firm. On the fifth step —", ""][P.steps] || "";
           if (P.steps >= 5) {
-            P.phase = "pour"; P.t = 0; A.sfx("sand"); G.shake = 10;
+            P.phase = "pour"; P.t = 0; A.sfx("sand"); A.sfx("swell", "tension"); G.shake = 10;
             if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([60, 30, 120, 30, 200]);
             $("mhint").textContent = "The whole face of the pile, all at once, let go.";
           }
