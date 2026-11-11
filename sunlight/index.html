@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Borrowed Sunlight — The Back of the World</title>
+<meta name="description" content="An open-world adventure through the novel Borrowed Sunlight: a hilltop house being emptied, a cellar that glows, a slime mold that might be talking, and a week to save it. Every key is real science. Free, offline, nothing tracked.">
+<meta name="theme-color" content="#0b0a08">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Borrowed Sunlight">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="Borrowed Sunlight — The Back of the World">
+<meta property="og:description" content="Stand still in a dark cellar until it gives things back. Make light out of a hill. Look long. An adventure through the novel, where every key is real science.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://kmay89.com/sunlight/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="look.css">
+</head>
+<body>
+<a class="skip" href="#t-new">Skip to the game</a>
+
+<canvas id="stage" tabindex="-1" aria-label="The game: a top-down view of Gran's hill"></canvas>
+
+<!-- the HUD -->
+<header id="hud" aria-label="Status">
+  <div class="hl">
+    <div id="day" class="day"></div>
+    <div id="place" class="place"></div>
+    <div id="clock" class="clock" aria-label="The clock"></div>
+  </div>
+  <div class="hr">
+    <button id="phonehud" class="phonehud" aria-label="Phone">
+      <span id="bars" class="bars" data-bars="0"><i></i><i></i><i></i><i></i></span>
+      <span id="svc" class="svc">No Service</span>
+      <span id="bat" class="bat"><i></i></span><span id="batn" class="batn">4%</span>
+    </button>
+    <button id="hudbook" class="hbtn" aria-label="Gran's book (B)" title="Gran's book (B)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 17a3 3 0 0 1 3-3h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    <button id="hudmenu" class="hbtn" aria-label="Menu (Esc)" title="Menu (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  </div>
+</header>
+<p id="obj" class="obj" hidden></p>
+<div id="arm" class="arm" aria-hidden="true"><span>arm</span><i></i></div>
+<div id="flash" class="flash" aria-hidden="true"></div>
+<div id="toast" class="toast" role="status"></div>
+<div id="caption" class="caption" aria-hidden="true"></div>
+<div id="prompt" class="prompt" aria-live="polite"></div>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<!-- words -->
+<div id="dlg" class="dlg" role="dialog" aria-live="polite"><b id="who"></b><p id="line"></p><span id="more" class="more" hidden>▾</span></div>
+<div id="narr" class="narr"><p id="ntext"></p><span id="nmore" class="more" hidden>▾</span></div>
+<div id="mo" class="mo"><p id="motext"></p></div>
+<div id="cyn" class="cyn" aria-hidden="true"></div>
+<div id="choice" class="choice" role="dialog" aria-label="Choose"><p id="cprompt"></p><div id="copts"></div></div>
+
+<!-- the lens -->
+<div id="lens" class="lens" role="dialog" aria-label="Through the drop of water">
+  <div class="lwrap">
+    <canvas id="lenscv" width="320" height="320"></canvas>
+    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint">L or E to look up</small></div>
+  </div>
+</div>
+
+<!-- the moment a thing becomes yours -->
+<div id="get" class="get" role="dialog" aria-modal="true" aria-labelledby="gname">
+  <div class="gcard">
+    <canvas id="gicon" width="96" height="96" aria-hidden="true"></canvas>
+    <small id="gkick"></small>
+    <h2 id="gname"></h2>
+    <p id="gsci" class="gsci"></p>
+    <p id="gtext"></p>
+    <p id="gopens" class="gopens"></p>
+    <button id="gok" class="primary">Keep it</button>
+  </div>
+</div>
+<div id="chap" class="chap" aria-live="polite"><small id="chn"></small><h2 id="cht"></h2></div>
+
+<!-- set pieces -->
+<div id="ridehud" class="ridehud" aria-hidden="true"><span>dynamo</span><i id="rspeed"></i><b id="rcharge">+0%</b></div>
+<div id="mini" class="mini" role="dialog" aria-labelledby="mtitle">
+  <div class="mcard">
+    <h3 id="mtitle"></h3>
+    <canvas id="minicv"></canvas>
+    <p id="mmo" class="mmo"></p>
+    <p id="mhint" class="mhint"></p>
+    <div class="row"><span id="moats" class="moats"></span><button id="mreset">Pick the oats back up</button><button id="mdone" class="primary" hidden>Go on</button></div>
+  </div>
+</div>
+<div id="board" class="board" role="dialog" aria-label="The whiteboard in the site office">
+  <div class="wb">
+    <table>
+      <tr><th>JOB</th><th>SITE</th><th>THIS WK</th><th>NEXT</th></tr>
+      <tr><td>CARMODY</td><td>DRIVEWAY EXT.</td><td>GRAVEL ✓</td><td>—</td></tr>
+      <tr><td>HALVERSEN</td><td>SEPTIC</td><td>DIG WED</td><td>INSPECT</td></tr>
+      <tr class="hot"><td>A. RENNER</td><td>MAPLE HILL RD</td><td>DEWATER THURS.</td><td>POUR MON.</td></tr>
+      <tr><td>CO. RD 9</td><td>CULVERT</td><td>PIPE IN</td><td>BACKFILL</td></tr>
+    </table>
+    <p class="wbnote">— second board, deeper in, half-blocked by the door: times. Hours. Can't read it from here.</p>
+    <button id="bclose" class="primary">Duck back down</button>
+  </div>
+</div>
+<div id="sig" class="sig" aria-live="polite"><p>Hold it just right. Stand very still.</p><i id="sigmeter"></i></div>
+
+<!-- Gran's book -->
+<section id="book" class="book" aria-hidden="true" aria-label="Gran's book">
+  <div class="bcard">
+    <nav class="tabs" role="tablist">
+      <button data-tab="pages" role="tab">Her pages</button>
+      <button data-tab="keys" role="tab">Field notes</button>
+      <button data-tab="seen" role="tab">Seen</button>
+      <button data-tab="map" role="tab">Map</button>
+      <button data-tab="phone" role="tab">Phone</button>
+      <button data-tab="yours" role="tab">Your page</button>
+      <button class="x" data-close aria-label="Close the book">✕</button>
+    </nav>
+    <div class="bbody">
+      <div id="p-pages" class="bpane"></div>
+      <div id="p-keys" class="bpane" hidden></div>
+      <div id="p-seen" class="bpane" hidden></div>
+      <div id="p-map" class="bpane" hidden></div>
+      <div id="p-phone" class="bpane" hidden></div>
+      <div id="p-yours" class="bpane" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- the menu -->
+<section id="menu" class="menu" aria-hidden="true" aria-label="Menu">
+  <div class="bcard mcardx">
+    <h2>Paused</h2>
+    <p id="mstat" class="lede small"></p>
+    <div class="opts">
+      <label>Text speed <input id="o-text" type="range" min="15" max="200" step="5"></label>
+      <label>Volume <input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
+      <label>Music <input id="o-mus" type="range" min="0" max="1" step="0.05"></label>
+      <label>Soundscape <input id="o-amb" type="range" min="0" max="1" step="0.05"></label>
+      <label class="ck"><input id="o-cap" type="checkbox"> Captions for sounds</label>
+      <label class="ck"><input id="o-big" type="checkbox"> Larger text</label>
+      <label class="ck"><input id="o-red" type="checkbox"> Reduce motion</label>
+      <label class="ck"><input id="o-hap" type="checkbox"> Haptics</label>
+    </div>
+    <div class="row wrap">
+      <button data-close class="primary" data-focus>Back to the hill</button>
+      <button id="m-save">Save</button>
+      <button id="m-help">How to play</button>
+      <button id="m-restart">Start again</button>
+      <a class="btn" href="/">Back to the desk</a>
+    </div>
+    <div id="help" class="help" hidden>
+      <p><b>Move</b> arrows / WASD / the stick · <b>Run</b> Shift · <b>Act</b> E, Space, Enter (A) · <b>Look closer</b> L (Look) · <b>Crank the lantern</b> hold C (Crank) · <b>Gran's book</b> B · <b>Menu</b> Esc. A gamepad works too.</p>
+      <p>The hill opens as you earn what opens it — and every key is real science: your own eyes in the dark, a dynamo, a drop of water, oats, roots, sand, water bears. Stand still when the dark asks you to. Look long.</p>
+      <p>Saves itself on this device. Nothing is sent anywhere.</p>
+    </div>
+  </div>
+</section>
+
+<!-- touch -->
+<div id="touch" class="touch" aria-hidden="true">
+  <div id="stick" class="stick"><i id="knob"></i></div>
+  <div class="btns">
+    <button data-btn="crank" class="tb tb-c">Crank</button>
+    <button data-btn="lens" class="tb tb-l">Look</button>
+    <button data-btn="act" class="tb tb-a">A</button>
+  </div>
+</div>
+
+<!-- the title -->
+<section id="title" class="title">
+  <canvas id="titlecv" aria-hidden="true"></canvas>
+  <div class="tin">
+    <p class="tkick">An adventure through the novel</p>
+    <h1><span>Borrowed</span> Sunlight</h1>
+    <p class="tsub">The Back of the World</p>
+    <p class="tline"><em>If you are reading this, the lights have gone out — and that is the only reason you can see.</em></p>
+    <div class="tbtns">
+      <button id="t-continue" class="primary" hidden>Continue <small></small></button>
+      <button id="t-new" class="primary">Begin</button>
+      <button id="t-sound" class="ghost">Hear the theme</button>
+    </div>
+    <p class="tfine">Best with sound. Arrows/WASD, E to act, L to look, hold C to crank, B for the book. Touch and gamepads work.<br>Free, offline, no account, nothing tracked. Saves on this device.</p>
+    <p class="tfine"><a href="https://borrowedsunlightnovel.com">Read the novel</a> · <a href="/">Back to the desk</a></p>
+  </div>
+</section>
+
+<!-- the end -->
+<section id="end" class="end" hidden>
+  <div class="ein">
+    <p class="e1">The dark was never empty.</p>
+    <p class="e2">Look long. We're still here.</p>
+    <div id="endyours" class="endyours" hidden><small>In your own hand, under hers</small><p></p></div>
+    <div class="credits">
+      <p><b>Borrowed Sunlight</b> — a novel by Karl Meves. The story, its words and its people belong to the book; this is a way to walk around inside it.</p>
+      <p>Every pixel, sound and note in this game is made by code as it runs: no image files, no recordings. The science is real, and the field notes say where the book tells time faster than life does.</p>
+      <p id="endseen" class="small"></p>
+    </div>
+    <button id="endok" class="primary">Stay on the hill</button>
+    <p class="small"><a href="https://borrowedsunlightnovel.com">Read the whole book →</a></p>
+  </div>
+</section>
+
+<div id="fade" class="fade"></div>
+
+<script src="world.js"></script>
+<script src="art.js"></script>
+<script src="audio.js"></script>
+<script src="lens.js"></script>
+<script src="icons.js"></script>
+<script src="engine.js"></script>
+<script src="minis.js"></script>
+<script src="story.js"></script>
+<script src="ui.js"></script>
+<script>BS.G.start();</script>
+</body>
+</html>
