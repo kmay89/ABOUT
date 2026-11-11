@@ -527,6 +527,7 @@
       var rs = R(p[0] * 31 + p[1] * 7), cx2 = p[0] * T + 8, cy2 = p[1] * T - 2;
       for (var b = 0; b < 4; b++) lump(x, cx2 + (rs() - 0.5) * 12, cy2 + (rs() - 0.5) * 10, 6 + rs() * 4, ["#2e4a22", "#365628", "#2a4420", "#3e5e2c"][b], "#7aa04a");
     });
+    list.forEach(function (p) { leaves(x, p[0] * T + 8, p[1] * T - 2, 13, R(p[0] * 57 + p[1] * 11), 70, [[34, 62, 26], [46, 80, 34], [62, 104, 42], [96, 140, 60], [150, 190, 96]]); });
     list.forEach(function (p) {
       var rs = R(p[0] * 13 + p[1] * 3);
       for (var q = 0; q < 6; q++) ell(x, p[0] * T + rs() * 16, p[1] * T - 6 + rs() * 12, 1.2, 0.8, rs() < 0.6 ? "rgba(170,210,110,.35)" : "rgba(10,25,8,.35)", rs() * 3);
@@ -536,6 +537,20 @@
     return c;
   };
 
+  /* leaves, lit from the upper left: many small strokes over the lumps so
+     a canopy reads as foliage rather than balls */
+  function leaves(x, cx, cy, r, rs, n, pal) {
+    pal = pal || [[60, 104, 44], [78, 128, 52], [102, 156, 64], [142, 190, 88], [196, 226, 128]];
+    for (var i = 0; i < n; i++) {
+      var a = rs() * 6.283, d = Math.sqrt(rs()) * r, lx = cx + Math.cos(a) * d, ly = cy + Math.sin(a) * d * 0.88;
+      var lit = ((cx - lx) * 0.7 + (cy - ly)) / r;                  // toward the sun
+      var k = Math.max(0, Math.min(4, Math.round(1.6 + lit * 1.6 + (rs() - 0.5) * 1.4)));
+      var c = pal[k], al = 0.55 + rs() * 0.4;
+      x.fillStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + al + ")";
+      ell(x, lx, ly, 0.9 + rs() * 0.9, 0.5 + rs() * 0.4, null, rs() * 3.14); x.fill();
+    }
+  }
+  BS.leaves = leaves;
   /* a single round tree */
   BS.paintCanopy = function (seed, r) {
     var d = r * 2 + 8, c = wc(d, d, ART), x = c.x, rs = R(seed);
@@ -545,6 +560,9 @@
       lump(x, d / 2 + Math.cos(a) * rr2, d / 2 + Math.sin(a) * rr2 * 0.8, r * (0.42 + rs() * 0.25), cols[k % 4], "#a6d070");
     }
     lump(x, d / 2 - r * 0.15, d / 2 - r * 0.2, r * 0.5, "#5a923e", "#c2e488");
+    leaves(x, d / 2, d / 2, r * 1.02, rs, 260);
+    /* sky light on the rim of the crown */
+    x.strokeStyle = "rgba(230,250,190,.35)"; x.lineWidth = 0.7; x.beginPath(); x.arc(d / 2, d / 2, r * 0.95, 3.3, 4.6); x.stroke();
     for (k = 0; k < 18; k++) ell(x, d / 2 + (rs() - 0.5) * r * 1.6, d / 2 + (rs() - 0.5) * r * 1.4, 1.1, 0.7, rs() < 0.5 ? "rgba(220,250,170,.35)" : "rgba(20,40,10,.3)", rs() * 3);
     return c;
   };

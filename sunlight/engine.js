@@ -94,6 +94,7 @@
       if (t === TL.TREE) decor.trees.push({ x: x * T + 8, y: y * T + 14, c: BS.paintCanopy(x * 7 + y * 3, 15) });
       if (t === TL.LAVENDER) decor.lav.push({ x: x * T + 8, y: y * T + 14, c: lavImgs[(x + y) % 4], ph: BS.hash(x, y, 2) * 6 });
       if (t === TL.LONG && BS.hash(x, y, 77) < 0.4) for (var k = 0; k < 2; k++) decor.tufts.push({ x: x * T + 3 + BS.hash(x, y, k) * 10, y: y * T + 4 + BS.hash(y, x, k) * 10, c: tuftImgs[(x * 3 + y + k) % 4], ph: BS.hash(x, y, k + 9) * 6 });
+      if (t === TL.FIELD && BS.hash(x, y, 79) < 0.22) decor.tufts.push({ x: x * T + 3 + BS.hash(x, y, 5) * 10, y: y * T + 4 + BS.hash(y, x, 5) * 10, c: tuftImgs[(x + y * 3) % 4], ph: BS.hash(x, y, 6) * 6 });
       if ((t === TL.GARDEN) && BS.hash(x, y, 78) < 0.12) decor.tufts.push({ x: x * T + 8, y: y * T + 10, c: greenTufts[(x + y) % 3], ph: BS.hash(x, y, 4) * 6 });
     }
   }
@@ -209,11 +210,11 @@
   var TOD = {
     noon: { dark: 0, tint: "rgba(255,214,120,.06)", label: "noon" },
     afternoon: { dark: 0, tint: "rgba(255,200,110,.05)", label: "afternoon" },
-    evening: { dark: 0.12, tint: "rgba(255,150,60,.20)", label: "evening" },
-    golden: { dark: 0.2, tint: "rgba(255,130,70,.24)", label: "evening" },
+    evening: { dark: 0.1, tint: "rgba(255,150,60,.13)", label: "evening" },
+    golden: { dark: 0.16, tint: "rgba(255,130,70,.15)", label: "evening" },
     dusk: { dark: 0.5, tint: "rgba(70,80,160,.24)", label: "dusk" },
-    night: { dark: 0.84, tint: "rgba(20,30,90,.22)", label: "night" },
-    dawn: { dark: 0.3, tint: "rgba(200,170,210,.18)", label: "dawn" },
+    night: { dark: 0.74, tint: "rgba(20,30,90,.22)", label: "night" },
+    dawn: { dark: 0.12, tint: "rgba(220,170,200,.12)", label: "dawn" },
     morning: { dark: 0, tint: "rgba(255,240,200,.05)", label: "morning" }
   };
   G.TOD = TOD;
@@ -813,13 +814,13 @@
         list.push({ y: t.y, d: function () {
           var sx = t.x - cam.x, sy = t.y - cam.y;
           ctx.fillStyle = BS.lg(ctx, sx - 3, 0, sx + 3, 0, [[0, "#8a6a48"], [1, "#4a3420"]]); BS.rr(ctx, sx - 2.6, sy - 16, 5.2, 17, 2); ctx.fill();
-          ctx.save(); ctx.translate(t.x - cam.x, t.y - 14 - cam.y); if (!G.prefs.reduced) ctx.rotate(Math.sin(time * 0.8 + t.x) * 0.012 * (1 + wind));
+          ctx.save(); ctx.translate(t.x - cam.x, t.y - 14 - cam.y); if (!G.prefs.reduced) ctx.rotate(Math.sin(time * 0.8 + t.x) * 0.01 + (G.gust ? G.gust(t.x, t.y) : 0) * 0.04);
           ctx.drawImage(t.c, -t.c.w / 2, -t.c.h + 10, t.c.w, t.c.h); ctx.restore();
         } });
       });
       var sway = G.prefs.reduced ? 0 : 1;
-      decor.lav.forEach(function (l) { if (visible(l.x, l.y, 30)) list.push({ y: l.y, d: function () { lean(l.c, l.x, l.y, Math.sin(time * 1.6 + l.ph) * 0.07 * sway * (1 + wind) + bend(l)); } }); });
-      decor.tufts.forEach(function (tf) { if (visible(tf.x, tf.y, 20)) list.push({ y: tf.y, d: function () { lean(tf.c, tf.x, tf.y, (Math.sin(time * 1.9 + tf.ph + tf.x * 0.03) * 0.09 + 0.04) * sway * (1 + wind) + bend(tf)); } }); });
+      decor.lav.forEach(function (l) { if (visible(l.x, l.y, 30)) list.push({ y: l.y, d: function () { var g = G.gust ? G.gust(l.x, l.y) : 0; lean(l.c, l.x, l.y, (Math.sin(time * 1.6 + l.ph) * 0.06 + g * 0.25) * sway + bend(l)); } }); });
+      decor.tufts.forEach(function (tf) { if (visible(tf.x, tf.y, 20)) list.push({ y: tf.y, d: function () { var g = G.gust ? G.gust(tf.x, tf.y) : 0; lean(tf.c, tf.x, tf.y, (Math.sin(time * 1.9 + tf.ph + tf.x * 0.03) * 0.06 + 0.04 + g * 0.42) * sway + bend(tf), g); } }); });
     }
     G.ents.forEach(function (e) {
       if (e.map !== G.mapId || e.hidden) return;
@@ -838,9 +839,11 @@
     if (Math.abs(dy) > 8 || Math.abs(dx) > 10) return 0;
     return (dx > 0 ? 1 : -1) * (1 - Math.abs(dx) / 10) * 0.45;
   }
-  function lean(c, x, y, a) {
+  function lean(c, x, y, a, flash) {
     ctx.save(); ctx.translate(x - cam.x, y - cam.y); ctx.transform(1, 0, -a, 1, 0, 0);
-    ctx.drawImage(c, -c.w / 2, -c.h, c.w, c.h); ctx.restore();
+    ctx.drawImage(c, -c.w / 2, -c.h, c.w, c.h);
+    if (flash > 0.25) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = (flash - 0.25) * 0.5; ctx.drawImage(c, -c.w / 2, -c.h, c.w, c.h); }
+    ctx.restore();
   }
   /* prebuilt soft sprites: a shadow, and a glow per color */
   var shadowSpr = (function () { var c = BS.cv(64, 64), x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(20,14,8,1)"); g.addColorStop(1, "rgba(20,14,8,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
@@ -928,7 +931,7 @@
     var m = G.map, tod = TOD[G.s.tod];
     var dark = m.outdoor ? G.sky.dark : (m.dark || 0);
     if (G.mapId === "house" && (G.s.tod === "night" || G.s.tod === "dusk")) dark = 0.9;
-    if (m.outdoor && G.p.y / T > 52) dark = Math.min(0.95, dark + 0.16);            // under the trees
+    if (m.outdoor && G.p.y / T > 52) dark = Math.min(0.88, dark + 0.14);            // under the trees
     if (G.mapId === "cellar") dark = G.workLights ? 0 : 0.985 - G.eyes.adapt * 0.5;
     if (G.darkOverride != null) dark = G.darkOverride;
     return dark;
@@ -1018,7 +1021,8 @@
     ctx.save(); ctx.globalCompositeOperation = "soft-light";
     var g = ctx.createLinearGradient(0, 0, 0, VH);
     var night = G.s.tod === "night" || G.s.tod === "dusk";
-    g.addColorStop(0, night ? "rgba(120,140,220,.45)" : "rgba(255,230,180,.32)"); g.addColorStop(1, night ? "rgba(20,30,70,.45)" : "rgba(60,80,120,.3)");
+    var dawnG = G.s.tod === "dawn" && G.map.outdoor;
+    g.addColorStop(0, night ? "rgba(120,140,220,.45)" : dawnG ? "rgba(255,205,185,.2)" : "rgba(255,230,180,.32)"); g.addColorStop(1, night ? "rgba(20,30,70,.45)" : dawnG ? "rgba(110,120,170,.18)" : "rgba(60,80,120,.3)");
     ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
     ctx.restore();
   }
@@ -1028,13 +1032,23 @@
     ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
   }
   /* the diorama focus: soften the top and bottom of the frame */
-  function tiltShift() {
-    if (G.prefs.tilt === false || G.prefs.reduced && G.prefs.tilt !== true) return;
+  /* the lens: a soft bloom over everything (light spills a little, as it
+     does on a warm evening), then the diorama focus at top and bottom */
+  function tiltShift(dark) {
+    var tilt = !(G.prefs.tilt === false || G.prefs.reduced && G.prefs.tilt !== true), bloom = G.prefs.bloom !== false;
+    if (!tilt && !bloom) return;
     var W = cvs.width, Hh = cvs.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     bax.imageSmoothingEnabled = true; bbx.imageSmoothingEnabled = true;
     bax.drawImage(cvs, 0, 0, blurA.width, blurA.height);
     bbx.drawImage(blurA, 0, 0, blurB.width, blurB.height);
+    if (bloom) {
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = G.mapId === "cellar" ? 0.28 : dark > 0.5 ? 0.22 : 0.09;
+      ctx.drawImage(blurA, 0, 0, W, Hh);
+      ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+    }
+    if (!tilt) return;
     var bands = [[0, 0.3, 1], [0.74, 1, -1]], N = 9;
     bands.forEach(function (b) {
       for (var i = 0; i < N; i++) {
@@ -1057,8 +1071,7 @@
       if (night && t === TL.WATER) {
         /* the pond holds the whole sky upside down */
         ctx.fillStyle = "rgba(6,14,30,.78)"; ctx.fillRect(sx, sy, T, T);
-        for (var k = 0; k < 3; k++) { var hh = BS.hash(x, y, k + 400); if (hh > 0.5) { var tw = 0.5 + 0.5 * Math.sin(time * 2 + hh * 50); ctx.fillStyle = "rgba(255,255,240," + (0.4 + tw * 0.6) + ")"; BS.ell(ctx, sx + BS.hash(x, y, k + 500) * 15, sy + BS.hash(x, y, k + 600) * 15, 0.45, 0.45); ctx.fill(); } }
-        if (x === 57 && y === 62) { var mg = ctx.createRadialGradient(sx + 8, sy + 8, 1, sx + 8, sy + 8, 14); mg.addColorStop(0, "rgba(255,250,225,.95)"); mg.addColorStop(0.25, "rgba(255,250,225,.6)"); mg.addColorStop(1, "rgba(255,250,225,0)"); ctx.fillStyle = mg; ctx.fillRect(sx - 8, sy - 8, 32, 32); }
+
       } else {
         ctx.fillStyle = "rgba(170,215,230,.10)"; ctx.fillRect(sx, sy, T, T * 0.5);
         for (var q = 0; q < 2; q++) {
@@ -1188,6 +1201,7 @@
     ctx.setTransform(K, 0, 0, K, 0, 0);
     drawGround();
     water();
+    if (BS.atmos) BS.atmos.ground(ctx, cam, VW, VH);
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
     drawables().forEach(function (d) { d.d(); });
@@ -1198,11 +1212,14 @@
     atmosphere(dark);
     grade(dark);
     drawLight(dark);
+    if (BS.atmos) BS.atmos.air(ctx, cam, VW, VH, dark);
     drawGlow(dark);
+    if (BS.atmos) BS.atmos.glowWater(ctx, cam, VW, VH);
+    if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
     drawMotes();
     if (G.minis[G.mode] && G.minis[G.mode].draw) G.minis[G.mode].draw(ctx, cam, time);
     vignette();
-    tiltShift();
+    tiltShift(dark);
     ctx.setTransform(K, 0, 0, K, 0, 0);
     hints();
     if (BS.juice) BS.juice.screen(ctx, VW, VH, time, cam);
@@ -1229,6 +1246,7 @@
     if (!document.hidden) {
       update(dt);
       lifeTick(dt); moteTick(dt); skyTick(dt);
+      if (BS.atmos) BS.atmos.update(dt, cam, VW, VH);
       if (BS.juice) BS.juice.update(dt, cam);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       render(dt);

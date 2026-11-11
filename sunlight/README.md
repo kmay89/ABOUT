@@ -256,3 +256,12 @@ sounds; adjustable text speed (to instant); larger text; reduced motion
 (honored from the OS too); haptics toggle; full keyboard, touch and
 gamepad play; nothing time-critical except the ride, which can't be lost.
 Saves on the device only; nothing is sent anywhere.
+
+## Atmosphere (atmos.js)
+
+- **Wind:** one travelling gust field (`G.gust`). Grass tufts, lavender and tree crowns all lean with the same wave, so you can watch a breeze cross the hill.
+- **Mist:** a tileable noise texture that drifts slowly. It is thickest at dawn, in the woods and in the low hollow by the pond, and thin at dusk and night.
+- **Drift:** seeds and petals float on the wind; leaves fall in the woods.
+- **Water:** by day the pond reflects the sky and catches sun glints. At night it holds its own stars and a wobbling moon, drawn after the darkness layer so they shine through it.
+- **Light:** golden-hour sun shafts, a soft light leak, a moon-cool wash at night, and bloom tuned for each scene (strongest in the cellar).
+- **Canopies:** tree crowns are built from hundreds of individual painted leaves with a rim highlight.
