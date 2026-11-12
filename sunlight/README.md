@@ -412,6 +412,12 @@ Where the camera stands while the story is told.
   Thin letterbox bars come in and the HUD dims. Wren and the speaker turn to
   face each other once, unless the speaker is scripted to move. When the
   scene ends, the frame glides back to the player and lets go.
+- **Whose line it is:** the frame leans a little toward whoever is speaking
+  (shot, reverse shot), and a soft pool of warm light sits at the speaker's
+  feet and slides across when the line changes hands. When the two are far
+  apart (Wren on the stairs, Dad across the room), the lean fades out and
+  the lens widens instead of zooming in (down to 0.86×), so both fit above
+  the words.
 - **Mo:** a slower, closer drift and the same bars, with nobody else in the
   frame.
 - **Previously:** continue a save more than four minutes old and, before
@@ -425,17 +431,24 @@ Where the camera stands while the story is told.
 ## The last bar (phone.js)
 
 Chapter One's kicker, full screen. After "What nobody had thought to warn me
-about was the signal," the phone comes up in your hands:
+about was the signal," the phone comes up in your hands. On a phone held
+upright, your own screen *becomes* Wren's, edge to edge; on a wider screen
+it's a phone held up in the dark.
 
-1. The status bar searches, then one bar arrives with a green glow.
-2. Three days of the group chat spill in, faster and faster: Priya's quiz,
+1. The lock screen wakes (the clock matches the game's time of day), the
+   status bar searches, and one bar arrives with a green glow.
+2. Three days of friends land as stacked notifications.
+3. The chat opens and the rest spills in, faster and faster: Priya's quiz,
    Theo's "thing that wasn't funny that you laughed at anyway", "wren??",
    "+ 37 more", and "where even ARE you".
-3. Wren starts typing back, "I'm at my gran's".
-4. A cloud passes over the screen. The bar trembles, drops, comes back,
-   drops again.
-5. The screen grays out, the reply is marked Not Delivered, and *No Service*
-   fades up over the chat.
+4. Wren types back, letter by letter: "I'm at my gran's". Sends. The blue
+   progress line crawls across the top of the chat.
+5. A cloud passes over the screen. The bar trembles, drops, comes back. The
+   progress line stalls.
+6. The chat grays out, the reply gets a red ! and *Not Delivered* (the only
+   color left), and *No Service* fades up behind frosted glass.
+7. On a phone, the full screen then pulls back into a phone in your hand, so
+   the narration can be read under it.
 
 The novel's narration ("And then a cloud, or a breath of wind…") is then
 read beneath the dead phone before it drops out of frame. A tap hurries it;

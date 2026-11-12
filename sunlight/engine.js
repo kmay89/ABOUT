@@ -1443,6 +1443,7 @@
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
     if (BS.toys) BS.toys.under(ctx, cam, time);
+    if (BS.stage && BS.stage.under) BS.stage.under(ctx, cam, time);
     var dl = drawables();
     castShadows();
     if (BS.guide) BS.guide.ground(ctx, cam, time);
