@@ -199,8 +199,27 @@
     }
     out.push(pts);
   }
+  /* foxfire: real mycelium on the beams — long, gently wandering hyphae
+     that keep to the wood, branching at shallow angles, with a few strands
+     let down into the air below like threads off a spool */
   var foxfire = [];
-  cellar.beams.forEach(function (by) { for (var k = 0; k < 8; k++) branch(16 + r() * 300, by * T + 8, (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.4, 18, 4, 0.42, foxfire, by * T + 8, 6); });
+  function hypha(x, y, a, n, step, out, by, depth) {
+    var pts = [[x, y]];
+    for (var i = 0; i < n; i++) {
+      a += (r() - 0.5) * 0.22 + (by - y) * 0.012;
+      x += Math.cos(a) * step; y += Math.sin(a) * step; y = Math.max(by - 5, Math.min(by + 5, y));
+      if (x < 12 || x > cellar.w * T - 12) break;
+      pts.push([x, y]);
+      if (depth < 3 && r() < 0.09) hypha(x, y, a + (r() < 0.5 ? 1 : -1) * (0.35 + r() * 0.5), Math.floor(n * 0.45), step * 0.9, out, by, depth + 1);
+    }
+    if (pts.length > 2) { pts.main = depth === 0; out.push(pts); }
+  }
+  cellar.beams.forEach(function (by) {
+    for (var k = 0; k < 10; k++) hypha(16 + r() * (cellar.w * T - 32), by * T + 8, (r() < 0.5 ? 0 : Math.PI) + (r() - 0.5) * 0.2, 26 + Math.floor(r() * 22), 3, foxfire, by * T + 8, 0);
+    for (k = 0; k < 7; k++) { var hx = 20 + r() * (cellar.w * T - 40), hy = by * T + 11, ha = Math.PI / 2 + (r() - 0.5) * 0.4, hp = [[hx, hy]]; for (var s = 0; s < 4 + Math.floor(r() * 5); s++) { ha += (r() - 0.5) * 0.3; hx += Math.cos(ha) * 2; hy += Math.sin(ha) * 2; hp.push([hx, hy]); } foxfire.push(hp); }
+  });
+  /* the streaming: lengths along each main vein, for the beads of light */
+  var flow = foxfire.filter(function (p) { return p.main && p.length > 16; }).slice(0, 12).map(function (p) { var L = [0]; for (var i = 1; i < p.length; i++) L.push(L[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1])); return { p: p, L: L, base: r() }; });
   var moCellar = [];
   for (var k2 = 0; k2 < 9; k2++) branch(20 * T + 6, 11.6 * T, Math.PI + (r() - 0.5) * 2.2, 10, 4, 1.1, moCellar);
   var moHollow = [];
@@ -246,7 +265,21 @@
       var ad = G.eyes.adapt, vis = Math.max(0.08, ad) * (1 - wash);
       if (S.foxPulse) vis *= 1 + Math.max(0, 1 - (G.time() - S.foxPulse) / 3) * 1.4;
       if (vis > 0.02) {
-        drawBaked(ctx, cam, bake("fox", cellar.w * T, cellar.h * T, foxfire, [["rgba(120,220,100,.07)", 5], ["rgba(150,230,110,.22)", 1.6], ["rgba(200,255,160,.55)", 0.5]]), vis);
+        drawBaked(ctx, cam, bake("fox", cellar.w * T, cellar.h * T, foxfire, [["rgba(120,220,100,.06)", 5], ["rgba(150,230,110,.16)", 1.4], ["rgba(200,255,160,.42)", 0.4]]), vis);
+        /* shuttle streaming: everything flows one way for a minute or so, slows,
+           stops — and pours back. D is how far the flow has carried so far. */
+        if (!G.prefs.reduced) {
+          var per = 80, D = 14 * per / (2 * Math.PI) * (1 - Math.cos(2 * Math.PI * t / per));
+          flow.forEach(function (f) {
+            var tot = f.L[f.L.length - 1];
+            for (var b = 0; b < 1; b++) {
+              var d = ((f.base * tot + D) % tot + tot) % tot, i = 1; while (i < f.L.length - 1 && f.L[i] < d) i++;
+              var a = f.p[i - 1], c = f.p[i], u = (d - f.L[i - 1]) / Math.max(0.01, f.L[i] - f.L[i - 1]), bx = a[0] + (c[0] - a[0]) * u - cam.x, by = a[1] + (c[1] - a[1]) * u - cam.y;
+              var gg = ctx.createRadialGradient(bx, by, 0, bx, by, 6); gg.addColorStop(0, "rgba(210,255,170," + (0.32 * vis) + ")"); gg.addColorStop(0.3, "rgba(170,245,130," + (0.12 * vis) + ")"); gg.addColorStop(1, "rgba(150,240,120,0)");
+              ctx.fillStyle = gg; ctx.fillRect(bx - 6, by - 6, 12, 12);
+            }
+          });
+        }
         /* each jar holds a thin cold line of light down its side */
         for (var y = 0; y < cellar.h; y++) for (var x = 0; x < cellar.w; x++) if (cellar.get(x, y) === TL.SHELF) {
           for (var j = 0; j < 4; j++) { ctx.fillStyle = "rgba(170,240,140," + (0.35 * vis * (0.6 + 0.4 * Math.sin(t * 0.6 + x + j))) + ")"; ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 3 - cam.y, 1, 4); ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 10 - cam.y, 1, 4); }

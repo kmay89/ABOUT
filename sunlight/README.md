@@ -362,3 +362,14 @@ The small motions that make a person a person:
 
 - **The gold thread:** slime molds really do solve mazes. They send threads out everywhere, then thicken the ones that reach food and pull the rest back. When you're lost, a thread of that gold grows from your feet. It sends out exploring tendrils, the true path (real breadth-first pathfinding across the map, through the right door when the goal is in another room) firms up and wanders like something alive, and beads of light run along it to a slow bloom at the goal. It's gold paint in daylight and light in the dark. It comes by itself after about 20 seconds without progress (once per goal), or when asked: press H, or tap the goal card. Nothing ever says where it comes from.
 - **The wisps:** small lights hover over everything you can act on. They breathe, brighten as you approach, have three motes circling them, and bloom into a ring when you're in reach. They're gold for the story's things and moonlight blue for the kindnesses nobody asks for. Green motes rise from the ground where a small thing is waiting for the lens. They replace the old four-point twinkle and the stuck rings.
+
+## The cellar (cellar.js)
+
+- **Beams:** three old timbers cross the ceiling, with grain, nails and a cobweb. The foxfire lives on them, and a beam thins when you pass beneath it.
+- **Foxfire, rebuilt as mycelium:** long, gently wandering hyphae that keep to the wood and branch at shallow angles, with strands let down into the air below. Beads of light stream along the veins and, every 40 seconds or so, slow, stop and pour back the other way. That is shuttle streaming, which is what a real slime mold's cytoplasm does.
+- **Daylight down the steps:** "the daylight from the little doorway reached maybe four of them". A pale slanted shaft with dust turning in it, and a little gray light on the bottom steps.
+- **The lantern throws shadows:** each shelf, the log and the apples cast a hard shadow away from the flame (real point-light shadow volumes cut back into the darkness layer), sliding as the light moves. The shelves themselves stay lit on the side that faces it.
+- **Jars waking in the light:** near a flame each jar glows through the glass (plum, peach, blackberry dark as a bruise), with a glint on its shoulder on the side facing the flame.
+- **Breath:** it's cold enough to see it, wherever there's light to see it by.
+- **The pool:** drips land and rings spread, and the foxfire trembles in the water.
+- The beams are baked once and the jar list is precomputed, so the cellar runs as fast as before.

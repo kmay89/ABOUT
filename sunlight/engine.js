@@ -1081,6 +1081,7 @@
       if (day) m.windows.forEach(function (w) { L.push([w[0] * T + 8, w[1] * T + 30, 74, tod === "evening" || tod === "golden" ? 0.85 : 1, tod === "evening" || tod === "golden" ? "gold" : "day"]); });
     }
     if (G.mapId === "shed") { L.push([5 * T, 4 * T, 130, 1, "gold"]); }
+    if (G.mapId === "cellar" && !G.workLights) L.push([2.6 * T, 2.2 * T, 52, 0.32, "day"]);   // gray daylight, four steps down
     if (G.mapId === "hill") {
       var h = G.maps.hill;
       if (G.s.tod === "night" || G.s.tod === "dusk") {
@@ -1115,6 +1116,7 @@
       lx.fillStyle = g; lx.fillRect(x - r, y - r, r * 2, r * 2);
     });
     lx.globalCompositeOperation = "source-over";
+    if (BS.cellar) BS.cellar.shadows(lx, cam, LK, lights());          // the lantern's flame throws shadows
     ctx.drawImage(light, 0, 0, VW, VH);
   }
   /* the glow pass: things that make their own light, and a soft bloom */
@@ -1442,10 +1444,12 @@
     var dl = drawables();
     castShadows();
     if (BS.guide) BS.guide.ground(ctx, cam, time);
+    if (BS.cellar) BS.cellar.under(ctx, cam, time);
     dl.forEach(function (d) { d.d(); });
     if (BS.juice) BS.juice.world(ctx, cam, time);
     drawCanopy();
     if (BS.story && BS.story.over) BS.story.over(ctx, cam, time);
+    if (BS.cellar) BS.cellar.over(ctx, cam, time);
     if (BS.life) BS.life.over(ctx, cam);
     var dark = darkness();
     atmosphere(dark);
@@ -1453,6 +1457,7 @@
     drawLight(dark);
     if (BS.atmos) BS.atmos.air(ctx, cam, VW, VH, dark);
     drawGlow(dark);
+    if (BS.cellar) BS.cellar.post(ctx, cam, time, dark, lights());
     if (BS.guide && dark > 0.3) { ctx.save(); ctx.globalAlpha = Math.min(1, dark); BS.guide.ground(ctx, cam, time); ctx.restore(); }   // the thread shines in the dark
     if (BS.atmos && onWater()) G.waterLayer(function (c) { BS.atmos.glowWater(c, cam, VW, VH); });
     if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
@@ -1490,6 +1495,7 @@
       if (BS.juice) BS.juice.update(dt, cam);
       if (BS.life) { BS.life.hook(); BS.life.update(dt); }
       if (BS.guide) BS.guide.update(dt);
+      if (BS.cellar) BS.cellar.update(dt);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);
