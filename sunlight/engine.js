@@ -728,7 +728,7 @@
     });
 
     /* what you could do here */
-    var near = G.cut ? null : nearest();
+    var near = G.cut ? null : nearest(); G.nearSpot = near;
     var pr = $("prompt");
     if (near) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "A" : "E") + "</kbd> " + (typeof near.label === "function" ? near.label() : near.label); pr.classList.add("on"); }
     else if (!G.cut && G.s.items.lens && G.lensNear()) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "Look" : "L") + "</kbd> Something small here — look closer"; pr.classList.add("on"); }
@@ -1391,28 +1391,10 @@
   function hints() {
     if (G.cut || G.mode !== "walk") return;
     if (G.titleRun) return;
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    G.spots.forEach(function (s) {
-      if (s.map !== G.mapId || (s.when && !s.when())) return;
-      var sx = s.x * T - cam.x, sy = s.y * T - 10 - cam.y, d = Math.hypot(s.x * T - G.p.x, s.y * T - G.p.y);
-      if (d > 90 || d < 10 || sx < 0 || sy < 0 || sx > VW || sy > VH) return;
-      var tw = 0.5 + 0.5 * Math.sin(time * 3 + s.x * 2.3), r = 2 + tw * 1.4, a = 0.35 + tw * 0.45;
-      ctx.fillStyle = "rgba(255,236,170," + a + ")";
-      ctx.beginPath(); ctx.moveTo(sx, sy - r * 1.6); ctx.lineTo(sx + r * 0.35, sy - r * 0.35); ctx.lineTo(sx + r * 1.6, sy); ctx.lineTo(sx + r * 0.35, sy + r * 0.35); ctx.lineTo(sx, sy + r * 1.6); ctx.lineTo(sx - r * 0.35, sy + r * 0.35); ctx.lineTo(sx - r * 1.6, sy); ctx.lineTo(sx - r * 0.35, sy - r * 0.35); ctx.closePath(); ctx.fill();
-    });
-    ctx.restore();
+    if (BS.guide) BS.guide.wisps(ctx, cam, time, VW, VH, G.nearSpot);
     var tg = BS.story && BS.story.target && BS.story.target();
     if (!tg || G.prefs.pointer === false) return;
     var tx = tg[1] * T, ty = tg[2] * T;
-    /* stuck? after a while with nothing new, the goal itself calls out: gold
-       rings pulse from it, a soft chime, and once, a thought */
-    if (tg[0] === G.mapId && G.stuckT > 30) {
-      var rs = tx - cam.x, rsy = ty - cam.y - 4;
-      ctx.save(); ctx.globalCompositeOperation = "lighter";
-      for (var rk = 0; rk < 3; rk++) { var ph = ((time * 0.6 + rk / 3) % 1); ctx.strokeStyle = "rgba(255,214,120," + (0.55 * (1 - ph)) + ")"; ctx.lineWidth = 0.8; BS.ell(ctx, rs, rsy, 3 + ph * 22, (3 + ph * 22) * 0.55); ctx.stroke(); }
-      ctx.restore();
-      if (time - (G.stuckChime || 0) > 9) { G.stuckChime = time; A.sfx("twinkle"); }
-    }
     if (tg[0] !== G.mapId) { var ex = routeExit(tg[0]); if (!ex) return; tx = ex.x * T + 8; ty = ex.y * T + 8; }
     var sx = tx - cam.x, sy = ty - cam.y, d = Math.hypot(tx - G.p.x, ty - G.p.y);
     if (d < 26) return;
@@ -1433,6 +1415,7 @@
     }
     ctx.restore();
   }
+  G.routeExit = function (to) { return routeExit(to); };
   function routeExit(to) {
     var from = G.mapId, want = to;
     if (from === "cellar") want = "house";
@@ -1458,6 +1441,7 @@
     if (BS.juice) BS.juice.under(ctx, cam, time);
     var dl = drawables();
     castShadows();
+    if (BS.guide) BS.guide.ground(ctx, cam, time);
     dl.forEach(function (d) { d.d(); });
     if (BS.juice) BS.juice.world(ctx, cam, time);
     drawCanopy();
@@ -1469,6 +1453,7 @@
     drawLight(dark);
     if (BS.atmos) BS.atmos.air(ctx, cam, VW, VH, dark);
     drawGlow(dark);
+    if (BS.guide && dark > 0.3) { ctx.save(); ctx.globalAlpha = Math.min(1, dark); BS.guide.ground(ctx, cam, time); ctx.restore(); }   // the thread shines in the dark
     if (BS.atmos && onWater()) G.waterLayer(function (c) { BS.atmos.glowWater(c, cam, VW, VH); });
     if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
     drawMotes();
@@ -1504,6 +1489,7 @@
       if (BS.atmos) BS.atmos.update(dt, cam, VW, VH);
       if (BS.juice) BS.juice.update(dt, cam);
       if (BS.life) { BS.life.hook(); BS.life.update(dt); }
+      if (BS.guide) BS.guide.update(dt);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);

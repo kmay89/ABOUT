@@ -356,7 +356,8 @@
     var label = next ? next.t + (next.n ? " (" + next.n[0] + "/" + next.n[1] + ")" : "") : "Chapter complete";
     if ($("gstep").textContent !== label) { $("gstep").textContent = label; gc.classList.remove("tick"); void gc.offsetWidth; gc.classList.add("tick"); }
   }, 400);
-  $("goalcard").addEventListener("click", function () { if (!G.cut) ui.open("book", "pages"); });
+  /* the goal card: tap it and the gold thread shows you the way (or, if there's nowhere to go, opens the book) */
+  $("goalcard").addEventListener("click", function () { if (G.cut) return; if (!(BS.guide && BS.guide.summon("ask"))) ui.open("book", "pages"); });
   ui.bookPing = function () { var b = $("hudbook"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping"); };
   ui.flyToBook = function () {
     var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);

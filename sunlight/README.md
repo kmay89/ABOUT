@@ -357,3 +357,8 @@ The small motions that make a person a person:
 - The transient line goes in whichever half of the screen Wren isn't in.
 - Sound captions, notes and goal ticks stack above the prompt, clear of the thumbs. On desktop the caption sits above the prompt's line.
 - The camera knows where the HUD and touch controls are. It keeps the player in the open part of the screen and runs past the edge of a room when needed, so Wren never stands hidden under the UI.
+
+## The gold thread, and the wisps (guide.js)
+
+- **The gold thread:** slime molds really do solve mazes. They send threads out everywhere, then thicken the ones that reach food and pull the rest back. When you're lost, a thread of that gold grows from your feet. It sends out exploring tendrils, the true path (real breadth-first pathfinding across the map, through the right door when the goal is in another room) firms up and wanders like something alive, and beads of light run along it to a slow bloom at the goal. It's gold paint in daylight and light in the dark. It comes by itself after about 20 seconds without progress (once per goal), or when asked: press H, or tap the goal card. Nothing ever says where it comes from.
+- **The wisps:** small lights hover over everything you can act on. They breathe, brighten as you approach, have three motes circling them, and bloom into a ring when you're in reach. They're gold for the story's things and moonlight blue for the kindnesses nobody asks for. Green motes rise from the ground where a small thing is waiting for the lens. They replace the old four-point twinkle and the stuck rings.
