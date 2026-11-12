@@ -612,7 +612,7 @@
     if (FULL && seen.gran) G.s.story.push({ t: FULL[1], d: G.s.day });
     return scene(function () {
       G.s.battery = 4; G.signalBars = 0;
-      return G.chapter("Chapter One", "No Signal")
+      return (BS.book ? BS.book.open() : G.chapter("Chapter One", "No Signal"))
         .then(function () { if (!seen.hill) return nar("My grandmother's house stood at the top of a hill the world had mostly forgotten, and the summer I was twelve, my father drove me up there to help him take it apart."); })
         .then(function () { if (!seen.gran) return nar("She wasn't dying. I should say that right at the start. She'd simply decided, the way she decided everything, all at once and without any fuss, that a house this big and a garden this wild were more than one person wanted to keep — and she'd taken a small bright apartment in town with a balcony exactly big enough for three pots of herbs."); })
         .then(function () { return nar("What nobody had thought to warn me about was the signal."); })

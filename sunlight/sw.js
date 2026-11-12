@@ -16,9 +16,9 @@
    hears about it (controllerchange) and refreshes itself at a safe moment.
    Bump VERSION on every release. Only this room's old caches are deleted on
    activate: the cache store belongs to the whole site. */
-var VERSION = "sunlight-v21";
+var VERSION = "sunlight-v22";
 var SHELL = ["./", "./index.html", "./look.css", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
-  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./cellar.js", "./atmos.js", "./toys.js", "./stage.js", "./phone.js", "./prologue.js", "./progress.js", "./ui.js", "./manifest.webmanifest"];
+  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./cellar.js", "./atmos.js", "./toys.js", "./stage.js", "./phone.js", "./book.js", "./cover.jpg", "./prologue.js", "./progress.js", "./ui.js", "./manifest.webmanifest"];
 var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", function (e) {

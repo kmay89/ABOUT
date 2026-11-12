@@ -466,3 +466,28 @@ they reload.
   worker reports its `VERSION`) and checks on demand.
 - Still bump `VERSION` on every release, so the offline copy is refetched
   whole and open pages hear about it.
+
+## It's a book first (book.js)
+
+The hero title, between the drive up the hill and the first step. It
+replaces the plain Chapter One card.
+
+1. Black. A lamp warms up over an old kitchen table; dust turns in its light.
+2. The hardcover (`cover.jpg`, from the novel's cover) comes down onto the
+   table with a soft thud, a bounce and a lamp flicker.
+3. A sheen slides across the cover, and the foxfire in the painting wakes:
+   sparks glint and gold threads draw themselves between them.
+4. The cover swings open on endpapers of gold mycelium. On the flyleaf, in
+   Gran's hand, her line writes itself in letter by letter: *"If you are
+   reading this, the lights have gone out — and that is the only reason
+   you can see."*
+5. The leaf turns to **Chapter One · No Signal**, the chapter chime plays,
+   and the camera glides in to read it (large enough on a phone).
+6. The camera falls into the page, the paper fills with gold light, and the
+   light becomes Gran's house. The narration picks up the same sentence the
+   page began.
+
+It is all CSS 3D faces plus two small canvases (dust and sparks); the
+endpaper is painted once. Skip, a tap, E, Enter or Escape goes straight to
+the fall into light. Reduced motion shows the open book still, then fades.
+The test harness (`skipWaits`) passes straight through.
