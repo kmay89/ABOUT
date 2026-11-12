@@ -8,7 +8,7 @@
    deleted on activate — the cache store belongs to the whole site. */
 var VERSION = "sunlight-v9";
 var SHELL = ["./", "./index.html", "./look.css", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
-  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./atmos.js", "./ui.js", "./manifest.webmanifest"];
+  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./atmos.js", "./prologue.js", "./ui.js", "./manifest.webmanifest"];
 var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", function (e) {
