@@ -65,9 +65,21 @@
     cvs.style.width = W + "px"; cvs.style.height = Hh + "px";
     K = cvs.width / VW;
     light.width = Math.ceil(VW * LK); light.height = Math.ceil(VH * LK);
+    baseSC = SC; zoomNow = 1; applyZoom();
     blurA.width = Math.ceil(cvs.width / 4); blurA.height = Math.ceil(cvs.height / 4);
     blurB.width = Math.ceil(cvs.width / 10); blurB.height = Math.ceil(cvs.height / 10);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  }
+  /* a camera that can pull back and lean in (the opening uses it): the
+     canvas stays the same size, only how much of the world it holds changes */
+  var baseSC = 0, zoomNow = 1;
+  G.zoom = 1;
+  function applyZoom() {
+    var z = Math.max(0.45, Math.min(2.5, G.zoom || 1));
+    if (Math.abs(z - zoomNow) < 1e-4) return;
+    zoomNow = z; SC = baseSC * z;
+    VW = window.innerWidth / SC; VH = window.innerHeight / SC; K = cvs.width / VW;
+    light.width = Math.ceil(VW * LK); light.height = Math.ceil(VH * LK);
   }
   window.addEventListener("resize", fit); fit();
 
@@ -837,6 +849,7 @@
       if (e.map !== G.mapId || e.hidden) return;
       list.push({ y: e.y, d: function () { drawEnt(e); } });
     });
+    if (G.mapId === "hill" && BS.cine && BS.cine.sorted) BS.cine.sorted(list, ctx, cam, time);
     if (!G.hidePlayer) list.push({ y: G.p.y + 0.1, d: drawPlayer });
     creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? (c.blend > 0.97 ? (Math.sin(time * 1.1) > 0.55 ? 1 : 0) : 6) : 20))), c.x - 4, c.y - 4); } }); });
     puffs.forEach(function (pf) { list.push({ y: pf.y + 0.2, d: function () { drawPuff(pf); } }); });
@@ -1302,6 +1315,7 @@
   }
   function render(dt) {
     if (!props) buildProps();
+    applyZoom();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = G.mapId === "cellar" ? "#000" : "#0b0906"; ctx.fillRect(0, 0, cvs.width, cvs.height);
     camera(dt || 0.016);

@@ -200,6 +200,12 @@
       burst({ type: "bandpass", f: 900, q: 0.7, g: 0.04 * Math.max(0.4, P.g), dur: 0.5, a: 0.02, at: 0.08, pan: P.p });
       tone(95, { type: "triangle", slide: 80, g: 0.03, dur: 0.35, a: 0.05, pan: P.p });
     },
+    /* the wind chime on the porch: five tubes, a little out of tune with each other */
+    chime: function (x, y) {
+      var P = place(x, y, 260), g = x == null ? 1 : Math.max(0.15, P.g), notes = [1318.5, 1567.98, 1760, 2093, 2349.3];
+      for (var i = 0; i < 3 + (Math.random() * 3 | 0); i++) { var f = notes[(Math.random() * 5) | 0] * (1 + (Math.random() - 0.5) * 0.004); tone(f, { g: 0.018 * g, dur: 2.2, a: 0.003, at: i * (0.12 + Math.random() * 0.2), verb: 1, pan: P.p }); tone(f * 2.76, { g: 0.004 * g, dur: 0.9, a: 0.003, at: i * 0.15, pan: P.p }); }
+    },
+    creak: function () { tone(210, { type: "triangle", slide: 170, g: 0.018, dur: 0.5, a: 0.12 }); tone(214, { type: "sawtooth", slide: 176, g: 0.006, dur: 0.5, a: 0.15 }); setTimeout(function () { tone(180, { type: "triangle", slide: 215, g: 0.014, dur: 0.45, a: 0.1 }); }, 900); },
     hop: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; for (var i = 0; i < 3; i++) burst({ f: 5200 + Math.random() * 1500, q: 9, g: 0.025 * P.g, dur: 0.015, at: i * 0.025, pan: P.p }); },
     dfly: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; tone(118 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 0.35, a: 0.03, pan: P.p, slide: 150 }); burst({ f: 240, q: 4, g: 0.02 * P.g, dur: 0.3, a: 0.03, pan: P.p }); },
     lights: function () { tone(120, { type: "square", g: 0.03, dur: 0.05 }); burst({ f: 6000, type: "highpass", g: 0.05, dur: 0.6, a: 0.05 }); cap("[the work lights snap on]"); }
@@ -304,6 +310,14 @@
         n.connect(f); f.connect(g); g.connect(sfxBus); n.start(); o.start(); lfo.start();
         L = loops.pump = { g: g, stop: function () { n.stop(); o.stop(); lfo.stop(); } };
         cap("[the pump roars]");
+      } else if (name === "car") {
+        /* an old wagon in second gear, gravel under the tires */
+        var cn = noiseSrc(brownBuf), cf = filt("lowpass", 260, 0.8), cg = gain(0), co = ctx.createOscillator(); co.type = "sawtooth"; co.frequency.value = 46;
+        var cog = gain(0.05), clp = filt("lowpass", 300, 1); co.connect(clp); clp.connect(cog); cog.connect(cg);
+        var clfo = ctx.createOscillator(); clfo.frequency.value = 5.5; var clg = gain(6); clfo.connect(clg); clg.connect(co.frequency);
+        cn.connect(cf); cf.connect(cg); cg.connect(sfxBus); cn.start(); co.start(); clfo.start();
+        var grit = setInterval(function () { if (!ctx || !loops.car) return; var lv = loops.car.lv || 0; if (Math.random() < lv) burst({ f: 2400 + Math.random() * 2000, q: 2, g: 0.02 * lv, dur: 0.03 }); }, 45);
+        L = loops.car = { g: cg, lv: 0, stop: function () { clearInterval(grit); cn.stop(); co.stop(); clfo.stop(); } };
       } else if (name === "heart") {
         var hg = gain(0); hg.connect(sfxBus);
         var iv = setInterval(function () { if (!ctx) return; var tt = ctx.currentTime; [0, 0.22].forEach(function (d, i) { var o2 = ctx.createOscillator(); o2.frequency.value = 52; var g2 = gain(0); o2.connect(g2); g2.connect(hg); env(g2, tt + d, 0.01, i ? 0.25 : 0.35, 0.16); o2.start(tt + d); o2.stop(tt + d + 0.3); }); }, 1000);
@@ -311,7 +325,7 @@
       }
     }
     if (!L) return;
-    if (on) L.g.gain.setTargetAtTime(level == null ? 0.5 : level, t, 0.3);
+    if (on) { L.g.gain.setTargetAtTime(level == null ? 0.5 : level, t, 0.3); L.lv = level == null ? 0.5 : level; }
     else { L.g.gain.setTargetAtTime(0, t, 0.4); var LL = L; delete loops[name]; setTimeout(function () { LL.stop(); }, 1600); }
   };
 

@@ -69,7 +69,8 @@
     else if (t === "night") a = 0.05;
     if (y > 52) a += night() || t === "dawn" ? 0.08 : 0.06;
     if (G.inRect(x, y, h.hollow, 4) || G.inRect(x, y, h.pond, 4)) a += night() ? 0.05 : 0.09;
-    return Math.min(0.3, a);
+    if (G.cineMist) a += G.cineMist;
+    return Math.min(0.42, a);
   }
   function drawMist(ctx, cam, VW, VH) {
     var a = mistAmount(); if (a < 0.01) return;
@@ -164,7 +165,7 @@
   X.air = function (ctx, cam, VW, VH, dark) {
     drawDrift(ctx, cam);
     drawMist(ctx, cam, VW, VH);
-    if (G.mapId === "hill" && golden() && !reduced()) {
+    if (G.mapId === "hill" && (golden() || G.cineRays) && !reduced()) {
       /* long golden shafts across the field */
       var t = G.time();
       ctx.save(); ctx.globalCompositeOperation = "lighter";
