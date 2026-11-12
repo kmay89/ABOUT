@@ -309,6 +309,7 @@
     if (G.s.tod === "night" || G.s.tod === "dusk") G.creatures = G.creatures.filter(function (c) { return c.kind !== "bee" && c.kind !== "butterfly"; });
     A.drips = [[10 * T, 3 * T], [18 * T, 12 * T], [4 * T, 9 * T], [15 * T, 6 * T]];
     A.spring = { x: 14 * T, y: 62 * T };
+    var hp = G.maps.hill.pond; A.pond = { x: hp.x * T, y: hp.y * T, w: hp.w * T, h: hp.h * T };
     A.radio = { x: 77 * T, y: 40 * T };
     A.nearMo = function () { return G.mapId === "cellar" && !F("pumped") && Math.hypot(G.p.x - 20 * T, G.p.y - 11 * T) < 70; };
   }

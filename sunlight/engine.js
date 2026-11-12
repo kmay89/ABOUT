@@ -29,7 +29,7 @@
     };
   };
   G.s = G.fresh();
-  G.prefs = { text: 45, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
+  G.prefs = { text: 55, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
 
   var SAVE = "borrowed-sunlight-game-v1", PREFS = "borrowed-sunlight-game-prefs";
   G.save = function () {
@@ -54,6 +54,9 @@
   function fit() {
     var W = window.innerWidth, Hh = window.innerHeight;
     SC = Math.max(1.6, Math.min(9, Math.min(W / 300, Hh / 168)));
+    /* a phone held upright: come in close enough that Wren is a person, not
+       a speck; about eleven tiles across */
+    if (Hh > W * 1.15) SC = Math.max(SC, Math.min(9, W / 176));
     VW = W / SC; VH = Hh / SC;
     var q = Math.min(window.devicePixelRatio || 1, 2);
     if (W * Hh * q * q > 2.6e6) q = Math.sqrt(2.6e6 / (W * Hh));
@@ -91,7 +94,7 @@
     var lavImgs = [0, 1, 2, 3].map(function (k) { return BS.paintLavender(k * 13 + 1); });
     for (var y = 0; y < m.h; y++) for (var x = 0; x < m.w; x++) {
       var t = m.get(x, y);
-      if (t === TL.TREE) decor.trees.push({ x: x * T + 8, y: y * T + 14, c: BS.paintCanopy(x * 7 + y * 3, 15) });
+      if (t === TL.TREE) decor.trees.push({ x: x * T + 8, y: y * T + 14, c: BS.paintCanopy(x * 7 + y * 3, 19) });
       if (t === TL.LAVENDER) decor.lav.push({ x: x * T + 8, y: y * T + 14, c: lavImgs[(x + y) % 4], ph: BS.hash(x, y, 2) * 6 });
       if (t === TL.LONG && BS.hash(x, y, 77) < 0.4) for (var k = 0; k < 2; k++) decor.tufts.push({ x: x * T + 3 + BS.hash(x, y, k) * 10, y: y * T + 4 + BS.hash(y, x, k) * 10, c: tuftImgs[(x * 3 + y + k) % 4], ph: BS.hash(x, y, k + 9) * 6 });
       if (t === TL.FIELD && BS.hash(x, y, 79) < 0.22) decor.tufts.push({ x: x * T + 3 + BS.hash(x, y, 5) * 10, y: y * T + 4 + BS.hash(y, x, 5) * 10, c: tuftImgs[(x + y * 3) % 4], ph: BS.hash(x, y, 6) * 6 });
@@ -666,7 +669,7 @@
       if (p.moving && Math.floor((p.walk - moved) / 14) !== Math.floor(p.walk / 14)) {
         var t = G.map.get(Math.floor(p.x / T), Math.floor(p.y / T));
         var surf = BS.SURFACE(t);
-        A.sfx("step", surf);
+        A.sfx("step", G.map.outdoor && (t === TL.LONG || t === TL.FIELD && Math.random() < 0.5) ? "long" : surf);
         if (surf === "sand" || surf === "gravel" || surf === "leaves" || (surf === "grass" && G.map.outdoor)) G.puff(p.x + (Math.random() - 0.5) * 4, p.y, surf);
         if (G.mapId === "house" && Math.floor(p.x / T) === G.map.groan.x && Math.floor(p.y / T) === G.map.groan.y) A.sfx("groan");
       }
@@ -728,6 +731,11 @@
       if (!BS.SOLID[G.map.get(ex.x, ex.y)]) return;
       var sx = ex.x * T + 8, sy = ex.y * T + 12, d = Math.hypot(sx - fx, sy - fy);
       if (d < 18 && d < bd) { bd = d; best = { label: ex.label, act: function () { useExit(ex); } }; }
+    });
+    /* nothing else to do here? a tree is always worth a shake */
+    if (!best && G.mapId === "hill" && decor.trees) decor.trees.forEach(function (t) {
+      var d = Math.hypot(t.x - fx, t.y - 4 - fy);
+      if (d < 20 && d < bd) { bd = d; best = { label: "Shake the tree", act: function () { shakeTree(t); } }; }
     });
     return best;
   }
@@ -813,8 +821,11 @@
         if (!visible(t.x, t.y, 50)) return;
         list.push({ y: t.y, d: function () {
           var sx = t.x - cam.x, sy = t.y - cam.y;
-          ctx.fillStyle = BS.lg(ctx, sx - 3, 0, sx + 3, 0, [[0, "#8a6a48"], [1, "#4a3420"]]); BS.rr(ctx, sx - 2.6, sy - 16, 5.2, 17, 2); ctx.fill();
-          ctx.save(); ctx.translate(t.x - cam.x, t.y - 14 - cam.y); if (!G.prefs.reduced) ctx.rotate(Math.sin(time * 0.8 + t.x) * 0.01 + (G.gust ? G.gust(t.x, t.y) : 0) * 0.04);
+          /* a trunk with a flared foot, bark lines and a lit side */
+          ctx.fillStyle = BS.lg(ctx, sx - 3.5, 0, sx + 3.5, 0, [[0, "#9a7a54"], [0.45, "#6a4c30"], [1, "#3a2818"]]);
+          ctx.beginPath(); ctx.moveTo(sx - 2.6, sy - 18); ctx.lineTo(sx + 2.6, sy - 18); ctx.quadraticCurveTo(sx + 2.8, sy - 3, sx + 5, sy + 1); ctx.lineTo(sx - 5, sy + 1); ctx.quadraticCurveTo(sx - 2.8, sy - 3, sx - 2.6, sy - 18); ctx.fill();
+          ctx.strokeStyle = "rgba(40,26,14,.45)"; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(sx - 0.8, sy - 16); ctx.lineTo(sx - 1.1, sy - 4); ctx.moveTo(sx + 1, sy - 14); ctx.lineTo(sx + 0.7, sy - 2); ctx.stroke();
+          ctx.save(); ctx.translate(t.x - cam.x, t.y - 14 - cam.y); if (!G.prefs.reduced) { t.shake = Math.max(0, (t.shake || 0) - 0.016 * 1.4); ctx.rotate(Math.sin(time * 0.8 + t.x) * 0.01 + (G.gust ? G.gust(t.x, t.y) : 0) * 0.04 + Math.sin(time * 34) * t.shake * t.shake * 0.07); }
           ctx.drawImage(t.c, -t.c.w / 2, -t.c.h + 10, t.c.w, t.c.h); ctx.restore();
         } });
       });
@@ -834,10 +845,28 @@
     return list;
   }
   /* things lean away when you walk through them */
-  function bend(o) {
+  /* shake a tree: it shivers, leaves come down, and now and then whoever
+     was sitting up there leaves in a hurry */
+  function shakeTree(t) {
+    t.shake = 1; t.shakes = (t.shakes || 0) + 1;
+    A.sfx("shake", t.x, t.y - 20);
+    if (BS.atmos && BS.atmos.leafFall) BS.atmos.leafFall(t.x, t.y, 6 + (Math.random() * 6 | 0));
+    if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(18);
+    if (BS.juice && BS.juice.birdOut && (t.shakes === 1 || Math.random() < 0.3) && G.s.tod !== "night" && G.s.tod !== "dusk") setTimeout(function () { BS.juice.birdOut(t.x, t.y - 26); }, 180);
+  }
+  function bendTo(o) {
     var dx = o.x - G.p.x, dy = o.y - G.p.y;
     if (Math.abs(dy) > 8 || Math.abs(dx) > 10) return 0;
     return (dx > 0 ? 1 : -1) * (1 - Math.abs(dx) / 10) * 0.45;
+  }
+  /* grass is springy: it parts as you push through, then wobbles back */
+  function bend(o) {
+    var to = bendTo(o), dtf = Math.min(0.05, Math.max(0, time - (o.lt || time))); o.lt = time;
+    if (to && !o.was && G.p.moving && Math.random() < 0.35) A.sfx("rustle", o.x, o.y);
+    o.was = !!to;
+    o.bv = (o.bv || 0) + ((to - (o.ba || 0)) * 160 - (o.bv || 0) * 9) * dtf;
+    o.ba = (o.ba || 0) + o.bv * dtf;
+    return o.ba;
   }
   function lean(c, x, y, a, flash) {
     ctx.save(); ctx.translate(x - cam.x, y - cam.y); ctx.transform(1, 0, -a, 1, 0, 0);

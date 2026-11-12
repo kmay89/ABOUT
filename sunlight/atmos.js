@@ -88,6 +88,14 @@
 
   /* ---------------- drifting things: seeds, petals, leaves ---------------- */
   var drift = [];
+  /* a shaken tree lets go of a handful of leaves */
+  X.leafFall = function (x, y, n) {
+    if (reduced()) return;
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * 6.283, r = Math.random() * 14;
+      drift.push({ leaf: true, x: x + Math.cos(a) * r, y: y + Math.sin(a) * r * 0.5, z: 14 + Math.random() * 16, vx: (Math.random() - 0.5) * 10, vy: 7 + Math.random() * 5, t: 0, life: 6 + Math.random() * 3, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 6, ph: Math.random() * 6, col: ["#6f9a3a", "#8ab44a", "#5a8030", "#c9a040"][(Math.random() * 4) | 0] });
+    }
+  };
   function driftTick(dt, cam, VW, VH) {
     if (reduced() || G.mapId !== "hill") { drift.length = 0; return; }
     var inWoods = G.p.y / T > 51.5, want = inWoods ? (night() ? 6 : 16) : (night() ? 0 : 12);
@@ -240,5 +248,11 @@
     if (s !== gStr) { gStr = s; stage.style.filter = s; }
   }
 
-  X.update = function (dt, cam, VW, VH) { driftTick(dt, cam, VW, VH); gradeTick(dt); };
+  var breezeT = 0;
+  X.update = function (dt, cam, VW, VH) {
+    driftTick(dt, cam, VW, VH); gradeTick(dt);
+    /* let the ear follow the eye: the gust at your feet is the gust you hear */
+    breezeT += dt;
+    if (breezeT > 0.12) { breezeT = 0; if (BS.audio && BS.audio.breeze) BS.audio.breeze(G.map && G.map.outdoor ? G.gust(G.p.x, G.p.y) : 0); }
+  };
 })();
