@@ -648,7 +648,7 @@ function init() {
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
   document.querySelectorAll('[data-guide]').forEach(el => el.addEventListener('click', () => openGuide(el.dataset.guide)));
   // offline
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => { reg.update().catch(() => {}); document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); }); }).catch(() => {});
   // start with a sample so the page is never empty
   setType('two-part');
   setSource('River pebble.stl', SAMPLES.pebble.make());

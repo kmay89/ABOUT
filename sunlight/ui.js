@@ -170,6 +170,7 @@
   applyPrefs();
   $("m-save").addEventListener("click", function () { G.save(); ui.closeAll(); });
   $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; });
+  $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
     if (!confirm("Start again from Monday noon? Your saved game on this device will be replaced.")) return;
     G.wipe(); location.reload();
@@ -341,8 +342,56 @@
   document.addEventListener("visibilitychange", function () { A.suspend(document.hidden); if (document.hidden && G.mode !== "title") G.save(); });
   window.addEventListener("pagehide", function () { if (G.mode !== "title") G.save(); });
 
-  /* service worker: offline, installable */
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function () { });
+  /* ---------------- staying fresh ----------------
+     The worker fetches network-first, so a new release is what the next
+     visit gets. This is for the visit that's already open: a phone that
+     kept the game in the background for three days. It asks for a new
+     worker when the game opens, whenever you come back to it, and every
+     twenty minutes. When one takes over, the page is out of date:
+       · on the title screen it simply reloads, quietly;
+       · in the middle of play it saves, and a small card offers Refresh
+         (you land back where you were, through Continue);
+       · and if you leave it be, it updates itself the next time you are
+         back on the title screen or away from the tab for a while. */
+  var stale = false, upd = null, hadCtl = false, swReg = null, hiddenAt = 0;
+  function refreshNow() { try { if (G.mode !== "title" && G.s) G.save(); } catch (e) { } location.reload(); }
+  function safeToReload() { return G.mode === "title" && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function announce() {
+    if (stale) return; stale = true;
+    if (safeToReload()) { refreshNow(); return; }
+    try { if (G.s) G.save(); } catch (e) { }
+    upd = document.createElement("div"); upd.className = "updcard"; upd.setAttribute("role", "status");
+    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button">Refresh</button><button type="button" class="x" aria-label="Later">×</button>';
+    upd.querySelector("button").addEventListener("click", refreshNow);
+    upd.querySelector(".x").addEventListener("click", function () { upd.classList.remove("on"); });
+    document.body.appendChild(upd);
+    requestAnimationFrame(function () { upd.classList.add("on"); });
+  }
+  ui.checkUpdate = function (manual) {
+    if (!swReg) { if (manual) location.reload(); return; }
+    var b = $("m-ver"); if (manual && b) b.textContent = "Checking…";
+    swReg.update().then(function () {
+      setTimeout(function () { if (manual && !stale && b) { b.textContent = "Up to date · " + (ui.version || ""); } }, 1500);
+    }).catch(function () { if (manual && b) b.textContent = "Offline · " + (ui.version || ""); });
+  };
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    hadCtl = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (hadCtl) announce(); hadCtl = true; ask(); });
+    navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.sunlightVersion) { ui.version = e.data.sunlightVersion.replace("sunlight-", ""); var b = $("m-ver"); if (b && !/Checking/.test(b.textContent)) b.textContent = "Version " + ui.version + " · Check for updates"; } });
+    function ask() { var c = navigator.serviceWorker.controller; if (c) c.postMessage("version"); }
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
+      swReg = reg; ask();
+      reg.update().catch(function () { });
+      setInterval(function () { reg.update().catch(function () { }); }, 20 * 60 * 1000);
+    }).catch(function () { });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (swReg) swReg.update().catch(function () { });
+      /* back after a long while with an update waiting: take it now */
+      if (stale && (safeToReload() || Date.now() - hiddenAt > 10 * 60 * 1000)) refreshNow();
+    });
+    setInterval(function () { if (stale && safeToReload()) refreshNow(); }, 2000);
+  }
 
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {

@@ -442,3 +442,27 @@ read beneath the dead phone before it drops out of frame. A tap hurries it;
 reduced motion and the test harness's `skipWaits` jump straight to the end.
 The old two-toast version is still there as a fallback if `BS.phone` is
 missing.
+
+## Staying fresh (sw.js + ui.js)
+
+A new release must be what players see, not what they see the second time
+they reload.
+
+- **The worker is network-first.** Every request revalidates with the
+  server (`cache: "no-cache"`), and the cache is only the offline copy,
+  refreshed on each successful fetch. With no network the cache answers at
+  once; after 3.5 s on a slow link it answers instead of a spinner.
+- **The open page notices when it's out of date.** It is registered with
+  `updateViaCache: "none"` and asks for a new worker when the game opens,
+  whenever the tab comes back into view, and every 20 minutes. When a new
+  worker takes control (`controllerchange`, and only if there was an old one
+  first):
+  - on the title screen the page reloads quietly;
+  - mid-game it saves and shows a card, "A fresh version of the hill is
+    ready · Refresh". Refresh reloads to Continue at the same spot;
+  - left alone, it updates itself the next time you're on the title
+    screen, or when you come back after more than ten minutes away.
+- **Menu → Version … · Check for updates** shows the running release (the
+  worker reports its `VERSION`) and checks on demand.
+- Still bump `VERSION` on every release, so the offline copy is refetched
+  whole and open pages hear about it.
