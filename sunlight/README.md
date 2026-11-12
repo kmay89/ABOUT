@@ -293,3 +293,16 @@ A new game opens with the drive up the hill, rendered live in the engine, about 
 - The captions are the novel's own first sentences: the forgotten hill, then Gran not dying, then the herbs. Chapter One then continues with the signal. Any line the opening already showed is not repeated, but it is still added to the Story tab. If you skip early, the missed lines play as normal narration, so the canon order holds.
 - Gran's porch (deck and steps, swing, rocker, jar crate, wind chime, herb pots, watering can, bird feeder) stays in the world for the rest of the game.
 - The engine gained a camera zoom (`G.zoom`) for this, and the prologue drives it.
+
+## Things that want doing (polish pass 5)
+
+Nothing in the game tells you to do these. They are just there, the way they are on Gran's hill:
+
+- **Gran's herbs:** her watering can sits by the tap, empty. Fill it at the tap, then water the limp basil and thyme on the porch. They stand up green and flower, and there's a slip of paper under the second pot in her hand.
+- **The feeder:** a coffee can marked BIRDS sits in the shed. Fill her empty feeder and a flock of sparrows moves in and stays.
+- **The swing:** you can sit on it. Stay still and the world comes to you.
+- **The crate of jars:** this summer's peaches, a keepsake with the science of canning (heat, then the vacuum seal that makes the *pop*).
+- **The power, cut for the sale:** the light switch clicks and nothing happens. An outlet shows four percent and nowhere to plug in. The fridge stands silent. In the cellar the bulb's string clicks too, and the phone dies right then: that's why it is dark. An eye in the HUD opens as your eyes adapt, and opens faster while you stand still.
+- **Music for moments:** key items get a fanfare (a rising shimmer, a climbing figure on strings over soft brass, and a ringing chord). Small secrets get their own bright jingle.
+- **Help that doesn't nag:** if a while passes with nothing new, gold rings pulse out from the next goal with a soft chime. The shed parts (bungee on its peg, wire coil, tape on the bench) are drawn and glint, and the objective says where they are.
+- **Fixes:** the lens closes with a tap anywhere or with a Look up button on touch screens, so phones can't get stuck. The 3D inspect models no longer render inside-out: every triangle's normal now faces outward from its shape, and big faces are tessellated so they sort correctly. The book and the scooter were rebuilt with much more character.

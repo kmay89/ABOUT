@@ -127,6 +127,15 @@
     if (o.verb !== false) g.connect(A.reverb.node);
     s.start(t);
   }
+  /* soft brass: two detuned saws through a closing filter */
+  function brass(f, at, dur, g) {
+    if (!ctx) return;
+    var t = ctx.currentTime + (at || 0), lp = filt("lowpass", 600, 0.7), gg = gain(0);
+    lp.frequency.setValueAtTime(500, t); lp.frequency.linearRampToValueAtTime(2400, t + 0.06); lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    [-4, 4].forEach(function (c) { var o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f; o.detune.value = c; o.connect(lp); o.start(t); o.stop(t + dur + 0.2); });
+    lp.connect(gg); gg.connect(musBus); gg.connect(A.reverb.node);
+    env(gg, t, 0.03, g, dur);
+  }
   A.pluck = pluck; A.tone = tone; A.burst = burst;
 
   var cap = function (t) { if (A.captions) A.captions(t); };
@@ -182,10 +191,25 @@
     },
     cynic: function () { tone(110, { type: "sawtooth", g: 0.012, dur: 0.6, a: 0.2 }); tone(116.5, { type: "sawtooth", g: 0.012, dur: 0.6, a: 0.2 }); },
     /* the discovery: an item becomes yours */
+    /* the discovery: a held breath (a shimmer rising), then a bright climbing
+       figure on plucked strings over soft brass, and a chord that rings —
+       the "it's yours" moment. Our own little tune. */
     found: function () {
-      var seq = [[587.33, 0], [739.99, 0.14], [880, 0.28], [1174.66, 0.46]];
-      seq.forEach(function (n) { pluck(n[0], { at: n[1], g: 0.16, dur: 2, bright: 0.6 }); tone(n[0], { at: n[1], g: 0.03, dur: 1.2, verb: 1, bus: musBus }); });
-      tone(587.33 / 2, { at: 0.46, g: 0.05, dur: 2.2, a: 0.3, verb: 1, bus: musBus });
+      if (!ctx) return;
+      for (var r = 0; r < 10; r++) tone(1760 + r * 120, { g: 0.004 + r * 0.0012, dur: 0.12, at: r * 0.035, verb: 1 });
+      burst({ f: 5000, type: "highpass", g: 0.025, dur: 0.5, a: 0.35, verb: 1 });
+      var seq = [[440, 0.38], [587.33, 0.5], [739.99, 0.62], [880, 0.74], [1174.66, 0.92]];
+      seq.forEach(function (n, i) { pluck(n[0], { at: n[1], g: 0.15, dur: 2.2, bright: 0.62 }); brass(n[0], n[1], i === seq.length - 1 ? 1.9 : 0.18, i === seq.length - 1 ? 0.035 : 0.022); });
+      [587.33, 739.99, 880].forEach(function (f) { brass(f, 0.92, 1.9, 0.02); });
+      tone(146.83, { at: 0.92, g: 0.08, dur: 2.2, a: 0.02, verb: 1, bus: musBus });
+      tone(73.4, { at: 0.92, g: 0.06, dur: 0.5, a: 0.005, bus: musBus });
+      for (var k = 0; k < 6; k++) tone([2349.3, 2793.8, 3520][k % 3], { at: 1.0 + k * 0.09, g: 0.01, dur: 0.6, verb: 1 });
+    },
+    /* a small secret, found or done: quick, bright, pleased with itself */
+    secret: function () {
+      var seq = [1318.5, 1567.98, 1975.5, 2349.3, 2637];
+      seq.forEach(function (f, i) { pluck(f, { at: i * 0.075, g: 0.09, dur: 1.2, bright: 0.7 }); tone(f, { at: i * 0.075, g: 0.008, dur: 0.6, verb: 1 }); });
+      [659.25, 987.77, 1318.5].forEach(function (f) { tone(f, { at: 0.42, g: 0.016, dur: 1.4, a: 0.05, verb: 1, bus: musBus, type: "triangle" }); });
     },
     seen: function () { pluck(1174.66, { g: 0.08, dur: 1.2 }); pluck(1479.98, { g: 0.07, dur: 1.2, at: 0.1 }); },
     chapter: function () { [293.66, 440, 587.33, 739.99].forEach(function (f, i) { pluck(f, { at: i * 0.35, g: 0.12, dur: 3 }); }); },
@@ -205,6 +229,9 @@
       var P = place(x, y, 260), g = x == null ? 1 : Math.max(0.15, P.g), notes = [1318.5, 1567.98, 1760, 2093, 2349.3];
       for (var i = 0; i < 3 + (Math.random() * 3 | 0); i++) { var f = notes[(Math.random() * 5) | 0] * (1 + (Math.random() - 0.5) * 0.004); tone(f, { g: 0.018 * g, dur: 2.2, a: 0.003, at: i * (0.12 + Math.random() * 0.2), verb: 1, pan: P.p }); tone(f * 2.76, { g: 0.004 * g, dur: 0.9, a: 0.003, at: i * 0.15, pan: P.p }); }
     },
+    click: function () { tone(2200, { type: "square", g: 0.012, dur: 0.012 }); burst({ f: 3200, q: 3, g: 0.05, dur: 0.025 }); tone(140, { g: 0.03, dur: 0.04, at: 0.01 }); },
+    /* the phone's last breath: three falling blips and a soft click off */
+    phonedie: function () { [880, 660, 440].forEach(function (f, i) { tone(f, { type: "square", g: 0.012, dur: 0.09, at: i * 0.16 }); }); tone(220, { slide: 90, g: 0.02, dur: 0.4, at: 0.5 }); cap("[the phone dies]"); },
     creak: function () { tone(210, { type: "triangle", slide: 170, g: 0.018, dur: 0.5, a: 0.12 }); tone(214, { type: "sawtooth", slide: 176, g: 0.006, dur: 0.5, a: 0.15 }); setTimeout(function () { tone(180, { type: "triangle", slide: 215, g: 0.014, dur: 0.45, a: 0.1 }); }, 900); },
     hop: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; for (var i = 0; i < 3; i++) burst({ f: 5200 + Math.random() * 1500, q: 9, g: 0.025 * P.g, dur: 0.015, at: i * 0.025, pan: P.p }); },
     dfly: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; tone(118 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 0.35, a: 0.03, pan: P.p, slide: 150 }); burst({ f: 240, q: 4, g: 0.02 * P.g, dur: 0.3, a: 0.03, pan: P.p }); },

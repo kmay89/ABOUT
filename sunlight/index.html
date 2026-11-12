@@ -33,6 +33,7 @@
     <div id="clock" class="clock" aria-label="The clock"></div>
   </div>
   <div class="hr">
+    <span id="eyem" class="eyem" aria-hidden="true" title="Your eyes, adjusting to the dark"><i></i></span>
     <button id="phonehud" class="phonehud" aria-label="Phone">
       <span id="bars" class="bars" data-bars="0"><i></i><i></i><i></i><i></i></span>
       <span id="svc" class="svc">No Service</span>
@@ -62,7 +63,8 @@
 <div id="lens" class="lens" role="dialog" aria-label="Through the drop of water">
   <div class="lwrap">
     <canvas id="lenscv" width="320" height="320"></canvas>
-    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint">L or E to look up</small></div>
+    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint" id="lhint">L or E to look up</small></div>
+    <button id="lback" class="lback" type="button" aria-label="Look up from the lens">Look up</button>
   </div>
 </div>
 

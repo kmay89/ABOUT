@@ -275,7 +275,12 @@
     else if (inDark) e.adapt = Math.min(1, e.adapt + dt * (G.p.still > 0.5 ? 0.09 : 0.03));
     else e.adapt = Math.max(0, e.adapt - dt * 0.4);
     if (G.phoneGlare > 0) G.phoneGlare -= dt;
+    /* the eye: shown while the dark is doing its slow work, opening as you wait */
+    var show = G.mapId === "cellar" && !G.workLights && G.lamp.level < 0.2 && e.adapt < 0.97 && G.mode === "walk";
+    var el = $("eyem");
+    if (el) { if (show !== G._eyeShow) { G._eyeShow = show; el.classList.toggle("on", show); } if (show) { var o = Math.round(e.adapt * 100); if (o !== G._eyeO) { G._eyeO = o; el.style.setProperty("--o", (0.08 + e.adapt * 0.92).toFixed(2)); el.classList.toggle("still", G.p.still > 0.5); } } }
   }
+  G.flashPhone = function () { var ph = $("phonehud"); if (!ph) return; ph.classList.remove("dying"); void ph.offsetWidth; ph.classList.add("dying"); };
 
   /* ---------------- the HUD ---------------- */
   G.hud = function () {
@@ -580,7 +585,8 @@
     var target = forced || pickLook();
     G.lensState = { look: target.look, scene: target.scene, st: target.st || {}, ctrl: target.ctrl || null, t: 0 };
     lensT = 0;
-    $("lens").classList.add("on");
+    $("lens").classList.add("on"); G.lensOpenedAt = performance.now();
+    $("lhint").textContent = document.body.classList.contains("touch") ? "Tap anywhere to look up" : "L, E or click to look up";
     $("lname").textContent = target.look ? target.look.name : target.label || "Close up";
     $("lnote").hidden = true; $("lnew").hidden = true;
     if (target.look && !G.s.seen[target.look.id]) {
@@ -595,6 +601,8 @@
     A.sfx("plink");
     if (BS.story && BS.story.onLook) BS.story.onLook(target.look ? target.look.id : null, target);
   };
+  /* a tap anywhere looks up again (phones have no L or E) */
+  $("lens").addEventListener("click", function () { if (G.mode === "lens" && G.lensState && !G.lensState.lock && performance.now() - (G.lensOpenedAt || 0) > 400) { A.sfx("back"); G.closeLens(); } });
   G.closeLens = function () {
     $("lens").classList.remove("on"); G.mode = "walk"; var st = G.lensState; G.lensState = null;
     if (G.freshSeen) { G.freshSeen = false; if (BS.ui && BS.ui.flyToBook) BS.ui.flyToBook(); }
@@ -665,6 +673,7 @@
     }
     var mag = Math.hypot(ax, ay);
     if (mag > 1) { ax /= mag; ay /= mag; mag = 1; }
+    if (G.sitting && mag > 0.1) { G.sitting = false; p.y = 15 * T + 22; A.sfx("creak"); }
     if (p.goal) stepGoal(p, dt);
     else if (mag > 0.1) {
       var sp = (G.held("run") || mag > 0.95 && G.input.ax !== 0 ? 1 : 0) ? 92 : 64;
@@ -721,6 +730,9 @@
       else if (G.s.items.phone !== false) { G.phoneGlare = 0.8; G.eyes.adapt *= 0.4; G.toast(G.s.battery > 0 ? "No Service · " + Math.round(G.s.battery) + "%" : "The screen stays black. A flat dead stone."); A.sfx("nosignal"); }
     }
 
+    /* how long since anything moved forward */
+    var pk = (G.s.objective || "") + "|" + Object.keys(G.s.flags).length + "|" + Object.keys(G.s.items).length + "|" + Object.keys(G.s.seen || {}).length;
+    if (pk !== G.stuckKey) { G.stuckKey = pk; G.stuckT = 0; G.stuckSaid = false; } else if (!G.cut) G.stuckT = (G.stuckT || 0) + dt;
     if (BS.story && BS.story.update) BS.story.update(dt);
     animate(dt);
     G.clearTaps();
@@ -909,6 +921,7 @@
   function drawPlayer() {
     var p = G.p;
     if (G.mode === "ride") return drawRider();
+    if (G.sitting) { var sw = BS.cine && BS.cine.swingSway ? BS.cine.swingSway(time) : 0; img(BS.sprite(p.who, 0, 0, blinkOf(1)), p.x - 8 + sw, p.y - 26.5); return; }
     shadowAt(p.x, p.y, 6.5);
     if (G.holdUp) { var hk = Math.min(1, (time - G.holdUp.t0) / 0.5), ease = 1 - Math.pow(1 - hk, 3); img(BS.sprite(p.who, 0, 0), p.x - 8, p.y - 23.4 - ease * 1.5); var ic = G.holdUp.icon; ctx.save(); ctx.translate(p.x - cam.x, p.y - 30 - ease * 8 - cam.y); ctx.drawImage(ic, -9, -9, 18, 18); ctx.restore(); return; }
     var sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1));
@@ -1284,6 +1297,15 @@
     var tg = BS.story && BS.story.target && BS.story.target();
     if (!tg || G.prefs.pointer === false) return;
     var tx = tg[1] * T, ty = tg[2] * T;
+    /* stuck? after a while with nothing new, the goal itself calls out: gold
+       rings pulse from it, a soft chime, and once, a thought */
+    if (tg[0] === G.mapId && G.stuckT > 30) {
+      var rs = tx - cam.x, rsy = ty - cam.y - 4;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (var rk = 0; rk < 3; rk++) { var ph = ((time * 0.6 + rk / 3) % 1); ctx.strokeStyle = "rgba(255,214,120," + (0.55 * (1 - ph)) + ")"; ctx.lineWidth = 0.8; BS.ell(ctx, rs, rsy, 3 + ph * 22, (3 + ph * 22) * 0.55); ctx.stroke(); }
+      ctx.restore();
+      if (time - (G.stuckChime || 0) > 9) { G.stuckChime = time; A.sfx("twinkle"); }
+    }
     if (tg[0] !== G.mapId) { var ex = routeExit(tg[0]); if (!ex) return; tx = ex.x * T + 8; ty = ex.y * T + 8; }
     var sx = tx - cam.x, sy = ty - cam.y, d = Math.hypot(tx - G.p.x, ty - G.p.y);
     if (d < 26) return;

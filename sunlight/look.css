@@ -484,3 +484,18 @@ body.touch .obj{top:calc(160px + var(--safe-t))}
 @media (prefers-reduced-motion:reduce){.cine .lb,.ccap{transition:none}.cbars i{animation:none!important}}
 .cine .lb.bot{height:auto;min-height:13vh;padding:14px 18px calc(14px + var(--safe-b,0px))}
 @media (max-width:600px){.ccap{font-size:.98rem;line-height:1.45}}
+.lback{position:absolute;left:50%;bottom:calc(22px + var(--safe-b));transform:translateX(-50%);font:600 .8rem/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:rgba(20,16,10,.8);border:1px solid rgba(255,209,102,.4);border-radius:999px;padding:.8em 1.6em;cursor:pointer;display:none}
+body.touch .lback{display:block}
+.lens .lwrap{max-height:calc(100vh - 90px);overflow:auto}
+body.touch.playing .lens.on ~ #touch, body:has(.lens.on) #touch{opacity:0;pointer-events:none}
+
+/* the eye: in the black cellar, an eye that opens as your eyes do */
+.eyem{--o:.1;display:inline-block;position:relative;width:42px;height:24px;margin-right:6px;opacity:0;transform:scale(.8);transition:opacity .8s,transform .8s;pointer-events:none;align-self:center}
+.eyem.on{opacity:1;transform:none}
+.eyem::before{content:"";position:absolute;inset:0;border-radius:50%/50%;border:1.5px solid rgba(190,230,170,.75);transform:scaleY(var(--o));transition:transform .4s;box-shadow:0 0 10px rgba(170,240,130,.25)}
+.eyem i{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:radial-gradient(circle,#0c1208 30%,rgba(170,240,130,.85) 34%,rgba(170,240,130,.2) 70%);transform:scale(calc(.4 + var(--o)*.9));opacity:calc(var(--o)*1.2);transition:transform .4s,opacity .4s}
+.eyem.still::before{animation:eyebreath 2.4s ease-in-out infinite}
+@keyframes eyebreath{50%{box-shadow:0 0 16px rgba(170,240,130,.5)}}
+/* the phone, dying */
+.phonehud.dying{animation:phdie 1.3s ease}
+@keyframes phdie{0%,30%,60%{filter:none}15%,45%{filter:brightness(2.2) saturate(.2)}100%{filter:none}}
