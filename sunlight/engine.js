@@ -1500,6 +1500,7 @@
       if (BS.life) { BS.life.hook(); BS.life.update(dt); }
       if (BS.guide) BS.guide.update(dt);
       if (BS.toys) BS.toys.update(dt);
+      if (BS.stage) BS.stage.update(dt);
       if (BS.cellar) BS.cellar.update(dt);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);

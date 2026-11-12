@@ -217,6 +217,7 @@
       G.go(saved.map, saved.x / T, saved.y / T, saved.dir, { instant: true });
       S.resume();
       G.flash(saved.day);
+      if (BS.stage) BS.stage.recap(saved);
     } else {
       G.s = G.fresh();
       G.mode = "walk";

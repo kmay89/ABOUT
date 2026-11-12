@@ -401,3 +401,23 @@ toy is nearest.
   the field and fades over half a minute.
 - Four new Moments: *Five Wishes*, *Kerplunk*, *Five Skips*, *Light in Your
   Hands*. Reduced motion turns all of it off.
+
+## Direction (stage.js)
+
+Where the camera stands while the story is told.
+
+- **Two people talking:** when a scene starts and someone else speaks (Dad,
+  Beck, the foreman), the camera frames the two of you, sitting high enough
+  to clear the dialogue box, and eases in a little (1.16×, 1.12× on phones).
+  Thin letterbox bars come in and the HUD dims. Wren and the speaker turn to
+  face each other once, unless the speaker is scripted to move. When the
+  scene ends, the frame glides back to the player and lets go.
+- **Mo:** a slower, closer drift and the same bars, with nobody else in the
+  frame.
+- **Previously:** continue a save more than four minutes old and, before
+  play starts, a card reads back the last two story lines in the novel's own
+  words (the same short forms as on screen), the chapter, and where you were
+  going. E, Enter or a tap dismisses it. Each save is stamped `savedAt`.
+- The engine owns nothing new: this module borrows `G.camFocus` and `G.zoom`
+  only during walk-mode scenes, and never during the opening or the title.
+  Reduced motion skips the reframing, the zoom and the bars.
