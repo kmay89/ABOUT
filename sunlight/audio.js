@@ -223,6 +223,7 @@
     seen: function () { pluck(1174.66, { g: 0.08, dur: 1.2 }); pluck(1479.98, { g: 0.07, dur: 1.2, at: 0.1 }); },
     chapter: function () { [293.66, 440, 587.33, 739.99].forEach(function (f, i) { pluck(f, { at: i * 0.35, g: 0.12, dur: 3 }); }); },
     signal: function () { tone(1046, { type: "sine", g: 0.04, dur: 0.12 }); tone(1568, { g: 0.04, dur: 0.2, at: 0.12 }); },
+    thud: function () { tone(70, { slide: 46, g: 0.12, dur: 0.6, a: 0.01 }); burst({ type: "lowpass", f: 300, g: 0.06, dur: 0.5, a: 0.01 }); },
     nosignal: function () { tone(523, { type: "triangle", slide: 392, g: 0.04, dur: 0.4 }); },
     ring: function () { for (var i = 0; i < 2; i++) { tone(440, { g: 0.04, dur: 0.4, at: i * 0.5 }); tone(480, { g: 0.04, dur: 0.4, at: i * 0.5 }); } cap("[ringing]"); },
     truck: function () { burst({ buf: brownBuf, type: "lowpass", f: 200, g: 0.5, dur: 3, a: 0.8 }); tone(48, { type: "sawtooth", g: 0.06, dur: 3, a: 0.8 }); cap("[the diesel grind of something big, pulling up the lane]"); },

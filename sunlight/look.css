@@ -589,3 +589,61 @@ body.touch .lbox i{height:4.5vh}
 body.playing.framed #hud,body.framed .goalcard,body.framed .clock{opacity:.22;transition:opacity .6s}
 .rcch{display:block;font:italic .95rem/1.3 var(--serif);color:var(--soft);margin:-.4em 0 1.2em}
 .rcch:empty{display:none}
+
+/* ---------------- the last bar: the phone, full screen ---------------- */
+.phx{position:fixed;inset:0;z-index:56;display:flex;align-items:flex-start;justify-content:center;padding-top:calc(3vh + var(--safe-t));background:radial-gradient(ellipse at 50% 40%,rgba(30,24,16,.55),rgba(5,4,3,.92) 75%);opacity:0;pointer-events:none;transition:opacity .7s}
+.phx.on{opacity:1;pointer-events:auto;cursor:pointer}
+.phx.down{opacity:0;transition:opacity .8s .15s}
+.phd{width:min(330px,82vw);height:min(66vh,620px);border-radius:42px;padding:11px;background:linear-gradient(145deg,#3a3a40,#121216 40%,#1d1d22);box-shadow:0 0 0 1.5px #55555c inset,0 30px 80px rgba(0,0,0,.7),0 0 60px rgba(255,200,120,.08);transform:translateY(40vh) rotate(-4deg);transition:transform 1.1s cubic-bezier(.2,.9,.25,1)}
+.phx.on .phd{transform:none}
+.phx.down .phd{transform:translateY(60vh) rotate(3deg);transition:transform .9s cubic-bezier(.6,0,.8,.4)}
+.phscr{position:relative;height:100%;border-radius:32px;overflow:hidden;background:linear-gradient(#f6f2ea,#ebe5da);display:flex;flex-direction:column;font-family:var(--sans);color:#1b1a18;transition:filter 1.6s ease}
+.phs{display:flex;justify-content:space-between;align-items:center;padding:13px 20px 7px;font:600 .9rem/1 var(--sans)}
+.phr{display:inline-flex;align-items:center;gap:6px}
+.phsig{display:inline-flex;align-items:flex-end;gap:2.5px;height:15px;padding:3px 5px;margin:-3px -5px;border-radius:7px;transition:box-shadow .4s,background .4s}
+.phsig i{width:4px;border-radius:1px;background:rgba(0,0,0,.18);transition:background .25s}
+.phsig i:nth-child(1){height:5px}.phsig i:nth-child(2){height:8px}.phsig i:nth-child(3){height:11px}.phsig i:nth-child(4){height:15px}
+.phsig[data-n="1"] i:nth-child(1),.phsig[data-n="2"] i:nth-child(-n+2){background:#1b1a18}
+.phsig.seek i{animation:phseek 1s ease-in-out infinite}
+.phsig.seek i:nth-child(2){animation-delay:.15s}.phsig.seek i:nth-child(3){animation-delay:.3s}.phsig.seek i:nth-child(4){animation-delay:.45s}
+@keyframes phseek{50%{background:rgba(0,0,0,.45)}}
+.phsig.tremble{animation:phtrem .18s steps(2) infinite;background:rgba(255,190,90,.25);box-shadow:0 0 0 2px rgba(255,170,60,.35)}
+.phsig.got{background:rgba(120,200,120,.25);box-shadow:0 0 14px rgba(120,220,120,.6)}
+@keyframes phtrem{50%{transform:translateY(.5px);opacity:.55}}
+.phnet{font:600 .72rem/1 var(--sans);color:#6a655c}
+.phbat{width:22px;height:10px;border:1.5px solid #6a655c;border-radius:3px;padding:1px;position:relative}
+.phbat::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:4px;background:#6a655c;border-radius:0 1px 1px 0}
+.phbat b{display:block;height:100%;background:#e0453a;border-radius:1px}
+.phh{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 12px 10px;border-bottom:1px solid rgba(0,0,0,.08);font:600 .78rem/1.2 var(--sans)}
+.phav{display:inline-flex}
+.phav i{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font:700 .72rem/1 var(--sans);font-style:normal;margin-left:-7px;border:2px solid #f3efe7}
+.phav i:first-child{margin-left:0}
+.phm{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:5px;padding:10px 12px;justify-content:flex-end}
+.phm>*{opacity:0;transform:translateY(10px) scale(.96);transition:opacity .25s,transform .35s cubic-bezier(.2,.9,.3,1.3)}
+.phm>.in{opacity:1;transform:none}
+.phday{align-self:center;font:600 .62rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#958e82;margin:4px 0}
+.phb{align-self:flex-start;max-width:82%;padding:7px 11px 8px;border-radius:16px 16px 16px 4px;background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.06);font:.86rem/1.3 var(--sans)}
+.phb small{display:block;font:600 .64rem/1.2 var(--sans);margin-bottom:2px}
+.phb.p small{color:#c0603e}.phb.t small{color:#3e6ec0}
+.phb em{color:#7a746a}
+.phreact{align-self:flex-start;margin:-9px 0 0 14px;font:.7rem/1 var(--sans);background:#fff;border-radius:999px;padding:3px 7px;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.phmore{align-self:center;font:600 .66rem/1 var(--sans);color:#fff;background:rgba(0,0,0,.35);border-radius:999px;padding:4px 9px}
+.phsend{position:relative;display:flex;align-items:center;gap:8px;margin:6px 10px 14px;padding:8px 8px 8px 14px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.1);font:.84rem/1 var(--sans);color:#a39d92}
+.phsend span{flex:1}
+.phsend i{width:24px;height:24px;border-radius:50%;background:#c8c2b8;color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 .8rem/1 var(--sans);font-style:normal}
+.phsend.typing{color:#1b1a18}.phsend.typing i{background:#3e6ec0}
+.phsend.failed i{background:#e0453a}
+.phsend.failed::after{content:"Not Delivered";position:absolute;right:22px;bottom:4px;font:600 .58rem/1 var(--sans);color:#e0453a}
+.phns{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.4s ease .6s;pointer-events:none;background:rgba(235,230,222,.0)}
+.phns b{font:500 1.5rem/1 var(--sans);color:#8d877c;letter-spacing:.02em;background:rgba(240,236,228,.86);padding:.5em .9em;border-radius:14px;box-shadow:0 0 30px rgba(240,236,228,.9)}
+.phcloud{position:absolute;inset:-20%;background:radial-gradient(ellipse at 30% 50%,rgba(40,40,50,.35),transparent 60%);transform:translateX(-120%);pointer-events:none}
+.phx.cloud .phcloud{transform:translateX(120%);transition:transform 3s linear}
+.phx.dead .phscr{filter:grayscale(1) brightness(.82) contrast(.9)}
+.phx.dead .phm>*{opacity:.5}
+.phx.dead .phns{opacity:1}
+.phx.dead .phd{animation:phdrop .5s ease-out}
+@keyframes phdrop{30%{transform:translateY(5px) rotate(-.6deg)}}
+/* while the phone is up, the narration reads underneath it */
+body.phoneup .narr{top:auto;bottom:calc(14px + var(--safe-b));transform:translate(-50%,10px)}
+body.phoneup .narr.on{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.phd,.phx.on .phd{transition:none}.phsig.tremble,.phsig.seek i,.phx.dead .phd{animation:none}}

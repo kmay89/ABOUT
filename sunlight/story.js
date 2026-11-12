@@ -618,12 +618,14 @@
         .then(function () { return nar("What nobody had thought to warn me about was the signal."); })
         .then(function () {
           /* the one bar climbs, and trembles, and lets three days of friends spill in */
+          if (BS.phone) return BS.phone.lose();
           G.signalBars = 1; G.hud(); A.sfx("signal");
           return wait(500).then(function () { A.sfx("buzz"); G.toast("Priya: did ANYONE finish the quiz", 1800); return wait(1300); })
             .then(function () { A.sfx("buzz"); G.toast("Theo: [the thing that wasn't funny that you laughed at anyway]", 1800); return wait(1500); })
             .then(function () { G.signalBars = 0; G.hud(); A.sfx("nosignal"); return wait(600); });
         })
         .then(function () { return nar("And then a cloud, or a breath of wind, or nothing at all, and it sank. And trembled. And — went out. *No Service.* Two gray words, and the whole bright world on the far side of that little pane of glass shut like a door."); })
+        .then(function () { if (BS.phone) BS.phone.away(); })
         .then(function () { set("signalGone"); A.sfx("rip", 6.5 * T, 8.8 * T); return wait(700); })
         .then(function () { A.sfx("thunk", 6.5 * T, 8.8 * T); return say("dad", "It's just the hill. No tower for miles out this way. Your grandmother went forty years without one bar of anything and lived to tell about it."); })
         .then(function () { return say("wren", "I'm not saying I won't live."); })

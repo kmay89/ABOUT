@@ -421,3 +421,24 @@ Where the camera stands while the story is told.
 - The engine owns nothing new: this module borrows `G.camFocus` and `G.zoom`
   only during walk-mode scenes, and never during the opening or the title.
   Reduced motion skips the reframing, the zoom and the bars.
+
+## The last bar (phone.js)
+
+Chapter One's kicker, full screen. After "What nobody had thought to warn me
+about was the signal," the phone comes up in your hands:
+
+1. The status bar searches, then one bar arrives with a green glow.
+2. Three days of the group chat spill in, faster and faster: Priya's quiz,
+   Theo's "thing that wasn't funny that you laughed at anyway", "wren??",
+   "+ 37 more", and "where even ARE you".
+3. Wren starts typing back, "I'm at my gran's".
+4. A cloud passes over the screen. The bar trembles, drops, comes back,
+   drops again.
+5. The screen grays out, the reply is marked Not Delivered, and *No Service*
+   fades up over the chat.
+
+The novel's narration ("And then a cloud, or a breath of wind…") is then
+read beneath the dead phone before it drops out of frame. A tap hurries it;
+reduced motion and the test harness's `skipWaits` jump straight to the end.
+The old two-toast version is still there as a fallback if `BS.phone` is
+missing.
