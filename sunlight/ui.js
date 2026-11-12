@@ -210,6 +210,7 @@
     document.body.classList.add("playing");
     S.init();
     if (BS.juice) BS.juice.reset();
+    if (BS.toys) BS.toys.reset();
     if (load && saved) {
       G.s = saved; for (var k in G.fresh()) if (G.s[k] == null) G.s[k] = G.fresh()[k];
       G.mode = "walk";

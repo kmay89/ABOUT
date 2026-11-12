@@ -43,6 +43,10 @@
     ["regions", "The Whole Hill", "Walked every part of it.", "Go everywhere.", "⌘", function () { return G.s.regions && BS.juice && Object.keys(G.s.regions).length >= BS.juice.REGN; }],
     ["moon", "Moon in the Water", "Stood by the pond at night and saw the sky in it.", "The pond, after dark.", "☾", function () { return cnt("moonpond") >= 1; }],
     ["habit", "Old Habits", "Checked for a signal five times. Nothing. Nothing. Nothing.", "Hold the phone up.", "▮", function () { return cnt("phonecheck") >= 5; }],
+    ["wish", "Five Wishes", "Blew five dandelion clocks and let the wind have them.", "Some flowers are clocks.", "❉", function () { return cnt("wishes") >= 5; }],
+    ["plop", "Kerplunk", "Rolled something round all the way into the pond.", "The pond likes round things.", "◦", function () { return cnt("plops") >= 1; }],
+    ["skip", "Five Skips", "Skipped a stone five times across the pond.", "A flat stone, a still pond.", "≋", function () { return cnt("skipbest") >= 5; }],
+    ["firefly", "Light in Your Hands", "Held a firefly for a moment, and let it go.", "After dark, stand still in the field.", "✧", function () { return cnt("fireflies") >= 1; }],
     ["keys", "Every Key on the Hill", "Every key, every door.", "All the keys.", "⚿", function () { return S && Object.keys(S.ITEMS).every(function (k) { return has(k); }); }],
     ["next", "The Next Hand", "Wrote in her book.", "The last blank page.", "✎", function () { return F("wrote"); }]
   ];

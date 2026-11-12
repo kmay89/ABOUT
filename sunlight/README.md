@@ -373,3 +373,31 @@ The small motions that make a person a person:
 - **Breath:** it's cold enough to see it, wherever there's light to see it by.
 - **The pool:** drips land and rings spread, and the foxfire trembles in the water.
 - The beams are baked once and the jar list is precomputed, so the cellar runs as fast as before.
+
+## The hill answers back (toys.js)
+
+Nothing here is story; all of it is a reason to wander off the path. One
+roaming E spot (`toy: true`, so no wisp and no idle glance) sits on whichever
+toy is nearest.
+
+- **Dandelion clocks** in the field: brushing one shakes a few seeds loose, a
+  strong gust takes one or two, and E ("Make a wish") blows the whole head in
+  the direction you face. The seeds ride `G.gust`. Heads grow back after
+  about a minute.
+- **Windfalls**: apples under the lone trees, pinecones on the leaf litter
+  at the edge of the woods. Walk into one and it is kicked along your
+  velocity, hops, rolls, bounces off anything solid, and slows faster in
+  long grass than on the lane. One that reaches the pond goes in with a
+  plop, a ring and a splash, and quietly reappears under its tree later,
+  out of sight.
+- **Skipping stones** from any bank tile of the pond: each touch leaves a
+  ring and a note a little higher than the last, a count rises off the
+  water, and five or more earns a sparkle. Your best is kept.
+- **Bees** work the lavender, scatter when you push through, and come back.
+- **Fireflies** at dusk and night drift toward you if you stand still. Cup
+  one (E) and it glows in your hands, lighting the dark around you (a real
+  light in the light layer), until you let it go.
+- **The long grass remembers**: a pressed-flat trail follows you through
+  the field and fades over half a minute.
+- Four new Moments: *Five Wishes*, *Kerplunk*, *Five Skips*, *Light in Your
+  Hands*. Reduced motion turns all of it off.

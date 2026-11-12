@@ -891,6 +891,7 @@
     creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? (c.blend > 0.97 ? (Math.sin(time * 1.1) > 0.55 ? 1 : 0) : 6) : 20))), c.x - 4, c.y - 4); } }); });
     puffs.forEach(function (pf) { list.push({ y: pf.y + 0.2, d: function () { drawPuff(pf); } }); });
     if (BS.juice && BS.juice.sorted) BS.juice.sorted(list, ctx, cam, time);
+    if (BS.toys) BS.toys.sorted(list, ctx, cam, time);
     list.sort(function (a, b) { return a.y - b.y; });
     return list;
   }
@@ -1441,6 +1442,7 @@
     }
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
+    if (BS.toys) BS.toys.under(ctx, cam, time);
     var dl = drawables();
     castShadows();
     if (BS.guide) BS.guide.ground(ctx, cam, time);
@@ -1451,6 +1453,7 @@
     if (BS.story && BS.story.over) BS.story.over(ctx, cam, time);
     if (BS.cellar) BS.cellar.over(ctx, cam, time);
     if (BS.life) BS.life.over(ctx, cam);
+    if (BS.toys) BS.toys.over(ctx, cam, time);
     var dark = darkness();
     atmosphere(dark);
     grade(dark);
@@ -1459,6 +1462,7 @@
     drawGlow(dark);
     if (BS.cellar) BS.cellar.post(ctx, cam, time, dark, lights());
     if (BS.guide && dark > 0.3) { ctx.save(); ctx.globalAlpha = Math.min(1, dark); BS.guide.ground(ctx, cam, time); ctx.restore(); }   // the thread shines in the dark
+    if (BS.toys) BS.toys.post(ctx, cam, time, dark);
     if (BS.atmos && onWater()) G.waterLayer(function (c) { BS.atmos.glowWater(c, cam, VW, VH); });
     if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
     drawMotes();
@@ -1495,6 +1499,7 @@
       if (BS.juice) BS.juice.update(dt, cam);
       if (BS.life) { BS.life.hook(); BS.life.update(dt); }
       if (BS.guide) BS.guide.update(dt);
+      if (BS.toys) BS.toys.update(dt);
       if (BS.cellar) BS.cellar.update(dt);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);

@@ -244,6 +244,14 @@
     creak: function () { tone(210, { type: "triangle", slide: 170, g: 0.018, dur: 0.5, a: 0.12 }); tone(214, { type: "sawtooth", slide: 176, g: 0.006, dur: 0.5, a: 0.15 }); setTimeout(function () { tone(180, { type: "triangle", slide: 215, g: 0.014, dur: 0.45, a: 0.1 }); }, 900); },
     hop: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; for (var i = 0; i < 3; i++) burst({ f: 5200 + Math.random() * 1500, q: 9, g: 0.025 * P.g, dur: 0.015, at: i * 0.025, pan: P.p }); },
     dfly: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; tone(118 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 0.35, a: 0.03, pan: P.p, slide: 150 }); burst({ f: 240, q: 4, g: 0.02 * P.g, dur: 0.3, a: 0.03, pan: P.p }); },
+    /* the hill's toys */
+    wish: function (x, y) { burst({ type: "bandpass", f: 1400, sweep: 700, q: 0.6, g: 0.07, dur: 0.7, a: 0.12 }); burst({ type: "highpass", f: 5000, g: 0.02, dur: 0.9, a: 0.2 }); [1568, 2093, 2637].forEach(function (f, i) { tone(f, { g: 0.008, dur: 0.6, at: 0.25 + i * 0.09, verb: 1 }); }); },
+    tok: function (x, y, v) { var P = place(x, y, 140); if (P.g < 0.04) return; v = v == null ? 1 : v; tone(190 + Math.random() * 60, { type: "triangle", slide: 120, g: 0.07 * P.g * v, dur: 0.07, pan: P.p }); burst({ f: 900, q: 2, g: 0.04 * P.g * v, dur: 0.04, pan: P.p }); },
+    plop: function (x, y) { var P = place(x, y, 200); if (P.g < 0.03) return; tone(320, { slide: 900, g: 0.09 * P.g, dur: 0.12, pan: P.p, verb: 1 }); burst({ f: 700, q: 0.8, g: 0.05 * P.g, dur: 0.25, at: 0.05, pan: P.p }); },
+    skip: function (x, y, n) { var P = place(x, y, 260); var f = 1100 * Math.pow(1.122, n || 1); tone(f, { slide: f * 1.4, g: 0.04 * Math.max(0.3, P.g), dur: 0.08, pan: P.p, verb: 1 }); burst({ f: 2400, q: 1.5, g: 0.025, dur: 0.05, pan: P.p }); },
+    whiff: function () { burst({ f: 1800, sweep: 600, q: 1, g: 0.05, dur: 0.18, a: 0.02 }); },
+    bee: function (x, y, g) { g = g || 0.5; var f = 205 + Math.random() * 40; tone(f, { type: "sawtooth", slide: f * (0.9 + Math.random() * 0.25), g: 0.008 * g, dur: 0.6 + Math.random() * 0.5, a: 0.15 }); },
+    cup: function () { tone(1318.5, { g: 0.02, dur: 0.5, verb: 1 }); tone(1975.5, { g: 0.014, dur: 0.7, at: 0.08, verb: 1 }); },
     lights: function () { tone(120, { type: "square", g: 0.03, dur: 0.05 }); burst({ f: 6000, type: "highpass", g: 0.05, dur: 0.6, a: 0.05 }); cap("[the work lights snap on]"); }
   };
   /* voices: each person a little instrument, so a line sounds like who says it */

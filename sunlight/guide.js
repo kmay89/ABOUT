@@ -146,7 +146,7 @@
   Gd.wisps = function (ctx, cam, time, VW, VH, near) {
     ctx.save(); ctx.globalCompositeOperation = "lighter";
     G.spots.forEach(function (s) {
-      if (s.map !== G.mapId || (s.when && !s.when())) return;
+      if (s.toy || s.map !== G.mapId || (s.when && !s.when())) return;
       var wx = s.x * T, wy = s.y * T - 12, d = Math.hypot(s.x * T - G.p.x, s.y * T - G.p.y);
       if (d > 120 || d < 6) return;
       var sx = wx - cam.x, sy = wy - cam.y + Math.sin(time * 1.7 + s.x * 3) * 1.2;

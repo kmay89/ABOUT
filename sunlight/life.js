@@ -77,7 +77,7 @@
   function nearSpot() {
     var p = G.p, best = null, bd = 70;
     (G.spots || []).forEach(function (sp) {
-      if (sp.map !== G.mapId || (sp.when && !sp.when())) return;
+      if (sp.toy || sp.map !== G.mapId || (sp.when && !sp.when())) return;
       var d = Math.hypot(sp.x * T - p.x, sp.y * T - p.y); if (d < bd) { bd = d; best = sp; }
     });
     return best ? { sp: best, d: bd } : null;
