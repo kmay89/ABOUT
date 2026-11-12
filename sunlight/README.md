@@ -306,3 +306,19 @@ Nothing in the game tells you to do these. They are just there, the way they are
 - **Music for moments:** key items get a fanfare (a rising shimmer, a climbing figure on strings over soft brass, and a ringing chord). Small secrets get their own bright jingle.
 - **Help that doesn't nag:** if a while passes with nothing new, gold rings pulse out from the next goal with a soft chime. The shed parts (bungee on its peg, wire coil, tape on the bench) are drawn and glint, and the objective says where they are.
 - **Fixes:** the lens closes with a tap anywhere or with a Look up button on touch screens, so phones can't get stuck. The 3D inspect models no longer render inside-out: every triangle's normal now faces outward from its shape, and big faces are tessellated so they sort correctly. The book and the scooter were rebuilt with much more character.
+
+## The inspect renderer, v2
+
+- **Smooth shading:** curved parts (lathes, tubes, spheres, blobs) get per-vertex normals and are filled with a gradient between their vertex shades. Flat parts stay crisp. Shared vertices are lit once per frame.
+- **The room in reflections:** shiny materials reflect a warm lamp-lit room above, a dark floor below and a bright window, so brass, chrome, glass and gilt read as metal and glass.
+- **Procedural surfaces:** leather (pores and hand wear), gilt page edges, brushed and knurled metal, chalky aged plastic, grip-tape grit, wood grain, bark, end-grain rings, granite, moss, gingham, handwritten labels, marbled resin, fresnel lens rings and kraft paper.
+- **Detail and ornament:**
+  - Gran's book: a double gold-tooled border with curling corners, raised spine bands with gold rules, a spine title panel, riveted brass corners and a silk ribbon.
+  - Jars: pressed-glass shoulders, threaded necks, knurled bands, gingham cloth caps tied with twine, and handwritten labels.
+  - The lantern: a chrome bezel, guard cage, fresnel lens, wooden crank knob, solar panel and Gran's label.
+  - The phone: rounded aluminum with a camera bump and the water drop over a lens.
+  - The fountain pen: marbled resin with gold bands, clip and nib.
+  - The log: bark furrows, year rings, bracket fungus and seedlings.
+  - The rock: a noise-displaced stone with cushions of moss.
+- **Decal bias:** thin layers such as screens, labels and tooling always draw over the surface they sit on.
+- **Speed:** while the inspect view is open, the world behind it stops rendering.

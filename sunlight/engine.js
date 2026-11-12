@@ -1394,7 +1394,7 @@
       if (BS.atmos) BS.atmos.update(dt, cam, VW, VH);
       if (BS.juice) BS.juice.update(dt, cam);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
-      render(dt);
+      if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);
     }
     requestAnimationFrame(frame);
