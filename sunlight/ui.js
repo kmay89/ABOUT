@@ -191,8 +191,17 @@
   var saved = G.load();
   $("t-continue").hidden = !saved;
   if (saved) $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60);
-  function begin(load, afterHow) {
+  function begin(load, afterHow, opening) {
     if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
+    /* a new game opens with the drive up the hill */
+    if (!load && !opening && BS.cine && BS.cine.play) {
+      A.init();
+      A.setVolume("master", G.prefs.master); A.setVolume("mus", G.prefs.music); A.setVolume("amb", G.prefs.amb);
+      $("title").classList.add("off");
+      setTimeout(function () { $("title").hidden = true; }, 900);
+      BS.cine.play(function (seen) { begin(false, true, seen || {}); });
+      return;
+    }
     A.init();
     G.camFocus = null; G.hidePlayer = false; G.titleRun = false; G.snapCam && G.snapCam();
     A.setVolume("master", G.prefs.master); A.setVolume("mus", G.prefs.music); A.setVolume("amb", G.prefs.amb);
@@ -212,7 +221,7 @@
       G.mode = "walk";
       G.go("house", 3.5, 2.6, 0, { instant: true });
       S.stage();
-      S.newGame();
+      S.newGame(opening);
     }
     $("stage").focus({ preventScroll: true });
   }

@@ -281,3 +281,15 @@ Saves on the device only; nothing is sent anywhere.
 - **Things to play with:** grass is springy and parts as you push through, then wobbles back. Lone trees can be shaken (E / A): they shiver, drop a handful of leaves, and sometimes a sparrow bursts out. Walking through the dry field flushes grasshoppers ahead of you.
 - **Sizing:** on a phone held upright the camera comes in to about eleven tiles across, so Wren reads as a person. Text types a little quicker (55 characters a second by default). On small screens the goal card steps aside while narration is up.
 - **Trees:** the lone trees are fuller, with a flared trunk and bark.
+
+## The opening (prologue.js)
+
+A new game opens with the drive up the hill, rendered live in the engine, about 43 seconds long and skippable (Skip, Esc, Enter or Space):
+
+- Letterbox bars slide in over morning mist on the woods. Dad's old teal wagon, with flattened moving boxes strapped to the roof, comes out of the trees and winds up the road through the long grass, kicking up dust.
+- In the top bar, the phone's signal drops one bar at a time as the road climbs, and reads *No Service* at the crest.
+- The camera rises over the gate, past the lavender. Car doors thunk. Dad walks up the path carrying a box, and Wren follows and stops by the porch swing. Gran's straw hat is still on it, there's a quilt over one end, the wind chime rings, and the jars wait in a crate by the door.
+- A rip of packing tape comes from inside, then fade to black and *Chapter One · No Signal*.
+- The captions are the novel's own first sentences: the forgotten hill, then Gran not dying, then the herbs. Chapter One then continues with the signal. Any line the opening already showed is not repeated, but it is still added to the Story tab. If you skip early, the missed lines play as normal narration, so the canon order holds.
+- Gran's porch (deck and steps, swing, rocker, jar crate, wind chime, herb pots, watering can, bird feeder) stays in the world for the rest of the game.
+- The engine gained a camera zoom (`G.zoom`) for this, and the prologue drives it.

@@ -191,6 +191,10 @@
 </div>
 
 <!-- the title -->
+<div id="cine" class="cine" hidden aria-live="polite">
+  <div class="lb top"><span id="cinebars" class="cbars" data-n="3" aria-hidden="true"><i></i><i></i><i></i><b></b></span><button id="cineskip" class="cskip" type="button">Skip <span aria-hidden="true">›</span></button></div>
+  <div class="lb bot"><p id="cinecap" class="ccap"></p></div>
+</div>
 <section id="title" class="title">
   <canvas id="titlecv" aria-hidden="true" hidden></canvas>
   <div class="tshade" aria-hidden="true"></div>
@@ -268,6 +272,7 @@
 <script src="juice.js"></script>
 <script src="inspect.js"></script>
 <script src="atmos.js"></script>
+<script src="prologue.js"></script>
 <script src="ui.js"></script>
 <script>BS.G.start();</script>
 </body>
