@@ -379,7 +379,7 @@
       box.className = "dlg on " + w.cls;
       $("who").textContent = w.name;
       $("more").hidden = true;
-      G.portrait = who; G.talking = true;
+      G.portrait = who; G.talking = true; G.lineMood = BS.life ? BS.life.moodOf(text, who) : "";
       $("pframe").hidden = !BS.portrait(who);
       var t = typeInto($("line"), text, function () { $("more").hidden = false; G.talking = false; }, who);
       talk = { t: t, res: function () { box.className = "dlg"; G.talking = false; res(); } };
@@ -942,6 +942,14 @@
     g.globalCompositeOperation = "source-in"; g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
     c.w = sp.w; c.h = sp.h; sp._rim[q] = c; return c;
   }
+  function rimFor(sp) {
+    if (G.mapId !== "hill" || !G.sun) return null;
+    var t = G.s.tod, k = t === "golden" ? 0.75 : t === "evening" ? 0.6 : t === "dawn" ? 0.5 : t === "morning" ? 0.35 : t === "night" ? 0.18 : t === "dusk" ? 0.25 : 0.22;
+    var r = rimOf(sp); if (!r) return null;
+    var col = t === "golden" || t === "evening" ? "rgba(255,190,110," : t === "night" || t === "dusk" ? "rgba(150,180,255," : t === "dawn" ? "rgba(255,200,210," : "rgba(255,248,225,";
+    if (!r._tint || r._tintKey !== col) { var tc = BS.cv(r.width, r.height), tg = tc.getContext("2d"); tg.drawImage(r, 0, 0); tg.globalCompositeOperation = "source-in"; tg.fillStyle = col + "1)"; tg.fillRect(0, 0, tc.width, tc.height); r._tint = tc; r._tintKey = col; }
+    return { c: r._tint, k: k };
+  }
   function rimLight(sp, x, y) {
     if (G.mapId !== "hill" || !G.sun) return;
     var t = G.s.tod, k = t === "golden" ? 0.75 : t === "evening" ? 0.6 : t === "dawn" ? 0.5 : t === "morning" ? 0.35 : t === "night" ? 0.18 : t === "dusk" ? 0.25 : 0.22;
@@ -990,13 +998,23 @@
   }
   G.shadowAt = shadowAt;
   function blinkOf(seed) { return ((time + seed * 1.37) % 4.2) < 0.13; }
+  /* a person, drawn with their body's motion (squash, stretch, lean, hop)
+     about the feet, and the sun on their edge */
+  function drawPerson(sp, x, y, tf) {
+    if (!tf) { img(sp, x, y); rimLight(sp, x, y); return; }
+    var fx = x + 8 - cam.x + (tf.dx || 0), fy = y + 23.4 - cam.y + (tf.dy || 0);
+    ctx.save(); ctx.translate(fx, fy); ctx.transform(tf.sx, 0, tf.skew, tf.sy, 0, 0);
+    ctx.drawImage(sp, -8, -23.4, sp.w, sp.h);
+    var r = rimFor(sp); if (r) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = r.k; ctx.drawImage(r.c, -8, -23.4, sp.w, sp.h); }
+    ctx.restore();
+  }
   function drawEnt(e) {
     if (e.draw) { e.draw(ctx, e, cam); return; }
     shadowAt(e.x, e.y, 6.5);
-    var sp = BS.sprite(e.who, e.dir, e.frame || 0, blinkOf(e.id.length));
+    var L = BS.life, sp = BS.sprite(e.who, e.dir, e.frame || 0, blinkOf(e.id.length), L ? L.face(e.id, e) : null);
     var bob = e.frame % 2 ? -0.7 : 0;
     if (e.bob && !e.frame) bob = Math.sin(time * 2) * 0.35;
-    img(sp, e.x - 8, e.y - 23.4 + bob); rimLight(sp, e.x - 8, e.y - 23.4 + bob);
+    drawPerson(sp, e.x - 8, e.y - 23.4 + bob, L ? L.tf(e.id) : null);
   }
   function drawPlayer() {
     var p = G.p;
@@ -1004,9 +1022,9 @@
     if (G.sitting) { var sw = BS.cine && BS.cine.swingSway ? BS.cine.swingSway(time) : 0; img(BS.sprite(p.who, 0, 0, blinkOf(1)), p.x - 8 + sw, p.y - 26.5); return; }
     shadowAt(p.x, p.y, 6.5);
     if (G.holdUp) { var hk = Math.min(1, (time - G.holdUp.t0) / 0.5), ease = 1 - Math.pow(1 - hk, 3); img(BS.sprite(p.who, 0, 0), p.x - 8, p.y - 23.4 - ease * 1.5); var ic = G.holdUp.icon; ctx.save(); ctx.translate(p.x - cam.x, p.y - 30 - ease * 8 - cam.y); ctx.drawImage(ic, -9, -9, 18, 18); ctx.restore(); return; }
-    var sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1));
+    var L = BS.life, sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1), L ? L.face("p") : null);
     var bob = p.frame % 2 ? -0.8 : 0, breathe = p.moving ? 0 : Math.sin(time * 2.2) * 0.25;
-    img(sp, p.x - 8, p.y - 23.4 + bob + breathe); rimLight(sp, p.x - 8, p.y - 23.4 + bob + breathe);
+    drawPerson(sp, p.x - 8, p.y - 23.4 + bob + breathe, L ? L.tf("p") : null);
     if (G.s.items.lantern && G.lamp.level > 0.02) {
       /* the lantern in hand, its glass eye lit */
       var lxp = p.x + [5.5, -5.5, 6.5, -6.5][p.dir], lyp = p.y - 10 + (p.dir === 1 ? -2 : 0);
@@ -1435,6 +1453,7 @@
     if (BS.juice) BS.juice.world(ctx, cam, time);
     drawCanopy();
     if (BS.story && BS.story.over) BS.story.over(ctx, cam, time);
+    if (BS.life) BS.life.over(ctx, cam);
     var dark = darkness();
     atmosphere(dark);
     grade(dark);
@@ -1475,6 +1494,7 @@
       lifeTick(dt); moteTick(dt); skyTick(dt);
       if (BS.atmos) BS.atmos.update(dt, cam, VW, VH);
       if (BS.juice) BS.juice.update(dt, cam);
+      if (BS.life) { BS.life.hook(); BS.life.update(dt); }
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);

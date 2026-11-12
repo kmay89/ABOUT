@@ -180,7 +180,7 @@
   ui.portraitTick = function (dt) {
     if (!$("dlg").classList.contains("on") || !G.portrait) return;
     pT += dt;
-    var blink = (pT % 3.6) < 0.12, img = BS.portrait(G.portrait, blink);
+    var blink = (pT % 3.6) < 0.12, img = BS.portrait(G.portrait, blink, { talk: G.talking && Math.sin(pT * 15) > 0, mood: G.lineMood || "" });
     if (!img) return;
     var bob = G.talking && !G.prefs.reduced ? Math.abs(Math.sin(pT * 11)) * 3 : Math.sin(pT * 1.6) * 1.2;
     px.clearRect(0, 0, 144, 144);

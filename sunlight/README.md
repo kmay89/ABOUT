@@ -330,3 +330,13 @@ Nothing in the game tells you to do these. They are just there, the way they are
 - **Reflections:** anyone standing by the pond shows in it upside down, trembling with the water.
 - **Morning dew:** at dawn and in the morning, drops in the grass catch the sun and flash as you walk past.
 - **Sharper art:** people and small things are painted at 8 pixels per world unit, crisp on retina screens. Lone trees keep only a small contact shadow, since the sun now casts the long one.
+
+## Life (life.js)
+
+The small motions that make a person a person:
+
+- **Faces:** eyes look at things (whoever's talking, whatever just caught their attention, you when you come close). Moods show for a beat: pleased when something becomes yours, wide-eyed when Mo speaks, a worried brow when the reasonable voice starts, a set jaw. Each spoken line carries its own expression, both on the map and in the dialogue portrait, and mouths move while lines are said.
+- **Bodies with weight:** a squash on each footfall, a stretch as they set off, a lean into the run, a settle when they stop, a pop when they turn. Wren shivers in the cold dark of the cellar.
+- **Left alone:** Wren looks around, glances at nearby things, and then by habit holds the phone up hunting for a bar (the screen lights the face, and a bubble shows no bars). Later comes a yawn. Beck can't keep still: weight shifting from foot to foot, the odd hop, a grin when you come close. Dad sighs over the boxes, and sleeps with z's drifting up.
+- **Bubbles:** ! when something comes into reach for the first time, a note when you hum on the swing, … for a yawn, z's for sleep, crossed-out bars for no signal.
+- The sprite cache is capped, and faces seen from behind collapse to one variant, so memory stays flat over a long session.

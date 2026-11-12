@@ -628,7 +628,10 @@
     beckdad: { adult: 1, hair: "#7a5a2a", style: "short", skin: "#e4ac88", shirt: "#9a3a2e", plaid: 1, pants: "#3a4a6a", shoes: "#4a3420", cap: "#2f4a2f" }
   };
   BS.CAST = CAST;
-  function person(o, dir, f, blink, res) {
+  /* face: { lx, ly: where the eyes look (-1..1), mood: "" | happy | wow |
+     worry | firm | sad | ask | yawn, talk: mouth open, phone: held up } */
+  function person(o, dir, f, blink, res, face) {
+    face = face || {};
     var c = wc(16, 24, res || SPR), x = c.x;
     var mirror = dir === 3; if (mirror) { x.translate(16, 0); x.scale(-1, 1); dir = 2; }
     var ph = f === 1 ? 1 : f === 2 ? -1 : 0, adult = o.adult;
@@ -700,37 +703,75 @@
     }
     if (o.towel) { fill(function () { rr(x, hx - hr - 0.4, hy - hr * 0.95, hr * 2 + 0.8, 3.4, 1.4); }, "#f4f2ec"); x.fillStyle = "#4a7ab0"; x.fillRect(hx - hr - 0.2, hy - hr * 0.95 + 1.4, hr * 2 + 0.4, 0.7); fill(function () { rr(x, hx + hr - 0.4, hy - 1, 2, 3, 0.8); }, "#ecebe4"); }
     if (o.cap) { fill(function () { x.beginPath(); x.ellipse(hx, hy - hr * 0.55, hr * 1.02, hr * 0.62, 0, Math.PI, 0); x.closePath(); }, lg(x, 0, hy - hr, 0, hy, [[0, shade(o.cap, 0.2)], [1, shade(o.cap, -0.2)]])); if (dir !== 1) fill(function () { x.beginPath(); x.ellipse(dir === 2 ? hx + hr * 0.7 : hx, hy - hr * 0.5, dir === 2 ? hr * 0.75 : hr * 0.95, 1, 0, 0, 6.2832); }, shade(o.cap, -0.15)); }
-    /* face */
+    /* face: eyes that look at things, brows that carry the mood, a mouth that talks */
+    var md = face.mood || "", lx = (face.lx || 0) * 0.45, ly = (face.ly || 0) * 0.35, ink = "#2a1d18", brow = shade(o.hair, -0.1);
+    function line(pts, w, col) { x.strokeStyle = col || ink; x.lineWidth = w || 0.4; x.lineCap = "round"; x.beginPath(); x.moveTo(pts[0], pts[1]); for (var i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1]); x.stroke(); }
     if (dir === 0) {
-      var ey = hy + 0.9;
-      if (blink) { x.strokeStyle = "#2a1d18"; x.lineWidth = 0.4; x.beginPath(); x.moveTo(hx - 2.7, ey); x.lineTo(hx - 1.4, ey); x.moveTo(hx + 1.4, ey); x.lineTo(hx + 2.7, ey); x.stroke(); }
-      else { ell(x, hx - 2, ey, 0.7, 1.05, "#2a1d18"); ell(x, hx + 2, ey, 0.7, 1.05, "#2a1d18"); ell(x, hx - 2.2, ey - 0.4, 0.28, 0.32, "#fff"); ell(x, hx + 1.8, ey - 0.4, 0.28, 0.32, "#fff"); }
-      ell(x, hx - 3, hy + 2.3, 1, 0.55, "rgba(240,120,110,.35)"); ell(x, hx + 3, hy + 2.3, 1, 0.55, "rgba(240,120,110,.35)");
+      var ey = hy + 0.9, shut = blink || md === "yawn" || md === "sleep";
+      if (shut) { line([hx - 2.7, ey, hx - 1.4, ey]); line([hx + 1.4, ey, hx + 2.7, ey]); }
+      else if (md === "happy") { x.strokeStyle = ink; x.lineWidth = 0.42; x.beginPath(); x.arc(hx - 2, ey + 0.5, 0.75, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); x.beginPath(); x.arc(hx + 2, ey + 0.5, 0.75, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+      else {
+        var big = md === "wow" ? 1.22 : 1;
+        if (md === "wow") { ell(x, hx - 2, ey, 0.95, 1.2, "#fff"); ell(x, hx + 2, ey, 0.95, 1.2, "#fff"); }
+        ell(x, hx - 2 + lx, ey + ly, 0.7 * big * (md === "wow" ? 0.75 : 1), 1.05 * big * (md === "wow" ? 0.8 : 1), ink); ell(x, hx + 2 + lx, ey + ly, 0.7 * big * (md === "wow" ? 0.75 : 1), 1.05 * big * (md === "wow" ? 0.8 : 1), ink);
+        ell(x, hx - 2.2 + lx, ey - 0.4 + ly, 0.28, 0.32, "#fff"); ell(x, hx + 1.8 + lx, ey - 0.4 + ly, 0.28, 0.32, "#fff");
+      }
+      /* brows: only when the face is doing something */
+      var by = ey - 1.9;
+      if (md === "worry" || md === "sad") { line([hx - 3, by + 0.2, hx - 1.3, by - 0.5], 0.42, brow); line([hx + 1.3, by - 0.5, hx + 3, by + 0.2], 0.42, brow); }
+      else if (md === "firm") { line([hx - 3, by - 0.4, hx - 1.3, by + 0.25], 0.48, brow); line([hx + 1.3, by + 0.25, hx + 3, by - 0.4], 0.48, brow); }
+      else if (md === "wow" || md === "ask") { line([hx - 3, by - 0.3, hx - 1.4, by - 0.65], 0.38, brow); line([hx + 1.4, by - 0.65, hx + 3, by - (md === "ask" ? 0.05 : 0.3)], 0.38, brow); }
+      ell(x, hx - 3, hy + 2.3, 1, 0.55, md === "happy" || md === "wow" ? "rgba(240,110,100,.55)" : "rgba(240,120,110,.35)"); ell(x, hx + 3, hy + 2.3, 1, 0.55, md === "happy" || md === "wow" ? "rgba(240,110,100,.55)" : "rgba(240,120,110,.35)");
       if (o.nose) ell(x, hx, hy + 1.9, 0.75, 0.5, o.nose);
-      x.strokeStyle = "rgba(90,40,30,.75)"; x.lineWidth = 0.32; x.beginPath(); x.arc(hx, hy + 2.6, 0.7, 0.3, Math.PI - 0.3); x.stroke();
+      var my = hy + 2.9;
+      if (md === "yawn") { ell(x, hx, my + 0.2, 0.9, 1.15, "#5a2a22"); ell(x, hx, my + 0.6, 0.55, 0.45, "#c8605a"); }
+      else if (md === "sleep") ell(x, hx, my + 0.1, 0.4, 0.45, "#5a2a22");
+      else if (face.talk) { ell(x, hx, my, 0.85, md === "wow" ? 0.85 : 0.6, "#5a2a22"); ell(x, hx, my + 0.3, 0.5, 0.25, "#d0706a"); }
+      else if (md === "wow") ell(x, hx, my, 0.5, 0.6, "#5a2a22");
+      else if (md === "happy") { x.strokeStyle = "rgba(90,40,30,.85)"; x.lineWidth = 0.38; x.beginPath(); x.arc(hx, my - 0.6, 1.1, 0.25, Math.PI - 0.25); x.stroke(); }
+      else if (md === "worry" || md === "sad") { x.strokeStyle = "rgba(90,40,30,.75)"; x.lineWidth = 0.32; x.beginPath(); x.arc(hx, my + 0.6, 0.7, Math.PI + 0.4, -0.4); x.stroke(); }
+      else if (md === "firm") line([hx - 0.8, my, hx + 0.8, my], 0.34, "rgba(90,40,30,.8)");
+      else { x.strokeStyle = "rgba(90,40,30,.75)"; x.lineWidth = 0.32; x.beginPath(); x.arc(hx, my - 0.3, 0.7, 0.3, Math.PI - 0.3); x.stroke(); }
+      /* the phone, held up in both hands to look for a bar */
+      if (face.phone) {
+        rr(x, hx - 1.7, bt + 1.2, 3.4, 4.4, 0.6, "#1c1c22"); rr(x, hx - 1.3, bt + 1.6, 2.6, 3.4, 0.3, face.phone === 2 ? "#0a0c10" : "#9fd0e8");
+        ell(x, hx - 2.2, bt + 4, 1, 0.9, o.skin); ell(x, hx + 2.2, bt + 4, 1, 0.9, o.skin);
+        if (face.phone !== 2) { x.fillStyle = "rgba(160,220,255,.18)"; x.beginPath(); x.ellipse(hx, hy + 1.5, hr * 0.9, hr * 0.7, 0, 0, 6.2832); x.fill(); }
+      }
     } else if (dir === 2) {
-      if (blink) { x.strokeStyle = "#2a1d18"; x.lineWidth = 0.4; x.beginPath(); x.moveTo(hx + 1.8, hy + 0.9); x.lineTo(hx + 3, hy + 0.9); x.stroke(); }
-      else { ell(x, hx + 2.4, hy + 0.9, 0.62, 1, "#2a1d18"); ell(x, hx + 2.25, hy + 0.5, 0.25, 0.3, "#fff"); }
-      ell(x, hx + 2.6, hy + 2.4, 0.9, 0.5, "rgba(240,120,110,.35)");
+      if (blink || md === "yawn") line([hx + 1.8, hy + 0.9, hx + 3, hy + 0.9]);
+      else if (md === "happy") { x.strokeStyle = ink; x.lineWidth = 0.42; x.beginPath(); x.arc(hx + 2.4, hy + 1.4, 0.7, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+      else { ell(x, hx + 2.4 + Math.max(0, lx) * 0.4, hy + 0.9 + ly, 0.62 * (md === "wow" ? 1.2 : 1), 1 * (md === "wow" ? 1.2 : 1), ink); ell(x, hx + 2.25, hy + 0.5 + ly, 0.25, 0.3, "#fff"); }
+      if (md === "worry" || md === "firm" || md === "wow") line([hx + 1.6, hy - 1 + (md === "firm" ? 0.3 : 0), hx + 3.2, hy - 1 - (md === "worry" ? 0.5 : md === "wow" ? 0.4 : -0.2)], 0.42, brow);
+      ell(x, hx + 2.6, hy + 2.4, 0.9, 0.5, md === "happy" ? "rgba(240,110,100,.55)" : "rgba(240,120,110,.35)");
       if (o.nose) ell(x, hx + hr - 0.3, hy + 1.8, 0.55, 0.45, o.nose);
+      if (face.talk || md === "yawn" || md === "wow") ell(x, hx + hr - 1.1, hy + 3, 0.55, face.talk ? 0.45 : 0.6, "#5a2a22");
       ell(x, hx - 0.8, hy + 0.9, 0.8, 1.1, shade(o.skin, -0.12));
+      if (face.phone) { rr(x, hx + 2.6, hy + 2.6, 1.4, 3, 0.4, "#1c1c22"); x.fillStyle = face.phone === 2 ? "#0a0c10" : "#9fd0e8"; x.fillRect(hx + 2.7, hy + 2.9, 0.6, 2.4); ell(x, hx + 3.4, hy + 5.6, 0.9, 0.8, o.skin); }
     }
     return c;
   }
   var spriteCache = {};
-  BS.sprite = function (who, dir, f, blink) {
-    var k = who + dir + "_" + (f % 4) + (blink ? "b" : "");
-    if (!spriteCache[k]) spriteCache[k] = person(CAST[who], dir, f % 4 === 1 ? 1 : f % 4 === 3 ? 2 : 0, blink);
+  function faceKey(fc) { return fc ? (fc.mood || "") + "|" + (fc.lx || 0) + "|" + (fc.ly || 0) + "|" + (fc.talk ? 1 : 0) + "|" + (fc.phone || 0) : ""; }
+  var spriteOrder = [];
+  BS.sprite = function (who, dir, f, blink, face) {
+    if (dir === 1) { face = face && face.phone ? { phone: face.phone } : null; blink = false; }      // from behind, a face is just hair
+    var k = who + dir + "_" + (f % 4) + (blink ? "b" : "") + faceKey(face);
+    if (!spriteCache[k]) {
+      spriteCache[k] = person(CAST[who], dir, f % 4 === 1 ? 1 : f % 4 === 3 ? 2 : 0, blink, null, face);
+      /* faces make many variants: keep the most recent few hundred, drop the oldest */
+      spriteOrder.push(k); while (spriteOrder.length > 260) delete spriteCache[spriteOrder.shift()];
+    }
     return spriteCache[k];
   };
 
   /* portraits for the dialogue box: the same person, much finer, head and
      shoulders. Gran is a voice on a phone, so hers is the phone. */
   var portCache = {};
-  BS.portrait = function (who, blink) {
+  BS.portrait = function (who, blink, face) {
     var map = { wren: "wren", beck: "beck", dad: "dad", worker: "worker", beckdad: "beckdad", gran: "gran" };
     var cast = map[who]; if (!cast) return null;
-    var k = cast + (blink ? "b" : "");
+    var k = cast + (blink ? "b" : "") + faceKey(face);
     if (portCache[k]) return portCache[k];
     var c;
     if (cast === "gran") {
@@ -740,7 +781,7 @@
       for (var r2 = 1; r2 < 4; r2++) { x.beginPath(); x.arc(8, 2.6, r2 * 1.5, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
       ell(x, 8, 7.6, 1.6, 1.6, "rgba(255,240,210,.9)");
     } else {
-      var full = person(CAST[cast], 0, 0, blink, 12);
+      var full = person(CAST[cast], 0, 0, blink, 12, face);
       var adult = CAST[cast].adult;
       c = wc(16, 16, 12); c.x.drawImage(full, 0, (adult ? 0 : 2.4) * 12, 16 * 12, 16 * 12, 0, 0, 16, 16);
     }
