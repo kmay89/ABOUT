@@ -130,9 +130,12 @@
   A.pluck = pluck; A.tone = tone; A.burst = burst;
 
   var cap = function (t) { if (A.captions) A.captions(t); };
+  var footL = false;
   var S = {
     step: function (surf, x, y) {
       var P = place(x, y, 200), g = 0.05 * (x == null ? 1 : P.g);
+      footL = !footL; if (x == null) P = { g: 1, p: footL ? -0.12 : 0.12 };
+      if (surf === "long") { burst({ type: "highpass", f: 3000 + Math.random() * 1200, g: g * 0.9, dur: 0.22, a: 0.05, pan: P.p }); surf = "grass"; }
       var f = { wood: 380, stone: 900, sand: 2600, leaves: 3200, gravel: 2000, mud: 260, grass: 3800 }[surf] || 2000;
       burst({ f: f * (0.9 + Math.random() * 0.2), q: surf === "wood" ? 3 : 0.8, g: g, dur: surf === "sand" ? 0.12 : 0.06, pan: P.p, type: surf === "grass" || surf === "leaves" ? "highpass" : "bandpass" });
       if (surf === "wood") tone(90 + Math.random() * 30, { g: g * 0.6, dur: 0.06 });
@@ -190,6 +193,15 @@
     nosignal: function () { tone(523, { type: "triangle", slide: 392, g: 0.04, dur: 0.4 }); },
     ring: function () { for (var i = 0; i < 2; i++) { tone(440, { g: 0.04, dur: 0.4, at: i * 0.5 }); tone(480, { g: 0.04, dur: 0.4, at: i * 0.5 }); } cap("[ringing]"); },
     truck: function () { burst({ buf: brownBuf, type: "lowpass", f: 200, g: 0.5, dur: 3, a: 0.8 }); tone(48, { type: "sawtooth", g: 0.06, dur: 3, a: 0.8 }); cap("[the diesel grind of something big, pulling up the lane]"); },
+    /* a shaken tree: a big leafy hiss with a woody creak under it */
+    shake: function (x, y) {
+      var P = place(x, y, 220);
+      burst({ type: "highpass", f: 2200, sweep: 3600, g: 0.07 * Math.max(0.4, P.g), dur: 0.7, a: 0.04, pan: P.p });
+      burst({ type: "bandpass", f: 900, q: 0.7, g: 0.04 * Math.max(0.4, P.g), dur: 0.5, a: 0.02, at: 0.08, pan: P.p });
+      tone(95, { type: "triangle", slide: 80, g: 0.03, dur: 0.35, a: 0.05, pan: P.p });
+    },
+    hop: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; for (var i = 0; i < 3; i++) burst({ f: 5200 + Math.random() * 1500, q: 9, g: 0.025 * P.g, dur: 0.015, at: i * 0.025, pan: P.p }); },
+    dfly: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; tone(118 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 0.35, a: 0.03, pan: P.p, slide: 150 }); burst({ f: 240, q: 4, g: 0.02 * P.g, dur: 0.3, a: 0.03, pan: P.p }); },
     lights: function () { tone(120, { type: "square", g: 0.03, dur: 0.05 }); burst({ f: 6000, type: "highpass", g: 0.05, dur: 0.6, a: 0.05 }); cap("[the work lights snap on]"); }
   };
   /* voices: each person a little instrument, so a line sounds like who says it */
@@ -335,7 +347,11 @@
       return b;
     },
     garden: function (ev, night) {
-      var b = [bed(pinkBuf, "bandpass", 700, 0.5, night ? 0.03 : 0.06, 0.13, 0.03)];
+      var b = [bed(pinkBuf, "bandpass", 700, 0.5, night ? 0.03 : 0.06, 0.13, 0.03), breezeBed()];
+      var tod = BS.G && BS.G.s ? BS.G.s.tod : "noon";
+      if (tod === "dawn" || tod === "morning") ev(dawnChorus, 1.6, 1.2);           // everybody at once
+      if (tod === "evening" || tod === "golden") ev(blackbird, 7, 4);               // one bird, singing the day out
+      if (night) ev(owl, 16, 8);
       if (!night) {
         ev(function () { /* bees in the lavender */
           (A.bees || []).forEach(function (bb) { var P = place(bb.x, bb.y, 120); if (P.g > 0.02) tone(220 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 1.1, a: 0.2, pan: P.p, slide: 235 }); });
@@ -354,7 +370,8 @@
       return b;
     },
     woods: function (ev, night) {
-      var b = [bed(pinkBuf, "bandpass", 1200, 0.4, 0.035, 0.08, 0.025), bed(brownBuf, "lowpass", 140, 0.7, 0.05)];
+      var b = [bed(pinkBuf, "bandpass", 1200, 0.4, 0.035, 0.08, 0.025), bed(brownBuf, "lowpass", 140, 0.7, 0.05), breezeBed(0.6)];
+      if (night) ev(owl, 11, 6);
       if (!night) {
         ev(function () { var n = 4 + (Math.random() * 6 | 0); for (var i = 0; i < n; i++) burst({ f: 1500, q: 6, g: 0.04, dur: 0.03, at: i * 0.06, pan: -0.4 }); }, 11, 8);   // woodpecker
         ev(function () { tone(1800, { slide: 1400, g: 0.012, dur: 0.4, pan: 0.5 }); tone(1500, { slide: 1100, g: 0.01, dur: 0.5, at: 0.45, pan: 0.5 }); }, 6, 5);
@@ -369,6 +386,12 @@
         for (var i = 0; i < 3; i++) { tone(f, { type: "square", g: 0.012, dur: 0.06, at: i * 0.09, pan: pan }); }
       }, 0.35, 0.3);
       ev(function () { for (var i = 0; i < 3; i++) tone(4300, { g: 0.005, dur: 0.04, at: i * 0.07, pan: Math.random() - 0.5 }); }, 0.6, 0.4);
+      ev(function () { /* water lapping the bank, from wherever the bank is */
+        var pd = A.pond; if (!pd) return;
+        var x = pd.x + Math.random() * pd.w, y = Math.random() < 0.5 ? pd.y : pd.y + pd.h, P = place(x, y, 200); if (P.g < 0.03) return;
+        burst({ buf: brownBuf, type: "lowpass", f: 500 + Math.random() * 300, g: 0.18 * P.g, dur: 0.5, a: 0.12, pan: P.p });
+        burst({ f: 1400 + Math.random() * 600, q: 1.2, g: 0.025 * P.g, dur: 0.25, a: 0.05, at: 0.15, pan: P.p });
+      }, 1.3, 0.8);
       return b;
     },
     pit: function (ev) {
@@ -382,6 +405,45 @@
     ride: function () { return [bed(pinkBuf, "lowpass", 300, 0.5, 0.02)]; },
     silence: function () { return [bed(brownBuf, "lowpass", 120, 0.7, 0.02)]; }
   };
+  /* the breeze you can see crossing the grass, you can hear crossing it too */
+  function breezeBed(k) {
+    var B = bed(pinkBuf, "bandpass", 900, 0.5, 0.0001);
+    B.k = k || 1; B.breeze = true;
+    return B;
+  }
+  A.breeze = function (v) {
+    if (!ctx || !amb) return;
+    var t = ctx.currentTime;
+    amb.beds.forEach(function (b) {
+      if (!b.breeze) return;
+      b.out.gain.setTargetAtTime((0.008 + Math.max(0, v) * 0.09) * b.k, t, 0.35);
+      b.f.frequency.setTargetAtTime(600 + Math.max(0, v) * 1400, t, 0.4);
+    });
+  };
+  /* the birds by the clock */
+  function dawnChorus() {
+    var n = 1 + (Math.random() * 3 | 0);
+    for (var j = 0; j < n; j++) {
+      var f = 2200 + Math.random() * 2600, pan = Math.random() * 1.6 - 0.8, at = Math.random() * 0.8, kind = Math.random();
+      if (kind < 0.4) for (var i = 0; i < 3 + (Math.random() * 4 | 0); i++) tone(f * (1 + (i % 2) * 0.12), { slide: f * 1.25, g: 0.01, dur: 0.06, at: at + i * 0.09, pan: pan });
+      else if (kind < 0.75) { tone(f, { slide: f * 0.6, g: 0.012, dur: 0.25, at: at, pan: pan }); tone(f * 0.8, { slide: f * 1.1, g: 0.01, dur: 0.18, at: at + 0.28, pan: pan }); }
+      else for (var q = 0; q < 6; q++) tone(f * 1.3, { g: 0.006, dur: 0.03, at: at + q * 0.05, pan: pan });
+    }
+  }
+  function blackbird() {
+    /* a mellow fluting phrase that falls away at the end */
+    var base = 1300 + Math.random() * 500, pan = Math.random() - 0.5, at = 0;
+    var shape = [1, 1.26, 1.12, 1.5, 1.34, 0.9];
+    var n = 4 + (Math.random() * 3 | 0);
+    for (var i = 0; i < n; i++) { var f = base * shape[i % shape.length]; tone(f, { slide: f * (i === n - 1 ? 0.7 : 1.06), g: 0.016, dur: 0.16 + Math.random() * 0.12, at: at, a: 0.02, pan: pan, verb: 1 }); at += 0.2 + Math.random() * 0.1; }
+    for (var k = 0; k < 4; k++) tone(base * 2.4, { g: 0.004, dur: 0.02, at: at + k * 0.03, pan: pan });
+  }
+  function owl() {
+    /* hoo … hoo-hoo, far off in the trees */
+    var pan = Math.random() * 1.4 - 0.7, f = 360 + Math.random() * 40;
+    [[0, 0.5], [0.85, 0.22], [1.15, 0.6]].forEach(function (h) { tone(f, { slide: f * 0.9, g: 0.02, dur: h[1], a: 0.08, at: h[0], pan: pan, verb: 1, type: "sine" }); });
+  }
+
   /* a little country tune nobody is listening to: I–IV–V in G, plucked */
   var radioBar = 0;
   function radio() {

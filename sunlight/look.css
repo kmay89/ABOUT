@@ -453,3 +453,10 @@ body.touch .obj{top:calc(160px + var(--safe-t))}
 @media (max-aspect-ratio:11/10){
   .ipanel{left:50%;right:auto;top:auto;bottom:max(3vh,12px);transform:translateX(-50%);width:min(560px,94vw);max-height:52vh}
 }
+
+/* small screens: while someone is talking, the goal card steps aside so the
+   words have the top of the screen to themselves */
+@media (max-width:760px){
+  body:has(#narr.on) #goalcard, body:has(#mo.on) #goalcard{opacity:0;transform:translateY(-6px);pointer-events:none}
+}
+#goalcard{transition:opacity .3s,transform .3s}

@@ -274,3 +274,10 @@ Saves on the device only; nothing is sent anywhere.
 - **Woods:** the shade under the canopy is one soft pool rather than stacked ellipses, so there are no seams.
 - **Night:** moonlight keeps a soft pool around Wren outdoors, so you are never lost in the dark.
 - **Stillness:** stand quietly for a few seconds and the sparrows hop over to look at you. Stand a little longer and the white butterfly comes to rest on your hair. Move, and they scatter.
+
+## Sound, toys and sizing (polish pass 3)
+
+- **The ear follows the eye:** a breeze layer in the garden and woods swells with the same gust you can see crossing the grass. Birds keep the clock: a dawn chorus, a blackbird singing the evening out, owls at night. Water laps at the pond bank from wherever the bank is. Footsteps alternate left and right, and swish through long grass. Dragonfly wings whirr past.
+- **Things to play with:** grass is springy and parts as you push through, then wobbles back. Lone trees can be shaken (E / A): they shiver, drop a handful of leaves, and sometimes a sparrow bursts out. Walking through the dry field flushes grasshoppers ahead of you.
+- **Sizing:** on a phone held upright the camera comes in to about eleven tiles across, so Wren reads as a person. Text types a little quicker (55 characters a second by default). On small screens the goal card steps aside while narration is up.
+- **Trees:** the lone trees are fuller, with a flared trunk and bark.

@@ -106,6 +106,7 @@
       }
     });
     Object.keys(fled).forEach(function (k) { A.sfx("flutter", fled[k].x, fled[k].y); });
+    birds = birds.filter(function (b) { return !(b.once && b.state === "away"); });
   }
   function drawBird(ctx, cam, b, t) {
     var sx = b.x - cam.x, sy = b.y - cam.y;
@@ -231,6 +232,38 @@
     promptWas = on;
   }
 
+  /* a sparrow that was up in the tree, leaving */
+  J.birdOut = function (x, y) {
+    var a = -Math.PI / 2 + (Math.random() - 0.5) * 2, b = { fl: -1, hx: x, hy: y, x: x, y: y + 20, z: 20, vx: Math.cos(a) * 90, vy: -30, vz: 60, state: "fly", t: 0, face: Math.cos(a) > 0 ? 1 : -1, back: 0, peck: 0, once: true };
+    birds.push(b); A.sfx("flutter", x, y); setTimeout(function () { A.sfx("chirp", x, y); }, 120);
+  };
+
+  /* ---------------- grasshoppers ---------------- */
+  /* walk through the long grass and they go off ahead of you like popcorn */
+  var hops = [];
+  function hopTick(dt) {
+    var p = G.p;
+    if (G.mapId === "hill" && p.moving && day() && !reduced() && hops.length < 8 && Math.random() < dt * 1.6) {
+      var mt = BS.matAt(G.map, p.x, p.y);
+      if (mt === "dry" || mt === "long") {
+        var a = Math.atan2(p.vy || 0, p.vx || 1) + (Math.random() - 0.5) * 1.6, sp = 40 + Math.random() * 30;
+        hops.push({ x: p.x + Math.cos(a) * 13, y: p.y + Math.sin(a) * 8, z: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, vz: 55 + Math.random() * 25, t: 0, face: Math.cos(a) > 0 ? 1 : -1 });
+        A.sfx("hop", p.x, p.y);
+      }
+    }
+    hops.forEach(function (h) { h.t += dt; if (h.z > 0 || h.vz > 0) { h.x += h.vx * dt; h.y += h.vy * dt; h.z += h.vz * dt; h.vz -= 260 * dt; if (h.z <= 0) { h.z = 0; h.vz = 0; } } });
+    hops = hops.filter(function (h) { return h.t < 1.6; });
+  }
+  function drawHop(ctx, cam, h) {
+    var a = Math.min(1, (1.6 - h.t) * 3), sx = h.x - cam.x, sy = h.y - cam.y - h.z;
+    ctx.globalAlpha = a * 0.3; ctx.fillStyle = "#1a1208"; BS.ell(ctx, h.x - cam.x, h.y - cam.y + 0.5, 2.4, 0.8); ctx.fill();
+    ctx.globalAlpha = a; ctx.save(); ctx.translate(sx, sy); ctx.scale(h.face * 1.9, 1.9);
+    ctx.fillStyle = "#7a8a32"; BS.ell(ctx, 0, 0, 1.6, 0.6); ctx.fill();
+    ctx.fillStyle = "#5a6a22"; ctx.beginPath(); ctx.moveTo(-0.6, 0); ctx.lineTo(-1.6, -1.1 - (h.z > 0 ? 0.6 : 0)); ctx.lineTo(-0.2, 0.2); ctx.fill();
+    if (h.z > 2) { ctx.fillStyle = "rgba(220,120,60,.8)"; BS.ell(ctx, -0.2, -0.5, 1.1, 0.5, null, -0.4); ctx.fill(); }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
   /* ---------------- dragonflies over the pond ---------------- */
   /* they hang in the air, then are suddenly somewhere else: hover, dash,
      hover. Blue as the bit of sky the pond is holding. */
@@ -246,6 +279,7 @@
         f.tx = (pd.x - 1 + Math.random() * (pd.w + 2)) * T; f.ty = (pd.y - 1 + Math.random() * (pd.h + 2)) * T;
         if (near) { f.tx += (f.x - p.x) * 2; f.ty += (f.y - p.y) * 2; }
         f.wait = 0.8 + Math.random() * 2.4; f.face = Math.atan2(f.ty - f.y, f.tx - f.x);
+        if (Math.hypot(f.x - p.x, f.y - p.y) < 90) A.sfx("dfly", f.x, f.y);
       }
       var k = Math.min(1, dt * 7); f.x += (f.tx - f.x) * k; f.y += (f.ty - f.y) * k;
     });
@@ -268,7 +302,7 @@
   J.update = function (dt, cam) {
     if (G.mode === "title") { birdTick(dt); return; }
     regionTick(); showPending();
-    birdTick(dt); critterTick(dt); dfTick(dt); printTick(dt); partTick(dt); rideTick(dt); promptTick();
+    birdTick(dt); critterTick(dt); dfTick(dt); hopTick(dt); printTick(dt); partTick(dt); rideTick(dt); promptTick();
   };
   J.under = function (ctx, cam, t) {
     prints.forEach(function (f) {
@@ -290,6 +324,7 @@
       if (b.x < cam.x - 30 || b.x > cam.x + G.view().w + 30 || b.y < cam.y - 30 || b.y > cam.y + G.view().h + 60) return;
       list.push({ y: b.y, d: function () { drawBird(ctx, cam, b, t); } });
     });
+    hops.forEach(function (h) { list.push({ y: h.y, d: function () { drawHop(ctx, cam, h); } }); });
     flies.forEach(function (f) { list.push({ y: f.y + 6, d: function () { drawFly(ctx, cam, f, t); } }); });
   };
   J.world = function (ctx, cam, t) {
