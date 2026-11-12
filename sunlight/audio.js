@@ -362,7 +362,7 @@
         var clfo = ctx.createOscillator(); clfo.frequency.value = 5.5; var clg = gain(6); clfo.connect(clg); clg.connect(co.frequency);
         cn.connect(cf); cf.connect(cg); cg.connect(sfxBus); cn.start(); co.start(); clfo.start();
         var grit = setInterval(function () { if (!ctx || !loops.car) return; var lv = loops.car.lv || 0; if (Math.random() < lv) burst({ f: 2400 + Math.random() * 2000, q: 2, g: 0.02 * lv, dur: 0.03 }); }, 45);
-        L = loops.car = { g: cg, lv: 0, stop: function () { clearInterval(grit); cn.stop(); co.stop(); clfo.stop(); } };
+        L = loops.car = { g: cg, lv: 0, o: co, f: cf, stop: function () { clearInterval(grit); cn.stop(); co.stop(); clfo.stop(); } };
       } else if (name === "heart") {
         var hg = gain(0); hg.connect(sfxBus);
         var iv = setInterval(function () { if (!ctx) return; var tt = ctx.currentTime; [0, 0.22].forEach(function (d, i) { var o2 = ctx.createOscillator(); o2.frequency.value = 52; var g2 = gain(0); o2.connect(g2); g2.connect(hg); env(g2, tt + d, 0.01, i ? 0.25 : 0.35, 0.16); o2.start(tt + d); o2.stop(tt + d + 0.3); }); }, 1000);
@@ -371,6 +371,7 @@
     }
     if (!L) return;
     if (on) { L.g.gain.setTargetAtTime(level == null ? 0.5 : level, t, 0.3); L.lv = level == null ? 0.5 : level; }
+    if (on && L.o && arguments[3]) { L.o.frequency.setTargetAtTime(46 * arguments[3], t, 0.5); L.f.frequency.setTargetAtTime(260 * arguments[3], t, 0.5); }
     else { L.g.gain.setTargetAtTime(0, t, 0.4); var LL = L; delete loops[name]; setTimeout(function () { LL.stop(); }, 1600); }
   };
 

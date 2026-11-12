@@ -481,6 +481,8 @@ body.touch .obj{top:calc(160px + var(--safe-t))}
 .cbars[data-n="1"] i:nth-child(1){animation:cbar 1.4s ease-in-out infinite}
 .cbars b{margin-left:8px;font-weight:600;opacity:.8}
 @keyframes cbar{50%{opacity:.35}}
+.cprof{position:absolute;left:50%;top:calc(50% + var(--safe-t) / 2);transform:translate(-50%,-50%);line-height:0;opacity:.9}
+.cprof canvas{display:block}
 @media (prefers-reduced-motion:reduce){.cine .lb,.ccap{transition:none}.cbars i{animation:none!important}}
 .cine .lb.bot{height:auto;min-height:13vh;padding:14px 18px calc(14px + var(--safe-b,0px))}
 @media (max-width:600px){.ccap{font-size:.98rem;line-height:1.45}}

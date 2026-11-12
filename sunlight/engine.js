@@ -75,7 +75,7 @@
   var baseSC = 0, zoomNow = 1;
   G.zoom = 1;
   function applyZoom() {
-    var z = Math.max(0.45, Math.min(2.5, G.zoom || 1));
+    var z = Math.max(0.28, Math.min(2.5, G.zoom || 1));
     if (Math.abs(z - zoomNow) < 1e-4) return;
     zoomNow = z; SC = baseSC * z;
     VW = window.innerWidth / SC; VH = window.innerHeight / SC; K = cvs.width / VW;
@@ -1440,6 +1440,7 @@
       water();
       if (BS.atmos) G.waterLayer(function (c) { BS.atmos.ground(c, cam, VW, VH); });
     }
+    if (BS.slope) BS.slope.under(ctx, cam, time);
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
     if (BS.toys) BS.toys.under(ctx, cam, time);

@@ -147,7 +147,32 @@
     ctx.fillStyle = "#7a3a2c"; ctx.beginPath(); ctx.moveTo(bx - 5.2, by - 21); ctx.lineTo(bx, by - 25); ctx.lineTo(bx + 5.2, by - 21); ctx.fill();
     if (G.s && G.s.flags && G.s.flags.fedBirds) for (var k = 0; k < 6; k++) { ctx.fillStyle = "#e8d8a8"; ell(ctx, bx - 2.4 + k, by - 17.3, 0.4, 0.3); ctx.fill(); }
   }
+  /* at the bottom, where the road comes out of the trees: a sign about the hill */
+  var SX = 43.4 * T, SY = 52.4 * T;
+  function sign(ctx, cam) {
+    var bx = SX - cam.x, by = SY - cam.y;
+    ctx.fillStyle = "rgba(20,14,6,.28)"; ell(ctx, bx + 2, by + 0.5, 4.5, 1.4); ctx.fill();
+    ctx.fillStyle = lg(ctx, bx - 0.7, 0, bx + 0.7, 0, [[0, "#9aa0a4"], [0.5, "#e2e6e8"], [1, "#6a7074"]]); ctx.fillRect(bx - 0.6, by - 17, 1.2, 17);
+    ctx.save(); ctx.translate(bx, by - 21.5);
+    /* the yellow diamond */
+    ctx.save(); ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = "#2a2418"; rr(ctx, -5.6, -5.6, 11.2, 11.2, 1.2); ctx.fill();
+    ctx.fillStyle = lg(ctx, -5, -5, 5, 5, [[0, "#ffd84a"], [1, "#e8b020"]]); rr(ctx, -4.9, -4.9, 9.8, 9.8, 0.9); ctx.fill();
+    ctx.restore();
+    /* a slope, and a little car going up it */
+    ctx.fillStyle = "#1e1a12"; ctx.beginPath(); ctx.moveTo(-4.4, 2.6); ctx.lineTo(4.4, 2.6); ctx.lineTo(4.4, -1.8); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.translate(-0.4, -0.6); ctx.rotate(-0.46);
+    ctx.fillRect(-2, -1.3, 4, 1.4); ctx.fillRect(-1, -2.2, 2, 1);
+    ctx.restore();
+    ctx.restore();
+    /* and under it, on its own plate */
+    ctx.fillStyle = "#2a2418"; rr(ctx, bx - 4.4, by - 15.4, 8.8, 4, 0.6); ctx.fill();
+    ctx.fillStyle = "#ffd84a"; rr(ctx, bx - 4, by - 15, 8, 3.2, 0.5); ctx.fill();
+    ctx.fillStyle = "#1e1a12"; ctx.font = "bold 2.3px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("12%", bx, by - 13.3);
+  }
   C.sorted = function (list, ctx, cam, t) {
+    var vw0 = G.view().w, vh0 = G.view().h;
+    if (SX > cam.x - 20 && SX < cam.x + vw0 + 20 && SY > cam.y - 10 && SY < cam.y + vh0 + 40) list.push({ y: SY, d: function () { sign(ctx, cam); } });
     var vw = G.view().w, vh = G.view().h;
     if (cam.x > X1 + 80 || cam.x + vw < X0 - 80 || cam.y > Y0 + 80 || cam.y + vh < Y0 - 90) { /* porch off-screen */ }
     else {
@@ -168,7 +193,7 @@
   /* ---------------- Dad's car ---------------- */
   /* up the road from the trees: the road's own points, reversed, centered */
   var ROUTE = [[40, 58], [40, 54], [39, 51], [34, 48], [33, 44], [38, 41], [45, 38], [47, 34], [43, 30], [39.6, 27.2], [39.5, 26.4]].map(function (p) { return [(p[0] + 1) * T, (p[1] + 1) * T]; });
-  var car = { on: false, x: 0, y: 0, a: -Math.PI / 2, s: 0, v: 0, dust: [] };
+  var car = { on: false, x: 0, y: 0, a: -Math.PI / 2, s: 0, v: 0, dust: [], puff: [], grade: 0 };
   function cr(p0, p1, p2, p3, u) { var u2 = u * u, u3 = u2 * u; return 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3); }
   var LUT = (function () {
     var pts = [], P = ROUTE;
@@ -188,9 +213,10 @@
   }
   function drawCar(ctx, cam, t) {
     var sx = car.x - cam.x, sy = car.y - cam.y;
+    car.puff.forEach(function (d) { var k = d.t / d.life; ctx.fillStyle = "rgba(150,150,150," + (0.28 * (1 - k)) + ")"; ell(ctx, d.x - cam.x, d.y - cam.y - k * 3, 1.2 + k * 4, 1 + k * 3.2); ctx.fill(); });
     car.dust.forEach(function (d) { var k = d.t / d.life; ctx.fillStyle = "rgba(220,200,160," + (0.32 * (1 - k)) + ")"; ell(ctx, d.x - cam.x, d.y - cam.y - k * 4, 2 + k * 7, 1.2 + k * 4); ctx.fill(); });
     ctx.save(); ctx.translate(sx, sy); ctx.rotate(car.a + Math.PI / 2);
-    var bump = G.prefs.reduced ? 0 : Math.sin(t * 22) * 0.15 * Math.min(1, car.v / 30);
+    var bump = G.prefs.reduced ? 0 : Math.sin(t * 22) * (0.15 + car.grade * 3) * Math.min(1, car.v / 30);
     ctx.fillStyle = "rgba(15,10,5,.35)"; rr(ctx, -7.5, -11, 15, 25, 5); ctx.fill();
     ctx.translate(0, -2 + bump);
     ["#1a1a1a"].forEach(function (c) { ctx.fillStyle = c; [[-7.3, -8], [5.3, -8], [-7.3, 6], [5.3, 6]].forEach(function (w) { rr(ctx, w[0], w[1], 2, 4.5, 0.8); ctx.fill(); }); });
@@ -221,7 +247,52 @@
     car.a += da * Math.min(1, dt * 5);
     if (car.v > 8 && Math.random() < dt * 14) { var back = car.a + Math.PI; car.dust.push({ x: car.x + Math.cos(back) * 11 + (Math.random() - 0.5) * 6, y: car.y + Math.sin(back) * 11 + 3, t: 0, life: 1.4 }); }
     car.dust.forEach(function (d) { d.t += dt; }); car.dust = car.dust.filter(function (d) { return d.t < d.life; });
-    if (A.loop) A.loop("car", true, Math.min(1, 0.25 + car.v / 40));
+    /* how steep it is here: the engine works harder, and breathes out */
+    var H = BS.slope ? BS.slope.h : null, grade = 0;
+    if (H) { var q = along(car.s + 12), q0 = along(Math.max(0, car.s - 12)); grade = Math.max(0, (H(q.x / T, q.y / T) - H(q0.x / T, q0.y / T)) / 24 * T); }
+    car.grade += (grade - car.grade) * Math.min(1, dt * 2);
+    if (car.v > 4 && Math.random() < dt * (3 + car.grade * 60)) { var bk = car.a + Math.PI; car.puff.push({ x: car.x + Math.cos(bk) * 12 + Math.cos(car.a + Math.PI / 2) * 3, y: car.y + Math.sin(bk) * 12, t: 0, life: 1.1 + Math.random() * 0.6, dx: Math.cos(bk) * 6 + (Math.random() - 0.5) * 4, dy: Math.sin(bk) * 6 - 4 }); }
+    car.puff.forEach(function (d) { d.t += dt; d.x += d.dx * dt; d.y += d.dy * dt; }); car.puff = car.puff.filter(function (d) { return d.t < d.life; });
+    if (A.loop) A.loop("car", true, Math.min(1, 0.25 + car.v / 40 + car.grade * 4), 1 + Math.min(0.6, car.grade * 14) + Math.min(0.3, car.v / 120));
+  }
+  /* the little line in the corner: the hill from the side, and us on it */
+  var pcv = null, pctx = null, PW = 156, PH = 34, PROF = null;
+  function prof(t) {
+    if (!BS.slope) return;
+    if (!pcv) {
+      var lb = document.querySelector("#cine .lb.top"); if (!lb) return;
+      var wrap = document.createElement("div"); wrap.className = "cprof"; wrap.setAttribute("aria-hidden", "true");
+      pcv = document.createElement("canvas"); var k = 2; pcv.width = PW * k; pcv.height = PH * k; pcv.style.width = PW + "px"; pcv.style.height = PH + "px";
+      wrap.appendChild(pcv); lb.appendChild(wrap); pctx = pcv.getContext("2d"); pctx.scale(k, k);
+      /* the profile along the road, with the woods below and the house on top */
+      PROF = []; var lo = 1, hi = 0;
+      for (var i = 0; i <= 60; i++) { var p = along(LUT.total * i / 60), hv = BS.slope.h(p.x / T, p.y / T); PROF.push(hv); lo = Math.min(lo, hv); hi = Math.max(hi, hv); }
+      PROF = PROF.map(function (v) { return (v - lo) / Math.max(0.01, hi - lo); });
+    }
+    var c = pctx, X = function (i) { return 6 + i / 60 * (PW - 26); }, Y = function (v) { return PH - 5 - v * (PH - 12); };
+    c.clearRect(0, 0, PW, PH);
+    /* the hill */
+    c.beginPath(); c.moveTo(0, PH); PROF.forEach(function (v, i) { c.lineTo(X(i), Y(v)); }); c.lineTo(PW, Y(1)); c.lineTo(PW, PH); c.closePath();
+    c.fillStyle = "rgba(239,227,200,.1)"; c.fill();
+    c.beginPath(); PROF.forEach(function (v, i) { if (i) c.lineTo(X(i), Y(v)); else c.moveTo(X(i), Y(v)); }); c.lineTo(PW, Y(1));
+    c.strokeStyle = "rgba(239,227,200,.32)"; c.lineWidth = 1; c.stroke();
+    /* the trees at the bottom */
+    c.fillStyle = "rgba(239,227,200,.28)"; [1, 7, 12].forEach(function (x, i) { c.beginPath(); c.arc(x, PH - 7 - (i % 2), 3.4, 0, Math.PI * 2); c.fill(); });
+    /* the house on top */
+    var hx = PW - 12, hy = Y(1);
+    c.fillStyle = "rgba(255,209,102,.8)"; c.beginPath(); c.moveTo(hx - 5, hy - 0.5); c.lineTo(hx - 5, hy - 6); c.lineTo(hx, hy - 10); c.lineTo(hx + 5, hy - 6); c.lineTo(hx + 5, hy - 0.5); c.fill();
+    /* how far we've come: the road behind us lit, and us */
+    var u = car.s / LUT.total, n = Math.round(u * 60);
+    if (car.on && u > 0) {
+      c.beginPath(); for (var j = 0; j <= n; j++) { if (j) c.lineTo(X(j), Y(PROF[j])); else c.moveTo(X(j), Y(PROF[j])); }
+      c.strokeStyle = "rgba(255,209,102,.9)"; c.lineWidth = 1.6; c.stroke();
+    }
+    var fi = Math.min(60, u * 60), i0 = Math.floor(fi), v0 = PROF[i0] + ((PROF[Math.min(60, i0 + 1)] - PROF[i0]) * (fi - i0));
+    var cx = X(fi), cy = Y(v0), ang = Math.atan2(Y(PROF[Math.min(60, i0 + 1)]) - Y(PROF[i0]), X(1) - X(0));
+    c.save(); c.translate(cx, cy - 2.2); c.rotate(ang);
+    c.fillStyle = "#6aaeaa"; BS.rr(c, -4, -2, 8, 3.4, 1.2); c.fill(); c.fillRect(-2.4, -3.6, 4.4, 2);
+    c.fillStyle = "#1a1a1a"; c.beginPath(); c.arc(-2.4, 1.5, 1.1, 0, 7); c.arc(2.4, 1.5, 1.1, 0, 7); c.fill();
+    c.restore();
   }
 
   /* ---------------- getting out: Dad first, then me ---------------- */
@@ -259,7 +330,10 @@
   /* shots: [start time, camera focus [x,y] in tiles, zoom]; the camera eases
      between keys. Lines are the book's own first sentences. */
   var KEYS = [
-    [0, [40.5, 62], 0.6], [6, [40.5, 53], 0.66], [11, [36, 46], 0.74], [16, [44, 37], 0.8], [21, [41, 30], 0.86],
+    /* first, the top: the house; then all the way down the road it sits at the top of */
+    [0, [40, 13.5], 0.4], [2.4, [40, 16.5], 0.42],
+    /* then down to the bottom of the world, where the car comes out of the trees */
+    [7.8, [40.5, 55.5], 0.7], [12, [36, 47], 0.76], [16.5, [44, 38], 0.82], [21, [41, 30], 0.88],
     [24.5, [40, 23.5], 1.0], [28.5, [39.6, 21], 1.12], [32.5, [38.6, 16.2], 1.3], [36.5, [38.4, 15.9], 1.42], [39.5, [41, 15.6], 1.5], [43, [41.2, 15.4], 1.54]
   ];
   var LINES = [
@@ -286,7 +360,7 @@
     G.titleRun = false; G.hidePlayer = true; G.mode = "title";
     G.mapId = "hill"; G.map = G.maps.hill; G.s.tod = "morning"; G.sky.snap = true; G.cineMist = 0.3; G.cineRays = true;
     walkers.forEach(function (w) { w.on = false; w.x = 0; w.walk = 0; });
-    car.on = true; car.s = 0; car.dust = []; car.a = -Math.PI / 2;
+    car.on = true; car.s = 0; car.dust = []; car.puff = []; car.grade = 0; car.a = -Math.PI / 2;
     el.hidden = false; requestAnimationFrame(function () { el.classList.add("on"); });
     A.init(); A.ambience("garden"); setTimeout(function () { A.theme(); }, 600); A.music("none");
     var shownLines = 0;
@@ -315,8 +389,8 @@
       var t = (now - t0) / 1000, dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
       var s = shot(t); G.camFocus = { x: s.x, y: s.y }; G.zoom = s.z;
       /* the car: out of the trees, up the winding road, slowing at the crest */
-      var drive = Math.max(0, Math.min(1, (t - 1.5) / 22.5)), de = drive < 0.85 ? drive / 0.85 * 0.93 : 0.93 + (1 - Math.pow(1 - (drive - 0.85) / 0.15, 3)) * 0.07;
-      carTick(dt, de * LUT.total); walkTick(t);
+      var drive = Math.max(0, Math.min(1, (t - 5.6) / 18.4)), de = drive < 0.85 ? drive / 0.85 * 0.93 : 0.93 + (1 - Math.pow(1 - (drive - 0.85) / 0.15, 3)) * 0.07;
+      carTick(dt, de * LUT.total); walkTick(t); prof(t);
       if (t > 24.5 && A.loop) A.loop("car", true, Math.max(0, 0.6 - (t - 24.5) * 0.4));
       if (t > 26) A.loop("car", false);
       G.cineMist = Math.max(0, 0.3 - Math.max(0, t - 6) * 0.016);
