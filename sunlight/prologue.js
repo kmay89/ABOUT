@@ -73,6 +73,7 @@
     ctx.fillStyle = "#e6c880"; ell(ctx, sx - 6, by - 11.6, 2.8, 1.6); ctx.fill();
     ctx.fillStyle = "#c8574a"; ctx.fillRect(sx - 8.7, by - 11.2, 5.4, 0.8);
   }
+  C.swingSway = function (t) { var g = G.gust ? G.gust(36.6 * T, Y0) : 0; return G.prefs.reduced ? 0 : Math.sin(t * 1.15) * 0.9 + g * 1.6; };
   function rocker(ctx, cam, t) {
     var bx = 43.6 * T - cam.x, by = Y0 + DEPTH - 3 - cam.y, r = G.prefs.reduced ? 0 : Math.sin(t * 0.9) * 0.05;
     ctx.save(); ctx.translate(bx, by); ctx.rotate(r);
@@ -115,15 +116,21 @@
     if (g > 0.35 && Math.random() < 0.04) A.sfx("chime", 41 * T, Y0);
   }
   function pots(ctx, cam) {
+    var lush = G.s && G.s.flags && G.s.flags.herbsWatered;
     [[38.6, 0x6a9a3a], [41.3, 0x7aa848]].forEach(function (p, i) {
       var bx = p[0] * T - cam.x, by = Y0 + DEPTH + 8 - cam.y;
       ctx.fillStyle = "rgba(20,14,6,.3)"; ell(ctx, bx, by + 1, 3.6, 1.2); ctx.fill();
       ctx.fillStyle = lg(ctx, bx - 3, 0, bx + 3, 0, [[0, "#c8683a"], [1, "#8a3a20"]]); ctx.beginPath(); ctx.moveTo(bx - 3, by - 5); ctx.lineTo(bx + 3, by - 5); ctx.lineTo(bx + 2.2, by); ctx.lineTo(bx - 2.2, by); ctx.fill();
       ctx.fillStyle = "#d8784a"; ctx.fillRect(bx - 3.3, by - 5.6, 6.6, 1.2);
-      for (var k = 0; k < 7; k++) { ctx.fillStyle = k % 2 ? "#5a8a30" : "#86b84a"; ell(ctx, bx - 2.4 + (k % 4) * 1.6, by - 7 - (k >> 2) * 1.6 - Math.sin(k) * 0.6, 1.3, 0.9, null, k); ctx.fill(); }
+      /* limp in the heat, or — once watered — standing up green, in flower */
+      var droop = lush ? 0 : 1.4, n = lush ? 11 : 7;
+      for (var k = 0; k < n; k++) { ctx.fillStyle = lush ? (k % 2 ? "#4e9a2a" : "#8ad04a") : (k % 2 ? "#7a8a40" : "#9aa858"); ell(ctx, bx - 2.6 + (k % 4) * 1.7, by - 7.5 - (k >> 2) * 1.7 - Math.sin(k) * 0.6 + droop * (k % 4 === 0 || k % 4 === 3 ? 1 : 0.4), 1.3, lush ? 1 : 0.7, null, k + (lush ? 0 : 0.6)); ctx.fill(); }
+      if (lush) { ctx.fillStyle = i ? "#c8a0e8" : "#fbf6e8"; for (var f = 0; f < 3; f++) { ell(ctx, bx - 1.5 + f * 1.5, by - 11.2 - (f % 2), 0.6, 0.6); ctx.fill(); } }
     });
   }
   function can(ctx, cam) {
+    var fl = G.s && G.s.flags || {};
+    if (fl.hasCan && !fl.herbsWatered) return;                      // it's in your hands
     var bx = 47.2 * T - cam.x, by = 15.7 * T - cam.y;
     ctx.fillStyle = "rgba(20,14,6,.28)"; ell(ctx, bx + 1, by + 0.5, 5.5, 1.6); ctx.fill();
     ctx.fillStyle = lg(ctx, bx - 4, 0, bx + 4, 0, [[0, "#9aa4a8"], [0.45, "#dfe6e8"], [1, "#6a747a"]]); rr(ctx, bx - 3.6, by - 7, 7.2, 7, 1.2); ctx.fill();
@@ -138,7 +145,7 @@
     ctx.fillStyle = "#8a6440"; rr(ctx, bx - 4, by - 21, 8, 5, 0.6); ctx.fill();
     ctx.fillStyle = "#c8a070"; ctx.fillRect(bx - 3.2, by - 20.2, 6.4, 3.4);
     ctx.fillStyle = "#7a3a2c"; ctx.beginPath(); ctx.moveTo(bx - 5.2, by - 21); ctx.lineTo(bx, by - 25); ctx.lineTo(bx + 5.2, by - 21); ctx.fill();
-    for (var k = 0; k < 6; k++) { ctx.fillStyle = "#e8d8a8"; ell(ctx, bx - 2.4 + k, by - 17.3, 0.4, 0.3); ctx.fill(); }
+    if (G.s && G.s.flags && G.s.flags.fedBirds) for (var k = 0; k < 6; k++) { ctx.fillStyle = "#e8d8a8"; ell(ctx, bx - 2.4 + k, by - 17.3, 0.4, 0.3); ctx.fill(); }
   }
   C.sorted = function (list, ctx, cam, t) {
     var vw = G.view().w, vh = G.view().h;

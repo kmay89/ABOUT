@@ -61,7 +61,8 @@
   var birds = [];
   function makeBirds() {
     birds = [];
-    FLOCKS.forEach(function (f, fi) {
+    var FL = FLOCKS.slice(); if (G.s && G.s.flags && G.s.flags.fedBirds) FL.push([44.5, 20.2]);
+    FL.forEach(function (f, fi) {
       var n = 3 + (fi % 3);
       for (var i = 0; i < n; i++) birds.push({ fl: fi, hx: f[0] * T + (BS.hash(fi, i, 1) - 0.5) * 40, hy: f[1] * T + (BS.hash(i, fi, 2) - 0.5) * 30, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, state: "ground", t: BS.hash(fi, i, 3) * 3, face: 1, back: 0, peck: 0 });
     });
@@ -232,6 +233,11 @@
     promptWas = on;
   }
 
+  /* the feeder, filled: a flock moves in and stays */
+  J.feederFlock = function () {
+    for (var i = 0; i < 6; i++) { var b = { fl: 99, hx: 44.5 * T + (Math.random() - 0.5) * 40, hy: 20.2 * T + (Math.random() - 0.3) * 22, x: 0, y: 0, z: 60, vx: 0, vy: 0, vz: -20, state: "ground", t: Math.random() * 3, face: Math.random() < 0.5 ? 1 : -1, back: 0, peck: 0 }; b.x = b.hx + (Math.random() - 0.5) * 200; b.y = b.hy - 80; birds.push(b); }
+    A.sfx("flutter", 44.5 * T, 20 * T);
+  };
   /* a sparrow that was up in the tree, leaving */
   J.birdOut = function (x, y) {
     var a = -Math.PI / 2 + (Math.random() - 0.5) * 2, b = { fl: -1, hx: x, hy: y, x: x, y: y + 20, z: 20, vx: Math.cos(a) * 90, vy: -30, vz: 60, state: "fly", t: 0, face: Math.cos(a) > 0 ? 1 : -1, back: 0, peck: 0, once: true };

@@ -279,7 +279,16 @@
       /* fireflies in the field at dusk, frogs' eyes at the pond — handled as motes */
     }
   };
+  /* the bits for the build, sitting where they are, each with a little glint */
+  function shedParts(ctx, cam, t) {
+    if (G.mapId !== "shed" || !is("build")) return;
+    function glint(x, y, ph) { var k = Math.max(0, Math.sin(t * 2.2 + ph)); if (k < 0.55) return; var r = (k - 0.55) * 7; ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,240,190," + (k - 0.3) + ")"; ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x, y - r * 0.3); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 0.3); ctx.closePath(); ctx.fill(); ctx.fillRect(x - 0.25, y - r, 0.5, r * 2); ctx.restore(); }
+    if (!F("p_bungee")) { var bx = 2.5 * T - cam.x, by = 1.9 * T - 4 - cam.y; ctx.fillStyle = "#5a4a3a"; ctx.fillRect(bx - 0.6, by - 6, 1.2, 3); ctx.strokeStyle = "#2e8a3a"; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.ellipse(bx, by, 3.2, 4.4, 0, 0, 6.283); ctx.stroke(); ctx.strokeStyle = "#e0702a"; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.ellipse(bx, by, 3.2, 4.4, 0, 0.3, 1.4); ctx.stroke(); ctx.fillStyle = "#c8c8c8"; ctx.fillRect(bx - 0.4, by + 4, 0.8, 1.6); glint(bx + 2, by - 3, 0); }
+    if (!F("p_wire")) { var wx = 5.5 * T - cam.x, wy = 1.9 * T - 4 - cam.y; for (var i = 0; i < 4; i++) { ctx.strokeStyle = i % 2 ? "#c87a40" : "#e0a060"; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.ellipse(wx + i * 0.3, wy, 3.6 - i * 0.2, 3.6 - i * 0.2, 0, 0, 6.283); ctx.stroke(); } glint(wx - 2, wy - 2, 2); }
+    if (!F("p_tape")) { var tx = 9.5 * T - cam.x, ty = 5.4 * T - 3 - cam.y; ctx.fillStyle = "rgba(20,14,6,.35)"; BS.ell(ctx, tx + 0.6, ty + 2, 3.2, 1.2); ctx.fill(); ctx.fillStyle = "#1a1a1e"; BS.ell(ctx, tx, ty, 3, 2.2); ctx.fill(); ctx.fillStyle = "#3a3a42"; BS.ell(ctx, tx, ty - 0.6, 3, 2.2); ctx.fill(); ctx.fillStyle = "#c8b890"; BS.ell(ctx, tx, ty - 0.6, 1.3, 0.95); ctx.fill(); ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(tx - 2.2, ty - 1.6, 1.4, 0.4); glint(tx + 2, ty - 2, 4); }
+  }
   S.under = function (ctx, cam, t) {
+    shedParts(ctx, cam, t);
     if (G.mapId === "cellar" && F("pumped")) {
       /* a smear of dull yellow on an old shelf */
       ctx.fillStyle = "rgba(150,130,70,.6)"; ctx.fillRect(20 * T + 2 - cam.x, 11 * T + 6 - cam.y, 8, 4);
@@ -479,7 +488,48 @@
 
   /* ---------------- spots: everything you can press E on ---------------- */
   function spot(o) { G.spot(o); }
+  /* ---------------- small kindnesses nobody asks for ----------------
+     Nothing tells you to do these. The hill just has things in it that
+     want doing, the way Gran's hill always had. */
+  function waterHerbs() {
+    return scene(function () {
+      if (!F("canFull")) return nar(F("hasCan") ? "Basil and thyme, gone limp in the heat. The can was empty — the tap, by the corner of the house." : "Her basil and thyme, gone limp in the heat.");
+      set("herbsWatered"); A.sfx("splash"); G.burst(40 * T, 16 * T, 14, "190,230,150", 10);
+      return wait(900).then(function () { A.sfx("secret"); return nar("They drank it so fast the soil hissed. And under the second pot, a slip of paper in her small upright hand: *Thank you. They like it best in the evening.*"); });
+    });
+  }
+  function sitSwing() {
+    G.sitting = true; G.p.x = 36.6 * T; G.p.y = 15 * T + 11.5; G.p.dir = 0; G.p.still = 0; A.sfx("creak");
+    if (!F("swungOnce")) { set("swungOnce"); setTimeout(function () { if (G.sitting) A.sfx("chime"); }, 2600); }
+  }
+  function peaches() {
+    return scene(function () {
+      if (F("peachSeen")) return nar("Peaches, and two empty jars going to the church sale.");
+      set("peachSeen"); A.sfx("secret");
+      return BS.inspect.show({ key: "peach", keepsake: true, kind: "A summer, in glass", name: "Gran's peaches", sci: "Canning: heat and a seal",
+        text: "Fruit keeps in a jar because of two things. The heat kills whatever was living in it. Then, as the jar cools, the air inside shrinks and pulls the lid down tight — that small *pop* is the seal — so nothing new can get in. Six jars of this summer's peaches, waiting by the door.",
+        opens: "Nothing you need. Something she made." });
+    });
+  }
+  function feeder() {
+    return scene(function () {
+      if (F("fedBirds")) return nar("The sparrows, arguing politely over her seed.");
+      if (!F("hasSeed")) return nar("Gran's bird feeder. Empty, and the sparrows had noticed.");
+      set("fedBirds"); A.sfx("pick"); if (BS.juice && BS.juice.feederFlock) BS.juice.feederFlock();
+      return wait(1500).then(function () { A.sfx("secret"); return nar("I hadn't even stepped back before the first one came. Then four. Then the whole hedge, it seemed like."); });
+    });
+  }
   function defineSpots() {
+    /* — the kindnesses — */
+    spot({ id: "can", map: "hill", x: 47.2, y: 15.4, r: 14, label: "Gran's watering can", when: function () { return !F("hasCan") && !F("herbsWatered"); }, act: function () { set("hasCan"); A.sfx("pick"); note("Gran's watering can. Empty."); } });
+    spot({ id: "herbs", map: "hill", x: 40, y: 16.4, r: 18, label: function () { return F("canFull") ? "Water her herbs" : "Her herb pots"; }, when: function () { return !F("herbsWatered"); }, act: waterHerbs });
+    spot({ id: "swing", map: "hill", x: 36.6, y: 15.9, r: 16, label: "Sit on the swing", when: function () { return !G.sitting; }, act: sitSwing });
+    spot({ id: "peaches", map: "hill", x: 41.7, y: 16, r: 12, label: "The crate of jars", act: peaches });
+    spot({ id: "feeder", map: "hill", x: 44.5, y: 19.9, r: 16, label: function () { return F("hasSeed") && !F("fedBirds") ? "Fill the bird feeder" : "Gran's bird feeder"; }, act: feeder });
+    spot({ id: "seed", map: "shed", x: 2.2, y: 6.2, r: 16, label: "A coffee can of birdseed", when: function () { return !F("hasSeed"); }, act: function () { set("hasSeed"); A.sfx("pick"); note("A coffee can of birdseed, in her writing: BIRDS."); } });
+    /* — the power, cut for the sale — */
+    spot({ id: "switch", map: "house", x: 7.4, y: 1.9, r: 12, label: "The light switch", act: function () { A.sfx("click"); if (F("triedSwitch")) { note("Click. Click. Nothing."); return; } set("triedSwitch"); scene(function () { return nar("Click. Nothing. The power had been cut for the sale."); }); } });
+    spot({ id: "outlet", map: "house", x: 10.5, y: 1.9, r: 12, label: "An outlet", act: function () { A.sfx("click"); scene(function () { return nar(G.s.battery < 20 ? "I plugged in my phone out of pure habit. Nothing. Four percent, and nowhere on earth to plug it in." : "Dead as the rest of the house. The phone ran on scooter now."); }); } });
     /* — the house — */
     spot({ id: "dad", map: "house", x: 6.5, y: 8.5, r: 22, label: "Dad", when: function () { return G.ent("dad") && G.ent("dad").map === "house"; }, act: talkDad });
     spot({ id: "jam", map: "house", x: 9.5, y: 8.5, r: 18, label: "The jar of jam", when: function () { return !from("evening"); }, act: jamBox });
@@ -504,7 +554,7 @@
     spot({ id: "crest", map: "hill", x: h.crest.x + 0.5, y: h.crest.y + 0.5, r: 22, label: "Push off down the hill", when: function () { return has("scooter") && !(is("evening") && G.s.battery >= 10) && (is("hill", "evening") || past("lens")) && !is("pump", "revive", "pit", "woods", "hollow", "pond", "apology", "call", "friday"); }, act: pushOff });
     spot({ id: "signal", map: "hill", x: h.crest.x + 0.5, y: h.crest.y - 0.6, r: 16, label: "Hold the phone up, and keep perfectly still", when: function () { return is("evening") && G.s.battery >= 10; }, act: callGran });
     spot({ id: "compost", map: "hill", x: 48.9, y: 21.6, r: 20, label: function () { return F("slime1") ? "Lead the gold toward the hedge" : "Lay the oats"; }, when: function () { return is("dawn"); }, act: oats });
-    spot({ id: "tap", map: "hill", x: 46.5, y: 16.4, r: 16, label: "The garden tap", act: function () { scene(function () { return nar(from("apology") ? "Sand out of my hair, my collar, the cuffs of my jeans, a whole hill of it going down the drain." : "The garden tap, still running. The only thing up here that still did what it was told."); }); } });
+    spot({ id: "tap", map: "hill", x: 46.5, y: 16.4, r: 16, label: "The garden tap", act: function () { if (F("hasCan") && !F("canFull") && !F("herbsWatered")) { set("canFull"); A.sfx("splash"); note("Full to the brim. Heavy, the good kind."); return; } scene(function () { return nar(from("apology") ? "Sand out of my hair, my collar, the cuffs of my jeans, a whole hill of it going down the drain." : "The garden tap, still running. The only thing up here that still did what it was told."); }); } });
     spot({ id: "lav", map: "hill", x: 39.5, y: 22, r: 20, label: "Lavender by the gate", when: function () { return !is("dawn"); }, act: function () { scene(function () { return nar("The lavender Gran had put in years ago, gone leggy and wonderful with nobody to prune it. A bee turned slow circuits in it."); }); } });
     spot({ id: "beckdoor", map: "hill", x: 67.5, y: 16.6, r: 18, label: function () { return is("apology") ? "Knock" : "Beck's door"; }, act: beckDoor });
     spot({ id: "gapnote", map: "hill", x: 63.5, y: 33.4, r: 16, label: "The gap in the fence", when: function () { return !(is("pit") && !F("sawBoard")); }, act: function () { scene(function () { return nar(past("pit") ? "I do what Beck says at the pit. Forever. That was the deal." : "The pit: a great raw bite out of the earth, all yellow-gray and glaring. Beck's dad's work."); }); } });
@@ -607,13 +657,19 @@
   S.enter = function (id) {
     if (id === "cellar" && is("arrive") && F("dadSentCellar")) beat("cellar1");
     if (id === "cellar" && is("cellar1") && !F("cellarBreath")) {
-      set("cellarBreath"); G.s.battery = 0; G.eyes.adapt = 0; G.hud();
+      set("cellarBreath"); G.eyes.adapt = 0; G.hud();
       scene(function () {
-        return nar("It breathed. That's the only honest way I can say it. A long slow exhale of air that had never once in its life been warm — cold and mineral and green, the smell of wet stone and old earth and apples kept too long.")
+        /* the phone's last light goes, and there is no other: the bulb on its
+           string clicks and does nothing, because the power is off */
+        A.sfx("click");
+        return wait(500).then(function () { G.s.battery = 1; G.hud(); G.phoneGlare = 0.6; A.sfx("phonedie"); return wait(900); })
+          .then(function () { G.s.battery = 0; G.hud(); if (G.flashPhone) G.flashPhone(); return nar("The string for the bulb: click. Nothing — the power was off down here too. And my phone chose that exact moment to die."); })
+          .then(function () { return nar("It breathed. That's the only honest way I can say it. A long slow exhale of air that had never once in its life been warm — cold and mineral and green, the smell of wet stone and old earth and apples kept too long.")
           .then(function () { return nar("By the fifth step I couldn't see my own feet. The quiet down there was so total that I could hear my own pulse going in my ears — and, over it, very small and very far, the plink, pause, plink of water finding its way down stone."); })
           .then(function () { A.loop("heart", true, 0.35); G.cynic("there's nothing down here.", 5); return wait(1200); })
           .then(function () { G.cynic("It's a cellar. It's cold and it's black and it smells like a drain.", 6); return wait(1600); })
-          .then(function () { G.cynic("Go back up where the light is.", 5); G.objective("Stand still in the dark. Wait. Let it give things back."); });
+          .then(function () { G.cynic("Go back up where the light is.", 5); G.objective("Stand still in the dark. Let your eyes open."); });
+        });
       });
     }
     if (id === "house" && is("shed") && !F("spiders")) { set("spiders"); scene(spidersScene); }
@@ -696,11 +752,11 @@
     if (is("shed")) return scene(function () {
       return nar("The crank handle turned in a circle. The scooter's back wheel turned in a circle. If a turning wheel could turn the handle, it wouldn't be my arm doing it at all. And the scooter, pointed down the hill, would roll all on its own, for free, the whole way to the bottom.")
         .then(function () { return nar("I could make light out of a hill."); })
-        .then(function () { beat("build"); G.objective("Lash it together: a bungee cord, a coil of stiff wire, electrical tape — and a rubber band off a jar (the jam box, in the house)."); });
+        .then(function () { beat("build"); G.objective("Lash it together: a bungee cord (on its peg), stiff wire (the coil on the wall), electrical tape (on the bench by the scooter) — and a rubber band off a jar (the jam box, in the house)."); });
     });
     if (is("build")) {
       var need = ["bungee", "wire", "tape", "band"].filter(function (k) { return !F("p_" + k); });
-      if (need.length) return scene(function () { return nar("Still missing: " + need.map(function (k) { return { bungee: "a bungee cord", wire: "stiff wire", tape: "electrical tape", band: "a rubber band (off a jar, in the house)" }[k]; }).join(", ") + "."); });
+      if (need.length) return scene(function () { return nar("Still missing: " + need.map(function (k) { return { bungee: "a bungee cord (on its peg)", wire: "stiff wire (the coil on the wall)", tape: "electrical tape (on the bench, right by the scooter)", band: "a rubber band (off a jar, in the house)" }[k]; }).join(", ") + "."); });
       return scene(buildScooter);
     }
   }

@@ -20,8 +20,18 @@
   /* ---------------- tiny 3D ---------------- */
   function mat(color, o) { o = o || {}; return { c: BS.hex(color), a: o.a == null ? 1 : o.a, spec: o.spec == null ? 0.35 : o.spec, glow: o.glow || 0, rough: o.rough || 24 }; }
   function Mesh() { this.t = []; }
-  Mesh.prototype.tri = function (a, b, c, m) { this.t.push([a, b, c, m]); };
-  Mesh.prototype.quad = function (a, b, c, d, m) { this.tri(a, b, c, m); this.tri(a, c, d, m); };
+  /* every triangle remembers the middle of the shape it belongs to, so its
+     normal can always be turned to face outward, whatever the winding — an
+     opaque thing is solid from every side, never a hollow shell */
+  Mesh.prototype.tri = function (a, b, c, m, ctr) { this.t.push([a, b, c, m, ctr || this.ctr || [0, 0, 0]]); };
+  Mesh.prototype.quad = function (a, b, c, d, m, ctr) { this.tri(a, b, c, m, ctr); this.tri(a, c, d, m, ctr); };
+  /* a big flat face, cut into a grid so the painter's sort stays honest */
+  Mesh.prototype.grid = function (a, b, c, d, m, ctr) {
+    var lu = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), lv = Math.hypot(d[0] - a[0], d[1] - a[1], d[2] - a[2]);
+    var nu = Math.max(1, Math.min(8, Math.ceil(lu / 0.3))), nv = Math.max(1, Math.min(8, Math.ceil(lv / 0.3)));
+    function at(u, v) { var p = []; for (var i = 0; i < 3; i++) p.push(a[i] * (1 - u) * (1 - v) + b[i] * u * (1 - v) + c[i] * u * v + d[i] * (1 - u) * v); return p; }
+    for (var i = 0; i < nu; i++) for (var j = 0; j < nv; j++) this.quad(at(i / nu, j / nv), at((i + 1) / nu, j / nv), at((i + 1) / nu, (j + 1) / nv), at(i / nu, (j + 1) / nv), m, ctr);
+  };
   /* turn a profile [[r, y], ...] around an axis; a0..a1 limits the sweep */
   Mesh.prototype.lathe = function (prof, segs, m, o) {
     o = o || {}; var a0 = o.a0 || 0, a1 = o.a1 == null ? Math.PI * 2 : o.a1, ax = o.axis || "y", off = o.at || [0, 0, 0];
@@ -30,19 +40,21 @@
       if (ax === "y") p = [x, y, z]; else if (ax === "x") p = [y, x, z]; else p = [x, z, y];
       return [p[0] + off[0], p[1] + off[1], p[2] + off[2]];
     }
+    var ymin = 1e9, ymax = -1e9; prof.forEach(function (p) { ymin = Math.min(ymin, p[1]); ymax = Math.max(ymax, p[1]); });
+    var ctr = P(0, (ymin + ymax) / 2, 0);
     for (var i = 0; i < prof.length - 1; i++) for (var j = 0; j < segs; j++) {
       var u0 = a0 + (a1 - a0) * j / segs, u1 = a0 + (a1 - a0) * (j + 1) / segs;
       var A0 = P(prof[i][0], prof[i][1], u0), B0 = P(prof[i][0], prof[i][1], u1), A1 = P(prof[i + 1][0], prof[i + 1][1], u0), B1 = P(prof[i + 1][0], prof[i + 1][1], u1);
-      this.quad(A0, B0, B1, A1, m);
+      this.quad(A0, B0, B1, A1, m, ctr);
     }
     return this;
   };
   Mesh.prototype.box = function (cx, cy, cz, w, h, d, m, mTop) {
     var x0 = cx - w / 2, x1 = cx + w / 2, y0 = cy - h / 2, y1 = cy + h / 2, z0 = cz - d / 2, z1 = cz + d / 2;
-    var v = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
-    this.quad(v[0], v[1], v[2], v[3], m); this.quad(v[5], v[4], v[7], v[6], m);
-    this.quad(v[4], v[0], v[3], v[7], m); this.quad(v[1], v[5], v[6], v[2], m);
-    this.quad(v[4], v[5], v[1], v[0], mTop || m); this.quad(v[3], v[2], v[6], v[7], m);
+    var v = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], C = [cx, cy, cz];
+    this.grid(v[0], v[1], v[2], v[3], m, C); this.grid(v[5], v[4], v[7], v[6], m, C);
+    this.grid(v[4], v[0], v[3], v[7], m, C); this.grid(v[1], v[5], v[6], v[2], m, C);
+    this.grid(v[4], v[5], v[1], v[0], mTop || m, C); this.grid(v[3], v[2], v[6], v[7], m, C);
     return this;
   };
   Mesh.prototype.sphere = function (cx, cy, cz, r, m, sy, segs) {
@@ -59,7 +71,7 @@
       for (var k = 0; k < sides; k++) {
         var q0 = k / sides * 6.2832, q1 = (k + 1) / sides * 6.2832;
         var o0 = add(scale(s, Math.cos(q0) * r), scale(t, Math.sin(q0) * r)), o1 = add(scale(s, Math.cos(q1) * r), scale(t, Math.sin(q1) * r));
-        this.quad(add(a, o0), add(a, o1), add(b, o1), add(b, o0), m);
+        this.quad(add(a, o0), add(a, o1), add(b, o1), add(b, o0), m, scale(add(a, b), 0.5));
       }
     }
     return this;
@@ -86,6 +98,15 @@
       M.lathe([[0.698, 0.06], [0.698, 0.1]], 18, mat("#a83a3a", { spec: 0.1 }), { a0: -0.95, a1: 0.95 });
       return M;
     },
+    peach: function () {
+      var M = new Mesh(); jarGlass(M);
+      M.lathe([[0.001, -0.5], [0.58, -0.5], [0.63, -0.38], [0.63, 0.64], [0.55, 0.8], [0.001, 0.8]], 24, mat("#f0a040", { a: 0.9, spec: 0.7, rough: 40, glow: 0.18 }));
+      var half = mat("#f6b85a", { spec: 0.5, glow: 0.1 });
+      [[0.2, 0.1, -0.35], [-0.25, 0.4, -0.3], [0.1, -0.25, -0.4], [-0.15, -0.1, -0.42]].forEach(function (p) { M.sphere(p[0], p[1], p[2], 0.2, half, 0.7, 6); });
+      M.lathe([[0.695, -0.05], [0.695, 0.42]], 18, mat("#f6efdc", { spec: 0.1 }), { a0: -0.9, a1: 0.9 });
+      M.lathe([[0.7, 0.1], [0.7, 0.14]], 18, mat("#d8784a", { spec: 0.1 }), { a0: -0.9, a1: 0.9 });
+      return M;
+    },
     crumb: function () {
       var M = new Mesh(); jarGlass(M);
       M.sphere(0.05, 0.74, 0, 0.16, mat("#b89a48", { spec: 0.2 }), 0.45, 6);
@@ -93,10 +114,30 @@
       return M;
     },
     book: function () {
-      var M = new Mesh(), cov = mat("#5a3a26", { spec: 0.25 }), pg = mat("#efe4c8", { spec: 0.05 });
-      M.box(0, 0, 0, 1.3, 1.75, 0.08, cov).box(0, 0, 0.36, 1.3, 1.75, 0.08, cov).box(0.05, 0, 0.18, 1.2, 1.65, 0.3, pg).box(-0.62, 0, 0.18, 0.08, 1.75, 0.44, cov);
+      /* Gran's book: soft old leather over boards, a rounded spine with
+         raised bands, a fat block of pages with their edges showing, a red
+         ribbon hanging out of the bottom, brass corners and a clasp, and
+         the foxfire pattern she drew in gold on the cover */
+      var M = new Mesh(), cov = mat("#5e3a24", { spec: 0.3, rough: 18 }), cov2 = mat("#4a2c1a", { spec: 0.25, rough: 16 }), pg = mat("#f1e6c8", { spec: 0.04 }), pg2 = mat("#ded0ac", { spec: 0.02 });
+      var brass = mat("#c9a040", { spec: 1, rough: 40 });
+      M.box(0.04, 0, -0.02, 1.32, 1.8, 0.07, cov).box(0.04, 0, 0.42, 1.32, 1.8, 0.07, cov);
+      /* pages, in layers so their edges read */
+      for (var k = 0; k < 7; k++) M.box(0.06, 0, 0.04 + k * 0.05, 1.22, 1.7, 0.05, k % 2 ? pg : pg2);
+      /* the spine: half a cylinder along the book's height */
+      M.lathe([[0.25, -0.9], [0.25, 0.9]], 10, cov2, { a0: Math.PI * 0.5, a1: Math.PI * 1.5, at: [-0.62, 0, 0.2] });
+      M.lathe([[0.001, -0.9], [0.25, -0.9]], 10, cov2, { a0: Math.PI * 0.5, a1: Math.PI * 1.5, at: [-0.62, 0, 0.2] });
+      M.lathe([[0.001, 0.9], [0.25, 0.9]], 10, cov2, { a0: Math.PI * 0.5, a1: Math.PI * 1.5, at: [-0.62, 0, 0.2] });
+      [-0.55, -0.15, 0.25, 0.65].forEach(function (y) { M.lathe([[0.27, y - 0.04], [0.27, y + 0.04]], 10, mat("#6e4630", { spec: 0.4 }), { a0: Math.PI * 0.5, a1: Math.PI * 1.5, at: [-0.62, 0, 0.2] }); });
+      /* brass corners on the front */
+      [[0.62, -0.82], [0.62, 0.82]].forEach(function (c) { M.box(c[0], c[1], -0.065, 0.16, 0.16, 0.02, brass); });
+      /* the clasp: a leather strap round the fore-edge to a brass catch */
+      M.box(0.72, 0.05, 0.2, 0.06, 0.24, 0.5, cov2); M.box(0.55, 0.05, -0.07, 0.3, 0.24, 0.02, cov2);
+      M.box(0.42, 0.05, -0.085, 0.12, 0.16, 0.03, brass);
+      /* the ribbon */
+      M.tube([[0.1, 0.84, 0.2], [0.14, 1.05, 0.15], [0.08, 1.25, 0.2]], 0.035, mat("#b8323a", { spec: 0.3 }), 4);
+      /* her foxfire, in gold on the cover */
       var gold = mat("#ffcc55", { glow: 0.9, spec: 0.8 });
-      [[[-0.6, -0.5, -0.05], [-0.2, -0.3, -0.06], [0.1, -0.55, -0.06], [0.62, -0.4, -0.05]], [[-0.62, 0.3, -0.05], [-0.1, 0.1, -0.06], [0.3, 0.4, -0.06], [0.64, 0.2, -0.05]], [[-0.1, 0.1, -0.06], [0.05, 0.6, -0.06], [0.3, 0.86, -0.05]]].forEach(function (p) { M.tube(p, 0.02, gold, 4); });
+      [[[-0.5, -0.5, -0.06], [-0.2, -0.3, -0.07], [0.1, -0.55, -0.07], [0.5, -0.4, -0.06]], [[-0.5, 0.3, -0.06], [-0.1, 0.1, -0.07], [0.3, 0.4, -0.07], [0.5, 0.2, -0.06]], [[-0.1, 0.1, -0.07], [0.05, 0.55, -0.07], [0.25, 0.75, -0.06]], [[-0.2, -0.3, -0.07], [-0.32, -0.7, -0.06]]].forEach(function (p) { M.tube(p, 0.022, gold, 4); });
       return M;
     },
     lantern: function () {
@@ -129,14 +170,39 @@
       return M;
     },
     scooter: function () {
-      var M = new Mesh(), red = mat("#c8402e", { spec: 0.6 }), dark = mat("#222", { spec: 0.5 });
-      M.box(0, 0.55, 0, 0.42, 0.08, 2.2, red);
-      [[-1.05], [1.05]].forEach(function (z) { M.lathe([[0.001, -0.08], [0.28, -0.08], [0.3, 0], [0.28, 0.08], [0.001, 0.08]], 18, dark, { axis: "x", at: [0, 0.68, z[0]] }); });
-      M.tube([[0, 0.5, -1.0], [0, -0.9, -0.85]], 0.06, mat("#9a9da0", { spec: 0.9 }), 6);
-      M.tube([[-0.45, -0.9, -0.85], [0.45, -0.9, -0.85]], 0.05, dark, 6);
-      M.box(0, 0.3, -0.75, 0.55, 0.42, 0.4, mat("#e2c03e"));
-      M.lathe([[0.001, -0.21], [0.13, -0.21], [0.13, -0.25], [0.001, -0.25]], 12, mat("#fff4c8", { glow: 1 }), { axis: "z", at: [0, 0.3, -0.76] });
-      M.box(0, 0.42, -0.5, 0.6, 0.03, 0.12, mat("#222", { spec: 0.1 }));
+      /* my scooter, after the shed: the crank lantern bungeed onto the front,
+         a loop of copper wire from its dynamo down to the front wheel, duct
+         tape round the stem, the old grips, a streamer that was there first */
+      var M = new Mesh(), red = mat("#d0402c", { spec: 0.7, rough: 30 }), grip = mat("#1d1d22", { spec: 0.2 }), steel = mat("#b8bcc0", { spec: 1, rough: 50 }), tire = mat("#202024", { spec: 0.25, rough: 10 }), hub = mat("#e8e8ea", { spec: 1, rough: 60 });
+      /* deck: red sides, grip tape on top */
+      M.box(0, 0.58, 0.05, 0.46, 0.1, 2.0, red, mat("#2a2a2e", { spec: 0.05 }));
+      M.box(0, 0.65, 1.05, 0.3, 0.06, 0.3, red);                        // the rear fender
+      /* tires (a fat ring) with silver hubs */
+      [[-1.02], [1.12]].forEach(function (z) {
+        var ring = []; for (var i = 0; i <= 12; i++) { var a = i / 12 * Math.PI * 2; ring.push([0.24 + Math.cos(a) * 0.08, Math.sin(a) * 0.1]); }
+        M.lathe(ring, 18, tire, { axis: "x", at: [0, 0.72, z[0]] });
+        M.lathe([[0.001, -0.07], [0.16, -0.07], [0.16, 0.07], [0.001, 0.07]], 14, hub, { axis: "x", at: [0, 0.72, z[0]] });
+      });
+      /* stem, fork and T-bar */
+      M.tube([[0, 0.62, -0.98], [0, -0.95, -0.8]], 0.065, steel, 8);
+      M.tube([[-0.1, 0.72, -1.02], [-0.06, 0.45, -0.98]], 0.035, steel, 6); M.tube([[0.1, 0.72, -1.02], [0.06, 0.45, -0.98]], 0.035, steel, 6);
+      M.tube([[-0.46, -0.95, -0.8], [0.46, -0.95, -0.8]], 0.045, steel, 8);
+      M.tube([[-0.62, -0.95, -0.8], [-0.4, -0.95, -0.8]], 0.075, grip, 8); M.tube([[0.4, -0.95, -0.8], [0.62, -0.95, -0.8]], 0.075, grip, 8);
+      /* streamers off the right grip */
+      ["#f2d070", "#8ad0e0", "#f08aa0"].forEach(function (c, i) { M.tube([[0.63, -0.95, -0.8], [0.78 + i * 0.03, -0.8 + i * 0.05, -0.72], [0.86 + i * 0.05, -0.62 + i * 0.07, -0.66]], 0.015, mat(c, { spec: 0.3 }), 3); });
+      /* duct tape, wrapped three times round the stem */
+      [-0.15, -0.05, 0.05].forEach(function (y) { var p = [0, 0.62, -0.98], q = [0, -0.95, -0.8], u = (y + 0.95) / 1.57; M.tube([[0, y, p[2] + (q[2] - p[2]) * (1 - u) - 0.005], [0, y + 0.08, p[2] + (q[2] - p[2]) * (1 - u) - 0.015]], 0.085, mat("#a8acb0", { spec: 0.6, rough: 20 }), 8); });
+      /* the crank lantern, strapped on */
+      var body = mat("#e2c03e", { spec: 0.55 });
+      M.box(0, 0.1, -1.12, 0.6, 0.48, 0.42, body, mat("#efd46a", { spec: 0.6 }));
+      M.lathe([[0.001, -0.23], [0.16, -0.23], [0.16, -0.27], [0.001, -0.27]], 14, mat("#fff4c8", { glow: 1 }), { axis: "z", at: [0, 0.1, -1.1] });
+      M.lathe([[0.18, -0.22], [0.2, -0.26], [0.17, -0.29]], 14, mat("#3a3a3a", { spec: 0.5 }), { axis: "z", at: [0, 0.1, -1.1] });
+      M.tube([[0.31, 0.1, -1.0], [0.48, 0.1, -1.0], [0.48, 0.32, -1.0]], 0.03, mat("#3a3a3a"), 5);                      // its crank
+      M.lathe([[0.001, 0.32], [0.05, 0.32], [0.05, 0.44], [0.001, 0.44]], 8, mat("#b33a2a"), { at: [0.48, 0, -1.0] });
+      /* two bungee cords round it and the stem */
+      [["#2e8a3a", -0.02], ["#e0702a", 0.22]].forEach(function (b) { M.tube([[-0.33, b[1], -0.92], [-0.33, b[1], -1.35], [0.33, b[1], -1.35], [0.33, b[1], -0.92], [-0.33, b[1], -0.92]], 0.03, mat(b[0], { spec: 0.4 }), 5); });
+      /* copper wire, from the dynamo down to the front wheel */
+      M.tube([[0.3, 0.25, -1.05], [0.26, 0.48, -1.0], [0.16, 0.66, -1.02]], 0.018, mat("#d8804a", { spec: 1, rough: 50 }), 4);
       return M;
     },
     rock: function () {
@@ -171,7 +237,7 @@
     },
     coin: null
   };
-  var MODEL_OF = { book: "book", lantern: "lantern", scooter: "scooter", lens: "phone", oats: "oats", roots: "roots", log: "log", proof: "rock", crumb: "crumb", pen: "pen", onebar: "phonebars", jam: "jam" };
+  var MODEL_OF = { peach: "peach", book: "book", lantern: "lantern", scooter: "scooter", lens: "phone", oats: "oats", roots: "roots", log: "log", proof: "rock", crumb: "crumb", pen: "pen", onebar: "phonebars", jam: "jam" };
 
   /* ---------------- render ---------------- */
   var cv, x, W, H, dpr, st = null, raf = 0;
@@ -180,6 +246,7 @@
     var a = t[0], b = t[1], c = t[2], m = t[3];
     var n = norm(cross(sub(b, a), sub(c, a)));
     var cen = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3];
+    if (t[4] && dot(n, sub(cen, t[4])) < 0) n = scale(n, -1);          // outward, always
     var V = norm(sub([0, 0, -R], cen));
     var facing = dot(n, V);
     if (facing < 0) { if (m.a >= 0.99) return null; n = scale(n, -1); facing = -facing; }
@@ -194,7 +261,7 @@
     function T(p) { var X = p[0] * cyw + p[2] * syw, Z = -p[0] * syw + p[2] * cyw, Y = p[1] * cp - Z * sp; Z = p[1] * sp + Z * cp; return [X, Y, Z]; }
     var list = [];
     for (var i = 0; i < M.t.length; i++) {
-      var t = M.t[i], a = T(t[0]), b = T(t[1]), c = T(t[2]), s = shadeTri([a, b, c, t[3]], R);
+      var t = M.t[i], a = T(t[0]), b = T(t[1]), c = T(t[2]), s = shadeTri([a, b, c, t[3], T(t[4])], R);
       if (s) list.push([a, b, c, s]);
     }
     list.sort(function (p, q) { return q[3].z - p[3].z; });
