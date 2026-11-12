@@ -55,6 +55,8 @@
     shown[p[0]] = now;
     var r = $("region"); $("rname").textContent = p[0]; $("rsub").textContent = p[1];
     r.classList.remove("on"); void r.offsetWidth; r.classList.add("on");
+    /* while a place says its name, everything else at the top steps back */
+    document.body.classList.add("regionon"); clearTimeout(J._regT); J._regT = setTimeout(function () { document.body.classList.remove("regionon"); }, 4000);
     A.sfx("region");
   }
 

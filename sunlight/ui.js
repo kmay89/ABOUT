@@ -344,6 +344,8 @@
 
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {
+    /* the transient line goes in whichever half of the screen you aren't in */
+    if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.5); }
     var gc = $("goalcard");
     if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
     var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];

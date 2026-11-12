@@ -316,7 +316,11 @@
   G.objective = function (t) {
     var changed = t && t !== G.s.objective;
     G.s.objective = t; G.hud();
-    if (changed) { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); setTimeout(function () { A.sfx("goal"); }, 250); }
+    if (changed) {
+      /* a new goal says so briefly; if a place title is up, it waits its turn */
+      var showObj = function () { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); document.body.classList.add("objnew"); clearTimeout(G._objT); G._objT = setTimeout(function () { document.body.classList.remove("objnew"); }, 4500); setTimeout(function () { A.sfx("goal"); }, 250); };
+      if (document.body.classList.contains("regionon")) setTimeout(showObj, 3400); else showObj();
+    }
   };
   G.flash = function (t) { var f = $("flash"); f.textContent = t; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); };
   G.toast = function (t, ms) { var f = $("toast"); f.textContent = t; f.classList.add("on"); clearTimeout(G._tt); G._tt = setTimeout(function () { f.classList.remove("on"); }, ms || 2600); };
@@ -805,10 +809,15 @@
     var m = G.map, mw = m.w * T, mh = m.h * T;
     var p = G.p, ahead = G.mode === "ride" ? 34 : 10;
     var lookX = (p.vx || 0) / 92 * ahead, lookY = (p.vy || 0) / 92 * ahead;
-    var tx = p.x + lookX - VW / 2, ty = p.y - 10 + lookY - VH / 2;
-    if (G.camFocus) { tx = G.camFocus.x - VW / 2; ty = G.camFocus.y - VH / 2; }
+    /* the open part of the screen: below the HUD and goal card, above the
+       touch controls. Keep the player in the middle of that, and let the
+       camera run past the edge of a room so they never hide under the UI */
+    var touch = document.body.classList.contains("touch") && G.mode !== "title";
+    var padT = (touch ? 196 : 56) / SC, padB = (touch ? 230 : 36) / SC, avail = Math.max(40, VH - padT - padB);
+    var tx = p.x + lookX - VW / 2, ty = p.y - 10 + lookY - padT - avail / 2;
+    if (G.camFocus) { tx = G.camFocus.x - VW / 2; ty = G.camFocus.y - VH / 2; padT = padB = 0; avail = VH; }
     tx = mw <= VW ? (mw - VW) / 2 : Math.max(0, Math.min(mw - VW, tx));
-    ty = mh <= VH ? (mh - VH) / 2 : Math.max(0, Math.min(mh - VH, ty));
+    ty = mh <= avail ? (mh - avail) / 2 - padT : Math.max(-padT, Math.min(mh - VH + padB, ty));
     if (cam.snap || cam.map !== G.mapId) { cam.x = tx; cam.y = ty; cam.snap = false; cam.map = G.mapId; }
     else { var k = Math.min(1, dt * (G.mode === "ride" ? 9 : 6)); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
     cam.vx = cam.x; cam.vy = cam.y;

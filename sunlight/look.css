@@ -545,3 +545,24 @@ body.touch.playing .lens.on ~ #touch, body:has(.lens.on) #touch{opacity:0;pointe
 .book .achc b{color:rgba(58,38,20,.55)}.book .achc small{color:rgba(90,70,50,.6)}
 .book .achc.got{background:rgba(232,184,64,.14);border-color:rgba(190,140,40,.45)}
 .book .achc.got b{color:#3a2410}.book .achc.got small{color:#5a4630}
+
+/* ---------------- one thing at a time: the phone layout ----------------
+   top-left: the goal card. Just under it: one transient line at a time
+   (a place's name, or a new goal). Bottom: the prompt, with sound captions
+   and notes stacked above it, clear of the thumbs. */
+body.touch .region{top:calc(176px + var(--safe-t))}
+body.touch .region span{font-size:1.5rem}
+body.touch .region small{font-size:.8rem}
+body.regionon #goalcard{opacity:.0;transform:translateY(-6px);pointer-events:none}
+body.regionon .obj{opacity:0!important}
+#goalcard{transition:opacity .35s,transform .35s}
+body.touch .obj{top:calc(176px + var(--safe-t));opacity:0;transition:opacity .4s;pointer-events:none;max-width:86vw}
+body.touch.objnew .obj{opacity:1}
+body.touch .caption{bottom:calc(204px + var(--safe-b));left:50%;transform:translateX(-50%);max-width:86vw;text-align:center}
+body.touch .toast{top:auto;bottom:calc(244px + var(--safe-b))}
+body.touch .objdone{bottom:calc(204px + var(--safe-b))}
+/* desktop: keep the caption off the prompt's line */
+.caption{bottom:calc(104px + var(--safe-b))}
+/* when you're up top, the transient line drops into the lower half instead */
+body.touch.lanelow .region,body.touch.lanelow .obj{top:auto;bottom:calc(262px + var(--safe-b))}
+body.touch.lanelow .caption{bottom:calc(204px + var(--safe-b))}

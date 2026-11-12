@@ -349,3 +349,11 @@ The small motions that make a person a person:
 - **Small wins:** when a goal is done it's struck through and ticked, with a pen-tick sound, as the next one arrives.
 - **Music that grows:** early on, the generative piano plays alone. Past 30% a warm pad comes in under it. Past 55% a second voice answers a third above. Past 75%, now and then, the phrase is Gran's theme itself.
 - Saves from before Moments existed are credited quietly on load, so there's no banner storm.
+
+## One thing at a time (phone layout)
+
+- The top-left is for the goal card. One transient line at a time sits just below it (a place's name, or a new goal), and a new goal waits for the place name to finish. While a place name is up, the goal card steps aside.
+- On phones the goal card already shows the current step, so the goal pill appears for a few seconds when it changes, then gets out of the way.
+- The transient line goes in whichever half of the screen Wren isn't in.
+- Sound captions, notes and goal ticks stack above the prompt, clear of the thumbs. On desktop the caption sits above the prompt's line.
+- The camera knows where the HUD and touch controls are. It keeps the player in the open part of the screen and runs past the edge of a room when needed, so Wren never stands hidden under the UI.
