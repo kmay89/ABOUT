@@ -20,7 +20,8 @@
   var BS = window.BS = window.BS || {};
   var TL = BS.TL, H = BS.hash, T = 16;
   var ART = 3;            // ground and props: pixels per world unit, baked
-  var SPR = 4;            // people and small things: a little finer
+  var SPR = 8;            // people and small things: fine enough for a retina screen up close
+  var PRES = 3;           // buildings, trees and props: few of them, so paint them finer than the ground
   BS.ART = ART;
 
   function cv(w, h) { var c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
@@ -205,7 +206,7 @@
       for (var k2 = 1; k2 < 5; k2++) { x.beginPath(); x.ellipse(pcx, pcy, prx * k2 / 5, pry * k2 / 5, 0, 0, 6.2832); x.stroke(); }
     });
     /* lone-tree shadows (the canopy itself is up in the air) */
-    for (ty = y0 - 2; ty < y0 + CH + 2; ty++) for (tx = x0 - 2; tx < x0 + CH + 2; tx++) if (m.get(tx, ty) === TL.TREE) shadow(x, tx * T + 16, ty * T + 16, 22, 11, 0.34);
+    for (ty = y0 - 2; ty < y0 + CH + 2; ty++) for (tx = x0 - 2; tx < x0 + CH + 2; tx++) if (m.get(tx, ty) === TL.TREE) shadow(x, tx * T + 8, ty * T + 15, 10, 4, 0.32);
     return c;
   }
 
@@ -599,7 +600,7 @@
   BS.leaves = leaves;
   /* a single round tree */
   BS.paintCanopy = function (seed, r) {
-    var d = r * 2 + 8, c = wc(d, d, ART), x = c.x, rs = R(seed);
+    var d = r * 2 + 8, c = wc(d, d, PRES), x = c.x, rs = R(seed);
     var cols = ["#3d6a2c", "#4a7a34", "#56883c", "#355e26"];
     for (var k = 0; k < 9; k++) {
       var a = rs() * 6.283, rr2 = rs() * r * 0.55;
@@ -762,7 +763,7 @@
   /* Gran's house: white weatherboard gone gray, a deep tiled roof, the
      chimney, windows dark because the power is cut, the porch. */
   BS.paintHouse = function (w, h) {
-    var W = w * T, Hh = h * T + 30, c = wc(W + 12, Hh + 8, ART), x = c.x;
+    var W = w * T, Hh = h * T + 30, c = wc(W + 12, Hh + 8, PRES), x = c.x;
     var wallTop = Hh - 3 * T - 6;
     shadow(x, W / 2 + 10, Hh - 2, W * 0.58, 12, 0.35);
     x.fillStyle = lg(x, 0, wallTop, W, Hh, [[0, "#ece6d6"], [1, "#c8bfac"]]); x.fillRect(0, wallTop, W, Hh - wallTop - 2);
@@ -801,7 +802,7 @@
     return c;
   };
   BS.paintShed = function (w, h) {
-    var W = w * T, Hh = h * T + 16, c = wc(W + 10, Hh + 6, ART), x = c.x;
+    var W = w * T, Hh = h * T + 16, c = wc(W + 10, Hh + 6, PRES), x = c.x;
     var wallTop = Hh - 2 * T - 6;
     shadow(x, W / 2 + 8, Hh - 2, W * 0.6, 8, 0.32);
     for (var i = 0; i < W; i += 4) {
@@ -820,7 +821,7 @@
     return c;
   };
   BS.paintBeckHouse = function (w, h) {
-    var W = w * T, Hh = h * T + 24, c = wc(W + 10, Hh + 6, ART), x = c.x;
+    var W = w * T, Hh = h * T + 24, c = wc(W + 10, Hh + 6, PRES), x = c.x;
     var wallTop = Hh - 3 * T;
     shadow(x, W / 2 + 8, Hh - 2, W * 0.58, 10, 0.32);
     x.fillStyle = lg(x, 0, wallTop, W, Hh, [[0, "#d6dee4"], [1, "#a8b4bc"]]); x.fillRect(0, wallTop, W, Hh - wallTop - 2);
@@ -840,7 +841,7 @@
     return c;
   };
   BS.paintTrailer = function (w, h) {
-    var W = w * T, Hh = h * T + 10, c = wc(W + 8, Hh + 4, ART), x = c.x;
+    var W = w * T, Hh = h * T + 10, c = wc(W + 8, Hh + 4, PRES), x = c.x;
     shadow(x, W / 2 + 6, Hh - 1, W * 0.6, 6, 0.35);
     rr(x, 0, 6, W, Hh - 10, 1.4, lg(x, 0, 6, 0, Hh - 4, [[0, "#4e8a5a"], [1, "#2e5a3a"]]));
     for (var i = 2; i < W; i += 3) { x.fillStyle = "rgba(0,0,0,.12)"; x.fillRect(i, 8, 0.5, Hh - 14); }
@@ -854,7 +855,7 @@
     return c;
   };
   BS.paintPipes = function (w) {
-    var c = wc(w * T + 4, 24, ART), x = c.x;
+    var c = wc(w * T + 4, 24, PRES), x = c.x;
     shadow(x, w * T / 2 + 4, 20, w * T * 0.6, 4, 0.35);
     for (var i = 0; i < w * 2; i++) {
       var cx = 4.5 + i * 7.6, cy = i % 2 ? 10 : 16;
@@ -865,7 +866,7 @@
     return c;
   };
   BS.paintBeech = function () {
-    var c = wc(44, 60, ART), x = c.x;
+    var c = wc(44, 60, PRES), x = c.x;
     shadow(x, 26, 54, 18, 5, 0.4);
     [[-14, 4], [-8, 6], [9, 5], [15, 3]].forEach(function (rt) { x.fillStyle = lg(x, 0, 46, 0, 56, [[0, "#9a9ea0"], [1, "#6a6e70"]]); x.beginPath(); x.moveTo(20, 44); x.quadraticCurveTo(20 + rt[0] * 0.5, 50, 20 + rt[0], 51 + rt[1] * 0.3); x.lineTo(20 + rt[0] * 0.8, 53); x.quadraticCurveTo(20 + rt[0] * 0.3, 52, 22, 47); x.fill(); });
     rr(x, 13, 0, 15, 50, 4, lg(x, 13, 0, 28, 0, [[0, "#b0b4b6"], [0.4, "#9a9ea0"], [1, "#666a6c"]]));
@@ -876,7 +877,7 @@
   };
   /* the fallen giant: more alive lying down than anything standing */
   BS.paintGiant = function (w) {
-    var W = w * T, c = wc(W + 8, 48, ART), x = c.x;
+    var W = w * T, c = wc(W + 8, 48, PRES), x = c.x;
     shadow(x, W / 2 + 6, 40, W * 0.55, 7, 0.45);
     rr(x, 2, 14, W, 24, 11, lg(x, 0, 14, 0, 38, [[0, "#7a5e3c"], [0.5, "#5a4228"], [1, "#2e2214"]]));
     for (var i = 8; i < W; i += 5) { x.strokeStyle = "rgba(40,28,15,.35)"; x.lineWidth = 0.5; x.beginPath(); x.moveTo(i, 18); x.quadraticCurveTo(i + 2, 26, i - 1, 36); x.stroke(); }
@@ -895,14 +896,14 @@
     return c;
   };
   BS.paintRock = function () {
-    var c = wc(22, 20, ART), x = c.x;
+    var c = wc(22, 20, PRES), x = c.x;
     shadow(x, 12, 16, 10, 3.5, 0.4);
     ell(x, 11, 10, 9.5, 7.5, rg(x, 7, 6, 1, 12, [[0, "#faf6ec"], [0.5, "#dcd6c6"], [1, "#9a948a"]]));
     for (var k = 0; k < 9; k++) ell(x, 10 + (k % 3) * 1.8, 5 + Math.floor(k / 3) * 1.3, 1.3, 0.9, k % 2 ? "#8a9a6a" : "#7a8a5a");
     return c;
   };
   BS.paintCompost = function () {
-    var c = wc(36, 28, ART), x = c.x;
+    var c = wc(36, 28, PRES), x = c.x;
     shadow(x, 20, 22, 16, 5, 0.35);
     lump(x, 18, 14, 11, "#5a4430", "#8a6a48");
     var rs = R(300);
@@ -912,7 +913,7 @@
     return c;
   };
   BS.paintLoader = function () {
-    var c = wc(42, 32, ART), x = c.x;
+    var c = wc(42, 32, PRES), x = c.x;
     shadow(x, 22, 28, 18, 4, 0.4);
     rr(x, 8, 9, 26, 14, 2, lg(x, 0, 9, 0, 23, [[0, "#f2c23a"], [1, "#c8961e"]]));
     rr(x, 18, 2, 13, 11, 1.4, "#2a3238"); x.fillStyle = lg(x, 0, 3, 0, 10, [[0, "#c0d4dc"], [1, "#7a94a0"]]); x.fillRect(19.5, 3.5, 10, 6);
@@ -922,7 +923,7 @@
     return c;
   };
   BS.paintTruck = function () {
-    var c = wc(66, 36, ART), x = c.x;
+    var c = wc(66, 36, PRES), x = c.x;
     shadow(x, 34, 31, 30, 5, 0.4);
     rr(x, 40, 6, 23, 20, 2, lg(x, 0, 6, 0, 26, [[0, "#f6f2e8"], [1, "#c8c4b8"]])); x.fillStyle = lg(x, 0, 8, 0, 15, [[0, "#c0d4dc"], [1, "#7a94a0"]]); x.fillRect(43, 8.5, 16, 7);
     rr(x, 0, 14, 42, 4, 0.6, "#6a6a62"); rr(x, 0, 18, 42, 8, 0.6, "#4a4a44");

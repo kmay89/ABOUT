@@ -322,3 +322,11 @@ Nothing in the game tells you to do these. They are just there, the way they are
   - The rock: a noise-displaced stone with cushions of moss.
 - **Decal bias:** thin layers such as screens, labels and tooling always draw over the surface they sit on.
 - **Speed:** while the inspect view is open, the world behind it stops rendering.
+
+## Light that behaves like light (renderer pass)
+
+- **Cast shadows that follow the sun:** everything that stands up (buildings, lone trees, props and every character) is laid down again as a silhouette, sheared along the sun's direction. The sun moves through the day: long shadows to the west at dawn, short at noon, long and east at golden hour, and faint under the moon. A per-object height factor keeps rooftops, which read as depth from above, from throwing absurdly long shadows. All shadows render into one quarter-resolution layer, so their edges are soft and overlapping shadows don't double-darken. That layer is tinted cool blue by day, violet at golden hour and deep navy at night. It switches itself off if the frame rate is struggling.
+- **Rim light:** characters catch the sun on the edge that faces it: warm gold at golden hour, pink at dawn, cool blue under the moon.
+- **Reflections:** anyone standing by the pond shows in it upside down, trembling with the water.
+- **Morning dew:** at dawn and in the morning, drops in the grass catch the sun and flash as you walk past.
+- **Sharper art:** people and small things are painted at 8 pixels per world unit, crisp on retina screens. Lone trees keep only a small contact shadow, since the sun now casts the long one.
