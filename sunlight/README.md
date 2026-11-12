@@ -265,3 +265,12 @@ Saves on the device only; nothing is sent anywhere.
 - **Water:** by day the pond reflects the sky and catches sun glints. At night it holds its own stars and a wobbling moon, drawn after the darkness layer so they shine through it.
 - **Light:** golden-hour sun shafts, a soft light leak, a moon-cool wash at night, and bloom tuned for each scene (strongest in the cellar).
 - **Canopies:** tree crowns are built from hundreds of individual painted leaves with a rim highlight.
+
+## Living details (polish pass 2)
+
+- **Color grade:** each time of day has its own contrast and saturation curve, applied as a GPU filter on the stage and eased like the light. Bloom is thresholded, so only bright things spill light and shadows stay deep instead of going milky.
+- **Fields:** big, slow patches across the hill, greener where the ground stays damp and sun-bleached gold where it doesn't.
+- **The pond:** water has its own smooth, rounded shape (blurred tile occupancy plus noise) with a muddy bank. Every effect on the water is masked to that shore, and a pale line laps at the edge. Dragonflies hover and dart over it by day.
+- **Woods:** the shade under the canopy is one soft pool rather than stacked ellipses, so there are no seams.
+- **Night:** moonlight keeps a soft pool around Wren outdoors, so you are never lost in the dark.
+- **Stillness:** stand quietly for a few seconds and the sparrows hop over to look at you. Stand a little longer and the white butterfly comes to rest on your hair. Move, and they scatter.

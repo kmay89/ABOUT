@@ -124,9 +124,40 @@
     return "dry";
   }
   /* the material at a world point, with the edge wandered by noise */
+  /* water keeps its own soft shape: tile occupancy blurred and wobbled, so a
+     pond is a pond, never a rectangle; a ring of mud where it meets land */
+  function wetGrid(m) {
+    if (m._wet) return m._wet;
+    var W = m.w, Hh = m.h, occ = new Float32Array(W * Hh), typ = new Int8Array(W * Hh), bl = new Float32Array(W * Hh), near = new Uint8Array(W * Hh), x, y, dx, dy;
+    for (y = 0; y < Hh; y++) for (x = 0; x < W; x++) { var t = m.get(x, y); if (t === TL.WATER || t === TL.SPRING) { occ[y * W + x] = 1; typ[y * W + x] = t === TL.SPRING ? 2 : 1; } }
+    for (y = 0; y < Hh; y++) for (x = 0; x < W; x++) {
+      var s2 = 0, n = 0, ty2 = 0;
+      for (dy = -1; dy <= 1; dy++) for (dx = -1; dx <= 1; dx++) { var xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= Hh) { n++; continue; } var o = occ[yy * W + xx]; s2 += o; n++; if (typ[yy * W + xx]) ty2 = typ[yy * W + xx]; }
+      bl[y * W + x] = s2 / n; if (!typ[y * W + x]) typ[y * W + x] = -ty2;
+      for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) if (occ[Math.min(Hh - 1, Math.max(0, y + dy)) * W + Math.min(W - 1, Math.max(0, x + dx))]) near[y * W + x] = 1;
+    }
+    m._wet = { bl: bl, typ: typ, near: near, W: W, H: Hh };
+    return m._wet;
+  }
+  function wetAt(m, wx, wy, raw) {
+    var g = wetGrid(m), tx = Math.floor(wx / T), ty = Math.floor(wy / T);
+    if (tx < 0 || ty < 0 || tx >= g.W || ty >= g.H || !g.near[ty * g.W + tx]) return raw ? 0 : null;
+    var fx = wx / T - 0.5, fy = wy / T - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), ax = fx - x0, ay = fy - y0;
+    function b(x, y) { x = Math.min(g.W - 1, Math.max(0, x)); y = Math.min(g.H - 1, Math.max(0, y)); return g.bl[y * g.W + x]; }
+    ax = ax * ax * (3 - 2 * ax); ay = ay * ay * (3 - 2 * ay);
+    var v = b(x0, y0) * (1 - ax) * (1 - ay) + b(x0 + 1, y0) * ax * (1 - ay) + b(x0, y0 + 1) * (1 - ax) * ay + b(x0 + 1, y0 + 1) * ax * ay;
+    v += (vn(wx, wy, 19, 51) - 0.5) * 0.22 + (vn(wx, wy, 5, 53) - 0.5) * 0.06;
+    if (raw) return v;
+    var ty3 = Math.abs(g.typ[ty * g.W + tx]) === 2 ? "spring" : "water";
+    return v > 0.5 ? ty3 : v > 0.36 ? "mud" : "";
+  }
+  BS.wetAt = wetAt;
   function matAt(m, wx, wy) {
+    if (m.outdoor) { var w = wetAt(m, wx, wy); if (w) return w; }
     var dx = (vn(wx, wy, 23, 31) - 0.5) * 15 + (vn(wx, wy, 6, 41) - 0.5) * 4, dy = (vn(wx, wy, 23, 37) - 0.5) * 15 + (vn(wx, wy, 6, 43) - 0.5) * 4;
-    return matOf(m, Math.floor((wx + dx) / T), Math.floor((wy + dy) / T));
+    var mt = matOf(m, Math.floor((wx + dx) / T), Math.floor((wy + dy) / T));
+    if (m.outdoor && (mt === "water" || mt === "spring") && wetGrid(m)) { var tx = Math.floor(wx / T), ty = Math.floor(wy / T), g = m._wet; if (tx >= 0 && ty >= 0 && tx < g.W && ty < g.H && g.near[ty * g.W + tx]) return "mud"; }
+    return mt;
   }
   BS.matAt = matAt;
 
@@ -142,6 +173,13 @@
       var t = n * 1.25 - 0.1, k = (j * N + i) * 4, f = 0.94 + n2 * 0.12, q;
       if (t > 0.5) { q = Math.min(1, (t - 0.5) * 2); d[k] = (A[0] + (B[0] - A[0]) * q) * f; d[k + 1] = (A[1] + (B[1] - A[1]) * q) * f; d[k + 2] = (A[2] + (B[2] - A[2]) * q) * f; }
       else { q = Math.max(0, t * 2); d[k] = (C[0] + (A[0] - C[0]) * q) * f; d[k + 1] = (C[1] + (A[1] - C[1]) * q) * f; d[k + 2] = (C[2] + (A[2] - C[2]) * q) * f; }
+      /* the hill is never one color: slow patches, greener where the ground
+         stays damp, sun-bleached gold where it doesn't */
+      var mt = matAt(m, wx, wy);
+      if (mt === "dry" || mt === "long" || mt === "grass" || mt === "garden") {
+        var hv = vn(wx, wy, 150, 21) - 0.5, lv = 0.97 + vn(wx, wy, 70, 33) * 0.07, wet = mt === "dry" || mt === "long" ? 0.55 : 0.3;
+        d[k] *= (1 - hv * 0.22 * wet) * lv; d[k + 1] *= (1 + hv * 0.1 * wet) * lv; d[k + 2] *= (1 - hv * 0.05 * wet + Math.max(0, -hv) * 0.1 * wet) * lv;
+      }
       d[k + 3] = 255;
     }
     sx.putImageData(id, 0, 0);
@@ -522,7 +560,15 @@
       var t = m.get(tx, ty), wood = t === TL.WOOD || (t === TL.DEER && m.hidden.deer) || (t === TL.ROOT && m.hidden.root);
       if (wood && !((tx + ty) % 2 && H(tx, ty, 5) < 0.6)) list.push([tx, ty]);
     }
-    list.forEach(function (p) { ell(x, p[0] * T + 10, p[1] * T + 6, 15, 12, "rgba(10,20,8,.5)"); });
+    /* every chunk paints its neighbors' overhang too, so clip to its own
+       square: each pixel is painted once, no doubled shadow at the seams */
+    x.beginPath(); x.rect(cx * S, cy * S, S, S); x.clip();
+    /* one soft pool of shade under the whole canopy, not a stack of hard
+       ellipses (blur where the browser has canvas filters) */
+    x.save(); x.filter = "blur(7px)";
+    x.fillStyle = "rgba(10,20,8,.42)"; x.beginPath();
+    list.forEach(function (p) { x.moveTo(p[0] * T + 27, p[1] * T + 6); x.ellipse(p[0] * T + 10, p[1] * T + 6, 17, 13, 0, 0, 6.2832); });
+    x.fill(); x.restore();
     list.forEach(function (p) {
       var rs = R(p[0] * 31 + p[1] * 7), cx2 = p[0] * T + 8, cy2 = p[1] * T - 2;
       for (var b = 0; b < 4; b++) lump(x, cx2 + (rs() - 0.5) * 12, cy2 + (rs() - 0.5) * 10, 6 + rs() * 4, ["#2e4a22", "#365628", "#2a4420", "#3e5e2c"][b], "#7aa04a");

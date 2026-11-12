@@ -827,7 +827,7 @@
       list.push({ y: e.y, d: function () { drawEnt(e); } });
     });
     if (!G.hidePlayer) list.push({ y: G.p.y + 0.1, d: drawPlayer });
-    creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? 6 : 20))), c.x - 4, c.y - 4); } }); });
+    creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? (c.blend > 0.97 ? (Math.sin(time * 1.1) > 0.55 ? 1 : 0) : 6) : 20))), c.x - 4, c.y - 4); } }); });
     puffs.forEach(function (pf) { list.push({ y: pf.y + 0.2, d: function () { drawPuff(pf); } }); });
     if (BS.juice && BS.juice.sorted) BS.juice.sorted(list, ctx, cam, time);
     list.sort(function (a, b) { return a.y - b.y; });
@@ -911,6 +911,8 @@
       var fl = 1 + (G.prefs.reduced ? 0 : Math.sin(time * 23) * 0.02 + Math.sin(time * 7.3) * 0.03);
       L.push([G.p.x, G.p.y - 8, r * fl, Math.min(1, 0.4 + G.lamp.level), "warm"]);
     }
+    /* moonlight finds you: outdoors at night you are never lost in the dark */
+    if (m.outdoor && G.sky.dark > 0.35 && !G.hidePlayer) L.push([G.p.x, G.p.y - 10, 44 + G.sky.dark * 16, 0.4 * Math.min(1, (G.sky.dark - 0.35) * 3), "moon"]);
     if (G.lamp.fixed && G.lamp.fixed.map === G.mapId) L.push([G.lamp.fixed.x, G.lamp.fixed.y, G.lamp.fixed.r, G.lamp.fixed.i, "warm"]);
     if (G.mapId === "house") {
       var tod = G.s.tod, day = !(tod === "night" || tod === "dusk");
@@ -1043,8 +1045,13 @@
     bax.drawImage(cvs, 0, 0, blurA.width, blurA.height);
     bbx.drawImage(blurA, 0, 0, blurB.width, blurB.height);
     if (bloom) {
+      /* square the blurred frame so only the bright things spill light:
+         highlights glow, shadows stay deep instead of going milky */
+      bax.globalCompositeOperation = "multiply"; bax.drawImage(blurA, 0, 0, blurA.width, blurA.height);
+      if (dark > 0.5 || G.mapId === "cellar") bax.drawImage(blurA, 0, 0, blurA.width, blurA.height);
+      bax.globalCompositeOperation = "source-over";
       ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = G.mapId === "cellar" ? 0.28 : dark > 0.5 ? 0.22 : 0.09;
+      ctx.globalAlpha = G.mapId === "cellar" ? 0.55 : dark > 0.5 ? 0.45 : 0.26;
       ctx.drawImage(blurA, 0, 0, W, Hh);
       ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
     }
@@ -1060,20 +1067,85 @@
     });
     ctx.globalAlpha = 1;
   }
+  /* the water's true edge: the painted shoreline wanders, so every effect on
+     the water is drawn into a layer and cut to that shape, never to tiles */
+  var WM = 2, wmask = null, wshore = null, wlay = null, wlx = null;
+  function waterMask() {
+    if (wmask) return wmask;
+    var h = G.maps.hill, W = h.w * T / WM, Hh = h.h * T / WM;
+    wmask = BS.cv(W, Hh); wshore = BS.cv(W, Hh);
+    var mx = wmask.getContext("2d"), id = mx.createImageData(W, Hh), d = id.data;
+    var sx = wshore.getContext("2d"), sd = sx.createImageData(W, Hh), s2 = sd.data;
+    function ss(a, b, v) { var t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); }
+    for (var ty = 0; ty < h.h; ty++) for (var tx = 0; tx < h.w; tx++) {
+      var near = false;
+      for (var dy = -1; dy <= 1 && !near; dy++) for (var dx = -1; dx <= 1; dx++) { var tt = h.get(tx + dx, ty + dy); if (tt === TL.WATER || tt === TL.SPRING) { near = true; break; } }
+      if (!near) continue;
+      for (var j = 0; j < T / WM; j++) for (var i = 0; i < T / WM; i++) {
+        var px = tx * T / WM + i, py = ty * T / WM + j, k = (py * W + px) * 4, v = BS.wetAt(h, px * WM + WM / 2, py * WM + WM / 2, true);
+        /* soft, anti-aliased edge straight from the field */
+        d[k + 3] = 255 * ss(0.47, 0.53, v);
+        /* the shore: a pale lapping line just inside, damp dark earth just outside */
+        var lap = ss(0.5, 0.53, v) * (1 - ss(0.55, 0.6, v)), damp = ss(0.34, 0.45, v) * (1 - ss(0.49, 0.52, v));
+        if (lap > damp) { s2[k] = 240; s2[k + 1] = 250; s2[k + 2] = 255; s2[k + 3] = 140 * lap; }
+        else { s2[k] = 38; s2[k + 1] = 28; s2[k + 2] = 16; s2[k + 3] = 120 * damp; }
+      }
+    }
+    mx.putImageData(id, 0, 0); sx.putImageData(sd, 0, 0);
+    return wmask;
+  }
+  G.waterLayer = function (draw) {
+    if (G.mapId !== "hill") return;
+    waterMask();
+    if (!wlay || wlay.width !== cvs.width || wlay.height !== cvs.height) { wlay = BS.cv(cvs.width, cvs.height); wlx = wlay.getContext("2d"); }
+    wlx.setTransform(1, 0, 0, 1, 0, 0); wlx.globalCompositeOperation = "source-over"; wlx.clearRect(0, 0, wlay.width, wlay.height);
+    wlx.setTransform(K, 0, 0, K, 0, 0);
+    draw(wlx);
+    wlx.globalCompositeOperation = "destination-in"; wlx.imageSmoothingEnabled = true;
+    wlx.drawImage(wmask, -cam.x, -cam.y, wmask.width * WM, wmask.height * WM);
+    wlx.globalCompositeOperation = "source-over";
+    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(wlay, 0, 0); ctx.setTransform(t0);
+  };
+  function shore() {
+    if (G.mapId !== "hill" || !wshore) return;
+    ctx.save(); ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = 0.75 + (G.prefs.reduced ? 0 : Math.sin(time * 1.4) * 0.2);
+    ctx.drawImage(wshore, -cam.x, -cam.y, wshore.width * WM, wshore.height * WM);
+    ctx.restore();
+  }
   function water() {
     if (G.mapId !== "hill") return;
+    var saved = ctx;
+    G.waterLayer(function (c) { ctx = c; waterTiles(); ctx = saved; });
+    shore();
+  }
+  /* the water type at or beside a tile (the painted edge wanders into
+     neighbors), so effects reach the true shore */
+  G.nearWater = function (x, y) {
+    var h = G.maps.hill, t = h.get(x, y);
+    if (t === TL.WATER || t === TL.SPRING) return t;
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var u = h.get(x + dx, y + dy); if (u === TL.WATER || u === TL.SPRING) return u; }
+    return 0;
+  };
+  /* is there any water in the frame at all? */
+  function onWater() {
+    if (G.mapId !== "hill") return false;
+    var h = G.maps.hill, x0 = Math.max(0, Math.floor(cam.x / T) - 1), y0 = Math.max(0, Math.floor(cam.y / T) - 1), x1 = Math.min(h.w, x0 + Math.ceil(VW / T) + 3), y1 = Math.min(h.h, y0 + Math.ceil(VH / T) + 3);
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) { var t = h.get(x, y); if (t === TL.WATER || t === TL.SPRING) return true; }
+    return false;
+  }
+  function waterTiles() {
     var h = G.maps.hill, night = G.s.tod === "night" || G.s.tod === "dusk";
     var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T)), x1 = Math.min(h.w, x0 + Math.ceil(VW / T) + 2), y1 = Math.min(h.h, y0 + Math.ceil(VH / T) + 2);
     for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) {
-      var t = h.get(x, y);
-      if (t !== TL.WATER && t !== TL.SPRING) continue;
+      var t = G.nearWater(x, y);
+      if (!t) continue;
       var sx = x * T - cam.x, sy = y * T - cam.y;
       if (night && t === TL.WATER) {
         /* the pond holds the whole sky upside down */
         ctx.fillStyle = "rgba(6,14,30,.78)"; ctx.fillRect(sx, sy, T, T);
 
       } else {
-        ctx.fillStyle = "rgba(170,215,230,.10)"; ctx.fillRect(sx, sy, T, T * 0.5);
         for (var q = 0; q < 2; q++) {
           var ph = time * (t === TL.SPRING ? 1.8 : 0.5) + x * 1.7 + y * 0.9 + q * 3;
           ctx.fillStyle = "rgba(235,250,255," + (0.18 + 0.14 * Math.sin(ph * 2)) + ")";
@@ -1088,7 +1160,13 @@
     creatures.forEach(function (c) {
       c.t += dt;
       if (c.kind === "bee") { c.x = c.hx + Math.sin(c.t * 1.7 + c.ph) * 14 + Math.sin(c.t * 5.1) * 3; c.y = c.hy + Math.cos(c.t * 1.3 + c.ph) * 8; }
-      if (c.kind === "butterfly") { c.x = c.hx + Math.sin(c.t * 0.25) * 70; c.y = c.hy + Math.sin(c.t * 1.9) * 10 - Math.abs(Math.sin(c.t * 0.9)) * 6; }
+      if (c.kind === "butterfly") {
+        var fx = c.hx + Math.sin(c.t * 0.25) * 70, fy = c.hy + Math.sin(c.t * 1.9) * 10 - Math.abs(Math.sin(c.t * 0.9)) * 6;
+        /* stand still long enough and it comes to rest on you */
+        c.blend = Math.max(0, Math.min(1, (c.blend || 0) + dt * (c.land ? 0.45 : -1.6)));
+        var e = c.blend * c.blend * (3 - 2 * c.blend), lxp = G.p.x + 2.5 + Math.sin(c.t * 0.7) * 0.4, lyp = G.p.y - 20.5 + Math.sin(c.t * 2.3) * (1 - e) * 6;
+        c.x = fx + (lxp - fx) * e; c.y = fy + (lyp - fy) * e - Math.sin(e * Math.PI) * 18;
+      }
       if (c.kind === "fly") { c.x = c.hx + Math.cos(c.t * 3) * 10; c.y = c.hy + Math.sin(c.t * 3) * 4; }
       if (c.kind === "frog") { c.x = c.hx; c.y = c.hy + (Math.sin(c.t * 0.7 + c.hx) > 0.97 ? -2 : 0); }
     });
@@ -1200,8 +1278,10 @@
     camera(dt || 0.016);
     ctx.setTransform(K, 0, 0, K, 0, 0);
     drawGround();
-    water();
-    if (BS.atmos) BS.atmos.ground(ctx, cam, VW, VH);
+    if (onWater()) {
+      water();
+      if (BS.atmos) G.waterLayer(function (c) { BS.atmos.ground(c, cam, VW, VH); });
+    }
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
     drawables().forEach(function (d) { d.d(); });
@@ -1214,7 +1294,7 @@
     drawLight(dark);
     if (BS.atmos) BS.atmos.air(ctx, cam, VW, VH, dark);
     drawGlow(dark);
-    if (BS.atmos) BS.atmos.glowWater(ctx, cam, VW, VH);
+    if (BS.atmos && onWater()) G.waterLayer(function (c) { BS.atmos.glowWater(c, cam, VW, VH); });
     if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
     drawMotes();
     if (G.minis[G.mode] && G.minis[G.mode].draw) G.minis[G.mode].draw(ctx, cam, time);

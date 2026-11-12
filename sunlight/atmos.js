@@ -124,10 +124,18 @@
     var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T)), x1 = Math.min(h.w, x0 + Math.ceil(VW / T) + 2), y1 = Math.min(h.h, y0 + Math.ceil(VH / T) + 2);
     var sky = n ? null : tod() === "dawn" ? "rgba(230,200,230," : golden() ? "rgba(255,200,140," : "rgba(190,225,240,";
     ctx.save();
+    /* the sky in it: one smooth wash across the whole pond (the layer is cut
+       to the shore), brightest at the far bank, with the trees' dark at its
+       top edge where they lean over the water */
+    if (sky) {
+      var pd = h.pond, top = (pd.y - 1) * T - cam.y, bot = (pd.y + pd.h + 1) * T - cam.y;
+      var gr = ctx.createLinearGradient(0, top, 0, bot);
+      gr.addColorStop(0, "rgba(20,40,30,.28)"); gr.addColorStop(0.18, sky + "0.24)"); gr.addColorStop(0.6, sky + "0.12)"); gr.addColorStop(1, sky + "0.04)");
+      ctx.fillStyle = gr; ctx.fillRect(0, top, VW, bot - top);
+    }
     for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) {
-      if (h.get(x, y) !== TL.WATER) continue;
+      if (G.nearWater(x, y) !== TL.WATER) continue;
       var sx = x * T - cam.x, sy = y * T - cam.y;
-      if (sky) { var gr = ctx.createLinearGradient(0, sy, 0, sy + T); gr.addColorStop(0, sky + "0.18)"); gr.addColorStop(1, sky + "0.05)"); ctx.fillStyle = gr; ctx.fillRect(sx, sy, T, T); }
       if (!n && !reduced()) {
         ctx.globalCompositeOperation = "lighter";
         for (var k = 0; k < 3; k++) {
@@ -194,8 +202,8 @@
     var h = G.maps.hill, t = G.time();
     if (!G.inRect((cam.x + VW / 2) / T, (cam.y + VH / 2) / T, h.pond, 14)) return;
     ctx.save(); ctx.globalCompositeOperation = "lighter";
-    for (var y = h.pond.y; y < h.pond.y + h.pond.h; y++) for (var x = h.pond.x; x < h.pond.x + h.pond.w; x++) {
-      if (h.get(x, y) !== TL.WATER) continue;
+    for (var y = h.pond.y - 1; y < h.pond.y + h.pond.h + 1; y++) for (var x = h.pond.x - 1; x < h.pond.x + h.pond.w + 1; x++) {
+      if (G.nearWater(x, y) !== TL.WATER) continue;
       var sx = x * T - cam.x, sy = y * T - cam.y;
       ctx.fillStyle = "rgba(60,80,140,.08)"; ctx.fillRect(sx, sy, T, T);
       for (var k = 0; k < 4; k++) {
@@ -213,5 +221,24 @@
     ctx.restore();
   };
 
-  X.update = function (dt, cam, VW, VH) { driftTick(dt, cam, VW, VH); };
+  /* the film stock: a per-scene color grade, done by the compositor on the
+     GPU (a CSS filter on the stage), eased like the light itself */
+  var GRADE = {
+    noon: [1.07, 1.14, 1.0], afternoon: [1.07, 1.14, 1.0], morning: [1.06, 1.12, 1.01],
+    evening: [1.07, 1.16, 1.0], golden: [1.08, 1.2, 1.0], dawn: [1.05, 1.08, 1.02],
+    dusk: [1.06, 1.02, 1.03], night: [1.08, 0.96, 1.06]
+  };
+  var gNow = null, gStr = "", stage = null;
+  function gradeTick(dt) {
+    stage = stage || document.getElementById("stage");
+    if (!stage || !G.map) return;
+    var t = G.mapId === "cellar" ? [1.1, 1.08, 1.0] : G.map.outdoor ? GRADE[G.s.tod] || GRADE.noon : [1.05, 1.1, 1.0];
+    if (G.prefs.grade === false) t = [1, 1, 1];
+    if (!gNow) gNow = t.slice();
+    for (var i = 0; i < 3; i++) gNow[i] += (t[i] - gNow[i]) * Math.min(1, dt * 1.5);
+    var s = "contrast(" + gNow[0].toFixed(3) + ") saturate(" + gNow[1].toFixed(3) + ") brightness(" + gNow[2].toFixed(3) + ")";
+    if (s !== gStr) { gStr = s; stage.style.filter = s; }
+  }
+
+  X.update = function (dt, cam, VW, VH) { driftTick(dt, cam, VW, VH); gradeTick(dt); };
 })();
