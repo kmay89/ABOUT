@@ -340,3 +340,12 @@ The small motions that make a person a person:
 - **Left alone:** Wren looks around, glances at nearby things, and then by habit holds the phone up hunting for a bar (the screen lights the face, and a bubble shows no bars). Later comes a yawn. Beck can't keep still: weight shifting from foot to foot, the odd hop, a grin when you come close. Dad sighs over the boxes, and sleeps with z's drifting up.
 - **Bubbles:** ! when something comes into reach for the first time, a note when you hum on the swing, … for a yawn, z's for sleep, crossed-out bars for no signal.
 - The sprite cache is capped, and faces seen from behind collapse to one variant, so memory stays flat over a long session.
+
+## Moments, progress and saving (progress.js)
+
+- **Moments:** 20 achievements covering the story's turns (the dark giving things back, the lantern, borrowed sunlight, the next hand), the small things seen, the kindnesses (herbs, sparrows, the swing, two summers in glass), and the playful ones (shake five trees, 25 grasshoppers, stand still enough for a butterfly, the moon in the pond, checking for a signal five times, walking the whole hill). Locked ones show only a hint. Each unlocks with a banner that drops in and a gold medallion that spins up, with a jingle quoting the first bars of Gran's theme. They live in the book under Moments, beside a progress ring.
+- **Progress:** one honest percentage, blending the story, the keys, the small things seen and the Moments. A "+n%" floats off the book button whenever it rises.
+- **Saving:** a little sun turns in the corner on every save. A snapshot of the scene goes on the Continue card, along with the day, chapter, percentage, play time and Moments.
+- **Small wins:** when a goal is done it's struck through and ticked, with a pen-tick sound, as the next one arrives.
+- **Music that grows:** early on, the generative piano plays alone. Past 30% a warm pad comes in under it. Past 55% a second voice answers a third above. Past 75%, now and then, the phrase is Gran's theme itself.
+- Saves from before Moments existed are credited quietly on load, so there's no banner storm.

@@ -46,7 +46,7 @@
     ui.lastTab = t;
     document.querySelectorAll("[data-tab]").forEach(function (b) { var on = b.getAttribute("data-tab") === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     document.querySelectorAll(".bpane").forEach(function (p) { p.hidden = p.id !== "p-" + t; });
-    ({ pages: pages, story: story, keys: keys, seen: seen, map: map, phone: phone, yours: yours })[t]();
+    ({ pages: pages, story: story, keys: keys, seen: seen, map: map, phone: phone, yours: yours, moments: function () { if (BS.prog) BS.prog.render(); } })[t]();
   }
   function from(b) { return S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf(b); }
   function pages() {
@@ -190,7 +190,7 @@
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
-  if (saved) $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60);
+  if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
     if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
     /* a new game opens with the drive up the hill */
@@ -366,7 +366,8 @@
       var n = Object.keys(G.s.seen).length;
       G.toast("Seen through the drop: " + n + " of " + BS.lens.LOOKS.length, 2400);
       G.s.badges = G.s.badges || {};
-      S.BADGES.forEach(function (b) { if (n >= b[0] && !G.s.badges[b[1]]) { G.s.badges[b[1]] = 1; setTimeout(function () { badge(b); }, 900); } });
+      S.BADGES.forEach(function (b) { if (n >= b[0] && !G.s.badges[b[1]]) { G.s.badges[b[1]] = 1; } });   /* the celebration itself is a Moment now */
+      if (BS.prog) setTimeout(BS.prog.check, 700);
     }, G.prefs.reduced ? 50 : 800);
   };
   function badge(b) {

@@ -125,7 +125,7 @@
       if (ps.idle) { if (now > ps.idleEnd) ps.idle = ""; }
       else if (ps.idleT > 8 && !ps.phoneDone && !G.sitting) {
         /* habit: the phone comes up, hunting for a bar */
-        ps.idle = "phone"; ps.idleEnd = now + 3.2; ps.phoneDone = true; p.dir = 0;
+        ps.idle = "phone"; ps.idleEnd = now + 3.2; ps.phoneDone = true; p.dir = 0; if (G.count) G.count("phonecheck");
         setTimeout(function () { if (ps.idle === "phone") L.emote("p", G.s.battery > 0 ? "nosig" : "dead", 1.6); }, 900);
       } else if (ps.idleT > 17 && !ps.yawned) { ps.idle = "yawn"; ps.idleEnd = now + 1.4; ps.yawned = true; L.emote("p", "…", 1.6); }
       /* eyes: wander, and drift toward whatever's interesting */

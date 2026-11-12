@@ -35,6 +35,7 @@
     { n: "Gran's Garden", s: "the lavender, gone leggy and wonderful", in: function (x, y) { return x >= 26 && x < 53 && y >= 3 && y < 24.6; } },
     { n: "The Hill", s: "a hill the world had mostly forgotten", in: function () { return true; } }
   ];
+  J.REGN = REG.length;
   var INTERIOR = { house: ["Gran's House", "forty years of her, in boxes"], cellar: ["The Cellar", "a hundred summers, in the dark"], shed: ["The Shed", "the warm lung"] };
   var regionNow = "", shown = {}, pending = null;
   function regionTick() {
@@ -43,6 +44,7 @@
     else if (INTERIOR[G.mapId]) { name = INTERIOR[G.mapId][0]; sub = INTERIOR[G.mapId][1]; }
     if (!name || name === regionNow) return;
     regionNow = name;
+    if (G.mapId === "hill") { G.s.regions = G.s.regions || {}; G.s.regions[name] = 1; }
     pending = [name, sub];
   }
   function showPending() {
@@ -140,7 +142,7 @@
         var wasLand = c.land;
         c.land = calm() && p.still > 6 && day() && Math.hypot(c.hx - p.x, c.hy - p.y) < 190;
         if (c.land && !wasLand) c.landT = 0;
-        if (c.land) { c.landT = (c.landT || 0) + dt; if (c.landT > 2.2 && !c.chimed) { c.chimed = 1; A.sfx("twinkle"); G.burst(p.x + 2.5, p.y - 21, 7, "255,250,220", 8); } return; }
+        if (c.land) { c.landT = (c.landT || 0) + dt; if (c.landT > 2.2 && !c.chimed) { c.chimed = 1; A.sfx("twinkle"); if (G.count) G.count("butterfly"); G.burst(p.x + 2.5, p.y - 21, 7, "255,250,220", 8); } return; }
         if (wasLand) { c.chimed = 0; c.hx = p.x + (Math.random() - 0.5) * 30; c.hy = Math.max(3 * T, p.y - 30); }
         var d = Math.hypot(c.x - p.x, c.y - p.y);
         if (d < 30) { c.hx += (c.x - p.x) / d * 60 * dt; c.hy += (c.y - p.y) / d * 30 * dt - 10 * dt; }
@@ -254,7 +256,7 @@
       if (mt === "dry" || mt === "long") {
         var a = Math.atan2(p.vy || 0, p.vx || 1) + (Math.random() - 0.5) * 1.6, sp = 40 + Math.random() * 30;
         hops.push({ x: p.x + Math.cos(a) * 13, y: p.y + Math.sin(a) * 8, z: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, vz: 55 + Math.random() * 25, t: 0, face: Math.cos(a) > 0 ? 1 : -1 });
-        A.sfx("hop", p.x, p.y);
+        A.sfx("hop", p.x, p.y); if (G.count) G.count("hops");
       }
     }
     hops.forEach(function (h) { h.t += dt; if (h.z > 0 || h.vz > 0) { h.x += h.vx * dt; h.y += h.vy * dt; h.z += h.vz * dt; h.vz -= 260 * dt; if (h.z <= 0) { h.z = 0; h.vz = 0; } } });

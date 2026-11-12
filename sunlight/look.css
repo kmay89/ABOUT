@@ -499,3 +499,49 @@ body.touch.playing .lens.on ~ #touch, body:has(.lens.on) #touch{opacity:0;pointe
 /* the phone, dying */
 .phonehud.dying{animation:phdie 1.3s ease}
 @keyframes phdie{0%,30%,60%{filter:none}15%,45%{filter:brightness(2.2) saturate(.2)}100%{filter:none}}
+
+/* ---------------- moments, progress, saving ---------------- */
+.achpop{position:fixed;left:50%;top:calc(14px + var(--safe-t));z-index:86;display:flex;align-items:center;gap:14px;min-width:min(420px,92vw);max-width:94vw;padding:12px 18px 12px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(38,28,14,.96),rgba(22,16,9,.96));border:1px solid rgba(255,209,102,.45);box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 40px rgba(255,190,90,.18);transform:translate(-50%,-140%);transition:transform .7s cubic-bezier(.2,1.4,.3,1),opacity .6s;pointer-events:none}
+.achpop.on{transform:translate(-50%,0)}
+.achpop.out{transform:translate(-50%,-140%);opacity:0;transition:transform .6s ease-in,opacity .6s}
+.achmed{position:relative;flex:0 0 54px;height:54px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#fff3c0,#e8b840 45%,#8a5a12);box-shadow:inset 0 -3px 6px rgba(0,0,0,.35),0 0 0 3px rgba(255,220,140,.25),0 0 24px rgba(255,200,90,.5);animation:medspin 1.1s cubic-bezier(.2,1,.3,1) both}
+.achmed span{font:700 1.5rem/1 Georgia,serif;color:#5a3a0a;text-shadow:0 1px 0 rgba(255,250,220,.6)}
+.achmed::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(255,220,140,.6);animation:medring 1.4s .4s ease-out both}
+@keyframes medspin{0%{transform:rotateY(720deg) scale(.2)}70%{transform:rotateY(-20deg) scale(1.1)}100%{transform:none}}
+@keyframes medring{0%{transform:scale(.8);opacity:1}100%{transform:scale(1.8);opacity:0}}
+.achtx small{display:block;font:600 .66rem/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.achtx b{display:block;margin:.3em 0 .15em;font:600 1.15rem/1.15 var(--serif);color:#fbf1d8}
+.achtx p{margin:0;font:italic .85rem/1.35 var(--serif);color:#d8c9a8}
+.objdone{position:fixed;left:50%;bottom:calc(52px + var(--safe-b));transform:translate(-50%,10px);z-index:12;display:flex;align-items:center;gap:8px;padding:.4em .9em;border-radius:999px;background:rgba(14,22,10,.8);border:1px solid rgba(160,220,120,.45);font:italic .85rem/1.3 var(--serif);color:#d8ecc8;opacity:0;transition:opacity .35s,transform .45s cubic-bezier(.2,1.4,.3,1);pointer-events:none;max-width:90vw}
+.objdone.on{opacity:1;transform:translate(-50%,0)}
+.objdone.out{opacity:0;transform:translate(-50%,-14px)}
+.objdone i{font-style:normal;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#8ac860;color:#0e1a08;font-weight:900;font-size:.75rem;animation:tickpop .5s .1s cubic-bezier(.2,1.6,.3,1) both}
+.objdone span{text-decoration:line-through;text-decoration-color:rgba(160,220,120,.7)}
+@keyframes tickpop{0%{transform:scale(0)}100%{transform:scale(1)}}
+.savesun{position:fixed;right:calc(14px + var(--safe-r,0px));bottom:calc(14px + var(--safe-b));z-index:30;display:flex;align-items:center;gap:6px;font:600 .68rem/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,226,160,.85);opacity:0;pointer-events:none}
+.savesun i{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle,#ffe7a0 35%,transparent 38%),conic-gradient(from 0deg,#ffd166 0 8%,transparent 8% 12.5%,#ffd166 12.5% 20.5%,transparent 20.5% 25%,#ffd166 25% 33%,transparent 33% 37.5%,#ffd166 37.5% 45.5%,transparent 45.5% 50%,#ffd166 50% 58%,transparent 58% 62.5%,#ffd166 62.5% 70.5%,transparent 70.5% 75%,#ffd166 75% 83%,transparent 83% 87.5%,#ffd166 87.5% 95.5%,transparent 95.5%)}
+.savesun.on{animation:savein 1.8s ease both}.savesun.on i{animation:sunturn 1.8s linear}
+@keyframes savein{0%,100%{opacity:0}15%,75%{opacity:1}}
+@keyframes sunturn{to{transform:rotate(180deg)}}
+#hudbook{position:relative}
+.pctpop{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font:700 .72rem/1 system-ui,sans-serif;color:#ffd166;text-shadow:0 1px 3px #000;animation:pctup 1.6s ease-out both;pointer-events:none;white-space:nowrap}
+@keyframes pctup{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px)}}
+.contcard{display:flex!important;align-items:center;gap:12px;text-align:left;padding:8px 14px 8px 8px!important}
+.contcard img{width:112px;height:63px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,209,102,.35);box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.contcard .cc{display:flex;flex-direction:column;gap:2px}.contcard .cc small{display:block;opacity:.8}
+.pring{position:relative;width:110px;height:110px;margin:4px auto 10px;display:grid;place-items:center}
+.pring svg{position:absolute;inset:0;transform:rotate(-90deg)}.pring circle{fill:none;stroke-width:3.4}.pring .bg{stroke:rgba(255,255,255,.08)}.pring .fg{stroke:#ffd166;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(255,200,90,.6));transition:stroke-dasharray 1.2s ease}
+.pring b{font:600 1.5rem/1 var(--serif);color:#fbf1d8;margin-top:-10px}.pring span{position:absolute;bottom:30px;font:italic .7rem/1 var(--serif);color:var(--soft)}
+.achgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.achc{display:grid;grid-template-columns:34px 1fr;grid-template-rows:auto auto;column-gap:8px;padding:8px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+.achc i{grid-row:1/3;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font:700 1rem/1 Georgia,serif;color:rgba(255,255,255,.3);background:rgba(255,255,255,.05)}
+.achc b{font:600 .82rem/1.2 var(--serif);color:rgba(255,255,255,.45)}.achc small{font:italic .72rem/1.3 var(--serif);color:rgba(255,255,255,.35)}
+.achc.got{background:rgba(255,200,90,.07);border-color:rgba(255,209,102,.3)}.achc.got i{color:#5a3a0a;background:radial-gradient(circle at 35% 30%,#fff3c0,#e8b840 50%,#9a6a18);box-shadow:0 0 12px rgba(255,200,90,.4)}.achc.got b{color:#fbf1d8}.achc.got small{color:#d8c9a8}
+@media (prefers-reduced-motion:reduce){.achmed,.achmed::after,.savesun.on i,.objdone i{animation:none}}
+/* on her parchment */
+.book .pring .bg{stroke:rgba(60,40,20,.12)}.book .pring b{color:#3a2614}.book .pring span{color:#7a6448}
+.book .achc{background:rgba(90,60,30,.05);border-color:rgba(90,60,30,.12)}
+.book .achc i{color:rgba(90,60,30,.35);background:rgba(90,60,30,.08)}
+.book .achc b{color:rgba(58,38,20,.55)}.book .achc small{color:rgba(90,70,50,.6)}
+.book .achc.got{background:rgba(232,184,64,.14);border-color:rgba(190,140,40,.45)}
+.book .achc.got b{color:#3a2410}.book .achc.got small{color:#5a4630}

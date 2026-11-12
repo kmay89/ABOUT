@@ -205,6 +205,15 @@
       tone(73.4, { at: 0.92, g: 0.06, dur: 0.5, a: 0.005, bus: musBus });
       for (var k = 0; k < 6; k++) tone([2349.3, 2793.8, 3520][k % 3], { at: 1.0 + k * 0.09, g: 0.01, dur: 0.6, verb: 1 });
     },
+    /* a moment earned: the first bars of Gran's theme, bright, with a bell on top */
+    ach: function () {
+      [[587.33, 0], [739.99, 0.16], [880, 0.3]].forEach(function (n) { pluck(n[0], { at: n[1], g: 0.13, dur: 1.8, bright: 0.6 }); });
+      [587.33, 739.99, 880, 1174.66].forEach(function (f) { tone(f, { at: 0.46, g: 0.014, dur: 1.8, a: 0.04, verb: 1, bus: musBus, type: "triangle" }); });
+      [2349.3, 2793.8].forEach(function (f, i) { tone(f, { at: 0.5 + i * 0.12, g: 0.012, dur: 1.2, verb: 1 }); });
+      tone(146.83, { at: 0.46, g: 0.05, dur: 1.6, a: 0.02, bus: musBus, verb: 1 });
+    },
+    /* a goal done: a small pen-tick */
+    tick: function () { tone(1318.5, { type: "triangle", g: 0.03, dur: 0.08 }); tone(1975.5, { type: "triangle", g: 0.024, dur: 0.2, at: 0.07, verb: 1 }); },
     /* a small secret, found or done: quick, bright, pleased with itself */
     secret: function () {
       var seq = [1318.5, 1567.98, 1975.5, 2349.3, 2637];
@@ -532,7 +541,9 @@
   /* ---------------- music: sparse, generative, and the themes ---------------- */
   /* D major pentatonic, played like somebody sitting at a piano in another
      room. It never loops: a phrase every so often, rests between. */
-  var musTimer = null, musMood = "";
+  var musTimer = null, musMood = "", musLevel = 0;
+  /* how far into the story you are: the music fills out as you go */
+  A.progress = function (k) { musLevel = Math.max(musLevel, Math.min(1, k || 0)); };
   A.music = function (mood) {
     if (!ctx || mood === musMood) return;
     musMood = mood;
@@ -546,10 +557,16 @@
     };
     var sc = scales[mood] || scales.warm;
     (function phrase() {
+      /* near the end, now and then, the phrase is hers */
+      if (musLevel > 0.75 && Math.random() < 0.18 && mood !== "dark") { A.theme(); musTimer = setTimeout(phrase, (12 + Math.random() * 8) * 1000); return; }
       var n = 3 + (Math.random() * 4 | 0), at = 0, idx = (Math.random() * sc.length) | 0;
+      /* further in: a warm pad under the piano */
+      if (musLevel > 0.3) { var root = sc[0] / 2; [root, root * 1.5].forEach(function (f) { tone(f, { g: 0.008 + musLevel * 0.008, dur: 6, a: 1.5, verb: 1, bus: musBus }); }); }
       for (var i = 0; i < n; i++) {
         idx = Math.max(0, Math.min(sc.length - 1, idx + ((Math.random() * 5) | 0) - 2));
         pluck(sc[idx], { at: at, g: mood === "dark" ? 0.05 : 0.07, dur: 2.6, bright: 0.25, damp: 0.998, lp: 2200 });
+        /* and further still, a second voice answering a third above */
+        if (musLevel > 0.55 && i % 2 === 1 && sc[idx + 2]) pluck(sc[idx + 2], { at: at + 0.04, g: 0.035, dur: 2.2, bright: 0.2, damp: 0.998, lp: 2000 });
         if (Math.random() < 0.3) pluck(sc[Math.max(0, idx - 3)] / 2, { at: at, g: 0.05, dur: 3, bright: 0.2, damp: 0.998, lp: 1200 });
         at += [0.5, 0.75, 1, 1.5][(Math.random() * 4) | 0];
       }

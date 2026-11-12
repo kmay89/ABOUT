@@ -33,7 +33,7 @@
 
   var SAVE = "borrowed-sunlight-game-v1", PREFS = "borrowed-sunlight-game-prefs";
   G.save = function () {
-    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; localStorage.setItem(SAVE, JSON.stringify(G.s)); G.flash("Saved"); } catch (e) { }
+    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; localStorage.setItem(SAVE, JSON.stringify(G.s)); } catch (e) { }
   };
   G.load = function () { try { var j = localStorage.getItem(SAVE); return j ? JSON.parse(j) : null; } catch (e) { return null; } };
   G.wipe = function () { try { localStorage.removeItem(SAVE); } catch (e) { } };
@@ -889,7 +889,7 @@
   /* shake a tree: it shivers, leaves come down, and now and then whoever
      was sitting up there leaves in a hurry */
   function shakeTree(t) {
-    t.shake = 1; t.shakes = (t.shakes || 0) + 1;
+    t.shake = 1; t.shakes = (t.shakes || 0) + 1; if (G.countOnce) G.countOnce("trees", t.x + "," + t.y);
     A.sfx("shake", t.x, t.y - 20);
     if (BS.atmos && BS.atmos.leafFall) BS.atmos.leafFall(t.x, t.y, 6 + (Math.random() * 6 | 0));
     if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(18);
