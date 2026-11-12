@@ -404,32 +404,30 @@ toy is nearest.
 
 ## The hill is a hill (slope.js)
 
-From straight above, a hill is just grass. `slope.js` gives the overworld a
-height field (`BS.slope.h(x, y)`, tiles in, 0..1 out): the garden and house
-are the flat top, and the road falls south through its switchbacks to the
-woods. The land rolls a little; the gravel pit is dug into it and the hollow
-is a fold. That height is drawn three quiet ways, baked once into a
-4-pixels-per-tile overlay, and only the on-screen part is drawn each frame:
+From straight above, a hill is just grass, so `slope.js` gives the overworld
+a height (`BS.slope.h(x, y)`, tiles in, 0..1 out). The garden and house are
+the flat top, and the land falls south to the woods, rolling a little as it
+goes. The gravel pit is dug into it and the hollow is a fold. The ground
+itself shows it, baked once into an 8-pixels-per-tile overlay; only the
+on-screen part is drawn each frame:
 
-- **Light:** slopes facing the sun (low in the south, a touch west) catch
-  warm light, and the ones facing away go cool.
-- **Air:** the lower the ground, the more blue haze sits over it, so the
-  bottom of the world is cooler and softer than the top.
-- **Mist:** it pools in the low ground on early mornings and in the opening,
-  and the treetops come up out of it.
+- **The road climbs:** it follows a smooth curve through the switchbacks.
+  Two wheel ruts are worn into it, and gravel ridges and rain runnels appear
+  where it climbs hardest. On the uphill side a cut bank of bare earth and
+  stones rises from the road edge, with a sunlit lip of grass over it and
+  its shadow on the road. On the downhill side the shoulder crumbles away
+  into a soft shadow.
+- **Sheep tracks:** little stepped terraces run across the slopes along the
+  contours, the way grazed hillsides look. They are broken up and fade out
+  on the flat top.
+- **Light and air:** slopes facing the sun (low in the south) are warm and
+  the ones facing away are cool. The low ground is hazier and bluer, and on
+  early mornings and in the opening, mist pools in it.
 
-**The drive up (prologue.js).**
-1. On "My grandmother's house stood at the top of a hill…" the opening now
-   starts on the house, wide.
-2. The camera then travels all the way down the road into the misty woods,
-   and the car comes out of the trees past a yellow **12%** steep-grade sign.
-3. A small side-on profile of the hill sits in the top bar. The road behind
-   the car lights up gold as it climbs toward the house at the top, while the
-   signal bars beside it fall away.
-4. On the steep stretches the engine note rises and the exhaust puffs come
-   faster. The car shakes a little harder under the load.
-
-The zoom floor in `engine.js` is now 0.28 (was 0.45) for wide shots.
+**The drive up (prologue.js):** the car comes out of the trees past a yellow
+12% grade sign and climbs the cut road. On the steep stretches the engine
+note rises, the exhaust puffs come faster, and the car shakes a little
+harder.
 
 ## Direction (stage.js)
 

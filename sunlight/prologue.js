@@ -255,45 +255,6 @@
     car.puff.forEach(function (d) { d.t += dt; d.x += d.dx * dt; d.y += d.dy * dt; }); car.puff = car.puff.filter(function (d) { return d.t < d.life; });
     if (A.loop) A.loop("car", true, Math.min(1, 0.25 + car.v / 40 + car.grade * 4), 1 + Math.min(0.6, car.grade * 14) + Math.min(0.3, car.v / 120));
   }
-  /* the little line in the corner: the hill from the side, and us on it */
-  var pcv = null, pctx = null, PW = 156, PH = 34, PROF = null;
-  function prof(t) {
-    if (!BS.slope) return;
-    if (!pcv) {
-      var lb = document.querySelector("#cine .lb.top"); if (!lb) return;
-      var wrap = document.createElement("div"); wrap.className = "cprof"; wrap.setAttribute("aria-hidden", "true");
-      pcv = document.createElement("canvas"); var k = 2; pcv.width = PW * k; pcv.height = PH * k; pcv.style.width = PW + "px"; pcv.style.height = PH + "px";
-      wrap.appendChild(pcv); lb.appendChild(wrap); pctx = pcv.getContext("2d"); pctx.scale(k, k);
-      /* the profile along the road, with the woods below and the house on top */
-      PROF = []; var lo = 1, hi = 0;
-      for (var i = 0; i <= 60; i++) { var p = along(LUT.total * i / 60), hv = BS.slope.h(p.x / T, p.y / T); PROF.push(hv); lo = Math.min(lo, hv); hi = Math.max(hi, hv); }
-      PROF = PROF.map(function (v) { return (v - lo) / Math.max(0.01, hi - lo); });
-    }
-    var c = pctx, X = function (i) { return 6 + i / 60 * (PW - 26); }, Y = function (v) { return PH - 5 - v * (PH - 12); };
-    c.clearRect(0, 0, PW, PH);
-    /* the hill */
-    c.beginPath(); c.moveTo(0, PH); PROF.forEach(function (v, i) { c.lineTo(X(i), Y(v)); }); c.lineTo(PW, Y(1)); c.lineTo(PW, PH); c.closePath();
-    c.fillStyle = "rgba(239,227,200,.1)"; c.fill();
-    c.beginPath(); PROF.forEach(function (v, i) { if (i) c.lineTo(X(i), Y(v)); else c.moveTo(X(i), Y(v)); }); c.lineTo(PW, Y(1));
-    c.strokeStyle = "rgba(239,227,200,.32)"; c.lineWidth = 1; c.stroke();
-    /* the trees at the bottom */
-    c.fillStyle = "rgba(239,227,200,.28)"; [1, 7, 12].forEach(function (x, i) { c.beginPath(); c.arc(x, PH - 7 - (i % 2), 3.4, 0, Math.PI * 2); c.fill(); });
-    /* the house on top */
-    var hx = PW - 12, hy = Y(1);
-    c.fillStyle = "rgba(255,209,102,.8)"; c.beginPath(); c.moveTo(hx - 5, hy - 0.5); c.lineTo(hx - 5, hy - 6); c.lineTo(hx, hy - 10); c.lineTo(hx + 5, hy - 6); c.lineTo(hx + 5, hy - 0.5); c.fill();
-    /* how far we've come: the road behind us lit, and us */
-    var u = car.s / LUT.total, n = Math.round(u * 60);
-    if (car.on && u > 0) {
-      c.beginPath(); for (var j = 0; j <= n; j++) { if (j) c.lineTo(X(j), Y(PROF[j])); else c.moveTo(X(j), Y(PROF[j])); }
-      c.strokeStyle = "rgba(255,209,102,.9)"; c.lineWidth = 1.6; c.stroke();
-    }
-    var fi = Math.min(60, u * 60), i0 = Math.floor(fi), v0 = PROF[i0] + ((PROF[Math.min(60, i0 + 1)] - PROF[i0]) * (fi - i0));
-    var cx = X(fi), cy = Y(v0), ang = Math.atan2(Y(PROF[Math.min(60, i0 + 1)]) - Y(PROF[i0]), X(1) - X(0));
-    c.save(); c.translate(cx, cy - 2.2); c.rotate(ang);
-    c.fillStyle = "#6aaeaa"; BS.rr(c, -4, -2, 8, 3.4, 1.2); c.fill(); c.fillRect(-2.4, -3.6, 4.4, 2);
-    c.fillStyle = "#1a1a1a"; c.beginPath(); c.arc(-2.4, 1.5, 1.1, 0, 7); c.arc(2.4, 1.5, 1.1, 0, 7); c.fill();
-    c.restore();
-  }
 
   /* ---------------- getting out: Dad first, then me ---------------- */
   /* keys: [time, x, y] in tiles; they walk up through the gate to the porch,
@@ -330,10 +291,7 @@
   /* shots: [start time, camera focus [x,y] in tiles, zoom]; the camera eases
      between keys. Lines are the book's own first sentences. */
   var KEYS = [
-    /* first, the top: the house; then all the way down the road it sits at the top of */
-    [0, [40, 13.5], 0.4], [2.4, [40, 16.5], 0.42],
-    /* then down to the bottom of the world, where the car comes out of the trees */
-    [7.8, [40.5, 55.5], 0.7], [12, [36, 47], 0.76], [16.5, [44, 38], 0.82], [21, [41, 30], 0.88],
+    [0, [40.5, 62], 0.6], [6, [40.5, 53], 0.66], [11, [36, 46], 0.74], [16, [44, 37], 0.8], [21, [41, 30], 0.86],
     [24.5, [40, 23.5], 1.0], [28.5, [39.6, 21], 1.12], [32.5, [38.6, 16.2], 1.3], [36.5, [38.4, 15.9], 1.42], [39.5, [41, 15.6], 1.5], [43, [41.2, 15.4], 1.54]
   ];
   var LINES = [
@@ -389,8 +347,8 @@
       var t = (now - t0) / 1000, dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
       var s = shot(t); G.camFocus = { x: s.x, y: s.y }; G.zoom = s.z;
       /* the car: out of the trees, up the winding road, slowing at the crest */
-      var drive = Math.max(0, Math.min(1, (t - 5.6) / 18.4)), de = drive < 0.85 ? drive / 0.85 * 0.93 : 0.93 + (1 - Math.pow(1 - (drive - 0.85) / 0.15, 3)) * 0.07;
-      carTick(dt, de * LUT.total); walkTick(t); prof(t);
+      var drive = Math.max(0, Math.min(1, (t - 1.5) / 22.5)), de = drive < 0.85 ? drive / 0.85 * 0.93 : 0.93 + (1 - Math.pow(1 - (drive - 0.85) / 0.15, 3)) * 0.07;
+      carTick(dt, de * LUT.total); walkTick(t);
       if (t > 24.5 && A.loop) A.loop("car", true, Math.max(0, 0.6 - (t - 24.5) * 0.4));
       if (t > 26) A.loop("car", false);
       G.cineMist = Math.max(0, 0.3 - Math.max(0, t - 6) * 0.016);
