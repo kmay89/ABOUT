@@ -10,21 +10,23 @@
 
    Every request to the server revalidates (cache: "no-cache"), so a stale
    HTTP cache can't hide a release either. The install is all or nothing for
-   the page, its stylesheet and its scripts (icons are optional), so the
+   the page, its stylesheet and its scripts (icons and typefaces are
+   optional: the page is whole without them, in its fallback faces), so the
    offline copy can never be half one release and half another. The game
    saves to localStorage, so a new worker takes over at once; the page
    hears about it (controllerchange) and refreshes itself at a safe moment.
    Bump VERSION on every release. Only this room's old caches are deleted on
    activate: the cache store belongs to the whole site. */
-var VERSION = "sunlight-v27";
+var VERSION = "sunlight-v28";
 var SHELL = ["./", "./index.html", "./look.css", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
-  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./cellar.js", "./atmos.js", "./slope.js", "./toys.js", "./stage.js", "./phone.js", "./book.js", "./cover.jpg", "./prologue.js", "./progress.js", "./ui.js", "./manifest.webmanifest"];
+  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./cellar.js", "./atmos.js", "./slope.js", "./toys.js", "./stage.js", "./phone.js", "./book.js", "./cover.jpg", "./prologue.js", "./progress.js", "./ui.js", "./hands.js", "./manifest.webmanifest"];
 var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
+var FONTS = ["./fonts/eb-garamond.woff2", "./fonts/eb-garamond-italic.woff2", "./fonts/eb-garamond-caps.woff2", "./fonts/quintessential.woff2", "./fonts/shadows-into-light-two.woff2", "./fonts/permanent-marker.woff2"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) {
     return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: "reload" }); })).then(function () {
-      return Promise.all(ICONS.map(function (u) { return c.add(new Request(u, { cache: "reload" })).catch(function () { return null; }); }));
+      return Promise.all(ICONS.concat(FONTS).map(function (u) { return c.add(new Request(u, { cache: "reload" })).catch(function () { return null; }); }));
     });
   }).then(function () { return self.skipWaiting(); }));
 });

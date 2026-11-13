@@ -18,10 +18,33 @@
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://kmay89.com/sunlight/icons/icon-512.png">
 <meta name="twitter:card" content="summary">
+<!-- the book's own face, so the title is set in it from the first frame -->
+<link rel="preload" href="fonts/eb-garamond.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/eb-garamond-italic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/eb-garamond-caps.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="look.css">
 </head>
 <body>
 <a class="skip" href="#t-new">Skip to the game</a>
+
+<!-- the signs: one drawing each, used wherever that thing is meant -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.2c.55 5.6 3.65 8.7 9.3 9.3-5.65.6-8.75 3.7-9.3 9.3-.55-5.6-3.65-8.7-9.3-9.3 5.65-.6 8.75-3.7 9.3-9.3z"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3c3.5 4.1 5.6 7 5.6 9.7a5.6 5.6 0 0 1-11.2 0C6.4 10 8.5 7.1 12 3z"/><path d="M9.3 13.4a2.9 2.9 0 0 0 1.9 2.5"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.8" width="10" height="18.4" rx="2.4"/><path d="M11 5.6h2"/></symbol>
+  <symbol id="i-crank" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.4"/><path d="M12 12l4.5-4.5"/><circle cx="17.9" cy="6.1" r="2.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M6 4.5h10.5A1.5 1.5 0 0 1 18 6v13.5H7.5A1.5 1.5 0 0 1 6 18z"/><path d="M6 18a1.5 1.5 0 0 1 1.5-1.5H18"/><path d="M9.5 8.5h5"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M5 7.5h14M5 12h14M5 16.5h9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9.5 17.5V6l9-2v11.5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="15.5" r="2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6.5 20.5V4"/><path d="M6.5 5h10l-2.4 3.4 2.4 3.4h-10"/></symbol>
+  <symbol id="i-pages" viewBox="0 0 24 24"><path d="M12 6.5C10 5.2 7.5 4.8 4.5 5v12.5c3-.2 5.5.2 7.5 1.5 2-1.3 4.5-1.7 7.5-1.5V5c-3-.2-5.5.2-7.5 1.5z"/><path d="M12 6.5V19"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3.6"/><path d="M10.6 10.6 19 19M15.4 15.4l2.2-2.2M17.6 17.6l1.7-1.7"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
+  <symbol id="i-nib" viewBox="0 0 24 24"><path d="M12 3.2l4.3 7.4c.7 1.9.4 3.9-.8 5.3L12 20.2l-3.5-4.3c-1.2-1.4-1.5-3.4-.8-5.3z"/><path d="M12 20.2v-6.4"/><circle cx="12" cy="12.4" r="1.1"/></symbol>
+  <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="9.5" r="5.5"/><path d="M8.6 14 7 20.5l5-2.5 5 2.5-1.6-6.5"/></symbol>
+</svg>
 
 <canvas id="stage" tabindex="-1" aria-label="The game: a top-down view of Gran's hill"></canvas>
 
@@ -31,6 +54,7 @@
     <div id="day" class="day"></div>
     <div id="place" class="place"></div>
     <div id="clock" class="clock" aria-label="The clock"></div>
+    <button id="goalcard" class="goalcard" hidden aria-label="This chapter's goals. Press for the way there."><small id="gch"></small><span id="gpips" class="pips"></span><b id="gstep"></b></button>
   </div>
   <div class="hr">
     <span id="eyem" class="eyem" aria-hidden="true" title="Your eyes, adjusting to the dark"><i></i></span>
@@ -39,12 +63,11 @@
       <span id="svc" class="svc">No Service</span>
       <span id="bat" class="bat"><i></i></span><span id="batn" class="batn">4%</span>
     </button>
-    <button id="hudbook" class="hbtn" aria-label="Gran's book (B)" title="Gran's book (B)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 17a3 3 0 0 1 3-3h10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
-    <button id="hudmenu" class="hbtn" aria-label="Menu (Esc)" title="Menu (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <button id="hudbook" class="hbtn" aria-label="Gran's book (B)" title="Gran's book (B)"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg></button>
+    <button id="hudmenu" class="hbtn" aria-label="Menu (Esc)" title="Menu (Esc)"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
   </div>
 </header>
 <p id="obj" class="obj" hidden></p>
-<button id="goalcard" class="goalcard" hidden aria-label="This chapter's goals"><small id="gch"></small><span id="gpips" class="pips"></span><b id="gstep"></b></button>
 <div id="arm" class="arm" aria-hidden="true"><span>arm</span><i></i></div>
 <div id="flash" class="flash" aria-hidden="true"></div>
 <div id="toast" class="toast" role="status"></div>
@@ -63,8 +86,7 @@
 <div id="lens" class="lens" role="dialog" aria-label="Through the drop of water">
   <div class="lwrap">
     <canvas id="lenscv" width="320" height="320"></canvas>
-    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint" id="lhint">L or E to look up</small></div>
-    <button id="lback" class="lback" type="button" aria-label="Look up from the lens">Look up</button>
+    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint" id="lhint">L or E to look up</small><button id="lback" class="lback" type="button" aria-label="Look up from the lens">Look up</button></div>
   </div>
 </div>
 
@@ -84,14 +106,18 @@
 <section id="insp" class="insp" hidden role="dialog" aria-modal="true" aria-labelledby="iname">
   <canvas id="icv" aria-label="The object, turning in your hands. Drag to turn it; scroll or pinch to lean in."></canvas>
   <div class="ipanel">
-    <small id="ikick"></small>
-    <h2 id="iname"></h2>
-    <p id="isci" class="isci"></p>
-    <p id="itext"></p>
-    <p id="iopens" class="iopens"></p>
-    <div id="iprog" class="iprog"><div class="irow"><b id="icount"></b><i class="ibarw"><i id="ibar"></i></i></div><div id="islots" class="islots"></div><p id="itease" class="itease"></p></div>
-    <button id="iok" class="primary">Keep it</button>
-    <p class="ihint">Drag to turn it over · scroll or pinch to lean in</p>
+    <div class="iscroll">
+      <small id="ikick"></small>
+      <h2 id="iname"></h2>
+      <p id="isci" class="isci"></p>
+      <p id="itext"></p>
+      <p id="iopens" class="iopens"></p>
+      <div id="iprog" class="iprog"><div class="irow"><b id="icount"></b><i class="ibarw"><i id="ibar"></i></i></div><div id="islots" class="islots"></div><p id="itease" class="itease"></p></div>
+    </div>
+    <div class="ifoot">
+      <button id="iok" class="primary">Keep it</button>
+      <p class="ihint">Drag to turn it over · scroll or pinch to lean in</p>
+    </div>
   </div>
 </section>
 <div id="chap" class="chap" aria-live="polite"><p id="chdone" class="chdone" hidden></p><small id="chn"></small><h2 id="cht"></h2><i class="chline" aria-hidden="true"></i></div>
@@ -113,7 +139,7 @@
   <div class="wb">
     <table>
       <tr><th>JOB</th><th>SITE</th><th>THIS WK</th><th>NEXT</th></tr>
-      <tr><td>CARMODY</td><td>DRIVEWAY EXT.</td><td>GRAVEL ✓</td><td>—</td></tr>
+      <tr><td>CARMODY</td><td>DRIVEWAY EXT.</td><td>GRAVEL <svg class="wbtick" viewBox="0 0 24 24" role="img" aria-label="done"><path d="M3.5 13.5c2 1.5 3.5 3.5 4.8 6C11.5 13 15.5 8 21 4"/></svg></td><td>—</td></tr>
       <tr><td>HALVERSEN</td><td>SEPTIC</td><td>DIG WED</td><td>INSPECT</td></tr>
       <tr class="hot"><td>A. RENNER</td><td>MAPLE HILL RD</td><td>DEWATER THURS.</td><td>POUR MON.</td></tr>
       <tr><td>CO. RD 9</td><td>CULVERT</td><td>PIPE IN</td><td>BACKFILL</td></tr>
@@ -128,16 +154,15 @@
 <!-- Gran's book -->
 <section id="book" class="book" aria-hidden="true" aria-label="Gran's book">
   <div class="bcard">
-    <nav class="tabs" role="tablist">
-      <button data-tab="pages" role="tab">Goals</button>
-      <button data-tab="story" role="tab">Story</button>
-      <button data-tab="keys" role="tab">Field notes</button>
-      <button data-tab="seen" role="tab">Seen</button>
-      <button data-tab="map" role="tab">Map</button>
-      <button data-tab="phone" role="tab">Phone</button>
-      <button data-tab="yours" role="tab">Your page</button>
-      <button data-tab="moments" role="tab">Moments</button>
-      <button class="x" data-close aria-label="Close the book">✕</button>
+    <nav class="tabs" role="tablist" aria-label="The book's sections">
+      <button data-tab="pages" role="tab"><svg class="i" aria-hidden="true"><use href="#i-flag"/></svg><span>Goals</span></button>
+      <button data-tab="story" role="tab"><svg class="i" aria-hidden="true"><use href="#i-pages"/></svg><span>Story</span></button>
+      <button data-tab="keys" role="tab"><svg class="i" aria-hidden="true"><use href="#i-key"/></svg><span>Field notes</span></button>
+      <button data-tab="seen" role="tab"><svg class="i" aria-hidden="true"><use href="#i-drop"/></svg><span>Seen</span></button>
+      <button data-tab="map" role="tab"><svg class="i" aria-hidden="true"><use href="#i-map"/></svg><span>Map</span></button>
+      <button data-tab="phone" role="tab"><svg class="i" aria-hidden="true"><use href="#i-phone"/></svg><span>Phone</span></button>
+      <button data-tab="yours" role="tab"><svg class="i" aria-hidden="true"><use href="#i-nib"/></svg><span>Your page</span></button>
+      <button data-tab="moments" role="tab"><svg class="i" aria-hidden="true"><use href="#i-medal"/></svg><span>Moments</span></button>
     </nav>
     <div class="bbody">
       <div id="p-pages" class="bpane"></div>
@@ -149,50 +174,65 @@
       <div id="p-phone" class="bpane" hidden></div>
       <div id="p-yours" class="bpane" hidden></div>
     </div>
+    <button class="x" data-close aria-label="Close the book"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
   </div>
 </section>
 
 <!-- the menu -->
 <section id="menu" class="menu" aria-hidden="true" aria-label="Menu">
   <div class="bcard mcardx">
-    <h2>Paused</h2>
-    <p id="mstat" class="lede small"></p>
-    <div class="opts">
-      <label>Text speed <input id="o-text" type="range" min="15" max="200" step="5"></label>
-      <label>Volume <input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
-      <label>Music <input id="o-mus" type="range" min="0" max="1" step="0.05"></label>
-      <label>Soundscape <input id="o-amb" type="range" min="0" max="1" step="0.05"></label>
-      <label class="ck"><input id="o-cap" type="checkbox"> Captions for sounds</label>
-      <label class="ck"><input id="o-big" type="checkbox"> Larger text</label>
-      <label class="ck"><input id="o-red" type="checkbox"> Reduce motion</label>
-      <label class="ck"><input id="o-hap" type="checkbox"> Haptics</label>
-      <label class="ck"><input id="o-full" type="checkbox"> Full passages from the novel as you play</label>
-      <label class="ck"><input id="o-tilt" type="checkbox"> Diorama focus (soft top &amp; bottom)</label>
-      <label class="ck"><input id="o-ptr" type="checkbox"> Gold pointer to the next thing</label>
-    </div>
-    <div class="row wrap">
-      <button data-close class="primary" data-focus>Back to the hill</button>
-      <button id="m-save">Save</button>
-      <button id="m-help">How to play</button>
-      <button id="m-restart">Start again</button>
-      <button id="m-ver" class="ver">Check for updates</button>
-      <a class="btn" href="/">Back to the desk</a>
-    </div>
-    <div id="help" class="help" hidden>
-      <p><b>Move</b> arrows / WASD / the stick · <b>Run</b> Shift · <b>Act</b> E, Space, Enter (A) · <b>Look closer</b> L (Look) · <b>Crank the lantern</b> hold C (Crank) · <b>Gran's book</b> B · <b>Menu</b> Esc. A gamepad works too.</p>
-      <p>The hill opens as you earn what opens it — and every key is real science: your own eyes in the dark, a dynamo, a drop of water, oats, roots, sand, water bears. Stand still when the dark asks you to. Look long.</p>
-      <p>Saves itself on this device. Nothing is sent anywhere.</p>
+    <div class="mscroll">
+      <h2>Paused</h2>
+      <p id="mstat" class="mstat"></p>
+      <button data-close class="primary wide" data-focus>Back to the hill</button>
+      <div class="opts">
+        <div class="mgroup" role="group" aria-labelledby="mg-sound">
+          <h3 id="mg-sound">Sound</h3>
+          <label class="sl"><span>Volume</span><input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
+          <label class="sl"><span>Music</span><input id="o-mus" type="range" min="0" max="1" step="0.05"></label>
+          <label class="sl"><span>Soundscape</span><input id="o-amb" type="range" min="0" max="1" step="0.05"></label>
+          <label class="ck"><span>Captions for sounds</span><input id="o-cap" type="checkbox" role="switch"></label>
+        </div>
+        <div class="mgroup" role="group" aria-labelledby="mg-words">
+          <h3 id="mg-words">Words</h3>
+          <label class="sl"><span>Text speed</span><input id="o-text" type="range" min="15" max="200" step="5"></label>
+          <label class="ck"><span>Larger text</span><input id="o-big" type="checkbox" role="switch"></label>
+          <label class="ck"><span>Full passages from the novel as you play</span><input id="o-full" type="checkbox" role="switch"></label>
+        </div>
+        <div class="mgroup" role="group" aria-labelledby="mg-feel">
+          <h3 id="mg-feel">Feel</h3>
+          <label class="ck"><span>Reduce motion</span><input id="o-red" type="checkbox" role="switch"></label>
+          <label class="ck"><span>Haptics</span><input id="o-hap" type="checkbox" role="switch"></label>
+          <label class="ck"><span>Diorama focus <small>soft top &amp; bottom</small></span><input id="o-tilt" type="checkbox" role="switch"></label>
+          <label class="ck"><span>Gold pointer to the next thing</span><input id="o-ptr" type="checkbox" role="switch"></label>
+        </div>
+      </div>
+      <div class="row wrap mrow">
+        <button id="m-save">Save</button>
+        <button id="m-help" aria-expanded="false" aria-controls="help">How to play</button>
+      </div>
+      <div id="help" class="help" hidden>
+        <p class="for-keys"><span class="pair"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or the arrows · <span class="pair"><b>Run</b> <kbd>Shift</kbd></span> · <span class="pair"><b>Act</b> <kbd>E</kbd> or <kbd>Space</kbd></span> · <span class="pair"><b>Look closer</b> <kbd>L</kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd>C</kbd></span> · <span class="pair"><b>Gran's book</b> <kbd>B</kbd></span> · <span class="pair"><b>Menu</b> <kbd>Esc</kbd>.</span> A gamepad works too.</p>
+        <p class="for-touch"><b>Move</b> with the stick under your left thumb · <span class="pair"><b>Act</b> <kbd><svg class="i f" aria-hidden="true"><use href="#i-spark"/></svg></kbd></span> · <span class="pair"><b>Look closer</b> <kbd><svg class="i" aria-hidden="true"><use href="#i-drop"/></svg></kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd><svg class="i" aria-hidden="true"><use href="#i-crank"/></svg></kbd></span> · <b>Gran's book</b> and the <b>menu</b> are at the top.</p>
+        <p>The hill opens as you earn what opens it — and every key is real science: your own eyes in the dark, a dynamo, a drop of water, oats, roots, sand, water bears. Stand still when the dark asks you to. Look long.</p>
+        <p>Saves itself on this device. Nothing is sent anywhere.</p>
+      </div>
+      <p class="mfoot">
+        <button id="m-restart" class="quiet">Start again</button>
+        <button id="m-ver" class="quiet ver">Check for updates</button>
+        <a class="quiet" href="/">Back to the desk</a>
+      </p>
     </div>
   </div>
 </section>
 
-<!-- touch -->
+<!-- thumbs -->
 <div id="touch" class="touch" aria-hidden="true">
-  <div id="stick" class="stick"><i id="knob"></i></div>
+  <div id="pad" class="pad"><div id="stick" class="stick"><i id="knob"></i></div></div>
   <div class="btns">
-    <button data-btn="crank" class="tb tb-c">Crank</button>
-    <button data-btn="lens" class="tb tb-l">Look</button>
-    <button data-btn="act" class="tb tb-a">A</button>
+    <button data-btn="crank" class="tb tb-c" tabindex="-1"><svg class="i"><use href="#i-crank"/></svg></button>
+    <button data-btn="lens" class="tb tb-l" tabindex="-1"><svg class="i i-phone"><use href="#i-phone"/></svg><svg class="i i-drop"><use href="#i-drop"/></svg></button>
+    <button data-btn="act" class="tb tb-a" tabindex="-1"><svg class="i f"><use href="#i-spark"/></svg></button>
   </div>
 </div>
 
@@ -211,40 +251,45 @@
     <p class="tsub">The Back of the World</p>
     <p class="tline"><em>If you are reading this, the lights have gone out — and that is the only reason you can see.</em></p>
     <div class="tbtns">
-      <button id="t-continue" class="primary" hidden>Continue <small></small></button>
-      <button id="t-new" class="primary">Begin</button>
-      <button id="t-how" class="ghost">How to play</button>
-      <button id="t-sound" class="ghost">♪ Theme</button>
+      <button id="t-continue" hidden>Continue <small></small></button>
+      <button id="t-new" class="primary big">Begin</button>
+      <div class="tmore" id="tmore">
+        <button id="t-how" class="ghost">How to play</button>
+        <button id="t-sound" class="ghost" aria-label="Play Gran's theme" title="Play Gran's theme"><svg class="i" aria-hidden="true"><use href="#i-note"/></svg>Theme</button>
+      </div>
     </div>
-    <p class="tfine">Best with sound. Arrows/WASD, E to act, L to look, hold C to crank, B for the book. Touch and gamepads work.<br>Free, offline, no account, nothing tracked. Saves on this device.</p>
-    <p class="tfine"><a href="https://borrowedsunlightnovel.com">Read the novel</a> · <a href="/">Back to the desk</a></p>
+    <p class="tfine"><span>Best with sound · keys, thumbs or a gamepad</span><span>Free · offline · no account · nothing tracked</span><span>Saves on this device</span></p>
+    <p class="tlinks"><a class="quiet" href="https://borrowedsunlightnovel.com">Read the novel</a><a class="quiet" href="/">Back to the desk</a></p>
   </div>
 </section>
 
 <!-- how to play -->
 <section id="howto" class="howto" hidden aria-label="How to play">
-  <div class="hcard">
+  <div class="hcard tooled">
     <div class="hslides">
       <div class="hs on">
         <canvas class="hart" data-art="move" width="240" height="120" aria-hidden="true"></canvas>
         <h2>Walk the hill</h2>
-        <p><b>Move</b> with the arrows, WASD or the thumb-stick. <b>E</b> (or <b>A</b>) does things — talk, open, pick up. Hold <b>Shift</b> to run.</p>
-        <p class="hhint">A twinkle ✦ means there's something you can do there.</p>
+        <p class="for-keys">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrows. <kbd>E</kbd> does things — talk, open, pick up. Hold <kbd>Shift</kbd> to run.</p>
+        <p class="for-touch">Move with the stick under your left thumb. <kbd><svg class="i f" aria-hidden="true"><use href="#i-spark"/></svg></kbd> does things — talk, open, pick up.</p>
+        <p class="hhint">A small light hovers over anything you can do something with.</p>
       </div>
       <div class="hs">
         <canvas class="hart" data-art="keys" width="240" height="120" aria-hidden="true"></canvas>
         <h2>Every key is real science</h2>
-        <p>The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (<b>hold C</b>), a drop of water that turns a dead phone into a microscope (<b>L</b>).</p>
+        <p class="for-keys">The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (hold <kbd>C</kbd>), a drop of water that turns a dead phone into a microscope (<kbd>L</kbd>).</p>
+        <p class="for-touch">The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (hold <kbd><svg class="i" aria-hidden="true"><use href="#i-crank"/></svg></kbd>), a drop of water that turns a dead phone into a microscope (<kbd><svg class="i" aria-hidden="true"><use href="#i-drop"/></svg></kbd>).</p>
         <p class="hhint">Look closely at everything. Twenty-six small things are hiding on the hill.</p>
       </div>
       <div class="hs">
         <canvas class="hart" data-art="goal" width="240" height="120" aria-hidden="true"></canvas>
         <h2>You have until Friday</h2>
         <p>Gran's house is being emptied. Something is living in the cellar, and the concrete comes Monday. Find what she left in the dark — and find a way to save it.</p>
-        <p class="hhint">The gold ◆ points to what's next. <b>B</b> opens Gran's book: goals, field notes, the map.</p>
+        <p class="hhint for-keys">The gold ◆ points to what's next. <kbd>B</kbd> opens Gran's book: goals, field notes, the map.</p>
+        <p class="hhint for-touch">The gold ◆ points to what's next; tap the goal card and a thread shows the way. Gran's book is at the top: goals, field notes, the map.</p>
       </div>
     </div>
-    <div class="hdots"><i class="on"></i><i></i><i></i></div>
+    <div class="hdots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
     <div class="row"><button id="h-skip" class="ghost">Skip</button><button id="h-next" class="primary">Next</button></div>
   </div>
 </section>
@@ -261,7 +306,7 @@
       <p id="endseen" class="small"></p>
     </div>
     <button id="endok" class="primary">Stay on the hill</button>
-    <p class="small"><a href="https://borrowedsunlightnovel.com">Read the whole book →</a></p>
+    <p class="tlinks"><a class="quiet" href="https://borrowedsunlightnovel.com">Read the whole book →</a></p>
   </div>
 </section>
 
@@ -289,6 +334,7 @@
 <script src="prologue.js"></script>
 <script src="progress.js"></script>
 <script src="ui.js"></script>
+<script src="hands.js"></script>
 <script>BS.G.start();</script>
 </body>
 </html>

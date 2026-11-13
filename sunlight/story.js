@@ -124,16 +124,16 @@
       opens: "The cellar's own light. Stand still in the dark and it gives things back. Bright light undoes it." },
     book: { name: "Gran's book", icon: "book", kind: "Found", sci: "A notebook, kept by hand",
       text: "*If you are reading this, the lights have gone out — and that is the only reason you can see.*",
-      opens: "Press B (or Book) to read her pages, your field notes, and the map." },
+      opens: "Open it ([book]) to read her pages, your field notes, and the map." },
     lantern: { name: "The crank lantern", icon: "lantern", kind: "Found", sci: "Electromagnetic induction",
       text: "Turning the handle spins a magnet inside a coil of copper wire, and a moving magnet pushes electrons along a wire: electricity, out of your arm. Michael Faraday worked it out in 1831. Nearly every power station on Earth still does the same thing — they just turn the handle with something other than an arm. Sticker on the bottom, in her hand: NEVER LET THE DARK WIN.",
-      opens: "Hold C (or Crank) for light. It dies when you stop. Your arm tires." },
+      opens: "Hold [crank] for light. It dies when you stop. Your arm tires." },
     scooter: { name: "The scooter dynamo", icon: "scooter", kind: "Made", sci: "Energy changes form",
       text: "At the top of the hill, the scooter holds energy just by being high up. Rolling down turns it into motion; the back wheel turns the crank; the crank spins the magnet; the magnet pushes the current; the current lights the lamp and fills the phone. None of it is made from nothing. I was spending the hill.",
       opens: "The crest of the road: ride down to charge the phone. Steer to stay on the road." },
     lens: { name: "The water-drop lens", icon: "lens", kind: "Made", sci: "Refraction & surface tension",
       text: "Surface tension pulls a small drop of water into a dome. Light slows and bends as it passes from air into water, and a curved surface bends it all toward one point — a lens. In the 1670s Antonie van Leeuwenhoek saw bacteria for the first time through a single bead of glass. A drop on a phone's camera does the same trick, ten times or so.",
-      opens: "Press L (or Look) to look closer at anything, anywhere. Some things look back." },
+      opens: "Press [lens] to look closer at anything, anywhere. Some things look back." },
     oats: { name: "A bag of instant oatmeal", icon: "oats", kind: "Stolen", sci: "Chemotaxis",
       text: "A slime mold grows toward food by sensing the chemicals drifting off it, and away from light and dryness. It sends threads down every way at once, then thickens the ones that reach food and lets the rest go. That is how a thing with no brain solves a maze — and how it beat half of Mr. Petrillo's class.",
       opens: "Lead the gold where it needs to go." },
@@ -142,7 +142,7 @@
       opens: "The deer path. Follow her; let her be the one who knows." },
     roots: { name: "Root sight", icon: "roots", kind: "Learned", sci: "The mycorrhizal network",
       text: "Most trees live in partnership with fungi. White threads wrap the roots and run off through the soil, tree to tree, trading water and minerals for sugar. How much the trees help each other through it is still argued over by scientists; that the network is there, under every step, is not.",
-      opens: "In the woods, look closely (L): the white threads run thickest toward hidden places." },
+      opens: "In the woods, look closely ([lens]): the white threads run thickest toward hidden places." },
     log: { name: "The fallen giant", icon: "log", kind: "Understood", sci: "Nurse logs",
       text: "A great tree that falls goes on giving longer than it stood: it holds water, feeds the fungi and beetles that open it up, and the seedlings rooted in its back climb out of the shade into the gap it made. *It isn't sad to be the floor.*",
       opens: "A new question. Not how to keep Mo — how to help it cross." },
@@ -382,7 +382,7 @@
     if (!has("scooter")) G.put({ id: "scootent", map: "shed", x: 9.5 * T, y: 4.6 * T, draw: drawScooter, solid: true, w: 10, h: 10 });
     /* the pit, alive on Wednesday morning */
     if (is("pit") && !F("sawBoard")) {
-      G.put({ id: "dog", map: "hill", x: 76.5 * T, y: 33.6 * T, draw: function (c, e, cam) { G.img(BS.dog, e.x - 8, e.y - 10); c.fillStyle = "rgba(255,255,255,.7)"; c.font = "6px monospace"; if (Math.sin(G.time() * 2) > 0) c.fillText("z", e.x + 6 - cam.x, e.y - 12 - cam.y); }, solid: true, w: 12, h: 6 });
+      G.put({ id: "dog", map: "hill", x: 76.5 * T, y: 33.6 * T, draw: function (c, e, cam) { G.img(BS.dog, e.x - 8, e.y - 10); c.fillStyle = "rgba(255,255,255,.7)"; c.font = "italic 6.5px 'Sunlight Book', Georgia, serif"; if (Math.sin(G.time() * 2) > 0) c.fillText("z", e.x + 6 - cam.x, e.y - 12 - cam.y); }, solid: true, w: 12, h: 6 });
       G.put({ id: "loader", map: "hill", x: 64 * T, y: 47.5 * T, draw: function (c, e) { G.img(G.props.loader, e.x - 20, e.y - 28); }, solid: true, w: 36, h: 12, tick: loaderTick, vx: 18 });
       G.put({ id: "foreman", map: "hill", who: "worker", x: 66 * T, y: 39.6 * T, dir: 2, solid: true, tick: foremanTick, route: [[66, 39.6], [72.5, 39.6], [72.5, 44.2], [66, 44.2]], ri: 1 });
       S.fore = true;
@@ -439,7 +439,7 @@
     c.fillStyle = "rgba(0,0,0,.3)"; c.fillRect(x - 9, y - 1, 18, 3);
     c.fillStyle = "#2f5a7a"; c.fillRect(x - 8, y - 12, 16, 9); c.fillStyle = "#555"; c.fillRect(x - 8, y - 3, 1, 4); c.fillRect(x + 7, y - 3, 1, 4);
     G.blit(c, BS.sprite("dadDay1", 0, 0), x - 8, y - 26);
-    c.fillStyle = "rgba(255,255,255,.7)"; c.font = "6px monospace"; if (Math.sin(G.time() * 1.5) > 0) c.fillText("z", x + 8, y - 24);
+    c.fillStyle = "rgba(255,255,255,.7)"; c.font = "italic 6.5px 'Sunlight Book', Georgia, serif"; if (Math.sin(G.time() * 1.5) > 0) c.fillText("z", x + 8, y - 24);
   }
   function drawBeckBike(c, e, cam) {
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
@@ -725,7 +725,7 @@
       .then(function () { return nar("*If you are reading this, the lights have gone out — and that is the only reason you can see.*"); })
       .then(function () { A.loop("heart", false); A.sfx("rip", 6 * T, -40 * T); return nar("Far above me, the tape gave its long tearing scream. And down in the cold, something gold and patient and entirely alive drew itself half an inch closer to my hand — and waited for me to turn the page."); })
       .then(function () { return G.chapter("Chapter Two", "How to Make Light"); })
-      .then(function () { G.setTime("afternoon"); beat("shed"); G.objective("Read her book (B). It says: see the shed."); });
+      .then(function () { G.setTime("afternoon"); beat("shed"); G.objective("Read her book ([book]). It says: see the shed."); });
   }
   S.update = function (dt) {
     if (is("cellar1") && G.mapId === "cellar" && G.eyes.adapt > 0.85 && !has("eyes") && !G.cut) {
@@ -779,7 +779,7 @@
     return scene(function () {
       return nar("It was Gran's, and I knew it the second I saw it — a fat, sturdy, ugly, wonderful thing, yellow plastic gone chalky with age, with a glass eye of a lamp on the front and, folded flat against its side, a crank handle.")
         .then(function () { return give("lantern"); })
-        .then(function () { G.objective("Hold C (or Crank) to turn the handle."); });
+        .then(function () { G.objective("Hold [crank] to turn the handle."); });
     });
   }
   function scooterSpot() {
@@ -840,14 +840,14 @@
         .then(function () { return nar("Which I should have thought about. But I didn't, yet."); })
         .then(function () { return nar("And then I did the second thing Gran had told me to do — the looking thing — and it was so simple it felt like a trick. I tipped a single drop of water from my bottle onto my fingertip, and let it fall onto the tiny glass eye of the phone's camera, where it sat, holding its own round shape, shivering when I breathed."); })
         .then(function () { return give("lens"); })
-        .then(function () { G.objective("Look (L) — test it on the back of your own hand first. Then the gold."); });
+        .then(function () { G.objective("Look ([lens]) — test it on the back of your own hand first. Then the gold."); });
     }
     if (!F("tipped") && G.s.seen.hand) {
       set("tipped");
       G.lamp.fixed.r = 64; G.lamp.fixed.i = 0.55;
-      return nar("I brought the lantern down low and tipped it so the beam came in sideways and lit the threads without washing them out.").then(function () { G.objective("Now: the drop of water, over the gold. (L)"); });
+      return nar("I brought the lantern down low and tipped it so the beam came in sideways and lit the threads without washing them out.").then(function () { G.objective("Now: the drop of water, over the gold.[(lens)]"); });
     }
-    if (!G.s.seen.hand) return nar("First the back of my own hand. To test it. (L)");
+    if (!G.s.seen.hand) return nar("First the back of my own hand. To test it.[(lens)]");
     return nar("The gold, under the sideways light. (L, to look.)");
   }
   /* what the lens sees when the story wants it to */
@@ -977,7 +977,7 @@
   function atBeech() {
     return say("beck", "There. That's where your gold goes.")
       .then(function () { return nar("Under the woods the threads thinned, fainter and fewer, the gold going pale — and at the foot of a great gray beech they ran out altogether, the way a river runs out into sand. And the voice ran out with them."); })
-      .then(function () { G.objective("Dig at the foot of the beech, where the gold gives up. (E)"); });
+      .then(function () { G.objective("Dig at the foot of the beech, where the gold gives up.[(act)]"); });
   }
   function digBeech() {
     return scene(function () {
@@ -990,7 +990,7 @@
         .then(function () { return mo("Oh. Now you're seeing it. You spend your whole lives walking along the front of the world, child. This is the back of it."); })
         .then(function () { G.lensState.lock = false; G.closeLens(); return give("roots"); })
         .then(function () { return say("beck", "I know a place — a fold, where a spring comes up. I always find it by the cold. Not from here, though."); })
-        .then(function () { G.objective("Somewhere cold, wet and dark. Look closely (L) at the ground here: which way do the roots run thickest?"); });
+        .then(function () { G.objective("Somewhere cold, wet and dark. Look closely ([lens]) at the ground here: which way do the roots run thickest?"); });
     });
   }
   function hollowScene() {
@@ -1146,7 +1146,7 @@
       if (phase === 0 && (G.tap("act") || G.tap("lens"))) { phase = 1; A.sfx("plink"); A.sfx("splash"); }
       if (phase === 1) { st.wet = Math.min(1.2, st.wet + dt * 0.12); if (st.wet > 1.1) { phase = 2; scene(afterTuns); } }
     };
-    scene(function () { return nar("Curled up in among the brittle dead leaves were specks. Tiny barrel-shaped specks, shriveled, motionless. If you'd told me they were grains of dust I'd have believed you, and if you'd told me they were corpses I'd have believed that too.").then(function () { return say("wren", "They look dead."); }).then(function () { return say("beck", "They're not dead. Watch. *Watch.* (Press E — let her tip one drop of pond water on.)"); }); });
+    scene(function () { return nar("Curled up in among the brittle dead leaves were specks. Tiny barrel-shaped specks, shriveled, motionless. If you'd told me they were grains of dust I'd have believed you, and if you'd told me they were corpses I'd have believed that too.").then(function () { return say("wren", "They look dead."); }).then(function () { return say("beck", "They're not dead. Watch. *Watch.* (Press [act] — let her tip one drop of pond water on.)"); }); });
   }
   function afterTuns() {
     A.sfx("swell", "joy");
@@ -1367,7 +1367,7 @@
   S.enter = function (id) {
     _enter(id);
     if (id === "house" && is("call") && !F("handedPhone")) { set("handedPhone"); scene(phoneToDad); }
-    if (id === "cellar" && is("lens") && G.lamp.level < 0.1 && G.eyes.adapt < 0.3) note("Dark. Crank (C), or stand still and let your eyes open.");
+    if (id === "cellar" && is("lens") && G.lamp.level < 0.1 && G.eyes.adapt < 0.3) note("Dark. Crank[(crank)], or stand still and let your eyes open.");
   };
 
   /* ---------------- goals: a short checklist per chapter ---------------- */

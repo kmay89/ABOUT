@@ -243,9 +243,13 @@ Captions for meaningful sounds are on by default.
 | `minis.js` | The ride, the oats, the pile, the board, the signal |
 | `story.js` | Every beat, chapter by chapter, and everything you can press E on |
 | `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending |
+| `hands.js` | Whose hands are playing (keys, thumbs, a pad): the beads, the names of things, keyboard and pad on every card |
+| `look.css` | Every control and card: the type, the lid, the glass, the paper |
+| `fonts/` | Six small typefaces, self-hosted, with their licenses |
 
 `tools/make-icons.js` regenerates the app icons (needs Playwright's
-Chromium). `?beat=pit` (any beat id in `story.js`'s `ORDER`) jumps
+Chromium). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
+packages (needs `fonttools` and `brotli`; see its first lines). `?beat=pit` (any beat id in `story.js`'s `ORDER`) jumps
 straight to a chapter for testing; it is not linked anywhere.
 
 ## Accessibility
@@ -254,8 +258,9 @@ Every word is HTML over the canvas (sized by the reader's own settings,
 read by screen readers through a polite live region). Captions for
 sounds; adjustable text speed (to instant); larger text; reduced motion
 (honored from the OS too); haptics toggle; full keyboard, touch and
-gamepad play; nothing time-critical except the ride, which can't be lost.
-Saves on the device only; nothing is sent anywhere.
+gamepad play, the title, the menu, the book and every card included (see
+**Hands**, at the end); nothing time-critical except the ride, which
+can't be lost. Saves on the device only; nothing is sent anywhere.
 
 ## Atmosphere (atmos.js)
 
@@ -584,3 +589,125 @@ It is all CSS 3D faces plus two small canvases (dust and sparks); the
 endpaper is painted once. Skip, a tap, E, Enter or Escape goes straight to
 the fall into light. Reduced motion shows the open book still, then fades.
 The test harness (`skipWaits`) passes straight through.
+
+## Hands (look.css + hands.js)
+
+Everything you read or press, redrawn as one set of things from the story.
+The rule it was made by is the book's own: an object is a tool, simple and
+concrete, with weight and a click.
+
+### Four hands, and one voice that isn't a hand
+
+Who is speaking is told by the letters, before the words.
+
+| Voice | Face | Where |
+|---|---|---|
+| The book | EB Garamond, the face on the novel's cover | Narration, speech, titles, every label |
+| Gran | Quintessential: upright, each letter on its own | Her pages, the flyleaf line, the title's line |
+| Wren | Shadows Into Light Two | Your page, the map, the last screen |
+| The clock, and Dad | Permanent Marker | FRI · THU · MON, the whiteboard, the moving boxes |
+| The phone | The device's own system face | The signal and battery chip, the phone screens |
+
+* **Mo is none of them.** Mo's line stays the book's italic, gold, in no
+  box and no one's handwriting. The novel never says whose voice it is,
+  and the type doesn't either.
+* **No bold anywhere.** Emphasis is italic, as in the book. Labels are
+  letterspaced small capitals, from a face cut for it (the small caps of
+  the SemiBold, so they hold up at the size of a label). If that face
+  never arrives, `hands.js` notices and the labels become plain capitals.
+* Figures are old-style, so a number sits in a sentence like a word.
+* The faces are six files in `fonts/` (about 175 KB together; the three
+  book faces are preloaded, the rest load when first set). Nothing is
+  fetched from a font server. Licenses are beside them: `OFL.txt`, and
+  `APACHE-2.0.txt` for the marker.
+
+### Round is for pressing, square is for reading
+
+A lid, a drop, a lens, a bead: anything round can be pressed. A page, a
+slip, a card: anything square is to be read. Nothing breaks the rule, so
+it never has to be explained.
+
+Three materials, all lit from the upper left with their shadow down-right,
+which is the light rule the hill already keeps:
+
+* **The gold lid.** One to a screen: the thing that takes you on (Begin,
+  Continue, Next, Keep it, Back to the hill). A jar lid seen from above,
+  with a worn-bright face, a knurled rim for its thickness, and its word
+  engraved in small capitals. Pressed, it goes down onto its rim. It
+  wears: the more it has been pressed on this device, the brighter the
+  face.
+* **Jar glass.** Every other button: dark glass with the light caught
+  on its upper-left edge. The round ones are beads.
+* **Paper.** Cards are leaves. The dark ones are the night side; a moment
+  that matters (a thing found, a question asked) gets a tooled double gold
+  rule. Gran's book is parchment in a leather cover, with paper index
+  tabs, her hand in ink, and the goal of the moment under a stroke of
+  highlighter.
+
+The small parts follow: a slider is a brass knob in a groove that fills
+behind it, and clicks once a notch; a switch is lit when it is on; a key
+named in a line of text is a small lid. Out-of-the-way and one-way things
+(Start again, Back to the desk) are quiet links, never a lid.
+
+### Whose hands
+
+`hands.js` keeps track of what is being played with, and changes with it
+the moment it changes: pick up a pad mid-game and the prompts say A.
+
+* **Prompts** show the control as it is in these hands: the letter on a
+  keyboard, the button on a pad, and under a thumb the sign that is on the
+  bead itself.
+* **Sentences** do the same. The script writes `[act]`, `[lens]`,
+  `[crank]` or `[book]` and it is read as E, A or "the spark". `[(act)]`
+  is an aside, " (E)", left out under a thumb, where the bead has already
+  lit up to say so. `{Tap|Click}` is a word that depends on the hands,
+  thumb first. Nothing in the script names a key a phone doesn't have.
+* **Thumbs.** The stick comes to wherever the left thumb lands. The beads
+  are things, and they are only there when the thing is: the spark fills
+  with gold when something is in reach; the lens bead is a dead phone
+  until the drop is made; the crank arrives with the lantern, glows as the
+  lamp does, and shows your arm tiring.
+* **Keyboard and pad, everywhere.** On the title, the menu, the book and
+  every card: arrows or the d-pad walk the controls, Enter or A presses
+  the lit one (with nothing chosen, the lid), Esc or B backs out, and Tab
+  stays inside the card that is open. In the book, left and right turn the
+  tabs. A knob turns with left and right.
+* **Start again asks on a card of its own,** with the safe answer already
+  in focus, instead of a browser dialog.
+* A press has a sound (a lid, glass, a notch) and, under a thumb on a
+  device that has it, a tick in the hand. The sound follows the menu's
+  volume, the tick its Haptics switch.
+* In the dark the HUD dims with the room, and comes back with the light.
+
+### Any screen
+
+Checked from a 320-pixel phone to a desktop, upright and on its side, with
+larger text and with reduced motion.
+
+* The one thing to press is always on the screen. On the found-it card the
+  words scroll and fade inside the gold rule while the lid stays put under
+  them. Through the lens, the note scrolls and the glass and the way back
+  stay where they are; the clock and the goal step back while you look.
+* The how-to card is as tall as its tallest slide, on any screen, so it
+  never jumps and never spills.
+* On a narrow phone the book's eight tabs are two rows of four, and the
+  day and the hour sit one over the other. On a short one the title gives
+  up its sun before it gives up a word.
+* Reduced motion leaves every control at rest in its finished state.
+
+### Put right along the way
+
+* Enter, Space and Tab were swallowed by the game loop, so the title and
+  the menu could not be worked from a keyboard or a pad at all.
+* Esc in the menu closed it and opened it again; Esc in the book closed
+  the book and opened the menu.
+* A toast, the update card and the goal line all wrapped at half their
+  width.
+* On a phone the book's close button scrolled off the top, and "Keep it"
+  could sit below the fold.
+* Hints named keyboard keys ("(L)", "Press B") to a player holding a
+  phone.
+* The whiteboard and the box labels fell back to whatever marker-ish face
+  the device had, Comic Sans included; the moments' badges were symbols
+  from the device's own fonts. Both are drawn now.
+* A race at start-up (`decor` read before it existed) under `?beat=`.

@@ -127,7 +127,7 @@
 
   /* ---------------- previously ---------------- */
   var rc = document.createElement("div"); rc.className = "recap"; rc.setAttribute("role", "dialog"); rc.setAttribute("aria-live", "polite");
-  rc.innerHTML = '<div class="rcin"><small>Previously</small><b class="rcch"></b><p class="rct"></p><div class="rcgo"><i></i><span class="rco"></span></div><button class="rcb" type="button">Go on</button></div>';
+  rc.innerHTML = '<div class="rcin"><small>Previously</small><b class="rcch"></b><p class="rct"></p><div class="rcgo"><i></i><span class="rco"></span></div><button class="rcb primary" type="button">Go on</button></div>';
   document.body.appendChild(rc);
   var rcOpen = false;
   function closeRecap() { if (!rcOpen) return; rcOpen = false; rc.classList.remove("on"); G.cut = Math.max(0, G.cut - 1); A.sfx("page"); setTimeout(function () { $("stage").focus({ preventScroll: true }); }, 50); }

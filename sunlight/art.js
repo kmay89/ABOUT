@@ -500,7 +500,7 @@
     /* the label, in a hurried hand */
     var lab = LABELS[(seed * 9973 % 1 * LABELS.length) | 0];
     x.save(); x.translate(bx + bw / 2, top + dep + (bh - dep) * 0.55); x.rotate((seed - 0.5) * 0.16);
-    x.fillStyle = "#24222e"; x.font = "bold " + (lab.length > 8 ? 1.9 : 2.3) + "px 'Comic Sans MS','Marker Felt',sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(lab, 0, 0);
+    x.fillStyle = "#24222e"; x.font = (lab.length > 8 ? 1.75 : 2.15) + "px 'Sunlight Marker','Marker Felt','Comic Sans MS',sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(lab, 0, 0);
     if (lab.indexOf("FRAGILE") === 0) { x.strokeStyle = "#b8322a"; x.lineWidth = 0.35; x.strokeRect(-6.5, -1.6, 13, 3.2); }
     x.restore();
   }
@@ -756,7 +756,7 @@
       x.fillStyle = lg(x, 0, top + 4, 0, top + 4 + bh, [[0, "#c69a62"], [1, "#a47a46"]]); x.fillRect(bx2, top + 4, bw, bh);
       x.fillStyle = lg(x, 0, top, 0, top + 4, [[0, "#e2be88"], [1, "#d2aa72"]]); x.fillRect(bx2, top, bw, 4.2);
       x.fillStyle = "rgba(240,232,214,.9)"; x.fillRect(bx2 + bw / 2 - 1.2, top, 2.4, 4.2 + bh);
-      x.fillStyle = "rgba(60,40,20,.75)"; x.font = "bold 2.2px sans-serif"; x.fillText(["KITCHEN", "BOOKS", "FRAGILE", "FRAGILE", "FRAGILE"][(H(tx, ty, 3) * 5) | 0], bx2 + 0.6, top + 8.8);
+      x.fillStyle = "rgba(60,40,20,.75)"; x.font = "2px 'Sunlight Marker','Marker Felt',sans-serif"; x.fillText(["KITCHEN", "BOOKS", "FRAGILE", "FRAGILE", "FRAGILE"][(H(tx, ty, 3) * 5) | 0], bx2 + 0.6, top + 8.8);
       return;
     }
     if (t === TL.TABLE) {

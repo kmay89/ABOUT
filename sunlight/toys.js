@@ -324,7 +324,7 @@
       if (p.t > life) { pops.splice(i, 1); continue; }
       var k = p.t / life, a = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.5) / 0.5);
       ctx.save(); ctx.globalAlpha = a; ctx.textAlign = "center";
-      ctx.font = (p.final ? "italic 600 7px " : "600 5px ") + "Georgia, serif";
+      ctx.font = (p.final ? "italic 7.5px " : "5.5px ") + "'Sunlight Book', Georgia, serif";
       var y = p.y - cam.y - k * (p.final ? 10 : 6), txt = p.final ? (p.n === 1 ? "one skip" : p.n + " skips") + (p.best ? " · best yet" : "") : "" + p.n;
       ctx.lineWidth = 1.4; ctx.strokeStyle = "rgba(20,30,40,.55)"; ctx.strokeText(txt, p.x - cam.x, y);
       ctx.fillStyle = p.final ? "#fff4d0" : "#e8f4ff"; ctx.fillText(txt, p.x - cam.x, y);

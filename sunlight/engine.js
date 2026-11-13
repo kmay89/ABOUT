@@ -149,11 +149,17 @@
   function press(a) { if (!keys[a]) edge[a] = true; keys[a] = true; }
   function release(a) { keys[a] = false; }
   window.addEventListener("keydown", function (e) {
-    if (e.target && (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT")) return;
+    var t = e.target;
+    if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) return;
     var a = KEYMAP[e.code]; if (!a) return;
+    /* Enter and Space on a button belong to the button: they press it, the
+       way they do everywhere else. (They used to be swallowed here, so the
+       title and the menu could only be worked with a mouse or a thumb.) */
+    if ((e.code === "Enter" || e.code === "Space") && t && t.closest && t.closest("button,a[href],summary")) return;
     if (a === "book" || a === "act" || a === "menu" || a.length <= 5) e.preventDefault();
     if (!e.repeat) press(a); else keys[a] = true;
     G.usingKeys = true;
+    if (BS.hands) BS.hands.using("keys");
   });
   window.addEventListener("keyup", function (e) { var a = KEYMAP[e.code]; if (a) release(a); });
   window.addEventListener("blur", function () { keys = {}; });
@@ -162,9 +168,12 @@
   G.clearTaps = function () { edge = {}; };
   G.press = press; G.release = release;
 
-  /* touch: a thumb-stick on the left, buttons on the right */
+  /* touch: a thumb-stick on the left, buttons on the right. The stick rests
+     in its corner, but touch down anywhere on the left of the screen and it
+     comes to your thumb, so nobody has to look for it. Touch it where it
+     rests and it stays put, and leaning on its edge walks you at once. */
   (function touch() {
-    var stick = $("stick"), knob = $("knob"), id = null, cx = 0, cy = 0;
+    var stick = $("stick"), knob = $("knob"), pad = $("pad") || stick, id = null, cx = 0, cy = 0;
     if (!stick) return;
     function upd(x, y) {
       var dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), max = 42;
@@ -172,10 +181,30 @@
       knob.style.transform = "translate(" + dx + "px," + dy + "px)";
       G.input.ax = Math.abs(dx) > 8 ? dx / max : 0; G.input.ay = Math.abs(dy) > 8 ? dy / max : 0;
     }
-    stick.addEventListener("pointerdown", function (e) { id = e.pointerId; var r = stick.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; stick.setPointerCapture(id); upd(e.clientX, e.clientY); });
-    stick.addEventListener("pointermove", function (e) { if (e.pointerId === id) upd(e.clientX, e.clientY); });
-    function end(e) { if (e.pointerId !== id) return; id = null; knob.style.transform = ""; G.input.ax = G.input.ay = 0; }
-    stick.addEventListener("pointerup", end); stick.addEventListener("pointercancel", end);
+    pad.addEventListener("pointerdown", function (e) {
+      if (id !== null) return;
+      id = e.pointerId;
+      var r = stick.getBoundingClientRect(), half = r.width / 2;
+      cx = r.left + half; cy = r.top + half;
+      if (pad !== stick && Math.hypot(e.clientX - cx, e.clientY - cy) > half) {
+        var pr = pad.getBoundingClientRect();
+        /* under the thumb, but never off the edge of the screen */
+        cx = Math.max(pr.left + half + 4, e.clientX);
+        cy = Math.min(pr.bottom - half - 4, e.clientY);
+        stick.classList.add("float");
+        stick.style.left = (cx - half - pr.left) + "px"; stick.style.bottom = (pr.bottom - cy - half) + "px";
+      }
+      stick.classList.add("held");
+      try { pad.setPointerCapture(id); } catch (err) { }
+      upd(e.clientX, e.clientY);
+    });
+    pad.addEventListener("pointermove", function (e) { if (e.pointerId === id) upd(e.clientX, e.clientY); });
+    function end(e) {
+      if (e.pointerId !== id) return;
+      id = null; knob.style.transform = ""; G.input.ax = G.input.ay = 0;
+      stick.classList.remove("held"); stick.classList.remove("float"); stick.style.left = stick.style.bottom = "";
+    }
+    pad.addEventListener("pointerup", end); pad.addEventListener("pointercancel", end);
     document.querySelectorAll("[data-btn]").forEach(function (b) {
       var a = b.getAttribute("data-btn");
       b.addEventListener("pointerdown", function (e) { e.preventDefault(); A.init(); press(a); b.classList.add("on"); if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(8); });
@@ -190,8 +219,15 @@
     var pads = navigator.getGamepads ? navigator.getGamepads() : [];
     var p = pads && pads[0]; if (!p) return;
     var map = { 0: "act", 1: "crank", 2: "lens", 3: "book", 9: "menu", 12: "up", 13: "down", 14: "left", 15: "right" };
-    for (var b in map) { var on = p.buttons[b] && p.buttons[b].pressed; if (on && !padPrev[b]) press(map[b]); if (!on && padPrev[b]) release(map[b]); padPrev[b] = on; }
+    for (var b in map) {
+      var on = p.buttons[b] && p.buttons[b].pressed;
+      /* a pad in a menu: hands.js walks the buttons with it, and says so by returning true */
+      if (on && !padPrev[b]) { if (BS.hands) BS.hands.using("pad"); if (!(BS.hands && BS.hands.pad(map[b]))) press(map[b]); }
+      if (!on && padPrev[b]) release(map[b]);
+      padPrev[b] = on;
+    }
     var ax = p.axes[0] || 0, ay = p.axes[1] || 0;
+    if (BS.hands) BS.hands.padStick(ax, ay);
     if (Math.abs(ax) > 0.25 || Math.abs(ay) > 0.25) { G.input.ax = ax; G.input.ay = ay; G.padStick = true; }
     else if (G.padStick) { G.input.ax = G.input.ay = 0; G.padStick = false; }
   }
@@ -290,7 +326,7 @@
   /* ---------------- the HUD ---------------- */
   G.hud = function () {
     var s = G.s;
-    $("day").textContent = s.day + " · " + TOD[s.tod].label;
+    $("day").innerHTML = "<span>" + s.day + "</span><i> · </i><span>" + TOD[s.tod].label + "</span>";   /* two spans, so a narrow phone can set one over the other */
     $("place").textContent = G.map ? G.map.name : "";
     var bat = Math.round(s.battery);
     $("bat").style.setProperty("--b", Math.max(2, bat) + "%");
@@ -306,7 +342,7 @@
     if (f.knowClose) chip(cl, "Keys go", "Fri", f.clockStruck >= 3);
     if (f.knowDewater) chip(cl, "Pumped dry", "Thu", f.clockStruck >= 2, true);
     if (f.knowPour) chip(cl, "Concrete", f.knowDewater ? "Mon" : "Mon?", false);
-    $("obj").textContent = s.objective || "";
+    $("obj").textContent = named(s.objective);
     $("obj").hidden = !s.objective;
   };
   function chip(el, a, b, done, hot) {
@@ -323,7 +359,7 @@
     }
   };
   G.flash = function (t) { var f = $("flash"); f.textContent = t; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); };
-  G.toast = function (t, ms) { var f = $("toast"); f.textContent = t; f.classList.add("on"); clearTimeout(G._tt); G._tt = setTimeout(function () { f.classList.remove("on"); }, ms || 2600); };
+  G.toast = function (t, ms) { var f = $("toast"); f.textContent = named(t); f.classList.add("on"); clearTimeout(G._tt); G._tt = setTimeout(function () { f.classList.remove("on"); }, ms || 2600); };
 
   /* captions for sound */
   var capT = 0;
@@ -411,8 +447,11 @@
   function paginate(el, text, lines) {
     lines = lines || 3;
     var w = el.clientWidth; if (!w || text.length < 60) return [text];
-    var probe = el.cloneNode(false); probe.removeAttribute("id");
-    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;width:" + w + "px;height:auto";
+    /* the probe is measured in the box's own type, or a page that fits the
+       probe would not fit the box */
+    var probe = el.cloneNode(false), cs = getComputedStyle(el); probe.removeAttribute("id");
+    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;margin:0;padding:0;width:" + w + "px;height:auto";
+    ["fontFamily", "fontSize", "fontStyle", "fontWeight", "lineHeight", "letterSpacing", "fontVariantNumeric", "fontKerning"].forEach(function (k) { probe.style[k] = cs[k]; });
     document.body.appendChild(probe);
     var lh = parseFloat(getComputedStyle(probe).lineHeight) || 24, max = lh * lines + 2;
     var words = text.split(/ +/), out = [], cur = [];
@@ -433,8 +472,23 @@
     return out.map(function (pg) { var s2 = (open ? "*" : "") + pg, n = (pg.match(/\*/g) || []).length; if (n % 2) open = !open; return open ? s2 + "*" : s2; });
   }
   function esc(s) { return s.replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  /* a key named in a sentence is named for the hands that are playing: the
+     script writes [act], [lens], [crank] or [book], and hands.js says what
+     that is on a keyboard (E), under a thumb (the spark) or on a pad (A).
+     [(act)] is the same thing as an aside — " (E)" — and it is left out
+     under a thumb, where the bead itself has already lit up to say so.
+     {Tap|Click} is a word that depends on the hands: thumb first, keys second */
+  var NAMED = /\[(\(?)(act|lens|crank|book)\)?\]/g, EITHER = /\{([^{}|]*)\|([^{}|]*)\}/g;
+  function named(s) {
+    var thumb = BS.hands && BS.hands.kind ? BS.hands.kind() === "touch" : document.body.classList.contains("touch");
+    return String(s || "").replace(EITHER, function (m, a, b) { return thumb ? a : b; }).replace(NAMED, function (m, aside, a) {
+      var n = BS.hands && BS.hands.name ? BS.hands.name(a, !!aside) : { act: "E", lens: "L", crank: "C", book: "B" }[a];
+      return aside ? (n ? " (" + n + ")" : "") : n;
+    });
+  }
+  G.named = named;
   /* *italics* in the script become <em> */
-  function fmt(s) { return esc(s).replace(/\*([^*]+)\*?/g, "<em>$1</em>"); }
+  function fmt(s) { return esc(named(s)).replace(/\*([^*]+)\*?/g, "<em>$1</em>"); }
   G.fmt = fmt;
   function finish(t) { if (t && !t.done) { clearTimeout(t.timer); if (t.finishNow) { t.finishNow(); return; } t.done = true; t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
 
@@ -538,12 +592,14 @@
       opts.forEach(function (o, i) {
         var b = document.createElement("button"); b.className = "copt"; b.innerHTML = fmt(o);
         b.addEventListener("click", function () { pick(i); });
+        b.addEventListener("focus", function () { sel(i); });     /* Tab moves the choice too */
         list.appendChild(b); btns.push(b);
       });
-      function sel(i) { idx = (i + btns.length) % btns.length; btns.forEach(function (b, k) { b.classList.toggle("sel", k === idx); }); }
+      /* the line that's lit is the line that has the focus, so Enter says the one you see */
+      function sel(i, focus) { idx = (i + btns.length) % btns.length; btns.forEach(function (b, k) { b.classList.toggle("sel", k === idx); }); if (focus) btns[idx].focus({ preventScroll: true }); }
       function pick(i) { A.sfx("ui"); c.classList.remove("on"); G.choosing = null; res(i); }
       sel(0);
-      G.choosing = { sel: function (d) { sel(idx + d); A.sfx("blip"); }, pick: function () { pick(idx); } };
+      G.choosing = { sel: function (d) { sel(idx + d, true); A.sfx("blip"); }, pick: function () { pick(idx); } };
       setTimeout(function () { btns[0] && btns[0].focus({ preventScroll: true }); }, 30);
     });
   };
@@ -600,7 +656,7 @@
       var CH = BS.story && BS.story.CHAPTERS, prev = null;
       if (CH) for (var i = 1; i < CH.length; i++) if (CH[i][1] === title) prev = CH[i - 1];
       var done = $("chdone");
-      if (prev) { done.hidden = false; done.innerHTML = "<b>✓</b> Chapter " + prev[0] + " · " + prev[1] + " <span>" + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen</span>"; }
+      if (prev) { done.hidden = false; done.innerHTML = '<b><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></b>Chapter ' + prev[0] + " · " + prev[1] + " <span>" + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen</span>"; }
       else done.hidden = true;
       c.classList.add("on"); A.sfx("chapter");
       setTimeout(function () { c.classList.remove("on"); setTimeout(res, 700); }, G.skipWaits ? 10 : prev ? 4200 : 3200);
@@ -684,7 +740,7 @@
     G.lensState = { look: target.look, scene: target.scene, st: target.st || {}, ctrl: target.ctrl || null, t: 0 };
     lensT = 0;
     $("lens").classList.add("on"); G.lensOpenedAt = performance.now();
-    $("lhint").textContent = document.body.classList.contains("touch") ? "Tap anywhere to look up" : "L, E or click to look up";
+    $("lhint").textContent = document.body.classList.contains("touch") ? "Tap anywhere to look up" : BS.hands && BS.hands.kind() === "pad" ? "X or A to look up" : "L, E or click to look up";
     $("lname").textContent = target.look ? target.look.name : target.label || "Close up";
     $("lnote").hidden = true; $("lnew").hidden = true;
     if (target.look && !G.s.seen[target.look.id]) {
@@ -818,9 +874,12 @@
 
     /* what you could do here */
     var near = G.cut ? null : nearest(); G.nearSpot = near;
-    var pr = $("prompt");
-    if (near) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "A" : "E") + "</kbd> " + (typeof near.label === "function" ? near.label() : near.label); pr.classList.add("on"); }
-    else if (!G.cut && G.s.items.lens && G.lensNear()) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "Look" : "L") + "</kbd> Something small here — look closer"; pr.classList.add("on"); }
+    /* the key is named the way it looks in your hands: a letter on a keyboard,
+       the sign on the bead under a thumb, the button on a pad (hands.js) */
+    var pr = $("prompt"), ph = "";
+    if (near) ph = keycap("act") + "<span>" + (typeof near.label === "function" ? near.label() : near.label) + "</span>";
+    else if (!G.cut && G.s.items.lens && G.lensNear()) ph = keycap("lens") + "<span>Something small here — look closer</span>";
+    if (ph) { if (ph !== pr._h) { pr.innerHTML = ph; pr._h = ph; } pr.classList.add("on"); }
     else pr.classList.remove("on");
     if (!G.cut && G.tap("act") && near) { A.sfx("ui"); if (G.burst && near.x != null) G.burst(near.x * T, near.y * T - 6, 8, "255,236,180", 18); near.act(); }
     if (!G.cut && G.tap("lens")) {
@@ -834,6 +893,11 @@
     if (BS.story && BS.story.update) BS.story.update(dt);
     animate(dt);
     G.clearTaps();
+  }
+  function keycap(a) {
+    if (BS.hands && BS.hands.key) return BS.hands.key(a);
+    var touch = document.body.classList.contains("touch");
+    return "<kbd>" + (a === "lens" ? (touch ? "Look" : "L") : (touch ? "A" : "E")) + "</kbd>";
   }
   function useExit(ex) {
     if (BS.story && BS.story.locked && BS.story.locked(ex.lock || ex.to, ex)) return;
@@ -855,7 +919,7 @@
       if (d < 18 && d < bd) { bd = d; best = { label: ex.label, act: function () { useExit(ex); } }; }
     });
     /* nothing else to do here? a tree is always worth a shake */
-    if (!best && G.mapId === "hill" && decor.trees) decor.trees.forEach(function (t) {
+    if (!best && G.mapId === "hill" && decor && decor.trees) decor.trees.forEach(function (t) {
       var d = Math.hypot(t.x - fx, t.y - 4 - fy);
       if (d < 20 && d < bd) { bd = d; best = { label: "Shake the tree", act: function () { shakeTree(t); } }; }
     });
