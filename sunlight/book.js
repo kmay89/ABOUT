@@ -47,7 +47,8 @@
       '<button class="hskip" type="button">Skip</button>';
     document.body.appendChild(el);
     dustC = el.querySelector(".hdust"); sparkC = el.querySelector(".hspark");
-    el.addEventListener("click", function () { skip(); });
+    /* only the Skip button skips; a tap anywhere else answers whatever the book is waiting for */
+    el.querySelector(".hskip").addEventListener("click", function (e) { e.stopPropagation(); skip(); });
     paintEnd(el.querySelector(".hend"));
   }
 
@@ -150,40 +151,65 @@
       cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
       if (reduced()) {
         step("still"); A.sfx("chapter");
-        at(3600, finish);
+        ask("Begin", "Tap to begin", 900, finish);
         return;
       }
+      /* the lamp warms, the book comes down — and then it is yours to open */
       at(250, function () { step("lamp"); });
       at(500, function () { step("drop"); });
       at(1450, function () { step("down"); A.sfx("thud"); haptic(14); });
       at(1800, function () { step("sheen"); A.sfx("twinkle"); });
       at(2200, function () { step("askip"); });
-      at(4300, function () { step("open"); A.sfx("page"); });
-      at(4500, function () { A.sfx("creak"); });
-      at(5900, function () { step("ink"); });
-      INSCRIBE.split("").forEach(function (ch, i) { if (i % 5 === 0 && ch !== " ") at(5900 + i * 34, function () { A.sfx("text"); }); });
-      at(5900 + INSCRIBE.length * 34 + 1300, function () {
-        step("turn"); A.sfx("page");
-        at(900, function () { A.sfx("chapter"); });
-        at(1500, function () { step("read"); });
-        at(4600, function () { fall(); });
-      });
+      at(2900, function () { ask("Open the book", "Tap to open", 0, openIt); });
     });
   };
+  /* one prompt, the same everywhere (engine.js G.cue): the book waits for you */
+  function ask(label, tap, lock, then) {
+    G.cue({ label: label, tap: tap, lock: lock, el: el, bottom: "4.5vh" }).then(function () { if (!ending && el && el.classList.contains("on")) then(); });
+  }
+  /* `ms` from now, or the moment you press: so a line being written can be finished like a line being spoken */
+  function soon(ms, fn) {
+    var fired = false;
+    function go() { if (fired || ending) return; fired = true; clearTimeout(id); if (G.cueFn === go) G.cueFn = null; el.removeEventListener("pointerup", go); fn(); }
+    var id = setTimeout(go, ms); timers.push(id);
+    G.cueFn = go; el.addEventListener("pointerup", go);
+  }
+  var INK_MS = 46;
+  function openIt() {
+    step("open"); A.sfx("page"); haptic(8);
+    at(200, function () { A.sfx("creak"); });
+    /* her line writes itself in, at the pace of a hand */
+    at(1500, function () {
+      step("ink");
+      INSCRIBE.split("").forEach(function (ch, i) { if (i % 5 === 0 && ch !== " ") at(i * INK_MS, function () { if (!el.classList.contains("inkdone") && !ending) A.sfx("text"); }); });
+      soon(INSCRIBE.length * INK_MS + 700, function () {
+        step("inkdone");
+        ask("Turn the page", "Tap to turn the page", 250, turnIt);
+      });
+    });
+  }
+  function turnIt() {
+    step("turn"); A.sfx("page"); haptic(8);
+    at(900, function () { A.sfx("chapter"); });
+    at(1500, function () { step("read"); });
+    at(2500, function () { ask("Begin", "Tap to begin", 0, fall); });
+  }
   function key(e) {
     if (!el || !el.classList.contains("on")) return;
-    if (["e", "E", "Enter", " ", "Escape"].indexOf(e.key) >= 0) { e.preventDefault(); e.stopPropagation(); skip(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); skip(); }
   }
   function skip() {
     if (ending) return;
-    if (reduced()) { finish(); return; }
+    if (reduced()) { ending = true; if (G.cueCancel) G.cueCancel(); finish(); return; }
     timers.forEach(clearTimeout); timers = [];
+    if (G.cueCancel) G.cueCancel(); G.cueFn = null;
     step("open"); step("ink"); step("turn"); step("drop"); step("down"); step("lamp"); step("fast");
     fall();
   }
   /* into the page, and the page is light */
   function fall() {
     if (ending) return; ending = true;
+    if (G.cueCancel) G.cueCancel(); G.cueFn = null;
     step("fall"); A.sfx("whoosh");
     setTimeout(function () { step("white"); }, 650);
     setTimeout(function () { el.classList.add("gone"); A.sfx("land"); }, 1500);

@@ -799,7 +799,7 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 .hfly{justify-content:center}
 .hink{font:italic calc(var(--bw) * .066)/1.55 "Snell Roundhand","Apple Chancery","Segoe Script","Bradley Hand","Brush Script MT",cursive!important;color:#25304a!important;text-align:center!important;transform:rotate(-2.5deg)}
 .hink span{opacity:0;filter:blur(1.5px)}
-.hero.ink .hink span{animation:hinkin .55s ease-out forwards;animation-delay:calc(var(--i) * 34ms)}
+.hero.ink .hink span{animation:hinkin .55s ease-out forwards;animation-delay:calc(var(--i) * 46ms)}
 @keyframes hinkin{to{opacity:.92;filter:blur(0)}}
 .hsig{margin-top:1.2em!important;font:italic calc(var(--bw) * .036)/1.3 var(--serif)!important;color:#8a7a60!important;text-align:center!important;opacity:0;transition:opacity 1s ease 3.6s}
 .hero.ink .hsig{opacity:1}
@@ -812,7 +812,7 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 .hero.askip .hskip{opacity:1}
 .hero.fall .hskip{opacity:0}
 .hero.fast *,.hero.fast .hbook{transition-duration:.45s!important;transition-delay:0s!important}
-.hero.fast .hink span,.hero.still .hink span{animation:none;opacity:.92;filter:none}
+.hero.fast .hink span,.hero.still .hink span,.hero.inkdone .hink span{animation:none;opacity:.92;filter:none}
 .hero.fast .hsig,.hero.still .hsig{transition-delay:0s}
 /* reduced motion: the open book, still */
 .hero.still::after{opacity:1}
@@ -959,3 +959,93 @@ body:not(.touch).achon .region{top:calc(116px + var(--safe-t))}
 }
 @media (prefers-reduced-motion:reduce){#book.on .bcard,#book .bbody.turn{animation:none}}
 #book .key.locked summary canvas{background:none;box-shadow:none;border:1.2px dashed rgba(70,56,40,.45);transform:rotate(-6deg)}
+
+/* ================= cues: the game waits for you (engine.js G.cue) =================
+   One prompt, the same everywhere: the key (or a tap ring) and a word or
+   two, rising in once the moment has settled, breathing until answered.
+   The thing it points at gets a soft gold ring. */
+.cue{position:fixed;left:50%;bottom:11vh;z-index:97;transform:translate(-50%,10px);display:flex;align-items:center;gap:.55em;padding:.5em 1.05em .5em .6em;border-radius:999px;
+  background:rgba(14,11,7,.86);border:1px solid rgba(255,209,102,.5);box-shadow:0 6px 22px rgba(0,0,0,.5),0 0 24px rgba(255,200,90,.14);
+  font:600 .92rem/1 var(--sans);letter-spacing:.02em;color:#f6ead0;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .45s cubic-bezier(.2,1.3,.3,1)}
+.cue.on{opacity:1;transform:translate(-50%,0);animation:cuebreathe 1.8s ease-in-out .5s infinite}
+.cue.bare{padding:.45em .6em}
+.cue kbd{display:grid;place-items:center;min-width:1.7em;height:1.7em;padding:0 .35em;border-radius:7px;font:800 .82rem/1 var(--sans);color:#2a1a04;
+  background:linear-gradient(180deg,#ffe19a,#f2b53c);box-shadow:0 2px 0 #9a6a12,0 0 10px rgba(255,200,90,.4)}
+.cue.on kbd{animation:cuekey 1.8s ease-in-out .5s infinite}
+.cue .cuetap{position:relative;width:1.5em;height:1.5em;border-radius:50%;background:radial-gradient(circle,#ffe19a 0 32%,rgba(255,225,154,0) 34%)}
+.cue .cuetap::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid #f2c45a;animation:cuering 1.5s ease-out infinite}
+@keyframes cuebreathe{0%,100%{box-shadow:0 6px 22px rgba(0,0,0,.5),0 0 24px rgba(255,200,90,.14)}50%{box-shadow:0 6px 22px rgba(0,0,0,.5),0 0 34px rgba(255,200,90,.38)}}
+@keyframes cuekey{0%,100%{transform:translateY(0)}50%{transform:translateY(2px);box-shadow:0 0 0 #9a6a12,0 0 14px rgba(255,200,90,.6)}}
+@keyframes cuering{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.25);opacity:0}}
+.cued{animation:cuedring 1.6s ease-in-out infinite}
+@keyframes cuedring{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.0),0 0 0 2px rgba(255,209,102,.55)}50%{box-shadow:0 0 0 7px rgba(255,209,102,.16),0 0 0 2px rgba(255,209,102,.9)}}
+.phsend.ready i{background:#2a84ff;color:#fff;transform:scale(1.12);transition:transform .3s cubic-bezier(.2,1.6,.3,1),background .3s}
+/* an establishing shot is only the picture: the controls and the HUD step out */
+body.directing .touch,body.directing #hud,body.directing .goalcard,body.directing .clock,body.directing .obj,body.directing .prompt{opacity:0!important;pointer-events:none;transition:opacity .5s}
+body.directing .region{top:calc(15vh + var(--safe-t))!important}
+@media (prefers-reduced-motion:reduce){.cue.on,.cue.on kbd,.cue .cuetap::after,.cued{animation:none}.cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}}
+
+/* ================= the pause screen =================
+   The world holds its breath behind a soft blur; one card says where you
+   are, what you're doing, what is coming and how far you've come, with the
+   five things you'd want under it. The settings are one press further in. */
+#menu{background:rgba(6,5,3,.55);-webkit-backdrop-filter:blur(5px) saturate(.8);backdrop-filter:blur(5px) saturate(.8);transition:opacity .35s ease}
+#menu .pz{width:min(620px,94vw);max-height:92vh;padding:1.5em clamp(1.1em,4vw,2em) 1.2em;border-radius:20px;color:var(--ink);overflow:auto;
+  background:linear-gradient(180deg,rgba(38,30,18,.97),rgba(20,16,10,.97));border:1px solid rgba(255,209,102,.28);
+  box-shadow:0 30px 80px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,236,190,.1);transform:translateY(14px) scale(.97);transition:transform .45s cubic-bezier(.2,1.2,.3,1)}
+#menu.on .pz{transform:none}
+.pzh{text-align:center;margin-bottom:1.1em}
+.pzh small{display:block;font:600 .72rem var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.pzh h2{margin:.12em 0 .1em;font:italic 2.2rem/1.1 var(--serif);color:#f6ead0;letter-spacing:.01em}
+.pzh .pzch{margin:0;font:italic .98rem var(--serif);color:var(--soft)}
+.pzh::after{content:"";display:block;width:120px;height:1px;margin:.9em auto 0;background:linear-gradient(90deg,rgba(255,209,102,0),rgba(255,209,102,.6),rgba(255,209,102,0))}
+.pzmain{display:grid;grid-template-columns:auto 1fr;gap:1.3em;align-items:center;margin-bottom:1.2em}
+.pzring{--p:0;position:relative;width:104px;height:104px;border-radius:50%;display:grid;place-content:center;text-align:center;
+  background:conic-gradient(#ffd166 calc(var(--p) * 1%),rgba(255,255,255,.09) 0)}
+.pzring::before{content:"";position:absolute;inset:7px;border-radius:50%;background:#1d1810;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)}
+.pzring b{position:relative;font:700 1.45rem/1 var(--serif);color:#f6ead0}
+.pzring span{position:relative;font:600 .6rem var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--soft);margin-top:.3em}
+.pznow .pzk{font:600 .66rem var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.pznow #pzobj{margin:.2em 0 .6em;font:italic 1.08rem/1.45 var(--serif);color:#f6ead0}
+.pzclock{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.55em}
+.pzclock:empty{display:none}
+.pzchip{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:.3em .7em;border-radius:9px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1)}
+.pzchip small{font:600 .56rem var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--soft)}
+.pzchip b{font:600 .98rem var(--serif);color:#f6ead0}
+.pzchip.hot{border-color:rgba(255,143,114,.7)}.pzchip.hot b{color:#ff8f72}
+.pzchip.struck{opacity:.45}.pzchip.struck b{text-decoration:line-through}
+.pzstat{margin:0;font:.8rem var(--sans);color:var(--soft)}
+.pzacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+.pzacts button{padding:.85em .6em;border-radius:12px;font:600 .92rem var(--sans);text-align:center;justify-content:center}
+.pzacts .primary{grid-column:1/-1;padding:1em;font-size:1.02rem}
+.pzacts [hidden]{display:none}
+.pzopts{margin-top:1em;padding-top:.4em;border-top:1px solid var(--line)}
+.pzopts .opts{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.pzsmall button,.pzsmall .btn{font-size:.8rem;opacity:.85}
+@media (max-width:480px){.pzmain{grid-template-columns:1fr;justify-items:center;text-align:center}.pzclock{justify-content:center}.pzh h2{font-size:1.9rem}}
+/* nothing pops up over a held screen */
+body:has(#menu.on) .achpop,body:has(#book.on) .achpop,body:has(#menu.on) .region,body:has(#book.on) .region{opacity:0!important;transition:opacity .2s}
+@media (prefers-reduced-motion:reduce){#menu .pz{transition:none}}
+
+/* ================= the first steps (story.js coach) =================
+   No cards before the game: the one thing you need is shown when you need
+   it, and goes the moment you've done it. */
+.coach{position:fixed;left:50%;bottom:calc(112px + var(--safe-b));z-index:12;transform:translate(-50%,8px);display:flex;align-items:center;gap:.7em;padding:.55em 1em;border-radius:14px;
+  background:rgba(14,11,7,.82);border:1px solid rgba(255,209,102,.4);font:600 .9rem var(--sans);color:#f6ead0;opacity:0;pointer-events:none;transition:opacity .5s,transform .5s cubic-bezier(.2,1.3,.3,1);white-space:nowrap}
+.coach.on{opacity:1;transform:translate(-50%,0)}
+.coach.done{opacity:0;transform:translate(-50%,-8px)}
+.coach .ck{display:grid;grid-template-columns:repeat(3,1.6em);grid-template-rows:repeat(2,1.6em);gap:3px}
+.coach kbd{display:grid;place-items:center;border-radius:6px;font:800 .72rem var(--sans);color:#2a1a04;background:linear-gradient(180deg,#ffe19a,#f2b53c);box-shadow:0 2px 0 #9a6a12}
+.coach .ck kbd:first-child{grid-column:2}
+.coach .ck kbd:nth-child(2){grid-column:1}
+.coach .ck kbd{animation:coachkey 2.4s ease-in-out infinite}
+.coach .ck kbd:nth-child(2){animation-delay:.3s}.coach .ck kbd:nth-child(3){animation-delay:.6s}.coach .ck kbd:nth-child(4){animation-delay:.9s}
+@keyframes coachkey{0%,70%,100%{transform:none;filter:none}80%{transform:translateY(2px);filter:brightness(1.25)}}
+.coach small{display:block;font:500 .72rem var(--sans);color:var(--soft);margin-top:.15em}
+/* on a phone it sits just above the stick it is talking about */
+body.touch .coach{left:14px;bottom:calc(196px + var(--safe-b));transform:translateY(8px);max-width:62vw;white-space:normal;padding:.5em .85em}
+body.touch .coach.on{transform:none}
+body.touch .coach.done{transform:translateY(-8px)}
+.stick.teach{animation:stickteach 1.6s ease-in-out infinite}
+@keyframes stickteach{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.0),0 0 0 2px rgba(255,209,102,.6)}50%{box-shadow:0 0 0 10px rgba(255,209,102,.14),0 0 0 2px rgba(255,209,102,.95)}}
+@media (prefers-reduced-motion:reduce){.coach .ck kbd,.stick.teach{animation:none}}

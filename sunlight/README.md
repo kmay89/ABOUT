@@ -603,6 +603,55 @@ grown to match rather than drawn as lines laid on top:
     still.
 - **The opening book's endpapers** carry the same network.
 
+## Paced to the player (engine.js G.cue, book.js, phone.js, story.js)
+
+The big moments don't run on a clock. Each plays its beat, settles, and
+waits for you.
+
+- **One prompt, the same everywhere (`G.cue`).** A small pill with the key
+  (E, A on a gamepad, or a tap ring on a phone) and a word or two. It rises
+  in once the moment has settled and breathes until answered.
+  - `lock` holds a reveal for a moment, so a mashed button can't skip it.
+  - `at` anchors the prompt to an element and `ring` gives that element a
+    gold ring; `over` sits the prompt on the element itself.
+  - A press while a beat is still playing finishes that beat, the same way
+    it finishes a line of dialogue.
+- **The opening book.** It lands, then you open it. Gran's line writes
+  itself in at the pace of a hand (a press completes it). You turn the page
+  to Chapter One, then press to begin. Skip and Escape still skip all of it.
+- **Gran's house, the first time.** The page's light becomes a wide shot of
+  the whole ground floor, in focus, with the HUD and touch controls out of
+  the frame. Its title card comes up ("Gran's House — forty years of her, in
+  boxes"), and a strip of packing tape goes rip, thunk. Then the camera moves
+  slowly in to Wren on the stairs (`G.pan`). Only then does the narration
+  start.
+- **The phone.** It plays in beats you can read:
+  1. The screen wakes and searches, and one bar climbs.
+  2. Three notifications land a second apart. You open them.
+  3. The chat arrives at reading speed: each message waits about as long as
+     the previous one takes to read.
+  4. You tap Reply, and Wren types.
+  5. You press Send.
+  6. The failed send can't be hurried, and "No Service" holds for two
+     seconds before it will let you go.
+
+  On a phone you tap the notification, the message field and the arrow
+  themselves.
+- **No cards before the game.** New game starts the drive at once. The
+  walking controls are shown the moment you first have control (W-A-S-D keys,
+  "drag the stick" on a phone, "left stick" on a gamepad) and leave once
+  you've walked. "How to play" is still on the title and pause screens.
+- **The pause screen** is a real one:
+  - The world blurs and the music and soundscape drop back.
+  - One card shows the day and time, the chapter, what you're doing now, the
+    deadline chips once you know them, a progress ring and your counts.
+  - Under it: Resume, Gran's book, Save, Options, How to play. The settings
+    sit behind Options.
+  - Moment pop-ups and area titles never show over it or over the book.
+
+Reduced motion drops the animation between beats but keeps the beats. The
+test scripts' skip-waits flag bypasses all cues.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the

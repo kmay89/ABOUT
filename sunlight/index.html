@@ -153,10 +153,30 @@
 </section>
 
 <!-- the menu -->
-<section id="menu" class="menu" aria-hidden="true" aria-label="Menu">
-  <div class="bcard mcardx">
-    <h2>Paused</h2>
-    <p id="mstat" class="lede small"></p>
+<section id="menu" class="menu" aria-hidden="true" aria-label="Paused">
+  <div class="bcard mcardx pz">
+    <header class="pzh">
+      <small id="pzday"></small>
+      <h2>Paused</h2>
+      <p id="pzch" class="pzch"></p>
+    </header>
+    <div class="pzmain">
+      <div class="pzring" id="pzring" role="img" aria-label="Progress"><b id="pzpct">0%</b><span>of the hill</span></div>
+      <div class="pznow">
+        <span class="pzk">Now</span>
+        <p id="pzobj"></p>
+        <div id="pzclock" class="pzclock"></div>
+        <p id="mstat" class="pzstat"></p>
+      </div>
+    </div>
+    <div class="pzacts">
+      <button data-close class="primary" data-focus>Resume</button>
+      <button id="m-book">Gran's book</button>
+      <button id="m-save">Save</button>
+      <button id="m-opts" aria-expanded="false" aria-controls="pzopts">Options</button>
+      <button id="m-help">How to play</button>
+    </div>
+    <div id="pzopts" class="pzopts" hidden>
     <div class="opts">
       <label>Text speed <input id="o-text" type="range" min="15" max="200" step="5"></label>
       <label>Volume <input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
@@ -170,13 +190,11 @@
       <label class="ck"><input id="o-tilt" type="checkbox"> Diorama focus (soft top &amp; bottom)</label>
       <label class="ck"><input id="o-ptr" type="checkbox"> Gold pointer to the next thing</label>
     </div>
-    <div class="row wrap">
-      <button data-close class="primary" data-focus>Back to the hill</button>
-      <button id="m-save">Save</button>
-      <button id="m-help">How to play</button>
+    <div class="row wrap pzsmall">
       <button id="m-restart">Start again</button>
       <button id="m-ver" class="ver">Check for updates</button>
       <a class="btn" href="/">Back to the desk</a>
+    </div>
     </div>
     <div id="help" class="help" hidden>
       <p><b>Move</b> arrows / WASD / the stick · <b>Run</b> Shift · <b>Act</b> E, Space, Enter (A) · <b>Look closer</b> L (Look) · <b>Crank the lantern</b> hold C (Crank) · <b>Gran's book</b> B · <b>Menu</b> Esc. A gamepad works too.</p>

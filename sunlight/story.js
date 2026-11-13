@@ -675,7 +675,23 @@
     if (FULL && seen.gran) G.s.story.push({ t: FULL[1], d: G.s.day });
     return scene(function () {
       G.s.battery = 4; G.signalBars = 0;
+      /* the camera is already wide on the whole ground floor, so that is what the page's light turns into */
+      var wideZ = Math.max(0.6, Math.min(1, G.view().w1 / (house.w * T + 6)));
+      G.directing = true; G.camFocus = { x: house.w * T / 2, y: house.h * T / 2 + 6 }; G.zoom = wideZ; G.snapCam();
       return (BS.book ? BS.book.open() : G.chapter("Chapter One", "No Signal"))
+        .then(function () {
+          /* Gran's house, the first time: all of it at once, and its name; a
+             strip of tape somewhere in it, rip, thunk; then slowly in to the
+             kid on the stairs. Paced by the clock, but a press settles it. */
+          document.body.classList.add("framed", "directing");
+          return wait(700)
+            .then(function () { if (BS.juice && BS.juice.announce) BS.juice.announce("Gran's House", "forty years of her, in boxes"); return wait(1500); })
+            .then(function () { A.sfx("rip", 6.5 * T, 8.8 * T); return wait(650); })
+            .then(function () { A.sfx("thunk", 6.5 * T, 8.8 * T); return wait(900); })
+            .then(function () { var v = G.view(), touch = document.body.classList.contains("touch"); return G.pan(G.p.x + (touch ? 0 : 26), G.p.y - 10 + v.h1 * (touch ? 0.1 : 0.03) + 14, 1, 4200); })
+            .then(function () { return wait(450); })
+            .then(function () { G.directing = false; document.body.classList.remove("framed", "directing"); });
+        })
         .then(function () { if (!seen.hill) return nar("My grandmother's house stood at the top of a hill the world had mostly forgotten, and the summer I was twelve, my father drove me up there to help him take it apart."); })
         .then(function () { if (!seen.gran) return nar("She wasn't dying. I should say that right at the start. She'd simply decided, the way she decided everything, all at once and without any fuss, that a house this big and a garden this wild were more than one person wanted to keep — and she'd taken a small bright apartment in town with a balcony exactly big enough for three pots of herbs."); })
         .then(function () { return nar("What nobody had thought to warn me about was the signal."); })
@@ -693,9 +709,29 @@
         .then(function () { A.sfx("thunk", 6.5 * T, 8.8 * T); return say("dad", "It's just the hill. No tower for miles out this way. Your grandmother went forty years without one bar of anything and lived to tell about it."); })
         .then(function () { return say("wren", "I'm not saying I won't live."); })
         .then(function () { return say("dad", "Then quit standing on the stairs like a ghost. You're making me nervous."); })
-        .then(function () { G.objective("Come down off the stairs. Dad's in the front room, in his square of boxes."); });
+        .then(function () { G.objective("Come down off the stairs. Dad's in the front room, in his square of boxes."); coachMove(); });
     });
   };
+  /* the first steps: shown the moment you can take them, gone the moment you have */
+  function coachMove() {
+    if (G.skipWaits) return;
+    var c = document.createElement("div"); c.className = "coach"; c.setAttribute("aria-live", "polite");
+    var touch = (document.body.classList.contains("touch") || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) && !G.usingKeys;
+    var stick = document.getElementById("stick");
+    if (touch) { c.innerHTML = "<div>Drag the stick to walk<small>Tap A when something is near</small></div>"; if (stick) stick.classList.add("teach"); }
+    else if (G.usingPad) c.innerHTML = "<div>Left stick to walk<small>A to talk and to touch things</small></div>";
+    else c.innerHTML = '<span class="ck"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><div>or the arrow keys, to walk<small>Hold Shift to run · E to talk and to touch things</small></div>';
+    document.body.appendChild(c);
+    setTimeout(function () { c.classList.add("on"); }, 900);
+    var x0 = G.p.x, y0 = G.p.y, gone = false;
+    var iv = setInterval(function () {
+      if (gone) return;
+      if (Math.hypot(G.p.x - x0, G.p.y - y0) > 30 || !is("arrive") || G.mapId !== "house") {
+        gone = true; clearInterval(iv); c.classList.add("done"); if (stick) stick.classList.remove("teach");
+        setTimeout(function () { c.remove(); }, 700);
+      }
+    }, 200);
+  }
   function talkDad() {
     var b = at();
     if (b === "arrive") return scene(F("dadSentCellar") ? function () { return say("dad", "Go on. Cellar. Don't go falling in love with anything."); } : jamScene);

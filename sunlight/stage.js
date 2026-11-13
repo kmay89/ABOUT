@@ -45,7 +45,7 @@
     var dx = bx - a.x, dy = by - a.y;
     return Math.abs(dx) > Math.abs(dy) * 0.8 ? (dx > 0 ? 2 : 3) : (dy > 0 ? 0 : 1);
   }
-  function free() { return G.mode === "walk" && !G.titleRun && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function free() { return G.mode === "walk" && !G.titleRun && !G.directing && !(BS.cine && BS.cine.running && BS.cine.running()); }
 
   St.update = function (dt) {
     if (!G.s) return;

@@ -50,7 +50,7 @@
   var blurA = BS.cv(64, 36), bax = blurA.getContext("2d"), blurB = BS.cv(32, 18), bbx = blurB.getContext("2d");
   var VW = 320, VH = 180, SC = 4, K = 4, LK = 2;
   G.quality = 1;     // dynamic resolution: the loop lowers it if frames run long
-  G.view = function () { return { w: VW, h: VH, s: SC, k: K }; };
+  G.view = function () { return { w: VW, h: VH, s: SC, k: K, w1: window.innerWidth / baseSC, h1: window.innerHeight / baseSC }; };   // w1, h1: the view at zoom 1
   function fit() {
     var W = window.innerWidth, Hh = window.innerHeight;
     SC = Math.max(1.6, Math.min(9, Math.min(W / 300, Hh / 168)));
@@ -153,7 +153,7 @@
     var a = KEYMAP[e.code]; if (!a) return;
     if (a === "book" || a === "act" || a === "menu" || a.length <= 5) e.preventDefault();
     if (!e.repeat) press(a); else keys[a] = true;
-    G.usingKeys = true;
+    G.usingKeys = true; G.usingPad = false;
   });
   window.addEventListener("keyup", function (e) { var a = KEYMAP[e.code]; if (a) release(a); });
   window.addEventListener("blur", function () { keys = {}; });
@@ -190,7 +190,7 @@
     var pads = navigator.getGamepads ? navigator.getGamepads() : [];
     var p = pads && pads[0]; if (!p) return;
     var map = { 0: "act", 1: "crank", 2: "lens", 3: "book", 9: "menu", 12: "up", 13: "down", 14: "left", 15: "right" };
-    for (var b in map) { var on = p.buttons[b] && p.buttons[b].pressed; if (on && !padPrev[b]) press(map[b]); if (!on && padPrev[b]) release(map[b]); padPrev[b] = on; }
+    for (var b in map) { var on = p.buttons[b] && p.buttons[b].pressed; if (on && !padPrev[b]) { press(map[b]); G.usingPad = true; G.usingKeys = true; } if (!on && padPrev[b]) release(map[b]); padPrev[b] = on; }
     var ax = p.axes[0] || 0, ay = p.axes[1] || 0;
     if (Math.abs(ax) > 0.25 || Math.abs(ay) > 0.25) { G.input.ax = ax; G.input.ay = ay; G.padStick = true; }
     else if (G.padStick) { G.input.ax = G.input.ay = 0; G.padStick = false; }
@@ -607,6 +607,78 @@
     });
   };
 
+  /* ---------------- cues: the game waits for you ----------------
+     The big moments don't run on a clock; they play their beat, settle, and
+     wait, with one small prompt that always looks the same: the key (E, A,
+     or a tap) and a word or two. G.cue({ label, at, lock, el }) resolves
+     when you answer it. `lock` is how long the moment holds before it will
+     listen (so a mashed button never skips a reveal); `at` anchors the
+     prompt under an element and gives that element a soft ring; `el` is
+     what a tap or click may land on (default: anywhere). Skipped entirely
+     when waits are being skipped. */
+  var cueEl = null, cueOff = null;
+  function onTouch() { return (document.body.classList.contains("touch") || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) && !G.usingKeys; }
+  function cueGlyph() {
+    var touch = onTouch();
+    return touch ? '<i class="cuetap"></i>' : "<kbd>" + (G.usingPad ? "A" : "E") + "</kbd>";
+  }
+  G.cue = function (o) {
+    o = o || {};
+    if (cueOff) cueOff(true);
+    return new Promise(function (res) {
+      if (G.skipWaits) return res();
+      if (!cueEl) { cueEl = document.createElement("div"); cueEl.className = "cue"; cueEl.setAttribute("aria-live", "polite"); document.body.appendChild(cueEl); }
+      var touch = onTouch();
+      var label = o.label == null ? "" : (touch && o.tap ? o.tap : o.label);
+      cueEl.innerHTML = cueGlyph() + (label ? "<span>" + label + "</span>" : "");
+      cueEl.classList.toggle("bare", !label);
+      var target = o.at || null, ring = o.ring || target, done = false, armed = false, tapOn = o.el || window;
+      function place() {
+        if (target && target.getBoundingClientRect) {
+          var b = target.getBoundingClientRect(), y = b.bottom + 12;
+          if (o.over) y = b.top + b.height / 2 - 18;                 // sit on the thing itself
+          else if (y > window.innerHeight - 46) y = b.top - 44;
+          cueEl.style.left = Math.max(70, Math.min(window.innerWidth - 70, b.left + b.width / 2)) + "px"; cueEl.style.top = y + "px"; cueEl.style.bottom = "auto";
+        } else { cueEl.style.left = "50%"; cueEl.style.top = "auto"; cueEl.style.bottom = (o.bottom || "11vh"); }
+      }
+      function fire(e) {
+        if (done || !armed) return;
+        done = true; off(); A.sfx("ui");
+        if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(8);
+        res();
+      }
+      function off(silent) {
+        clearTimeout(t1); G.cueFn = null; cueOff = null;
+        tapOn.removeEventListener("pointerup", fire); window.removeEventListener("resize", place);
+        cueEl.classList.remove("on"); if (ring) ring.classList.remove("cued");
+        if (silent && !done) { done = true; res(); }
+      }
+      cueOff = off;
+      var t1 = setTimeout(function () {
+        armed = true; place(); cueEl.classList.add("on"); if (ring) ring.classList.add("cued");
+        G.cueFn = fire; tapOn.addEventListener("pointerup", fire); window.addEventListener("resize", place);
+      }, o.lock == null ? 350 : o.lock);
+    });
+  };
+  G.cueCancel = function () { if (cueOff) cueOff(true); };
+  /* a slow camera move for a scene: from where it is to (x, y, zoom) in world
+     units over ms, eased; answering (act, or a tap) settles it at once */
+  G.pan = function (x, y, zoom, ms) {
+    return new Promise(function (res) {
+      var from = G.camFocus || { x: cam.x + VW / 2, y: cam.y + VH / 2 }, z0 = G.zoom || 1, t0 = performance.now(), over = false;
+      if (G.skipWaits || G.prefs.reduced) ms = 0;
+      function end() { if (over) return; over = true; G.cueFn = null; window.removeEventListener("pointerup", hurry); G.camFocus = { x: x, y: y }; G.zoom = zoom; res(); }
+      function hurry() { if (performance.now() - t0 > 500) { cam.snap = true; end(); } }
+      G.cueFn = hurry; window.addEventListener("pointerup", hurry);
+      (function step() {
+        if (over) return;
+        var u = ms ? Math.min(1, (performance.now() - t0) / ms) : 1, e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        G.camFocus = { x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e }; G.zoom = z0 + (zoom - z0) * e;
+        if (u >= 1) end(); else requestAnimationFrame(step);
+      })();
+    });
+  };
+
   /* ---------------- moving people about (for scenes) ---------------- */
   G.walkTo = function (who, tx, ty, speed) {
     var e = who === "player" ? G.p : G.ent(who);
@@ -736,6 +808,8 @@
   function update(dt) {
     pollPad();
     time += dt;
+    /* a cue is waiting on you: act answers it, and nothing else hears that press */
+    if (G.cueFn && G.tap("act")) G.cueFn();
     G.s.playMs += dt * 1000;
     if (capT > 0) { capT -= dt; if (capT <= 0) $("caption").classList.remove("on"); }
 
@@ -1298,6 +1372,7 @@
      does on a warm evening), then the diorama focus at top and bottom */
   function tiltShift(dark) {
     var tilt = !(G.prefs.tilt === false || G.prefs.reduced && G.prefs.tilt !== true), bloom = G.prefs.bloom !== false;
+    if (G.directing) tilt = false;                              // an establishing shot shows the whole room in focus
     if (!tilt && !bloom) return;
     var W = cvs.width, Hh = cvs.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
