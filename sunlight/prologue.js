@@ -147,7 +147,32 @@
     ctx.fillStyle = "#7a3a2c"; ctx.beginPath(); ctx.moveTo(bx - 5.2, by - 21); ctx.lineTo(bx, by - 25); ctx.lineTo(bx + 5.2, by - 21); ctx.fill();
     if (G.s && G.s.flags && G.s.flags.fedBirds) for (var k = 0; k < 6; k++) { ctx.fillStyle = "#e8d8a8"; ell(ctx, bx - 2.4 + k, by - 17.3, 0.4, 0.3); ctx.fill(); }
   }
+  /* at the bottom, where the road comes out of the trees: a sign about the hill */
+  var SX = 43.4 * T, SY = 52.4 * T;
+  function sign(ctx, cam) {
+    var bx = SX - cam.x, by = SY - cam.y;
+    ctx.fillStyle = "rgba(20,14,6,.28)"; ell(ctx, bx + 2, by + 0.5, 4.5, 1.4); ctx.fill();
+    ctx.fillStyle = lg(ctx, bx - 0.7, 0, bx + 0.7, 0, [[0, "#9aa0a4"], [0.5, "#e2e6e8"], [1, "#6a7074"]]); ctx.fillRect(bx - 0.6, by - 17, 1.2, 17);
+    ctx.save(); ctx.translate(bx, by - 21.5);
+    /* the yellow diamond */
+    ctx.save(); ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = "#2a2418"; rr(ctx, -5.6, -5.6, 11.2, 11.2, 1.2); ctx.fill();
+    ctx.fillStyle = lg(ctx, -5, -5, 5, 5, [[0, "#ffd84a"], [1, "#e8b020"]]); rr(ctx, -4.9, -4.9, 9.8, 9.8, 0.9); ctx.fill();
+    ctx.restore();
+    /* a slope, and a little car going up it */
+    ctx.fillStyle = "#1e1a12"; ctx.beginPath(); ctx.moveTo(-4.4, 2.6); ctx.lineTo(4.4, 2.6); ctx.lineTo(4.4, -1.8); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.translate(-0.4, -0.6); ctx.rotate(-0.46);
+    ctx.fillRect(-2, -1.3, 4, 1.4); ctx.fillRect(-1, -2.2, 2, 1);
+    ctx.restore();
+    ctx.restore();
+    /* and under it, on its own plate */
+    ctx.fillStyle = "#2a2418"; rr(ctx, bx - 4.4, by - 15.4, 8.8, 4, 0.6); ctx.fill();
+    ctx.fillStyle = "#ffd84a"; rr(ctx, bx - 4, by - 15, 8, 3.2, 0.5); ctx.fill();
+    ctx.fillStyle = "#1e1a12"; ctx.font = "bold 2.3px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("12%", bx, by - 13.3);
+  }
   C.sorted = function (list, ctx, cam, t) {
+    var vw0 = G.view().w, vh0 = G.view().h;
+    if (SX > cam.x - 20 && SX < cam.x + vw0 + 20 && SY > cam.y - 10 && SY < cam.y + vh0 + 40) list.push({ y: SY, d: function () { sign(ctx, cam); } });
     var vw = G.view().w, vh = G.view().h;
     if (cam.x > X1 + 80 || cam.x + vw < X0 - 80 || cam.y > Y0 + 80 || cam.y + vh < Y0 - 90) { /* porch off-screen */ }
     else {
@@ -168,7 +193,7 @@
   /* ---------------- Dad's car ---------------- */
   /* up the road from the trees: the road's own points, reversed, centered */
   var ROUTE = [[40, 58], [40, 54], [39, 51], [34, 48], [33, 44], [38, 41], [45, 38], [47, 34], [43, 30], [39.6, 27.2], [39.5, 26.4]].map(function (p) { return [(p[0] + 1) * T, (p[1] + 1) * T]; });
-  var car = { on: false, x: 0, y: 0, a: -Math.PI / 2, s: 0, v: 0, dust: [] };
+  var car = { on: false, x: 0, y: 0, a: -Math.PI / 2, s: 0, v: 0, dust: [], puff: [], grade: 0 };
   function cr(p0, p1, p2, p3, u) { var u2 = u * u, u3 = u2 * u; return 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3); }
   var LUT = (function () {
     var pts = [], P = ROUTE;
@@ -188,9 +213,10 @@
   }
   function drawCar(ctx, cam, t) {
     var sx = car.x - cam.x, sy = car.y - cam.y;
+    car.puff.forEach(function (d) { var k = d.t / d.life; ctx.fillStyle = "rgba(150,150,150," + (0.28 * (1 - k)) + ")"; ell(ctx, d.x - cam.x, d.y - cam.y - k * 3, 1.2 + k * 4, 1 + k * 3.2); ctx.fill(); });
     car.dust.forEach(function (d) { var k = d.t / d.life; ctx.fillStyle = "rgba(220,200,160," + (0.32 * (1 - k)) + ")"; ell(ctx, d.x - cam.x, d.y - cam.y - k * 4, 2 + k * 7, 1.2 + k * 4); ctx.fill(); });
     ctx.save(); ctx.translate(sx, sy); ctx.rotate(car.a + Math.PI / 2);
-    var bump = G.prefs.reduced ? 0 : Math.sin(t * 22) * 0.15 * Math.min(1, car.v / 30);
+    var bump = G.prefs.reduced ? 0 : Math.sin(t * 22) * (0.15 + car.grade * 3) * Math.min(1, car.v / 30);
     ctx.fillStyle = "rgba(15,10,5,.35)"; rr(ctx, -7.5, -11, 15, 25, 5); ctx.fill();
     ctx.translate(0, -2 + bump);
     ["#1a1a1a"].forEach(function (c) { ctx.fillStyle = c; [[-7.3, -8], [5.3, -8], [-7.3, 6], [5.3, 6]].forEach(function (w) { rr(ctx, w[0], w[1], 2, 4.5, 0.8); ctx.fill(); }); });
@@ -221,7 +247,13 @@
     car.a += da * Math.min(1, dt * 5);
     if (car.v > 8 && Math.random() < dt * 14) { var back = car.a + Math.PI; car.dust.push({ x: car.x + Math.cos(back) * 11 + (Math.random() - 0.5) * 6, y: car.y + Math.sin(back) * 11 + 3, t: 0, life: 1.4 }); }
     car.dust.forEach(function (d) { d.t += dt; }); car.dust = car.dust.filter(function (d) { return d.t < d.life; });
-    if (A.loop) A.loop("car", true, Math.min(1, 0.25 + car.v / 40));
+    /* how steep it is here: the engine works harder, and breathes out */
+    var H = BS.slope ? BS.slope.h : null, grade = 0;
+    if (H) { var q = along(car.s + 12), q0 = along(Math.max(0, car.s - 12)); grade = Math.max(0, (H(q.x / T, q.y / T) - H(q0.x / T, q0.y / T)) / 24 * T); }
+    car.grade += (grade - car.grade) * Math.min(1, dt * 2);
+    if (car.v > 4 && Math.random() < dt * (3 + car.grade * 60)) { var bk = car.a + Math.PI; car.puff.push({ x: car.x + Math.cos(bk) * 12 + Math.cos(car.a + Math.PI / 2) * 3, y: car.y + Math.sin(bk) * 12, t: 0, life: 1.1 + Math.random() * 0.6, dx: Math.cos(bk) * 6 + (Math.random() - 0.5) * 4, dy: Math.sin(bk) * 6 - 4 }); }
+    car.puff.forEach(function (d) { d.t += dt; d.x += d.dx * dt; d.y += d.dy * dt; }); car.puff = car.puff.filter(function (d) { return d.t < d.life; });
+    if (A.loop) A.loop("car", true, Math.min(1, 0.25 + car.v / 40 + car.grade * 4), 1 + Math.min(0.6, car.grade * 14) + Math.min(0.3, car.v / 120));
   }
 
   /* ---------------- getting out: Dad first, then me ---------------- */
@@ -286,7 +318,7 @@
     G.titleRun = false; G.hidePlayer = true; G.mode = "title";
     G.mapId = "hill"; G.map = G.maps.hill; G.s.tod = "morning"; G.sky.snap = true; G.cineMist = 0.3; G.cineRays = true;
     walkers.forEach(function (w) { w.on = false; w.x = 0; w.walk = 0; });
-    car.on = true; car.s = 0; car.dust = []; car.a = -Math.PI / 2;
+    car.on = true; car.s = 0; car.dust = []; car.puff = []; car.grade = 0; car.a = -Math.PI / 2;
     el.hidden = false; requestAnimationFrame(function () { el.classList.add("on"); });
     A.init(); A.ambience("garden"); setTimeout(function () { A.theme(); }, 600); A.music("none");
     var shownLines = 0;

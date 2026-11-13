@@ -124,6 +124,7 @@
 </div>
 <div id="sig" class="sig" aria-live="polite"><p>Hold it just right. Stand very still.</p><i id="sigmeter"></i></div>
 
+<div id="savesun" class="savesun" aria-hidden="true"><i></i><span>Saved</span></div>
 <!-- Gran's book -->
 <section id="book" class="book" aria-hidden="true" aria-label="Gran's book">
   <div class="bcard">
@@ -135,11 +136,13 @@
       <button data-tab="map" role="tab">Map</button>
       <button data-tab="phone" role="tab">Phone</button>
       <button data-tab="yours" role="tab">Your page</button>
+      <button data-tab="moments" role="tab">Moments</button>
       <button class="x" data-close aria-label="Close the book">✕</button>
     </nav>
     <div class="bbody">
       <div id="p-pages" class="bpane"></div>
       <div id="p-story" class="bpane" hidden></div>
+      <div id="p-moments" class="bpane" hidden></div>
       <div id="p-keys" class="bpane" hidden></div>
       <div id="p-seen" class="bpane" hidden></div>
       <div id="p-map" class="bpane" hidden></div>
@@ -172,6 +175,7 @@
       <button id="m-save">Save</button>
       <button id="m-help">How to play</button>
       <button id="m-restart">Start again</button>
+      <button id="m-ver" class="ver">Check for updates</button>
       <a class="btn" href="/">Back to the desk</a>
     </div>
     <div id="help" class="help" hidden>
@@ -273,8 +277,17 @@
 <script src="story.js"></script>
 <script src="juice.js"></script>
 <script src="inspect.js"></script>
+<script src="life.js"></script>
+<script src="guide.js"></script>
+<script src="cellar.js"></script>
 <script src="atmos.js"></script>
+<script src="slope.js"></script>
+<script src="toys.js"></script>
+<script src="stage.js"></script>
+<script src="phone.js"></script>
+<script src="book.js"></script>
 <script src="prologue.js"></script>
+<script src="progress.js"></script>
 <script src="ui.js"></script>
 <script>BS.G.start();</script>
 </body>

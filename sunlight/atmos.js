@@ -127,8 +127,28 @@
   }
 
   /* ---------------- the pond: sky in it, sun on it ---------------- */
+  /* people standing by the water are in it too, upside down, trembling */
+  function reflections(ctx, cam, t) {
+    var who = [];
+    if (!G.hidePlayer && G.mode !== "ride") who.push({ sp: BS.sprite(G.p.who, G.p.dir, G.p.frame), x: G.p.x, y: G.p.y });
+    G.ents.forEach(function (e) { if (e.map === G.mapId && !e.hidden && !e.draw) who.push({ sp: BS.sprite(e.who, e.dir, e.frame || 0), x: e.x, y: e.y }); });
+    who.forEach(function (o) {
+      var sp = o.sp, w = sp.w, h = sp.h, rows = 8, sh = sp.height / rows;
+      if (o.x < cam.x - 30 || o.x > cam.x + VWc + 30 || o.y < cam.y - 40 || o.y > cam.y + VHc + 40) return;
+      for (var i = 0; i < rows; i++) {
+        var wob = G.prefs.reduced ? 0 : Math.sin(t * 3 + i * 0.9 + o.x * 0.1) * (0.25 + i * 0.06);
+        ctx.globalAlpha = 0.34 * (1 - i / rows * 0.7);
+        /* row i of the reflection is row (rows-1-i) of the sprite, mirrored below the feet */
+        ctx.drawImage(sp, 0, sp.height - (i + 1) * sh, sp.width, sh, o.x - 8 - cam.x + wob, o.y - cam.y + i * h / rows + 0.6, w, h / rows + 0.1);
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+  var VWc = 300, VHc = 170;
   X.ground = function (ctx, cam, VW, VH) {
     if (G.mapId !== "hill") return;
+    VWc = VW; VHc = VH;
+    reflections(ctx, cam, G.time());
     var h = G.maps.hill, t = G.time(), n = night();
     var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T)), x1 = Math.min(h.w, x0 + Math.ceil(VW / T) + 2), y1 = Math.min(h.h, y0 + Math.ceil(VH / T) + 2);
     var sky = n ? null : tod() === "dawn" ? "rgba(230,200,230," : golden() ? "rgba(255,200,140," : "rgba(190,225,240,";
@@ -161,8 +181,31 @@
     ctx.restore();
   };
 
+  /* ---------------- dew: the morning sun catching drops in the grass ---------------- */
+  var dewOK = {};
+  function dew(ctx, cam, VW, VH) {
+    var t = tod(); if (G.mapId !== "hill" || !(t === "dawn" || t === "morning") || reduced()) return;
+    var tm = G.time(), x0 = Math.floor(cam.x / 8), y0 = Math.floor(cam.y / 8);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (var gy = y0; gy < y0 + VH / 8 + 1; gy++) for (var gx = x0; gx < x0 + VW / 8 + 1; gx++) {
+      var hsh = BS.hash(gx, gy, 909); if (hsh > 0.16) continue;
+      var wx = gx * 8 + BS.hash(gx, gy, 910) * 8, wy = gy * 8 + BS.hash(gx, gy, 911) * 8, ck = gx + "," + gy;
+      if (dewOK[ck] == null) { var mt = BS.matAt(G.map, wx, wy); dewOK[ck] = mt === "grass" || mt === "garden" || mt === "dry" || mt === "long"; }
+      if (!dewOK[ck]) continue;
+      /* a drop only flashes when the angle is right: as you move, different ones catch */
+      var ang = Math.sin(tm * 1.3 + hsh * 90 + (wx - G.p.x) * 0.05 + (wy - G.p.y) * 0.03);
+      if (ang < 0.82) continue;
+      var k = (ang - 0.82) / 0.18, r = 0.4 + k * 1.6, sx = wx - cam.x, sy = wy - cam.y;
+      ctx.fillStyle = "rgba(255,252,235," + (0.35 + k * 0.6) + ")";
+      ctx.beginPath(); ctx.moveTo(sx - r, sy); ctx.lineTo(sx, sy - r * 0.25); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy + r * 0.25); ctx.closePath(); ctx.fill();
+      ctx.fillRect(sx - 0.15, sy - r * 0.8, 0.3, r * 1.6);
+    }
+    ctx.restore();
+  }
+
   /* ---------------- in the air: mist, drift, shafts ---------------- */
   X.air = function (ctx, cam, VW, VH, dark) {
+    dew(ctx, cam, VW, VH);
     drawDrift(ctx, cam);
     drawMist(ctx, cam, VW, VH);
     if (G.mapId === "hill" && (golden() || G.cineRays) && !reduced()) {

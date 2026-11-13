@@ -205,6 +205,15 @@
       tone(73.4, { at: 0.92, g: 0.06, dur: 0.5, a: 0.005, bus: musBus });
       for (var k = 0; k < 6; k++) tone([2349.3, 2793.8, 3520][k % 3], { at: 1.0 + k * 0.09, g: 0.01, dur: 0.6, verb: 1 });
     },
+    /* a moment earned: the first bars of Gran's theme, bright, with a bell on top */
+    ach: function () {
+      [[587.33, 0], [739.99, 0.16], [880, 0.3]].forEach(function (n) { pluck(n[0], { at: n[1], g: 0.13, dur: 1.8, bright: 0.6 }); });
+      [587.33, 739.99, 880, 1174.66].forEach(function (f) { tone(f, { at: 0.46, g: 0.014, dur: 1.8, a: 0.04, verb: 1, bus: musBus, type: "triangle" }); });
+      [2349.3, 2793.8].forEach(function (f, i) { tone(f, { at: 0.5 + i * 0.12, g: 0.012, dur: 1.2, verb: 1 }); });
+      tone(146.83, { at: 0.46, g: 0.05, dur: 1.6, a: 0.02, bus: musBus, verb: 1 });
+    },
+    /* a goal done: a small pen-tick */
+    tick: function () { tone(1318.5, { type: "triangle", g: 0.03, dur: 0.08 }); tone(1975.5, { type: "triangle", g: 0.024, dur: 0.2, at: 0.07, verb: 1 }); },
     /* a small secret, found or done: quick, bright, pleased with itself */
     secret: function () {
       var seq = [1318.5, 1567.98, 1975.5, 2349.3, 2637];
@@ -214,6 +223,7 @@
     seen: function () { pluck(1174.66, { g: 0.08, dur: 1.2 }); pluck(1479.98, { g: 0.07, dur: 1.2, at: 0.1 }); },
     chapter: function () { [293.66, 440, 587.33, 739.99].forEach(function (f, i) { pluck(f, { at: i * 0.35, g: 0.12, dur: 3 }); }); },
     signal: function () { tone(1046, { type: "sine", g: 0.04, dur: 0.12 }); tone(1568, { g: 0.04, dur: 0.2, at: 0.12 }); },
+    thud: function () { tone(70, { slide: 46, g: 0.12, dur: 0.6, a: 0.01 }); burst({ type: "lowpass", f: 300, g: 0.06, dur: 0.5, a: 0.01 }); },
     nosignal: function () { tone(523, { type: "triangle", slide: 392, g: 0.04, dur: 0.4 }); },
     ring: function () { for (var i = 0; i < 2; i++) { tone(440, { g: 0.04, dur: 0.4, at: i * 0.5 }); tone(480, { g: 0.04, dur: 0.4, at: i * 0.5 }); } cap("[ringing]"); },
     truck: function () { burst({ buf: brownBuf, type: "lowpass", f: 200, g: 0.5, dur: 3, a: 0.8 }); tone(48, { type: "sawtooth", g: 0.06, dur: 3, a: 0.8 }); cap("[the diesel grind of something big, pulling up the lane]"); },
@@ -235,6 +245,14 @@
     creak: function () { tone(210, { type: "triangle", slide: 170, g: 0.018, dur: 0.5, a: 0.12 }); tone(214, { type: "sawtooth", slide: 176, g: 0.006, dur: 0.5, a: 0.15 }); setTimeout(function () { tone(180, { type: "triangle", slide: 215, g: 0.014, dur: 0.45, a: 0.1 }); }, 900); },
     hop: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; for (var i = 0; i < 3; i++) burst({ f: 5200 + Math.random() * 1500, q: 9, g: 0.025 * P.g, dur: 0.015, at: i * 0.025, pan: P.p }); },
     dfly: function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; tone(118 + Math.random() * 20, { type: "sawtooth", g: 0.012 * P.g, dur: 0.35, a: 0.03, pan: P.p, slide: 150 }); burst({ f: 240, q: 4, g: 0.02 * P.g, dur: 0.3, a: 0.03, pan: P.p }); },
+    /* the hill's toys */
+    wish: function (x, y) { burst({ type: "bandpass", f: 1400, sweep: 700, q: 0.6, g: 0.07, dur: 0.7, a: 0.12 }); burst({ type: "highpass", f: 5000, g: 0.02, dur: 0.9, a: 0.2 }); [1568, 2093, 2637].forEach(function (f, i) { tone(f, { g: 0.008, dur: 0.6, at: 0.25 + i * 0.09, verb: 1 }); }); },
+    tok: function (x, y, v) { var P = place(x, y, 140); if (P.g < 0.04) return; v = v == null ? 1 : v; tone(190 + Math.random() * 60, { type: "triangle", slide: 120, g: 0.07 * P.g * v, dur: 0.07, pan: P.p }); burst({ f: 900, q: 2, g: 0.04 * P.g * v, dur: 0.04, pan: P.p }); },
+    plop: function (x, y) { var P = place(x, y, 200); if (P.g < 0.03) return; tone(320, { slide: 900, g: 0.09 * P.g, dur: 0.12, pan: P.p, verb: 1 }); burst({ f: 700, q: 0.8, g: 0.05 * P.g, dur: 0.25, at: 0.05, pan: P.p }); },
+    skip: function (x, y, n) { var P = place(x, y, 260); var f = 1100 * Math.pow(1.122, n || 1); tone(f, { slide: f * 1.4, g: 0.04 * Math.max(0.3, P.g), dur: 0.08, pan: P.p, verb: 1 }); burst({ f: 2400, q: 1.5, g: 0.025, dur: 0.05, pan: P.p }); },
+    whiff: function () { burst({ f: 1800, sweep: 600, q: 1, g: 0.05, dur: 0.18, a: 0.02 }); },
+    bee: function (x, y, g) { g = g || 0.5; var f = 205 + Math.random() * 40; tone(f, { type: "sawtooth", slide: f * (0.9 + Math.random() * 0.25), g: 0.008 * g, dur: 0.6 + Math.random() * 0.5, a: 0.15 }); },
+    cup: function () { tone(1318.5, { g: 0.02, dur: 0.5, verb: 1 }); tone(1975.5, { g: 0.014, dur: 0.7, at: 0.08, verb: 1 }); },
     lights: function () { tone(120, { type: "square", g: 0.03, dur: 0.05 }); burst({ f: 6000, type: "highpass", g: 0.05, dur: 0.6, a: 0.05 }); cap("[the work lights snap on]"); }
   };
   /* voices: each person a little instrument, so a line sounds like who says it */
@@ -344,7 +362,7 @@
         var clfo = ctx.createOscillator(); clfo.frequency.value = 5.5; var clg = gain(6); clfo.connect(clg); clg.connect(co.frequency);
         cn.connect(cf); cf.connect(cg); cg.connect(sfxBus); cn.start(); co.start(); clfo.start();
         var grit = setInterval(function () { if (!ctx || !loops.car) return; var lv = loops.car.lv || 0; if (Math.random() < lv) burst({ f: 2400 + Math.random() * 2000, q: 2, g: 0.02 * lv, dur: 0.03 }); }, 45);
-        L = loops.car = { g: cg, lv: 0, stop: function () { clearInterval(grit); cn.stop(); co.stop(); clfo.stop(); } };
+        L = loops.car = { g: cg, lv: 0, o: co, f: cf, stop: function () { clearInterval(grit); cn.stop(); co.stop(); clfo.stop(); } };
       } else if (name === "heart") {
         var hg = gain(0); hg.connect(sfxBus);
         var iv = setInterval(function () { if (!ctx) return; var tt = ctx.currentTime; [0, 0.22].forEach(function (d, i) { var o2 = ctx.createOscillator(); o2.frequency.value = 52; var g2 = gain(0); o2.connect(g2); g2.connect(hg); env(g2, tt + d, 0.01, i ? 0.25 : 0.35, 0.16); o2.start(tt + d); o2.stop(tt + d + 0.3); }); }, 1000);
@@ -353,6 +371,7 @@
     }
     if (!L) return;
     if (on) { L.g.gain.setTargetAtTime(level == null ? 0.5 : level, t, 0.3); L.lv = level == null ? 0.5 : level; }
+    if (on && L.o && arguments[3]) { L.o.frequency.setTargetAtTime(46 * arguments[3], t, 0.5); L.f.frequency.setTargetAtTime(260 * arguments[3], t, 0.5); }
     else { L.g.gain.setTargetAtTime(0, t, 0.4); var LL = L; delete loops[name]; setTimeout(function () { LL.stop(); }, 1600); }
   };
 
@@ -532,7 +551,9 @@
   /* ---------------- music: sparse, generative, and the themes ---------------- */
   /* D major pentatonic, played like somebody sitting at a piano in another
      room. It never loops: a phrase every so often, rests between. */
-  var musTimer = null, musMood = "";
+  var musTimer = null, musMood = "", musLevel = 0;
+  /* how far into the story you are: the music fills out as you go */
+  A.progress = function (k) { musLevel = Math.max(musLevel, Math.min(1, k || 0)); };
   A.music = function (mood) {
     if (!ctx || mood === musMood) return;
     musMood = mood;
@@ -546,10 +567,16 @@
     };
     var sc = scales[mood] || scales.warm;
     (function phrase() {
+      /* near the end, now and then, the phrase is hers */
+      if (musLevel > 0.75 && Math.random() < 0.18 && mood !== "dark") { A.theme(); musTimer = setTimeout(phrase, (12 + Math.random() * 8) * 1000); return; }
       var n = 3 + (Math.random() * 4 | 0), at = 0, idx = (Math.random() * sc.length) | 0;
+      /* further in: a warm pad under the piano */
+      if (musLevel > 0.3) { var root = sc[0] / 2; [root, root * 1.5].forEach(function (f) { tone(f, { g: 0.008 + musLevel * 0.008, dur: 6, a: 1.5, verb: 1, bus: musBus }); }); }
       for (var i = 0; i < n; i++) {
         idx = Math.max(0, Math.min(sc.length - 1, idx + ((Math.random() * 5) | 0) - 2));
         pluck(sc[idx], { at: at, g: mood === "dark" ? 0.05 : 0.07, dur: 2.6, bright: 0.25, damp: 0.998, lp: 2200 });
+        /* and further still, a second voice answering a third above */
+        if (musLevel > 0.55 && i % 2 === 1 && sc[idx + 2]) pluck(sc[idx + 2], { at: at + 0.04, g: 0.035, dur: 2.2, bright: 0.2, damp: 0.998, lp: 2000 });
         if (Math.random() < 0.3) pluck(sc[Math.max(0, idx - 3)] / 2, { at: at, g: 0.05, dur: 3, bright: 0.2, damp: 0.998, lp: 1200 });
         at += [0.5, 0.75, 1, 1.5][(Math.random() * 4) | 0];
       }

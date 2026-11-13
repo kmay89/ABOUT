@@ -29,11 +29,11 @@
     };
   };
   G.s = G.fresh();
-  G.prefs = { text: 55, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
+  G.prefs = { text: 42, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
 
   var SAVE = "borrowed-sunlight-game-v1", PREFS = "borrowed-sunlight-game-prefs";
   G.save = function () {
-    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; localStorage.setItem(SAVE, JSON.stringify(G.s)); G.flash("Saved"); } catch (e) { }
+    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; localStorage.setItem(SAVE, JSON.stringify(G.s)); } catch (e) { }
   };
   G.load = function () { try { var j = localStorage.getItem(SAVE); return j ? JSON.parse(j) : null; } catch (e) { return null; } };
   G.wipe = function () { try { localStorage.removeItem(SAVE); } catch (e) { } };
@@ -240,6 +240,11 @@
     var tgt = TOD[G.s.tod], tt = parseRGBA(tgt.tint), k = G.sky.snap || $("fade").classList.contains("on") ? 1 : Math.min(1, dt * 0.55);
     G.sky.dark += (tgt.dark - G.sky.dark) * k;
     for (var i = 0; i < 4; i++) G.sky.tint[i] += (tt[i] - G.sky.tint[i]) * k;
+    /* the sun's shadow vector: west in the morning, short at noon, long and
+       east at golden hour; the moon throws a faint one too */
+    var SUN = { dawn: [-1.5, 0.34, 0.4], morning: [-0.75, 0.4, 0.85], noon: [0.12, 0.3, 0.9], afternoon: [0.6, 0.4, 0.85], evening: [1.15, 0.44, 0.78], golden: [1.7, 0.46, 0.72], dusk: [2.1, 0.5, 0.3], night: [0.35, 0.32, 0.16] }[G.s.tod] || [0.3, 0.35, 0.8];
+    if (!G.sun || k >= 1) G.sun = SUN.slice();
+    for (i = 0; i < 3; i++) G.sun[i] += (SUN[i] - G.sun[i]) * k;
     G.sky.snap = false;
   }
   G.skyTick = skyTick;
@@ -311,7 +316,11 @@
   G.objective = function (t) {
     var changed = t && t !== G.s.objective;
     G.s.objective = t; G.hud();
-    if (changed) { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); setTimeout(function () { A.sfx("goal"); }, 250); }
+    if (changed) {
+      /* a new goal says so briefly; if a place title is up, it waits its turn */
+      var showObj = function () { var o = $("obj"); o.classList.remove("pop"); void o.offsetWidth; o.classList.add("pop"); document.body.classList.add("objnew"); clearTimeout(G._objT); G._objT = setTimeout(function () { document.body.classList.remove("objnew"); }, 4500); setTimeout(function () { A.sfx("goal"); }, 250); };
+      if (document.body.classList.contains("regionon")) setTimeout(showObj, 3400); else showObj();
+    }
   };
   G.flash = function (t) { var f = $("flash"); f.textContent = t; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); };
   G.toast = function (t, ms) { var f = $("toast"); f.textContent = t; f.classList.add("on"); clearTimeout(G._tt); G._tt = setTimeout(function () { f.classList.remove("on"); }, ms || 2600); };
@@ -325,62 +334,138 @@
 
   /* ---------------- words: dialogue, narration, Mo, the cynic ---------------- */
   var talk = null;     // {resolve, el, full, shown, done}
+  /* ---------------- the words: one way, everywhere ----------------
+     Zelda-style. Each box types at an even pace, takes a breath at the end
+     of a sentence and a half-breath at a comma, slows for *emphasis*, and
+     lights the words that matter: days and deadlines in coral, the things
+     you carry in gold, places in sky blue (the first time each turns up on
+     a page). Hold the button to hurry it; press to fill the box; press again
+     to go on. A beat after the box fills, the arrow comes — and until then
+     a press does nothing, so a held thumb never skips the next line. */
+  var HL = [
+    ["r", /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|concrete|dewater(?:ed|ing)?|pumped dry|the pump|the keys|deadline)\b/gi],
+    ["g", /\b(Gran's book|her book|the book|jars?|lantern|scooter|dynamo|drop of water|bottle cap|moss|tardigrades?|crank|magnifier|watering can|slime mold)\b/gi],
+    ["b", /\b(the cellar|cellar|the hollow|the woods|the pond|the pit|the shed|the crest|the porch|the garden|the beech|Beck's house|the hill)\b/gi]
+  ];
+  function rich(text, hl) {
+    var out = [], em = false;
+    for (var i = 0; i < text.length; i++) { var c = text[i]; if (c === "*") { em = !em; continue; } out.push({ c: c, em: em, h: "" }); }
+    if (hl !== false) {
+      var plain = out.map(function (o) { return o.c; }).join(""), seen = {};
+      HL.forEach(function (H) {
+        H[1].lastIndex = 0; var m;
+        while ((m = H[1].exec(plain))) {
+          var key = m[0].toLowerCase().replace(/^(the|her) /, "").replace(/s$/, "");
+          if (seen[key]) continue; seen[key] = 1;
+          var free = true; for (var j = m.index; j < m.index + m[0].length; j++) if (out[j].h) free = false;
+          if (free) for (var k2 = m.index; k2 < m.index + m[0].length; k2++) out[k2].h = H[0];
+        }
+      });
+    }
+    return out;
+  }
+  function paint(tok, n) {
+    var html = "", run = "", key = null;
+    function flush() { if (!run) return; var cl = key.split("|"), c = []; if (cl[0] === "1") c.push("gh"); if (cl[1]) c.push("hl" + cl[1]); html += cl[2] === "1" ? "<em" + (c.length ? ' class="' + c.join(" ") + '"' : "") + ">" + run + "</em>" : (c.length ? '<span class="' + c.join(" ") + '">' + run + "</span>" : run); run = ""; }
+    for (var i = 0; i < tok.length; i++) {
+      var k = (i >= n ? "1" : "0") + "|" + tok[i].h + "|" + (tok[i].em ? "1" : "0");
+      if (k !== key) { flush(); key = k; }
+      run += esc(tok[i].c);
+    }
+    flush();
+    return html;
+  }
+  G.rich = function (text) { return paint(rich(text), 1e9); };
+  /* how long to hold after each letter, in letters-worth of time */
+  function beat(tok, i) {
+    var c = tok[i].c, nx = tok[i + 1] ? tok[i + 1].c : " ", end = nx === " " || nx === "\u201d" || nx === '"' || nx === ")" || i === tok.length - 1;
+    if (c === "\u2026") return 9;
+    if ((c === "." || c === "!" || c === "?") && end) return nx === "." ? 1 : 11;
+    if (c === "\u2014") return 6;
+    if ((c === ";" || c === ":") && end) return 6;
+    if (c === "," && end) return 4;
+    return tok[i].em ? 1.3 : 1;
+  }
   function typeInto(el, text, cb, voice) {
-    var i = 0, speed = G.prefs.text;
-    el.textContent = "";
-    var t = { full: text, el: el, done: false, cb: cb, timer: null };
-    if (speed >= 200 || G.prefs.reduced && speed > 120) { el.innerHTML = fmt(text); t.done = true; cb && cb(); return t; }
+    var tok = rich(text, voice !== "mo"), i = 0, cps = G.prefs.text;
+    var t = { full: text, tok: tok, el: el, done: false, cb: cb, timer: null, readyAt: 0 };
+    el.innerHTML = paint(tok, 0);
+    function done() { t.done = true; el.innerHTML = paint(tok, 1e9); t.readyAt = performance.now() + 220; cb && cb(); }
+    t.finishNow = function () { clearTimeout(t.timer); done(); t.readyAt = performance.now() + 160; };
+    if (cps >= 200 || G.prefs.reduced && cps > 120 || G.skipWaits) { done(); t.readyAt = 0; return t; }
     var tick = function () {
       i += 1;
-      el.innerHTML = fmt(text.slice(0, i)) + '<span class="gh">' + esc(text.slice(i)) + "</span>";
-      if (voice && i % 2 === 0 && /[a-z]/i.test(text[i - 1] || "")) A.sfx("voice", voice, text.charCodeAt(i - 1)); else if (!voice && i % 4 === 0) A.sfx("text");
-      if (i >= text.length) { t.done = true; el.innerHTML = fmt(text); cb && cb(); return; }
-      var ch = text[i - 1], d = 1000 / speed;
-      if (G.held("act")) d /= 4;
-      if (".!?".indexOf(ch) >= 0) d *= 6; else if (",;:—".indexOf(ch) >= 0) d *= 3;
+      el.innerHTML = paint(tok, i);
+      var ch = tok[i - 1].c;
+      if (voice && i % 2 === 0 && /[a-z]/i.test(ch)) A.sfx("voice", voice, ch.charCodeAt(0)); else if (!voice && i % 4 === 0 && ch !== " ") A.sfx("text");
+      if (i >= tok.length) { done(); return; }
+      var d = 1000 / cps * beat(tok, i - 1);
+      if (G.held("act")) d = Math.min(d, 1000 / cps) / 4;
       t.timer = setTimeout(tick, d);
     };
-    tick();
+    /* the box opens, then a breath, then the first letter */
+    t.timer = setTimeout(tick, 110);
     return t;
+  }
+  /* pages the size of the box: three lines at most, breaking at a sentence when it can */
+  function paginate(el, text, lines) {
+    lines = lines || 3;
+    var w = el.clientWidth; if (!w || text.length < 60) return [text];
+    var probe = el.cloneNode(false); probe.removeAttribute("id");
+    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;width:" + w + "px;height:auto";
+    document.body.appendChild(probe);
+    var lh = parseFloat(getComputedStyle(probe).lineHeight) || 24, max = lh * lines + 2;
+    var words = text.split(/ +/), out = [], cur = [];
+    function fits(arr) { probe.innerHTML = paint(rich(arr.join(" ")), 1e9); return probe.offsetHeight <= max; }
+    for (var k = 0; k < words.length; k++) {
+      var tryw = cur.concat(words[k]);
+      if (!cur.length || fits(tryw)) { cur = tryw; continue; }
+      /* full: go back to the last sentence end if there's one in the back half */
+      var cut = -1;
+      for (var j = cur.length - 1; j >= Math.floor(cur.length * 0.45); j--) if (/[.!?\u2026][\u201d"*)]*$/.test(cur[j])) { cut = j; break; }
+      if (cut >= 0 && cut < cur.length - 1) { out.push(cur.slice(0, cut + 1).join(" ")); cur = cur.slice(cut + 1).concat(words[k]); }
+      else { out.push(cur.join(" ")); cur = [words[k]]; }
+    }
+    if (cur.length) out.push(cur.join(" "));
+    probe.remove();
+    /* keep *emphasis* closed on each page */
+    var open = false;
+    return out.map(function (pg) { var s2 = (open ? "*" : "") + pg, n = (pg.match(/\*/g) || []).length; if (n % 2) open = !open; return open ? s2 + "*" : s2; });
   }
   function esc(s) { return s.replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   /* *italics* in the script become <em> */
   function fmt(s) { return esc(s).replace(/\*([^*]+)\*?/g, "<em>$1</em>"); }
   G.fmt = fmt;
-  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); t.done = true; if (t.finishNow) { t.finishNow(); return; } t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
+  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); if (t.finishNow) { t.finishNow(); return; } t.done = true; t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
 
   var WHO = {
     wren: { name: "Me", cls: "wren" }, dad: { name: "Dad", cls: "dad" }, beck: { name: "Beck", cls: "beck" },
     gran: { name: "Gran", cls: "gran" }, worker: { name: "The man with the coffee", cls: "worker" },
     beckdad: { name: "Beck's dad", cls: "dad" }, phone: { name: "Phone", cls: "phone" }
   };
-  /* short pages, a sentence or two each, like a speech bubble */
-  function pages(text) {
-    if (text.length <= 120) return [text];
-    var parts = text.match(/[^.!?—]+(?:[.!?]+|—)\*?\s*/g) || [text], out = [], cur = "";
-    parts.forEach(function (p) { if ((cur + p).length > 120 && cur) { out.push(cur.trim()); cur = p; } else cur += p; });
-    if (cur.trim()) out.push(cur.trim());
-    var joined = out.join(" ").replace(/\s+/g, " ").length, orig = text.replace(/\s+/g, " ").length;
-    return Math.abs(joined - orig) < 3 ? out : [text];
-  }
   G.say = function (who, text) {
-    var ps = pages(text);
-    if (ps.length > 1) return ps.reduce(function (p, pg) { return p.then(function () { return sayOne(who, pg); }); }, Promise.resolve());
-    return sayOne(who, text);
-  };
-  function sayOne(who, text) {
     return new Promise(function (res) {
       var box = $("dlg"), w = WHO[who] || { name: who, cls: "" }; $("region").classList.remove("on");
-      box.className = "dlg on " + w.cls;
+      var was = box.classList.contains("on") && box.getAttribute("data-who") === who;
+      box.className = "dlg on " + w.cls + (was ? " cont" : ""); box.setAttribute("data-who", who);
       $("who").textContent = w.name;
       $("more").hidden = true;
-      G.portrait = who; G.talking = true;
+      G.portrait = who; G.lineMood = BS.life ? BS.life.moodOf(text, who) : "";
       $("pframe").hidden = !BS.portrait(who);
-      var t = typeInto($("line"), text, function () { $("more").hidden = false; G.talking = false; }, who);
-      talk = { t: t, res: function () { box.className = "dlg"; G.talking = false; res(); } };
+      var ps = paginate($("line"), text, 3), pi = 0;
       $("live").textContent = w.name + ": " + text.replace(/\*/g, "");
+      function page() {
+        G.talking = true; $("more").hidden = true;
+        $("more").textContent = pi < ps.length - 1 ? "\u25bc" : "\u25bc";
+        var t = typeInto($("line"), ps[pi], function () { $("more").hidden = false; G.talking = false; }, who);
+        talk = { t: t, res: function () {
+          if (++pi < ps.length) { A.sfx("text"); page(); return; }
+          box.className = "dlg"; G.talking = false; res();
+        } };
+      }
+      page();
     });
-  }
+  };
   /* Nintendo-short on screen; the whole passage is kept in Gran's book,
      under Story, for anyone who wants the novel's own words */
   function brief(text) {
@@ -398,12 +483,19 @@
       var shown = G.prefs.fullText ? text : brief(text), more = shown !== text;
       G.s.story = G.s.story || [];
       if (!G.s.story.some(function (q) { return q.t === text; })) G.s.story.push({ t: text, d: G.s.day });
-      n.classList.toggle("hasmore", more);
       if (more) BS.ui && BS.ui.bookPing && BS.ui.bookPing();
-      text = shown;
-      var t = typeInto($("ntext"), text, function () { $("nmore").hidden = false; });
-      talk = { t: t, res: function () { n.classList.remove("on"); res(); } };
-      $("live").textContent = text.replace(/\*/g, "");
+      var ps = paginate($("ntext"), shown, 3), pi = 0;
+      $("live").textContent = shown.replace(/\*/g, "");
+      function page() {
+        $("nmore").hidden = true;
+        n.classList.toggle("hasmore", more && pi === ps.length - 1);
+        var t = typeInto($("ntext"), ps[pi], function () { $("nmore").hidden = false; });
+        talk = { t: t, res: function () {
+          if (++pi < ps.length) { A.sfx("text"); page(); return; }
+          n.classList.remove("on"); res();
+        } };
+      }
+      page();
     });
   };
   /* Mo: no box, no name. Gold, italic, from no direction at all. */
@@ -412,13 +504,18 @@
       var m = $("mo"); m.classList.add("on");
       A.sfx("mo"); G.moOn = G.time ? G.time() : 0;
       /* word by word, each one surfacing out of the dark like the gold did */
-      var words = text.split(/(\s+)/), el = $("motext"), html = "", k = 0, step = G.prefs.reduced ? 0 : Math.max(0.06, 7 / Math.max(20, G.prefs.text));
-      words.forEach(function (w) { if (/^\s+$/.test(w)) { html += w; return; } html += '<span class="mw" style="animation-delay:' + (k * step).toFixed(2) + 's">' + esc(w) + "</span>"; k++; });
+      var words = text.split(/(\s+)/), el = $("motext"), html = "", k = 0, step = G.prefs.reduced ? 0 : Math.max(0.06, 7 / Math.max(20, G.prefs.text)), at = 0.25, starts = [];
+      /* the same breaths as everyone else's words: a long one at a full stop, a short one at a comma */
+      words.forEach(function (w) {
+        if (/^\s+$/.test(w)) { html += w; return; }
+        html += '<span class="mw" style="animation-delay:' + at.toFixed(2) + 's">' + esc(w.replace(/\*/g, "")) + "</span>"; starts.push(at); k++;
+        at += step * (/[.!?\u2026]["\u201d*]*$/.test(w) ? 3.4 : /[,;:\u2014]["\u201d*]*$/.test(w) ? 1.8 : 1);
+      });
       el.innerHTML = html;
-      var total = k * step + 0.9, chimeT = [];
-      for (var q = 0; q < k; q += 3) chimeT.push(setTimeout(function () { A.sfx("moword"); }, q * step * 1000));
-      var t = { full: text, el: el, done: false, timer: setTimeout(function () { t.done = true; }, total * 1000) };
-      t.finishNow = function () { el.querySelectorAll(".mw").forEach(function (s) { s.style.animationDelay = "0s"; s.style.animationDuration = ".25s"; }); chimeT.forEach(clearTimeout); };
+      var total = at + 0.9, chimeT = [];
+      for (var q = 0; q < k; q += 3) chimeT.push(setTimeout(function () { A.sfx("moword"); }, starts[q] * 1000));
+      var t = { full: text, el: el, done: false, readyAt: 0, timer: setTimeout(function () { t.done = true; t.readyAt = performance.now() + 220; }, total * 1000) };
+      t.finishNow = function () { t.done = true; t.readyAt = performance.now() + 300; el.querySelectorAll(".mw").forEach(function (s) { s.style.animationDelay = "0s"; s.style.animationDuration = ".25s"; }); chimeT.forEach(clearTimeout); };
       talk = { t: t, res: function () { m.classList.remove("on"); G.moOn = null; chimeT.forEach(clearTimeout); res(); } };
       $("live").textContent = text;
     });
@@ -453,6 +550,7 @@
   function advance() {
     if (!talk) return false;
     if (!talk.t.done) { finish(talk.t); return true; }
+    if (talk.t.readyAt && performance.now() < talk.t.readyAt) return true;     // a beat before it will go on
     var r = talk.res; talk = null; A.sfx("ui"); r(); return true;
   }
   G.advance = advance;
@@ -719,7 +817,7 @@
     });
 
     /* what you could do here */
-    var near = G.cut ? null : nearest();
+    var near = G.cut ? null : nearest(); G.nearSpot = near;
     var pr = $("prompt");
     if (near) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "A" : "E") + "</kbd> " + (typeof near.label === "function" ? near.label() : near.label); pr.classList.add("on"); }
     else if (!G.cut && G.s.items.lens && G.lensNear()) { pr.innerHTML = '<kbd>' + (document.body.classList.contains("touch") ? "Look" : "L") + "</kbd> Something small here — look closer"; pr.classList.add("on"); }
@@ -800,10 +898,15 @@
     var m = G.map, mw = m.w * T, mh = m.h * T;
     var p = G.p, ahead = G.mode === "ride" ? 34 : 10;
     var lookX = (p.vx || 0) / 92 * ahead, lookY = (p.vy || 0) / 92 * ahead;
-    var tx = p.x + lookX - VW / 2, ty = p.y - 10 + lookY - VH / 2;
-    if (G.camFocus) { tx = G.camFocus.x - VW / 2; ty = G.camFocus.y - VH / 2; }
+    /* the open part of the screen: below the HUD and goal card, above the
+       touch controls. Keep the player in the middle of that, and let the
+       camera run past the edge of a room so they never hide under the UI */
+    var touch = document.body.classList.contains("touch") && G.mode !== "title";
+    var padT = (touch ? 196 : 56) / SC, padB = (touch ? 230 : 36) / SC, avail = Math.max(40, VH - padT - padB);
+    var tx = p.x + lookX - VW / 2, ty = p.y - 10 + lookY - padT - avail / 2;
+    if (G.camFocus) { tx = G.camFocus.x - VW / 2; ty = G.camFocus.y - VH / 2; padT = padB = 0; avail = VH; }
     tx = mw <= VW ? (mw - VW) / 2 : Math.max(0, Math.min(mw - VW, tx));
-    ty = mh <= VH ? (mh - VH) / 2 : Math.max(0, Math.min(mh - VH, ty));
+    ty = mh <= avail ? (mh - avail) / 2 - padT : Math.max(-padT, Math.min(mh - VH + padB, ty));
     if (cam.snap || cam.map !== G.mapId) { cam.x = tx; cam.y = ty; cam.snap = false; cam.map = G.mapId; }
     else { var k = Math.min(1, dt * (G.mode === "ride" ? 9 : 6)); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
     cam.vx = cam.x; cam.vy = cam.y;
@@ -829,9 +932,18 @@
   G.blit = function (c2, sp, x, y) { c2.drawImage(sp, x, y, sp.w || sp.width, sp.h || sp.height); };
   function visible(x, y, pad) { return x > cam.x - pad && x < cam.x + VW + pad && y > cam.y - pad && y < cam.y + VH + pad * 2; }
   var wind = 0;
+  /* everything that stands up throws a shadow: collected as the scene is
+     listed, then cast all at once along the sun before anything is drawn */
+  var occ = [];
+  function occPlace(c, x, bottom, k) { occ.push({ c: c, x: x, top: bottom - (c.base || c.h || c.height), gy: bottom, k: k || 1 }); }
   function drawables() {
     var list = [], h = G.maps.hill;
+    occ.length = 0;
     if (G.mapId === "hill") {
+      /* (the last number: how much of the picture is real height — a roof seen from above is mostly depth, not height) */
+      [[props.house, h.house.x * T, (h.house.y + h.house.h) * T, 0.32], [props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T, 0.38], [props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T, 0.34], [props.trailer, h.trailer.x * T, (h.trailer.y + h.trailer.h) * T, 0.5],
+        [props.beech, h.beech.x * T - 6, (h.beech.y + 2) * T + 6, 0.9], [props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8, 0.4], [props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2, 0.6], [props.compost, 48 * T - 2, 21 * T + 4, 0.6]].forEach(function (o) { if (visible(o[1], o[2], 260)) occPlace(o[0], o[1], o[2], o[3]); });
+      [[65, 37], [69, 36], [70, 41], [68, 45]].forEach(function (pp) { if (visible(pp[0] * T, pp[1] * T, 120)) occPlace(props.pipes, pp[0] * T - 2, (pp[1] + 1) * T + 2); });
       list.push({ y: (h.house.y + h.house.h) * T, d: function () { place(props.house, h.house.x * T, (h.house.y + h.house.h) * T); } });
       list.push({ y: (h.shed.y + h.shed.h) * T, d: function () { place(props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T); } });
       list.push({ y: (h.beck.y + h.beck.h) * T, d: function () { place(props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T); } });
@@ -842,6 +954,7 @@
       list.push({ y: (h.rock.y + 1) * T, d: function () { place(props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2); } });
       list.push({ y: 21 * T, d: function () { place(props.compost, 48 * T - 2, 21 * T + 4); } });
       decor.trees.forEach(function (t) {
+        if (visible(t.x, t.y, 160)) { occ.push({ c: t.c, x: t.x - t.c.w / 2, top: t.y - 14 - t.c.h + 10, gy: t.y, lift: 4 }); occ.push({ trunk: true, x: t.x, gy: t.y, hgt: 18 }); }
         if (!visible(t.x, t.y, 50)) return;
         list.push({ y: t.y, d: function () {
           var sx = t.x - cam.x, sy = t.y - cam.y;
@@ -859,13 +972,15 @@
     }
     G.ents.forEach(function (e) {
       if (e.map !== G.mapId || e.hidden) return;
+      if (!e.draw) occ.push({ c: BS.sprite(e.who, e.dir, e.frame || 0), x: e.x - 8, top: e.y - 23.4, gy: e.y });
       list.push({ y: e.y, d: function () { drawEnt(e); } });
     });
     if (G.mapId === "hill" && BS.cine && BS.cine.sorted) BS.cine.sorted(list, ctx, cam, time);
-    if (!G.hidePlayer) list.push({ y: G.p.y + 0.1, d: drawPlayer });
+    if (!G.hidePlayer) { list.push({ y: G.p.y + 0.1, d: drawPlayer }); if (G.mode !== "ride" && !G.sitting) occ.push({ c: BS.sprite(G.p.who, G.p.dir, G.p.frame), x: G.p.x - 8, top: G.p.y - 23.4, gy: G.p.y }); }
     creatures.forEach(function (c) { if (c.map === G.mapId && !c.hidden) list.push({ y: c.y + 20, d: function () { shadowAt(c.x, c.y + (c.kind === "frog" ? 3 : 12), 2.4, 0.18); img(BS.paintBug(c.kind, Math.floor(time * (c.kind === "butterfly" ? (c.blend > 0.97 ? (Math.sin(time * 1.1) > 0.55 ? 1 : 0) : 6) : 20))), c.x - 4, c.y - 4); } }); });
     puffs.forEach(function (pf) { list.push({ y: pf.y + 0.2, d: function () { drawPuff(pf); } }); });
     if (BS.juice && BS.juice.sorted) BS.juice.sorted(list, ctx, cam, time);
+    if (BS.toys) BS.toys.sorted(list, ctx, cam, time);
     list.sort(function (a, b) { return a.y - b.y; });
     return list;
   }
@@ -873,7 +988,7 @@
   /* shake a tree: it shivers, leaves come down, and now and then whoever
      was sitting up there leaves in a hurry */
   function shakeTree(t) {
-    t.shake = 1; t.shakes = (t.shakes || 0) + 1;
+    t.shake = 1; t.shakes = (t.shakes || 0) + 1; if (G.countOnce) G.countOnce("trees", t.x + "," + t.y);
     A.sfx("shake", t.x, t.y - 20);
     if (BS.atmos && BS.atmos.leafFall) BS.atmos.leafFall(t.x, t.y, 6 + (Math.random() * 6 | 0));
     if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(18);
@@ -899,6 +1014,78 @@
     if (flash > 0.25) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = (flash - 0.25) * 0.5; ctx.drawImage(c, -c.w / 2, -c.h, c.w, c.h); }
     ctx.restore();
   }
+  /* ---------------- cast shadows ----------------
+     Each thing that stands up is drawn once more as a flat dark silhouette,
+     laid down on the ground along the sun: sheared by the sun's direction,
+     squashed by its height. All of them go into one half-resolution layer
+     (soft edges for free, no double-darkening where shadows overlap), which
+     is then tinted the color of shade at this hour and laid over the ground. */
+  var shc = null, shx = null;
+  function silhouette(c, small) {
+    var key = small ? "_silS" : "_sil";
+    if (c[key]) return c[key];
+    var f = small ? 4 : 1, s = BS.cv(Math.max(1, Math.ceil(c.width / f)), Math.max(1, Math.ceil(c.height / f))), g = s.getContext("2d");
+    g.imageSmoothingEnabled = true; g.drawImage(c, 0, 0, s.width, s.height); g.globalCompositeOperation = "source-in"; g.fillStyle = "#000"; g.fillRect(0, 0, s.width, s.height);
+    c[key] = s; return s;
+  }
+  /* the sun catching the edge of a person: the rim of the silhouette that
+     faces the light, in the color of the light, strongest when it's low */
+  function rimOf(sp) {
+    if (!G.sun) return null;
+    var sx = G.sun[0], sy = G.sun[1], l = Math.hypot(sx, sy) || 1, q = Math.round(Math.atan2(sy, sx) / (Math.PI / 4)) & 7;
+    sp._rim = sp._rim || {};
+    if (sp._rim[q]) return sp._rim[q];
+    var a = q * Math.PI / 4, res = sp.res || 4, dx = Math.cos(a) * res * 0.9, dy = Math.sin(a) * res * 0.9;
+    var c = BS.cv(sp.width, sp.height), g = c.getContext("2d");
+    g.drawImage(silhouette(sp), 0, 0); g.globalCompositeOperation = "destination-out"; g.drawImage(silhouette(sp), dx, dy);
+    g.globalCompositeOperation = "source-in"; g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    c.w = sp.w; c.h = sp.h; sp._rim[q] = c; return c;
+  }
+  function rimFor(sp) {
+    if (G.mapId !== "hill" || !G.sun) return null;
+    var t = G.s.tod, k = t === "golden" ? 0.75 : t === "evening" ? 0.6 : t === "dawn" ? 0.5 : t === "morning" ? 0.35 : t === "night" ? 0.18 : t === "dusk" ? 0.25 : 0.22;
+    var r = rimOf(sp); if (!r) return null;
+    var col = t === "golden" || t === "evening" ? "rgba(255,190,110," : t === "night" || t === "dusk" ? "rgba(150,180,255," : t === "dawn" ? "rgba(255,200,210," : "rgba(255,248,225,";
+    if (!r._tint || r._tintKey !== col) { var tc = BS.cv(r.width, r.height), tg = tc.getContext("2d"); tg.drawImage(r, 0, 0); tg.globalCompositeOperation = "source-in"; tg.fillStyle = col + "1)"; tg.fillRect(0, 0, tc.width, tc.height); r._tint = tc; r._tintKey = col; }
+    return { c: r._tint, k: k };
+  }
+  function rimLight(sp, x, y) {
+    if (G.mapId !== "hill" || !G.sun) return;
+    var t = G.s.tod, k = t === "golden" ? 0.75 : t === "evening" ? 0.6 : t === "dawn" ? 0.5 : t === "morning" ? 0.35 : t === "night" ? 0.18 : t === "dusk" ? 0.25 : 0.22;
+    var r = rimOf(sp); if (!r) return;
+    var col = t === "golden" || t === "evening" ? "rgba(255,190,110," : t === "night" || t === "dusk" ? "rgba(150,180,255," : t === "dawn" ? "rgba(255,200,210," : "rgba(255,248,225,";
+    if (!r._tint || r._tintKey !== col) { var tc = BS.cv(r.width, r.height), tg = tc.getContext("2d"); tg.drawImage(r, 0, 0); tg.globalCompositeOperation = "source-in"; tg.fillStyle = col + "1)"; tg.fillRect(0, 0, tc.width, tc.height); r._tint = tc; r._tintKey = col; }
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = k;
+    ctx.drawImage(r._tint, x - cam.x, y - cam.y, sp.w, sp.h); ctx.restore();
+  }
+  function castShadows() {
+    if (G.mapId !== "hill" || !G.sun || G.prefs.shadows === false) return;
+    if (G.quality <= 0.56) return;               // a struggling device keeps its frame rate; shadows go first
+    var sx = G.sun[0], sy = G.sun[1], str = G.sun[2] * (1 - Math.min(0.6, G.sky.dark * 0.5));
+    if (str < 0.04) return;
+    var W2 = Math.ceil(cvs.width / 4), H2 = Math.ceil(cvs.height / 4), K2 = K / 4;     /* quarter resolution: shadows are soft anyway */
+    if (!shc || shc.width !== W2 || shc.height !== H2) { shc = BS.cv(W2, H2); shx = shc.getContext("2d"); }
+    shx.setTransform(1, 0, 0, 1, 0, 0); shx.globalCompositeOperation = "source-over"; shx.clearRect(0, 0, W2, H2);
+    shx.imageSmoothingEnabled = true;
+    occ.forEach(function (o) {
+      shx.setTransform(K2, 0, 0, K2, -cam.x * K2, -cam.y * K2);
+      if (o.trunk) {
+        shx.transform(1, 0, -sx, -sy, o.x + sx * o.hgt, o.gy + sy * o.hgt);
+        shx.fillStyle = "#000"; shx.fillRect(-2.6, 0, 5.2, o.hgt); return;
+      }
+      var c = o.c, w = c.w || c.width, hh = c.h || c.height, H0 = o.gy - o.top, rows = Math.min(hh, H0), kx = sx * (o.k || 1), ky = sy * (o.k || 1);
+      if (H0 <= 0) return;
+      shx.transform(1, 0, -kx, -ky, o.x + kx * H0, o.gy + ky * H0);
+      var sl = silhouette(c, true), srcRows = Math.max(1, Math.round(sl.height * rows / hh));
+      shx.drawImage(sl, 0, 0, sl.width, srcRows, 0, 0, w, rows);
+    });
+    /* the color of shade: cool blue at midday, violet-blue as the light goes gold */
+    shx.setTransform(1, 0, 0, 1, 0, 0); shx.globalCompositeOperation = "source-in";
+    var gold = G.s.tod === "golden" || G.s.tod === "evening";
+    shx.fillStyle = gold ? "rgb(40,24,70)" : G.s.tod === "night" || G.s.tod === "dusk" ? "rgb(4,8,24)" : "rgb(16,26,52)"; shx.fillRect(0, 0, W2, H2);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = Math.min(0.42, 0.38 * str + 0.04); ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(shc, 0, 0, cvs.width, cvs.height); ctx.restore();
+  }
   /* prebuilt soft sprites: a shadow, and a glow per color */
   var shadowSpr = (function () { var c = BS.cv(64, 64), x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(20,14,8,1)"); g.addColorStop(1, "rgba(20,14,8,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
   var glowSpr = {};
@@ -910,13 +1097,23 @@
   }
   G.shadowAt = shadowAt;
   function blinkOf(seed) { return ((time + seed * 1.37) % 4.2) < 0.13; }
+  /* a person, drawn with their body's motion (squash, stretch, lean, hop)
+     about the feet, and the sun on their edge */
+  function drawPerson(sp, x, y, tf) {
+    if (!tf) { img(sp, x, y); rimLight(sp, x, y); return; }
+    var fx = x + 8 - cam.x + (tf.dx || 0), fy = y + 23.4 - cam.y + (tf.dy || 0);
+    ctx.save(); ctx.translate(fx, fy); ctx.transform(tf.sx, 0, tf.skew, tf.sy, 0, 0);
+    ctx.drawImage(sp, -8, -23.4, sp.w, sp.h);
+    var r = rimFor(sp); if (r) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = r.k; ctx.drawImage(r.c, -8, -23.4, sp.w, sp.h); }
+    ctx.restore();
+  }
   function drawEnt(e) {
     if (e.draw) { e.draw(ctx, e, cam); return; }
     shadowAt(e.x, e.y, 6.5);
-    var sp = BS.sprite(e.who, e.dir, e.frame || 0, blinkOf(e.id.length));
+    var L = BS.life, sp = BS.sprite(e.who, e.dir, e.frame || 0, blinkOf(e.id.length), L ? L.face(e.id, e) : null);
     var bob = e.frame % 2 ? -0.7 : 0;
     if (e.bob && !e.frame) bob = Math.sin(time * 2) * 0.35;
-    img(sp, e.x - 8, e.y - 23.4 + bob);
+    drawPerson(sp, e.x - 8, e.y - 23.4 + bob, L ? L.tf(e.id) : null);
   }
   function drawPlayer() {
     var p = G.p;
@@ -924,9 +1121,9 @@
     if (G.sitting) { var sw = BS.cine && BS.cine.swingSway ? BS.cine.swingSway(time) : 0; img(BS.sprite(p.who, 0, 0, blinkOf(1)), p.x - 8 + sw, p.y - 26.5); return; }
     shadowAt(p.x, p.y, 6.5);
     if (G.holdUp) { var hk = Math.min(1, (time - G.holdUp.t0) / 0.5), ease = 1 - Math.pow(1 - hk, 3); img(BS.sprite(p.who, 0, 0), p.x - 8, p.y - 23.4 - ease * 1.5); var ic = G.holdUp.icon; ctx.save(); ctx.translate(p.x - cam.x, p.y - 30 - ease * 8 - cam.y); ctx.drawImage(ic, -9, -9, 18, 18); ctx.restore(); return; }
-    var sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1));
+    var L = BS.life, sp = BS.sprite(p.who, p.dir, p.frame, !p.moving && blinkOf(1), L ? L.face("p") : null);
     var bob = p.frame % 2 ? -0.8 : 0, breathe = p.moving ? 0 : Math.sin(time * 2.2) * 0.25;
-    img(sp, p.x - 8, p.y - 23.4 + bob + breathe);
+    drawPerson(sp, p.x - 8, p.y - 23.4 + bob + breathe, L ? L.tf("p") : null);
     if (G.s.items.lantern && G.lamp.level > 0.02) {
       /* the lantern in hand, its glass eye lit */
       var lxp = p.x + [5.5, -5.5, 6.5, -6.5][p.dir], lyp = p.y - 10 + (p.dir === 1 ? -2 : 0);
@@ -974,6 +1171,7 @@
       if (day) m.windows.forEach(function (w) { L.push([w[0] * T + 8, w[1] * T + 30, 74, tod === "evening" || tod === "golden" ? 0.85 : 1, tod === "evening" || tod === "golden" ? "gold" : "day"]); });
     }
     if (G.mapId === "shed") { L.push([5 * T, 4 * T, 130, 1, "gold"]); }
+    if (G.mapId === "cellar" && !G.workLights) L.push([2.6 * T, 2.2 * T, 52, 0.32, "day"]);   // gray daylight, four steps down
     if (G.mapId === "hill") {
       var h = G.maps.hill;
       if (G.s.tod === "night" || G.s.tod === "dusk") {
@@ -1008,6 +1206,7 @@
       lx.fillStyle = g; lx.fillRect(x - r, y - r, r * 2, r * 2);
     });
     lx.globalCompositeOperation = "source-over";
+    if (BS.cellar) BS.cellar.shadows(lx, cam, LK, lights());          // the lantern's flame throws shadows
     ctx.drawImage(light, 0, 0, VW, VH);
   }
   /* the glow pass: things that make their own light, and a soft bloom */
@@ -1284,28 +1483,10 @@
   function hints() {
     if (G.cut || G.mode !== "walk") return;
     if (G.titleRun) return;
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    G.spots.forEach(function (s) {
-      if (s.map !== G.mapId || (s.when && !s.when())) return;
-      var sx = s.x * T - cam.x, sy = s.y * T - 10 - cam.y, d = Math.hypot(s.x * T - G.p.x, s.y * T - G.p.y);
-      if (d > 90 || d < 10 || sx < 0 || sy < 0 || sx > VW || sy > VH) return;
-      var tw = 0.5 + 0.5 * Math.sin(time * 3 + s.x * 2.3), r = 2 + tw * 1.4, a = 0.35 + tw * 0.45;
-      ctx.fillStyle = "rgba(255,236,170," + a + ")";
-      ctx.beginPath(); ctx.moveTo(sx, sy - r * 1.6); ctx.lineTo(sx + r * 0.35, sy - r * 0.35); ctx.lineTo(sx + r * 1.6, sy); ctx.lineTo(sx + r * 0.35, sy + r * 0.35); ctx.lineTo(sx, sy + r * 1.6); ctx.lineTo(sx - r * 0.35, sy + r * 0.35); ctx.lineTo(sx - r * 1.6, sy); ctx.lineTo(sx - r * 0.35, sy - r * 0.35); ctx.closePath(); ctx.fill();
-    });
-    ctx.restore();
+    if (BS.guide) BS.guide.wisps(ctx, cam, time, VW, VH, G.nearSpot);
     var tg = BS.story && BS.story.target && BS.story.target();
     if (!tg || G.prefs.pointer === false) return;
     var tx = tg[1] * T, ty = tg[2] * T;
-    /* stuck? after a while with nothing new, the goal itself calls out: gold
-       rings pulse from it, a soft chime, and once, a thought */
-    if (tg[0] === G.mapId && G.stuckT > 30) {
-      var rs = tx - cam.x, rsy = ty - cam.y - 4;
-      ctx.save(); ctx.globalCompositeOperation = "lighter";
-      for (var rk = 0; rk < 3; rk++) { var ph = ((time * 0.6 + rk / 3) % 1); ctx.strokeStyle = "rgba(255,214,120," + (0.55 * (1 - ph)) + ")"; ctx.lineWidth = 0.8; BS.ell(ctx, rs, rsy, 3 + ph * 22, (3 + ph * 22) * 0.55); ctx.stroke(); }
-      ctx.restore();
-      if (time - (G.stuckChime || 0) > 9) { G.stuckChime = time; A.sfx("twinkle"); }
-    }
     if (tg[0] !== G.mapId) { var ex = routeExit(tg[0]); if (!ex) return; tx = ex.x * T + 8; ty = ex.y * T + 8; }
     var sx = tx - cam.x, sy = ty - cam.y, d = Math.hypot(tx - G.p.x, ty - G.p.y);
     if (d < 26) return;
@@ -1326,6 +1507,7 @@
     }
     ctx.restore();
   }
+  G.routeExit = function (to) { return routeExit(to); };
   function routeExit(to) {
     var from = G.mapId, want = to;
     if (from === "cellar") want = "house";
@@ -1347,18 +1529,31 @@
       water();
       if (BS.atmos) G.waterLayer(function (c) { BS.atmos.ground(c, cam, VW, VH); });
     }
+    if (BS.slope) BS.slope.under(ctx, cam, time);
     if (BS.story && BS.story.under) BS.story.under(ctx, cam, time);
     if (BS.juice) BS.juice.under(ctx, cam, time);
-    drawables().forEach(function (d) { d.d(); });
+    if (BS.toys) BS.toys.under(ctx, cam, time);
+    if (BS.stage && BS.stage.under) BS.stage.under(ctx, cam, time);
+    var dl = drawables();
+    castShadows();
+    if (BS.guide) BS.guide.ground(ctx, cam, time);
+    if (BS.cellar) BS.cellar.under(ctx, cam, time);
+    dl.forEach(function (d) { d.d(); });
     if (BS.juice) BS.juice.world(ctx, cam, time);
     drawCanopy();
     if (BS.story && BS.story.over) BS.story.over(ctx, cam, time);
+    if (BS.cellar) BS.cellar.over(ctx, cam, time);
+    if (BS.life) BS.life.over(ctx, cam);
+    if (BS.toys) BS.toys.over(ctx, cam, time);
     var dark = darkness();
     atmosphere(dark);
     grade(dark);
     drawLight(dark);
     if (BS.atmos) BS.atmos.air(ctx, cam, VW, VH, dark);
     drawGlow(dark);
+    if (BS.cellar) BS.cellar.post(ctx, cam, time, dark, lights());
+    if (BS.guide && dark > 0.3) { ctx.save(); ctx.globalAlpha = Math.min(1, dark); BS.guide.ground(ctx, cam, time); ctx.restore(); }   // the thread shines in the dark
+    if (BS.toys) BS.toys.post(ctx, cam, time, dark);
     if (BS.atmos && onWater()) G.waterLayer(function (c) { BS.atmos.glowWater(c, cam, VW, VH); });
     if (BS.atmos) BS.atmos.post(ctx, VW, VH, dark);
     drawMotes();
@@ -1393,6 +1588,11 @@
       lifeTick(dt); moteTick(dt); skyTick(dt);
       if (BS.atmos) BS.atmos.update(dt, cam, VW, VH);
       if (BS.juice) BS.juice.update(dt, cam);
+      if (BS.life) { BS.life.hook(); BS.life.update(dt); }
+      if (BS.guide) BS.guide.update(dt);
+      if (BS.toys) BS.toys.update(dt);
+      if (BS.stage) BS.stage.update(dt);
+      if (BS.cellar) BS.cellar.update(dt);
       if (BS.ui && BS.ui.portraitTick) BS.ui.portraitTick(dt);
       if (!(BS.inspect && BS.inspect.isOpen && BS.inspect.isOpen())) render(dt);
       if (G.mode === "lens" && G.lensState) BS.lens.draw(lensX, lensC.width, G.lensState.scene, G.prefs.reduced ? lensT * 0.4 : lensT, G.lensState.st);

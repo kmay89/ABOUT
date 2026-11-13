@@ -46,7 +46,7 @@
     ui.lastTab = t;
     document.querySelectorAll("[data-tab]").forEach(function (b) { var on = b.getAttribute("data-tab") === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
     document.querySelectorAll(".bpane").forEach(function (p) { p.hidden = p.id !== "p-" + t; });
-    ({ pages: pages, story: story, keys: keys, seen: seen, map: map, phone: phone, yours: yours })[t]();
+    ({ pages: pages, story: story, keys: keys, seen: seen, map: map, phone: phone, yours: yours, moments: function () { if (BS.prog) BS.prog.render(); } })[t]();
   }
   function from(b) { return S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf(b); }
   function pages() {
@@ -170,6 +170,7 @@
   applyPrefs();
   $("m-save").addEventListener("click", function () { G.save(); ui.closeAll(); });
   $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; });
+  $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
     if (!confirm("Start again from Monday noon? Your saved game on this device will be replaced.")) return;
     G.wipe(); location.reload();
@@ -180,7 +181,7 @@
   ui.portraitTick = function (dt) {
     if (!$("dlg").classList.contains("on") || !G.portrait) return;
     pT += dt;
-    var blink = (pT % 3.6) < 0.12, img = BS.portrait(G.portrait, blink);
+    var blink = (pT % 3.6) < 0.12, img = BS.portrait(G.portrait, blink, { talk: G.talking && Math.sin(pT * 15) > 0, mood: G.lineMood || "" });
     if (!img) return;
     var bob = G.talking && !G.prefs.reduced ? Math.abs(Math.sin(pT * 11)) * 3 : Math.sin(pT * 1.6) * 1.2;
     px.clearRect(0, 0, 144, 144);
@@ -190,7 +191,7 @@
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
-  if (saved) $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60);
+  if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
     if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
     /* a new game opens with the drive up the hill */
@@ -210,12 +211,14 @@
     document.body.classList.add("playing");
     S.init();
     if (BS.juice) BS.juice.reset();
+    if (BS.toys) BS.toys.reset();
     if (load && saved) {
       G.s = saved; for (var k in G.fresh()) if (G.s[k] == null) G.s[k] = G.fresh()[k];
       G.mode = "walk";
       G.go(saved.map, saved.x / T, saved.y / T, saved.dir, { instant: true });
       S.resume();
       G.flash(saved.day);
+      if (BS.stage) BS.stage.recap(saved);
     } else {
       G.s = G.fresh();
       G.mode = "walk";
@@ -339,11 +342,61 @@
   document.addEventListener("visibilitychange", function () { A.suspend(document.hidden); if (document.hidden && G.mode !== "title") G.save(); });
   window.addEventListener("pagehide", function () { if (G.mode !== "title") G.save(); });
 
-  /* service worker: offline, installable */
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function () { });
+  /* ---------------- staying fresh ----------------
+     The worker fetches network-first, so a new release is what the next
+     visit gets. This is for the visit that's already open: a phone that
+     kept the game in the background for three days. It asks for a new
+     worker when the game opens, whenever you come back to it, and every
+     twenty minutes. When one takes over, the page is out of date:
+       · on the title screen it simply reloads, quietly;
+       · in the middle of play it saves, and a small card offers Refresh
+         (you land back where you were, through Continue);
+       · and if you leave it be, it updates itself the next time you are
+         back on the title screen or away from the tab for a while. */
+  var stale = false, upd = null, hadCtl = false, swReg = null, hiddenAt = 0;
+  function refreshNow() { try { if (G.mode !== "title" && G.s) G.save(); } catch (e) { } location.reload(); }
+  function safeToReload() { return G.mode === "title" && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function announce() {
+    if (stale) return; stale = true;
+    if (safeToReload()) { refreshNow(); return; }
+    try { if (G.s) G.save(); } catch (e) { }
+    upd = document.createElement("div"); upd.className = "updcard"; upd.setAttribute("role", "status");
+    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button">Refresh</button><button type="button" class="x" aria-label="Later">×</button>';
+    upd.querySelector("button").addEventListener("click", refreshNow);
+    upd.querySelector(".x").addEventListener("click", function () { upd.classList.remove("on"); });
+    document.body.appendChild(upd);
+    requestAnimationFrame(function () { upd.classList.add("on"); });
+  }
+  ui.checkUpdate = function (manual) {
+    if (!swReg) { if (manual) location.reload(); return; }
+    var b = $("m-ver"); if (manual && b) b.textContent = "Checking…";
+    swReg.update().then(function () {
+      setTimeout(function () { if (manual && !stale && b) { b.textContent = "Up to date · " + (ui.version || ""); } }, 1500);
+    }).catch(function () { if (manual && b) b.textContent = "Offline · " + (ui.version || ""); });
+  };
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    hadCtl = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (hadCtl) announce(); hadCtl = true; ask(); });
+    navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.sunlightVersion) { ui.version = e.data.sunlightVersion.replace("sunlight-", ""); var b = $("m-ver"); if (b && !/Checking/.test(b.textContent)) b.textContent = "Version " + ui.version + " · Check for updates"; } });
+    function ask() { var c = navigator.serviceWorker.controller; if (c) c.postMessage("version"); }
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
+      swReg = reg; ask();
+      reg.update().catch(function () { });
+      setInterval(function () { reg.update().catch(function () { }); }, 20 * 60 * 1000);
+    }).catch(function () { });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      if (swReg) swReg.update().catch(function () { });
+      /* back after a long while with an update waiting: take it now */
+      if (stale && (safeToReload() || Date.now() - hiddenAt > 10 * 60 * 1000)) refreshNow();
+    });
+    setInterval(function () { if (stale && safeToReload()) refreshNow(); }, 2000);
+  }
 
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {
+    /* the transient line goes in whichever half of the screen you aren't in */
+    if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.5); }
     var gc = $("goalcard");
     if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
     var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];
@@ -354,7 +407,8 @@
     var label = next ? next.t + (next.n ? " (" + next.n[0] + "/" + next.n[1] + ")" : "") : "Chapter complete";
     if ($("gstep").textContent !== label) { $("gstep").textContent = label; gc.classList.remove("tick"); void gc.offsetWidth; gc.classList.add("tick"); }
   }, 400);
-  $("goalcard").addEventListener("click", function () { if (!G.cut) ui.open("book", "pages"); });
+  /* the goal card: tap it and the gold thread shows you the way (or, if there's nowhere to go, opens the book) */
+  $("goalcard").addEventListener("click", function () { if (G.cut) return; if (!(BS.guide && BS.guide.summon("ask"))) ui.open("book", "pages"); });
   ui.bookPing = function () { var b = $("hudbook"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping"); };
   ui.flyToBook = function () {
     var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);
@@ -366,7 +420,8 @@
       var n = Object.keys(G.s.seen).length;
       G.toast("Seen through the drop: " + n + " of " + BS.lens.LOOKS.length, 2400);
       G.s.badges = G.s.badges || {};
-      S.BADGES.forEach(function (b) { if (n >= b[0] && !G.s.badges[b[1]]) { G.s.badges[b[1]] = 1; setTimeout(function () { badge(b); }, 900); } });
+      S.BADGES.forEach(function (b) { if (n >= b[0] && !G.s.badges[b[1]]) { G.s.badges[b[1]] = 1; } });   /* the celebration itself is a Moment now */
+      if (BS.prog) setTimeout(BS.prog.check, 700);
     }, G.prefs.reduced ? 50 : 800);
   };
   function badge(b) {

@@ -322,3 +322,265 @@ Nothing in the game tells you to do these. They are just there, the way they are
   - The rock: a noise-displaced stone with cushions of moss.
 - **Decal bias:** thin layers such as screens, labels and tooling always draw over the surface they sit on.
 - **Speed:** while the inspect view is open, the world behind it stops rendering.
+
+## Light that behaves like light (renderer pass)
+
+- **Cast shadows that follow the sun:** everything that stands up (buildings, lone trees, props and every character) is laid down again as a silhouette, sheared along the sun's direction. The sun moves through the day: long shadows to the west at dawn, short at noon, long and east at golden hour, and faint under the moon. A per-object height factor keeps rooftops, which read as depth from above, from throwing absurdly long shadows. All shadows render into one quarter-resolution layer, so their edges are soft and overlapping shadows don't double-darken. That layer is tinted cool blue by day, violet at golden hour and deep navy at night. It switches itself off if the frame rate is struggling.
+- **Rim light:** characters catch the sun on the edge that faces it: warm gold at golden hour, pink at dawn, cool blue under the moon.
+- **Reflections:** anyone standing by the pond shows in it upside down, trembling with the water.
+- **Morning dew:** at dawn and in the morning, drops in the grass catch the sun and flash as you walk past.
+- **Sharper art:** people and small things are painted at 8 pixels per world unit, crisp on retina screens. Lone trees keep only a small contact shadow, since the sun now casts the long one.
+
+## Life (life.js)
+
+The small motions that make a person a person:
+
+- **Faces:** eyes look at things (whoever's talking, whatever just caught their attention, you when you come close). Moods show for a beat: pleased when something becomes yours, wide-eyed when Mo speaks, a worried brow when the reasonable voice starts, a set jaw. Each spoken line carries its own expression, both on the map and in the dialogue portrait, and mouths move while lines are said.
+- **Bodies with weight:** a squash on each footfall, a stretch as they set off, a lean into the run, a settle when they stop, a pop when they turn. Wren shivers in the cold dark of the cellar.
+- **Left alone:** Wren looks around, glances at nearby things, and then by habit holds the phone up hunting for a bar (the screen lights the face, and a bubble shows no bars). Later comes a yawn. Beck can't keep still: weight shifting from foot to foot, the odd hop, a grin when you come close. Dad sighs over the boxes, and sleeps with z's drifting up.
+- **Bubbles:** ! when something comes into reach for the first time, a note when you hum on the swing, … for a yawn, z's for sleep, crossed-out bars for no signal.
+- The sprite cache is capped, and faces seen from behind collapse to one variant, so memory stays flat over a long session.
+
+## Moments, progress and saving (progress.js)
+
+- **Moments:** 20 achievements covering the story's turns (the dark giving things back, the lantern, borrowed sunlight, the next hand), the small things seen, the kindnesses (herbs, sparrows, the swing, two summers in glass), and the playful ones (shake five trees, 25 grasshoppers, stand still enough for a butterfly, the moon in the pond, checking for a signal five times, walking the whole hill). Locked ones show only a hint. Each unlocks with a banner that drops in and a gold medallion that spins up, with a jingle quoting the first bars of Gran's theme. They live in the book under Moments, beside a progress ring.
+- **Progress:** one honest percentage, blending the story, the keys, the small things seen and the Moments. A "+n%" floats off the book button whenever it rises.
+- **Saving:** a little sun turns in the corner on every save. A snapshot of the scene goes on the Continue card, along with the day, chapter, percentage, play time and Moments.
+- **Small wins:** when a goal is done it's struck through and ticked, with a pen-tick sound, as the next one arrives.
+- **Music that grows:** early on, the generative piano plays alone. Past 30% a warm pad comes in under it. Past 55% a second voice answers a third above. Past 75%, now and then, the phrase is Gran's theme itself.
+- Saves from before Moments existed are credited quietly on load, so there's no banner storm.
+
+## One thing at a time (phone layout)
+
+- The top-left is for the goal card. One transient line at a time sits just below it (a place's name, or a new goal), and a new goal waits for the place name to finish. While a place name is up, the goal card steps aside.
+- On phones the goal card already shows the current step, so the goal pill appears for a few seconds when it changes, then gets out of the way.
+- The transient line goes in whichever half of the screen Wren isn't in.
+- Sound captions, notes and goal ticks stack above the prompt, clear of the thumbs. On desktop the caption sits above the prompt's line.
+- The camera knows where the HUD and touch controls are. It keeps the player in the open part of the screen and runs past the edge of a room when needed, so Wren never stands hidden under the UI.
+
+## The gold thread, and the wisps (guide.js)
+
+- **The gold thread:** slime molds really do solve mazes. They send threads out everywhere, then thicken the ones that reach food and pull the rest back. When you're lost, a thread of that gold grows from your feet. It sends out exploring tendrils, the true path (real breadth-first pathfinding across the map, through the right door when the goal is in another room) firms up and wanders like something alive, and beads of light run along it to a slow bloom at the goal. It's gold paint in daylight and light in the dark. It comes by itself after about 20 seconds without progress (once per goal), or when asked: press H, or tap the goal card. Nothing ever says where it comes from.
+- **The wisps:** small lights hover over everything you can act on. They breathe, brighten as you approach, have three motes circling them, and bloom into a ring when you're in reach. They're gold for the story's things and moonlight blue for the kindnesses nobody asks for. Green motes rise from the ground where a small thing is waiting for the lens. They replace the old four-point twinkle and the stuck rings.
+
+## The cellar (cellar.js)
+
+- **Beams:** three old timbers cross the ceiling, with grain, nails and a cobweb. The foxfire lives on them, and a beam thins when you pass beneath it.
+- **Foxfire, rebuilt as mycelium:** long, gently wandering hyphae that keep to the wood and branch at shallow angles, with strands let down into the air below. Beads of light stream along the veins and, every 40 seconds or so, slow, stop and pour back the other way. That is shuttle streaming, which is what a real slime mold's cytoplasm does.
+- **Daylight down the steps:** "the daylight from the little doorway reached maybe four of them". A pale slanted shaft with dust turning in it, and a little gray light on the bottom steps.
+- **The lantern throws shadows:** each shelf, the log and the apples cast a hard shadow away from the flame (real point-light shadow volumes cut back into the darkness layer), sliding as the light moves. The shelves themselves stay lit on the side that faces it.
+- **Jars waking in the light:** near a flame each jar glows through the glass (plum, peach, blackberry dark as a bruise), with a glint on its shoulder on the side facing the flame.
+- **Breath:** it's cold enough to see it, wherever there's light to see it by.
+- **The pool:** drips land and rings spread, and the foxfire trembles in the water.
+- The beams are baked once and the jar list is precomputed, so the cellar runs as fast as before.
+
+## The hill answers back (toys.js)
+
+Nothing here is story; all of it is a reason to wander off the path. One
+roaming E spot (`toy: true`, so no wisp and no idle glance) sits on whichever
+toy is nearest.
+
+- **Dandelion clocks** in the field: brushing one shakes a few seeds loose, a
+  strong gust takes one or two, and E ("Make a wish") blows the whole head in
+  the direction you face. The seeds ride `G.gust`. Heads grow back after
+  about a minute.
+- **Windfalls**: apples under the lone trees, pinecones on the leaf litter
+  at the edge of the woods. Walk into one and it is kicked along your
+  velocity, hops, rolls, bounces off anything solid, and slows faster in
+  long grass than on the lane. One that reaches the pond goes in with a
+  plop, a ring and a splash, and quietly reappears under its tree later,
+  out of sight.
+- **Skipping stones** from any bank tile of the pond: each touch leaves a
+  ring and a note a little higher than the last, a count rises off the
+  water, and five or more earns a sparkle. Your best is kept.
+- **Bees** work the lavender, scatter when you push through, and come back.
+- **Fireflies** at dusk and night drift toward you if you stand still. Cup
+  one (E) and it glows in your hands, lighting the dark around you (a real
+  light in the light layer), until you let it go.
+- **The long grass remembers**: a pressed-flat trail follows you through
+  the field and fades over half a minute.
+- Four new Moments: *Five Wishes*, *Kerplunk*, *Five Skips*, *Light in Your
+  Hands*. Reduced motion turns all of it off.
+
+## The hill is a hill (slope.js)
+
+From straight above, a hill is just grass, so `slope.js` gives the overworld
+a height (`BS.slope.h(x, y)`, tiles in, 0..1 out). The garden and house are
+the flat top, and the land falls south to the woods, rolling a little as it
+goes. The gravel pit is dug into it and the hollow is a fold. The ground
+itself shows it, baked once into an 8-pixels-per-tile overlay; only the
+on-screen part is drawn each frame:
+
+- **The road climbs:** it follows a smooth curve through the switchbacks.
+  Two wheel ruts are worn into it, and gravel ridges and rain runnels appear
+  where it climbs hardest. On the uphill side a cut bank of bare earth and
+  stones rises from the road edge, with a sunlit lip of grass over it and
+  its shadow on the road. On the downhill side the shoulder crumbles away
+  into a soft shadow.
+- **Sheep tracks:** little stepped terraces run across the slopes along the
+  contours, the way grazed hillsides look. They are broken up and fade out
+  on the flat top.
+- **Light and air:** slopes facing the sun (low in the south) are warm and
+  the ones facing away are cool. The low ground is hazier and bluer, and on
+  early mornings and in the opening, mist pools in it.
+
+**The drive up (prologue.js):** the car comes out of the trees past a yellow
+12% grade sign and climbs the cut road. On the steep stretches the engine
+note rises, the exhaust puffs come faster, and the car shakes a little
+harder.
+
+## Gran's house, inside (art.js)
+
+The first room, baked into the floor chunks, so drawing it costs nothing per frame:
+
+- **Boards:** long planks with butt joints staggered row to row, grain, the
+  odd knot, and nail heads at the joints. The varnish is worn pale along the
+  paths people walked for forty years (door to stairs, stairs to kitchen).
+  Dark, unfaded rectangles show where a sofa, a bookcase and a side table
+  stood until last week, each with a rim of dust and castor dents. A shadow
+  runs along the skirting.
+- **The rug:** one rug, not a repeated tile, with border bands, a field of
+  small blooms, a medallion, corner pieces, fringe at both ends, a worn path
+  down the middle, and one corner kicked over.
+- **Boxes:** real moving boxes, some stacked two high and some open with
+  books, newspaper or a lamp neck showing. They are labeled in marker
+  (BOOKS, GIVE AWAY, GRAN, KEEP, FRAGILE ↑), with tape rolls, newspaper and a
+  capless marker on the floor beside them.
+- **Kitchen:** small glossy oxblood-and-cream checks, chipped here and there;
+  a butcher-block counter on sage cupboards with brass knobs; the sink under
+  the window, the red kettle, FLOUR/SUGAR/TEA tins, plates wrapped in
+  newspaper, an owl cookie jar, and a radio, off. The round-shouldered
+  fridge carries magnets, a child's drawing and a calendar with one day
+  circled. The table has gingham, the teacup, a jar of garden flowers and
+  yesterday's paper, with spindle chairs and cushions.
+- **Walls and stairs:** striped wallpaper with little sprigs, crown molding
+  and skirting, the pale squares and the empty hook, curtains tied back (a
+  pot of basil on the kitchen sill), and a green stair runner held by brass
+  rods under a white-spindled banister.
+
+## The words (engine.js)
+
+Every line is shown one way. Dialogue and narration share one box at the
+bottom of the screen: nearly solid, large high-contrast serif, a fixed
+height of three lines. Narration is the book's voice, with no name and a
+thread of gold along the top. Long lines are measured into pages that fit
+the box, broken at the end of a sentence where possible, and turned in place
+without the box closing.
+
+- **Pace:** letters come at an even rate (Options → Text speed; default 42 a
+  second). There is a breath at the end of a sentence and a half-breath at a
+  comma, a held beat at a dash or "…", and *emphasis* goes a little slower.
+  The box opens a moment before the first letter.
+- **Highlights:** the words that matter are lit, the first time each appears
+  on a page. Days and deadlines (the pump, the concrete, the keys) are coral,
+  the things you carry (the lantern, the jar, the book, the moss) are gold,
+  and places (the cellar, the hollow, the woods) are sky blue.
+- **Controls:** hold to hurry; press to fill the box; press again to go on.
+  The ▼ arrives a beat after the box fills, and a press before then does
+  nothing, so a held thumb never skips the next line.
+- **Mo** is still not a box: word by word, gold, centered, with the same
+  breaths at full stops and commas, now on a soft dark pool so it never has
+  to fight the picture to be read.
+
+## Direction (stage.js)
+
+Where the camera stands while the story is told.
+
+- **Two people talking:** when a scene starts and someone else speaks (Dad,
+  Beck, the foreman), the camera frames the two of you, sitting high enough
+  to clear the dialogue box, and eases in a little (1.16×, 1.12× on phones).
+  Thin letterbox bars come in and the HUD dims. Wren and the speaker turn to
+  face each other once, unless the speaker is scripted to move. When the
+  scene ends, the frame glides back to the player and lets go.
+- **Whose line it is:** the frame leans a little toward whoever is speaking
+  (shot, reverse shot), and a soft pool of warm light sits at the speaker's
+  feet and slides across when the line changes hands. When the two are far
+  apart (Wren on the stairs, Dad across the room), the lean fades out and
+  the lens widens instead of zooming in (down to 0.86×), so both fit above
+  the words.
+- **Mo:** a slower, closer drift and the same bars, with nobody else in the
+  frame.
+- **Previously:** continue a save more than four minutes old and, before
+  play starts, a card reads back the last two story lines in the novel's own
+  words (the same short forms as on screen), the chapter, and where you were
+  going. E, Enter or a tap dismisses it. Each save is stamped `savedAt`.
+- The engine owns nothing new: this module borrows `G.camFocus` and `G.zoom`
+  only during walk-mode scenes, and never during the opening or the title.
+  Reduced motion skips the reframing, the zoom and the bars.
+
+## The last bar (phone.js)
+
+Chapter One's kicker, full screen. After "What nobody had thought to warn me
+about was the signal," the phone comes up in your hands. On a phone held
+upright, your own screen *becomes* Wren's, edge to edge; on a wider screen
+it's a phone held up in the dark.
+
+1. The lock screen wakes (the clock matches the game's time of day), the
+   status bar searches, and one bar arrives with a green glow.
+2. Three days of friends land as stacked notifications.
+3. The chat opens and the rest spills in, faster and faster: Priya's quiz,
+   Theo's "thing that wasn't funny that you laughed at anyway", "wren??",
+   "+ 37 more", and "where even ARE you".
+4. Wren types back, letter by letter: "I'm at my gran's". Sends. The blue
+   progress line crawls across the top of the chat.
+5. A cloud passes over the screen. The bar trembles, drops, comes back. The
+   progress line stalls.
+6. The chat grays out, the reply gets a red ! and *Not Delivered* (the only
+   color left), and *No Service* fades up behind frosted glass.
+7. On a phone, the full screen then pulls back into a phone in your hand, so
+   the narration can be read under it.
+
+The novel's narration ("And then a cloud, or a breath of wind…") is then
+read beneath the dead phone before it drops out of frame. A tap hurries it;
+reduced motion and the test harness's `skipWaits` jump straight to the end.
+The old two-toast version is still there as a fallback if `BS.phone` is
+missing.
+
+## Staying fresh (sw.js + ui.js)
+
+A new release must be what players see, not what they see the second time
+they reload.
+
+- **The worker is network-first.** Every request revalidates with the
+  server (`cache: "no-cache"`), and the cache is only the offline copy,
+  refreshed on each successful fetch. With no network the cache answers at
+  once; after 3.5 s on a slow link it answers instead of a spinner.
+- **The open page notices when it's out of date.** It is registered with
+  `updateViaCache: "none"` and asks for a new worker when the game opens,
+  whenever the tab comes back into view, and every 20 minutes. When a new
+  worker takes control (`controllerchange`, and only if there was an old one
+  first):
+  - on the title screen the page reloads quietly;
+  - mid-game it saves and shows a card, "A fresh version of the hill is
+    ready · Refresh". Refresh reloads to Continue at the same spot;
+  - left alone, it updates itself the next time you're on the title
+    screen, or when you come back after more than ten minutes away.
+- **Menu → Version … · Check for updates** shows the running release (the
+  worker reports its `VERSION`) and checks on demand.
+- Still bump `VERSION` on every release, so the offline copy is refetched
+  whole and open pages hear about it.
+
+## It's a book first (book.js)
+
+The hero title, between the drive up the hill and the first step. It
+replaces the plain Chapter One card.
+
+1. Black. A lamp warms up over an old kitchen table; dust turns in its light.
+2. The hardcover (`cover.jpg`, from the novel's cover) comes down onto the
+   table with a soft thud, a bounce and a lamp flicker.
+3. A sheen slides across the cover, and the foxfire in the painting wakes:
+   sparks glint and gold threads draw themselves between them.
+4. The cover swings open on endpapers of gold mycelium. On the flyleaf, in
+   Gran's hand, her line writes itself in letter by letter: *"If you are
+   reading this, the lights have gone out — and that is the only reason
+   you can see."*
+5. The leaf turns to **Chapter One · No Signal**, the chapter chime plays,
+   and the camera glides in to read it (large enough on a phone).
+6. The camera falls into the page, the paper fills with gold light, and the
+   light becomes Gran's house. The narration picks up the same sentence the
+   page began.
+
+It is all CSS 3D faces plus two small canvases (dust and sparks); the
+endpaper is painted once. Skip, a tap, E, Enter or Escape goes straight to
+the fall into light. Reduced motion shows the open book still, then fades.
+The test harness (`skipWaits`) passes straight through.
