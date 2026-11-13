@@ -429,6 +429,35 @@ on-screen part is drawn each frame:
 note rises, the exhaust puffs come faster, and the car shakes a little
 harder.
 
+## Gran's house, inside (art.js)
+
+The first room, baked into the floor chunks, so drawing it costs nothing per frame:
+
+- **Boards:** long planks with butt joints staggered row to row, grain, the
+  odd knot, and nail heads at the joints. The varnish is worn pale along the
+  paths people walked for forty years (door to stairs, stairs to kitchen).
+  Dark, unfaded rectangles show where a sofa, a bookcase and a side table
+  stood until last week, each with a rim of dust and castor dents. A shadow
+  runs along the skirting.
+- **The rug:** one rug, not a repeated tile, with border bands, a field of
+  small blooms, a medallion, corner pieces, fringe at both ends, a worn path
+  down the middle, and one corner kicked over.
+- **Boxes:** real moving boxes, some stacked two high and some open with
+  books, newspaper or a lamp neck showing. They are labeled in marker
+  (BOOKS, GIVE AWAY, GRAN, KEEP, FRAGILE ↑), with tape rolls, newspaper and a
+  capless marker on the floor beside them.
+- **Kitchen:** small glossy oxblood-and-cream checks, chipped here and there;
+  a butcher-block counter on sage cupboards with brass knobs; the sink under
+  the window, the red kettle, FLOUR/SUGAR/TEA tins, plates wrapped in
+  newspaper, an owl cookie jar, and a radio, off. The round-shouldered
+  fridge carries magnets, a child's drawing and a calendar with one day
+  circled. The table has gingham, the teacup, a jar of garden flowers and
+  yesterday's paper, with spindle chairs and cushions.
+- **Walls and stairs:** striped wallpaper with little sprigs, crown molding
+  and skirting, the pale squares and the empty hook, curtains tied back (a
+  pot of basil on the kitchen sill), and a green stair runner held by brass
+  rods under a white-spindled banister.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the
