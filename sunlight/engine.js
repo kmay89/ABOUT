@@ -50,7 +50,7 @@
   var blurA = BS.cv(64, 36), bax = blurA.getContext("2d"), blurB = BS.cv(32, 18), bbx = blurB.getContext("2d");
   var VW = 320, VH = 180, SC = 4, K = 4, LK = 2;
   G.quality = 1;     // dynamic resolution: the loop lowers it if frames run long
-  G.view = function () { return { w: VW, h: VH, s: SC, k: K }; };
+  G.view = function () { return { w: VW, h: VH, s: SC, k: K, w1: window.innerWidth / baseSC, h1: window.innerHeight / baseSC }; };   // w1, h1: the view at zoom 1
   function fit() {
     var W = window.innerWidth, Hh = window.innerHeight;
     SC = Math.max(1.6, Math.min(9, Math.min(W / 300, Hh / 168)));
@@ -158,7 +158,7 @@
     if ((e.code === "Enter" || e.code === "Space") && t && t.closest && t.closest("button,a[href],summary")) return;
     if (a === "book" || a === "act" || a === "menu" || a.length <= 5) e.preventDefault();
     if (!e.repeat) press(a); else keys[a] = true;
-    G.usingKeys = true;
+    G.usingKeys = true; G.usingPad = false;
     if (BS.hands) BS.hands.using("keys");
   });
   window.addEventListener("keyup", function (e) { var a = KEYMAP[e.code]; if (a) release(a); });
@@ -222,7 +222,7 @@
     for (var b in map) {
       var on = p.buttons[b] && p.buttons[b].pressed;
       /* a pad in a menu: hands.js walks the buttons with it, and says so by returning true */
-      if (on && !padPrev[b]) { if (BS.hands) BS.hands.using("pad"); if (!(BS.hands && BS.hands.pad(map[b]))) press(map[b]); }
+      if (on && !padPrev[b]) { G.usingPad = true; G.usingKeys = true; if (BS.hands) BS.hands.using("pad"); if (!(BS.hands && BS.hands.pad(map[b]))) press(map[b]); }
       if (!on && padPrev[b]) release(map[b]);
       padPrev[b] = on;
     }
@@ -663,6 +663,79 @@
     });
   };
 
+  /* ---------------- cues: the game waits for you ----------------
+     The big moments don't run on a clock; they play their beat, settle, and
+     wait, with one small prompt that always looks the same: the key (E, A,
+     or a tap) and a word or two. G.cue({ label, at, lock, el }) resolves
+     when you answer it. `lock` is how long the moment holds before it will
+     listen (so a mashed button never skips a reveal); `at` anchors the
+     prompt under an element and gives that element a soft ring; `el` is
+     what a tap or click may land on (default: anywhere). Skipped entirely
+     when waits are being skipped. */
+  var cueEl = null, cueOff = null;
+  /* whose hands: hands.js knows (keys, a pad, thumbs), and changes the moment they change */
+  function onTouch() { return BS.hands && BS.hands.kind ? BS.hands.kind() === "touch" : (document.body.classList.contains("touch") || (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) && !G.usingKeys; }
+  function cueGlyph() {
+    var touch = onTouch();
+    return touch ? '<i class="cuetap"></i>' : keycap("act");
+  }
+  G.cue = function (o) {
+    o = o || {};
+    if (cueOff) cueOff(true);
+    return new Promise(function (res) {
+      if (G.skipWaits) return res();
+      if (!cueEl) { cueEl = document.createElement("div"); cueEl.className = "cue"; cueEl.setAttribute("aria-live", "polite"); document.body.appendChild(cueEl); }
+      var touch = onTouch();
+      var label = o.label == null ? "" : (touch && o.tap ? o.tap : o.label);
+      cueEl.innerHTML = cueGlyph() + (label ? "<span>" + label + "</span>" : "");
+      cueEl.classList.toggle("bare", !label);
+      var target = o.at || null, ring = o.ring || target, done = false, armed = false, tapOn = o.el || window;
+      function place() {
+        if (target && target.getBoundingClientRect) {
+          var b = target.getBoundingClientRect(), y = b.bottom + 12;
+          if (o.over) y = b.top + b.height / 2 - 18;                 // sit on the thing itself
+          else if (y > window.innerHeight - 46) y = b.top - 44;
+          cueEl.style.left = Math.max(70, Math.min(window.innerWidth - 70, b.left + b.width / 2)) + "px"; cueEl.style.top = y + "px"; cueEl.style.bottom = "auto";
+        } else { cueEl.style.left = "50%"; cueEl.style.top = "auto"; cueEl.style.bottom = (o.bottom || "11vh"); }
+      }
+      function fire(e) {
+        if (done || !armed) return;
+        done = true; off(); A.sfx("ui");
+        if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(8);
+        res();
+      }
+      function off(silent) {
+        clearTimeout(t1); G.cueFn = null; cueOff = null;
+        tapOn.removeEventListener("pointerup", fire); window.removeEventListener("resize", place);
+        cueEl.classList.remove("on"); if (ring) ring.classList.remove("cued");
+        if (silent && !done) { done = true; res(); }
+      }
+      cueOff = off;
+      var t1 = setTimeout(function () {
+        armed = true; place(); cueEl.classList.add("on"); if (ring) ring.classList.add("cued");
+        G.cueFn = fire; tapOn.addEventListener("pointerup", fire); window.addEventListener("resize", place);
+      }, o.lock == null ? 350 : o.lock);
+    });
+  };
+  G.cueCancel = function () { if (cueOff) cueOff(true); };
+  /* a slow camera move for a scene: from where it is to (x, y, zoom) in world
+     units over ms, eased; answering (act, or a tap) settles it at once */
+  G.pan = function (x, y, zoom, ms) {
+    return new Promise(function (res) {
+      var from = G.camFocus || { x: cam.x + VW / 2, y: cam.y + VH / 2 }, z0 = G.zoom || 1, t0 = performance.now(), over = false;
+      if (G.skipWaits || G.prefs.reduced) ms = 0;
+      function end() { if (over) return; over = true; G.cueFn = null; window.removeEventListener("pointerup", hurry); G.camFocus = { x: x, y: y }; G.zoom = zoom; res(); }
+      function hurry() { if (performance.now() - t0 > 500) { cam.snap = true; end(); } }
+      G.cueFn = hurry; window.addEventListener("pointerup", hurry);
+      (function step() {
+        if (over) return;
+        var u = ms ? Math.min(1, (performance.now() - t0) / ms) : 1, e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        G.camFocus = { x: from.x + (x - from.x) * e, y: from.y + (y - from.y) * e }; G.zoom = z0 + (zoom - z0) * e;
+        if (u >= 1) end(); else requestAnimationFrame(step);
+      })();
+    });
+  };
+
   /* ---------------- moving people about (for scenes) ---------------- */
   G.walkTo = function (who, tx, ty, speed) {
     var e = who === "player" ? G.p : G.ent(who);
@@ -792,6 +865,8 @@
   function update(dt) {
     pollPad();
     time += dt;
+    /* a cue is waiting on you: act answers it, and nothing else hears that press */
+    if (G.cueFn && G.tap("act")) G.cueFn();
     G.s.playMs += dt * 1000;
     if (capT > 0) { capT -= dt; if (capT <= 0) $("caption").classList.remove("on"); }
 
@@ -831,6 +906,7 @@
     if (p.goal) stepGoal(p, dt);
     else if (mag > 0.1) {
       var sp = (G.held("run") || mag > 0.95 && G.input.ax !== 0 ? 1 : 0) ? 92 : 64;
+      if (G.dash) sp = 104;                                       // running for it
       if (G.map.cold && G.eyes.adapt < 0.4 && !G.lamp.level) sp = 34;     // feeling your way in the black
       if (G.held("crank")) sp *= 0.55;
       sp *= mag;
@@ -943,7 +1019,7 @@
         var far = Math.hypot(G.p.x - e.x, G.p.y - e.y);
         if (far > 58) { e.frame = 0; e.dir = Math.abs(G.p.x - e.x) > Math.abs(G.p.y - e.y) ? (G.p.x > e.x ? 2 : 3) : (G.p.y > e.y ? 0 : 1); if (e.onWait) e.onWait(); }
         else if (dd < 2) { e.lead.shift(); if (!e.lead.length && e.onArrive) e.onArrive(); }
-        else { var vv = Math.min(dd, 58 * dt); e.x += ddx / dd * vv; e.y += ddy / dd * vv; e.dir = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? 2 : 3) : (ddy > 0 ? 0 : 1); e.walk = (e.walk || 0) + vv; e.frame = Math.floor(e.walk / 7) % 4; }
+        else { var vv = Math.min(dd, (e.leadV || 58) * dt); e.x += ddx / dd * vv; e.y += ddy / dd * vv; e.dir = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? 2 : 3) : (ddy > 0 ? 0 : 1); e.walk = (e.walk || 0) + vv; e.frame = Math.floor(e.walk / 7) % 4; }
       }
       if (e.tick) e.tick(dt, e);
     });
@@ -1006,14 +1082,14 @@
     if (G.mapId === "hill") {
       /* (the last number: how much of the picture is real height — a roof seen from above is mostly depth, not height) */
       [[props.house, h.house.x * T, (h.house.y + h.house.h) * T, 0.32], [props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T, 0.38], [props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T, 0.34], [props.trailer, h.trailer.x * T, (h.trailer.y + h.trailer.h) * T, 0.5],
-        [props.beech, h.beech.x * T - 6, (h.beech.y + 2) * T + 6, 0.9], [props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8, 0.4], [props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2, 0.6], [props.compost, 48 * T - 2, 21 * T + 4, 0.6]].forEach(function (o) { if (visible(o[1], o[2], 260)) occPlace(o[0], o[1], o[2], o[3]); });
+        [props.beech, h.beech.x * T - 12, (h.beech.y + 2) * T + 6, 0.9], [props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8, 0.4], [props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2, 0.6], [props.compost, 48 * T - 2, 21 * T + 4, 0.6]].forEach(function (o) { if (visible(o[1], o[2], 260)) occPlace(o[0], o[1], o[2], o[3]); });
       [[65, 37], [69, 36], [70, 41], [68, 45]].forEach(function (pp) { if (visible(pp[0] * T, pp[1] * T, 120)) occPlace(props.pipes, pp[0] * T - 2, (pp[1] + 1) * T + 2); });
       list.push({ y: (h.house.y + h.house.h) * T, d: function () { place(props.house, h.house.x * T, (h.house.y + h.house.h) * T); } });
       list.push({ y: (h.shed.y + h.shed.h) * T, d: function () { place(props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T); } });
       list.push({ y: (h.beck.y + h.beck.h) * T, d: function () { place(props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T); } });
       list.push({ y: (h.trailer.y + h.trailer.h) * T, d: function () { place(props.trailer, h.trailer.x * T, (h.trailer.y + h.trailer.h) * T); } });
       [[65, 37], [69, 36], [70, 41], [68, 45]].forEach(function (pp) { list.push({ y: (pp[1] + 1) * T, d: function () { place(props.pipes, pp[0] * T - 2, (pp[1] + 1) * T + 2); } }); });
-      list.push({ y: (h.beech.y + 2) * T, d: function () { place(props.beech, h.beech.x * T - 6, (h.beech.y + 2) * T + 6); } });
+      list.push({ y: (h.beech.y + 2) * T, d: function () { place(props.beech, h.beech.x * T - 12, (h.beech.y + 2) * T + 6); } });
       list.push({ y: (h.giant.y + 2) * T, d: function () { place(props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8); for (var i = 0; i < 12; i++) img(props.seed[i % 6], h.giant.x * T + 20 + i * 12 + Math.sin(time * 1.3 + i) * 0.3, h.giant.y * T - 8 + (i % 2)); } });
       list.push({ y: (h.rock.y + 1) * T, d: function () { place(props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2); } });
       list.push({ y: 21 * T, d: function () { place(props.compost, 48 * T - 2, 21 * T + 4); } });
@@ -1323,13 +1399,18 @@
     }
     if (day && G.p.y / T > 50 && G.mapId === "hill") {
       /* light down through the canopy gaps */
+      /* each shaft leans with the sun, is soft at both edges, and thins out
+         as it falls, so it reads as light in the air and never as a stream */
       ctx.save(); ctx.globalCompositeOperation = "lighter";
       for (var r = 0; r < 6; r++) {
-        var bx = ((r * 173 + 40) % 520) - (cam.x % 520), by = 0, a = 0.05 + 0.03 * Math.sin(time * 0.5 + r * 2);
-        if (bx < -80 || bx > VW + 40) continue;
-        var g4 = ctx.createLinearGradient(bx, by, bx + 60, by + VH);
-        g4.addColorStop(0, "rgba(255,240,170," + a + ")"); g4.addColorStop(1, "rgba(255,240,170,0)");
-        ctx.fillStyle = g4; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 14, by); ctx.lineTo(bx + 84, by + VH); ctx.lineTo(bx + 50, by + VH); ctx.closePath(); ctx.fill();
+        var bx = ((r * 173 + 40) % 520) - (cam.x % 520), a = 0.045 + 0.025 * Math.sin(time * 0.5 + r * 2), w = 16 + (r % 3) * 7;
+        if (bx < -VH * 0.6 - 40 || bx > VW + 40) continue;
+        ctx.save(); ctx.translate(bx, 0); ctx.transform(1, 0, 0.55, 1, 0, 0);
+        var g4 = ctx.createLinearGradient(0, 0, w, 0);
+        g4.addColorStop(0, "rgba(255,236,170,0)"); g4.addColorStop(0.5, "rgba(255,236,170,1)"); g4.addColorStop(1, "rgba(255,236,170,0)");
+        ctx.fillStyle = g4;
+        for (var sgi = 0; sgi < 6; sgi++) { ctx.globalAlpha = a * (1 - sgi / 6); ctx.fillRect(0, VH * sgi / 6, w, VH / 6 + 0.5); }
+        ctx.restore();
       }
       ctx.restore();
     }
@@ -1356,6 +1437,7 @@
      does on a warm evening), then the diorama focus at top and bottom */
   function tiltShift(dark) {
     var tilt = !(G.prefs.tilt === false || G.prefs.reduced && G.prefs.tilt !== true), bloom = G.prefs.bloom !== false;
+    if (G.directing) tilt = false;                              // an establishing shot shows the whole room in focus
     if (!tilt && !bloom) return;
     var W = cvs.width, Hh = cvs.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1387,7 +1469,7 @@
   }
   /* the water's true edge: the painted shoreline wanders, so every effect on
      the water is drawn into a layer and cut to that shape, never to tiles */
-  var WM = 2, wmask = null, wshore = null, wlay = null, wlx = null;
+  var WM = 1, wmask = null, wshore = null, wlay = null, wlx = null;
   function waterMask() {
     if (wmask) return wmask;
     var h = G.maps.hill, W = h.w * T / WM, Hh = h.h * T / WM;
@@ -1402,27 +1484,49 @@
       for (var j = 0; j < T / WM; j++) for (var i = 0; i < T / WM; i++) {
         var px = tx * T / WM + i, py = ty * T / WM + j, k = (py * W + px) * 4, v = BS.wetAt(h, px * WM + WM / 2, py * WM + WM / 2, true);
         /* soft, anti-aliased edge straight from the field */
-        d[k + 3] = 255 * ss(0.47, 0.53, v);
+        d[k + 3] = 255 * ss(0.46, 0.54, v);
         /* the shore: a pale lapping line just inside, damp dark earth just outside */
         var lap = ss(0.5, 0.53, v) * (1 - ss(0.55, 0.6, v)), damp = ss(0.34, 0.45, v) * (1 - ss(0.49, 0.52, v));
-        if (lap > damp) { s2[k] = 240; s2[k + 1] = 250; s2[k + 2] = 255; s2[k + 3] = 140 * lap; }
+        if (lap > damp) { s2[k] = 236; s2[k + 1] = 246; s2[k + 2] = 250; s2[k + 3] = 84 * lap; }
         else { s2[k] = 38; s2[k + 1] = 28; s2[k + 2] = 16; s2[k + 3] = 120 * damp; }
       }
     }
     mx.putImageData(id, 0, 0); sx.putImageData(sd, 0, 0);
     return wmask;
   }
+  /* only where the water is: the box round the water tiles in view (plus a
+     margin for the shore), in device pixels, worked out once a frame */
+  var wbox = { t: -1 };
+  function waterBox() {
+    if (wbox.t === time && wbox.cx === cam.x && wbox.cy === cam.y) return wbox.r;
+    wbox.t = time; wbox.cx = cam.x; wbox.cy = cam.y; wbox.r = null;
+    var h = G.maps.hill, x0 = Math.max(0, Math.floor(cam.x / T) - 2), y0 = Math.max(0, Math.floor(cam.y / T) - 2), x1 = Math.min(h.w, Math.floor((cam.x + VW) / T) + 3), y1 = Math.min(h.h, Math.floor((cam.y + VH) / T) + 3);
+    var a = 1e9, b = 1e9, c = -1e9, d = -1e9;
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) { var t = h.get(x, y); if (t === TL.WATER || t === TL.SPRING) { if (x < a) a = x; if (y < b) b = y; if (x > c) c = x; if (y > d) d = y; } }
+    if (c < a) return null;
+    var X0 = Math.max(0, Math.floor(((a - 1.5) * T - cam.x) * K)), Y0 = Math.max(0, Math.floor(((b - 1.5) * T - cam.y) * K));
+    var X1 = Math.min(cvs.width, Math.ceil(((c + 2.5) * T - cam.x) * K)), Y1 = Math.min(cvs.height, Math.ceil(((d + 2.5) * T - cam.y) * K));
+    if (X1 <= X0 || Y1 <= Y0) return null;
+    wbox.r = { x: X0, y: Y0, w: X1 - X0, h: Y1 - Y0 };
+    return wbox.r;
+  }
   G.waterLayer = function (draw) {
     if (G.mapId !== "hill") return;
     waterMask();
+    var bb = waterBox(); if (!bb) return;
     if (!wlay || wlay.width !== cvs.width || wlay.height !== cvs.height) { wlay = BS.cv(cvs.width, cvs.height); wlx = wlay.getContext("2d"); }
-    wlx.setTransform(1, 0, 0, 1, 0, 0); wlx.globalCompositeOperation = "source-over"; wlx.clearRect(0, 0, wlay.width, wlay.height);
+    wlx.setTransform(1, 0, 0, 1, 0, 0); wlx.globalCompositeOperation = "source-over"; wlx.clearRect(bb.x, bb.y, bb.w, bb.h);
+    wlx.save(); wlx.beginPath(); wlx.rect(bb.x, bb.y, bb.w, bb.h); wlx.clip();
     wlx.setTransform(K, 0, 0, K, 0, 0);
     draw(wlx);
     wlx.globalCompositeOperation = "destination-in"; wlx.imageSmoothingEnabled = true;
-    wlx.drawImage(wmask, -cam.x, -cam.y, wmask.width * WM, wmask.height * WM);
+    /* just the part of the mask under the box */
+    var mx = (bb.x / K + cam.x) / WM, my = (bb.y / K + cam.y) / WM, mw = bb.w / K / WM, mh = bb.h / K / WM;
+    wlx.setTransform(1, 0, 0, 1, 0, 0);
+    wlx.drawImage(wmask, mx, my, mw, mh, bb.x, bb.y, bb.w, bb.h);
+    wlx.restore();
     wlx.globalCompositeOperation = "source-over";
-    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(wlay, 0, 0); ctx.setTransform(t0);
+    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(wlay, bb.x, bb.y, bb.w, bb.h, bb.x, bb.y, bb.w, bb.h); ctx.setTransform(t0);
   };
   function shore() {
     if (G.mapId !== "hill" || !wshore) return;
@@ -1533,15 +1637,82 @@
       if (!BS.hasChunk(m, cx, cy)) { BS.chunk(m, cx, cy); done = true; }
     }
   }
-  function drawCanopy() {
+  /* the roof of the woods. Where it hangs over you, it thins to a soft
+     window round you, the way the leaves would part if you looked up, so
+     you are never lost under it */
+  var canL = null, canX = null, hole = 0;
+  function overhead() {
+    var m = G.map, px = G.p.x / T, py = G.p.y / T;
+    if (py < 51 || G.hidePlayer) return false;
+    for (var dy = -1.4; dy <= 0.6; dy += 0.5) for (var dx = -1; dx <= 1; dx += 0.5) {
+      var t = m.get(Math.floor(px + dx), Math.floor(py + dy));
+      if (t === TL.WOOD || (t === TL.DEER && m.hidden.deer) || (t === TL.ROOT && m.hidden.root)) return true;
+    }
+    return false;
+  }
+  function drawCanopy(dt) {
     if (G.mapId !== "hill") return;
     var S = BS.CH * T, m = G.map;
+    hole += ((overhead() ? 1 : 0) - hole) * Math.min(1, (dt || 0.016) * 5);
+    var to = ctx;
+    if (hole > 0.02) {
+      if (!canL || canL.width !== cvs.width || canL.height !== cvs.height) { canL = BS.cv(cvs.width, cvs.height); canX = canL.getContext("2d"); }
+      canX.setTransform(1, 0, 0, 1, 0, 0); canX.globalCompositeOperation = "source-over"; canX.clearRect(0, 0, canL.width, canL.height);
+      canX.setTransform(K, 0, 0, K, 0, 0); canX.imageSmoothingEnabled = true; to = canX;
+    }
     var cx0 = Math.floor((cam.x - 24) / S), cy0 = Math.floor((cam.y - 24) / S), cx1 = Math.floor((cam.x + VW + 24) / S), cy1 = Math.floor((cam.y + VH + 24) / S);
+    /* each chunk's own square, laid on whole device pixels so neighbors
+       meet exactly: no pale seam where two soft edges half-cover a pixel */
+    var tr0 = to.getTransform(); to.setTransform(1, 0, 0, 1, 0, 0);
     for (var cy = Math.max(cy0, 6); cy <= cy1; cy++) for (var cx = Math.max(0, cx0); cx <= cx1; cx++) {
       if (cx * BS.CH >= m.w || cy * BS.CH >= m.h) continue;
-      var c = BS.canopyChunk(m, cx, cy);
-      ctx.drawImage(c, cx * S - c.pad - cam.x, cy * S - c.pad - cam.y, c.w, c.h);
+      var c = BS.canopyChunk(m, cx, cy), rz = c.res || 2;
+      var dx0 = Math.round((cx * S - cam.x) * K), dy0 = Math.round((cy * S - cam.y) * K), dx1 = Math.round(((cx + 1) * S - cam.x) * K), dy1 = Math.round(((cy + 1) * S - cam.y) * K);
+      to.drawImage(c, c.pad * rz, c.pad * rz, S * rz, S * rz, dx0, dy0, dx1 - dx0, dy1 - dy0);
     }
+    to.setTransform(tr0);
+    if (to === ctx) return;
+    var sx = G.p.x - cam.x, sy = G.p.y - 10 - cam.y, r = 30;
+    var g = canX.createRadialGradient(sx, sy, 4, sx, sy, r);
+    g.addColorStop(0, "rgba(0,0,0," + (0.82 * hole) + ")"); g.addColorStop(0.55, "rgba(0,0,0," + (0.55 * hole) + ")"); g.addColorStop(1, "rgba(0,0,0,0)");
+    canX.globalCompositeOperation = "destination-out"; canX.fillStyle = g; canX.fillRect(sx - r, sy - r, r * 2, r * 2);
+    canX.globalCompositeOperation = "source-over";
+    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(canL, 0, 0); ctx.setTransform(t0);
+  }
+  /* your arm, as a ring beside you while you crank: it drains as you turn
+     the handle and fills back as you rest, gold going to ember when it's
+     nearly gone — right where you are looking, not up in a corner */
+  var armA = 0, armT = 0;
+  function armRing() {
+    var L = G.lamp, dt = Math.min(0.1, Math.max(0, time - (armT || time))); armT = time;
+    var want = G.s.items.lantern && !G.cut && G.mode === "walk" && !G.hidePlayer && (L.rate > 0.02 || L.arm < 0.985) ? 1 : 0;
+    armA += (want - armA) * Math.min(1, dt * (want ? 8 : 3));
+    if (armA < 0.02) return;
+    var x = G.p.x - cam.x + 12, y = G.p.y - cam.y - 28, r = 4.6, v = Math.max(0, Math.min(1, L.arm));
+    var low = v < 0.3, flash = v < 0.15 ? 0.55 + 0.45 * Math.sin(time * 14) : 1;
+    ctx.save(); ctx.globalAlpha = armA;
+    ctx.fillStyle = "rgba(10,8,6,.55)"; ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, 6.2832); ctx.fill();
+    ctx.lineWidth = 1.7; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+    ctx.globalAlpha = armA * flash;
+    ctx.strokeStyle = low ? "#f08a5a" : v < 0.6 ? "#ffc35a" : "#ffd98a";
+    ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + v * 6.2832); ctx.stroke();
+    /* the crank itself, turning while you turn it */
+    var a = L.rate > 0.02 ? time * 9 : 0.6;
+    ctx.globalAlpha = armA * 0.9; ctx.strokeStyle = "#f6e6c0"; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 2.4, y + Math.sin(a) * 2.4); ctx.stroke();
+    ctx.fillStyle = "#f6e6c0"; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 2.4, y + Math.sin(a) * 2.4, 0.75, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+  var hudC = { t: -1 };
+  function hudSafe() {
+    if (time - hudC.t < 0.5 && hudC.sc === SC) return hudC;
+    hudC.t = time; hudC.sc = SC;
+    var bar = document.getElementById("hud"), card = document.getElementById("goalcard");
+    var bb = bar ? bar.getBoundingClientRect() : { bottom: 50 }, cb = card && card.offsetParent ? card.getBoundingClientRect() : null;
+    hudC.top = Math.max(22, (bb.bottom + 12) / SC);
+    hudC.cardR = cb && cb.width ? (cb.right + 12) / SC : 0; hudC.cardB = cb && cb.width ? (cb.bottom + 12) / SC : 0;
+    return hudC;
   }
   /* a twinkle where something can be done, and a gold pointer to the goal */
   function hints() {
@@ -1564,7 +1735,10 @@
       ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(-1.6, -1.5); ctx.lineTo(0, -1); ctx.closePath(); ctx.fill();
     } else {
       var a = Math.atan2(sy - VH / 2, sx - VW / 2), px = VW / 2 + Math.cos(a) * VW, py = VH / 2 + Math.sin(a) * VW;
-      px = Math.max(12, Math.min(VW - 12, px)); py = Math.max(22, Math.min(VH - 14, py));
+      /* keep to the open screen: under the top bar, and clear of the goal card */
+      var hs = hudSafe();
+      px = Math.max(12, Math.min(VW - 12, px)); py = Math.max(hs.top, Math.min(VH - 14, py));
+      if (px < hs.cardR && py < hs.cardB) { if (hs.cardB - py < hs.cardR - px) py = hs.cardB; else px = hs.cardR; }
       ctx.translate(px, py); ctx.rotate(a);
       ctx.fillStyle = "rgba(255,209,102," + (0.75 + 0.25 * Math.sin(time * 4)) + ")"; ctx.strokeStyle = "rgba(60,30,0,.6)"; ctx.lineWidth = 0.6;
       ctx.beginPath(); ctx.moveTo(6 + b * 0.5, 0); ctx.lineTo(-3, -4.5); ctx.lineTo(-1, 0); ctx.lineTo(-3, 4.5); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -1626,6 +1800,7 @@
     tiltShift(dark);
     ctx.setTransform(K, 0, 0, K, 0, 0);
     hints();
+    armRing();
     if (BS.juice) BS.juice.screen(ctx, VW, VH, time, cam);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }

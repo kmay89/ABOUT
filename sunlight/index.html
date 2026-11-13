@@ -179,37 +179,58 @@
 </section>
 
 <!-- the menu -->
-<section id="menu" class="menu" aria-hidden="true" aria-label="Menu">
-  <div class="bcard mcardx">
+<section id="menu" class="menu" aria-hidden="true" aria-label="Paused">
+  <div class="bcard mcardx pz">
     <div class="mscroll">
-      <h2>Paused</h2>
-      <p id="mstat" class="mstat"></p>
-      <button data-close class="primary wide" data-focus>Back to the hill</button>
-      <div class="opts">
-        <div class="mgroup" role="group" aria-labelledby="mg-sound">
-          <h3 id="mg-sound">Sound</h3>
-          <label class="sl"><span>Volume</span><input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
-          <label class="sl"><span>Music</span><input id="o-mus" type="range" min="0" max="1" step="0.05"></label>
-          <label class="sl"><span>Soundscape</span><input id="o-amb" type="range" min="0" max="1" step="0.05"></label>
-          <label class="ck"><span>Captions for sounds</span><input id="o-cap" type="checkbox" role="switch"></label>
-        </div>
-        <div class="mgroup" role="group" aria-labelledby="mg-words">
-          <h3 id="mg-words">Words</h3>
-          <label class="sl"><span>Text speed</span><input id="o-text" type="range" min="15" max="200" step="5"></label>
-          <label class="ck"><span>Larger text</span><input id="o-big" type="checkbox" role="switch"></label>
-          <label class="ck"><span>Full passages from the novel as you play</span><input id="o-full" type="checkbox" role="switch"></label>
-        </div>
-        <div class="mgroup" role="group" aria-labelledby="mg-feel">
-          <h3 id="mg-feel">Feel</h3>
-          <label class="ck"><span>Reduce motion</span><input id="o-red" type="checkbox" role="switch"></label>
-          <label class="ck"><span>Haptics</span><input id="o-hap" type="checkbox" role="switch"></label>
-          <label class="ck"><span>Diorama focus <small>soft top &amp; bottom</small></span><input id="o-tilt" type="checkbox" role="switch"></label>
-          <label class="ck"><span>Gold pointer to the next thing</span><input id="o-ptr" type="checkbox" role="switch"></label>
+      <header class="pzh">
+        <small id="pzday"></small>
+        <h2>Paused</h2>
+        <p id="pzch" class="pzch"></p>
+      </header>
+      <div class="pzmain">
+        <div class="pzring" id="pzring" role="img" aria-label="Progress"><b id="pzpct">0%</b><span>of the hill</span></div>
+        <div class="pznow">
+          <span class="pzk">Now</span>
+          <p id="pzobj"></p>
+          <div id="pzclock" class="pzclock"></div>
+          <p id="mstat" class="pzstat"></p>
         </div>
       </div>
-      <div class="row wrap mrow">
+      <div class="pzacts">
+        <button data-close class="primary wide" data-focus>Resume</button>
+        <button id="m-book">Gran's book</button>
         <button id="m-save">Save</button>
+        <button id="m-opts" aria-expanded="false" aria-controls="pzopts">Options</button>
         <button id="m-help" aria-expanded="false" aria-controls="help">How to play</button>
+      </div>
+      <div id="pzopts" class="pzopts" hidden>
+        <div class="opts">
+          <div class="mgroup" role="group" aria-labelledby="mg-sound">
+            <h3 id="mg-sound">Sound</h3>
+            <label class="sl"><span>Volume</span><input id="o-vol" type="range" min="0" max="1" step="0.05"></label>
+            <label class="sl"><span>Music</span><input id="o-mus" type="range" min="0" max="1" step="0.05"></label>
+            <label class="sl"><span>Soundscape</span><input id="o-amb" type="range" min="0" max="1" step="0.05"></label>
+            <label class="ck"><span>Captions for sounds</span><input id="o-cap" type="checkbox" role="switch"></label>
+          </div>
+          <div class="mgroup" role="group" aria-labelledby="mg-words">
+            <h3 id="mg-words">Words</h3>
+            <label class="sl"><span>Text speed</span><input id="o-text" type="range" min="15" max="200" step="5"></label>
+            <label class="ck"><span>Larger text</span><input id="o-big" type="checkbox" role="switch"></label>
+            <label class="ck"><span>Full passages from the novel as you play</span><input id="o-full" type="checkbox" role="switch"></label>
+          </div>
+          <div class="mgroup" role="group" aria-labelledby="mg-feel">
+            <h3 id="mg-feel">Feel</h3>
+            <label class="ck"><span>Reduce motion</span><input id="o-red" type="checkbox" role="switch"></label>
+            <label class="ck"><span>Haptics</span><input id="o-hap" type="checkbox" role="switch"></label>
+            <label class="ck"><span>Diorama focus <small>soft top &amp; bottom</small></span><input id="o-tilt" type="checkbox" role="switch"></label>
+            <label class="ck"><span>Gold pointer to the next thing</span><input id="o-ptr" type="checkbox" role="switch"></label>
+          </div>
+        </div>
+        <p class="mfoot">
+          <button id="m-restart" class="quiet">Start again</button>
+          <button id="m-ver" class="quiet ver">Check for updates</button>
+          <a class="quiet" href="/">Back to the desk</a>
+        </p>
       </div>
       <div id="help" class="help" hidden>
         <p class="for-keys"><span class="pair"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or the arrows · <span class="pair"><b>Run</b> <kbd>Shift</kbd></span> · <span class="pair"><b>Act</b> <kbd>E</kbd> or <kbd>Space</kbd></span> · <span class="pair"><b>Look closer</b> <kbd>L</kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd>C</kbd></span> · <span class="pair"><b>Gran's book</b> <kbd>B</kbd></span> · <span class="pair"><b>Menu</b> <kbd>Esc</kbd>.</span> A gamepad works too.</p>
@@ -217,11 +238,6 @@
         <p>The hill opens as you earn what opens it — and every key is real science: your own eyes in the dark, a dynamo, a drop of water, oats, roots, sand, water bears. Stand still when the dark asks you to. Look long.</p>
         <p>Saves itself on this device. Nothing is sent anywhere.</p>
       </div>
-      <p class="mfoot">
-        <button id="m-restart" class="quiet">Start again</button>
-        <button id="m-ver" class="quiet ver">Check for updates</button>
-        <a class="quiet" href="/">Back to the desk</a>
-      </p>
     </div>
   </div>
 </section>
@@ -324,6 +340,7 @@
 <script src="inspect.js"></script>
 <script src="life.js"></script>
 <script src="guide.js"></script>
+<script src="gold.js"></script>
 <script src="cellar.js"></script>
 <script src="atmos.js"></script>
 <script src="slope.js"></script>
@@ -334,6 +351,7 @@
 <script src="prologue.js"></script>
 <script src="progress.js"></script>
 <script src="ui.js"></script>
+<script src="gbook.js"></script>
 <script src="hands.js"></script>
 <script>BS.G.start();</script>
 </body>

@@ -107,12 +107,13 @@
     var got = Object.keys(G.s.ach).length;
     d.innerHTML = '<div class="achmed">' + medal(a[0]) + '</div><div class="achtx"><small>Moment · ' + got + " of " + ACH.length + "</small><b>" + a[1] + "</b><p>" + a[2] + "</p></div>";
     document.body.appendChild(d);
+    document.body.classList.add("achon");                      // the area title steps aside for it
     requestAnimationFrame(function () { d.classList.add("on"); });
     if (A) A.sfx("ach");
     if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([12, 60, 18]);
     setTimeout(function () { if (G.burst && G.p) G.burst(G.p.x, G.p.y - 30, 22, "255,214,120", 16); }, 300);
     pctPop();
-    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); showing = false; G.save && G.save(true); }, 700); }, 3600);
+    setTimeout(function () { d.classList.add("out"); setTimeout(function () { d.remove(); showing = false; document.body.classList.remove("achon"); G.save && G.save(true); }, 700); }, 3600);
   }
 
   /* ---------------- progress: one honest number ---------------- */

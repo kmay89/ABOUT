@@ -291,7 +291,10 @@ body.touch .arm{display:none}
 .pctpop{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font:.78rem/1 var(--caps);letter-spacing:.06em;color:#ffd166;text-shadow:0 1px 3px #000;animation:pctup 1.6s ease-out both;pointer-events:none;white-space:nowrap}
 @keyframes pctup{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px)}}
 /* where it's dark, the HUD keeps its voice down */
-body.dim #hud,body.dim #touch{filter:brightness(.66)}
+/* (the stick and the beads are dimmed one by one, never through #touch: a
+   filter on a box makes it the anchor for everything fixed inside it, and
+   that box has no height, so they would all leave the screen) */
+body.dim #hud,body.dim .pad,body.dim #touch .btns{filter:brightness(.66)}
 
 /* ================= the words: one box, one way =================
    Dialogue and narration share a box, a place (the bottom), a size and a
@@ -1124,7 +1127,7 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 .hfly{justify-content:center}
 .hink{font:calc(var(--bw) * .069)/1.5 var(--hers)!important;font-style:normal!important;color:#25304a!important;text-align:center!important;transform:rotate(-2.5deg)}
 .hink span{opacity:0;filter:blur(1.5px)}
-.hero.ink .hink span{animation:hinkin .55s ease-out forwards;animation-delay:calc(var(--i) * 34ms)}
+.hero.ink .hink span{animation:hinkin .55s ease-out forwards;animation-delay:calc(var(--i) * 46ms)}
 @keyframes hinkin{to{opacity:.92;filter:blur(0)}}
 .hsig{margin-top:1.2em!important;font:italic calc(var(--bw) * .04)/1.3 var(--book)!important;color:#8a7a60!important;text-align:center!important;opacity:0;transition:opacity 1s ease 3.6s}
 .hero.ink .hsig{opacity:1}
@@ -1137,7 +1140,7 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 .hero.askip .hskip{opacity:1}
 .hero.fall .hskip{opacity:0}
 .hero.fast *,.hero.fast .hbook{transition-duration:.45s!important;transition-delay:0s!important}
-.hero.fast .hink span,.hero.still .hink span{animation:none;opacity:.92;filter:none}
+.hero.fast .hink span,.hero.still .hink span,.hero.inkdone .hink span{animation:none;opacity:.92;filter:none}
 .hero.fast .hsig,.hero.still .hsig{transition-delay:0s}
 /* reduced motion: the open book, still */
 .hero.still::after{opacity:1}
@@ -1240,3 +1243,239 @@ body.reduced *,body.reduced *::before,body.reduced *::after{animation-duration:.
 
 /* what the help says depends on what's in your hands */
 body.touch .for-keys,body:not(.touch) .for-touch{display:none}
+
+/* ================= built the same day, in another room =================
+   The pause screen, Gran's living book (gbook.js), the cue the game waits
+   on (engine.js G.cue) and the first-steps hint (story.js) came in beside
+   this stylesheet. They keep their shape and what they do; they are set in
+   the same four hands and made of the same three materials as the rest. */
+:is(.pzh small,.pzring span,.pzk,.pzchip small,.pzstat,.bpch){font-family:var(--caps);font-weight:400;font-style:normal;text-transform:var(--lab-case)}
+
+/* ---- the screen keeps out of its own way ----
+   The arm is a ring beside Wren now (engine.js armRing), not a bar in the
+   corner; and the area title steps down when a Moment is being shown. */
+.arm{display:none}
+body:not(.touch) .region{transition:top .5s cubic-bezier(.2,1,.3,1)}
+body:not(.touch).achon .region{top:calc(116px + var(--safe-t))}
+/* an establishing shot is only the picture: the controls and the HUD step out */
+body.directing .touch,body.directing #hud,body.directing .goalcard,body.directing .clock,body.directing .obj,body.directing .prompt{opacity:0!important;pointer-events:none;transition:opacity .5s}
+body.directing .region{top:calc(15vh + var(--safe-t))!important}
+/* nothing pops up over a held screen */
+body:has(#menu.on) .achpop,body:has(#book.on) .achpop,body:has(#menu.on) .region,body:has(#book.on) .region{opacity:0!important;transition:opacity .2s}
+.phsend.ready i{background:#2a84ff;color:#fff;transform:scale(1.12);transition:transform .3s cubic-bezier(.2,1.6,.3,1),background .3s}
+
+/* ================= Gran's book, alive (gbook.js) =================
+   Once gbook.js has painted its paper and leather it rebinds the book (and
+   marks the binding .alive): on a wide screen a plate on the left, the page
+   on the right with the gold growing in its margins; silk ribbons for
+   markers, in the colours of her jars; a wax seal to close it. Until it
+   has, or if it can't, the plain book further up is what you get. */
+#book{background:radial-gradient(ellipse at 50% 40%,rgba(20,14,6,.55),rgba(0,0,0,.82))}
+#book .bcard.alive{width:min(1080px,96vw);height:min(760px,93vh);display:grid;grid-template-columns:1fr;gap:0;padding:14px 14px 14px 16px;border-radius:12px 18px 18px 12px;
+  background:var(--leather),#26301f;background-size:192px;color:var(--sepia);overflow:visible;
+  box-shadow:inset 0 0 0 1px rgba(255,220,140,.12),inset 0 0 0 6px rgba(0,0,0,.25),inset 0 0 0 7px rgba(214,170,80,.55),inset 0 0 0 9px rgba(0,0,0,.2),inset 0 0 0 10px rgba(214,170,80,.3),12px 34px 84px rgba(0,0,0,.72),3px 6px 18px rgba(0,0,0,.5)}
+#book.on .bcard.alive{animation:bopen .7s cubic-bezier(.2,.9,.25,1)}
+@keyframes bopen{0%{transform:perspective(1600px) rotateX(10deg) translateY(22px) scale(.94);opacity:.4}100%{transform:none;opacity:1}}
+#book .bpage,#book .bplate{position:relative;min-width:0;min-height:0;border-radius:4px 8px 8px 4px;background:var(--paper),#efe2c2;background-size:384px;
+  box-shadow:inset 0 0 40px rgba(120,80,30,.22),inset 0 0 6px rgba(120,80,30,.3),0 1px 0 rgba(255,255,255,.2)}
+#book .bpage{display:flex;flex-direction:column;overflow:hidden}
+#book .bpage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;
+  background:linear-gradient(90deg,rgba(80,50,20,.38),rgba(80,50,20,.08) 3.5%,rgba(0,0,0,0) 8%),linear-gradient(0deg,rgba(255,250,235,.2),rgba(0,0,0,0) 30%)}
+#book .bplate{display:none}
+#book .bgold{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+/* the page is the paper under it, so where the words run past the fold they
+   sink into it instead of being cut by its edge */
+#book .bpage .bbody{position:relative;z-index:3;display:block;flex:1;min-height:0;overflow:auto;background:none;box-shadow:none;border-radius:0;
+  padding:1.2em clamp(1.6em,5vw,3.2em) 2.6em clamp(2em,5.4vw,3.6em);scroll-padding:1em 0 2.8em;scrollbar-width:thin;scrollbar-color:rgba(120,80,30,.45) transparent;
+  -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 2.3em),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 2.3em),transparent)}
+#book .bpage .bbody::after{display:none}
+@media (min-width:980px){
+  #book .bcard.alive{grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr)}
+  #book .bplate{display:block;border-radius:8px 4px 4px 8px;margin-right:2px}
+  #book .bplate::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient(270deg,rgba(80,50,20,.4),rgba(80,50,20,.08) 4%,rgba(0,0,0,0) 9%)}
+  #book .bpage{border-radius:4px 8px 8px 4px}
+}
+/* the plate: the cellar's dark with the gold alive in it, and her first line under it, in her hand */
+#book .bplatecv{position:absolute;inset:0;width:100%;height:100%}
+#book .bplatetx{position:absolute;left:11%;right:11%;bottom:6.5%;text-align:center}
+#book .bpch{display:block;font-size:.72rem;line-height:1.45;letter-spacing:.24em;color:#7a5422;margin-bottom:.8em}
+#book .bpink{margin:0;font:1.24rem/1.46 var(--hers);color:var(--blueblack);text-wrap:balance}
+#book .bpink::before,#book .bpink::after{content:"";display:block;width:56px;height:10px;margin:.55em auto;opacity:.75;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 10'%3E%3Cpath d='M2 5 C12 1 18 9 28 5 C38 1 44 9 54 5' fill='none' stroke='%237a5422' stroke-width='1'/%3E%3Ccircle cx='28' cy='5' r='2' fill='%23c8962e'/%3E%3C/svg%3E") center/contain no-repeat}
+
+/* ribbons for markers, hanging from the head of the page: silk, lettered in
+   pale thread. The one you are at hangs lowest. */
+#book .bpage .tabs{position:relative;z-index:4;flex:none;display:flex;flex-wrap:nowrap;align-items:flex-start;gap:6px;min-height:48px;padding:0 clamp(1.2em,4vw,2.6em) 0 clamp(1.8em,5vw,3.4em);background:none;overflow:visible}
+#book .bpage .tabs button{--rib:#7a2a3a;position:relative;flex:0 1 auto;min-width:0;border:0;border-radius:0;margin:0;padding:.56em .82em 1.25em;translate:none;
+  font-size:.82rem;line-height:1.08;letter-spacing:.07em;text-align:center;white-space:normal;color:rgba(255,248,232,.95);text-shadow:0 1px 1px rgba(0,0,0,.45);
+  background:linear-gradient(90deg,rgba(0,0,0,.18),rgba(255,255,255,.12) 30%,rgba(0,0,0,0) 55%,rgba(0,0,0,.2)),var(--rib);
+  clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 9px),0 100%);box-shadow:none;transition:padding .25s var(--ease),filter .2s;filter:saturate(.75) brightness(.9)}
+#book .bpage .tabs button svg.i{display:none}
+#book .bpage .tabs button:hover{filter:saturate(.95) brightness(1.03);translate:none;color:#fff8e6}
+#book .bpage .tabs button:active{translate:0 1px;box-shadow:none}
+#book .bpage .tabs button.on{padding:.56em .82em 2em;margin:0;filter:none;color:#fff8e6;translate:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.18),rgba(255,255,255,.12) 30%,rgba(0,0,0,0) 55%,rgba(0,0,0,.2)),var(--rib)}
+#book .bpage .tabs button:focus-visible{outline:2px solid #f2c45a;outline-offset:-4px}
+
+/* the wax seal: round, so it is for pressing. Press it and the book is shut. */
+#book .seal{position:absolute;top:-12px;right:-12px;left:auto;bottom:auto;z-index:6;width:44px;height:44px;min-width:0;border-radius:50%;border:0;padding:0;cursor:pointer;color:rgba(255,226,214,.94);
+  background:radial-gradient(circle at 38% 32%,#d4504a,#9a2622 55%,#5a1210);box-shadow:2px 4px 9px rgba(0,0,0,.55),inset 0 -3px 6px rgba(0,0,0,.35),inset 1.5px 2px 3px rgba(255,180,160,.38);transition:scale .12s var(--ease),filter .2s}
+#book .seal::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1.5px dashed rgba(255,200,180,.35)}
+#book .seal svg.i{position:relative;width:17px;height:17px;stroke-width:2.2;filter:drop-shadow(0 1px 0 rgba(60,8,6,.6))}
+#book .seal:hover{filter:brightness(1.1)}
+#book .seal:active{scale:.93;translate:none}
+#book .seal:focus-visible{outline:2px solid #f2c45a;outline-offset:3px}
+
+/* turning to another page */
+#book .bbody.turn{animation:bturn .55s cubic-bezier(.2,.8,.2,1);transform-origin:0 50%}
+@keyframes bturn{0%{opacity:0;transform:perspective(1400px) rotateY(-14deg) translateX(14px);filter:brightness(.9)}60%{opacity:1}100%{opacity:1;transform:none;filter:none}}
+
+/* on her page: headings sit between two rules; her first line opens with a lit capital */
+#book .bpage .bpane h3{justify-content:center;text-align:center;gap:.8em;color:#7a5422;margin:1.8em 0 .7em}
+#book .bpage .bpane h3::before,#book .bpage .bpane h3::after{content:"";flex:1;min-width:1.2em;height:1px;background:linear-gradient(90deg,rgba(122,84,34,0),rgba(122,84,34,.55))}
+#book .bpage .bpane h3::after{background:linear-gradient(270deg,rgba(122,84,34,0),rgba(122,84,34,.55))}
+#book .bpage .bpane h3.goalh::before{background:linear-gradient(90deg,rgba(47,90,42,0),rgba(47,90,42,.5))}
+#book .bpage .bpane h3:first-child{margin-top:.6em}
+#book .bpage .bpane .hand{margin:0 0 1.2em;text-shadow:0 0 .5px rgba(37,48,74,.35)}
+#book .bpage .bpane .hand.first::first-letter{float:left;font:400 3.1em/.84 var(--book);margin:.06em .14em 0 0;padding:.1em .16em .04em;
+  color:#f2d27a;background:radial-gradient(circle at 30% 30%,#3a4a26,#1a2412);border:1.5px solid #b8862a;border-radius:3px;text-shadow:0 1px 0 #6a4a14,0 0 6px rgba(255,200,90,.6)}
+/* now: a slip pinned to the page */
+#book .bpage .now{position:relative;padding:.72em 1em .76em 1.35em;margin:.9em 0 .7em;border-radius:2px;background:#f8f0da;rotate:-.5deg;box-shadow:1px 2px 6px rgba(80,50,20,.25),inset 3px 0 0 #c8962e}
+#book .bpage .now::before{content:"";position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f2d27a,#9a6a1a);box-shadow:1px 2px 3px rgba(0,0,0,.35)}
+#book .bpage .now span{color:#9a6a1a}
+/* the goals: boxes drawn by hand, ticked with a stroke of gold */
+#book .bpage .goals li i{top:.16em;width:17px;height:17px;border-radius:2px 4px 3px 2px;border:1.6px solid rgba(44,30,16,.7);rotate:-2deg;background:rgba(255,255,255,.25)}
+#book .bpage .goals li.done{color:#8a7658;text-decoration-color:rgba(44,30,16,.4);text-decoration-thickness:1px}
+#book .bpage .goals li.done i{background:none;border-color:rgba(44,30,16,.45)}
+#book .bpage .goals li.done i::after{content:"";position:absolute;left:-2px;top:-6px;bottom:auto;width:22px;height:20px;border:0;border-radius:0;rotate:none;translate:none;transform:none;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 20'%3E%3Cpath d='M3 11 C6 13 7 15 9 18 C12 11 15 6 20 2' fill='none' stroke='%23b8862a' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat}
+/* field notes: specimen labels, each with its lens in a ring */
+#book .bpage .key{background:rgba(255,252,240,.35);border:1px solid rgba(110,76,34,.45);border-radius:2px;padding:.55em .9em;box-shadow:inset 0 0 0 3px rgba(239,226,194,.9),inset 0 0 0 4px rgba(110,76,34,.25)}
+#book .bpage .key summary canvas{width:50px;height:50px;border-radius:50%;background:#1a1610;box-shadow:0 0 0 2px #efe2c2,0 0 0 3.5px rgba(110,76,34,.7),2px 3px 6px rgba(0,0,0,.3)}
+#book .bpage .key.locked{opacity:.5}
+#book .bpage .key.locked summary canvas{background:none;box-shadow:none;border:1.2px dashed rgba(70,56,40,.45);rotate:-6deg}
+/* seen: slides in brass rings, and pencil circles for the ones still to find */
+#book .bpage .look{background:none;border:0;border-radius:6px;padding:.5em .2em;box-shadow:none}
+#book .bpage .look:hover:not(.locked){background:rgba(200,150,60,.08)}
+#book .bpage .look canvas{width:68px;height:68px;box-shadow:0 0 0 2px #2a1a0a,0 0 0 4.5px #c89a42,0 0 0 6px #6a4a1a,2px 4px 10px rgba(0,0,0,.35)}
+#book .bpage .look.locked canvas{background:none;box-shadow:none;border:1.2px dashed rgba(70,56,40,.45);rotate:8deg}
+#book .bpage .seennote{background:#f8f0da;border-radius:2px;box-shadow:1px 2px 8px rgba(80,50,20,.22),inset 0 0 0 1px rgba(110,76,34,.25)}
+#book .bpage #mapcv{box-shadow:0 0 0 1px rgba(110,76,34,.6),0 0 0 5px #efe2c2,0 0 0 6px rgba(110,76,34,.35),2px 6px 16px rgba(80,50,20,.3)}
+@media (max-width:560px){
+  #book .bcard.alive{padding:8px 8px 8px 10px;width:98vw;height:94vh}
+  #book .seal{top:auto;bottom:-8px;right:-6px;width:40px;height:40px}
+  #book .bpage .bbody{padding:1em 1.15em 2.6em 1.5em}
+  /* all eight ribbons, always: they share the head of the page between
+     them, and a long name takes two lines rather than push one out of sight */
+  #book .bpage .tabs{gap:3px;min-height:52px;padding:0 9px 0 13px}
+  #book .bpage .tabs button{flex:1 1 auto;padding:.52em .26em 1.2em;font-size:clamp(.56rem,2.62vw,.72rem);letter-spacing:.03em}
+  #book .bpage .tabs button.on{padding:.52em .26em 1.85em}
+}
+@media (max-width:360px){
+  #book .bpage .tabs{gap:2px;padding:0 5px 0 8px}
+  #book .bpage .tabs button{padding-left:.3em;padding-right:.3em;letter-spacing:.01em}
+  #book .bpage .tabs button:focus-visible{outline-offset:-2px}
+}
+
+/* ================= cues: the game waits for you (engine.js G.cue) =================
+   The same slip the prompt is, with the same lid for the key: one way of
+   being asked, everywhere. It rises in once the moment has settled and
+   breathes until it is answered; the thing it points at gets a soft gold
+   ring. Under a thumb there is no key to show, so it is a ring to tap. */
+.cue{position:fixed;left:50%;bottom:11vh;z-index:97;transform:translate(-50%,10px);display:flex;align-items:center;gap:.5em;padding:.3em 1.05em .3em .36em;border-radius:999px;
+  background:var(--glass),rgba(14,11,7,.8);border:1px solid rgba(255,214,120,.5);box-shadow:var(--glass-lit),var(--fall),0 0 24px rgba(255,200,90,.14);
+  font:1.06rem/1.2 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.75);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .45s var(--spring)}
+.cue.on{opacity:1;transform:translate(-50%,0);animation:cuebreathe 1.8s ease-in-out .5s infinite}
+.cue.bare{padding:.3em .36em}
+.cue kbd{flex:none}
+.cue.on kbd{animation:cuekey 1.8s ease-in-out .5s infinite}
+.cue .cuetap{flex:none;position:relative;width:1.72em;height:1.72em;border-radius:50%;background:radial-gradient(circle,#ffe19a 0 30%,rgba(255,225,154,0) 33%)}
+.cue .cuetap::after{content:"";position:absolute;inset:1px;border-radius:50%;border:2px solid #f2c45a;animation:cuering 1.5s ease-out infinite}
+@keyframes cuebreathe{0%,100%{box-shadow:var(--glass-lit),var(--fall),0 0 24px rgba(255,200,90,.14)}50%{box-shadow:var(--glass-lit),var(--fall),0 0 34px rgba(255,200,90,.4)}}
+@keyframes cuekey{0%,100%{translate:0 0}50%{translate:0 1.5px}}
+@keyframes cuering{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.25);opacity:0}}
+.cued{animation:cuedring 1.6s ease-in-out infinite}
+@keyframes cuedring{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0),0 0 0 2px rgba(255,209,102,.55)}50%{box-shadow:0 0 0 7px rgba(255,209,102,.16),0 0 0 2px rgba(255,209,102,.9)}}
+@media (prefers-reduced-motion:reduce){.cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}}
+body.reduced .cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}
+
+/* ================= the pause screen =================
+   The world holds its breath behind a soft blur; one card says where you
+   are, what you're doing, what is coming and how far you've come, with the
+   five things you'd want under it: the lid to go back, and four of glass.
+   The settings are one press further in. */
+#menu{background:rgba(6,5,3,.55);-webkit-backdrop-filter:blur(5px) saturate(.8);backdrop-filter:blur(5px) saturate(.8);transition:opacity .35s ease}
+#menu .pz{width:min(620px,94vw)}
+.pzh{text-align:center;margin-bottom:1.15em}
+.pzh small{display:block;font-size:.72rem;line-height:1.3;letter-spacing:.22em;color:var(--gold)}
+.pzh h2{margin:.16em 0 .12em}
+.pzh .pzch{margin:0;font:italic 1.04rem/1.3 var(--book);color:var(--soft)}
+.pzh::after{content:"";display:block;width:120px;height:1px;margin:.95em auto 0;background:linear-gradient(90deg,rgba(255,209,102,0),rgba(255,209,102,.6),rgba(255,209,102,0))}
+.pzmain{display:grid;grid-template-columns:auto 1fr;gap:1.3em;align-items:center;margin-bottom:1.25em}
+.pzring{--p:0;position:relative;width:104px;height:104px;border-radius:50%;display:grid;place-content:center;text-align:center;
+  background:conic-gradient(#ffd166 calc(var(--p) * 1%),rgba(255,255,255,.09) 0);box-shadow:2px 3px 9px rgba(0,0,0,.4)}
+.pzring::before{content:"";position:absolute;inset:6px;border-radius:50%;background:#1d1810;box-shadow:inset 1.5px 2px 7px rgba(0,0,0,.65)}
+.pzring b{position:relative;font:400 1.62rem/1 var(--book);color:var(--ink)}
+.pzring span{position:relative;font-size:.58rem;line-height:1.2;letter-spacing:.14em;color:var(--soft);margin-top:.36em}
+.pznow .pzk{font-size:.68rem;letter-spacing:.24em;color:var(--gold)}
+.pznow #pzobj{margin:.22em 0 .65em;font:italic 1.14rem/1.4 var(--book);color:var(--ink)}
+.pzclock{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.65em}
+.pzclock:empty{display:none}
+/* the three days, as they stand on the HUD: glass, with the day in marker */
+.pzchip{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px;padding:5px 10px 4px;border-radius:7px;background:var(--glass);border:1px solid var(--glass-line);box-shadow:inset 1px 1px 0 rgba(255,244,214,.12),2px 3px 8px rgba(0,0,0,.3)}
+.pzchip small{font-size:.58rem;line-height:1;letter-spacing:.14em;color:var(--soft);white-space:nowrap}
+.pzchip b{font:400 1.02rem/1.05 var(--marker);letter-spacing:.02em;text-transform:uppercase;color:var(--ink)}
+.pzchip.hot{border-color:rgba(255,143,114,.7)}
+.pzchip.hot b{color:#ffb39c}
+.pzchip.struck{opacity:.6}
+.pzchip.struck b{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--coral)}
+.pzstat{margin:0;font-size:.66rem;line-height:1.55;letter-spacing:.14em;color:var(--soft)}
+.pzacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px 8px}
+.pzacts .primary{grid-column:1/-1;margin-bottom:calc(var(--d) + 3px)}
+.pzacts [hidden]{display:none}
+.pzopts{margin-top:1.15em;border-top:1px solid var(--line)}
+.pzopts .opts{margin-bottom:0}
+#menu .help{margin-top:1.15em}
+@media (max-width:480px){.pzmain{grid-template-columns:1fr;justify-items:center;text-align:center;gap:.9em}.pzclock{justify-content:center}}
+/* a phone on its side: the card draws itself in, so all five things to press are on it at once */
+@media (max-height:480px){
+  #menu .pz .mscroll{padding-top:.7em;padding-bottom:16px}
+  .pzh{margin-bottom:.55em}
+  .pzh::after{display:none}
+  .pzh h2{font-size:1.6rem;margin:.05em 0}
+  .pzh .pzch{font-size:.94rem}
+  .pzmain{margin-bottom:.7em;gap:1.1em}
+  .pzring{width:78px;height:78px}
+  .pzring b{font-size:1.3rem}
+  .pznow #pzobj{margin:.1em 0 .4em;font-size:1.06rem}
+  .pzclock{margin-bottom:.4em}
+  .pzacts{gap:7px 8px}
+  .pzacts button:not(.primary){padding-top:.66em;padding-bottom:.62em}
+}
+
+/* ================= the first steps (story.js coach) =================
+   No cards before the game: the one thing you need is shown when you need
+   it, and goes the moment you've done it. */
+.coach{position:fixed;left:50%;bottom:calc(112px + var(--safe-b));z-index:12;transform:translate(-50%,8px);display:flex;align-items:center;gap:.85em;padding:.6em 1.15em .62em .8em;border-radius:14px;
+  background:var(--glass),rgba(14,11,7,.8);border:1px solid rgba(255,214,120,.42);box-shadow:var(--glass-lit),var(--fall);font:1.08rem/1.25 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.75);
+  opacity:0;pointer-events:none;transition:opacity .5s,transform .5s var(--spring);white-space:nowrap}
+.coach.on{opacity:1;transform:translate(-50%,0)}
+.coach.done{opacity:0;transform:translate(-50%,-8px)}
+.coach .ck{flex:none;display:grid;grid-template-columns:repeat(3,1.72em);grid-template-rows:repeat(2,1.72em);gap:5px 3px;font-size:.84rem}
+.coach .ck kbd{min-width:0;width:1.72em;padding:0;animation:coachkey 2.4s ease-in-out infinite}
+.coach .ck kbd:first-child{grid-column:2}
+.coach .ck kbd:nth-child(2){grid-column:1;animation-delay:.3s}
+.coach .ck kbd:nth-child(3){animation-delay:.6s}
+.coach .ck kbd:nth-child(4){animation-delay:.9s}
+@keyframes coachkey{0%,70%,100%{translate:0 0;filter:none}80%{translate:0 1.5px;filter:brightness(1.18)}}
+.coach small{display:block;font:italic .94rem/1.4 var(--book);color:var(--soft);margin-top:.14em}
+.coach small kbd{font-size:.78em;font-style:normal;vertical-align:.08em;margin:0 .12em}
+/* on a phone it sits just above the stick it is talking about */
+body.touch .coach{left:14px;bottom:calc(196px + var(--safe-b));transform:translateY(8px);max-width:66vw;white-space:normal;padding:.52em .95em .58em}
+body.touch .coach.on{transform:none}
+body.touch .coach.done{transform:translateY(-8px)}
+/* while it is up there it has the prompt's place: the prompt waits its turn, and a caption sits above it */
+body.touch.coaching .prompt{opacity:0!important}
+body.touch.coaching .caption{bottom:calc(276px + var(--safe-b))}
+.stick.teach{animation:stickteach 1.6s ease-in-out infinite}
+@keyframes stickteach{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0),0 0 0 2px rgba(255,209,102,.6)}50%{box-shadow:0 0 0 10px rgba(255,209,102,.14),0 0 0 2px rgba(255,209,102,.95)}}

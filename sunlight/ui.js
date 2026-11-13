@@ -27,10 +27,13 @@
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
     if (which === "book") showTab(tab || ui.lastTab || "pages");
-    if (which === "menu") syncMenu();
+    if (which === "menu") { syncMenu(); duck(true); }
     setTimeout(function () { var f = el.querySelector("[data-focus]") || el.querySelector("button"); f && f.focus({ preventScroll: true }); }, 30);
   };
+  /* paused, the world goes quiet: the music and the soundscape drop back until you return */
+  function duck(on) { if (!A.setVolume) return; A.setVolume("mus", G.prefs.music * (on ? 0.3 : 1)); A.setVolume("amb", G.prefs.amb * (on ? 0.3 : 1)); }
   ui.closeAll = function () {
+    if ($("menu").classList.contains("on")) duck(false);
     ["book", "menu"].forEach(function (id) { $(id).classList.remove("on"); $(id).setAttribute("aria-hidden", "true"); });
     if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; A.sfx("back"); }
     $("stage").focus({ preventScroll: true });
@@ -151,9 +154,28 @@
     $("o-text").value = G.prefs.text; $("o-cap").checked = G.prefs.captions; $("o-red").checked = G.prefs.reduced; $("o-hap").checked = G.prefs.haptics;
     $("o-full").checked = !!G.prefs.fullText; $("o-tilt").checked = G.prefs.tilt !== false; $("o-ptr").checked = G.prefs.pointer !== false;
     $("o-vol").value = G.prefs.master; $("o-mus").value = G.prefs.music; $("o-amb").value = G.prefs.amb; $("o-big").checked = G.prefs.big;
-    var mins = Math.round(G.s.playMs / 60000);
-    $("mstat").textContent = G.s.day + " · " + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + mins + " min";
+    /* the pause screen proper: where you are, what you're doing, what's coming, how far you've come */
+    var mins = Math.round(G.s.playMs / 60000), f = G.s.flags || {}, C = S.CHAPTERS && S.CHAPTERS[S.chapterIndex ? S.chapterIndex() : 0];
+    var tod = { golden: "evening" }[G.s.tod] || G.s.tod || "";
+    $("pzday").textContent = (G.s.day || "") + (tod ? " · " + tod : "");
+    $("pzch").textContent = C ? "Chapter " + C[0] + " · " + C[1] : "";
+    $("pzobj").innerHTML = G.s.objective ? G.fmt(G.s.objective) : "The hill is yours.";
+    var chips = [];
+    if (f.knowClose) chips.push(["Keys go", "Fri", f.clockStruck >= 3]);
+    if (f.knowDewater) chips.push(["Pumped dry", "Thu", f.clockStruck >= 2, true]);
+    if (f.knowPour) chips.push(["Concrete", f.knowDewater ? "Mon" : "Mon?", false]);
+    $("pzclock").innerHTML = chips.map(function (c) { return '<span class="pzchip' + (c[2] ? " struck" : "") + (c[3] && !c[2] ? " hot" : "") + '"><small>' + c[0] + "</small><b>" + c[1] + "</b></span>"; }).join("");
+    var pct = BS.prog && BS.prog.percent ? BS.prog.percent() : 0, moments = G.s.ach ? Object.keys(G.s.ach).length : 0;
+    $("pzring").style.setProperty("--p", pct); $("pzpct").textContent = pct + "%";
+    $("mstat").textContent = Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + moments + " moments · " + mins + " min";
+    $("m-book").hidden = !G.s.items.book;
+    $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); $("help").hidden = true;
   }
+  $("m-book").addEventListener("click", function () { ui.closeAll(); ui.open("book"); });
+  $("m-opts").addEventListener("click", function () {
+    var o = $("pzopts"); o.hidden = !o.hidden; $("m-opts").setAttribute("aria-expanded", String(!o.hidden)); $("help").hidden = true; A.sfx("ui");
+    if (!o.hidden) o.scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" });
+  });
   function bindPref(id, k, num, apply) {
     $(id).addEventListener("input", function (e) { G.prefs[k] = num ? +e.target.value : e.target.checked; apply && apply(); G.savePrefs(); });
   }
@@ -171,7 +193,7 @@
   function applyPrefs() { document.body.classList.toggle("reduced", !!G.prefs.reduced); document.body.classList.toggle("big", !!G.prefs.big); }
   applyPrefs();
   $("m-save").addEventListener("click", function () { G.save(); ui.closeAll(); });
-  $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; });
+  $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); if (!$("help").hidden) $("help").scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" }); });
   $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
     ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going" }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
@@ -198,7 +220,9 @@
   function ask(o) { return BS.hands && BS.hands.ask ? BS.hands.ask(o) : Promise.resolve(confirm(o.title + " " + o.text)); }
   if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
-    if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
+    /* no cards before the game: New game starts the game. What you need is
+       taught where you need it (story.js coachMove, the prompts, the cues);
+       "How to play" is still on the title and the pause screen. */
     /* a new game opens with the drive up the hill */
     if (!load && !opening && BS.cine && BS.cine.play) {
       A.init();

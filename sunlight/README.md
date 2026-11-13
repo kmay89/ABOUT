@@ -463,6 +463,200 @@ The first room, baked into the floor chunks, so drawing it costs nothing per fra
   pot of basil on the kitchen sill), and a green stair runner held by brass
   rods under a white-spindled banister.
 
+## Every place, finished (art.js, slope.js, cellar.js, engine.js)
+
+The rest of the world brought up to the house:
+
+- **The pit:** the piles are painted once each as lit cones at the angle of
+  repose. The peak is lifted north for the three-quarter view, slip streaks
+  run down the fall line, the shady side is filled by the sky (never black),
+  and each pile casts a shadow. Sand, gravel and a coarser warm fill each
+  get their own peak, and on the gravel the big stones have rolled to the
+  toe. The floor has the loader's tire tracks crossed over and over, damp
+  low corners, survey stakes with orange tape, and set-aside boulders. The
+  blue distance-air and morning mist are kept out of the pit, so it glares
+  yellow-gray the way the book has it.
+- **The woods:** the roof is individual crowns over a dark understory, not
+  one lump per tile. Oak and beech grow in patches, with a dark spruce here
+  and there and a pale birch at the bright edges. Each crown casts a shadow
+  by its height and has a feathered rim of single leaves. Crowns beside an
+  open path stay small, so nothing hides you on it. Where the canopy does
+  hang over you, it thins to a soft window around you. The Great Gray Beech
+  stands in its own clearing: a smooth elephant-gray trunk with bark
+  creases, branch "eyes", lichen, moss and knuckled roots, a round apron of
+  its own leaves, and a vast pale crown lifted clear of the trunk. Sunbeams
+  lean with the sun and fade at their edges, so they read as light, not
+  water.
+- **Water:** the pond and the spring are painted from their own smooth field
+  at full resolution, never the coarse color grid. The shore is
+  anti-aliased, the far bank's earth face shows above the surface, the rim
+  is shallow and clear, and the middle is deep. The effects mask is sampled
+  at one world unit, so the edge never stair-steps. The pond lost its
+  rectangle (soft corners, an east bay, a north lobe). The spring is a
+  narrow, meandering thread (its field comes from the tiles themselves; a
+  sign bug in the wet grid used to mark every other tile as spring).
+- **The shed:** silvered floorboards with staggered joints, grass clippings,
+  sawdust, forty summers of mower oil, and blades of sun through the gaps in
+  the west wall. The wall tops are continuous, with cobwebs in the corners.
+  Each tool hangs on its nail in front of the outline Gran painted for it
+  (saw, bungees, hammer and pliers, shears, the coil of wire, trowel and
+  fork, the hoe), and one outline has nothing in it. There's a scarred
+  bench with the can of bent nails and the radio with no knobs, a vise and a
+  jar of screws, a reel mower, and the wheelbarrow with its flat. The
+  scooter is a painted prop under a fall of cobweb thick as felt. Gran's
+  lantern — chalky yellow, glass eye, crank folded flat — sits on the bench
+  until you take it.
+- **The cellar:** old stones laid across the whole floor with no tile seams,
+  damper and darker toward the corner where the water stands, with moss in
+  the joints by the walls. The lantern's shadows are a held lamp's: each
+  corner's shadow is as long as that corner is far from the flame, softening
+  as it goes. Standing at a shelf's end no longer blacks out half the room.
+- **The screen keeps out of its own way:** arm strength is a ring beside
+  Wren that drains as you crank, with a little turning crank in it, gold
+  going to ember when nearly gone. The area title steps down when a Moment
+  is showing. The gold arrow to the goal stays under the top bar and clear
+  of the goal card.
+
+## Pacing: never too long without your hands on it (story.js)
+
+Every scene was measured: each line of text per beat, and each run of lines
+with no control between them. The long passive stretches are now broken by
+play, using the book's own lines, with nothing new written:
+
+- **Showing Beck the cellar (Tuesday).** It was 29 lines straight. Now, after
+  "You want to show me, or what?", you lead her yourself, across the garden,
+  through the house and down the steps, with Beck following. At the gold
+  she comes up beside you, and the reveal ("When I cranked Gran's lantern…")
+  waits for your hand on the crank. A reload mid-way puts her back at your
+  side.
+- **The hollow.** After the two lines of arrival, you walk over and look at
+  the fallen giant yourself. "Look at the old one, child" now answers what
+  you're doing.
+- **The pit.** "We ran for the gap in the fence…" is a run you make: full
+  speed, Beck flat out ahead, the shouting again and again, the gap held open
+  for you. It can't be failed; if you can't find the gap in about twenty
+  seconds, the story carries you through.
+- **The pump.** Getting Mo into the jar is yours too: press, press, press,
+  gold flecking into the glass while the pump keeps pulling. Every press
+  counts, the key pulses until you have the rhythm, and on a phone it's the
+  A button.
+
+The climax already worked this way (a choice, then the twenty-two seconds of
+"look long" stillness), and lost players already get the gold thread after
+twenty seconds. What's left is conversation, at most about a minute at a
+time.
+
+**Optimizing.** The water effects are drawn only inside the box around the
+water on screen (about 14 ms down to 5 ms a frame at the pond, measured
+headless). Canopy chunks are laid on whole device pixels, so there's no pale
+seam where two chunks meet.
+
+## Living light (gold.js) — the cellar and Gran's book
+
+The novel says exactly what the cellar's light looks like, so the light is
+grown to match rather than drawn as lines laid on top:
+
+- **The gold (Mo)** is grown as a slime-mold network. Points are scattered
+  thinly near where it began and thickly at the rim, where it's exploring.
+  They're joined to their natural neighbors (a Gabriel graph, so it has
+  loops). Every vein is as thick as the flow it carries back to the source,
+  and any piece left unjoined is bridged to the rest. The result is a few
+  trunks feeding a fine lace: "branching and joining and branching again".
+  The lace is baked once (glow, body, bright core). Each frame then draws
+  about a dozen strokes on top: the veins grouped by distance from the
+  source, each group lit by where a wave of brightness is. The wave runs out
+  for a while, slows, stops, and pours back the other way (the shuttle
+  streaming the book describes under the lens).
+- **Foxfire** is frost fronds on the beams: wandering stems that keep to
+  the wood, side branches feathering off at a slant, a few threads let down
+  into the air. "Like frost feathering", breathing the same way.
+- **In the cellar:**
+  - The gold lies over Gran's book, which is wrapped in waxed cloth and tied
+    with twine on the fallen shelf. The last beam stops short of that corner
+    so nothing hides it.
+  - When Wren comes close, a thread of gold reaches toward them, the book's
+    "drew itself half an inch closer to my hand".
+  - The jars are real preserving jars: shouldered glass, fruit you can see
+    through it, zinc lids or muslin and gingham tied with string, Gran's
+    paper labels. In the dark, each holds a thin cold line of light down its
+    side, breathing on its own clock.
+  - Spores drift and wink in the dark, and the floor is fitted flagstones.
+- **Under the drop of water:** the same network magnified. You see into
+  translucent veins over the old wood's grain, with grains riding the current
+  faster in the wide veins. It all pauses together and pours back. The dry
+  crumb in the revive scene crossfades to living gold as it drinks. The
+  foxfire lens view is the frost, magnified.
+- **Gran's book (gbook.js + look.css):**
+  - A leather binding with gilt tooling, around tea-colored paper with
+    fibers, foxing, a gutter shadow and a deckled fore-edge. Both textures
+    are painted at load; there are no image files.
+  - The tabs are silk ribbons in her jar colors, and the close button is a
+    red wax seal.
+  - On a wide screen the book opens as a spread. The left page is a plate:
+    an oval of cellar dark with the gold alive in it, in a gilt frame with a
+    vine running round, above her first line.
+  - The gold grows into the margins as gilt ink when the book opens, and a
+    thread reaches toward your cursor or finger.
+  - Contents in her ink:
+    - illuminated drop caps on her pages;
+    - hand-inked checkboxes with gold ticks for the goals;
+    - specimen labels for field notes;
+    - brass-ringed slides for what you've seen, with pencil circles for what
+      you haven't yet;
+    - the map framed in ink.
+  - Pages turn when you change tabs. With reduced motion, it all holds
+    still.
+- **The opening book's endpapers** carry the same network.
+
+## Paced to the player (engine.js G.cue, book.js, phone.js, story.js)
+
+The big moments don't run on a clock. Each plays its beat, settles, and
+waits for you.
+
+- **One prompt, the same everywhere (`G.cue`).** A small pill with the key
+  (E, A on a gamepad, or a tap ring on a phone) and a word or two. It rises
+  in once the moment has settled and breathes until answered.
+  - `lock` holds a reveal for a moment, so a mashed button can't skip it.
+  - `at` anchors the prompt to an element and `ring` gives that element a
+    gold ring; `over` sits the prompt on the element itself.
+  - A press while a beat is still playing finishes that beat, the same way
+    it finishes a line of dialogue.
+- **The opening book.** It lands, then you open it. Gran's line writes
+  itself in at the pace of a hand (a press completes it). You turn the page
+  to Chapter One, then press to begin. Skip and Escape still skip all of it.
+- **Gran's house, the first time.** The page's light becomes a wide shot of
+  the whole ground floor, in focus, with the HUD and touch controls out of
+  the frame. Its title card comes up ("Gran's House — forty years of her, in
+  boxes"), and a strip of packing tape goes rip, thunk. Then the camera moves
+  slowly in to Wren on the stairs (`G.pan`). Only then does the narration
+  start.
+- **The phone.** It plays in beats you can read:
+  1. The screen wakes and searches, and one bar climbs.
+  2. Three notifications land a second apart. You open them.
+  3. The chat arrives at reading speed: each message waits about as long as
+     the previous one takes to read.
+  4. You tap Reply, and Wren types.
+  5. You press Send.
+  6. The failed send can't be hurried, and "No Service" holds for two
+     seconds before it will let you go.
+
+  On a phone you tap the notification, the message field and the arrow
+  themselves.
+- **No cards before the game.** New game starts the drive at once. The
+  walking controls are shown the moment you first have control (W-A-S-D keys,
+  "drag the stick" on a phone, "left stick" on a gamepad) and leave once
+  you've walked. "How to play" is still on the title and pause screens.
+- **The pause screen** is a real one:
+  - The world blurs and the music and soundscape drop back.
+  - One card shows the day and time, the chapter, what you're doing now, the
+    deadline chips once you know them, a progress ring and your counts.
+  - Under it: Resume, Gran's book, Save, Options, How to play. The settings
+    sit behind Options.
+  - Moment pop-ups and area titles never show over it or over the book.
+
+Reduced motion drops the animation between beats but keeps the beats. The
+test scripts' skip-waits flag bypasses all cues.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the
@@ -596,6 +790,10 @@ Everything you read or press, redrawn as one set of things from the story.
 The rule it was made by is the book's own: an object is a tool, simple and
 concrete, with weight and a click.
 
+The pause screen, Gran's living book and the cue the game waits on have
+their own sections above, and keep the shape they were given there. This
+is the type and the materials that they, and everything else, are made of.
+
 ### Four hands, and one voice that isn't a hand
 
 Who is speaking is told by the letters, before the words.
@@ -603,7 +801,7 @@ Who is speaking is told by the letters, before the words.
 | Voice | Face | Where |
 |---|---|---|
 | The book | EB Garamond, the face on the novel's cover | Narration, speech, titles, every label |
-| Gran | Quintessential: upright, each letter on its own | Her pages, the flyleaf line, the title's line |
+| Gran | Quintessential: upright, each letter on its own | Her pages, the flyleaf line, the line under the plate, the title's line |
 | Wren | Shadows Into Light Two | Your page, the map, the last screen |
 | The clock, and Dad | Permanent Marker | FRI · THU · MON, the whiteboard, the moving boxes |
 | The phone | The device's own system face | The signal and battery chip, the phone screens |
@@ -623,15 +821,16 @@ Who is speaking is told by the letters, before the words.
 
 ### Round is for pressing, square is for reading
 
-A lid, a drop, a lens, a bead: anything round can be pressed. A page, a
-slip, a card: anything square is to be read. Nothing breaks the rule, so
-it never has to be explained.
+A lid, a drop, a lens, a bead, a wax seal: anything round can be pressed.
+A page, a slip, a card: anything square is to be read. The one family of
+exceptions is the book's own, where you turn to a ribbon, unfold a note or
+choose a line; those keep the shape of the thing they are.
 
 Three materials, all lit from the upper left with their shadow down-right,
 which is the light rule the hill already keeps:
 
 * **The gold lid.** One to a screen: the thing that takes you on (Begin,
-  Continue, Next, Keep it, Back to the hill). A jar lid seen from above,
+  Continue, Next, Keep it, Resume). A jar lid seen from above,
   with a worn-bright face, a knurled rim for its thickness, and its word
   engraved in small capitals. Pressed, it goes down onto its rim. It
   wears: the more it has been pressed on this device, the brighter the
@@ -639,10 +838,12 @@ which is the light rule the hill already keeps:
 * **Jar glass.** Every other button: dark glass with the light caught
   on its upper-left edge. The round ones are beads.
 * **Paper.** Cards are leaves. The dark ones are the night side; a moment
-  that matters (a thing found, a question asked) gets a tooled double gold
-  rule. Gran's book is parchment in a leather cover, with paper index
-  tabs, her hand in ink, and the goal of the moment under a stroke of
-  highlighter.
+  that matters (a thing found, a question asked, the pause card) gets a
+  tooled double gold rule. Gran's book keeps the binding `gbook.js` gives
+  it (leather, old paper, silk ribbons, a wax seal) and is set in the same
+  hands: her pages and the line under the plate in hers, the labels in
+  small capitals, your page in yours. Until `gbook.js` has rebound it, or
+  if it can't, the plain book underneath is parchment with index tabs.
 
 The small parts follow: a slider is a brass knob in a groove that fills
 behind it, and clicks once a notch; a switch is lit when it is on; a key
@@ -656,7 +857,9 @@ the moment it changes: pick up a pad mid-game and the prompts say A.
 
 * **Prompts** show the control as it is in these hands: the letter on a
   keyboard, the button on a pad, and under a thumb the sign that is on the
-  bead itself.
+  bead itself. The cue (`G.cue`) is the same slip with the same lid, and
+  under a thumb a ring to tap; the first-steps hint names the bead by its
+  sign, and has the prompt's place on a phone while it is up.
 * **Sentences** do the same. The script writes `[act]`, `[lens]`,
   `[crank]` or `[book]` and it is read as E, A or "the spark". `[(act)]`
   is an aside, " (E)", left out under a thumb, where the bead has already
@@ -667,8 +870,8 @@ the moment it changes: pick up a pad mid-game and the prompts say A.
   with gold when something is in reach; the lens bead is a dead phone
   until the drop is made; the crank arrives with the lantern, glows as the
   lamp does, and shows your arm tiring.
-* **Keyboard and pad, everywhere.** On the title, the menu, the book and
-  every card: arrows or the d-pad walk the controls, Enter or A presses
+* **Keyboard and pad, everywhere.** On the title, the pause screen, the
+  book and every card: arrows or the d-pad walk the controls, Enter or A presses
   the lit one (with nothing chosen, the lid), Esc or B backs out, and Tab
   stays inside the card that is open. In the book, left and right turn the
   tabs. A knob turns with left and right.
@@ -690,9 +893,12 @@ larger text and with reduced motion.
   stay where they are; the clock and the goal step back while you look.
 * The how-to card is as tall as its tallest slide, on any screen, so it
   never jumps and never spills.
-* On a narrow phone the book's eight tabs are two rows of four, and the
-  day and the hour sit one over the other. On a short one the title gives
-  up its sun before it gives up a word.
+* On a phone all eight of the book's ribbons share the head of the page,
+  and a long name takes two lines rather than push one out of sight. On a
+  narrow one the day and the hour sit one over the other; on a short one
+  the title gives up its sun before it gives up a word.
+* The pause card and its options scroll inside the gold rule and fade at
+  its edges, so a row is never sliced by the frame.
 * Reduced motion leaves every control at rest in its finished state.
 
 ### Put right along the way

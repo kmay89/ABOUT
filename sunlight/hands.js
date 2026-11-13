@@ -185,6 +185,13 @@
       return;
     }
     if (tag === "TEXTAREA" || ownKeys(ov)) return;
+    /* Esc shuts the pause screen or the book, and B the book, from here: the
+       game loop can't be relied on to hear them, because while a scene is
+       speaking it listens for nothing else (and a pause screen opened just
+       before a line began could then only be closed with the mouse) */
+    if ((k === "Escape" && (ov.id === "menu" || ov.id === "book")) || ((k === "b" || k === "B") && ov.id === "book" && tag !== "INPUT")) {
+      e.preventDefault(); e.stopPropagation(); back(ov); return;
+    }
     var d = k === "ArrowDown" ? [0, 1] : k === "ArrowUp" ? [0, -1] : k === "ArrowRight" ? [1, 0] : k === "ArrowLeft" ? [-1, 0] : null;
     if (d) {
       if (tag === "INPUT" && t.type === "range" && d[0]) return;      /* left and right are the slider's own */
