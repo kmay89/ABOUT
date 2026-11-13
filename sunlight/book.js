@@ -69,7 +69,13 @@
       }
       x.fillStyle = "rgba(255,230,150,.6)"; x.beginPath(); x.arc(px, py, 1.1, 0, 7); x.fill();
     }
-    for (var k = 0; k < 14; k++) hy(Math.random() * W, Math.random() * H, Math.random() * 6.28, 50, 1.1);
+    if (BS.lace) {
+      /* the same living gold as the cellar's, one colony spreading from the gutter */
+      var net = BS.lace.network({ x: W * 0.06, y: H * 0.58, rx: W * 1.1, ry: H * 0.62, a0: -Math.PI * 0.48, a1: Math.PI * 0.48, n: 300, min: 9, seed: 1957, w0: 0.45, w1: 3.4 });
+      var cc = BS.lace.bake(net, 2);
+      x.drawImage(cc, net.box.x, net.box.y, net.box.w, net.box.h);
+      x.save(); x.globalCompositeOperation = "lighter"; x.globalAlpha = 0.45; x.drawImage(cc, net.box.x, net.box.y, net.box.w, net.box.h); x.restore();
+    } else for (var k = 0; k < 14; k++) hy(Math.random() * W, Math.random() * H, Math.random() * 6.28, 50, 1.1);
     for (var s = 0; s < 70; s++) { x.fillStyle = "rgba(255,226,140," + Math.random() * 0.7 + ")"; x.beginPath(); x.arc(Math.random() * W, Math.random() * H, Math.random() * 1.2, 0, 7); x.fill(); }
   }
 

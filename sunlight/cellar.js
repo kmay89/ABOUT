@@ -143,7 +143,10 @@
     (m.beams || []).forEach(function (by) {
       var y = by * T + 4, near = Math.abs(G.p.y - 12 - y) < 12 && !G.hidePlayer;
       ctx.globalAlpha = near ? 0.5 : 0.94;
-      ctx.drawImage(beamImg, T * 0.6 - cam.x, y - cam.y, beamImg.w, beamImg.h);
+      /* the last beam stops short of the far corner, so nothing hides the fallen shelf */
+      var bw = by === 11 ? 18.7 * T : beamImg.w;
+      ctx.drawImage(beamImg, 0, 0, bw * beamImg.res, beamImg.height, T * 0.6 - cam.x, y - cam.y, bw, beamImg.h);
+      if (by === 11) { var ex = T * 0.6 + bw - cam.x; ctx.fillStyle = "#1a1008"; ctx.beginPath(); ctx.moveTo(ex - 1.5, y - cam.y); ctx.lineTo(ex + 0.8, y + 2 - cam.y); ctx.lineTo(ex - 0.4, y + 4.5 - cam.y); ctx.lineTo(ex + 1, y + 6.5 - cam.y); ctx.lineTo(ex - 1.5, y + 9 - cam.y); ctx.closePath(); ctx.fill(); }
       ctx.globalAlpha = 1;
     });
   };

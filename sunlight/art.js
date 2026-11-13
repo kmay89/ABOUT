@@ -1061,16 +1061,16 @@
     var pool = [19 * T, 12 * T];
     for (var j = Math.floor(Y / G2) - 1; j <= Math.floor((Y + T) / G2) + 1; j++) for (var i = Math.floor(X / G2) - 1; i <= Math.floor((X + T) / G2) + 1; i++) {
       var off = (j % 2) * G2 * 0.5, cx = i * G2 + off + (H(i, j, 301) - 0.5) * 1.6, cy = j * G2 + (H(i, j, 302) - 0.5) * 1.4;
-      var w = G2 * (0.42 + H(i, j, 303) * 0.1), h = G2 * (0.36 + H(i, j, 304) * 0.1);
+      var w = G2 * (0.5 + H(i, j, 303) * 0.12), h = G2 * (0.46 + H(i, j, 304) * 0.1);
       if (cx + w < X - 1 || cx - w > X + T + 1 || cy + h < Y - 1 || cy - h > Y + T + 1) continue;
       var damp = Math.max(0, 1 - Math.hypot(cx - pool[0], cy - pool[1]) / 150);
-      var base = mix(mix("#4c4a43", "#5e5b52", H(i, j, 305)), "#34383a", damp * 0.6);
+      var base = mix(mix("#45433c", "#524f47", H(i, j, 305)), "#30343a", damp * 0.6);
       if (H(i, j, 306) < 0.12) base = mix(base, "#5a5040", 0.5);
       /* an irregular rounded stone */
       x.beginPath();
       for (var a = 0; a < 7; a++) { var th = a / 7 * 6.2832 + H(i, j, 307) * 2, rr2 = 0.82 + H(i * 7 + a, j, 308) * 0.22, px = cx + Math.cos(th) * w * rr2, py = cy + Math.sin(th) * h * rr2; if (a) x.lineTo(px, py); else x.moveTo(px, py); }
       x.closePath();
-      x.fillStyle = lg(x, cx - w, cy - h, cx + w, cy + h, [[0, shade(base, 0.16)], [0.5, base], [1, shade(base, -0.22)]]); x.fill();
+      x.fillStyle = lg(x, cx - w, cy - h, cx + w, cy + h, [[0, shade(base, 0.1)], [0.5, base], [1, shade(base, -0.16)]]); x.fill();
       x.strokeStyle = "rgba(10,10,8,.35)"; x.lineWidth = 0.3; x.stroke();
       if (damp > 0.35 && H(i, j, 309) < damp) ell(x, cx - w * 0.3, cy - h * 0.35, w * 0.35, h * 0.16, "rgba(180,210,215," + (0.1 + damp * 0.14) + ")");     // wet shine
       if (H(i, j, 310) < 0.05) { x.strokeStyle = "rgba(20,18,14,.55)"; x.lineWidth = 0.25; x.beginPath(); x.moveTo(cx - w * 0.6, cy - h * 0.2); x.lineTo(cx, cy + h * 0.1); x.lineTo(cx + w * 0.4, cy - h * 0.4); x.stroke(); }
@@ -1078,10 +1078,72 @@
     /* moss in the joints along the walls */
     var nearWall = 0;
     [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(function (d) { var t2 = m.get(tx + d[0], ty + d[1]); if (t2 === TL.SWALL || t2 === TL.SHELF) nearWall++; });
-    if (nearWall) { var rs = R(tx * 17 + ty * 29 + 5); for (var k = 0; k < 10 * nearWall; k++) ell(x, X + rs() * 16, Y + rs() * 16, 0.6 + rs(), 0.4 + rs() * 0.5, rs() < 0.6 ? "rgba(70,110,60,.4)" : "rgba(100,140,70,.3)"); }
+    if (nearWall) { var rs = R(tx * 17 + ty * 29 + 5); for (var k = 0; k < 4 * nearWall; k++) ell(x, X + rs() * 16, Y + rs() * 16, 0.5 + rs() * 0.8, 0.35 + rs() * 0.4, rs() < 0.6 ? "rgba(70,110,60,.3)" : "rgba(100,140,70,.22)"); }
     /* the damp itself, a darkness that pools toward the corner */
     var dd = Math.hypot(X + 8 - pool[0], Y + 8 - pool[1]);
     x.fillStyle = "rgba(8,14,18," + Math.max(0, 0.35 - dd / 500) + ")"; x.fillRect(X, Y, T, T);
+    x.restore();
+  }
+
+  /* ---------------- the jars, and the book ---------------- */
+  var JAR = [
+    ["#5b2340", "#8a3a5a", "plum"], ["#7a1a2a", "#b0303a", "red currant"], ["#d4862e", "#f0b050", "peach"], ["#2a1a2e", "#5a2a50", "blackberry"],
+    ["#8a3a5a", "#c05a7a", "rhubarb"], ["#c8642a", "#e8903a", "apricot"], ["#3a1830", "#6a2a4a", "damson"], ["#a0405a", "#d06070", "cherry"],
+    ["#6a7a2a", "#9aa840", "gooseberry"], ["#b89a3a", "#e0c860", "honey"], ["#a02a1a", "#d84a2a", "tomato"]
+  ];
+  /* one of Gran's jars, X,Y is its bottom-left on the shelf board */
+  function jar(x, X, Y, i, j, onSide, scale) {
+    var k = scale || 1, h = (5.4 + H(i, j, 102) * 1.4) * k, w = (3.9 + H(i, j, 103) * 0.6) * k, c = JAR[(H(i, j, 101) * JAR.length) | 0];
+    var lx = X + (4.4 - w) / 2, top = Y - h;
+    x.save();
+    if (onSide) { x.translate(X + 2.2, Y - 1.6); x.rotate(1.35); x.translate(-X - 2.2, -Y + 1.6); }
+    /* the glass, with what's in it seen through it, darker toward the bottom */
+    var sh = 0.9 * k;
+    x.fillStyle = "rgba(0,0,0,.45)"; rr(x, lx + 0.5, Y - 0.6, w, 0.9, 0.4, x.fillStyle);
+    x.beginPath(); x.moveTo(lx, Y); x.lineTo(lx, top + sh * 1.6); x.quadraticCurveTo(lx, top + sh * 0.6, lx + sh, top + sh * 0.5); x.lineTo(lx + w - sh, top + sh * 0.5); x.quadraticCurveTo(lx + w, top + sh * 0.6, lx + w, top + sh * 1.6); x.lineTo(lx + w, Y); x.closePath();
+    x.fillStyle = lg(x, lx, 0, lx + w, 0, [[0, shade(c[1], 0.1)], [0.45, c[0]], [1, shade(c[0], -0.5)]]); x.fill();
+    x.save(); x.clip();
+    var fill = top + sh * (1.2 + H(i, j, 104) * 0.8);
+    x.fillStyle = "rgba(20,10,10,.35)"; x.fillRect(lx, Y - h * 0.35, w, h);                                   // the deep at the bottom
+    for (var f = 0; f < 4; f++) ell(x, lx + 0.8 + H(i * 7 + f, j, 105) * (w - 1.6), fill + 1 + H(i, j * 5 + f, 106) * (Y - fill - 1.5), 0.55 * k, 0.45 * k, rgba(c[1], 0.7));   // fruit
+    x.fillStyle = "rgba(255,240,220,.08)"; x.fillRect(lx, top, w, fill - top);                          // the air above it
+    x.fillStyle = "rgba(255,255,255,.12)"; x.fillRect(lx, fill - 0.15, w, 0.3);                         // where it stops
+    x.restore();
+    /* the glass itself: a bright line down one shoulder, a faint one down the other */
+    x.fillStyle = "rgba(255,255,255,.55)"; x.fillRect(lx + 0.55 * k, top + sh * 1.3, 0.38 * k, h - sh * 2);
+    x.fillStyle = "rgba(255,255,255,.18)"; x.fillRect(lx + w - 0.9 * k, top + sh * 1.6, 0.25 * k, h - sh * 2.6);
+    /* the top: a zinc lid, or muslin or gingham tied down with string */
+    var lid = H(i, j, 107);
+    if (lid < 0.4) { rr(x, lx + 0.3, top - 0.2, w - 0.6, 1.2 * k, 0.4, lg(x, 0, top - 0.2, 0, top + 1, [[0, "#d8d4c6"], [1, "#7a766a"]])); }
+    else {
+      var cloth = lid < 0.7 ? "#efe6d0" : "#d24a3a";
+      x.fillStyle = cloth; x.beginPath(); x.moveTo(lx - 0.5, top + 1.2); x.quadraticCurveTo(lx + w / 2, top - 1.3 * k, lx + w + 0.5, top + 1.2); x.lineTo(lx + w + 0.2, top + 2); x.lineTo(lx - 0.2, top + 2); x.closePath(); x.fill();
+      if (lid >= 0.7) { x.fillStyle = "rgba(255,255,255,.7)"; for (var g = 0; g < 3; g++) x.fillRect(lx + 0.3 + g * (w / 3), top - 0.2, w / 6, 2.2); }
+      x.fillStyle = "#8a6a3a"; x.fillRect(lx - 0.2, top + 1.3, w + 0.4, 0.35);
+    }
+    /* her label: a slip of paper, a line of writing, a year */
+    if (!onSide || true) { var ly = top + h * 0.45; x.fillStyle = "rgba(240,228,196,.92)"; x.fillRect(lx + 0.5, ly, w - 1, 1.5 * k); x.strokeStyle = "rgba(60,40,30,.6)"; x.lineWidth = 0.18; x.beginPath(); x.moveTo(lx + 0.8, ly + 0.55 * k); for (var q = 0; q < 4; q++) x.lineTo(lx + 1 + q * (w - 2) / 4, ly + 0.45 * k + (q % 2) * 0.25); x.moveTo(lx + 0.9, ly + 1.05 * k); x.lineTo(lx + w * 0.55, ly + 1.05 * k); x.stroke(); }
+    x.restore();
+  }
+  BS.jar = jar;
+  /* the book, wrapped in a square of waxed cloth the way Gran wrapped
+     anything she meant to keep dry and keep safe, tied with garden twine */
+  function waxedBook(x, X, Y) {
+    shadow(x, X + 7, Y + 12, 8, 2, 0.55);
+    /* the book's shape under the cloth, a little skewed on the slanted board */
+    x.save(); x.translate(X + 6.6, Y + 6); x.rotate(-0.1);
+    rr(x, -6.2, -4.6, 12.4, 9.6, 1.4, lg(x, -6, -5, 6, 5, [[0, "#f2ead0"], [0.5, "#dccf9e"], [1, "#a8996a"]]));
+    /* the waxy sheen and the creases where it was folded under */
+    x.fillStyle = "rgba(255,255,240,.35)"; x.beginPath(); x.moveTo(-5.6, -4); x.lineTo(1, -4.2); x.lineTo(-3.4, 1); x.closePath(); x.fill();
+    x.strokeStyle = "rgba(120,100,60,.45)"; x.lineWidth = 0.25;
+    [[-6, -4.4, 0, 0.2], [6, -4.4, 0.4, 0.4], [-6, 4.8, -0.2, 0.6], [6, 4.8, 0.6, 0.2]].forEach(function (cr) { x.beginPath(); x.moveTo(cr[0], cr[1]); x.quadraticCurveTo(cr[2], cr[3], 0, 0.2); x.stroke(); });
+    x.fillStyle = "rgba(90,70,40,.35)"; x.fillRect(-6, 4.2, 12.2, 0.8);                                    // the edge of the boards inside
+    /* the twine, crossed and knotted */
+    x.strokeStyle = "#9a7a4a"; x.lineWidth = 0.45;
+    x.beginPath(); x.moveTo(-6.3, 0.4); x.lineTo(6.3, -0.2); x.moveTo(0.6, -4.8); x.lineTo(0.2, 5.1); x.stroke();
+    x.strokeStyle = "#c8a870"; x.lineWidth = 0.18; x.beginPath(); x.moveTo(-6.3, 0.25); x.lineTo(6.3, -0.35); x.stroke();
+    ell(x, 0.45, 0.1, 0.9, 0.7, "#8a6a3a");
+    x.strokeStyle = "#9a7a4a"; x.lineWidth = 0.35; x.beginPath(); x.moveTo(0.5, 0.2); x.quadraticCurveTo(2, 2.2, 1.4, 3.4); x.moveTo(0.4, 0.2); x.quadraticCurveTo(-1.6, 1.6, -1.8, 3); x.stroke();
     x.restore();
   }
 
@@ -1255,16 +1317,18 @@
       return;
     }
     if (t === TL.SHELF) {
-      /* a shelf of Gran's jars: plums, peaches, blackberries dark as a bruise */
-      x.fillStyle = "#2a1c12"; x.fillRect(X, Y - 2, T, T + 2);
-      [Y + 6, Y + 13.4].forEach(function (sy2) { x.fillStyle = "#7a5636"; x.fillRect(X, sy2, T, 1.4); x.fillStyle = "#3a2616"; x.fillRect(X, sy2 + 1.4, T, 0.6); });
-      var cols = ["#5b2340", "#7a2a3a", "#d4862e", "#2a1a2e", "#8a3a5a", "#c8642a", "#3a1830", "#a0405a"];
-      for (var row2 = 0; row2 < 2; row2++) for (var i = 0; i < 3; i++) {
-        var jx = X + 1.3 + i * 5, jy = Y - 1.4 + row2 * 7.4, cc = cols[(H(tx * 3 + i, ty * 2 + row2, 101) * cols.length) | 0];
-        rr(x, jx, jy + 1.2, 4, 6.2, 1, lg(x, jx, 0, jx + 4, 0, [[0, shade(cc, 0.18)], [0.5, cc], [1, shade(cc, -0.35)]]));
-        rr(x, jx + 0.3, jy + 0.4, 3.4, 1.2, 0.4, "#c8b066"); x.fillStyle = "rgba(255,255,255,.55)"; x.fillRect(jx + 0.6, jy + 2, 0.5, 3.8);
-        x.fillStyle = "rgba(245,235,210,.85)"; x.fillRect(jx + 0.7, jy + 4, 2.6, 1.3);
-      }
+      /* a shelf of Gran's jars: plums, peaches, blackberries dark as a bruise,
+         every summer she ever carried down here, each one a little different */
+      x.fillStyle = "#1e140c"; x.fillRect(X, Y - 2, T, T + 2);
+      x.fillStyle = "rgba(60,40,24,.5)"; for (var g0 = 0; g0 < 3; g0++) x.fillRect(X + H(tx, g0, 5) * 15, Y - 2, 0.4, T + 2);
+      [Y + 6, Y + 13.4].forEach(function (sy2) {
+        x.fillStyle = lg(x, 0, sy2, 0, sy2 + 1.8, [[0, "#8a6440"], [1, "#5a3c22"]]); x.fillRect(X, sy2, T, 1.8);
+        x.fillStyle = "rgba(255,230,190,.18)"; x.fillRect(X, sy2, T, 0.3);
+        x.fillStyle = "rgba(0,0,0,.5)"; x.fillRect(X, sy2 + 1.8, T, 0.8);
+      });
+      for (var row2 = 0; row2 < 2; row2++) for (var i = 0; i < 3; i++) jar(x, X + 0.9 + i * 5.1, Y + 6 + row2 * 7.4, tx * 3 + i, ty * 2 + row2);
+      /* now and then a cobweb across a corner, and the dust of years on the board */
+      if (H(tx, ty, 140) < 0.18) cobweb(x, X + (H(tx, ty, 141) < 0.5 ? 0 : T), Y - 2, H(tx, ty, 141) < 0.5 ? 1 : -1, 1, 6);
       return;
     }
     if (t === TL.APPLES) {
@@ -1274,11 +1338,19 @@
       return;
     }
     if (t === TL.FSHELF) {
-      shadow(x, X + 8, Y + 15, 9, 2.5, 0.4);
-      x.save(); x.translate(X + 8, Y + 8); x.rotate(-0.12);
-      rr(x, -8, -5, 16, 3, 0.6, "#5e4630"); rr(x, -7, 0, 15, 3, 0.6, "#4e3a26"); rr(x, -8, 4.6, 16, 3, 0.6, "#5e4630");
+      /* the fallen shelf: its boards come down at a slant, one split, jars
+         rolled off into the corner — and on the top board, square in the
+         strongest of the glow, the book in its waxed cloth */
+      shadow(x, X + 8, Y + 15, 10, 2.6, 0.5);
+      x.save(); x.translate(X + 8, Y + 8); x.rotate(-0.16 + (ty === 12 ? 0.05 : 0));
+      [[-5.2, "#6a4e34"], [0, "#58402a"], [4.8, "#6a4e34"]].forEach(function (bd, i) {
+        x.fillStyle = lg(x, 0, bd[0] - 1.6, 0, bd[0] + 1.6, [[0, shade(bd[1], 0.15)], [1, shade(bd[1], -0.25)]]); rr(x, -8.6, bd[0] - 1.6, 17.2, 3.2, 0.5, x.fillStyle);
+        x.strokeStyle = "rgba(30,18,8,.4)"; x.lineWidth = 0.22; x.beginPath(); x.moveTo(-8, bd[0] - 0.5); x.bezierCurveTo(-3, bd[0] - 0.9, 2, bd[0], 8, bd[0] - 0.4); x.stroke();
+        if (i === 1 && ty === 12) { x.fillStyle = "#1a1008"; x.beginPath(); x.moveTo(2, bd[0] - 1.6); x.lineTo(3.2, bd[0]); x.lineTo(1.6, bd[0] + 1.6); x.lineTo(1, bd[0] + 1.6); x.lineTo(2.4, bd[0]); x.closePath(); x.fill(); }
+      });
       x.restore();
-      if (ty === 11) { rr(x, X + 3.5, Y + 3.5, 9, 6.5, 0.8, lg(x, 0, Y + 3.5, 0, Y + 10, [[0, "#e8dfc0"], [1, "#c4b890"]])); rr(x, X + 5.2, Y + 4.6, 5.6, 4.2, 0.4, "#6b4a2c"); }
+      if (ty === 11) waxedBook(x, X + 1.6, Y + 1.6);
+      if (ty === 12) { jar(x, X + 1, Y + 11.2, 77, 5, 1); jar(x, X + 9.5, Y + 13.5, 78, 6, 0, 0.9); }
       return;
     }
     if (t === TL.LOG) {

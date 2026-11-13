@@ -546,6 +546,63 @@ water on screen (about 14 ms down to 5 ms a frame at the pond, measured
 headless). Canopy chunks are laid on whole device pixels, so there's no pale
 seam where two chunks meet.
 
+## Living light (gold.js) — the cellar and Gran's book
+
+The novel says exactly what the cellar's light looks like, so the light is
+grown to match rather than drawn as lines laid on top:
+
+- **The gold (Mo)** is grown as a slime-mold network. Points are scattered
+  thinly near where it began and thickly at the rim, where it's exploring.
+  They're joined to their natural neighbors (a Gabriel graph, so it has
+  loops). Every vein is as thick as the flow it carries back to the source,
+  and any piece left unjoined is bridged to the rest. The result is a few
+  trunks feeding a fine lace: "branching and joining and branching again".
+  The lace is baked once (glow, body, bright core). Each frame then draws
+  about a dozen strokes on top: the veins grouped by distance from the
+  source, each group lit by where a wave of brightness is. The wave runs out
+  for a while, slows, stops, and pours back the other way (the shuttle
+  streaming the book describes under the lens).
+- **Foxfire** is frost fronds on the beams: wandering stems that keep to
+  the wood, side branches feathering off at a slant, a few threads let down
+  into the air. "Like frost feathering", breathing the same way.
+- **In the cellar:**
+  - The gold lies over Gran's book, which is wrapped in waxed cloth and tied
+    with twine on the fallen shelf. The last beam stops short of that corner
+    so nothing hides it.
+  - When Wren comes close, a thread of gold reaches toward them, the book's
+    "drew itself half an inch closer to my hand".
+  - The jars are real preserving jars: shouldered glass, fruit you can see
+    through it, zinc lids or muslin and gingham tied with string, Gran's
+    paper labels. In the dark, each holds a thin cold line of light down its
+    side, breathing on its own clock.
+  - Spores drift and wink in the dark, and the floor is fitted flagstones.
+- **Under the drop of water:** the same network magnified. You see into
+  translucent veins over the old wood's grain, with grains riding the current
+  faster in the wide veins. It all pauses together and pours back. The dry
+  crumb in the revive scene crossfades to living gold as it drinks. The
+  foxfire lens view is the frost, magnified.
+- **Gran's book (gbook.js + look.css):**
+  - A leather binding with gilt tooling, around tea-colored paper with
+    fibers, foxing, a gutter shadow and a deckled fore-edge. Both textures
+    are painted at load; there are no image files.
+  - The tabs are silk ribbons in her jar colors, and the close button is a
+    red wax seal.
+  - On a wide screen the book opens as a spread. The left page is a plate:
+    an oval of cellar dark with the gold alive in it, in a gilt frame with a
+    vine running round, above her first line.
+  - The gold grows into the margins as gilt ink when the book opens, and a
+    thread reaches toward your cursor or finger.
+  - Contents in her ink:
+    - illuminated drop caps on her pages;
+    - hand-inked checkboxes with gold ticks for the goals;
+    - specimen labels for field notes;
+    - brass-ringed slides for what you've seen, with pencil circles for what
+      you haven't yet;
+    - the map framed in ink.
+  - Pages turn when you change tabs. With reduced motion, it all holds
+    still.
+- **The opening book's endpapers** carry the same network.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the

@@ -861,3 +861,101 @@ body.phoneup .narr{top:auto;bottom:calc(14px + var(--safe-b))}
 .arm{display:none}
 body:not(.touch) .region{transition:top .5s cubic-bezier(.2,1,.3,1)}
 body:not(.touch).achon .region{top:calc(116px + var(--safe-t))}
+
+/* ================= Gran's book (gbook.js) =================
+   Leather binding with gilt tooling; tea-colored paper with fibers and
+   foxing; silk ribbons for markers in the colors of her jars; a wax seal to
+   close it; her ink, illuminated capitals, specimen labels and slides; the
+   gold alive in the margins (canvas .bgold). Wide screens open it into a
+   spread with a plate on the left. */
+#book{background:radial-gradient(ellipse at 50% 40%,rgba(20,14,6,.55),rgba(0,0,0,.82))}
+#book .bcard{position:relative;width:min(1080px,96vw);height:min(760px,93vh);display:grid;grid-template-columns:1fr;gap:0;padding:14px 14px 14px 16px;border-radius:12px 18px 18px 12px;
+  background:var(--leather),#26301f;background-size:192px;color:#2c2014;overflow:visible;
+  box-shadow:inset 0 0 0 1px rgba(255,220,140,.12),inset 0 0 0 6px rgba(0,0,0,.25),inset 0 0 0 7px rgba(214,170,80,.55),inset 0 0 0 9px rgba(0,0,0,.2),inset 0 0 0 10px rgba(214,170,80,.3),0 40px 90px rgba(0,0,0,.75),0 6px 18px rgba(0,0,0,.5)}
+#book.on .bcard{animation:bopen .7s cubic-bezier(.2,.9,.25,1)}
+@keyframes bopen{0%{transform:perspective(1600px) rotateX(10deg) translateY(22px) scale(.94);opacity:.4}100%{transform:none;opacity:1}}
+#book .bpage,#book .bplate{position:relative;min-height:0;border-radius:4px 8px 8px 4px;background:var(--paper),#efe2c2;background-size:384px;
+  box-shadow:inset 0 0 40px rgba(120,80,30,.22),inset 0 0 6px rgba(120,80,30,.3),0 1px 0 rgba(255,255,255,.2)}
+#book .bpage{display:flex;flex-direction:column;overflow:hidden}
+#book .bpage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;
+  background:linear-gradient(90deg,rgba(80,50,20,.38),rgba(80,50,20,.08) 3.5%,rgba(0,0,0,0) 8%),linear-gradient(0deg,rgba(255,250,235,.2),rgba(0,0,0,0) 30%)}
+/* the deckled fore-edge: a few pages' thickness showing past the leaf */
+#book .bpage::after{content:"";position:absolute;top:6px;bottom:6px;right:-5px;width:5px;border-radius:0 3px 3px 0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,#e6d6b0 0 1px,#c8b48a 1px 2px)}
+#book .bplate{display:none}
+#book .bgold{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+#book .bbody{position:relative;z-index:3;flex:1;overflow:auto;padding:1.2em clamp(1.6em,5vw,3.2em) 2.2em clamp(2em,5.4vw,3.6em);scrollbar-width:thin;scrollbar-color:rgba(120,80,30,.45) transparent}
+@media (min-width:980px){
+  #book .bcard{grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr)}
+  #book .bplate{display:block;border-radius:8px 4px 4px 8px;margin-right:2px}
+  #book .bplate::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient(270deg,rgba(80,50,20,.4),rgba(80,50,20,.08) 4%,rgba(0,0,0,0) 9%)}
+  #book .bpage{border-radius:4px 8px 8px 4px}
+}
+#book .bplatecv{position:absolute;inset:0;width:100%;height:100%}
+#book .bplatetx{position:absolute;left:12%;right:12%;bottom:7%;text-align:center}
+#book .bpch{display:block;font:600 .72rem var(--sans);letter-spacing:.24em;text-transform:uppercase;color:#7a5422;margin-bottom:.9em}
+#book .bpink{margin:0;font:italic 1.12rem/1.6 var(--serif);color:#2c2436;text-wrap:balance}
+#book .bpink::before,#book .bpink::after{content:"";display:block;width:56px;height:10px;margin:.6em auto;opacity:.75;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 10'%3E%3Cpath d='M2 5 C12 1 18 9 28 5 C38 1 44 9 54 5' fill='none' stroke='%237a5422' stroke-width='1'/%3E%3Ccircle cx='28' cy='5' r='2' fill='%23c8962e'/%3E%3C/svg%3E") center/contain no-repeat}
+/* ribbons for markers, hanging from the top edge of the page */
+#book .tabs{position:relative;z-index:4;display:flex;gap:6px;padding:0 clamp(1.2em,4vw,2.6em) 0 clamp(1.8em,5vw,3.4em);background:none;overflow-x:auto;overflow-y:visible;min-height:46px;align-items:flex-start;scrollbar-width:none}
+#book .tabs button{--rib:#7a2a3a;position:relative;flex:none;border:none;border-radius:0;margin:0;padding:.5em .75em 1.15em;font:600 .74rem var(--sans);letter-spacing:.06em;color:rgba(255,248,232,.92);text-shadow:0 1px 1px rgba(0,0,0,.35);
+  background:linear-gradient(90deg,rgba(0,0,0,.18),rgba(255,255,255,.12) 30%,rgba(0,0,0,0) 55%,rgba(0,0,0,.2)),var(--rib);
+  clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 9px),0 100%);box-shadow:none;transition:padding .25s,filter .2s;filter:saturate(.75) brightness(.92)}
+#book .tabs button:hover{filter:saturate(.95) brightness(1.02)}
+#book .tabs button.on{padding-bottom:1.9em;filter:none}
+#book .tabs button:focus-visible{outline:2px solid #f2c45a;outline-offset:-4px}
+/* the wax seal */
+#book .seal{position:absolute;top:-12px;right:-12px;z-index:6;width:44px;height:44px;border-radius:50%;border:none;padding:0;cursor:pointer;
+  background:radial-gradient(circle at 38% 32%,#d4504a,#9a2622 55%,#5a1210);box-shadow:0 3px 8px rgba(0,0,0,.55),inset 0 -3px 6px rgba(0,0,0,.35),inset 0 2px 3px rgba(255,180,160,.35)}
+#book .seal::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1.5px dashed rgba(255,200,180,.35)}
+#book .seal span{position:relative;color:rgba(255,226,214,.9);font:700 .95rem var(--sans)}
+#book .seal:focus-visible{outline:2px solid #f2c45a;outline-offset:3px}
+/* turning to another page */
+#book .bbody.turn{animation:bturn .55s cubic-bezier(.2,.8,.2,1);transform-origin:0 50%}
+@keyframes bturn{0%{opacity:0;transform:perspective(1400px) rotateY(-14deg) translateX(14px);filter:brightness(.9)}60%{opacity:1}100%{opacity:1;transform:none;filter:none}}
+/* her ink */
+#book .bpane{color:#2c2014}
+#book .bpane h3{display:flex;align-items:center;gap:.8em;font:600 .74rem var(--sans);letter-spacing:.22em;color:#7a5422;margin:1.8em 0 .7em}
+#book .bpane h3::before,#book .bpane h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(122,84,34,0),rgba(122,84,34,.55))}
+#book .bpane h3::after{background:linear-gradient(270deg,rgba(122,84,34,0),rgba(122,84,34,.55))}
+#book .bpane h3.goalh{justify-content:center}
+#book .bpane .hand{font:italic 1.14rem/1.72 var(--serif);color:#2a2238;margin:0 0 1.3em;text-shadow:0 0 .5px rgba(42,34,56,.4)}
+#book .bpane .hand.first{font-size:1.3rem}
+#book .bpane .hand.first::first-letter{float:left;font:700 3.4em/0.82 var(--serif);font-style:normal;margin:.08em .12em 0 0;padding:.06em .12em;
+  color:#f2d27a;background:radial-gradient(circle at 30% 30%,#3a4a26,#1a2412);border:1.5px solid #b8862a;border-radius:3px;text-shadow:0 1px 0 #6a4a14,0 0 6px rgba(255,200,90,.6)}
+#book .lede{font:italic 1.02rem var(--serif);color:#5a4428}
+#book .now{position:relative;font:italic 1.02rem var(--serif);background:#f8f0da;padding:.8em 1em .8em 1.4em;border-radius:2px;transform:rotate(-.5deg);
+  box-shadow:0 2px 6px rgba(80,50,20,.25),inset 3px 0 0 #c8962e}
+#book .now::before{content:"";position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f2d27a,#9a6a1a);box-shadow:0 2px 3px rgba(0,0,0,.35)}
+#book .now span{font:600 .66rem var(--sans);letter-spacing:.18em;color:#9a6a1a;margin-right:.5em}
+#book .goals li{font:1.04rem/1.55 var(--serif);color:#2c2014;padding:.3em 0}
+#book .goals li i{width:17px;height:17px;border-radius:2px 4px 3px 2px;border:1.6px solid rgba(44,30,16,.7);transform:rotate(-2deg);background:rgba(255,255,255,.25);position:relative}
+#book .goals li.done{color:#8a7658;text-decoration:none}
+#book .goals li.done i{background:none;border-color:rgba(44,30,16,.45);box-shadow:none}
+#book .goals li.done i::after{content:"";position:absolute;left:-2px;top:-6px;width:22px;height:20px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 20'%3E%3Cpath d='M3 11 C6 13 7 15 9 18 C12 11 15 6 20 2' fill='none' stroke='%23b8862a' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat}
+#book .goals li.done{text-decoration:line-through;text-decoration-color:rgba(44,30,16,.4);text-decoration-thickness:1px}
+/* field notes: specimen labels */
+#book .key{background:rgba(255,252,240,.35);border:1px solid rgba(110,76,34,.45);border-radius:2px;padding:.55em .9em;box-shadow:inset 0 0 0 3px rgba(239,226,194,.9),inset 0 0 0 4px rgba(110,76,34,.25)}
+#book .key summary canvas{width:50px;height:50px;border-radius:50%;background:#1a1610;box-shadow:0 0 0 2px #efe2c2,0 0 0 3.5px rgba(110,76,34,.7),0 2px 6px rgba(0,0,0,.3)}
+#book .key summary b{font:600 1.04rem var(--serif);letter-spacing:.01em}
+#book .key summary small{font:italic .86rem var(--serif);color:#3a6a2a;font-weight:400}
+#book .key.locked{opacity:.5}
+/* seen: microscope slides in brass rings, pencil circles for the ones still to find */
+#book .look{background:none;border:none;border-radius:6px;padding:.5em .2em}
+#book .look:hover:not(.locked){background:rgba(200,150,60,.08)}
+#book .look canvas{width:68px;height:68px;box-shadow:0 0 0 2px #2a1a0a,0 0 0 4.5px #c89a42,0 0 0 6px #6a4a1a,0 4px 10px rgba(0,0,0,.35)}
+#book .look.locked canvas{background:none;box-shadow:none;border:1.2px dashed rgba(70,56,40,.45);transform:rotate(8deg)}
+#book .look span{font:italic .84rem/1.25 var(--serif);color:#3a2c1c;margin-top:.5em}
+#book .seennote{background:#f8f0da;border-radius:2px;box-shadow:0 2px 8px rgba(80,50,20,.22),inset 0 0 0 1px rgba(110,76,34,.25)}
+#book #mapcv{box-shadow:0 0 0 1px rgba(110,76,34,.6),0 0 0 5px #efe2c2,0 0 0 6px rgba(110,76,34,.35),0 6px 16px rgba(80,50,20,.3)}
+@media (max-width:560px){
+  #book .bcard{padding:8px 8px 8px 10px;width:98vw;height:94vh}
+  #book .bpage::after{display:none}
+  #book .seal{top:auto;bottom:-8px;right:-6px;width:40px;height:40px}
+  #book .tabs button{padding:.45em .6em 1em;font-size:.7rem}
+  #book .tabs button.on{padding-bottom:1.55em}
+}
+@media (prefers-reduced-motion:reduce){#book.on .bcard,#book .bbody.turn{animation:none}}
+#book .key.locked summary canvas{background:none;box-shadow:none;border:1.2px dashed rgba(70,56,40,.45);transform:rotate(-6deg)}

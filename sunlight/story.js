@@ -249,6 +249,32 @@
     ctx.stroke();
   }
 
+  /* the living light, grown once on first need (gold.js) */
+  var LACES = null;
+  function laces() {
+    if (LACES) return LACES;
+    var lr = BS.rng(4711), fox = [];
+    cellar.beams.forEach(function (by, bi) {
+      var y0 = by * T + 4.6, y1 = by * T + 12.6, roots = [];
+      /* the seams and soft rotten places: clustered, not even */
+      var bx1 = by === 11 ? 18.6 * T : cellar.w * T - 20;          // the last beam stops short of the corner
+      for (var k = 0; k < 9; k++) { var sx = 20 + lr() * (bx1 - 20); roots.push([sx, y0 + 1 + lr() * (y1 - y0 - 2), (lr() < 0.5 ? 0 : Math.PI) + (lr() - 0.5) * 0.5]); if (lr() < 0.6) roots.push([sx + (lr() - 0.5) * 6, y0 + 1 + lr() * (y1 - y0 - 2), (lr() < 0.5 ? 0 : Math.PI) + (lr() - 0.5) * 0.7]); }
+      fox.push(BS.lace.fronds({ roots: roots, len: 30, seed: 300 + bi * 17, band: [y0, y1], w: 0.75, depth: 3, pal: BS.lace.FOX, bands: 12 }));
+      /* and a few threads let down into the air under the beam, like off a spool */
+      var drops = [];
+      for (k = 0; k < 6; k++) drops.push([24 + lr() * (bx1 - 28), y1, Math.PI / 2 + (lr() - 0.5) * 0.5]);
+      fox.push(BS.lace.fronds({ roots: drops, len: 7, seed: 400 + bi, w: 0.4, depth: 1, pal: BS.lace.FOX, bands: 8 }));
+    });
+    var src = { x: 20.45 * T, y: 11.45 * T };                      // on the book itself: over the cloth, almost holding it
+    var mo = BS.lace.network({ x: src.x, y: src.y, rx: 58, ry: 36, a0: Math.PI * 0.55, a1: Math.PI * 1.45, n: 230, min: 3.3, seed: 1957, w0: 0.22, w1: 2.1,
+      inside: function (x, y) { return x < 20.95 * T && x > 12.5 * T && y > 8.7 * T && y < 13.7 * T; } });
+    var hollow = BS.lace.network({ x: 16 * T, y: 65.8 * T, rx: 92, ry: 46, n: 300, min: 4.6, seed: 2026, w0: 0.3, w1: 2.6,
+      inside: function (x, y) { return y > 61.5 * T && y < 69.6 * T && x > 11.2 * T && x < 23.6 * T; } });
+    LACES = { fox: fox, mo: mo, hollow: hollow };
+    return LACES;
+  }
+  S.laces = laces;
+
   /* the veins don't move, only their brightness does: bake them once */
   var baked = {};
   function bake(key, w, h, list, layers) {
@@ -265,10 +291,25 @@
       var ad = G.eyes.adapt, vis = Math.max(0.08, ad) * (1 - wash);
       if (S.foxPulse) vis *= 1 + Math.max(0, 1 - (G.time() - S.foxPulse) / 3) * 1.4;
       if (vis > 0.02) {
-        drawBaked(ctx, cam, bake("fox", cellar.w * T, cellar.h * T, foxfire, [["rgba(120,220,100,.06)", 5], ["rgba(150,230,110,.16)", 1.4], ["rgba(200,255,160,.42)", 0.4]]), vis);
+        /* spores, adrift in the cold: they rise off the light and wander, and
+           wink, each on its own slow clock */
+        if (!G.prefs.reduced) {
+          for (var sp = 0; sp < 54; sp++) {
+            var gold = sp < 18, h1 = BS.hash(sp, 3, 71), h2 = BS.hash(sp, 5, 71), h3 = BS.hash(sp, 7, 71);
+            var ox = gold ? 15.5 * T + h1 * 5 * T : 1.2 * T + h1 * (cellar.w - 2.4) * T, oy = gold ? 9.6 * T + h2 * 3.6 * T : cellar.beams[sp % 3] * T + 6 + h2 * 22;
+            var mx = ox + Math.sin(t * (0.07 + h3 * 0.06) + sp) * 9 + Math.sin(t * 0.31 + sp * 2.3) * 2, my = oy - ((t * (1.2 + h3 * 1.6) + h2 * 40) % 40) + Math.cos(t * 0.2 + sp) * 3;
+            var tw = Math.pow(Math.max(0, Math.sin(t * (0.6 + h3) + sp * 1.7)), 3), al = tw * vis * (gold ? 0.7 : 0.5);
+            if (al < 0.03) continue;
+            var sx2 = mx - cam.x, sy2 = my - cam.y, gs = ctx.createRadialGradient(sx2, sy2, 0, sx2, sy2, 3.2);
+            gs.addColorStop(0, gold ? "rgba(255,236,150," + al + ")" : "rgba(200,255,170," + al + ")"); gs.addColorStop(1, "rgba(200,255,170,0)");
+            ctx.fillStyle = gs; ctx.fillRect(sx2 - 3.2, sy2 - 3.2, 6.4, 6.4);
+          }
+        }
+        /* frost on the beams, breathing out from the seams and back */
+        laces().fox.forEach(function (f, i) { BS.lace.draw(ctx, f, cam, t, vis, { offset: i * 9.7, per: 64, still: G.prefs.reduced }); });
         /* shuttle streaming: everything flows one way for a minute or so, slows,
            stops — and pours back. D is how far the flow has carried so far. */
-        if (!G.prefs.reduced) {
+        if (!G.prefs.reduced && false) {
           var per = 80, D = 14 * per / (2 * Math.PI) * (1 - Math.cos(2 * Math.PI * t / per));
           flow.forEach(function (f) {
             var tot = f.L[f.L.length - 1];
@@ -282,12 +323,23 @@
         }
         /* each jar holds a thin cold line of light down its side */
         for (var y = 0; y < cellar.h; y++) for (var x = 0; x < cellar.w; x++) if (cellar.get(x, y) === TL.SHELF) {
-          for (var j = 0; j < 4; j++) { ctx.fillStyle = "rgba(170,240,140," + (0.35 * vis * (0.6 + 0.4 * Math.sin(t * 0.6 + x + j))) + ")"; ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 3 - cam.y, 1, 4); ctx.fillRect(x * T + 2 + j * 4 - cam.x, y * T + 10 - cam.y, 1, 4); }
+          /* down the curved shoulder of every jar, slow, as if each were breathing on its own */
+          for (var j = 0; j < 3; j++) for (var rw = 0; rw < 2; rw++) {
+            var jb = 0.6 + 0.4 * Math.sin(t * (0.45 + ((x * 7 + j * 3 + rw) % 5) * 0.06) + x * 1.3 + j * 2.1 + rw);
+            ctx.fillStyle = "rgba(170,240,140," + (0.4 * vis * jb) + ")"; ctx.fillRect(x * T + 1.5 + j * 5.1 - cam.x, y * T + 1.5 + rw * 7.4 - cam.y, 0.55, 3.8);
+          }
         }
       }
       if (!F("pumped")) {
         var mv = (G.workLights ? 0.05 : Math.max(0.25, ad) * (1 - wash * 0.85)) * (0.75 + 0.25 * Math.sin(t * 0.7));
-        drawBaked(ctx, cam, bake("mo", cellar.w * T, cellar.h * T, moCellar, [["rgba(255,180,60,.1)", 5], ["rgba(255,190,60,.35)", 1.6], ["rgba(255,240,170,.8)", 0.5]]), mv);
+        /* the gold: over the waxed cloth and the old wood and the dark between them */
+        BS.lace.draw(ctx, laces().mo, cam, t, Math.min(1, mv * 1.25), { per: 80, still: G.prefs.reduced });
+        /* and when you come close, it draws itself a little nearer your hand */
+        if (!G.prefs.reduced && !G.workLights) {
+          var hx = G.p.x + [0, 0, 6, -6][G.p.dir || 0], hy = G.p.y - 10, near = Math.hypot(hx - 19.4 * T, hy - 11.4 * T);
+          S.moReach = (S.moReach || 0) + ((near < 60 ? Math.min(1, (60 - near) / 30) : 0) - (S.moReach || 0)) * 0.03;
+          BS.lace.reach(ctx, laces().mo, cam, hx, hy, S.moReach * Math.min(1, mv * 1.5), t, 22);
+        }
       }
     }
     if (G.mapId === "hill") {
@@ -304,9 +356,10 @@
         var q = 0.7 + 0.3 * Math.sin(t * 0.6), grow = S.reviveT ? Math.min(1, (G.time() - S.reviveT) / 7) : 1;
         var shown = grow >= 1 ? moHollow : moHollow.map(function (pts) { return pts.slice(0, Math.max(2, Math.ceil(pts.length * grow))); });
         if (grow < 1) { q *= 1 + (1 - grow) * 1.5; }
-        strokePolys(ctx, cam, shown, "rgba(255,180,60," + (0.1 * q * (0.4 + night)) + ")", 5);
-        strokePolys(ctx, cam, shown, "rgba(255,190,60," + (0.35 * q * (0.4 + night)) + ")", 1.6);
-        strokePolys(ctx, cam, shown, "rgba(255,240,170," + (0.75 * q * (0.4 + night)) + ")", 0.5);
+        /* home: the gold coming back into the old wood, the same living lace */
+        var hl = laces().hollow, ha = Math.min(1, q * (0.4 + night) * 1.1);
+        if (grow < 1) BS.lace.drawGrow(ctx, hl, cam, t, ha, grow);
+        else BS.lace.draw(ctx, hl, cam, t, ha, { per: 80, still: G.prefs.reduced });
       }
       if (S.crumbOnWood && !F("revived")) { ctx.fillStyle = "rgba(170,150,80,.9)"; ctx.fillRect(Math.round(15.6 * T - cam.x), Math.round(66.2 * T - cam.y), 3, 2); }
       /* fireflies in the field at dusk, frogs' eyes at the pond — handled as motes */
