@@ -820,3 +820,37 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 .hero.still .hcover{transition:none;transform:translateZ(4px) rotateY(-179deg)}
 .hero.still .hleaf{transition:none;transform:translateZ(3px) rotateY(-177deg)}
 .hero.still .hsig{opacity:1}
+
+/* ================= the words: one box, one way =================
+   Dialogue and narration share a box, a place (the bottom), a size and a
+   pace. Narration is the book's own voice: no name, no portrait, a thread of
+   gold along the top. The type is large and high-contrast on a nearly solid
+   panel, never more than three lines a page. */
+.dlg,.narr{left:50%;right:auto;top:auto;bottom:calc(18px + var(--safe-b));width:min(760px,calc(100vw - 24px));min-height:calc(var(--tfs) * 1.56 * 3 + 2.1em);box-sizing:border-box;background:linear-gradient(180deg,rgba(24,19,13,.97),rgba(14,11,8,.97));border:1px solid rgba(255,236,200,.14);border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,240,210,.06);transform:translate(-50%,14px);transition:opacity .18s,transform .22s cubic-bezier(.2,.9,.3,1)}
+.dlg.on,.narr.on{transform:translate(-50%,0)}
+:root{--tfs:calc(var(--fs) * 1.16)}
+.dlg p,.narr p{font:400 var(--tfs)/1.56 var(--serif);color:#f6ecd6;letter-spacing:.004em;text-shadow:0 1px 0 rgba(0,0,0,.6);margin:0}
+.dlg b{font:700 .74rem/1 var(--sans);letter-spacing:.14em;margin:.15em 0 .5em}
+.narr{padding:1.05em 1.4em 1.15em;border-top:1px solid rgba(255,209,102,.4)}
+.narr::before{content:"";position:absolute;left:50%;top:-1px;width:38%;height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,#ffd166,transparent)}
+.narr p{font-style:normal;color:#f1e4c6}
+.narr p em,.dlg p em{font-style:italic;color:inherit}
+/* the words that matter */
+.hlr{color:#ff8f72}.hlg{color:#ffd166}.hlb{color:#8fd2ff}
+em.hlr,em.hlg,em.hlb{font-style:italic}
+.gh,.gh.hlr,.gh.hlg,.gh.hlb,em.gh{color:transparent!important;text-shadow:none}
+/* the arrow: a beat after the box fills */
+.dlg .more,.narr .more{right:16px;bottom:10px;font-size:.9rem;color:#ffd166;text-shadow:0 0 8px rgba(255,209,102,.6);animation:bob .9s ease-in-out infinite,morein .25s ease-out}
+@keyframes morein{from{opacity:0;transform:translateY(-4px)}}
+.narr.hasmore #nmore::after{content:"  more in the book";font:italic .72rem var(--serif);color:rgba(239,227,200,.6)}
+/* Mo: not a box; but it never has to fight the picture to be read */
+.mo::after{content:"";position:absolute;inset:-90% -14%;z-index:-2;background:radial-gradient(ellipse closest-side at center,rgba(6,5,3,.8),rgba(6,5,3,.55) 55%,transparent);pointer-events:none}
+.mo p{font-size:calc(var(--fs) * 1.5);text-shadow:0 0 16px rgba(255,190,80,.55),0 1px 2px rgba(0,0,0,.95)}
+@media (max-width:520px){
+  :root{--tfs:calc(var(--fs) * 1.08)}
+  .dlg,.narr{width:calc(100vw - 16px);bottom:calc(10px + var(--safe-b));padding:.85em 1em 1em}
+  .dlg p,.narr p{font-size:var(--tfs)}
+  .mo p{font-size:calc(var(--fs) * 1.3)}
+}
+body.phoneup .narr{top:auto;bottom:calc(14px + var(--safe-b))}
+.dlg{border-left-width:4px;min-height:calc(var(--tfs) * 1.56 * 3 + 3.4em)}

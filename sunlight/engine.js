@@ -29,7 +29,7 @@
     };
   };
   G.s = G.fresh();
-  G.prefs = { text: 55, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
+  G.prefs = { text: 42, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
 
   var SAVE = "borrowed-sunlight-game-v1", PREFS = "borrowed-sunlight-game-prefs";
   G.save = function () {
@@ -334,62 +334,138 @@
 
   /* ---------------- words: dialogue, narration, Mo, the cynic ---------------- */
   var talk = null;     // {resolve, el, full, shown, done}
+  /* ---------------- the words: one way, everywhere ----------------
+     Zelda-style. Each box types at an even pace, takes a breath at the end
+     of a sentence and a half-breath at a comma, slows for *emphasis*, and
+     lights the words that matter: days and deadlines in coral, the things
+     you carry in gold, places in sky blue (the first time each turns up on
+     a page). Hold the button to hurry it; press to fill the box; press again
+     to go on. A beat after the box fills, the arrow comes — and until then
+     a press does nothing, so a held thumb never skips the next line. */
+  var HL = [
+    ["r", /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|concrete|dewater(?:ed|ing)?|pumped dry|the pump|the keys|deadline)\b/gi],
+    ["g", /\b(Gran's book|her book|the book|jars?|lantern|scooter|dynamo|drop of water|bottle cap|moss|tardigrades?|crank|magnifier|watering can|slime mold)\b/gi],
+    ["b", /\b(the cellar|cellar|the hollow|the woods|the pond|the pit|the shed|the crest|the porch|the garden|the beech|Beck's house|the hill)\b/gi]
+  ];
+  function rich(text, hl) {
+    var out = [], em = false;
+    for (var i = 0; i < text.length; i++) { var c = text[i]; if (c === "*") { em = !em; continue; } out.push({ c: c, em: em, h: "" }); }
+    if (hl !== false) {
+      var plain = out.map(function (o) { return o.c; }).join(""), seen = {};
+      HL.forEach(function (H) {
+        H[1].lastIndex = 0; var m;
+        while ((m = H[1].exec(plain))) {
+          var key = m[0].toLowerCase().replace(/^(the|her) /, "").replace(/s$/, "");
+          if (seen[key]) continue; seen[key] = 1;
+          var free = true; for (var j = m.index; j < m.index + m[0].length; j++) if (out[j].h) free = false;
+          if (free) for (var k2 = m.index; k2 < m.index + m[0].length; k2++) out[k2].h = H[0];
+        }
+      });
+    }
+    return out;
+  }
+  function paint(tok, n) {
+    var html = "", run = "", key = null;
+    function flush() { if (!run) return; var cl = key.split("|"), c = []; if (cl[0] === "1") c.push("gh"); if (cl[1]) c.push("hl" + cl[1]); html += cl[2] === "1" ? "<em" + (c.length ? ' class="' + c.join(" ") + '"' : "") + ">" + run + "</em>" : (c.length ? '<span class="' + c.join(" ") + '">' + run + "</span>" : run); run = ""; }
+    for (var i = 0; i < tok.length; i++) {
+      var k = (i >= n ? "1" : "0") + "|" + tok[i].h + "|" + (tok[i].em ? "1" : "0");
+      if (k !== key) { flush(); key = k; }
+      run += esc(tok[i].c);
+    }
+    flush();
+    return html;
+  }
+  G.rich = function (text) { return paint(rich(text), 1e9); };
+  /* how long to hold after each letter, in letters-worth of time */
+  function beat(tok, i) {
+    var c = tok[i].c, nx = tok[i + 1] ? tok[i + 1].c : " ", end = nx === " " || nx === "\u201d" || nx === '"' || nx === ")" || i === tok.length - 1;
+    if (c === "\u2026") return 9;
+    if ((c === "." || c === "!" || c === "?") && end) return nx === "." ? 1 : 11;
+    if (c === "\u2014") return 6;
+    if ((c === ";" || c === ":") && end) return 6;
+    if (c === "," && end) return 4;
+    return tok[i].em ? 1.3 : 1;
+  }
   function typeInto(el, text, cb, voice) {
-    var i = 0, speed = G.prefs.text;
-    el.textContent = "";
-    var t = { full: text, el: el, done: false, cb: cb, timer: null };
-    if (speed >= 200 || G.prefs.reduced && speed > 120) { el.innerHTML = fmt(text); t.done = true; cb && cb(); return t; }
+    var tok = rich(text, voice !== "mo"), i = 0, cps = G.prefs.text;
+    var t = { full: text, tok: tok, el: el, done: false, cb: cb, timer: null, readyAt: 0 };
+    el.innerHTML = paint(tok, 0);
+    function done() { t.done = true; el.innerHTML = paint(tok, 1e9); t.readyAt = performance.now() + 220; cb && cb(); }
+    t.finishNow = function () { clearTimeout(t.timer); done(); t.readyAt = performance.now() + 160; };
+    if (cps >= 200 || G.prefs.reduced && cps > 120 || G.skipWaits) { done(); t.readyAt = 0; return t; }
     var tick = function () {
       i += 1;
-      el.innerHTML = fmt(text.slice(0, i)) + '<span class="gh">' + esc(text.slice(i)) + "</span>";
-      if (voice && i % 2 === 0 && /[a-z]/i.test(text[i - 1] || "")) A.sfx("voice", voice, text.charCodeAt(i - 1)); else if (!voice && i % 4 === 0) A.sfx("text");
-      if (i >= text.length) { t.done = true; el.innerHTML = fmt(text); cb && cb(); return; }
-      var ch = text[i - 1], d = 1000 / speed;
-      if (G.held("act")) d /= 4;
-      if (".!?".indexOf(ch) >= 0) d *= 6; else if (",;:—".indexOf(ch) >= 0) d *= 3;
+      el.innerHTML = paint(tok, i);
+      var ch = tok[i - 1].c;
+      if (voice && i % 2 === 0 && /[a-z]/i.test(ch)) A.sfx("voice", voice, ch.charCodeAt(0)); else if (!voice && i % 4 === 0 && ch !== " ") A.sfx("text");
+      if (i >= tok.length) { done(); return; }
+      var d = 1000 / cps * beat(tok, i - 1);
+      if (G.held("act")) d = Math.min(d, 1000 / cps) / 4;
       t.timer = setTimeout(tick, d);
     };
-    tick();
+    /* the box opens, then a breath, then the first letter */
+    t.timer = setTimeout(tick, 110);
     return t;
+  }
+  /* pages the size of the box: three lines at most, breaking at a sentence when it can */
+  function paginate(el, text, lines) {
+    lines = lines || 3;
+    var w = el.clientWidth; if (!w || text.length < 60) return [text];
+    var probe = el.cloneNode(false); probe.removeAttribute("id");
+    probe.style.cssText = "position:absolute;visibility:hidden;left:-9999px;top:0;width:" + w + "px;height:auto";
+    document.body.appendChild(probe);
+    var lh = parseFloat(getComputedStyle(probe).lineHeight) || 24, max = lh * lines + 2;
+    var words = text.split(/ +/), out = [], cur = [];
+    function fits(arr) { probe.innerHTML = paint(rich(arr.join(" ")), 1e9); return probe.offsetHeight <= max; }
+    for (var k = 0; k < words.length; k++) {
+      var tryw = cur.concat(words[k]);
+      if (!cur.length || fits(tryw)) { cur = tryw; continue; }
+      /* full: go back to the last sentence end if there's one in the back half */
+      var cut = -1;
+      for (var j = cur.length - 1; j >= Math.floor(cur.length * 0.45); j--) if (/[.!?\u2026][\u201d"*)]*$/.test(cur[j])) { cut = j; break; }
+      if (cut >= 0 && cut < cur.length - 1) { out.push(cur.slice(0, cut + 1).join(" ")); cur = cur.slice(cut + 1).concat(words[k]); }
+      else { out.push(cur.join(" ")); cur = [words[k]]; }
+    }
+    if (cur.length) out.push(cur.join(" "));
+    probe.remove();
+    /* keep *emphasis* closed on each page */
+    var open = false;
+    return out.map(function (pg) { var s2 = (open ? "*" : "") + pg, n = (pg.match(/\*/g) || []).length; if (n % 2) open = !open; return open ? s2 + "*" : s2; });
   }
   function esc(s) { return s.replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   /* *italics* in the script become <em> */
   function fmt(s) { return esc(s).replace(/\*([^*]+)\*?/g, "<em>$1</em>"); }
   G.fmt = fmt;
-  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); t.done = true; if (t.finishNow) { t.finishNow(); return; } t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
+  function finish(t) { if (t && !t.done) { clearTimeout(t.timer); if (t.finishNow) { t.finishNow(); return; } t.done = true; t.el.innerHTML = fmt(t.full); t.cb && t.cb(); } }
 
   var WHO = {
     wren: { name: "Me", cls: "wren" }, dad: { name: "Dad", cls: "dad" }, beck: { name: "Beck", cls: "beck" },
     gran: { name: "Gran", cls: "gran" }, worker: { name: "The man with the coffee", cls: "worker" },
     beckdad: { name: "Beck's dad", cls: "dad" }, phone: { name: "Phone", cls: "phone" }
   };
-  /* short pages, a sentence or two each, like a speech bubble */
-  function pages(text) {
-    if (text.length <= 120) return [text];
-    var parts = text.match(/[^.!?—]+(?:[.!?]+|—)\*?\s*/g) || [text], out = [], cur = "";
-    parts.forEach(function (p) { if ((cur + p).length > 120 && cur) { out.push(cur.trim()); cur = p; } else cur += p; });
-    if (cur.trim()) out.push(cur.trim());
-    var joined = out.join(" ").replace(/\s+/g, " ").length, orig = text.replace(/\s+/g, " ").length;
-    return Math.abs(joined - orig) < 3 ? out : [text];
-  }
   G.say = function (who, text) {
-    var ps = pages(text);
-    if (ps.length > 1) return ps.reduce(function (p, pg) { return p.then(function () { return sayOne(who, pg); }); }, Promise.resolve());
-    return sayOne(who, text);
-  };
-  function sayOne(who, text) {
     return new Promise(function (res) {
       var box = $("dlg"), w = WHO[who] || { name: who, cls: "" }; $("region").classList.remove("on");
-      box.className = "dlg on " + w.cls;
+      var was = box.classList.contains("on") && box.getAttribute("data-who") === who;
+      box.className = "dlg on " + w.cls + (was ? " cont" : ""); box.setAttribute("data-who", who);
       $("who").textContent = w.name;
       $("more").hidden = true;
-      G.portrait = who; G.talking = true; G.lineMood = BS.life ? BS.life.moodOf(text, who) : "";
+      G.portrait = who; G.lineMood = BS.life ? BS.life.moodOf(text, who) : "";
       $("pframe").hidden = !BS.portrait(who);
-      var t = typeInto($("line"), text, function () { $("more").hidden = false; G.talking = false; }, who);
-      talk = { t: t, res: function () { box.className = "dlg"; G.talking = false; res(); } };
+      var ps = paginate($("line"), text, 3), pi = 0;
       $("live").textContent = w.name + ": " + text.replace(/\*/g, "");
+      function page() {
+        G.talking = true; $("more").hidden = true;
+        $("more").textContent = pi < ps.length - 1 ? "\u25bc" : "\u25bc";
+        var t = typeInto($("line"), ps[pi], function () { $("more").hidden = false; G.talking = false; }, who);
+        talk = { t: t, res: function () {
+          if (++pi < ps.length) { A.sfx("text"); page(); return; }
+          box.className = "dlg"; G.talking = false; res();
+        } };
+      }
+      page();
     });
-  }
+  };
   /* Nintendo-short on screen; the whole passage is kept in Gran's book,
      under Story, for anyone who wants the novel's own words */
   function brief(text) {
@@ -407,12 +483,19 @@
       var shown = G.prefs.fullText ? text : brief(text), more = shown !== text;
       G.s.story = G.s.story || [];
       if (!G.s.story.some(function (q) { return q.t === text; })) G.s.story.push({ t: text, d: G.s.day });
-      n.classList.toggle("hasmore", more);
       if (more) BS.ui && BS.ui.bookPing && BS.ui.bookPing();
-      text = shown;
-      var t = typeInto($("ntext"), text, function () { $("nmore").hidden = false; });
-      talk = { t: t, res: function () { n.classList.remove("on"); res(); } };
-      $("live").textContent = text.replace(/\*/g, "");
+      var ps = paginate($("ntext"), shown, 3), pi = 0;
+      $("live").textContent = shown.replace(/\*/g, "");
+      function page() {
+        $("nmore").hidden = true;
+        n.classList.toggle("hasmore", more && pi === ps.length - 1);
+        var t = typeInto($("ntext"), ps[pi], function () { $("nmore").hidden = false; });
+        talk = { t: t, res: function () {
+          if (++pi < ps.length) { A.sfx("text"); page(); return; }
+          n.classList.remove("on"); res();
+        } };
+      }
+      page();
     });
   };
   /* Mo: no box, no name. Gold, italic, from no direction at all. */
@@ -421,13 +504,18 @@
       var m = $("mo"); m.classList.add("on");
       A.sfx("mo"); G.moOn = G.time ? G.time() : 0;
       /* word by word, each one surfacing out of the dark like the gold did */
-      var words = text.split(/(\s+)/), el = $("motext"), html = "", k = 0, step = G.prefs.reduced ? 0 : Math.max(0.06, 7 / Math.max(20, G.prefs.text));
-      words.forEach(function (w) { if (/^\s+$/.test(w)) { html += w; return; } html += '<span class="mw" style="animation-delay:' + (k * step).toFixed(2) + 's">' + esc(w) + "</span>"; k++; });
+      var words = text.split(/(\s+)/), el = $("motext"), html = "", k = 0, step = G.prefs.reduced ? 0 : Math.max(0.06, 7 / Math.max(20, G.prefs.text)), at = 0.25, starts = [];
+      /* the same breaths as everyone else's words: a long one at a full stop, a short one at a comma */
+      words.forEach(function (w) {
+        if (/^\s+$/.test(w)) { html += w; return; }
+        html += '<span class="mw" style="animation-delay:' + at.toFixed(2) + 's">' + esc(w.replace(/\*/g, "")) + "</span>"; starts.push(at); k++;
+        at += step * (/[.!?\u2026]["\u201d*]*$/.test(w) ? 3.4 : /[,;:\u2014]["\u201d*]*$/.test(w) ? 1.8 : 1);
+      });
       el.innerHTML = html;
-      var total = k * step + 0.9, chimeT = [];
-      for (var q = 0; q < k; q += 3) chimeT.push(setTimeout(function () { A.sfx("moword"); }, q * step * 1000));
-      var t = { full: text, el: el, done: false, timer: setTimeout(function () { t.done = true; }, total * 1000) };
-      t.finishNow = function () { el.querySelectorAll(".mw").forEach(function (s) { s.style.animationDelay = "0s"; s.style.animationDuration = ".25s"; }); chimeT.forEach(clearTimeout); };
+      var total = at + 0.9, chimeT = [];
+      for (var q = 0; q < k; q += 3) chimeT.push(setTimeout(function () { A.sfx("moword"); }, starts[q] * 1000));
+      var t = { full: text, el: el, done: false, readyAt: 0, timer: setTimeout(function () { t.done = true; t.readyAt = performance.now() + 220; }, total * 1000) };
+      t.finishNow = function () { t.done = true; t.readyAt = performance.now() + 300; el.querySelectorAll(".mw").forEach(function (s) { s.style.animationDelay = "0s"; s.style.animationDuration = ".25s"; }); chimeT.forEach(clearTimeout); };
       talk = { t: t, res: function () { m.classList.remove("on"); G.moOn = null; chimeT.forEach(clearTimeout); res(); } };
       $("live").textContent = text;
     });
@@ -462,6 +550,7 @@
   function advance() {
     if (!talk) return false;
     if (!talk.t.done) { finish(talk.t); return true; }
+    if (talk.t.readyAt && performance.now() < talk.t.readyAt) return true;     // a beat before it will go on
     var r = talk.res; talk = null; A.sfx("ui"); r(); return true;
   }
   G.advance = advance;

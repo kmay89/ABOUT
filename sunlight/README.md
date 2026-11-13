@@ -429,6 +429,30 @@ on-screen part is drawn each frame:
 note rises, the exhaust puffs come faster, and the car shakes a little
 harder.
 
+## The words (engine.js)
+
+Every line is shown one way. Dialogue and narration share one box at the
+bottom of the screen: nearly solid, large high-contrast serif, a fixed
+height of three lines. Narration is the book's voice, with no name and a
+thread of gold along the top. Long lines are measured into pages that fit
+the box, broken at the end of a sentence where possible, and turned in place
+without the box closing.
+
+- **Pace:** letters come at an even rate (Options → Text speed; default 42 a
+  second). There is a breath at the end of a sentence and a half-breath at a
+  comma, a held beat at a dash or "…", and *emphasis* goes a little slower.
+  The box opens a moment before the first letter.
+- **Highlights:** the words that matter are lit, the first time each appears
+  on a page. Days and deadlines (the pump, the concrete, the keys) are coral,
+  the things you carry (the lantern, the jar, the book, the moss) are gold,
+  and places (the cellar, the hollow, the woods) are sky blue.
+- **Controls:** hold to hurry; press to fill the box; press again to go on.
+  The ▼ arrives a beat after the box fills, and a press before then does
+  nothing, so a held thumb never skips the next line.
+- **Mo** is still not a box: word by word, gold, centered, with the same
+  breaths at full stops and commas, now on a soft dark pool so it never has
+  to fight the picture to be read.
+
 ## Direction (stage.js)
 
 Where the camera stands while the story is told.
