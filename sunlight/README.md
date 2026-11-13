@@ -458,6 +458,60 @@ The first room, baked into the floor chunks, so drawing it costs nothing per fra
   pot of basil on the kitchen sill), and a green stair runner held by brass
   rods under a white-spindled banister.
 
+## Every place, finished (art.js, slope.js, cellar.js, engine.js)
+
+The rest of the world brought up to the house:
+
+- **The pit:** the piles are painted once each as lit cones at the angle of
+  repose. The peak is lifted north for the three-quarter view, slip streaks
+  run down the fall line, the shady side is filled by the sky (never black),
+  and each pile casts a shadow. Sand, gravel and a coarser warm fill each
+  get their own peak, and on the gravel the big stones have rolled to the
+  toe. The floor has the loader's tire tracks crossed over and over, damp
+  low corners, survey stakes with orange tape, and set-aside boulders. The
+  blue distance-air and morning mist are kept out of the pit, so it glares
+  yellow-gray the way the book has it.
+- **The woods:** the roof is individual crowns over a dark understory, not
+  one lump per tile. Oak and beech grow in patches, with a dark spruce here
+  and there and a pale birch at the bright edges. Each crown casts a shadow
+  by its height and has a feathered rim of single leaves. Crowns beside an
+  open path stay small, so nothing hides you on it. Where the canopy does
+  hang over you, it thins to a soft window around you. The Great Gray Beech
+  stands in its own clearing: a smooth elephant-gray trunk with bark
+  creases, branch "eyes", lichen, moss and knuckled roots, a round apron of
+  its own leaves, and a vast pale crown lifted clear of the trunk. Sunbeams
+  lean with the sun and fade at their edges, so they read as light, not
+  water.
+- **Water:** the pond and the spring are painted from their own smooth field
+  at full resolution, never the coarse color grid. The shore is
+  anti-aliased, the far bank's earth face shows above the surface, the rim
+  is shallow and clear, and the middle is deep. The effects mask is sampled
+  at one world unit, so the edge never stair-steps. The pond lost its
+  rectangle (soft corners, an east bay, a north lobe). The spring is a
+  narrow, meandering thread (its field comes from the tiles themselves; a
+  sign bug in the wet grid used to mark every other tile as spring).
+- **The shed:** silvered floorboards with staggered joints, grass clippings,
+  sawdust, forty summers of mower oil, and blades of sun through the gaps in
+  the west wall. The wall tops are continuous, with cobwebs in the corners.
+  Each tool hangs on its nail in front of the outline Gran painted for it
+  (saw, bungees, hammer and pliers, shears, the coil of wire, trowel and
+  fork, the hoe), and one outline has nothing in it. There's a scarred
+  bench with the can of bent nails and the radio with no knobs, a vise and a
+  jar of screws, a reel mower, and the wheelbarrow with its flat. The
+  scooter is a painted prop under a fall of cobweb thick as felt. Gran's
+  lantern — chalky yellow, glass eye, crank folded flat — sits on the bench
+  until you take it.
+- **The cellar:** old stones laid across the whole floor with no tile seams,
+  damper and darker toward the corner where the water stands, with moss in
+  the joints by the walls. The lantern's shadows are a held lamp's: each
+  corner's shadow is as long as that corner is far from the flame, softening
+  as it goes. Standing at a shelf's end no longer blacks out half the room.
+- **The screen keeps out of its own way:** arm strength is a ring beside
+  Wren that drains as you crank, with a little turning crank in it, gold
+  going to ember when nearly gone. The area title steps down when a Moment
+  is showing. The gold arrow to the goal stays under the top bar and clear
+  of the goal card.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the

@@ -380,6 +380,8 @@
     emptyHouse(from("evening") ? 2 : from("pit") ? 1 : 0);
     /* the scooter: in the shed until it is built */
     if (!has("scooter")) G.put({ id: "scootent", map: "shed", x: 9.5 * T, y: 4.6 * T, draw: drawScooter, solid: true, w: 10, h: 10 });
+    /* Gran's lantern, on the bench between the can of nails and the radio */
+    G.put({ id: "lampent", map: "shed", x: 8.72 * T, y: 1.62 * T, draw: drawLantern, solid: false, w: 1, h: 1 });
     /* the pit, alive on Wednesday morning */
     if (is("pit") && !F("sawBoard")) {
       G.put({ id: "dog", map: "hill", x: 76.5 * T, y: 33.6 * T, draw: function (c, e, cam) { G.img(BS.dog, e.x - 8, e.y - 10); c.fillStyle = "rgba(255,255,255,.7)"; c.font = "6px monospace"; if (Math.sin(G.time() * 2) > 0) c.fillText("z", e.x + 6 - cam.x, e.y - 12 - cam.y); }, solid: true, w: 12, h: 6 });
@@ -429,10 +431,15 @@
     if (!F("jamKept")) { c.fillStyle = "#7a1a2a"; c.fillRect(x - 4, y - 14, 4, 6); c.fillStyle = "#c33a4a"; c.fillRect(x - 3, y - 13, 1, 4); c.fillStyle = "#b8a050"; c.fillRect(x - 4, y - 15, 4, 1); }
     c.fillStyle = "#5b2340"; c.fillRect(x + 1, y - 13, 4, 5); c.fillStyle = "#b8a050"; c.fillRect(x + 1, y - 14, 4, 1);
   }
-  function drawScooter(c, e, cam) {
-    var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);
-    c.fillStyle = "#1c1c1c"; c.fillRect(x - 2, y - 14, 4, 14); c.fillStyle = "#c33"; c.fillRect(x - 1, y - 13, 2, 12); c.fillStyle = "#888"; c.fillRect(x - 5, y - 15, 10, 1);
-    c.fillStyle = "rgba(235,235,225,.55)"; c.fillRect(x - 5, y - 16, 10, 3); c.fillRect(x - 3, y - 6, 6, 2);    // a fall of cobweb gone thick as felt
+  var scootArt = null, lampArt = null;
+  function drawScooter(c, e) {
+    scootArt = scootArt || BS.paintScooter(true);                  // under a fall of cobweb gone thick as felt
+    G.img(scootArt, e.x - 13, e.y - scootArt.base);
+  }
+  function drawLantern(c, e) {
+    if (has("lantern")) return;
+    lampArt = lampArt || BS.paintLantern();
+    G.img(lampArt, e.x - 6, e.y - lampArt.base);
   }
   function drawChair(c, e, cam) {
     var x = Math.round(e.x - cam.x), y = Math.round(e.y - cam.y);

@@ -83,8 +83,10 @@
       var lit = (nx * L[0] + ny * L[1] + L[2]) / nn - flat;      // + toward the sun, - away
       var r = 0, g = 0, b = 0, a = 0;
       function over(cr, cg, cb, ca) { if (ca <= 0) return; ca = Math.min(1, ca); var na = ca + a * (1 - ca); r = (cr * ca + r * a * (1 - ca)) / na; g = (cg * ca + g * a * (1 - ca)) / na; b = (cb * ca + b * a * (1 - ca)) / na; a = na; }
-      var low = Math.max(0, 1 - hv);
-      over(48, 70, 104, Math.pow(low, 1.4) * 0.3);
+      var low = Math.max(0, 1 - hv), pit = box(x, y, 59, 35, 82, 49, 1.2);
+      /* the pit is no blue distance: it glares, yellow-gray, under the sun */
+      over(48, 70, 104, Math.pow(low, 1.4) * 0.3 * (1 - pit));
+      over(255, 236, 190, pit * 0.07);
       if (lit > 0) over(255, 232, 186, Math.min(0.26, lit * 1.2));
       else over(28, 36, 66, Math.min(0.32, -lit * 1.3));
       over(255, 240, 200, sm(0.7, 1, hv) * 0.12);
@@ -147,7 +149,7 @@
       var i = (py * mw + px) * 4;
       sd.data[i] = r; sd.data[i + 1] = g; sd.data[i + 2] = b; sd.data[i + 3] = a * 255;
       /* mist lies in the low ground */
-      var mv = sm(0.5, 0.08, hv) * 0.75;
+      var mv = sm(0.5, 0.08, hv) * 0.75 * (1 - pit * 0.85);
       md.data[i] = 232; md.data[i + 1] = 236; md.data[i + 2] = 232; md.data[i + 3] = mv * mv * 255;
     }
     sx.putImageData(sd, 0, 0); mx.putImageData(md, 0, 0);

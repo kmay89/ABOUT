@@ -53,21 +53,29 @@
     if (!on() || G.workLights) return;
     var lamp = lights.filter(function (l) { return l[4] === "warm" && l[3] > 0.3; });
     if (!lamp.length) return;
-    var L = lamp[0], px = L[0], py = L[1], reach = L[2] * 1.2;
-    lx.save(); lx.globalCompositeOperation = "source-over"; lx.fillStyle = "rgba(4,8,6," + Math.min(0.78, L[3] * 0.8) + ")";
+    var L = lamp[0], px = L[0], py = L[1], reach = L[2] * 1.2, dark = Math.min(0.78, L[3] * 0.8);
+    lx.save(); lx.globalCompositeOperation = "source-over";
     occluders().forEach(function (o) {
       var cx = (o.x0 + o.x1) / 2, cy = (o.y0 + o.y1) / 2;
       if (Math.hypot(cx - px, cy - py) > reach + 40) return;
       if (px > o.x0 && px < o.x1 && py > o.y0 && py < o.y1) return;
       var c = [[o.x0, o.y0], [o.x1, o.y0], [o.x1, o.y1], [o.x0, o.y1]];
-      /* the silhouette edges: project each corner far from the flame, fill the hull */
-      var far = c.map(function (p) { var dx = p[0] - px, dy = p[1] - py, l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * 400, p[1] + dy / l * 400]; });
+      /* the silhouette edges: project each corner away from the flame and
+         fill the hull. A shelf is waist-high to the flame, not a wall to the
+         ceiling: each corner's shadow is as long as that corner is far from
+         the flame (a held lantern over a shelf), and it softens as it goes */
+      var dd0 = Math.hypot(cx - px, cy - py), len = Math.max(26, Math.min(120, 16 + dd0 * 0.9));
+      var far = c.map(function (p) { var dx = p[0] - px, dy = p[1] - py, l = Math.hypot(dx, dy) || 1, k = Math.max(3, Math.min(len, l * 0.9)); return [p[0] + dx / l * k, p[1] + dy / l * k]; });
       var pts = c.concat(far), hull = convex(pts);
+      var ux = cx - px, uy = cy - py, ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;
+      var sx0 = cx - cam.x, sy0 = cy - cam.y, gsh = lx.createLinearGradient(sx0, sy0, sx0 + ux * (len + 10), sy0 + uy * (len + 10));
+      gsh.addColorStop(0, "rgba(4,8,6," + dark + ")"); gsh.addColorStop(0.55, "rgba(4,8,6," + (dark * 0.75) + ")"); gsh.addColorStop(1, "rgba(4,8,6,0)");
+      lx.fillStyle = gsh;
       lx.beginPath(); hull.forEach(function (p, i) { if (i) lx.lineTo(p[0] - cam.x, p[1] - cam.y); else lx.moveTo(p[0] - cam.x, p[1] - cam.y); }); lx.closePath(); lx.fill();
       /* the thing itself stays lit on the side that faces the flame */
       var dd = Math.hypot(cx - px, cy - py), k = Math.max(0, 1 - dd / reach) * L[3];
       lx.globalCompositeOperation = "destination-out"; lx.fillStyle = "rgba(0,0,0," + (0.9 * k) + ")"; lx.fillRect(o.x0 - cam.x, o.y0 - 2 - cam.y, o.x1 - o.x0, o.y1 - o.y0 + 2);
-      lx.globalCompositeOperation = "source-over"; lx.fillStyle = "rgba(4,8,6," + Math.min(0.78, L[3] * 0.8) + ")";
+      lx.globalCompositeOperation = "source-over";
     });
     lx.restore();
   };

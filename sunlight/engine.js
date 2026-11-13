@@ -942,14 +942,14 @@
     if (G.mapId === "hill") {
       /* (the last number: how much of the picture is real height — a roof seen from above is mostly depth, not height) */
       [[props.house, h.house.x * T, (h.house.y + h.house.h) * T, 0.32], [props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T, 0.38], [props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T, 0.34], [props.trailer, h.trailer.x * T, (h.trailer.y + h.trailer.h) * T, 0.5],
-        [props.beech, h.beech.x * T - 6, (h.beech.y + 2) * T + 6, 0.9], [props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8, 0.4], [props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2, 0.6], [props.compost, 48 * T - 2, 21 * T + 4, 0.6]].forEach(function (o) { if (visible(o[1], o[2], 260)) occPlace(o[0], o[1], o[2], o[3]); });
+        [props.beech, h.beech.x * T - 12, (h.beech.y + 2) * T + 6, 0.9], [props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8, 0.4], [props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2, 0.6], [props.compost, 48 * T - 2, 21 * T + 4, 0.6]].forEach(function (o) { if (visible(o[1], o[2], 260)) occPlace(o[0], o[1], o[2], o[3]); });
       [[65, 37], [69, 36], [70, 41], [68, 45]].forEach(function (pp) { if (visible(pp[0] * T, pp[1] * T, 120)) occPlace(props.pipes, pp[0] * T - 2, (pp[1] + 1) * T + 2); });
       list.push({ y: (h.house.y + h.house.h) * T, d: function () { place(props.house, h.house.x * T, (h.house.y + h.house.h) * T); } });
       list.push({ y: (h.shed.y + h.shed.h) * T, d: function () { place(props.shed, h.shed.x * T, (h.shed.y + h.shed.h) * T); } });
       list.push({ y: (h.beck.y + h.beck.h) * T, d: function () { place(props.beck, h.beck.x * T, (h.beck.y + h.beck.h) * T); } });
       list.push({ y: (h.trailer.y + h.trailer.h) * T, d: function () { place(props.trailer, h.trailer.x * T, (h.trailer.y + h.trailer.h) * T); } });
       [[65, 37], [69, 36], [70, 41], [68, 45]].forEach(function (pp) { list.push({ y: (pp[1] + 1) * T, d: function () { place(props.pipes, pp[0] * T - 2, (pp[1] + 1) * T + 2); } }); });
-      list.push({ y: (h.beech.y + 2) * T, d: function () { place(props.beech, h.beech.x * T - 6, (h.beech.y + 2) * T + 6); } });
+      list.push({ y: (h.beech.y + 2) * T, d: function () { place(props.beech, h.beech.x * T - 12, (h.beech.y + 2) * T + 6); } });
       list.push({ y: (h.giant.y + 2) * T, d: function () { place(props.giant, h.giant.x * T - 2, (h.giant.y + 2) * T + 8); for (var i = 0; i < 12; i++) img(props.seed[i % 6], h.giant.x * T + 20 + i * 12 + Math.sin(time * 1.3 + i) * 0.3, h.giant.y * T - 8 + (i % 2)); } });
       list.push({ y: (h.rock.y + 1) * T, d: function () { place(props.rock, h.rock.x * T - 3, (h.rock.y + 1) * T + 2); } });
       list.push({ y: 21 * T, d: function () { place(props.compost, 48 * T - 2, 21 * T + 4); } });
@@ -1259,13 +1259,18 @@
     }
     if (day && G.p.y / T > 50 && G.mapId === "hill") {
       /* light down through the canopy gaps */
+      /* each shaft leans with the sun, is soft at both edges, and thins out
+         as it falls, so it reads as light in the air and never as a stream */
       ctx.save(); ctx.globalCompositeOperation = "lighter";
       for (var r = 0; r < 6; r++) {
-        var bx = ((r * 173 + 40) % 520) - (cam.x % 520), by = 0, a = 0.05 + 0.03 * Math.sin(time * 0.5 + r * 2);
-        if (bx < -80 || bx > VW + 40) continue;
-        var g4 = ctx.createLinearGradient(bx, by, bx + 60, by + VH);
-        g4.addColorStop(0, "rgba(255,240,170," + a + ")"); g4.addColorStop(1, "rgba(255,240,170,0)");
-        ctx.fillStyle = g4; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + 14, by); ctx.lineTo(bx + 84, by + VH); ctx.lineTo(bx + 50, by + VH); ctx.closePath(); ctx.fill();
+        var bx = ((r * 173 + 40) % 520) - (cam.x % 520), a = 0.045 + 0.025 * Math.sin(time * 0.5 + r * 2), w = 16 + (r % 3) * 7;
+        if (bx < -VH * 0.6 - 40 || bx > VW + 40) continue;
+        ctx.save(); ctx.translate(bx, 0); ctx.transform(1, 0, 0.55, 1, 0, 0);
+        var g4 = ctx.createLinearGradient(0, 0, w, 0);
+        g4.addColorStop(0, "rgba(255,236,170,0)"); g4.addColorStop(0.5, "rgba(255,236,170,1)"); g4.addColorStop(1, "rgba(255,236,170,0)");
+        ctx.fillStyle = g4;
+        for (var sgi = 0; sgi < 6; sgi++) { ctx.globalAlpha = a * (1 - sgi / 6); ctx.fillRect(0, VH * sgi / 6, w, VH / 6 + 0.5); }
+        ctx.restore();
       }
       ctx.restore();
     }
@@ -1323,7 +1328,7 @@
   }
   /* the water's true edge: the painted shoreline wanders, so every effect on
      the water is drawn into a layer and cut to that shape, never to tiles */
-  var WM = 2, wmask = null, wshore = null, wlay = null, wlx = null;
+  var WM = 1, wmask = null, wshore = null, wlay = null, wlx = null;
   function waterMask() {
     if (wmask) return wmask;
     var h = G.maps.hill, W = h.w * T / WM, Hh = h.h * T / WM;
@@ -1338,10 +1343,10 @@
       for (var j = 0; j < T / WM; j++) for (var i = 0; i < T / WM; i++) {
         var px = tx * T / WM + i, py = ty * T / WM + j, k = (py * W + px) * 4, v = BS.wetAt(h, px * WM + WM / 2, py * WM + WM / 2, true);
         /* soft, anti-aliased edge straight from the field */
-        d[k + 3] = 255 * ss(0.47, 0.53, v);
+        d[k + 3] = 255 * ss(0.46, 0.54, v);
         /* the shore: a pale lapping line just inside, damp dark earth just outside */
         var lap = ss(0.5, 0.53, v) * (1 - ss(0.55, 0.6, v)), damp = ss(0.34, 0.45, v) * (1 - ss(0.49, 0.52, v));
-        if (lap > damp) { s2[k] = 240; s2[k + 1] = 250; s2[k + 2] = 255; s2[k + 3] = 140 * lap; }
+        if (lap > damp) { s2[k] = 236; s2[k + 1] = 246; s2[k + 2] = 250; s2[k + 3] = 84 * lap; }
         else { s2[k] = 38; s2[k + 1] = 28; s2[k + 2] = 16; s2[k + 3] = 120 * damp; }
       }
     }
@@ -1469,15 +1474,77 @@
       if (!BS.hasChunk(m, cx, cy)) { BS.chunk(m, cx, cy); done = true; }
     }
   }
-  function drawCanopy() {
+  /* the roof of the woods. Where it hangs over you, it thins to a soft
+     window round you, the way the leaves would part if you looked up, so
+     you are never lost under it */
+  var canL = null, canX = null, hole = 0;
+  function overhead() {
+    var m = G.map, px = G.p.x / T, py = G.p.y / T;
+    if (py < 51 || G.hidePlayer) return false;
+    for (var dy = -1.4; dy <= 0.6; dy += 0.5) for (var dx = -1; dx <= 1; dx += 0.5) {
+      var t = m.get(Math.floor(px + dx), Math.floor(py + dy));
+      if (t === TL.WOOD || (t === TL.DEER && m.hidden.deer) || (t === TL.ROOT && m.hidden.root)) return true;
+    }
+    return false;
+  }
+  function drawCanopy(dt) {
     if (G.mapId !== "hill") return;
     var S = BS.CH * T, m = G.map;
+    hole += ((overhead() ? 1 : 0) - hole) * Math.min(1, (dt || 0.016) * 5);
+    var to = ctx;
+    if (hole > 0.02) {
+      if (!canL || canL.width !== cvs.width || canL.height !== cvs.height) { canL = BS.cv(cvs.width, cvs.height); canX = canL.getContext("2d"); }
+      canX.setTransform(1, 0, 0, 1, 0, 0); canX.globalCompositeOperation = "source-over"; canX.clearRect(0, 0, canL.width, canL.height);
+      canX.setTransform(K, 0, 0, K, 0, 0); canX.imageSmoothingEnabled = true; to = canX;
+    }
     var cx0 = Math.floor((cam.x - 24) / S), cy0 = Math.floor((cam.y - 24) / S), cx1 = Math.floor((cam.x + VW + 24) / S), cy1 = Math.floor((cam.y + VH + 24) / S);
     for (var cy = Math.max(cy0, 6); cy <= cy1; cy++) for (var cx = Math.max(0, cx0); cx <= cx1; cx++) {
       if (cx * BS.CH >= m.w || cy * BS.CH >= m.h) continue;
       var c = BS.canopyChunk(m, cx, cy);
-      ctx.drawImage(c, cx * S - c.pad - cam.x, cy * S - c.pad - cam.y, c.w, c.h);
+      to.drawImage(c, cx * S - c.pad - cam.x, cy * S - c.pad - cam.y, c.w, c.h);
     }
+    if (to === ctx) return;
+    var sx = G.p.x - cam.x, sy = G.p.y - 10 - cam.y, r = 30;
+    var g = canX.createRadialGradient(sx, sy, 4, sx, sy, r);
+    g.addColorStop(0, "rgba(0,0,0," + (0.82 * hole) + ")"); g.addColorStop(0.55, "rgba(0,0,0," + (0.55 * hole) + ")"); g.addColorStop(1, "rgba(0,0,0,0)");
+    canX.globalCompositeOperation = "destination-out"; canX.fillStyle = g; canX.fillRect(sx - r, sy - r, r * 2, r * 2);
+    canX.globalCompositeOperation = "source-over";
+    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(canL, 0, 0); ctx.setTransform(t0);
+  }
+  /* your arm, as a ring beside you while you crank: it drains as you turn
+     the handle and fills back as you rest, gold going to ember when it's
+     nearly gone — right where you are looking, not up in a corner */
+  var armA = 0, armT = 0;
+  function armRing() {
+    var L = G.lamp, dt = Math.min(0.1, Math.max(0, time - (armT || time))); armT = time;
+    var want = G.s.items.lantern && !G.cut && G.mode === "walk" && !G.hidePlayer && (L.rate > 0.02 || L.arm < 0.985) ? 1 : 0;
+    armA += (want - armA) * Math.min(1, dt * (want ? 8 : 3));
+    if (armA < 0.02) return;
+    var x = G.p.x - cam.x + 12, y = G.p.y - cam.y - 28, r = 4.6, v = Math.max(0, Math.min(1, L.arm));
+    var low = v < 0.3, flash = v < 0.15 ? 0.55 + 0.45 * Math.sin(time * 14) : 1;
+    ctx.save(); ctx.globalAlpha = armA;
+    ctx.fillStyle = "rgba(10,8,6,.55)"; ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, 6.2832); ctx.fill();
+    ctx.lineWidth = 1.7; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,.14)"; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.stroke();
+    ctx.globalAlpha = armA * flash;
+    ctx.strokeStyle = low ? "#f08a5a" : v < 0.6 ? "#ffc35a" : "#ffd98a";
+    ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + v * 6.2832); ctx.stroke();
+    /* the crank itself, turning while you turn it */
+    var a = L.rate > 0.02 ? time * 9 : 0.6;
+    ctx.globalAlpha = armA * 0.9; ctx.strokeStyle = "#f6e6c0"; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 2.4, y + Math.sin(a) * 2.4); ctx.stroke();
+    ctx.fillStyle = "#f6e6c0"; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 2.4, y + Math.sin(a) * 2.4, 0.75, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+  var hudC = { t: -1 };
+  function hudSafe() {
+    if (time - hudC.t < 0.5 && hudC.sc === SC) return hudC;
+    hudC.t = time; hudC.sc = SC;
+    var bar = document.getElementById("hud"), card = document.getElementById("goalcard");
+    var bb = bar ? bar.getBoundingClientRect() : { bottom: 50 }, cb = card && card.offsetParent ? card.getBoundingClientRect() : null;
+    hudC.top = Math.max(22, (bb.bottom + 12) / SC);
+    hudC.cardR = cb && cb.width ? (cb.right + 12) / SC : 0; hudC.cardB = cb && cb.width ? (cb.bottom + 12) / SC : 0;
+    return hudC;
   }
   /* a twinkle where something can be done, and a gold pointer to the goal */
   function hints() {
@@ -1500,7 +1567,10 @@
       ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(-1.6, -1.5); ctx.lineTo(0, -1); ctx.closePath(); ctx.fill();
     } else {
       var a = Math.atan2(sy - VH / 2, sx - VW / 2), px = VW / 2 + Math.cos(a) * VW, py = VH / 2 + Math.sin(a) * VW;
-      px = Math.max(12, Math.min(VW - 12, px)); py = Math.max(22, Math.min(VH - 14, py));
+      /* keep to the open screen: under the top bar, and clear of the goal card */
+      var hs = hudSafe();
+      px = Math.max(12, Math.min(VW - 12, px)); py = Math.max(hs.top, Math.min(VH - 14, py));
+      if (px < hs.cardR && py < hs.cardB) { if (hs.cardB - py < hs.cardR - px) py = hs.cardB; else px = hs.cardR; }
       ctx.translate(px, py); ctx.rotate(a);
       ctx.fillStyle = "rgba(255,209,102," + (0.75 + 0.25 * Math.sin(time * 4)) + ")"; ctx.strokeStyle = "rgba(60,30,0,.6)"; ctx.lineWidth = 0.6;
       ctx.beginPath(); ctx.moveTo(6 + b * 0.5, 0); ctx.lineTo(-3, -4.5); ctx.lineTo(-1, 0); ctx.lineTo(-3, 4.5); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -1562,6 +1632,7 @@
     tiltShift(dark);
     ctx.setTransform(K, 0, 0, K, 0, 0);
     hints();
+    armRing();
     if (BS.juice) BS.juice.screen(ctx, VW, VH, time, cam);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }

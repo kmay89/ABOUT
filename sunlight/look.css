@@ -854,3 +854,10 @@ em.hlr,em.hlg,em.hlb{font-style:italic}
 }
 body.phoneup .narr{top:auto;bottom:calc(14px + var(--safe-b))}
 .dlg{border-left-width:4px;min-height:calc(var(--tfs) * 1.56 * 3 + 3.4em)}
+
+/* ---- the screen keeps out of its own way ----
+   The arm is a ring beside Wren now (engine.js armRing), not a bar in the
+   corner; and the area title steps down when a Moment is being shown. */
+.arm{display:none}
+body:not(.touch) .region{transition:top .5s cubic-bezier(.2,1,.3,1)}
+body:not(.touch).achon .region{top:calc(116px + var(--safe-t))}

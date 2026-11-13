@@ -222,6 +222,11 @@
     m.rect(50, 58, 13, 10, TL.LITTER);
     m.rect(53, 60, 8, 6, TL.WATER);
     m.rect(52, 59, 10, 1, TL.MUD); m.rect(52, 66, 10, 1, TL.MUD);
+    /* no rectangle: the corners give way to mud, a bay opens east, and a
+       lobe reaches north toward where Beck's track comes down */
+    m.set(53, 60, TL.MUD); m.set(53, 65, TL.MUD); m.set(60, 65, TL.MUD); m.set(59, 65, TL.MUD);
+    m.set(61, 62, TL.WATER); m.set(61, 63, TL.WATER);
+    m.set(56, 59, TL.WATER); m.set(57, 59, TL.WATER);
     m.set(52, 62, TL.ROCK); m.rock = { x: 52, y: 62 };
     m.set(51, 64, TL.FLAT); m.flat = { x: 51, y: 64 };
     m.pond = { x: 50, y: 58, w: 13, h: 10 };

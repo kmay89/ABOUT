@@ -137,7 +137,7 @@
       bl[y * W + x] = s2 / n; if (!typ[y * W + x]) typ[y * W + x] = -ty2;
       for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) if (occ[Math.min(Hh - 1, Math.max(0, y + dy)) * W + Math.min(W - 1, Math.max(0, x + dx))]) near[y * W + x] = 1;
     }
-    m._wet = { bl: bl, typ: typ, near: near, W: W, H: Hh };
+    m._wet = { bl: bl, typ: typ, near: near, occ: occ, W: W, H: Hh };
     return m._wet;
   }
   function wetAt(m, wx, wy, raw) {
@@ -148,8 +148,16 @@
     ax = ax * ax * (3 - 2 * ax); ay = ay * ay * (3 - 2 * ay);
     var v = b(x0, y0) * (1 - ax) * (1 - ay) + b(x0 + 1, y0) * ax * (1 - ay) + b(x0, y0 + 1) * (1 - ax) * ay + b(x0 + 1, y0 + 1) * ax * ay;
     v += (vn(wx, wy, 19, 51) - 0.5) * 0.22 + (vn(wx, wy, 5, 53) - 0.5) * 0.06;
+    var isSpring = Math.abs(g.typ[ty * g.W + tx]) === 2;
+    /* a spring is one tile wide, too thin for the blurred field: it gets its
+       own, straight from the tiles, so it runs as a narrow thread of water */
+    if (isSpring) {
+      var sp = function (x, y) { x = Math.min(g.W - 1, Math.max(0, x)); y = Math.min(g.H - 1, Math.max(0, y)); var q = y * g.W + x; return g.occ[q] && g.typ[q] === 2 ? 1 : 0; };
+      var o2 = sp(x0, y0) * (1 - ax) * (1 - ay) + sp(x0 + 1, y0) * ax * (1 - ay) + sp(x0, y0 + 1) * (1 - ax) * ay + sp(x0 + 1, y0 + 1) * ax * ay;
+      v = o2 * 0.92 - 0.1 + (vn(wx, wy, 7, 57) - 0.5) * 0.2 + (vn(wx * 0.4, wy, 11, 59) - 0.5) * 0.34;
+    }
     if (raw) return v;
-    var ty3 = Math.abs(g.typ[ty * g.W + tx]) === 2 ? "spring" : "water";
+    var ty3 = isSpring ? "spring" : "water";
     return v > 0.5 ? ty3 : v > 0.36 ? "mud" : "";
   }
   BS.wetAt = wetAt;
@@ -157,11 +165,198 @@
     if (m.outdoor) { var w = wetAt(m, wx, wy); if (w) return w; }
     var dx = (vn(wx, wy, 23, 31) - 0.5) * 15 + (vn(wx, wy, 6, 41) - 0.5) * 4, dy = (vn(wx, wy, 23, 37) - 0.5) * 15 + (vn(wx, wy, 6, 43) - 0.5) * 4;
     var mt = matOf(m, Math.floor((wx + dx) / T), Math.floor((wy + dy) / T));
+    /* a round apron of fallen beech leaves under the great beech, not a square */
+    if (m.beech && (mt === "litter" || mt === "forest")) { var bd = Math.hypot(wx + dx * 0.4 - (m.beech.x + 1) * T, (wy + dy * 0.4 - (m.beech.y + 1.4) * T) * 1.25); mt = bd < 30 ? "litter" : mt === "litter" && m.get(Math.floor(wx / T), Math.floor(wy / T)) === TL.BEECH ? "forest" : mt; }
     if (m.outdoor && (mt === "water" || mt === "spring") && wetGrid(m)) { var tx = Math.floor(wx / T), ty = Math.floor(wy / T), g = m._wet; if (tx >= 0 && ty >= 0 && tx < g.W && ty < g.H && g.near[ty * g.W + tx]) return "mud"; }
     return mt;
   }
   BS.matAt = matAt;
 
+  /* ---------------- the pit ----------------
+     "Mountains of it, sand and gravel sorted into separate peaks, smooth and
+     pale and perfect, with the morning light coming sideways down their
+     flanks so you could see every grain." A cone at the angle of repose,
+     its peak lifted north for the three-quarter view; lit from the upper
+     left like everything else; slip streaks running straight down the fall
+     line; and on the gravel the big stones have rolled to the bottom, the
+     way they really do. */
+  var PILEKIND = [
+    { lit: [252, 243, 214], mid: [228, 206, 154], dk: [168, 142, 104], deep: [122, 112, 112], grain: 0.05 },      // sand
+    { lit: [232, 229, 220], mid: [182, 175, 162], dk: [124, 120, 114], deep: [88, 90, 100], grain: 0.1, stones: 1 }, // gravel
+    { lit: [246, 226, 184], mid: [214, 178, 122], dk: [160, 120, 82], deep: [112, 94, 92], grain: 0.07 },        // coarse, warmer
+    { lit: [252, 243, 214], mid: [226, 204, 150], dk: [166, 140, 102], deep: [120, 110, 110], grain: 0.05 }         // the working pile
+  ];
+  var pileCache = {};
+  /* noise around a circle with no seam where the angle wraps */
+  function circ(th, k, y, seed) { var w = (Math.PI - th) / 6.2832; return vn(th * k + 300, y, 1, seed) * (1 - w) + vn((th + 6.2832) * k + 300, y, 1, seed) * w; }
+  function pileArt(p, i) {
+    var key = p.join(",");
+    if (pileCache[key]) return pileCache[key];
+    var K = PILEKIND[i % PILEKIND.length], small = p[2] < 3;
+    var rx = p[2] * T * 0.64, ry = p[3] * T * 0.6, pad = 14, W = rx * 2 + pad * 2, Hh = ry * 2 + pad * 2;
+    var c = wc(W, Hh, ART), x = c.x, cx0 = pad + rx, cy0 = pad + ry, pk = -ry * (small ? 0.3 : 0.4);
+    c.X = (p[0] + p[2] / 2) * T - cx0; c.Y = (p[1] + p[3] / 2) * T - cy0;
+    /* its shadow on the floor, thrown down and to the right */
+    shadow(x, cx0 + rx * 0.22, cy0 + ry * 0.2, rx * 1.12, ry * 1.02, 0.34);
+    shadow(x, cx0, cy0 + ry * 0.05, rx * 1.04, ry * 0.98, 0.22);
+    var Rz = ART, PW = Math.round(W * Rz), PH = Math.round(Hh * Rz), img = x.createImageData(PW, PH), d = img.data;
+    var Lx = -0.56, Ly = -0.46, Lz = 0.69, sa = Math.sin(0.6), ca = Math.cos(0.6), seed = 50 + i * 7;
+    var tmp = cv(PW, PH), tx = tmp.getContext("2d");
+    for (var j = 0; j < PH; j++) for (var q = 0; q < PW; q++) {
+      var dx = q / Rz - cx0, dy = j / Rz - cy0, dyp = dy - pk;
+      var a = (dx / rx) * (dx / rx) + (dyp / ry) * (dyp / ry), b = 2 * pk * dyp / (ry * ry), cc = (pk / ry) * (pk / ry) - 1;
+      var s2 = a > 1e-9 ? (-b + Math.sqrt(Math.max(0, b * b - 4 * a * cc))) / (2 * a) : 1e9, t = s2 > 0 ? 1 / s2 : 0;
+      var th = Math.atan2(dyp, dx);
+      t /= 1 + 0.07 * (circ(th, 1.4, i * 3, seed) - 0.5) * 2 + 0.03 * Math.sin(th * 5 + i);   // a footprint that is not quite an ellipse
+      var al = Math.max(0, Math.min(1, (1.03 - t) / 0.05));
+      if (al <= 0) continue;
+      /* the fall line here, and how this patch of flank faces the sun */
+      var fx = dx / rx, fy = dyp / ry, fl = Math.hypot(fx, fy) || 1; fx /= fl; fy /= fl;
+      var top = Math.min(1, t / 0.12); top = top * top * (3 - 2 * top);
+      var nx = fx * sa * top, ny = fy * sa * top, nz = ca * top + (1 - top), nn = Math.hypot(nx, ny, nz);
+      var lam = (nx * Lx + ny * Ly + nz * Lz) / nn;                        // 0.3 .. 1
+      var u = 0.2 + 0.8 * Math.max(0, Math.min(1, (lam - 0.16) / 0.8));     // the sky fills the shady side; it is never black
+      /* slip streaks: fine in the around direction, long down the fall line */
+      var st = circ(th, 11, t * 2.2, seed + 3) - 0.5, st2 = circ(th, 3.5, t * 0.9, seed + 5) - 0.5;
+      u += st * 0.09 * (0.3 + t) + st2 * 0.06;
+      /* a fresh slump on the shady side: a scar of darker, damper sand */
+      var scar = Math.max(0, 1 - Math.abs(th - 0.9) / 0.16) * Math.max(0, Math.min(1, (t - 0.35) / 0.2)) * (small ? 0 : 1);
+      u -= scar * 0.12;
+      var g0 = (BS.hash(q, j, seed) - 0.5) * K.grain * 2;
+      u = Math.max(0, Math.min(1.08, u));
+      var C0, C1, k2;
+      if (u < 0.33) { C0 = K.deep; C1 = K.dk; k2 = u / 0.33; } else if (u < 0.72) { C0 = K.dk; C1 = K.mid; k2 = (u - 0.33) / 0.39; } else { C0 = K.mid; C1 = K.lit; k2 = Math.min(1, (u - 0.72) / 0.32); }
+      /* the foot sits in its own shade, where it meets the floor */
+      var foot = Math.max(0, (t - 0.86) / 0.17) * 0.16;
+      var o = (j * PW + q) * 4;
+      for (var ch = 0; ch < 3; ch++) d[o + ch] = Math.max(0, Math.min(255, (C0[ch] + (C1[ch] - C0[ch]) * k2) * (1 + g0 - foot)));
+      d[o + 3] = Math.round(al * 255);
+    }
+    tx.putImageData(img, 0, 0);
+    x.drawImage(tmp, 0, 0, W, Hh);
+    var rs = R(seed * 13);
+    /* the toe: a slumped apron, and what rolled to the bottom */
+    for (var k = 0; k < (K.stones ? 140 : 46); k++) {
+      var th2 = rs() * 6.2832, tt = K.stones ? 0.45 + Math.pow(rs(), 0.5) * 0.62 : 0.86 + rs() * 0.24;
+      var ex = Math.cos(th2) * rx, ey = Math.sin(th2) * ry, px2 = cx0 + ex * tt, py2 = cy0 + pk * (1 - tt) + ey * tt;
+      var big = K.stones ? (0.35 + tt * 1.1) * (0.6 + rs() * 0.8) : 0.25 + rs() * 0.4;
+      var tone = K.stones ? [ [150, 146, 138], [120, 112, 104], [176, 168, 152], [138, 122, 104] ][k % 4] : [168, 148, 112];
+      ell(x, px2 + big * 0.3, py2 + big * 0.35, big, big * 0.75, "rgba(40,30,20,.32)");
+      ell(x, px2, py2, big, big * 0.75, "rgb(" + tone.join(",") + ")");
+      ell(x, px2 - big * 0.3, py2 - big * 0.3, big * 0.45, big * 0.32, "rgba(255,250,236,.55)");
+    }
+    /* a few tiny runnels of grains still trickling, and the bright lip of the peak */
+    ell(x, cx0 - 1.2, cy0 + pk - 0.4, 2.4, 1.3, "rgba(255,252,240,.5)");
+    c.w = W; c.h = Hh;
+    pileCache[key] = c;
+    return c;
+  }
+  BS.pileArt = pileArt;
+  /* the floor of the pit: tracks the loader has laid a thousand times, damp
+     patches where it is lowest, survey stakes with their orange tape */
+  var PIT_TRACKS = [
+    [[59.5, 47.6], [64, 47.4], [69, 47.7], [73.5, 47], [76.6, 44.6], [77, 37]],
+    [[63, 48.6], [64.4, 46.4], [64.2, 44.3]],
+    [[71.5, 48.6], [70.6, 46.3], [66.2, 40.4], [64.6, 40.2]],
+    [[74.5, 36.5], [72, 38.2], [68, 38.6], [64.6, 38.2]]
+  ];
+  function pitFloor(x, m) {
+    var P = m.pit;
+    x.save();
+    x.beginPath(); x.rect((P.x + 1) * T, (P.y + 1) * T, (P.w - 2) * T, (P.h - 2) * T); x.clip();
+    /* damp, darker ground in the low south-west corner */
+    x.fillStyle = rg(x, 60.5 * T, 48 * T, 4, 70, [[0, "rgba(120,100,70,.22)"], [1, "rgba(120,100,70,0)"]]); x.fillRect(P.x * T, 40 * T, 14 * T, 10 * T);
+    x.fillStyle = rg(x, 79 * T, 47.6 * T, 2, 34, [[0, "rgba(110,96,70,.2)"], [1, "rgba(110,96,70,0)"]]); x.fillRect(74 * T, 44 * T, 8 * T, 6 * T);
+    /* tracks: two tires, a tread printed across each */
+    PIT_TRACKS.forEach(function (path, pi) {
+      var pts = [];
+      for (var i = 0; i < path.length - 1; i++) {
+        var p0 = path[Math.max(0, i - 1)], p1 = path[i], p2 = path[i + 1], p3 = path[Math.min(path.length - 1, i + 2)];
+        for (var u = 0; u < 1; u += 0.04) {
+          var u2 = u * u, u3 = u2 * u;
+          pts.push([0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * u + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * u2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * u3) * T,
+                    0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * u + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3) * T]);
+        }
+      }
+      pts.push([path[path.length - 1][0] * T, path[path.length - 1][1] * T]);
+      [-7, 7].forEach(function (side) {
+        var off = [], acc = 0;
+        for (var i = 0; i < pts.length; i++) {
+          var a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], vx = b[0] - a[0], vy = b[1] - a[1], l = Math.hypot(vx, vy) || 1;
+          off.push([pts[i][0] - vy / l * side, pts[i][1] + vx / l * side, vx / l, vy / l]);
+        }
+        function trace(dx, dy) { x.beginPath(); off.forEach(function (o, i) { if (i) x.lineTo(o[0] + dx, o[1] + dy); else x.moveTo(o[0] + dx, o[1] + dy); }); x.stroke(); }
+        /* the rut, a shade darker, and a lit lip pushed up on its far side */
+        x.lineCap = "round"; x.lineJoin = "round";
+        x.strokeStyle = "rgba(110,92,62," + (0.17 - pi * 0.025) + ")"; x.lineWidth = 4.2; trace(0, 0);
+        x.strokeStyle = "rgba(255,246,222,.18)"; x.lineWidth = 0.8; trace(0.9, 2.2);
+        x.strokeStyle = "rgba(90,72,48,.12)"; x.lineWidth = 0.8; trace(-0.6, -1.9);
+        /* chevrons of tread, every couple of units */
+        x.strokeStyle = "rgba(90,74,50," + (0.2 - pi * 0.03) + ")"; x.lineWidth = 0.7;
+        for (i = 1; i < off.length; i++) {
+          var o0 = off[i - 1], o1 = off[i], l2 = Math.hypot(o1[0] - o0[0], o1[1] - o0[1]);
+          for (acc += l2; acc > 2.6; acc -= 2.6) {
+            var f = 1 - acc / l2, cxp = o0[0] + (o1[0] - o0[0]) * f, cyp = o0[1] + (o1[1] - o0[1]) * f, tx = o1[2], ty = o1[3];
+            x.beginPath(); x.moveTo(cxp - ty * 1.8 - tx * 0.9, cyp + tx * 1.8 - ty * 0.9); x.lineTo(cxp, cyp); x.lineTo(cxp + ty * 1.8 - tx * 0.9, cyp - tx * 1.8 - ty * 0.9); x.stroke();
+          }
+        }
+      });
+    });
+    /* survey stakes, each with a twist of orange flagging tape */
+    [[71.2, 35.6], [79.6, 36.2], [80.4, 46.4], [58.9, 39.5]].forEach(function (s, i) {
+      var sx = s[0] * T, sy = s[1] * T;
+      shadow(x, sx + 2, sy + 1, 2.4, 0.9, 0.35);
+      x.fillStyle = "#c8a878"; x.fillRect(sx - 0.5, sy - 7, 1, 7);
+      x.fillStyle = "#f26a2a"; x.beginPath(); x.moveTo(sx + 0.4, sy - 6.6); x.quadraticCurveTo(sx + 3.5, sy - 6.2 + (i % 2), sx + 4.6, sy - 4.2); x.lineTo(sx + 3.2, sy - 4.6); x.quadraticCurveTo(sx + 2.4, sy - 5.6, sx + 0.4, sy - 5.4); x.fill();
+    });
+    /* boulders the loader set aside, half sunk */
+    [[74.6, 48.2, 3.4], [79.2, 41.6, 2.6], [59.6, 35.6, 2.2], [72.4, 35.4, 1.8]].forEach(function (b) {
+      var bx = b[0] * T, by = b[1] * T, r = b[2];
+      shadow(x, bx + r * 0.5, by + r * 0.5, r * 1.5, r * 0.7, 0.4);
+      ell(x, bx, by, r * 1.2, r, rg(x, bx - r * 0.5, by - r * 0.5, 0.3, r * 1.6, [[0, "#e8e2d4"], [0.5, "#aaa292"], [1, "#6a6458"]]));
+    });
+    x.restore();
+  }
+
+  function wetNear(m, cx, cy) {
+    var g = wetGrid(m);
+    for (var ty = cy * CH - 1; ty < cy * CH + CH + 1; ty++) for (var tx = cx * CH - 1; tx < cx * CH + CH + 1; tx++)
+      if (tx >= 0 && ty >= 0 && tx < g.W && ty < g.H && g.near[ty * g.W + tx]) return true;
+    return false;
+  }
+  function paintWater(x, m, ox, oy, S) {
+    var Rz = ART, N = S * Rz, tmp = cv(N, N), tx = tmp.getContext("2d"), id = tx.createImageData(N, N), d = id.data, any = false;
+    var step = 1 / Rz;
+    for (var j = 0; j < N; j++) for (var i = 0; i < N; i++) {
+      var wx = ox + (i + 0.5) * step, wy = oy + (j + 0.5) * step, v = wetAt(m, wx, wy, true);
+      if (v < 0.42) continue;
+      var k = (j * N + i) * 4, g = m._wet, ttx = Math.floor(wx / T), tty = Math.floor(wy / T);
+      var spring = Math.abs(g.typ[Math.max(0, Math.min(g.H - 1, tty)) * g.W + Math.max(0, Math.min(g.W - 1, ttx))]) === 2;
+      var a = Math.max(0, Math.min(1, (v - 0.485) / 0.03));            // the waterline, anti-aliased
+      var r, gg, b, al;
+      if (a <= 0) {
+        /* the wet margin: dark, shining mud where the water has just been */
+        var wm = Math.max(0, Math.min(1, (v - 0.42) / 0.065));
+        r = 62; gg = 50; b = 34; al = wm * 0.42;
+      } else {
+        var deep = Math.max(0, Math.min(1, (v - 0.5) / (spring ? 0.2 : 0.42)));
+        /* is the bank just to the north? then you see its earth face */
+        var up = wetAt(m, wx, wy - 3.2, true), face = up < 0.49 ? Math.max(0, Math.min(1, (0.49 - up) / 0.05)) : 0;
+        var sky = 0.5 + 0.5 * vn(wx * 0.6, wy * 2.4, 9, 77);              // soft streaks of sky lying on it
+        if (spring) { r = 96 - deep * 40; gg = 140 - deep * 40; b = 128 - deep * 20; }
+        else { r = 104 - deep * 70 + sky * 10; gg = 140 - deep * 70 + sky * 12; b = 132 - deep * 36 + sky * 14; }
+        /* the shallow rim, clear over the mud */
+        var sh = 1 - Math.min(1, (v - 0.5) / 0.08);
+        if (sh > 0) { r += (128 - r) * sh * 0.55; gg += (116 - gg) * sh * 0.55; b += (84 - b) * sh * 0.55; }
+        if (face > 0) { r += (70 - r) * face; gg += (52 - gg) * face; b += (34 - b) * face; }
+        al = a;
+      }
+      d[k] = r; d[k + 1] = gg; d[k + 2] = b; d[k + 3] = Math.round(al * 255); any = true;
+    }
+    if (!any) return;
+    tx.putImageData(id, 0, 0);
+    x.save(); x.imageSmoothingEnabled = true; x.drawImage(tmp, ox, oy, S, S); x.restore();
+  }
   function paintOutdoorChunk(m, cx, cy) {
     var S = CH * T, ox = cx * S, oy = cy * S;
     var c = wc(S, S, ART), x = c.x;
@@ -169,7 +364,7 @@
     /* 1. the color field, two world units a sample, warped edges */
     var N = S / 2, small = cv(N, N), sx = small.getContext("2d"), id = sx.createImageData(N, N), d = id.data;
     for (var j = 0; j < N; j++) for (var i = 0; i < N; i++) {
-      var wx = ox + i * 2 + 1, wy = oy + j * 2 + 1, M = MATRGB[matAt(m, wx, wy)];
+      var wx = ox + i * 2 + 1, wy = oy + j * 2 + 1, mt0 = matAt(m, wx, wy), M = MATRGB[mt0 === "water" || mt0 === "spring" ? "mud" : mt0];   // water is painted on its own, smooth, below
       var n = fbm(wx, wy, 40, 5), n2 = vn(wx, wy, 7, 9), A = M[0], B = M[1], C = M[2];
       var t = n * 1.25 - 0.1, k = (j * N + i) * 4, f = 0.94 + n2 * 0.12, q;
       if (t > 0.5) { q = Math.min(1, (t - 0.5) * 2); d[k] = (A[0] + (B[0] - A[0]) * q) * f; d[k + 1] = (A[1] + (B[1] - A[1]) * q) * f; d[k + 2] = (A[2] + (B[2] - A[2]) * q) * f; }
@@ -186,6 +381,10 @@
     sx.putImageData(id, 0, 0);
     x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
     x.drawImage(small, ox, oy, S, S);
+    /* 1b. water, by its own smooth field: an anti-aliased shore, the far
+       bank's earth face showing above the surface, shallows going clear
+       over the mud, the middle deep and holding the sky */
+    if (m.outdoor && wetNear(m, cx, cy)) paintWater(x, m, ox, oy, S);
     /* 2. strokes: blades, petals, pebbles, leaves */
     var rnd = R(cx * 7919 + cy * 104729 + 1);
     for (var q2 = 0; q2 < 1700; q2++) {
@@ -195,16 +394,15 @@
     /* 3. the things on the ground that stand up a little */
     var x0 = cx * CH, y0 = cy * CH;
     for (var ty = y0 - 1; ty < y0 + CH + 1; ty++) for (var tx = x0 - 1; tx < x0 + CH + 1; tx++) groundProp(x, m, tx, ty);
-    /* sand piles, as mounds */
-    (m.piles || []).forEach(function (p) {
-      var pcx = (p[0] + p[2] / 2) * T, pcy = (p[1] + p[3] / 2) * T, prx = p[2] * T * 0.62, pry = p[3] * T * 0.6;
-      if (pcx + prx < ox - 10 || pcx - prx > ox + S + 10 || pcy + pry < oy - 20 || pcy - pry > oy + S + 10) return;
-      shadow(x, pcx + 6, pcy + 6, prx * 1.05, pry * 0.95, 0.3);
-      x.fillStyle = rg(x, pcx - prx * 0.35, pcy - pry * 0.45, 2, Math.max(prx, pry) * 1.15, [[0, "#fbf2d8"], [0.45, "#e6d5a6"], [1, "#b9a676"]]);
-      x.beginPath(); x.ellipse(pcx, pcy, prx, pry, 0, 0, 6.2832); x.fill();
-      x.strokeStyle = "rgba(140,115,70,.18)"; x.lineWidth = 0.6;
-      for (var k2 = 1; k2 < 5; k2++) { x.beginPath(); x.ellipse(pcx, pcy, prx * k2 / 5, pry * k2 / 5, 0, 0, 6.2832); x.stroke(); }
+    /* sand and gravel, sorted into separate peaks: each one painted once as
+       a lit cone and laid into the ground wherever a chunk touches it */
+    (m.piles || []).forEach(function (p, i) {
+      var pc = pileArt(p, i);
+      if (pc.X + pc.w < ox || pc.X > ox + S || pc.Y + pc.h < oy || pc.Y > oy + S) return;
+      x.drawImage(pc, pc.X, pc.Y, pc.w, pc.h);
     });
+    /* the loader's tracks, pressed into the floor and crossed over and over */
+    if (m.pit && ox < (m.pit.x + m.pit.w) * T && ox + S > m.pit.x * T && oy < (m.pit.y + m.pit.h) * T && oy + S > m.pit.y * T) pitFloor(x, m);
     /* lone-tree shadows (the canopy itself is up in the air) */
     for (ty = y0 - 2; ty < y0 + CH + 2; ty++) for (tx = x0 - 2; tx < x0 + CH + 2; tx++) if (m.get(tx, ty) === TL.TREE) shadow(x, tx * T + 8, ty * T + 15, 10, 4, 0.32);
     return c;
@@ -618,12 +816,282 @@
     if (kitchen) { /* a pot of basil on the sill */ rr(x, X + 10, Y + T - 6, 3.4, 3, 0.4, "#c0623a"); for (var b = 0; b < 6; b++) ell(x, X + 10.6 + (b % 3) * 1.1, Y + T - 7 - (b >> 1) * 0.8, 0.9, 0.6, b % 2 ? "#4a8a2a" : "#6aaa3a"); }
   }
   /* interiors: wood, tile, stone — tidier, but lit the same way */
+  /* ---------------- the shed ----------------
+     "A hot dry brown smell — cut grass and engine oil and sun-baked dust."
+     Old planks gone silver, the sun coming through the gaps in the boards
+     in thin bright blades across the floor; every tool on its nail in
+     front of the outline Gran painted for it, so you'd know what was
+     missing; the bench, the mower, the barrow with the flat. */
+  function shedFloor(x, m, tx, ty) {
+    var X = tx * T, Y = ty * T, rs = R(tx * 71 + ty * 13);
+    /* planks running front to back, each its own gray-brown, butted at staggered joints */
+    for (var p = 0; p < 3; p++) {
+      var px = X + p * 5.33, col = ((tx * 3 + p) * 7) % 5, base = mix("#5e4a34", "#7a6246", (col / 4) * 0.7 + H(tx * 3 + p, 0, 5) * 0.3);
+      x.fillStyle = lg(x, px, 0, px + 5.33, 0, [[0, shade(base, 0.08)], [0.5, base], [1, shade(base, -0.12)]]); x.fillRect(px, Y, 5.33, T);
+      for (var g = 0; g < 3; g++) { x.strokeStyle = "rgba(60,40,22," + (0.12 + rs() * 0.12) + ")"; x.lineWidth = 0.25; x.beginPath(); var gx = px + 0.8 + rs() * 3.8; x.moveTo(gx, Y); x.bezierCurveTo(gx + (rs() - 0.5) * 1.2, Y + 5, gx + (rs() - 0.5) * 1.2, Y + 11, gx + (rs() - 0.5) * 0.8, Y + T); x.stroke(); }
+      x.fillStyle = "rgba(30,20,10,.55)"; x.fillRect(px + 5.0, Y, 0.33, T);
+      var jy = ((tx * 3 + p) * 5 + ty * 3) % 7;
+      if (jy < 2) { x.fillStyle = "rgba(30,20,10,.5)"; x.fillRect(px, Y + 4 + jy * 5, 5, 0.35); x.fillStyle = "#3a3026"; ell(x, px + 1, Y + 5 + jy * 5, 0.3, 0.3); x.fill(); ell(x, px + 4, Y + 5 + jy * 5, 0.3, 0.3); x.fill(); }
+      if (rs() < 0.18) { var kx = px + 1.5 + rs() * 2.3, ky = Y + 2 + rs() * 12; ell(x, kx, ky, 0.9, 1.3, "rgba(70,46,24,.5)"); x.strokeStyle = "rgba(70,46,24,.3)"; x.lineWidth = 0.2; ell(x, kx, ky, 1.5, 2.1); x.stroke(); }
+    }
+    /* what a shed floor gathers: grass clippings, sawdust, a bent nail */
+    for (var k = 0; k < 14; k++) { var cx = X + rs() * 16, cy = Y + rs() * 16; if (rs() < 0.55) { x.strokeStyle = rs() < 0.6 ? "rgba(140,150,70,.55)" : "rgba(170,160,90,.5)"; x.lineWidth = 0.35; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + (rs() - 0.5) * 2.4, cy + (rs() - 0.5) * 1.2); x.stroke(); } else ell(x, cx, cy, 0.35 + rs() * 0.4, 0.25, "rgba(230,200,150,.45)"); }
+    if (H(tx, ty, 404) < 0.08) { x.strokeStyle = "#8a8c8e"; x.lineWidth = 0.35; x.beginPath(); x.moveTo(X + 6, Y + 9); x.lineTo(X + 8.4, Y + 9.6); x.lineTo(X + 9, Y + 8.4); x.stroke(); }
+    /* the oil the mower has wept onto the boards for forty summers */
+    if (tx === 1 && ty === 3 || tx === 2 && ty === 3) { x.fillStyle = rg(x, 2 * T + 2, 4 * T - 2, 1, 9, [[0, "rgba(20,16,12,.55)"], [0.7, "rgba(30,24,18,.3)"], [1, "rgba(30,24,18,0)"]]); x.fillRect(X, Y, T, T); }
+    /* a ring where a paint can stood */
+    if (tx === 6 && ty === 6) { x.strokeStyle = "rgba(220,214,190,.35)"; x.lineWidth = 0.8; ell(x, X + 7, Y + 8, 3.6, 3); x.stroke(); }
+    /* the walls' shadow, lying along the floor at their foot */
+    var wl = m.get(tx - 1, ty) === TL.BWALL, wr = m.get(tx + 1, ty) === TL.BWALL, wu = m.get(tx, ty - 1) === TL.BWALL || m.get(tx, ty - 1) === TL.TOOLS || m.get(tx, ty - 1) === TL.BENCH;
+    if (wl) { x.fillStyle = lg(x, X, 0, X + 6, 0, [[0, "rgba(20,12,6,.45)"], [1, "rgba(20,12,6,0)"]]); x.fillRect(X, Y, 6, T); }
+    if (wr) { x.fillStyle = lg(x, X + T, 0, X + T - 3, 0, [[0, "rgba(20,12,6,.35)"], [1, "rgba(20,12,6,0)"]]); x.fillRect(X + T - 3, Y, 3, T); }
+    if (wu) { x.fillStyle = lg(x, 0, Y, 0, Y + 5, [[0, "rgba(20,12,6,.4)"], [1, "rgba(20,12,6,0)"]]); x.fillRect(X, Y, T, 5); }
+  }
+  /* sun through the gaps in the west boards: long thin bright blades laid
+     across the floor, a little dust caught in each */
+  function shedSun(x, m) {
+    x.save(); x.globalCompositeOperation = "lighter";
+    x.beginPath(); x.rect(T, 2 * T, (m.w - 2) * T, (m.h - 3) * T); x.clip();
+    [[2.4, 3.2], [4.3, 2], [5.9, 4], [7.4, 1.6]].forEach(function (b, i) {
+      var y0 = b[0] * T, w = b[1], x1 = (m.w - 1) * T;
+      var g = x.createLinearGradient(T, 0, x1, 0);
+      g.addColorStop(0, "rgba(255,206,130,.2)"); g.addColorStop(0.6, "rgba(255,200,120,.08)"); g.addColorStop(1, "rgba(255,196,120,0)");
+      x.fillStyle = g; x.filter = "blur(1.2px)";
+      x.beginPath(); x.moveTo(T, y0); x.lineTo(T, y0 + w); x.lineTo(x1, y0 + w * 2.4 + 12); x.lineTo(x1, y0 + 12); x.closePath(); x.fill();
+      x.filter = "none";
+    });
+    x.restore();
+  }
+  function shedBoards(x, X, Y, w, h, seed, silver) {
+    for (var b = 0; b < w / 4; b++) {
+      var bx = X + b * 4, c0 = mix(silver ? "#6a6252" : "#6e5a42", silver ? "#867c68" : "#8a7254", H(Math.floor(bx / 4), seed, 91));
+      x.fillStyle = lg(x, bx, 0, bx + 4, 0, [[0, shade(c0, 0.14)], [0.6, c0], [1, shade(c0, -0.2)]]); x.fillRect(bx, Y, 4, h);
+      for (var g = 0; g < 2; g++) { x.strokeStyle = "rgba(50,40,30,.2)"; x.lineWidth = 0.25; var gx = bx + 1 + H(bx, g, seed) * 2; x.beginPath(); x.moveTo(gx, Y); x.quadraticCurveTo(gx + 0.6, Y + h / 2, gx - 0.2, Y + h); x.stroke(); }
+      x.fillStyle = "#2a241c"; x.fillRect(bx + 3.7, Y, 0.3, h);
+      if (H(Math.floor(bx / 4), seed, 92) > 0.82) { x.fillStyle = "rgba(255,226,150,.85)"; x.fillRect(bx + 3.72, Y, 0.28, h); }
+      if (H(Math.floor(bx / 4), seed, 93) > 0.7) ell(x, bx + 2, Y + h * (0.3 + H(bx, seed, 94) * 0.4), 0.7, 1, "rgba(60,44,26,.5)");
+    }
+  }
+  function shedStand(x, m, tx, ty) {
+    var t = m.get(tx, ty), X = tx * T, Y = ty * T;
+    if (t === TL.BWALL) {
+      /* the wall's top, seen from above: one long heavy plate, dark where it
+         meets the outside, a lit edge along the inside */
+      var inL = m.get(tx + 1, ty) >= 0 && m.get(tx + 1, ty) !== TL.BWALL, inR = m.get(tx - 1, ty) >= 0 && m.get(tx - 1, ty) !== TL.BWALL;
+      var inD = m.get(tx, ty + 1) >= 0 && m.get(tx, ty + 1) !== TL.BWALL, inU = m.get(tx, ty - 1) >= 0 && m.get(tx, ty - 1) !== TL.BWALL;
+      var vert = tx === 0 || tx === m.w - 1;
+      x.fillStyle = vert ? lg(x, X, 0, X + T, 0, [[0, tx === 0 ? "#3a2e22" : "#6a5640"], [1, tx === 0 ? "#6a5640" : "#3a2e22"]]) : lg(x, 0, Y, 0, Y + T, [[0, ty === 0 ? "#3a2e22" : "#6a5640"], [1, ty === 0 ? "#6a5640" : "#3a2e22"]]);
+      x.fillRect(X, Y, T, T);
+      x.strokeStyle = "rgba(30,20,12,.35)"; x.lineWidth = 0.3;
+      for (var g = 2; g < 15; g += 3.4) { x.beginPath(); if (vert) { x.moveTo(X + g, Y); x.lineTo(X + g + 0.2, Y + T); } else { x.moveTo(X, Y + g); x.lineTo(X + T, Y + g + 0.2); } x.stroke(); }
+      x.fillStyle = "rgba(255,236,200,.22)";
+      if (inL) x.fillRect(X + T - 0.8, Y, 0.8, T); if (inR) x.fillRect(X, Y, 0.8, T); if (inD) x.fillRect(X, Y + T - 0.8, T, 0.8); if (inU) x.fillRect(X, Y, T, 0.8);
+      x.fillStyle = "#1a120a"; if (tx === 0) x.fillRect(X, Y, 0.8, T); if (tx === m.w - 1) x.fillRect(X + T - 0.8, Y, 0.8, T); if (ty === 0) x.fillRect(X, Y, T, 0.8); if (ty === m.h - 1) x.fillRect(X, Y + T - 0.8, T, 0.8);
+      if (H(tx, ty, 77) < 0.35) ell(x, X + 3 + H(tx, ty, 78) * 10, Y + 3 + H(tx, ty, 79) * 10, 0.45, 0.45, "#2a2420");
+      /* cobweb in the corners */
+      var corner = (tx === 0 || tx === m.w - 1) && (ty === 1 || ty === m.h - 2);
+      if (corner) cobweb(x, tx === 0 ? X + T : X, ty === 1 ? Y : Y + T, tx === 0 ? 1 : -1, ty === 1 ? 1 : -1, 9);
+      return true;
+    }
+    if (t === TL.TOOLS) {
+      shedBoards(x, X, Y - 2, T, T, 7, true);
+      x.fillStyle = "rgba(40,30,20,.25)"; x.fillRect(X, Y + T - 3.2, T, 1.2);                // a rail
+      var k = tx;
+      /* the outline Gran painted for each tool, a little bigger than the tool */
+      function outline(fn) { x.save(); x.strokeStyle = "rgba(240,232,206,.55)"; x.lineWidth = 0.9; x.lineJoin = "round"; fn(); x.stroke(); x.restore(); }
+      function nail(nx, ny) { ell(x, nx, ny, 0.45, 0.45, "#4a4a4c"); ell(x, nx - 0.15, ny - 0.15, 0.18, 0.18, "#c8c8cc"); }
+      function shadowed(fn) { x.save(); x.translate(0.7, 0.9); x.globalAlpha = 0.35; fn("#1a120a"); x.restore(); fn(null); }
+      if (k === 1) {        /* the handsaw */
+        outline(function () { x.beginPath(); x.moveTo(X + 3, Y + 1); x.lineTo(X + 7, Y + 1); x.lineTo(X + 12.5, Y + 12); x.lineTo(X + 9, Y + 12.5); x.closePath(); });
+        shadowed(function (c) { x.fillStyle = c || lg(x, X + 5, 0, X + 12, 0, [[0, "#c8ccd0"], [1, "#8a9096"]]); x.beginPath(); x.moveTo(X + 5, Y + 4); x.lineTo(X + 7, Y + 3.6); x.lineTo(X + 12, Y + 11.6); x.lineTo(X + 9.6, Y + 12); x.closePath(); x.fill(); x.fillStyle = c || "#8a4a26"; rr(x, X + 3.4, Y + 1.2, 4, 3.6, 1, x.fillStyle); });
+        x.strokeStyle = "rgba(60,60,64,.6)"; x.lineWidth = 0.25; x.beginPath(); for (var z = 0; z < 8; z++) { x.moveTo(X + 9.8 + z * 0.3, Y + 11.8 - z * 1.0); x.lineTo(X + 9.4 + z * 0.3, Y + 11.3 - z * 1.0); } x.stroke();
+        nail(X + 5.4, Y + 2.2);
+      } else if (k === 2) { /* bungee cords on a peg */
+        rr(x, X + 7, Y + 1.4, 2, 1.6, 0.4, "#6a4a2a");
+        [["#d84a3a", -2], ["#f0c040", 0], ["#3a7ac0", 2]].forEach(function (b2) {
+          x.strokeStyle = b2[0]; x.lineWidth = 0.9; x.beginPath(); x.moveTo(X + 8 + b2[1] * 0.3, Y + 2.6); x.bezierCurveTo(X + 4 + b2[1], Y + 6, X + 5 + b2[1], Y + 11, X + 8 + b2[1] * 0.5, Y + 12); x.stroke();
+          x.strokeStyle = "#9a9ca0"; x.lineWidth = 0.4; x.beginPath(); x.arc(X + 8 + b2[1] * 0.5, Y + 12.8, 0.8, 0, 3.2); x.stroke();
+        });
+      } else if (k === 3) { /* hammer and pliers */
+        outline(function () { x.rect(X + 2.4, Y + 1.2, 6.2, 2.6); x.rect(X + 4.6, Y + 3.8, 1.8, 8.6); x.moveTo(X + 11, Y + 2); x.lineTo(X + 13.6, Y + 2); x.lineTo(X + 14, Y + 12); x.lineTo(X + 10.6, Y + 12); x.closePath(); });
+        shadowed(function (c) { x.fillStyle = c || "#7a5232"; x.fillRect(X + 5, Y + 3.6, 1, 8.4); x.fillStyle = c || lg(x, 0, Y + 1.6, 0, Y + 3.6, [[0, "#b0b4b8"], [1, "#5a5e62"]]); x.fillRect(X + 2.8, Y + 1.6, 5.4, 1.9); x.fillStyle = c || "#c03a2a"; x.fillRect(X + 11, Y + 6, 1, 6); x.fillRect(X + 12.8, Y + 6, 1, 6); x.fillStyle = c || "#7a7e84"; x.fillRect(X + 11.6, Y + 2.2, 1.6, 4); });
+        nail(X + 5.5, Y + 2.5); nail(X + 12.4, Y + 2.6);
+      } else if (k === 4) { /* the shears */
+        outline(function () { x.moveTo(X + 8, Y + 1); x.lineTo(X + 11, Y + 6); x.lineTo(X + 9, Y + 13); x.lineTo(X + 7, Y + 13); x.lineTo(X + 5, Y + 6); x.closePath(); });
+        shadowed(function (c) { x.fillStyle = c || "#8a9096"; x.beginPath(); x.moveTo(X + 7.4, Y + 1.6); x.lineTo(X + 8.6, Y + 1.6); x.lineTo(X + 9, Y + 6.4); x.lineTo(X + 7, Y + 6.4); x.closePath(); x.fill(); x.fillStyle = c || "#3a6a3a"; x.fillRect(X + 6, Y + 6.4, 1.3, 6.4); x.fillRect(X + 8.7, Y + 6.4, 1.3, 6.4); });
+        ell(x, X + 8, Y + 6.4, 0.6, 0.6, "#c8a040"); nail(X + 8, Y + 1.2);
+      } else if (k === 5) { /* a coil of Gran's stiff wire, and one of rope */
+        x.strokeStyle = "#9ea2a6"; x.lineWidth = 0.45; for (var c2 = 0; c2 < 6; c2++) { x.beginPath(); x.ellipse(X + 5, Y + 7 + c2 * 0.15, 3.4 - c2 * 0.08, 3.9, 0.15, 0, 6.2832); x.stroke(); }
+        x.strokeStyle = "#c8a874"; x.lineWidth = 1; for (c2 = 0; c2 < 4; c2++) { x.beginPath(); x.ellipse(X + 11.6, Y + 7.6 + c2 * 0.3, 2.6, 3.6 - c2 * 0.2, -0.1, 0, 6.2832); x.stroke(); }
+        nail(X + 5, Y + 3); nail(X + 11.6, Y + 3.8);
+      } else if (k === 6) { /* trowel and hand fork */
+        outline(function () { x.rect(X + 2.6, Y + 1, 3.6, 12); x.rect(X + 9.2, Y + 1, 3.6, 12); });
+        shadowed(function (c) { x.fillStyle = c || "#7a5232"; rr(x, X + 3.6, Y + 1.4, 1.6, 4.6, 0.6, x.fillStyle); x.fillStyle = c || "#9aa0a6"; x.beginPath(); x.moveTo(X + 3.2, Y + 6); x.lineTo(X + 5.6, Y + 6); x.quadraticCurveTo(X + 5.6, Y + 11, X + 4.4, Y + 12.6); x.quadraticCurveTo(X + 3.2, Y + 11, X + 3.2, Y + 6); x.fill(); x.fillStyle = c || "#7a5232"; rr(x, X + 10.2, Y + 1.4, 1.6, 4.6, 0.6, x.fillStyle); x.fillStyle = c || "#9aa0a6"; for (var f = 0; f < 3; f++) x.fillRect(X + 9.8 + f * 1.1, Y + 6, 0.6, 6.4); });
+        nail(X + 4.4, Y + 1.6); nail(X + 11, Y + 1.6);
+      } else if (k === 7) { /* the hoe, the tallest thing, and its outline that goes to the top */
+        outline(function () { x.rect(X + 6.6, Y - 1, 2.6, 14); x.rect(X + 4.4, Y + 10.4, 7, 2.6); });
+        shadowed(function (c) { x.fillStyle = c || "#8a6040"; x.fillRect(X + 7.3, Y - 1, 1.2, 12); x.fillStyle = c || lg(x, X + 4.6, 0, X + 11, 0, [[0, "#9aa0a6"], [1, "#5a6066"]]); x.fillRect(X + 4.8, Y + 10.8, 6.2, 1.8); });
+        /* and one outline with nothing in it at all */
+        outline(function () { x.rect(X + 11.6, Y + 1.4, 3, 8); });
+        nail(X + 7.9, Y + 0.4); nail(X + 13.1, Y + 2.2);
+      }
+      x.fillStyle = "#3a2a1a"; x.fillRect(X, Y + T - 2, T, 2);
+      x.fillStyle = "rgba(0,0,0,.35)"; x.fillRect(X, Y + T, T, 1.2);
+      return true;
+    }
+    if (t === TL.BENCH) {
+      var top = ty === 1;
+      shadow(x, X + 9, Y + 15, 9, 2.5, 0.4);
+      /* the legs, the shelf under, then the thick scarred top */
+      x.fillStyle = "#3a2a18"; x.fillRect(X + 1, Y + 9, 1.8, 6); x.fillRect(X + 13.2, Y + 9, 1.8, 6);
+      x.fillStyle = "rgba(20,12,6,.5)"; x.fillRect(X + 1, Y + 12.6, 14, 1.4);
+      rr(x, X - 0.3, Y + 2, T + 0.6, 7.6, 0.6, lg(x, 0, Y + 2, 0, Y + 9.6, [[0, "#b08658"], [0.7, "#8a6440"], [1, "#5a3e24"]]));
+      x.fillStyle = "rgba(255,236,200,.25)"; x.fillRect(X, Y + 2.2, T, 0.5);
+      x.strokeStyle = "rgba(60,40,20,.3)"; x.lineWidth = 0.3; x.beginPath(); x.moveTo(X + 2, Y + 4); x.lineTo(X + 7, Y + 5.4); x.moveTo(X + 9, Y + 3.6); x.lineTo(X + 13, Y + 4.4); x.stroke();
+      ell(x, X + 6 + H(tx, ty, 3) * 4, Y + 6, 1.6, 0.8, "rgba(40,30,20,.25)");
+      if (tx === 8 && top) {
+        /* a coffee can of bent nails */
+        rr(x, X + 1.4, Y - 1, 4.2, 5.4, 0.6, lg(x, X + 1.4, 0, X + 5.6, 0, [[0, "#c8cac6"], [0.5, "#9a9c98"], [1, "#5e605c"]]));
+        ell(x, X + 3.5, Y - 1, 2.1, 0.7, "#2a2826"); for (var n = 0; n < 5; n++) { x.strokeStyle = "#8a8c8e"; x.lineWidth = 0.3; x.beginPath(); x.moveTo(X + 2.4 + n * 0.5, Y - 1); x.lineTo(X + 2 + n * 0.6, Y - 2.6 - (n % 2)); x.stroke(); }
+        x.fillStyle = "#c04a2a"; x.fillRect(X + 1.4, Y + 1, 4.2, 1.2);
+      }
+      if (tx === 9 && top) {
+        /* a radio with no knobs */
+        rr(x, X + 2, Y - 1.4, 10, 5.6, 1, lg(x, 0, Y - 1.4, 0, Y + 4.2, [[0, "#6a5a48"], [1, "#3a3028"]]));
+        rr(x, X + 2.8, Y - 0.6, 5, 4, 0.6, "#c8b88a"); for (var gq = 0; gq < 5; gq++) { x.fillStyle = "rgba(60,50,40,.5)"; x.fillRect(X + 3.2, Y - 0.2 + gq * 0.8, 4.2, 0.3); }
+        ell(x, X + 9.6, Y + 0.6, 0.7, 0.7, "#2a2420"); ell(x, X + 9.6, Y + 2.6, 0.7, 0.7, "#2a2420");
+        x.strokeStyle = "#8a8c8e"; x.lineWidth = 0.3; x.beginPath(); x.moveTo(X + 11, Y - 1.2); x.lineTo(X + 14.5, Y - 5); x.stroke();
+      }
+      if (!top) {
+        /* the vise, and a jar of screws */
+        rr(x, X + 1, Y + 0.6, 5, 3, 0.4, "#3a5a7a"); x.fillStyle = "#9a9ca0"; x.fillRect(X + 2.6, Y - 0.4, 1.8, 1.2); x.fillRect(X + 3.3, Y + 3.4, 0.5, 2.4);
+        rr(x, X + 9.6, Y - 0.6, 3.6, 4.4, 1, "rgba(200,220,220,.55)"); rr(x, X + 9.6, Y - 1.2, 3.6, 1, 0.3, "#b8862a");
+        for (var sc = 0; sc < 6; sc++) ell(x, X + 10.3 + (sc % 3) * 1.1, Y + 1.6 + Math.floor(sc / 3) * 1.1, 0.4, 0.3, "#8a8c8e");
+      }
+      return true;
+    }
+    if (t === TL.MOWER) {
+      /* the push mower: a reel of blades between two wheels, and the long handle */
+      shadow(x, X + 10, Y + 14.6, 9, 2.4, 0.42);
+      x.strokeStyle = "#5a5e62"; x.lineWidth = 1; x.beginPath(); x.moveTo(X + 4, Y + 9); x.lineTo(X + 9, Y - 4); x.moveTo(X + 13, Y + 9); x.lineTo(X + 9, Y - 4); x.stroke();
+      x.strokeStyle = "#3a2a1a"; x.lineWidth = 1.4; x.beginPath(); x.moveTo(X + 6, Y - 4); x.lineTo(X + 12, Y - 4); x.stroke();
+      rr(x, X + 3, Y + 7.6, 11, 4.6, 2.2, lg(x, 0, Y + 7.6, 0, Y + 12.2, [[0, "#4e8a4e"], [1, "#24482a"]]));
+      x.strokeStyle = "rgba(220,230,230,.55)"; x.lineWidth = 0.35; for (var bl = 0; bl < 5; bl++) { x.beginPath(); x.moveTo(X + 4 + bl * 2, Y + 8); x.lineTo(X + 5.4 + bl * 2, Y + 12); x.stroke(); }
+      [[X + 2.6, Y + 10.4], [X + 14.4, Y + 10.4]].forEach(function (w) { ell(x, w[0], w[1], 2.4, 3, "#1c1a18"); ell(x, w[0], w[1], 1.1, 1.4, "#c8b048"); });
+      for (bl = 0; bl < 6; bl++) ell(x, X + 4 + bl * 1.8, Y + 12.6, 0.7, 0.3, "rgba(140,170,80,.6)");
+      return true;
+    }
+    if (t === TL.BARROW) {
+      /* the wheelbarrow, its one tire gone flat and baggy */
+      shadow(x, X + 9, Y + 14.8, 8, 2.2, 0.42);
+      x.strokeStyle = "#3a2a1a"; x.lineWidth = 0.9; x.beginPath(); x.moveTo(X + 13, Y + 4.6); x.lineTo(X + 17.5, Y + 2.6); x.moveTo(X + 13, Y + 10); x.lineTo(X + 17.5, Y + 11.4); x.stroke();
+      x.fillStyle = lg(x, 0, Y + 3, 0, Y + 12, [[0, "#5a8ab0"], [0.6, "#3a6a8e"], [1, "#264a66"]]);
+      x.beginPath(); x.moveTo(X + 2, Y + 3.4); x.lineTo(X + 14, Y + 3.4); x.lineTo(X + 12.6, Y + 11.6); x.lineTo(X + 4, Y + 11.6); x.closePath(); x.fill();
+      x.fillStyle = "rgba(20,30,40,.45)"; x.beginPath(); x.moveTo(X + 3.4, Y + 4.4); x.lineTo(X + 12.8, Y + 4.4); x.lineTo(X + 11.8, Y + 10.4); x.lineTo(X + 4.8, Y + 10.4); x.closePath(); x.fill();
+      x.fillStyle = "rgba(160,120,70,.45)"; ell(x, X + 8, Y + 9, 3, 1.2, null); x.fill();
+      ell(x, X + 6, Y + 6, 1.8, 0.7, "rgba(170,90,40,.5)"); ell(x, X + 11, Y + 8, 1.2, 0.5, "rgba(170,90,40,.45)");    // rust
+      x.fillStyle = "#1c1a18"; x.beginPath(); x.ellipse(X + 0.6, Y + 9.6, 2.4, 2.2, 0, 0, 6.2832); x.fill();
+      x.fillStyle = "#2a2826"; x.beginPath(); x.ellipse(X + 0.6, Y + 11.4, 3, 1, 0, 0, 6.2832); x.fill();          // the flat, puddled under its rim
+      ell(x, X + 0.6, Y + 9.4, 0.8, 0.8, "#8a8c8e");
+      return true;
+    }
+    return false;
+  }
+  function cobweb(x, cx, cy, sx, sy, r) {
+    x.save(); x.strokeStyle = "rgba(240,236,224,.38)"; x.lineWidth = 0.22;
+    for (var a = 0; a <= 4; a++) { var th = a / 4 * Math.PI / 2; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(th) * r * sx, cy + Math.sin(th) * r * sy); x.stroke(); }
+    for (var ring = 1; ring <= 4; ring++) { var rr2 = r * ring / 4.4; x.beginPath(); for (a = 0; a <= 4; a++) { var th2 = a / 4 * Math.PI / 2, px = cx + Math.cos(th2) * rr2 * sx, py = cy + Math.sin(th2) * rr2 * sy; if (a) x.quadraticCurveTo(cx + Math.cos(th2 - 0.2) * rr2 * 0.86 * sx, cy + Math.sin(th2 - 0.2) * rr2 * 0.86 * sy, px, py); else x.moveTo(px, py); } x.stroke(); }
+    x.restore();
+  }
+  BS.cobweb = cobweb;
+
+  /* small things that come and go: the scooter under its felt of cobweb,
+     Gran's lantern on the bench */
+  BS.paintScooter = function (webbed) {
+    var c = wc(26, 26, SPR), x = c.x;
+    shadow(x, 14, 23, 11, 2.4, 0.42);
+    /* the deck, lying a little skewed, its grip tape worn pale in the middle */
+    x.save(); x.translate(13, 19); x.rotate(-0.08);
+    rr(x, -10, -2.2, 20, 4.4, 2, lg(x, 0, -2.2, 0, 2.2, [[0, "#d8473a"], [1, "#8a2a22"]]));
+    rr(x, -8.6, -1.6, 15, 2.6, 1.2, "#2a2a2c"); ell(x, -1, -0.4, 4, 0.9, "rgba(140,140,140,.35)");
+    ell(x, -10.4, 1.6, 2.2, 2.2, "#1c1a18"); ell(x, -10.4, 1.6, 0.9, 0.9, "#c8c8c0");
+    ell(x, 10.6, 1.6, 2.2, 2.2, "#1c1a18"); ell(x, 10.6, 1.6, 0.9, 0.9, "#c8c8c0");
+    /* chips in the red, down to the metal */
+    ell(x, 4, 1.6, 0.8, 0.4, "#c8c8c0"); ell(x, -6, 1.8, 0.5, 0.3, "#c8c8c0");
+    x.restore();
+    /* the stem and the T of the handlebar */
+    x.strokeStyle = "#5a5e62"; x.lineWidth = 1.4; x.beginPath(); x.moveTo(22.6, 19); x.lineTo(21.4, 3.6); x.stroke();
+    x.strokeStyle = "#c8ccd0"; x.lineWidth = 0.4; x.beginPath(); x.moveTo(22.2, 18.6); x.lineTo(21, 4); x.stroke();
+    x.strokeStyle = "#5a5e62"; x.lineWidth = 1.2; x.beginPath(); x.moveTo(16.6, 3.2); x.lineTo(26, 4); x.stroke();
+    rr(x, 15.6, 2.2, 3, 2, 0.8, "#1c1a18"); rr(x, 24, 3, 3, 2, 0.8, "#1c1a18");
+    if (webbed) {
+      /* a fall of cobweb gone thick as felt, from the bar to the deck */
+      x.fillStyle = "rgba(236,232,222,.5)";
+      x.beginPath(); x.moveTo(16.4, 3.4); x.quadraticCurveTo(15, 10, 10, 17.4); x.lineTo(20, 18); x.quadraticCurveTo(21.6, 10, 26, 4.2); x.quadraticCurveTo(21, 6, 16.4, 3.4); x.fill();
+      x.strokeStyle = "rgba(250,248,240,.55)"; x.lineWidth = 0.18;
+      for (var i = 0; i < 9; i++) { x.beginPath(); x.moveTo(17 + i * 1, 3.6 + i * 0.08); x.quadraticCurveTo(15 + i * 0.6, 11, 9 + i * 1.3, 17.6); x.stroke(); }
+      ell(x, 4, 18.6, 3.4, 1, "rgba(236,232,222,.35)");
+    }
+    c.base = 23;
+    return c;
+  };
+  BS.paintLantern = function () {
+    var c = wc(12, 14, SPR), x = c.x;
+    shadow(x, 6.6, 12.6, 5, 1.2, 0.45);
+    /* fat, sturdy, ugly, wonderful: yellow plastic gone chalky, a glass eye, a crank folded flat */
+    rr(x, 1.4, 3, 9, 9, 2.4, lg(x, 1.4, 0, 10.4, 0, [[0, "#f4e08a"], [0.5, "#dcc060"], [1, "#a48a3a"]]));
+    rr(x, 1.4, 3, 9, 9, 2.4); x.fillStyle = "rgba(255,250,235,.22)"; x.fill();                 // the chalk of age
+    x.strokeStyle = "#4a4030"; x.lineWidth = 0.8; x.beginPath(); x.moveTo(3, 3.4); x.quadraticCurveTo(6, -0.6, 9, 3.4); x.stroke();
+    ell(x, 6, 7.4, 2.6, 2.6, "#5a5040"); ell(x, 6, 7.4, 2, 2, rg(x, 5.2, 6.6, 0.2, 2.4, [[0, "#fffbe8"], [0.5, "#d8dcd0"], [1, "#8a8e86"]]));
+    ell(x, 5.3, 6.7, 0.6, 0.5, "rgba(255,255,255,.9)");
+    x.fillStyle = "#3a3428"; x.fillRect(10.2, 4.4, 1, 6); ell(x, 10.7, 10.4, 0.8, 0.8, "#3a3428");
+    c.base = 12.6;
+    return c;
+  };
+
+  /* ---------------- the cellar floor ----------------
+     Old stones set in earth, each its own size, laid across the whole floor
+     with no seams at the tiles; damper and darker the lower it goes toward
+     the corner where the water stands, moss in the joints by the walls, a
+     wet shine on the stones that hold it. */
+  function cellarStone(x, m, tx, ty) {
+    var X = tx * T, Y = ty * T, G2 = 8.4;
+    x.save(); x.beginPath(); x.rect(X, Y, T, T); x.clip();
+    x.fillStyle = "#1e1d1a"; x.fillRect(X, Y, T, T);
+    var pool = [19 * T, 12 * T];
+    for (var j = Math.floor(Y / G2) - 1; j <= Math.floor((Y + T) / G2) + 1; j++) for (var i = Math.floor(X / G2) - 1; i <= Math.floor((X + T) / G2) + 1; i++) {
+      var off = (j % 2) * G2 * 0.5, cx = i * G2 + off + (H(i, j, 301) - 0.5) * 1.6, cy = j * G2 + (H(i, j, 302) - 0.5) * 1.4;
+      var w = G2 * (0.42 + H(i, j, 303) * 0.1), h = G2 * (0.36 + H(i, j, 304) * 0.1);
+      if (cx + w < X - 1 || cx - w > X + T + 1 || cy + h < Y - 1 || cy - h > Y + T + 1) continue;
+      var damp = Math.max(0, 1 - Math.hypot(cx - pool[0], cy - pool[1]) / 150);
+      var base = mix(mix("#4c4a43", "#5e5b52", H(i, j, 305)), "#34383a", damp * 0.6);
+      if (H(i, j, 306) < 0.12) base = mix(base, "#5a5040", 0.5);
+      /* an irregular rounded stone */
+      x.beginPath();
+      for (var a = 0; a < 7; a++) { var th = a / 7 * 6.2832 + H(i, j, 307) * 2, rr2 = 0.82 + H(i * 7 + a, j, 308) * 0.22, px = cx + Math.cos(th) * w * rr2, py = cy + Math.sin(th) * h * rr2; if (a) x.lineTo(px, py); else x.moveTo(px, py); }
+      x.closePath();
+      x.fillStyle = lg(x, cx - w, cy - h, cx + w, cy + h, [[0, shade(base, 0.16)], [0.5, base], [1, shade(base, -0.22)]]); x.fill();
+      x.strokeStyle = "rgba(10,10,8,.35)"; x.lineWidth = 0.3; x.stroke();
+      if (damp > 0.35 && H(i, j, 309) < damp) ell(x, cx - w * 0.3, cy - h * 0.35, w * 0.35, h * 0.16, "rgba(180,210,215," + (0.1 + damp * 0.14) + ")");     // wet shine
+      if (H(i, j, 310) < 0.05) { x.strokeStyle = "rgba(20,18,14,.55)"; x.lineWidth = 0.25; x.beginPath(); x.moveTo(cx - w * 0.6, cy - h * 0.2); x.lineTo(cx, cy + h * 0.1); x.lineTo(cx + w * 0.4, cy - h * 0.4); x.stroke(); }
+    }
+    /* moss in the joints along the walls */
+    var nearWall = 0;
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(function (d) { var t2 = m.get(tx + d[0], ty + d[1]); if (t2 === TL.SWALL || t2 === TL.SHELF) nearWall++; });
+    if (nearWall) { var rs = R(tx * 17 + ty * 29 + 5); for (var k = 0; k < 10 * nearWall; k++) ell(x, X + rs() * 16, Y + rs() * 16, 0.6 + rs(), 0.4 + rs() * 0.5, rs() < 0.6 ? "rgba(70,110,60,.4)" : "rgba(100,140,70,.3)"); }
+    /* the damp itself, a darkness that pools toward the corner */
+    var dd = Math.hypot(X + 8 - pool[0], Y + 8 - pool[1]);
+    x.fillStyle = "rgba(8,14,18," + Math.max(0, 0.35 - dd / 500) + ")"; x.fillRect(X, Y, T, T);
+    x.restore();
+  }
+
   function paintInteriorChunk(m, cx, cy) {
     var S = CH * T, ox = cx * S, oy = cy * S, c = wc(S, S, ART), x = c.x;
     x.translate(-ox, -oy);
     x.fillStyle = "#0a0806"; x.fillRect(ox, oy, S, S);
     var x0 = cx * CH, y0 = cy * CH;
     for (var ty = y0; ty < y0 + CH; ty++) for (var tx = x0; tx < x0 + CH; tx++) if (m.get(tx, ty) >= 0) floorTile(x, m, tx, ty);
+    if (m.id === "shed") shedSun(x, m);
     for (ty = y0 - 1; ty < y0 + CH + 1; ty++) for (tx = x0 - 1; tx < x0 + CH + 1; tx++) if (m.get(tx, ty) >= 0) standTile(x, m, tx, ty);
     return c;
   }
@@ -633,6 +1101,7 @@
     if (m.id === "house") { if (t === TL.BOX || t === TL.TABLE || t === TL.CHAIR || t === TL.RUG || t === TL.EXIT || t === TL.STAIRS || t === TL.WALL || t === TL.WINDOW || t === TL.CDOOR) under = TL.FLOOR; if ((t === TL.COUNTER || t === TL.TABLE || t === TL.CHAIR || t === TL.BOX) && tx > 16) under = TL.KFLOOR; }
     if (m.id === "cellar" && t !== TL.SWALL && t !== TL.STEPS && t !== TL.POOL) under = TL.STONE;
     if (m.id === "shed") under = TL.SFLOOR;
+    if (m.id === "shed") { shedFloor(x, m, tx, ty); return; }
     if (under === TL.FLOOR && m.id === "house") houseBoards(x, m, tx, ty);
     else if (under === TL.KFLOOR && m.id === "house") houseCheck(x, m, tx, ty);
     else if (under === TL.FLOOR) {
@@ -647,6 +1116,9 @@
       x.fillStyle = (tx + ty) % 2 ? "#b44a3e" : "#e9e0c8"; x.fillRect(X, Y, T, T);
       x.fillStyle = lg(x, X, Y, X + T, Y + T, [[0, "rgba(255,255,255,.14)"], [0.5, "rgba(255,255,255,0)"], [1, "rgba(0,0,0,.1)"]]); x.fillRect(X, Y, T, T);
       x.fillStyle = "rgba(60,40,30,.25)"; x.fillRect(X, Y + T - 0.4, T, 0.4); x.fillRect(X + T - 0.4, Y, 0.4, T);
+    } else if ((under === TL.STONE || under === TL.POOL) && m.id === "cellar") {
+      cellarStone(x, m, tx, ty);
+      if (under === TL.POOL) { ell(x, X + 8, Y + 8, 7.5, 6, rg(x, X + 8, Y + 8, 1, 8, [[0, "rgba(14,30,38,.85)"], [1, "rgba(14,30,38,.25)"]])); ell(x, X + 6, Y + 6, 2.5, 0.8, "rgba(170,210,220,.22)"); }
     } else if (under === TL.STONE || under === TL.POOL) {
       var rs = R(tx * 31 + ty * 7);
       x.fillStyle = "#2e2d29"; x.fillRect(X, Y, T, T);
@@ -664,6 +1136,7 @@
   }
   function standTile(x, m, tx, ty) {
     var t = m.get(tx, ty), X = tx * T, Y = ty * T, k;
+    if (m.id === "shed" && shedStand(x, m, tx, ty)) return;
     if (m.id === "house") {
       if (t === TL.WALL || t === TL.WINDOW || t === TL.CDOOR) {
         var below0 = m.get(tx, ty + 1);
@@ -864,26 +1337,123 @@
     }
     /* every chunk paints its neighbors' overhang too, so clip to its own
        square: each pixel is painted once, no doubled shadow at the seams */
-    x.beginPath(); x.rect(cx * S, cy * S, S, S); x.clip();
+    x.beginPath(); x.rect(cx * S - 0.5, cy * S - 0.5, S + 1, S + 1); x.clip();
+    var bch = m.beech ? [(m.beech.x + 1) * T, (m.beech.y + 0.6) * T] : null;
+    /* the clearing: an upright oval over the whole trunk, so nothing in the roof hides it */
+    function nearBeech(px, py, r) { return bch && Math.hypot(px - bch[0], (py - bch[1] - 10) * 0.7) < r; }
+    function isWood(tx, ty) { var t = m.get(tx, ty); return t === TL.WOOD || (t === TL.DEER && m.hidden.deer) || (t === TL.ROOT && m.hidden.root); }
     /* one soft pool of shade under the whole canopy, not a stack of hard
        ellipses (blur where the browser has canvas filters) */
     x.save(); x.filter = "blur(7px)";
     x.fillStyle = "rgba(10,20,8,.42)"; x.beginPath();
-    list.forEach(function (p) { x.moveTo(p[0] * T + 27, p[1] * T + 6); x.ellipse(p[0] * T + 10, p[1] * T + 6, 17, 13, 0, 0, 6.2832); });
+    list.forEach(function (p) { if (nearBeech(p[0] * T + 8, p[1] * T + 8, 26)) return; x.moveTo(p[0] * T + 27, p[1] * T + 6); x.ellipse(p[0] * T + 10, p[1] * T + 6, 17, 13, 0, 0, 6.2832); });
     x.fill(); x.restore();
+    /* the understory: the dark mass the crowns stand up out of */
     list.forEach(function (p) {
+      if (nearBeech(p[0] * T + 8, p[1] * T + 8, 22)) return;
       var rs = R(p[0] * 31 + p[1] * 7), cx2 = p[0] * T + 8, cy2 = p[1] * T - 2;
-      for (var b = 0; b < 4; b++) lump(x, cx2 + (rs() - 0.5) * 12, cy2 + (rs() - 0.5) * 10, 6 + rs() * 4, ["#2e4a22", "#365628", "#2a4420", "#3e5e2c"][b], "#7aa04a");
+      for (var b = 0; b < 3; b++) lump(x, cx2 + (rs() - 0.5) * 12, cy2 + (rs() - 0.5) * 10, 6 + rs() * 4, ["#22381a", "#2a4220", "#1e3418"][b], "#4e7234");
     });
-    list.forEach(function (p) { leaves(x, p[0] * T + 8, p[1] * T - 2, 13, R(p[0] * 57 + p[1] * 11), 70, [[34, 62, 26], [46, 80, 34], [62, 104, 42], [96, 140, 60], [150, 190, 96]]); });
+    list.forEach(function (p) { if (!nearBeech(p[0] * T + 8, p[1] * T + 8, 22)) leaves(x, p[0] * T + 8, p[1] * T - 2, 12, R(p[0] * 57 + p[1] * 11), 34, [[24, 44, 20], [32, 58, 26], [44, 74, 32], [70, 104, 46], [110, 150, 70]]); });
+    /* then the trees themselves, one crown at a time, the southern ones in
+       front: oak and beech mostly, a dark spruce here and there, a pale
+       birch at the bright edges, each kind in its own patches */
+    var crowns = [];
     list.forEach(function (p) {
+      var tx = p[0], ty = p[1], h1 = H(tx, ty, 77);
+      if (h1 > 0.34) return;
+      /* how far to the nearest open ground: crowns by a path stay small, so
+         nothing in the roof ever hides you on it */
+      var near = 3;
+      for (var oy = -2; oy <= 2; oy++) for (var ox2 = -2; ox2 <= 2; ox2++) if (!isWood(tx + ox2, ty + oy)) near = Math.min(near, Math.max(Math.abs(ox2), Math.abs(oy)));
+      var edge = near <= 1;
+      var zone = BS.vn(tx, ty, 7, 91), sp = zone < 0.3 ? "spruce" : zone > 0.7 ? "beech" : "oak";
+      if (edge && H(tx, ty, 78) < 0.4) sp = "birch";
+      var r = near <= 1 ? 8 + H(tx, ty, 79) * 3 : near === 2 ? 11 + H(tx, ty, 79) * 4 : 12 + H(tx, ty, 79) * 9;
+      if (sp === "spruce") r *= 0.82; if (sp === "birch") r *= 0.8;
+      var cxp = tx * T + 8 + (H(tx, ty, 80) - 0.5) * 6, cyp = ty * T - 2 + (H(tx, ty, 81) - 0.5) * 6;
+      if (nearBeech(cxp, cyp, 30 + r)) return;
+      crowns.push({ x: cxp, y: cyp, r: r, sp: sp, seed: tx * 131 + ty * 17 });
+    });
+    crowns.sort(function (a, b) { return a.y - b.y; });
+    crowns.forEach(function (o) { crown(x, o); });
+    /* the beech: a clearing in the roof, and its own vast pale crown, lifted
+       well up off the trunk so you can see where the gold runs out */
+    if (bch && Math.abs(bch[0] - (cx * S + S / 2)) < S && Math.abs(bch[1] - (cy * S + S / 2)) < S) beechCrown(x, bch[0] + 3, bch[1] - 62);
+    list.forEach(function (p) {
+      if (nearBeech(p[0] * T + 8, p[1] * T + 8, 22)) return;
       var rs = R(p[0] * 13 + p[1] * 3);
-      for (var q = 0; q < 6; q++) ell(x, p[0] * T + rs() * 16, p[1] * T - 6 + rs() * 12, 1.2, 0.8, rs() < 0.6 ? "rgba(170,210,110,.35)" : "rgba(10,25,8,.35)", rs() * 3);
+      for (var q = 0; q < 4; q++) ell(x, p[0] * T + rs() * 16, p[1] * T - 6 + rs() * 12, 1.2, 0.8, rs() < 0.6 ? "rgba(170,210,110,.3)" : "rgba(10,25,8,.3)", rs() * 3);
     });
     canCache[k] = c; canOrder.push(k);
     while (canOrder.length > 48) delete canCache[canOrder.shift()];
     return c;
   };
+
+  var CROWN = {
+    oak: { lumps: ["#2e4c22", "#36582a", "#2a4620", "#40622e"], hi: "#86ae52", pal: [[30, 58, 24], [44, 78, 32], [62, 104, 42], [98, 142, 60], [156, 196, 98]] },
+    beech: { lumps: ["#3e6a26", "#4a7a2c", "#3a6224", "#56882e"], hi: "#b6dc6a", pal: [[44, 76, 26], [62, 100, 34], [88, 132, 44], [132, 176, 64], [196, 228, 118]] },
+    birch: { lumps: ["#5a8034", "#668c3c", "#4e7430", "#72984a"], hi: "#d2ea90", pal: [[70, 100, 44], [92, 128, 54], [120, 158, 68], [164, 200, 96], [214, 236, 150]] },
+    spruce: { pal: [[16, 34, 26], [22, 46, 34], [30, 60, 42], [42, 78, 52], [70, 108, 72]] }
+  };
+  /* a single crown in the woods' roof, its shadow cast down to the right by
+     how tall it stands */
+  function crown(x, o) {
+    var K = CROWN[o.sp], rs = R(o.seed), r = o.r, lift = r * 0.32;
+    x.save(); x.globalAlpha = 0.5;
+    ell(x, o.x + lift, o.y + lift * 0.8, r * 1.02, r * 0.9, "rgba(8,16,6,.7)");
+    x.restore();
+    if (o.sp === "spruce") {
+      /* a dark star of tiers, drawn from the outside in */
+      for (var tier = 0; tier < 4; tier++) {
+        var tr = r * (1 - tier * 0.22), n = 9 + tier, rot = rs() * 6.28, c = K.pal[Math.min(4, tier + 1)];
+        x.fillStyle = "rgb(" + c.join(",") + ")"; x.beginPath();
+        for (var i = 0; i <= n * 2; i++) { var a = rot + i * Math.PI / n, rr2 = i % 2 ? tr * 0.6 : tr * (0.84 + BS.hash(i % (n * 2), tier, o.seed) * 0.24); var px = o.x + Math.cos(a) * rr2, py = o.y + Math.sin(a) * rr2 * 0.9; if (i) x.lineTo(px, py); else x.moveTo(px, py); }
+        x.fill();
+        x.fillStyle = "rgba(0,0,0,.18)"; x.beginPath();
+        for (i = 0; i <= n * 2; i++) { var a2 = rot + i * Math.PI / n, r3 = i % 2 ? tr * 0.62 : tr; if (Math.cos(a2 - 0.8) < 0) continue; x.moveTo(o.x, o.y); x.lineTo(o.x + Math.cos(a2) * r3, o.y + Math.sin(a2) * r3 * 0.9); }
+        x.strokeStyle = "rgba(10,24,18,.35)"; x.lineWidth = 0.6; x.stroke();
+      }
+      ell(x, o.x - r * 0.1, o.y - r * 0.12, r * 0.14, r * 0.12, "rgba(120,160,110,.4)");
+      return;
+    }
+    var nb = Math.max(5, Math.round(r / 2.4));
+    for (var k = 0; k < nb; k++) {
+      var a = rs() * 6.283, d = rs() * r * 0.5;
+      lump(x, o.x + Math.cos(a) * d, o.y + Math.sin(a) * d * 0.85, r * (0.38 + rs() * 0.22), K.lumps[k % 4], K.hi);
+    }
+    lump(x, o.x - r * 0.18, o.y - r * 0.2, r * 0.45, K.lumps[3], K.hi);
+    leaves(x, o.x, o.y, r * 1.02, rs, Math.round(r * r * 0.9), K.pal);
+    rim(x, o.x, o.y, r, rs, K.pal);
+  }
+  /* a feathered edge: single leaves standing out past the crown's outline,
+     bright where they face the sun, so no crown reads as a ball */
+  function rim(x, cx, cy, r, rs, pal) {
+    var n = Math.round(r * 4.2);
+    for (var i = 0; i < n; i++) {
+      var a = rs() * 6.283, d = r * (0.86 + rs() * 0.22), lx = cx + Math.cos(a) * d, ly = cy + Math.sin(a) * d * 0.88;
+      var lit = -(Math.cos(a) * 0.7 + Math.sin(a)) / 1.22, k = Math.max(0, Math.min(4, Math.round(1.8 + lit * 2 + (rs() - 0.5))));
+      var c = pal[k];
+      x.fillStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + (0.7 + rs() * 0.3) + ")";
+      ell(x, lx, ly, 1 + rs() * 0.9, 0.55 + rs() * 0.4, null, a + 1.57 + (rs() - 0.5)); x.fill();
+    }
+  }
+  /* the great gray beech's crown: wider than anything near it, a paler,
+     fresher green, with sun lying on the top of it */
+  function beechCrown(x, cx, cy) {
+    var rs = R(4242), r = 46;
+    for (var k = 0; k < 22; k++) {
+      var a = rs() * 6.283, d = Math.sqrt(rs()) * r * 0.62;
+      lump(x, cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8, r * (0.24 + rs() * 0.16), ["#4e7a2a", "#5a8a30", "#46702a", "#68983a"][k % 4], "#cce882");
+    }
+    var bp = [[52, 84, 28], [74, 112, 36], [104, 148, 48], [150, 196, 74], [214, 240, 140]];
+    leaves(x, cx, cy, r * 1.04, rs, 1500, bp);
+    rim(x, cx, cy, r, rs, bp);
+    /* the gap in the roof it makes: a ring of light round its crown */
+    x.save(); x.globalCompositeOperation = "lighter";
+    x.fillStyle = rg(x, cx - 10, cy - 12, 4, r * 0.9, [[0, "rgba(255,240,170,.16)"], [1, "rgba(255,240,170,0)"]]); x.fillRect(cx - r, cy - r, r * 2, r * 2);
+    x.restore();
+  }
 
   /* leaves, lit from the upper left: many small strokes over the lumps so
      a canopy reads as foliage rather than balls */
@@ -1207,14 +1777,35 @@
     }
     return c;
   };
+  /* the great gray beech: smooth as skin, elephant-gray, its roots gripping
+     the ground like a hand; the eyes beeches make where a branch let go */
   BS.paintBeech = function () {
-    var c = wc(44, 60, PRES), x = c.x;
-    shadow(x, 26, 54, 18, 5, 0.4);
-    [[-14, 4], [-8, 6], [9, 5], [15, 3]].forEach(function (rt) { x.fillStyle = lg(x, 0, 46, 0, 56, [[0, "#9a9ea0"], [1, "#6a6e70"]]); x.beginPath(); x.moveTo(20, 44); x.quadraticCurveTo(20 + rt[0] * 0.5, 50, 20 + rt[0], 51 + rt[1] * 0.3); x.lineTo(20 + rt[0] * 0.8, 53); x.quadraticCurveTo(20 + rt[0] * 0.3, 52, 22, 47); x.fill(); });
-    rr(x, 13, 0, 15, 50, 4, lg(x, 13, 0, 28, 0, [[0, "#b0b4b6"], [0.4, "#9a9ea0"], [1, "#666a6c"]]));
-    for (var j = 6; j < 48; j += 6) { x.strokeStyle = "rgba(80,85,88,.35)"; x.lineWidth = 0.4; x.beginPath(); x.moveTo(15, j); x.quadraticCurveTo(20, j + 1, 26, j - 0.5); x.stroke(); }
-    ell(x, 18, 22, 1.4, 2.2, "rgba(60,64,66,.5)"); ell(x, 22, 34, 1, 1.5, "rgba(60,64,66,.5)");
-    x.fillStyle = "rgba(110,150,90,.4)"; x.fillRect(13, 30, 4, 20);
+    var c = wc(56, 64, PRES), x = c.x, cx = 27, rs = R(61);
+    shadow(x, cx + 6, 57, 24, 6, 0.45);
+    /* the roots: long knuckled flares, each lit on its upper-left side */
+    [[-20, 5], [-13, 8], [-6, 9], [7, 9], [14, 7], [21, 4]].forEach(function (rt, i) {
+      var ex = cx + rt[0], ey = 52 + rt[1] * 0.45;
+      x.fillStyle = lg(x, cx, 42, ex, ey, [[0, "#8e9496"], [1, "#5e6466"]]);
+      x.beginPath(); x.moveTo(cx - 6 + i * 2.2, 40); x.quadraticCurveTo(cx + rt[0] * 0.45, 47, ex, ey); x.quadraticCurveTo(ex + (rt[0] > 0 ? -2 : 2), ey + 1.6, ex - rt[0] * 0.08, ey + 0.4); x.quadraticCurveTo(cx + rt[0] * 0.3, 51, cx - 3 + i * 1.6, 44); x.closePath(); x.fill();
+      x.strokeStyle = "rgba(220,226,226,.35)"; x.lineWidth = 0.5; x.beginPath(); x.moveTo(cx - 5 + i * 2.2, 42); x.quadraticCurveTo(cx + rt[0] * 0.42, 47.5, ex, ey - 0.6); x.stroke();
+    });
+    /* the trunk, flaring at the foot */
+    x.fillStyle = lg(x, cx - 10, 0, cx + 11, 0, [[0, "#c6cbcc"], [0.3, "#a9afb1"], [0.7, "#868c8e"], [1, "#5c6264"]]);
+    x.beginPath(); x.moveTo(cx - 8, 0); x.lineTo(cx + 8, 0); x.quadraticCurveTo(cx + 8.6, 30, cx + 12, 46); x.quadraticCurveTo(cx, 50, cx - 12, 46); x.quadraticCurveTo(cx - 8.6, 30, cx - 8, 0); x.closePath(); x.fill();
+    /* the soft horizontal creases beech bark gathers, and its eyes */
+    for (var j = 4; j < 44; j += 3.4 + rs() * 2) { x.strokeStyle = "rgba(70,76,80," + (0.18 + rs() * 0.15) + ")"; x.lineWidth = 0.45; x.beginPath(); x.moveTo(cx - 7.5 - j * 0.06, j); x.quadraticCurveTo(cx, j + 1 + rs(), cx + 7.5 + j * 0.06, j - 0.4); x.stroke(); }
+    [[cx - 3, 14, 1.8], [cx + 3.5, 27, 1.4], [cx - 1, 36, 1.1]].forEach(function (e) {
+      x.fillStyle = "rgba(60,64,68,.55)"; x.beginPath(); x.ellipse(e[0], e[1], e[2] * 1.6, e[2] * 0.7, 0, 0, 6.2832); x.fill();
+      x.strokeStyle = "rgba(60,64,68,.4)"; x.lineWidth = 0.4; x.beginPath(); x.moveTo(e[0] - e[2] * 2.6, e[1] - e[2] * 0.6); x.quadraticCurveTo(e[0], e[1] - e[2] * 1.8, e[0] + e[2] * 2.6, e[1] - e[2] * 0.6); x.stroke();
+    });
+    /* sun down the lit edge; lichen and a long green stain of moss on the shady side */
+    x.fillStyle = "rgba(240,244,240,.28)"; x.fillRect(cx - 6.6, 0, 1.6, 42);
+    for (var k = 0; k < 9; k++) ell(x, cx - 5 + rs() * 10, 6 + rs() * 34, 0.8 + rs() * 1.2, 0.6 + rs() * 0.8, rs() < 0.5 ? "rgba(196,206,150,.5)" : "rgba(160,190,170,.45)");
+    x.fillStyle = lg(x, 0, 18, 0, 48, [[0, "rgba(110,150,80,0)"], [1, "rgba(110,150,80,.55)"]]);
+    x.beginPath(); x.moveTo(cx + 4, 18); x.quadraticCurveTo(cx + 9.4, 34, cx + 11.6, 46); x.quadraticCurveTo(cx + 7, 47, cx + 4.6, 46); x.quadraticCurveTo(cx + 5.4, 32, cx + 4, 18); x.fill();
+    /* moss cushions at the foot, between the roots */
+    [[cx - 9, 48], [cx + 3, 50], [cx + 13, 49]].forEach(function (mm, i) { lump(x, mm[0], mm[1], 2.4 + i * 0.4, "#4e7a2e", "#a6d064"); });
+    c.base = 58;
     return c;
   };
   /* the fallen giant: more alive lying down than anything standing */
