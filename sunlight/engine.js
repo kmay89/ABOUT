@@ -775,6 +775,7 @@
     if (p.goal) stepGoal(p, dt);
     else if (mag > 0.1) {
       var sp = (G.held("run") || mag > 0.95 && G.input.ax !== 0 ? 1 : 0) ? 92 : 64;
+      if (G.dash) sp = 104;                                       // running for it
       if (G.map.cold && G.eyes.adapt < 0.4 && !G.lamp.level) sp = 34;     // feeling your way in the black
       if (G.held("crank")) sp *= 0.55;
       sp *= mag;
@@ -879,7 +880,7 @@
         var far = Math.hypot(G.p.x - e.x, G.p.y - e.y);
         if (far > 58) { e.frame = 0; e.dir = Math.abs(G.p.x - e.x) > Math.abs(G.p.y - e.y) ? (G.p.x > e.x ? 2 : 3) : (G.p.y > e.y ? 0 : 1); if (e.onWait) e.onWait(); }
         else if (dd < 2) { e.lead.shift(); if (!e.lead.length && e.onArrive) e.onArrive(); }
-        else { var vv = Math.min(dd, 58 * dt); e.x += ddx / dd * vv; e.y += ddy / dd * vv; e.dir = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? 2 : 3) : (ddy > 0 ? 0 : 1); e.walk = (e.walk || 0) + vv; e.frame = Math.floor(e.walk / 7) % 4; }
+        else { var vv = Math.min(dd, (e.leadV || 58) * dt); e.x += ddx / dd * vv; e.y += ddy / dd * vv; e.dir = Math.abs(ddx) > Math.abs(ddy) ? (ddx > 0 ? 2 : 3) : (ddy > 0 ? 0 : 1); e.walk = (e.walk || 0) + vv; e.frame = Math.floor(e.walk / 7) % 4; }
       }
       if (e.tick) e.tick(dt, e);
     });
@@ -1353,17 +1354,39 @@
     mx.putImageData(id, 0, 0); sx.putImageData(sd, 0, 0);
     return wmask;
   }
+  /* only where the water is: the box round the water tiles in view (plus a
+     margin for the shore), in device pixels, worked out once a frame */
+  var wbox = { t: -1 };
+  function waterBox() {
+    if (wbox.t === time && wbox.cx === cam.x && wbox.cy === cam.y) return wbox.r;
+    wbox.t = time; wbox.cx = cam.x; wbox.cy = cam.y; wbox.r = null;
+    var h = G.maps.hill, x0 = Math.max(0, Math.floor(cam.x / T) - 2), y0 = Math.max(0, Math.floor(cam.y / T) - 2), x1 = Math.min(h.w, Math.floor((cam.x + VW) / T) + 3), y1 = Math.min(h.h, Math.floor((cam.y + VH) / T) + 3);
+    var a = 1e9, b = 1e9, c = -1e9, d = -1e9;
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) { var t = h.get(x, y); if (t === TL.WATER || t === TL.SPRING) { if (x < a) a = x; if (y < b) b = y; if (x > c) c = x; if (y > d) d = y; } }
+    if (c < a) return null;
+    var X0 = Math.max(0, Math.floor(((a - 1.5) * T - cam.x) * K)), Y0 = Math.max(0, Math.floor(((b - 1.5) * T - cam.y) * K));
+    var X1 = Math.min(cvs.width, Math.ceil(((c + 2.5) * T - cam.x) * K)), Y1 = Math.min(cvs.height, Math.ceil(((d + 2.5) * T - cam.y) * K));
+    if (X1 <= X0 || Y1 <= Y0) return null;
+    wbox.r = { x: X0, y: Y0, w: X1 - X0, h: Y1 - Y0 };
+    return wbox.r;
+  }
   G.waterLayer = function (draw) {
     if (G.mapId !== "hill") return;
     waterMask();
+    var bb = waterBox(); if (!bb) return;
     if (!wlay || wlay.width !== cvs.width || wlay.height !== cvs.height) { wlay = BS.cv(cvs.width, cvs.height); wlx = wlay.getContext("2d"); }
-    wlx.setTransform(1, 0, 0, 1, 0, 0); wlx.globalCompositeOperation = "source-over"; wlx.clearRect(0, 0, wlay.width, wlay.height);
+    wlx.setTransform(1, 0, 0, 1, 0, 0); wlx.globalCompositeOperation = "source-over"; wlx.clearRect(bb.x, bb.y, bb.w, bb.h);
+    wlx.save(); wlx.beginPath(); wlx.rect(bb.x, bb.y, bb.w, bb.h); wlx.clip();
     wlx.setTransform(K, 0, 0, K, 0, 0);
     draw(wlx);
     wlx.globalCompositeOperation = "destination-in"; wlx.imageSmoothingEnabled = true;
-    wlx.drawImage(wmask, -cam.x, -cam.y, wmask.width * WM, wmask.height * WM);
+    /* just the part of the mask under the box */
+    var mx = (bb.x / K + cam.x) / WM, my = (bb.y / K + cam.y) / WM, mw = bb.w / K / WM, mh = bb.h / K / WM;
+    wlx.setTransform(1, 0, 0, 1, 0, 0);
+    wlx.drawImage(wmask, mx, my, mw, mh, bb.x, bb.y, bb.w, bb.h);
+    wlx.restore();
     wlx.globalCompositeOperation = "source-over";
-    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(wlay, 0, 0); ctx.setTransform(t0);
+    var t0 = ctx.getTransform(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(wlay, bb.x, bb.y, bb.w, bb.h, bb.x, bb.y, bb.w, bb.h); ctx.setTransform(t0);
   };
   function shore() {
     if (G.mapId !== "hill" || !wshore) return;
@@ -1498,11 +1521,16 @@
       canX.setTransform(K, 0, 0, K, 0, 0); canX.imageSmoothingEnabled = true; to = canX;
     }
     var cx0 = Math.floor((cam.x - 24) / S), cy0 = Math.floor((cam.y - 24) / S), cx1 = Math.floor((cam.x + VW + 24) / S), cy1 = Math.floor((cam.y + VH + 24) / S);
+    /* each chunk's own square, laid on whole device pixels so neighbors
+       meet exactly: no pale seam where two soft edges half-cover a pixel */
+    var tr0 = to.getTransform(); to.setTransform(1, 0, 0, 1, 0, 0);
     for (var cy = Math.max(cy0, 6); cy <= cy1; cy++) for (var cx = Math.max(0, cx0); cx <= cx1; cx++) {
       if (cx * BS.CH >= m.w || cy * BS.CH >= m.h) continue;
-      var c = BS.canopyChunk(m, cx, cy);
-      to.drawImage(c, cx * S - c.pad - cam.x, cy * S - c.pad - cam.y, c.w, c.h);
+      var c = BS.canopyChunk(m, cx, cy), rz = c.res || 2;
+      var dx0 = Math.round((cx * S - cam.x) * K), dy0 = Math.round((cy * S - cam.y) * K), dx1 = Math.round(((cx + 1) * S - cam.x) * K), dy1 = Math.round(((cy + 1) * S - cam.y) * K);
+      to.drawImage(c, c.pad * rz, c.pad * rz, S * rz, S * rz, dx0, dy0, dx1 - dx0, dy1 - dy0);
     }
+    to.setTransform(tr0);
     if (to === ctx) return;
     var sx = G.p.x - cam.x, sy = G.p.y - 10 - cam.y, r = 30;
     var g = canX.createRadialGradient(sx, sy, 4, sx, sy, r);

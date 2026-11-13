@@ -512,6 +512,40 @@ The rest of the world brought up to the house:
   is showing. The gold arrow to the goal stays under the top bar and clear
   of the goal card.
 
+## Pacing: never too long without your hands on it (story.js)
+
+Every scene was measured: each line of text per beat, and each run of lines
+with no control between them. The long passive stretches are now broken by
+play, using the book's own lines, with nothing new written:
+
+- **Showing Beck the cellar (Tuesday).** It was 29 lines straight. Now, after
+  "You want to show me, or what?", you lead her yourself, across the garden,
+  through the house and down the steps, with Beck following. At the gold
+  she comes up beside you, and the reveal ("When I cranked Gran's lantern…")
+  waits for your hand on the crank. A reload mid-way puts her back at your
+  side.
+- **The hollow.** After the two lines of arrival, you walk over and look at
+  the fallen giant yourself. "Look at the old one, child" now answers what
+  you're doing.
+- **The pit.** "We ran for the gap in the fence…" is a run you make: full
+  speed, Beck flat out ahead, the shouting again and again, the gap held open
+  for you. It can't be failed; if you can't find the gap in about twenty
+  seconds, the story carries you through.
+- **The pump.** Getting Mo into the jar is yours too: press, press, press,
+  gold flecking into the glass while the pump keeps pulling. Every press
+  counts, the key pulses until you have the rhythm, and on a phone it's the
+  A button.
+
+The climax already worked this way (a choice, then the twenty-two seconds of
+"look long" stillness), and lost players already get the gold thread after
+twenty seconds. What's left is conversation, at most about a minute at a
+time.
+
+**Optimizing.** The water effects are drawn only inside the box around the
+water on screen (about 14 ms down to 5 ms a frame at the pond, measured
+headless). Canopy chunks are laid on whole device pixels, so there's no pale
+seam where two chunks meet.
+
 ## The words (engine.js)
 
 Every line is shown one way. Dialogue and narration share one box at the

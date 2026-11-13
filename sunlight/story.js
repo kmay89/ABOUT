@@ -400,6 +400,8 @@
   S.stage = stage;
   function placeBeck() {
     var b = at();
+    /* Tuesday morning, after the hedge: she's with you, waiting to be shown */
+    if (is("dawn") && F("beckMet") && !F("showedBeck")) G.put({ id: "beck", map: G.mapId, who: "beck", x: G.p.x + 12, y: G.p.y + 4, follow: true, solid: false });
     if (is("beck", "woods", "hollow")) G.put({ id: "beck", map: G.mapId === "hill" ? "hill" : "hill", who: "beck", x: 47 * T, y: 22 * T, follow: true, solid: false });
     if (is("pit")) G.put({ id: "beck", map: "hill", who: "beck", x: 50.5 * T, y: 16.8 * T, follow: false, solid: true });
     if (is("pond")) G.put({ id: "beck", map: "hill", who: "beck", x: 67.5 * T, y: 17 * T, follow: true, solid: false });
@@ -520,7 +522,7 @@
   };
   G.gate = function (tx, ty, t) {
     if (G.mapId !== "hill") return false;
-    if (t === TL.GAP) return !(is("pit") && !F("sawBoard"));
+    if (t === TL.GAP) return !((is("pit") && !F("sawBoard")) || G.dash);   // and open for the run back out
     if ((tx === 76 || tx === 77) && ty === 34) return true;      // the gate, the dog, Beck's dad's work
     /* the woods are dark at night until you have the lantern and a reason */
     return false;
@@ -580,6 +582,7 @@
     spot({ id: "photo", map: "house", x: 3.5, y: 10.4, r: 16, when: function () { return from("shed") && !from("evening"); }, label: "A box, a photograph face-down", act: function () { scene(function () { return nar("The photograph he'd hidden face-down when he heard me on the stairs. I didn't turn it over. Some things are too heavy to hand to a person through the air."); }); } });
     /* — the cellar — */
     spot({ id: "shelf", map: "cellar", x: 19.6, y: 11.6, r: 22, label: "The fallen shelf", act: cellarShelf });
+    spot({ id: "giant", map: "hill", x: 17, y: 63.3, r: 34, label: "The fallen giant", when: function () { return is("woods") && F("inHollow") && !F("sawGiant"); }, act: function () { set("sawGiant"); return scene(hollowRest); } });
     spot({ id: "jars", map: "cellar", x: 10.5, y: 6.4, r: 30, label: "Jars, rank on rank", when: function () { return !is("pump"); }, act: function () { scene(function () { return nar("Plums and peaches and blackberries dark as a bruise — summers she'd caught in glass and screwed the lids down on and carried down the cold stone steps to keep. Hundreds of them."); }); } });
     spot({ id: "grabjar", map: "cellar", x: 10.5, y: 1.6, r: 40, label: "Grab one of Gran's jars", when: function () { return is("pump") && !F("hasJar"); }, act: grabJar });
     /* — the shed — */
@@ -757,6 +760,7 @@
       var d = G.ent("dad");
       if (d && Math.hypot(G.p.x - d.x, G.p.y - d.y) < 24 && G.p.still > 2.2 && !G.cut) { set("handHeld"); scene(handInHand); }
     }
+    if (is("dawn") && F("beckMet") && !F("showedBeck") && G.mapId === "cellar" && !G.cut && Math.hypot(G.p.x - 19 * T, G.p.y - 11 * T) < 78) { set("showedBeck"); scene(cellarWithBeck); }
     if (is("pond") && G.mapId === "hill" && !F("atPond") && G.inRect(G.p.x / T, G.p.y / T, h.pond, 0)) { set("atPond"); scene(pondArrive); }
     if (is("woods") && G.mapId === "hill" && !F("woodsIn") && G.p.y / T > 52.5) { set("woodsIn"); scene(woodsIn); }
     if (is("woods") && G.mapId === "hill" && F("woodsIn") && !F("atBeech") && Math.hypot(G.p.x - 31.6 * T, G.p.y - 61.6 * T) < 30) { set("atBeech"); scene(atBeech); }
@@ -942,11 +946,32 @@
       .then(function () { return say("beck", "Yeah. I know. That's why I said not for long. — It's just a slime mold, though. Right?"); })
       .then(function () { return say("wren", "No. It's not."); })
       .then(function () { return say("beck", "Okay. Well. You want to show me, or what?"); })
-      .then(function () { set("beckMet"); return cellarWithBeck(); });
+      .then(function () {
+        /* and you do: she follows you in, through the house and down the
+           steps, and it is your hand on the crank that shows her */
+        set("beckMet"); var b = G.ent("beck"); b.follow = true; b.solid = false; b.lead = null;
+        G.objective("Show Beck the cellar. She'll follow you.");
+      });
+  }
+  function until(cond, cap) {
+    return new Promise(function (res) {
+      var t0 = G.time(), iv = setInterval(function () { if (G.skipWaits || cond() || (cap && G.time() - t0 > cap)) { clearInterval(iv); res(); } }, 80);
+    });
   }
   function cellarWithBeck() {
-    return G.fade(true, 600)
-      .then(function () { G.go("cellar", 18.6, 11.6, 2, { instant: true }); G.put({ id: "beck", map: "cellar", who: "beck", x: 18.6 * T, y: 12.6 * T, dir: 2, solid: false, follow: false }); G.lamp.fixed = { map: "cellar", x: 19.6 * T, y: 11 * T, r: 60, i: 0.5 }; set("tipped"); G.eyes.adapt = 0.9; return G.fade(false, 700); })
+    var b = G.ent("beck"); if (b) { b.follow = false; b.solid = false; b.map = "cellar"; }
+    set("tipped"); G.eyes.adapt = Math.max(G.eyes.adapt, 0.6);
+    /* she comes up beside you while you reach for the crank: the nearest open floor at your side */
+    var spotB = [[-1.1, 0.5], [1.1, 0.5], [0, 1.1], [-1.1, -0.4], [1.1, -0.4], [0, -1]].map(function (o) { return [G.p.x / T + o[0], G.p.y / T + o[1]]; })
+      .filter(function (q) { return !G.blocked(q[0] * T, q[1] * T, b); })[0] || [G.p.x / T, G.p.y / T + 1];
+    G.walkTo("beck", spotB[0], spotB[1], 90);
+    return Promise.resolve()
+      .then(function () {
+        if (G.lamp.level > 0.55) return;
+        G.objective("Crank the lantern (C). Show her.");
+        G.cut--; return until(function () { return G.lamp.level > 0.55; }, 40).then(function () { G.cut++; });
+      })
+      .then(function () { G.lamp.fixed = { map: "cellar", x: 19.6 * T, y: 11 * T, r: 60, i: 0.5 }; A.sfx("swell", "wonder"); return wait(500); })
       .then(function () { return nar("When I cranked Gran's lantern and the white light fell down the steps and woke the gold and lit the hundred glowing jars, I got to watch a kid who had named a nickel slug bounty go absolutely silent, all the way down to the bottom of her."); })
       .then(function () { return say("beck", "Oh. Oh, that's not fair. They can't. They can't fill that in."); })
       .then(function () { return mo("She's good. She looks long. There are two of you now."); })
@@ -1005,7 +1030,11 @@
     A.sfx("swell", "wonder"); if (G.fountain) G.fountain(18 * T, 64 * T, 9, "200,240,150");
     return nar("A fold of the woods where the ground dropped away and a spring came up out of the hillside, so the air was colder than anywhere else, and wetter. And lying across the whole hollow, mossed over so thick it was more green than brown, was a tree.")
       .then(function () { return nar("The biggest tree I had ever seen, a giant, come down who knew how many years ago — and more alive lying on its side than anything else in that forest. Moss in a deep wet pelt. Ferns in green fountains. A whole row of seedlings, hand-high, grew straight up out of its back, reaching for the gap it had opened when it came down."); })
-      .then(function () { return say("wren", "This is it. Beck, this is perfect, it's cold, it's wet, it's dark — this is where Mo can live. We'll dig it up and we'll carry it down here and —"); })
+      .then(function () { G.objective("Go and look at the fallen giant."); });
+  }
+  /* what you say once you're standing at it, and what answers */
+  function hollowRest() {
+    return say("wren", "This is it. Beck, this is perfect, it's cold, it's wet, it's dark — this is where Mo can live. We'll dig it up and we'll carry it down here and —")
       .then(function () { return wait(900); })
       .then(function () { return nar("You cannot dig up a cellar. Mo was not a clump. Mo was the cold of it and the dark of it and the damp running down the stone and the hundred summers in their jars and the foxfire in the beams, and the gold was only the part you could see."); })
       .then(function () { return say("wren", "We can't move it. It's not a thing, Beck. It's a whole place. You can't pick up a place. Nothing keeps anything, it just —"); })
@@ -1049,6 +1078,7 @@
         .then(function () { G.cut--; return G.sandPile(); }).then(function () { G.cut++; })
         .then(function () { A.sfx("horn"); return wait(300); })
         .then(function () { A.sfx("shout"); return say("beckdad", "HEY — HEY — who's that, what in the — BECK? *Beck?*"); })
+        .then(escapeDash)
         .then(function () { return G.fade(true, 400); })
         .then(function () { G.drop("foreman"); G.drop("loader"); G.drop("dog"); G.p.x = 72.5 * T; G.p.y = 23 * T; var b = G.ent("beck"); b.follow = false; b.lead = null; b.x = 73.6 * T; b.y = 23.4 * T; b.dir = 3; G.ambOverride = "garden"; G.setAmbience(); return G.fade(false, 600); })
         .then(function () { return nar("We ran for the gap in the fence with her dad's voice behind us cracking like a whip across the whole pit, down the back lane, lungs burning, until there was nothing but the hot quiet lane and the two of us bent over our knees, heaving. Beck wouldn't look at me."); })
@@ -1064,6 +1094,23 @@
         .then(function () { G.ambOverride = null; G.setTime("dusk"); beat("apology"); return G.go("hill", 46.5, 17.2, 1); })
         .then(function () { return nar("I washed the sand off under the garden tap in the last of the light, and the entire time I was thinking the same two things on a loop. *The pump comes tomorrow.* And: *Beck is gone.*"); })
         .then(function () { G.objective("Go down to the one friend you have left, and ask it the question you're most afraid of."); });
+    });
+  }
+
+  /* "We ran for the gap in the fence with her dad's voice behind us
+     cracking like a whip across the whole pit" — and you do the running:
+     Beck flat out ahead, the voice again and again, the ground shaking with
+     your heart. No way to fail it; if you can't find the gap, it finds you. */
+  function escapeDash() {
+    var b = G.ent("beck");
+    if (b && (b.map !== "hill" || Math.hypot(b.x - G.p.x, b.y - G.p.y) > 5 * T)) { b.map = "hill"; b.x = G.p.x - 14; b.y = G.p.y + 4; }   // she is right there with you
+    if (b) { b.follow = false; b.solid = false; b.leadV = 104; b.lead = [[72, 43.2], [69.4, 39], [66.8, 35.4], [63.5, 34.6], [63.5, 31.6]]; b.onArrive = function () { b.lead = null; b.dir = 0; }; }
+    G.dash = true; G.shake = 4; if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    G.objective("RUN. Back out through the gap in the fence!");
+    var shouts = setInterval(function () { if (!G.dash) return; A.sfx("shout"); G.shake = 2.5; }, 2400);
+    G.cut--;
+    return until(function () { return G.p.y / T < 33.8 && Math.abs(G.p.x / T - 63.5) < 2.6; }, 22).then(function () {
+      clearInterval(shouts); G.dash = false; G.cut++; if (b) b.leadV = null;
     });
   }
 
@@ -1201,6 +1248,7 @@
     if (!F("hasJar")) return nar("A jar. I needed one of her jars.");
     if (F("pumped")) return nar("Just a stain.");
     return say("wren", "I just need one minute, please, please, just one minute —")
+      .then(scrapeGame)
       .then(function () { return nar("I scraped at the shelf with the edge of the jar, scooping, frantic, getting a smear of it, a clot of the gold, into the glass — and I put my face down close, close as I had that first night."); })
       .then(function () { return say("wren", "Come back. You said you come back. Come back, please — be in here, be in the crumb, come with me, *please* —"); })
       .then(function () { return mo("Be brave, child. You'll get there. Look long, and you'll —"); })
@@ -1212,6 +1260,51 @@
       .then(function () { return say("worker", "Hey, now. It's just an old cellar, bud. My nan's house got sold — I know how it is. Go on and find your dad."); })
       .then(function () { G.drop("w1"); return cynicKitchen(); });
   }
+  /* the scraping is yours: press, and press, and press, the edge of the jar
+     on the old wood, gold flecking into the glass, while the cellar's cold
+     goes out of the air around you. It can't be failed; it can only be
+     done fast or slow. */
+  var scr = null;
+  function scrapeGame() {
+    return new Promise(function (res) {
+      if (G.skipWaits) return res();
+      scr = { t: 0, prog: 0, kick: 0, res: res, hint: 0 };
+      G.objective(document.body.classList.contains("touch") && !G.usingKeys ? "Scrape the gold into the jar. Tap A, fast!" : "Scrape the gold into the jar. Press E, fast!");
+      G.mode = "scrape";
+    });
+  }
+  G.minis.scrape = {
+    update: function (dt) {
+      var c = scr; if (!c) return;
+      c.t += dt; c.kick = Math.max(0, c.kick - dt * 6);
+      if (G.tap("act") || G.tap("crank") || G.tap("lens")) {
+        c.prog = Math.min(1, c.prog + 0.105); c.kick = 1; c.hint = 0;
+        A.sfx(c.prog > 0.5 ? "plink" : "dig"); G.shake = Math.max(G.shake || 0, 1.4);
+        if (G.burst) G.burst(19.4 * T + (Math.random() - 0.5) * 10, 11.2 * T, 5, "255,206,90", 10);
+        if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(8);
+      } else c.hint += dt;
+      c.prog = Math.max(0, c.prog - dt * 0.012);                     // the pump never stops pulling
+      if (c.prog >= 0.97) { scr = null; G.mode = "walk"; A.sfx("found"); c.res(); }
+    },
+    draw: function (ctx, cam, time) {
+      var c = scr; if (!c) return;
+      /* the jar, up by your hands, filling with gold */
+      var x = G.p.x - cam.x + 14, y = G.p.y - cam.y - 34, k = 1 + c.kick * 0.08, h = 16, w = 11;
+      ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+      ctx.fillStyle = "rgba(10,8,6,.55)"; BS.rr(ctx, -w / 2 - 2.5, -h / 2 - 4, w + 5, h + 8, 3); ctx.fill();
+      var fh = (h - 3) * c.prog;
+      ctx.fillStyle = BS.lg(ctx, 0, h / 2 - fh, 0, h / 2, [[0, "rgba(255,226,120,.95)"], [1, "rgba(220,150,40,.95)"]]);
+      ctx.fillRect(-w / 2 + 1, h / 2 - 1 - fh, w - 2, fh);
+      ctx.strokeStyle = "rgba(220,240,240,.8)"; ctx.lineWidth = 0.8; BS.rr(ctx, -w / 2, -h / 2, w, h, 2.4); ctx.stroke();
+      ctx.fillStyle = "#b8862a"; ctx.fillRect(-w / 2 - 0.6, -h / 2 - 2.4, w + 1.2, 2.2);
+      ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(-w / 2 + 1.4, -h / 2 + 2, 1, h - 5);
+      /* the key, pulsing, until you've got the rhythm */
+      var a = c.hint > 0.6 || c.prog === 0 ? 0.6 + 0.4 * Math.sin(time * 9) : 0.25;
+      ctx.globalAlpha = a; ctx.fillStyle = "#fff4d6"; BS.rr(ctx, -4, h / 2 + 4, 8, 7, 1.6); ctx.fill();
+      ctx.fillStyle = "#3a2a14"; ctx.font = "bold 5.4px sans-serif"; ctx.textAlign = "center"; ctx.fillText(document.body.classList.contains("touch") && !G.usingKeys ? "A" : "E", 0, h / 2 + 9.6);
+      ctx.restore();
+    }
+  };
   function cynicKitchen() {
     var lines = ["It's just an old cellar.", "It's just mold.", "It's just a stain on a board.", "You made it up.", "fungus doesn't talk", "a lonely kid in a dead summer with no signal", "you built a friend out of a stain and your grandmother's nice handwriting", "it was you the whole time, talking to yourself in the dark"];
     lines.forEach(function (l, i) { setTimeout(function () { G.cynic(l, 6); }, i * 650); });
@@ -1382,8 +1475,8 @@
   S.GOALS = [
     { ch: 0, steps: [["Talk to Dad", function () { return F("dadSentCellar"); }], ["Go down to the cellar", function () { return from("cellar1"); }], ["Stand still. Let your eyes adjust", function () { return has("eyes"); }], ["See what's on the fallen shelf", function () { return has("book"); }]] },
     { ch: 1, steps: [["Haul open the shed", function () { return F("shedOpen"); }], ["Find a light", function () { return has("lantern"); }], ["Find a better way to turn the crank", function () { return from("build"); }], ["Gather the parts", function () { return parts() >= 4 || has("scooter"); }, function () { return [parts(), 4]; }], ["Build it", function () { return has("scooter"); }], ["Ride the hill to charge the phone", function () { return from("lens"); }, function () { return [Math.min(3, G.s.rides || 0), 3]; }], ["Look at the gold through a drop of water", function () { return F("moSpoke"); }]] },
-    { ch: 2, steps: [["Lay oats at the compost heap", function () { return F("slime1"); }], ["Lead the gold toward the hedge", function () { return F("slime2"); }], ["Meet whoever's at the hedge", function () { return F("beckMet"); }]] },
-    { ch: 3, steps: [["Follow Beck into the woods", function () { return F("woodsIn"); }], ["Find where the gold runs out", function () { return F("atBeech"); }], ["Dig at the beech", function () { return has("roots"); }], ["Find the hidden way — look closely", function () { return !G.maps.hill.hidden.root; }], ["Reach somewhere cold, wet and dark", function () { return F("inHollow"); }]] },
+    { ch: 2, steps: [["Lay oats at the compost heap", function () { return F("slime1"); }], ["Lead the gold toward the hedge", function () { return F("slime2"); }], ["Meet whoever's at the hedge", function () { return F("beckMet"); }], ["Show Beck the cellar", function () { return F("showedBeck"); }]] },
+    { ch: 3, steps: [["Follow Beck into the woods", function () { return F("woodsIn"); }], ["Find where the gold runs out", function () { return F("atBeech"); }], ["Dig at the beech", function () { return has("roots"); }], ["Find the hidden way — look closely", function () { return !G.maps.hill.hidden.root; }], ["Reach somewhere cold, wet and dark", function () { return F("inHollow"); }], ["Look at the fallen giant", function () { return F("sawGiant"); }]] },
     { ch: 4, steps: [["Follow Beck to the pit", function () { return F("sawBoard") || (G.p.y / T > 34 && is("pit")); }], ["Sneak to the trailer window", function () { return F("sawBoard"); }], ["Get out of the pile", function () { return has("still"); }]] },
     { ch: 5, steps: [["Ask Mo the truth", function () { return F("asked"); }], ["Make it right with Beck", function () { return from("pond"); }], ["Go to the pond", function () { return F("atPond"); }], ["Wake a water bear", function () { return has("proof"); }], ["Let it go home", function () { return F("mossBack"); }]] },
     { ch: 6, steps: [["Grab one of Gran's jars", function () { return F("hasJar"); }], ["Get Mo into the jar", function () { return F("pumped"); }], ["Get out", function () { return F("escorted"); }]] },
@@ -1407,15 +1500,15 @@
     }
     if (b === "hill") return ["hill", 40, 26.5];
     if (b === "lens") return ["cellar", 19.6, 11.6];
-    if (b === "dawn") return F("beckMet") ? null : ["hill", 48.9, 21.6];
+    if (b === "dawn") return !F("beckMet") ? ["hill", 48.9, 21.6] : !F("showedBeck") ? ["cellar", 18.4, 10.6] : null;
     if (b === "woods") {
       if (!F("woodsIn")) return ["hill", 40.5, 53];
       if (!F("atBeech")) return ["hill", 31.6, 61.6];
       if (!has("roots")) return ["hill", 31.3, 62.2];
       if (G.maps.hill.hidden.root) return ["hill", 33, 64];
-      return ["hill", 17, 62];
+      return F("inHollow") && !F("sawGiant") ? ["hill", 17, 63.3] : ["hill", 17, 62];
     }
-    if (b === "pit") { if (F("sawBoard")) return null; return G.p.y / T < 34 ? ["hill", 63.5, 33.4] : ["hill", 76.5, 42.6]; }
+    if (b === "pit") { if (F("sawBoard")) return G.dash ? ["hill", 63.5, 33.2] : null; return G.p.y / T < 34 ? ["hill", 63.5, 33.4] : ["hill", 76.5, 42.6]; }
     if (b === "apology") return !F("asked") ? ["cellar", 19.6, 11.6] : ["hill", 67.5, 16.6];
     if (b === "pond") { if (!F("atPond")) return ["hill", 53, 59.5]; if (!F("mossPeeled") || (F("tunsSeen") && !F("mossBack"))) return ["hill", 52.5, 62.5]; if (!F("tunsSeen")) return ["hill", 51.5, 64.5]; return null; }
     if (b === "pump") return F("escorted") ? null : !F("hasJar") ? ["cellar", 10.5, 1.6] : ["cellar", 19.6, 11.6];
