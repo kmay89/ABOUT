@@ -51,6 +51,8 @@
   A.suspend = function (on) { if (ctx) { if (on) ctx.suspend(); else ctx.resume(); } };
 
   function gain(v, to) { var g = ctx.createGain(); g.gain.value = v; if (to) g.connect(to); return g; }
+  /* a bus by name ("sfx", "mus", "amb") or the node itself; `d` if none is asked for */
+  function busOf(b, d) { return typeof b === "string" ? ({ sfx: sfxBus, mus: musBus, amb: ambBus }[b] || d) : (b || d); }
   function makeNoise(kind) {
     var len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
     var b0 = 0, b1 = 0, b2 = 0, last = 0;
@@ -97,7 +99,7 @@
     var os = ctx.createOscillator(); os.type = o.type || "sine"; os.frequency.setValueAtTime(f, t);
     if (o.slide) os.frequency.exponentialRampToValueAtTime(o.slide, t + (o.dur || 0.3));
     var g = gain(0); var pn = panner(o.pan || 0);
-    os.connect(g); g.connect(pn); pn.connect(o.bus || sfxBus);
+    os.connect(g); g.connect(pn); pn.connect(busOf(o.bus, sfxBus));
     if (o.verb) g.connect(A.reverb.node);
     env(g, t, o.a || 0.005, o.g || 0.1, o.dur || 0.3);
     os.start(t); os.stop(t + (o.a || 0.005) + (o.dur || 0.3) + 0.05);
@@ -107,7 +109,7 @@
     var t = ctx.currentTime + (o.at || 0);
     var s = noiseSrc(o.buf, false), f = filt(o.type || "bandpass", o.f || 1000, o.q || 1), g = gain(0), pn = panner(o.pan || 0);
     if (o.sweep) f.frequency.exponentialRampToValueAtTime(o.sweep, t + o.dur);
-    s.connect(f); f.connect(g); g.connect(pn); pn.connect(o.bus || sfxBus);
+    s.connect(f); f.connect(g); g.connect(pn); pn.connect(busOf(o.bus, sfxBus));
     if (o.verb) g.connect(A.reverb.node);
     env(g, t, o.a || 0.005, o.g || 0.1, o.dur || 0.2);
     s.start(t, Math.random()); s.stop(t + (o.a || 0.005) + (o.dur || 0.2) + 0.05);
@@ -122,8 +124,13 @@
     var damp = o.damp || 0.996, bright = o.bright == null ? 0.5 : o.bright;
     for (i = 0; i < len; i++) { var k = i % n, nx = (k + 1) % n; var v = ring[k]; ring[k] = damp * (bright * v + (1 - bright) * ring[nx]); d[i] = v; }
     var s = ctx.createBufferSource(); s.buffer = b;
+    /* the loop is a whole number of samples long (less the fraction the
+       averaging takes off), so the string comes out a few cents sharp or
+       flat, more the higher it is: up to a fifth of a semitone at the top
+       of the tune. Played back a hair faster or slower, it is in tune. */
+    s.playbackRate.value = f * (n - (1 - bright)) / sr;
     var g = gain(o.g || 0.12), pn = panner(o.pan || 0), lp = filt("lowpass", o.lp || 3200);
-    s.connect(lp); lp.connect(g); g.connect(pn); pn.connect(o.bus || musBus);
+    s.connect(lp); lp.connect(g); g.connect(pn); pn.connect(busOf(o.bus, musBus));
     if (o.verb !== false) g.connect(A.reverb.node);
     s.start(t);
   }
@@ -137,6 +144,13 @@
     env(gg, t, 0.03, g, dur);
   }
   A.pluck = pluck; A.tone = tone; A.burst = burst;
+  /* the key the hill is in: D major pentatonic. The piano in the other room
+     plays it, the dynamo's whine drifts toward it, the chime on the porch is
+     cut to it, and every sound that answers a press is a note of it
+     (feel.js), so nothing you do can play a wrong note against the music.
+     A.hz(n) is its nth note: 0 is the D above middle C, 5 the D above that. */
+  var PENT = [0, 2, 4, 7, 9];
+  A.hz = function (n) { var k = ((n % 5) + 5) % 5; return 587.33 * Math.pow(2, (n - k) / 5 + PENT[k] / 12); };
 
   var cap = function (t) { if (A.captions) A.captions(t); };
   var footL = false;
@@ -171,7 +185,7 @@
     blip: function () { tone(1320, { g: 0.03, dur: 0.05 }); },
     ui: function () { tone(660, { type: "triangle", g: 0.04, dur: 0.06 }); },
     back: function () { tone(440, { type: "triangle", g: 0.04, dur: 0.07 }); },
-    text: function () { tone(520 + Math.random() * 60, { type: "triangle", g: 0.012, dur: 0.03 }); },
+    text: function () { tone([440, 493.88, 587.33][(Math.random() * 3) | 0], { type: "triangle", g: 0.012, dur: 0.03 }); },
     phone: function () { tone(880, { type: "square", g: 0.015, dur: 0.05 }); tone(1175, { type: "square", g: 0.015, dur: 0.05, at: 0.08 }); },
     buzz: function () { for (var i = 0; i < 3; i++) tone(180, { type: "sawtooth", g: 0.02, dur: 0.08, at: i * 0.12 }); cap("[the phone buzzes]"); },
     dig: function () { burst({ f: 700, q: 1, g: 0.12, dur: 0.12 }); burst({ f: 260, q: 1, g: 0.08, dur: 0.15, at: 0.05 }); },
@@ -234,17 +248,21 @@
       burst({ type: "bandpass", f: 900, q: 0.7, g: 0.04 * Math.max(0.4, P.g), dur: 0.5, a: 0.02, at: 0.08, pan: P.p });
       tone(95, { type: "triangle", slide: 80, g: 0.03, dur: 0.35, a: 0.05, pan: P.p });
     },
-    /* the wind chime on the porch: five tubes, a little out of tune with each other */
+    /* the wind chime on the porch: five tubes, a little out of tune with each
+       other, and cut to her scale (two of them used to be a semitone off it,
+       and rang against her theme on the title) */
     chime: function (x, y) {
-      var P = place(x, y, 260), g = x == null ? 1 : Math.max(0.15, P.g), notes = [1318.5, 1567.98, 1760, 2093, 2349.3];
+      var P = place(x, y, 260), g = x == null ? 1 : Math.max(0.15, P.g), notes = [6, 7, 8, 9, 10].map(A.hz);
       for (var i = 0; i < 3 + (Math.random() * 3 | 0); i++) { var f = notes[(Math.random() * 5) | 0] * (1 + (Math.random() - 0.5) * 0.004); tone(f, { g: 0.018 * g, dur: 2.2, a: 0.003, at: i * (0.12 + Math.random() * 0.2), verb: 1, pan: P.p }); tone(f * 2.76, { g: 0.004 * g, dur: 0.9, a: 0.003, at: i * 0.15, pan: P.p }); }
     },
-    click: function () { tone(2200, { type: "square", g: 0.012, dur: 0.012 }); burst({ f: 3200, q: 3, g: 0.05, dur: 0.025 }); tone(140, { g: 0.03, dur: 0.04, at: 0.01 }); },
+    click: function () { tone(2349.3, { type: "square", g: 0.012, dur: 0.012 }); burst({ f: 3200, q: 3, g: 0.05, dur: 0.025 }); tone(146.83, { g: 0.03, dur: 0.04, at: 0.01 }); },
     /* things you press (hands.js). A gold lid: a soft thock with a little
        brass in it. Jar glass: a fingernail on a jar. A knob on its groove:
-       one small notch, higher the further along it is. */
-    lid: function () { tone(196, { type: "triangle", slide: 124, g: 0.055, dur: 0.07 }); burst({ f: 2400, q: 3, g: 0.022, dur: 0.028 }); tone(1568, { g: 0.009, dur: 0.11, at: 0.004 }); },
-    glass: function () { tone(2093, { g: 0.014, dur: 0.07 }); tone(3140, { g: 0.006, dur: 0.05, at: 0.003 }); burst({ f: 5200, q: 5, g: 0.01, dur: 0.018 }); },
+       one small notch, higher the further along it is. Like every sound
+       that answers a press, they are tuned to the key the music is in
+       (feel.js has the rest of that grammar). */
+    lid: function () { tone(220, { type: "triangle", slide: 146.83, g: 0.055, dur: 0.07 }); burst({ f: 2400, q: 3, g: 0.022, dur: 0.028 }); tone(1760, { g: 0.008, dur: 0.1, at: 0.004 }); },
+    glass: function () { tone(2349.3, { g: 0.013, dur: 0.07 }); tone(3520, { g: 0.005, dur: 0.05, at: 0.003 }); burst({ f: 5200, q: 5, g: 0.01, dur: 0.018 }); },
     notch: function (k) { tone(660 + (k || 0) * 440, { type: "triangle", g: 0.011, dur: 0.028 }); },
     /* the phone's last breath: three falling blips and a soft click off */
     phonedie: function () { [880, 660, 440].forEach(function (f, i) { tone(f, { type: "square", g: 0.012, dur: 0.09, at: i * 0.16 }); }); tone(220, { slide: 90, g: 0.02, dur: 0.4, at: 0.5 }); cap("[the phone dies]"); },
@@ -255,7 +273,8 @@
     wish: function (x, y) { burst({ type: "bandpass", f: 1400, sweep: 700, q: 0.6, g: 0.07, dur: 0.7, a: 0.12 }); burst({ type: "highpass", f: 5000, g: 0.02, dur: 0.9, a: 0.2 }); [1568, 2093, 2637].forEach(function (f, i) { tone(f, { g: 0.008, dur: 0.6, at: 0.25 + i * 0.09, verb: 1 }); }); },
     tok: function (x, y, v) { var P = place(x, y, 140); if (P.g < 0.04) return; v = v == null ? 1 : v; tone(190 + Math.random() * 60, { type: "triangle", slide: 120, g: 0.07 * P.g * v, dur: 0.07, pan: P.p }); burst({ f: 900, q: 2, g: 0.04 * P.g * v, dur: 0.04, pan: P.p }); },
     plop: function (x, y) { var P = place(x, y, 200); if (P.g < 0.03) return; tone(320, { slide: 900, g: 0.09 * P.g, dur: 0.12, pan: P.p, verb: 1 }); burst({ f: 700, q: 0.8, g: 0.05 * P.g, dur: 0.25, at: 0.05, pan: P.p }); },
-    skip: function (x, y, n) { var P = place(x, y, 260); var f = 1100 * Math.pow(1.122, n || 1); tone(f, { slide: f * 1.4, g: 0.04 * Math.max(0.3, P.g), dur: 0.08, pan: P.p, verb: 1 }); burst({ f: 2400, q: 1.5, g: 0.025, dur: 0.05, pan: P.p }); },
+    /* a stone skipping: each skip a note up the scale */
+    skip: function (x, y, n) { var P = place(x, y, 260); var f = A.hz(4 + (n || 1)); tone(f, { slide: f * 1.4, g: 0.04 * Math.max(0.3, P.g), dur: 0.08, pan: P.p, verb: 1 }); burst({ f: 2400, q: 1.5, g: 0.025, dur: 0.05, pan: P.p }); },
     whiff: function () { burst({ f: 1800, sweep: 600, q: 1, g: 0.05, dur: 0.18, a: 0.02 }); },
     bee: function (x, y, g) { g = g || 0.5; var f = 205 + Math.random() * 40; tone(f, { type: "sawtooth", slide: f * (0.9 + Math.random() * 0.25), g: 0.008 * g, dur: 0.6 + Math.random() * 0.5, a: 0.15 }); },
     cup: function () { tone(1318.5, { g: 0.02, dur: 0.5, verb: 1 }); tone(1975.5, { g: 0.014, dur: 0.7, at: 0.08, verb: 1 }); },
@@ -297,13 +316,13 @@
   S.chirp = function (x, y) { var P = place(x, y, 220); if (P.g < 0.03) return; var f = 3000 + Math.random() * 1500; for (var i = 0; i < 2; i++) tone(f, { slide: f * 1.3, g: 0.015 * P.g, dur: 0.05, at: i * 0.09, pan: P.p }); };
   S.plop = function (x, y) { var P = place(x, y, 200); tone(600, { slide: 180, g: 0.08 * Math.max(0.3, P.g), dur: 0.12, pan: P.p }); burst({ f: 1200, q: 1, g: 0.05 * Math.max(0.3, P.g), dur: 0.2, at: 0.04, pan: P.p }); };
   S.region = function () { pluck(587.33, { g: 0.07, dur: 2.4, bright: 0.35 }); pluck(880, { at: 0.22, g: 0.06, dur: 2.6, bright: 0.35 }); tone(1174.66, { at: 0.44, g: 0.012, dur: 1.6, verb: 1, bus: musBus }); };
-  S.twinkle = function () { tone(1568, { g: 0.012, dur: 0.18, verb: 1 }); tone(2093, { g: 0.008, dur: 0.22, at: 0.06, verb: 1 }); };
+  S.twinkle = function () { tone(1760, { g: 0.012, dur: 0.18, verb: 1 }); tone(2349.3, { g: 0.008, dur: 0.22, at: 0.06, verb: 1 }); };
   S.rustle = function (x, y) { var P = place(x, y, 120); if (P.g < 0.05) return; burst({ type: "highpass", f: 2500, g: 0.03 * P.g, dur: 0.18, a: 0.04, pan: P.p }); };
   S.goal = function () { tone(880, { type: "triangle", g: 0.025, dur: 0.12 }); tone(1318.5, { type: "triangle", g: 0.022, dur: 0.3, at: 0.1, verb: 1 }); };
   S.badge = function () { [659.25, 783.99, 987.77, 1318.5].forEach(function (f, i) { pluck(f, { at: i * 0.1, g: 0.09, dur: 1.8, bright: 0.55 }); }); };
   S.whoosh = function () { burst({ f: 400, sweep: 2600, q: 0.8, g: 0.12, dur: 0.75, a: 0.3 }); tone(220, { slide: 880, g: 0.03, dur: 0.8, a: 0.4, type: "triangle" }); };
   S.land = function () { tone(1174.66, { g: 0.05, dur: 1.4, verb: 1 }); tone(1760, { g: 0.03, dur: 1.2, at: 0.05, verb: 1 }); burst({ f: 6000, type: "highpass", g: 0.04, dur: 0.5, a: 0.01 }); };
-  S.charge = function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, { type: "triangle", g: 0.035, dur: 0.18, at: i * 0.09 }); }); };
+  S.charge = function () { [587.33, 739.99, 880, 1174.66].forEach(function (f, i) { tone(f, { type: "triangle", g: 0.035, dur: 0.18, at: i * 0.09 }); }); };
   A.sfx = function (name) {
     if (!ctx) return;
     var f = S[name]; if (f) f.apply(null, Array.prototype.slice.call(arguments, 1));

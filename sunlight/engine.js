@@ -157,6 +157,9 @@
        title and the menu could only be worked with a mouse or a thumb.) */
     if ((e.code === "Enter" || e.code === "Space") && t && t.closest && t.closest("button,a[href],summary")) return;
     if (a === "book" || a === "act" || a === "menu" || a.length <= 5) e.preventDefault();
+    /* choosing between lines: the light moves on the key itself, not on the
+       next frame, so a quick down-then-Enter always says the line it landed on */
+    if (G.choosing && (a === "up" || a === "down" || a === "left" || a === "right")) { if (!e.repeat) G.choosing.sel(a === "up" || a === "left" ? -1 : 1); if (BS.hands) BS.hands.using("keys"); return; }
     if (!e.repeat) press(a); else keys[a] = true;
     G.usingKeys = true; G.usingPad = false;
     if (BS.hands) BS.hands.using("keys");
@@ -599,7 +602,7 @@
       function sel(i, focus) { idx = (i + btns.length) % btns.length; btns.forEach(function (b, k) { b.classList.toggle("sel", k === idx); }); if (focus) btns[idx].focus({ preventScroll: true }); }
       function pick(i) { A.sfx("ui"); c.classList.remove("on"); G.choosing = null; res(i); }
       sel(0);
-      G.choosing = { sel: function (d) { sel(idx + d, true); A.sfx("blip"); }, pick: function () { pick(idx); } };
+      G.choosing = { sel: function (d) { sel(idx + d, true); if (BS.feel) BS.feel.cue("move", { up: d < 0 }); else A.sfx("blip"); }, pick: function () { pick(idx); } };
       setTimeout(function () { btns[0] && btns[0].focus({ preventScroll: true }); }, 30);
     });
   };
@@ -626,7 +629,7 @@
   G.item = function (o) {
     return new Promise(function (res) {
       A.sfx("found");
-      if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([20, 40, 30]);
+      if (BS.feel) BS.feel.buzz([20, 40, 30], [320, 0.3, 0.7]); else if (G.prefs.haptics && navigator.vibrate) navigator.vibrate([20, 40, 30]);
       var ic0 = BS.wc(24, 24, 6); if (BS.icons && BS.icons[o.icon]) BS.icons[o.icon](ic0.getContext("2d"), 144);
       G.holdUp = { icon: ic0, t0: time };
       G.p.dir = 0; G.p.frame = 0;
@@ -774,6 +777,13 @@
     };
     if (opts.instant) { run(); return Promise.resolve(); }
     G.cut++;
+    /* through a door: the picture closes to a circle on Wren and opens on Wren in the next room (feel.js) */
+    /* (only doors: a move the story makes, a night passing, keeps the plain fade, which is how time goes by) */
+    var F = BS.feel;
+    if (opts.door && F && F.iris && !G.skipWaits && !G.prefs.reduced && !$("fade").classList.contains("on")) {
+      return F.iris(true).then(function () { run(); if (G.snapCam) G.snapCam(); return G.wait(80); }).then(function () { return F.iris(false); })
+        .then(function () { G.cut--; }, function () { F.irisClear(); G.cut--; });
+    }
     return G.fade(true, 350).then(function () { run(); return G.wait(80); }).then(function () { return G.fade(false, 450); }).then(function () { G.cut--; });
   };
   function setAmbience() {
@@ -820,8 +830,11 @@
       G.s.seen[target.look.id] = Date.now(); G.freshSeen = true;
       $("lnew").hidden = false;
       $("lnote").hidden = false; $("lnote").innerHTML = fmt(target.look.note);
-      A.sfx("seen");
       G.s.lensCount = (G.s.lensCount || 0) + 1;
+      /* the two plucked notes it always was (D and the F sharp over it), and
+         the more of the field guide you have seen, the higher they sit: an
+         octave up by the twenty-sixth (feel.js) */
+      if (BS.feel) BS.feel.rung(5 + Math.round(Math.min(26, Object.keys(G.s.seen).length) / 26 * 5), { voice: "harp" }); else A.sfx("seen");
     } else if (target.look) { $("lnote").hidden = false; $("lnote").innerHTML = fmt(target.look.note); }
     if (!forced) G.s.battery = Math.max(0, G.s.battery - 0.5);
     G.mode = "lens"; G.hud();
@@ -957,7 +970,10 @@
     else if (!G.cut && G.s.items.lens && G.lensNear()) ph = keycap("lens") + "<span>Something small here — look closer</span>";
     if (ph) { if (ph !== pr._h) { pr.innerHTML = ph; pr._h = ph; } pr.classList.add("on"); }
     else pr.classList.remove("on");
-    if (!G.cut && G.tap("act") && near) { A.sfx("ui"); if (G.burst && near.x != null) G.burst(near.x * T, near.y * T - 6, 8, "255,236,180", 18); near.act(); }
+    var acted = !G.cut && G.tap("act");
+    if (acted && near) { A.sfx("ui"); if (G.burst && near.x != null) G.burst(near.x * T, near.y * T - 6, 8, "255,236,180", 18); near.act(); }
+    /* a press with nothing in reach is still a press, and Wren answers it */
+    else if (acted && !G.freeze && G.mode === "walk" && !G.sitting && !G.dash && !G.cueFn && !G.hidePlayer) hop();
     if (!G.cut && G.tap("lens")) {
       if (G.s.items.lens) G.openLens();
       else if (G.s.items.phone !== false) { G.phoneGlare = 0.8; G.eyes.adapt *= 0.4; G.toast(G.s.battery > 0 ? "No Service · " + Math.round(G.s.battery) + "%" : "The screen stays black. A flat dead stone."); A.sfx("nosignal"); }
@@ -970,6 +986,22 @@
     animate(dt);
     G.clearTaps();
   }
+  /* a button ought to be worth pressing in an empty room. With nothing in
+     reach, Wren hops on the spot: up with a small "hup", and down with the
+     sound of whatever is underfoot, and its dust. It is only for the eye and
+     the ear: where Wren stands doesn't change. (feel.js, life.js) */
+  function hop() {
+    var F = BS.feel, L = BS.life, p = G.p;
+    if (!F) return;
+    if (G.prefs.reduced || !L || !L.hop) { F.empty(); return; }
+    if (!L.hop("p", 74, 460, function () {
+      var t = G.map.get(Math.floor(p.x / T), Math.floor(p.y / T)), surf = BS.SURFACE(t);
+      A.sfx("step", surf); A.sfx("step", surf);                       /* both feet */
+      if (surf === "sand" || surf === "gravel" || surf === "leaves" || (surf === "grass" && G.map.outdoor)) { G.puff(p.x - 3, p.y, surf); G.puff(p.x + 3, p.y, surf); }
+      F.cue("landed");
+    })) return;
+    F.cue("hup");
+  }
   function keycap(a) {
     if (BS.hands && BS.hands.key) return BS.hands.key(a);
     var touch = document.body.classList.contains("touch");
@@ -978,7 +1010,7 @@
   function useExit(ex) {
     if (BS.story && BS.story.locked && BS.story.locked(ex.lock || ex.to, ex)) return;
     A.sfx(G.mapId === "house" && ex.to === "cellar" ? "latch" : "door");
-    G.go(ex.to, ex.tx, ex.ty, ex.dir === "up" ? 1 : 0);
+    G.go(ex.to, ex.tx, ex.ty, ex.dir === "up" ? 1 : 0, { door: true });
   }
   G.useExit = useExit;
   function nearest() {

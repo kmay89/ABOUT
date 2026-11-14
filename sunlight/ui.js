@@ -22,7 +22,7 @@
     if (G.mode === "book" || G.mode === "menu") ui.closeAll();
     prevMode = G.mode;
     G.mode = which;
-    A.sfx(which === "book" ? "page" : "ui");
+    if (which === "book") A.sfx("page"); else if (BS.feel) BS.feel.cue("open"); else A.sfx("ui");
     var el = $(which === "book" ? "book" : "menu");
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
@@ -35,7 +35,7 @@
   ui.closeAll = function () {
     if ($("menu").classList.contains("on")) duck(false);
     ["book", "menu"].forEach(function (id) { $(id).classList.remove("on"); $(id).setAttribute("aria-hidden", "true"); });
-    if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; A.sfx("back"); }
+    if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; if (BS.feel) BS.feel.cue("close"); else A.sfx("back"); }
     $("stage").focus({ preventScroll: true });
   };
   document.querySelectorAll("[data-close]").forEach(function (b) { b.addEventListener("click", ui.closeAll); });
@@ -220,6 +220,16 @@
   function ask(o) { return BS.hands && BS.hands.ask ? BS.hands.ask(o) : Promise.resolve(confirm(o.title + " " + o.text)); }
   if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
+    /* the most important press in the game gets the most: the lid rings, the
+       sun over the house flares, and only then does the picture go. (It used
+       to cut to black on the frame you pressed.) A second press while it
+       rings is not a second beginning. */
+    if (begin.ringing) return;
+    if (BS.feel && !afterHow && !begin.rung) {
+      begin.rung = true;
+      BS.feel.begin(!!(load && saved));
+      if (!G.prefs.reduced && !G.skipWaits) { begin.ringing = true; setTimeout(function () { begin.ringing = false; begin(load, afterHow, opening); }, load && saved ? 380 : 560); return; }
+    }
     /* no cards before the game: New game starts the game. What you need is
        taught where you need it (story.js coachMove, the prompts, the cues);
        "How to play" is still on the title and the pause screen. */

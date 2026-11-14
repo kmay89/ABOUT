@@ -244,6 +244,7 @@ Captions for meaningful sounds are on by default.
 | `story.js` | Every beat, chapter by chapter, and everything you can press E on |
 | `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending |
 | `hands.js` | Whose hands are playing (keys, thumbs, a pad): the beads, the names of things, keyboard and pad on every card |
+| `feel.js` | What a press is like: notes in the music's key, the tick in the hand, the spring in a lid, the circle a door closes to |
 | `look.css` | Every control and card: the type, the lid, the glass, the paper |
 | `fonts/` | Six small typefaces, self-hosted, with their licenses |
 
@@ -879,7 +880,8 @@ the moment it changes: pick up a pad mid-game and the prompts say A.
   in focus, instead of a browser dialog.
 * A press has a sound (a lid, glass, a notch) and, under a thumb on a
   device that has it, a tick in the hand. The sound follows the menu's
-  volume, the tick its Haptics switch.
+  volume, the tick its Haptics switch. What the sounds are, and why, is
+  the next section.
 * In the dark the HUD dims with the room, and comes back with the light.
 
 ### Any screen
@@ -917,3 +919,130 @@ larger text and with reduced motion.
   the device had, Comic Sans included; the moments' badges were symbols
   from the device's own fonts. Both are drawn now.
 * A race at start-up (`decor` read before it existed) under `?beat=`.
+
+## Feel (feel.js)
+
+Everything you do on the hill gets an answer, and the answers are kin.
+`hands.js` says what was pressed. `feel.js` says what that is like: the
+note, the tick in the hand, the way the thing moves. It is a small grammar,
+and a lid, a door, a goal ticked off and a jar filling all speak it.
+
+### One key
+
+The music is D major pentatonic (D, E, F sharp, A, B). The dynamo's whine
+already drifted toward it. Now every sound that answers a press is a note
+of it, so nothing you do can play a wrong note against the piano in the
+other room. The scale is kept in one place, where the music is: `A.hz(n)`
+in `audio.js` (0 is the D above middle C, 5 the D above that).
+
+| What you did | What you hear |
+|---|---|
+| Press a lid, and let go | A thock from A down to D; then D and A ringing above it |
+| Press glass | A fingernail on a jar, on D |
+| Throw a switch | Its click, then F sharp up to A for on, A down to F sharp for off |
+| Turn a knob | One notch, from F sharp to the F sharp two octaves up along its groove |
+| Step down a list, or up | A step down the scale, or up |
+| A card opens; it closes | D up to A; A down to D |
+| Come into reach of a thing | A, then the D over it |
+| Try a door that won't | Knuckles on wood, twice, on a low D |
+| Begin | The scale from D up two octaves on a harp, and a D chord in bells |
+| Continue | D, A, D |
+
+* **Brought into the key:** the lid, the glass, the twinkle on a prompt,
+  the tally when the phone charges, the ticks under narration and the
+  switch's click were each a few notes off it. So were two of the five
+  tubes of the wind chime on the porch, which rang a semitone against her
+  theme on the title; and a skipping stone counted its skips up a
+  whole-tone scale.
+* **Left out of it, on purpose.** Mo's chord and Mo's words are in another
+  key and stay there: the book never says whose voice that is, and neither
+  does the harmony. The phone keeps its own sounds, as it keeps its own
+  typeface.
+* **Plucked strings are in tune.** The piano, her theme and the fanfares
+  are all one plucked string (`pluck` in `audio.js`), and it came out
+  sharp: 8 to 30 cents on the notes of her theme, a different amount on
+  each note and on each device's sample rate. It is within 2 cents now.
+
+### Up is on
+
+Up is on, forward, more. Down is back, off, less. A card rises as it opens
+and falls as it shuts. Nothing breaks it, so it never has to be learned.
+
+### Things that repeat, climb
+
+* **A goal ticked off** is the pen-tick it always was, and the further
+  through the chapter you are, the higher it is. The first is an A; the
+  fourth is the E it used to be every time.
+* **A thing seen through the drop** for the first time is the two plucked
+  notes it always was, and by the twenty-sixth they are an octave up.
+* **Oats laid, a jar scraped full, fireflies cupped, a stone skipping:**
+  each one a note above the last.
+* `F.rung(n)` is the nth step of anything, and `F.ladder(key)` counts for
+  you and starts again after a pause. A rung keeps the voice the moment
+  already had, and only its pitch is new. What a climb arrives at is the
+  fanfare that was already there.
+
+### A press has two halves
+
+Down is dull and low. Back is bright: a D, and the A a fifth over it.
+
+* **A lid** sinks onto its rim, springs up past where it sat and settles;
+  the light crosses its face once; a ring leaves its shape and a few
+  filings fly.
+* **Glass** wobbles once. **A ribbon** in the book swings from where it is
+  sewn in. **The wax seal** gives under the thumb.
+* **A bead** under a thumb gives off a ripple going down and springs back
+  past its size coming up, so even the quickest tap is seen to land. The
+  stick, let go, springs home.
+* **In the hand:** the same answer is a tick under a thumb, and a short
+  rumble in a gamepad that has one (light for a step, longer for a thing
+  found). Both follow the Haptics switch.
+
+### One beat
+
+What asks to be pressed keeps one time, 1.6 seconds, from one clock, however
+late each of them started: the key on a prompt, the bead under your thumb
+and the spark on it, the cue the game waits on, and whatever the keys or
+the pad are on. The ring that opens round the thing itself, and the mark
+that says there is more to read, go twice to it.
+
+### Thresholds
+
+* **A door.** The picture closes to a circle on Wren, stops there for a
+  breath, shuts, and opens on Wren in the next room. It takes what the fade
+  took, about nine tenths of a second. It is only for doors. When the
+  story moves you, or a night goes by, it is still the plain fade, which is
+  how time passes.
+* **Begin.** The most important press in the game gets the most. The lid
+  rings, the sun over the house flares, the picture warms, and then it goes
+  down into the dark the drive comes up out of. That takes half a second.
+  It used to cut to black on the frame you pressed. A second press while it
+  rings is not a second beginning.
+* **The pause card** arrives in the order you would read it, in under half
+  a second, and its buttons can be reached at once. The ring fills and the
+  number counts up to where you are.
+
+### Worth pressing in an empty room
+
+With nothing in reach, the button that acts used to do nothing. Now Wren
+hops: about six pixels, a third of a second, the same at any frame rate.
+The shadow stays on the ground. Wren comes down on the same spot with the
+sound of whatever is underfoot, and its dust. One hop at a time, and not
+from the swing, during the run, or while the game is waiting on you.
+
+### Less motion
+
+Reduced motion keeps every note and drops the rest: no springs, sparks or
+ripples, a door is the plain fade, the pause card is simply there, Begin
+doesn't hold, and an empty press is a small sound with Wren's feet on the
+ground.
+
+### Put right along the way
+
+* Plucked notes were out of tune (above).
+* A new game cut to black on the frame Begin was pressed.
+* Choosing a line with a quick down-then-Enter could say the first line:
+  the light moved a frame after the key. It moves on the key now.
+* A hop was a little higher on a slow device than a fast one. This was
+  Beck's hop; it is everyone's now.
+* A quick tap on a bead showed no press at all.

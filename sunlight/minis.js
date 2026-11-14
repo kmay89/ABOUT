@@ -189,7 +189,9 @@
     if (S.won) return;
     if (!passable(x, y) || S.net[x + "," + y] || S.left <= 0) { A.sfx("back"); return; }
     if (S.oats.some(function (o) { return o.x === x && o.y === y && !o.eaten; })) return;
-    S.oats.push({ x: x, y: y }); S.left--; A.sfx("pick");
+    S.oats.push({ x: x, y: y }); S.left--;
+    /* each flake laid is a note above the last, and the gold finding its way is where they land */
+    if (BS.feel) BS.feel.rung(S.oats.length - 1, { base: 2 }); else A.sfx("pick");
     grow();
   }
   function resetSlime() {

@@ -1479,3 +1479,91 @@ body.touch.coaching .prompt{opacity:0!important}
 body.touch.coaching .caption{bottom:calc(276px + var(--safe-b))}
 .stick.teach{animation:stickteach 1.6s ease-in-out infinite}
 @keyframes stickteach{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0),0 0 0 2px rgba(255,209,102,.6)}50%{box-shadow:0 0 0 10px rgba(255,209,102,.14),0 0 0 2px rgba(255,209,102,.95)}}
+
+/* ================= feel =================
+   How a thing moves when it is pressed; feel.js says when, and what it
+   sounds like. Three rules. A press has two halves: down, and back past
+   where it sat before it settles. What asks to be pressed keeps one slow
+   beat, the same one everywhere. And a card's contents arrive in the order
+   you would read them. Reduced motion leaves all of it at rest. */
+:root{--beat:1.6s}
+/* light off the thing you pressed, and the circle a door closes to */
+#feelcv{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:98}
+#iris{position:fixed;inset:0;display:none;pointer-events:none;z-index:76}
+
+/* a lid let go: the face springs up past its rest and settles while the rim
+   stays where it is, and the light crosses it once */
+button.primary.went,.btn.primary.went{animation:lidgo .44s var(--spring)}
+button.primary.went::before,.btn.primary.went::before{animation:rimgo .44s var(--spring)}
+button.primary.went::after,.btn.primary.went::after{animation:lidsheen .44s ease-out}
+@keyframes lidgo{0%{translate:0 calc(var(--d) - 1px)}42%{translate:0 -2.5px}70%{translate:0 .8px}100%{translate:0 0}}
+@keyframes rimgo{0%{transform:translateY(1px)}42%{transform:translateY(calc(var(--d) + 2.5px))}70%{transform:translateY(calc(var(--d) - .8px))}100%{transform:translateY(var(--d))}}
+@keyframes lidsheen{
+  0%{box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.5),inset 0 0 0 90px rgba(255,252,236,.5)}
+  100%{box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.5),inset 0 0 0 90px rgba(255,252,236,0)}}
+/* glass let go: a wobble, once */
+button.went:not(.primary):not(.tb):not(.copt),a.btn.went:not(.primary){animation:glassgo .34s var(--spring)}
+@keyframes glassgo{0%{scale:.965}55%{scale:1.028}100%{scale:1}}
+/* a ribbon you turned to swings from where it is sewn in */
+#book .bpage .tabs button.went{animation:ribbongo .6s var(--spring);transform-origin:50% 0}
+@keyframes ribbongo{0%{rotate:0deg}28%{rotate:-2.6deg}62%{rotate:1.3deg}100%{rotate:0deg}}
+/* the wax seal gives under the thumb */
+#book .seal.went{animation:glassgo .34s var(--spring)}
+/* a bead let go springs back past its size, so even the quickest tap is seen to land */
+#touch .tb.let{animation:beadgo .32s var(--spring)}
+#touch.near .tb-a.let{animation:beadgo .32s var(--spring),wisp var(--beat) ease-in-out infinite}
+@keyframes beadgo{0%{scale:.9}52%{scale:1.07}100%{scale:1}}
+/* the stick, let go, springs home */
+.stick:not(.held) i{transition:transform .3s var(--spring)}
+/* the line you are on, when you step onto it, comes forward to meet you */
+.copt.sel{animation:coptsel .24s var(--spring)}
+@keyframes coptsel{0%{translate:-4px 0}100%{translate:0 0}}
+
+/* one beat for everything that asks: the key on the prompt lifts as the bead
+   under your thumb swells, its spark with it, and the ring opens round the
+   thing itself. The mark that says there is more to read nods twice to it. */
+.prompt.on kbd{animation:beatkey var(--beat) ease-in-out infinite}
+@keyframes beatkey{0%,100%{translate:0 0;scale:1}50%{translate:0 -2px;scale:1.07}}
+#touch.near .tb-a{animation-duration:var(--beat)}
+#touch.near .tb-a svg.i{animation:beatspark var(--beat) ease-in-out infinite}
+@keyframes beatspark{50%{scale:1.13}}
+.cue.on{animation-duration:var(--beat);animation-delay:0s}
+.cue.on kbd{animation-duration:var(--beat);animation-delay:0s}
+.cue .cuetap::after{animation-duration:var(--beat)}
+.more{animation-duration:calc(var(--beat)/2),.25s}
+/* and what the keys or the pad are on breathes with it */
+:is(button,.btn,a.quiet,summary,input[type=checkbox]):focus-visible{animation:focusbreath var(--beat) ease-in-out infinite}
+@keyframes focusbreath{50%{outline-width:3.4px}}
+
+/* the pause card: what it is, how things stand, what you can do, in that
+   order, and quickly. (.arriving is on the card only while it opens:
+   hands.js. After that a button's own animation is free to play without
+   this one starting over underneath it.) */
+.menu.arriving .pzh,.menu.arriving .pzmain,.menu.arriving .pzacts>*{animation:arrive .3s var(--ease) both}
+.menu.arriving .pzmain{animation-delay:.03s}
+.menu.arriving .pzacts>:nth-child(1){animation-delay:.06s}
+.menu.arriving .pzacts>:nth-child(2){animation-delay:.085s}
+.menu.arriving .pzacts>:nth-child(3){animation-delay:.11s}
+.menu.arriving .pzacts>:nth-child(4){animation-delay:.135s}
+.menu.arriving .pzacts>:nth-child(5){animation-delay:.16s}
+@keyframes arrive{from{opacity:0;translate:0 9px}}
+/* the ring fills to where you are, rather than being there already. (Its own
+   number, because --p is also how far along a knob is, and that one is a
+   percentage.) */
+@property --ringp{syntax:"<number>";inherits:false;initial-value:0}
+.pzring{--ringp:0;background:conic-gradient(#ffd166 calc(var(--ringp) * 1%),rgba(255,255,255,.09) 0)}
+.menu.on .pzring{--ringp:var(--p);transition:--ringp .8s var(--ease) .12s}
+/* a question asked: its two answers come up after it */
+.ask.arriving .askc>.row>*{animation:arrive .3s var(--ease) .06s both}
+.ask.arriving .askc>.row>:nth-child(2){animation-delay:.11s}
+
+/* Begin: the sun over the house flares and the whole picture warms for a
+   breath. A new game then goes down into the dark the drive comes up out of,
+   instead of being cut to it; Continue has no dark to go to, and is let go
+   of as it always was. */
+.title.go .tmark{animation:sunflare 1s ease-out both}
+@keyframes sunflare{0%{scale:1;filter:brightness(1)}28%{scale:1.55;filter:brightness(1.7)}100%{scale:2.4;opacity:0}}
+.title.go::after{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 36%,rgba(255,232,170,.55),rgba(255,200,90,.14) 45%,rgba(255,200,90,0) 72%);animation:bloom 1s ease-out both}
+@keyframes bloom{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
+.title.go.new::before{content:"";position:fixed;inset:0;z-index:3;pointer-events:none;background:#050403;animation:dip .56s ease-in both}
+@keyframes dip{0%,48%{opacity:0}100%{opacity:1}}
