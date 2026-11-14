@@ -936,9 +936,9 @@ body.touch.playing #touch{display:block}
 body.reduced .end.on .primary{transition-delay:0s}
 @media (prefers-reduced-motion:reduce){.end.on .primary{transition-delay:0s}}
 /* nothing of the hill's furniture shows through the last page */
-body:has(#end.on) :is(#prompt,#touch,.cue,.coach){opacity:0;pointer-events:none}
+body.ended :is(#prompt,#touch,.cue,.coach){opacity:0;pointer-events:none}
 /* ...and while you are choosing what to say the beads get out of the way: you press the line itself */
-body:has(#choice.on) #touch{opacity:0;pointer-events:none}
+body.choosing #touch{opacity:0;pointer-events:none}
 .end .tlinks{margin-top:1.3em;opacity:0;animation:in 1.5s 6.4s forwards}
 
 .fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .6s;z-index:75}

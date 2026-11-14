@@ -377,11 +377,12 @@
     return new Promise(function (res) {
       var e = $("end");
       e.hidden = false; requestAnimationFrame(function () { e.classList.add("on"); });
+      document.body.classList.add("ended");            /* (nothing of the hill's furniture shows through the last page: look.css) */
       A.music("none"); A.ambience("silence");
       setTimeout(function () { A.theme(); }, 1200);
       $("endseen").textContent = Object.keys(G.s.seen).length + " of " + BS.lens.LOOKS.length + " small things seen through the drop · " + Object.keys(G.s.items).length + " keys · " + Math.round(G.s.playMs / 60000) + " minutes";
       if (G.s.marginalia) { $("endyours").hidden = false; $("endyours").querySelector("p").textContent = G.s.marginalia; }
-      $("endok").onclick = function () { e.classList.remove("on"); setTimeout(function () { e.hidden = true; }, 900); G.setAmbience(); res(); };
+      $("endok").onclick = function () { e.classList.remove("on"); document.body.classList.remove("ended"); setTimeout(function () { e.hidden = true; }, 900); G.setAmbience(); res(); };
       setTimeout(function () { $("endok").focus({ preventScroll: true }); }, 4000);
     });
   };

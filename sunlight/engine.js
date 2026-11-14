@@ -589,6 +589,7 @@
   G.choice = function (prompt, opts) {
     return new Promise(function (res) {
       var c = $("choice"); c.classList.add("on");
+      document.body.classList.add("choosing");          /* (the beads step aside: look.css) */
       $("cprompt").textContent = prompt || "";
       var list = $("copts"); list.innerHTML = "";
       var idx = 0, btns = [];
@@ -600,7 +601,7 @@
       });
       /* the line that's lit is the line that has the focus, so Enter says the one you see */
       function sel(i, focus) { idx = (i + btns.length) % btns.length; btns.forEach(function (b, k) { b.classList.toggle("sel", k === idx); }); if (focus) btns[idx].focus({ preventScroll: true }); }
-      function pick(i) { A.sfx("ui"); c.classList.remove("on"); G.choosing = null; res(i); }
+      function pick(i) { A.sfx("ui"); c.classList.remove("on"); document.body.classList.remove("choosing"); G.choosing = null; res(i); }
       sel(0);
       G.choosing = { sel: function (d) { sel(idx + d, true); if (BS.feel) BS.feel.cue("move", { up: d < 0 }); else A.sfx("blip"); }, pick: function () { pick(idx); } };
       setTimeout(function () { btns[0] && btns[0].focus({ preventScroll: true }); }, 30);
