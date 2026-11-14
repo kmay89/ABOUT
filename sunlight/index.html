@@ -22,6 +22,7 @@
 <link rel="preload" href="fonts/eb-garamond.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/eb-garamond-italic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/eb-garamond-caps.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/fraunces-toy.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="look.css">
 </head>
 <body>
@@ -29,21 +30,34 @@
 
 <!-- the signs: one drawing each, used wherever that thing is meant -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.2c.55 5.6 3.65 8.7 9.3 9.3-5.65.6-8.75 3.7-9.3 9.3-.55-5.6-3.65-8.7-9.3-9.3 5.65-.6 8.75-3.7 9.3-9.3z"/></symbol>
   <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3c3.5 4.1 5.6 7 5.6 9.7a5.6 5.6 0 0 1-11.2 0C6.4 10 8.5 7.1 12 3z"/><path d="M9.3 13.4a2.9 2.9 0 0 0 1.9 2.5"/></symbol>
   <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.8" width="10" height="18.4" rx="2.4"/><path d="M11 5.6h2"/></symbol>
-  <symbol id="i-crank" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.4"/><path d="M12 12l4.5-4.5"/><circle cx="17.9" cy="6.1" r="2.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
-  <symbol id="i-book" viewBox="0 0 24 24"><path d="M6 4.5h10.5A1.5 1.5 0 0 1 18 6v13.5H7.5A1.5 1.5 0 0 1 6 18z"/><path d="M6 18a1.5 1.5 0 0 1 1.5-1.5H18"/><path d="M9.5 8.5h5"/></symbol>
-  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M5 7.5h14M5 12h14M5 16.5h9"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
-  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
-  <symbol id="i-note" viewBox="0 0 24 24"><path d="M9.5 17.5V6l9-2v11.5"/><circle cx="7.5" cy="17.5" r="2"/><circle cx="16.5" cy="15.5" r="2"/></symbol>
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6.5 20.5V4"/><path d="M6.5 5h10l-2.4 3.4 2.4 3.4h-10"/></symbol>
   <symbol id="i-pages" viewBox="0 0 24 24"><path d="M12 6.5C10 5.2 7.5 4.8 4.5 5v12.5c3-.2 5.5.2 7.5 1.5 2-1.3 4.5-1.7 7.5-1.5V5c-3-.2-5.5.2-7.5 1.5z"/><path d="M12 6.5V19"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3.6"/><path d="M10.6 10.6 19 19M15.4 15.4l2.2-2.2M17.6 17.6l1.7-1.7"/></symbol>
   <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></symbol>
   <symbol id="i-nib" viewBox="0 0 24 24"><path d="M12 3.2l4.3 7.4c.7 1.9.4 3.9-.8 5.3L12 20.2l-3.5-4.3c-1.2-1.4-1.5-3.4-.8-5.3z"/><path d="M12 20.2v-6.4"/><circle cx="12" cy="12.4" r="1.1"/></symbol>
   <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="9.5" r="5.5"/><path d="M8.6 14 7 20.5l5-2.5 5 2.5-1.6-6.5"/></symbol>
+  <!-- ...and the same signs cut solid, for the face of a button (look.css svg.t) -->
+  <symbol id="t-play" viewBox="0 0 24 24"><path d="M7.2 4.2 L20 12 L7.2 19.8 Z"/></symbol>
+  <symbol id="t-next" viewBox="0 0 24 24"><path d="M3.6 9.2 h9.2 V4.4 L21.2 12 L12.8 19.6 V14.8 H3.6 Z"/></symbol>
+  <symbol id="t-skip" viewBox="0 0 24 24"><path d="M3.4 5 L11 12 L3.4 19 Z M12.4 5 L20 12 L12.4 19 Z"/></symbol>
+  <symbol id="t-up" viewBox="0 0 24 24"><path d="M9.2 20.4 v-9.2 H4.4 L12 2.8 L19.6 11.2 H14.8 V20.4 Z"/></symbol>
+  <symbol id="t-again" viewBox="0 0 24 24"><path class="tlo" d="M18.4 9 A7.2 7.2 0 1 0 19.2 13.6"/><path class="tln" d="M18.4 9 A7.2 7.2 0 1 0 19.2 13.6"/><path d="M20.6 3.6 V10.4 H13.8 Z"/></symbol>
+  <symbol id="t-check" viewBox="0 0 24 24"><path class="tlo" d="M5 12.6 l4.6 4.6 L19 7.4"/><path class="tln" d="M5 12.6 l4.6 4.6 L19 7.4"/></symbol>
+  <symbol id="t-x" viewBox="0 0 24 24"><path class="tlo" d="M6.2 6.2 L17.8 17.8 M17.8 6.2 L6.2 17.8"/><path class="tln" d="M6.2 6.2 L17.8 17.8 M17.8 6.2 L6.2 17.8"/></symbol>
+  <symbol id="t-menu" viewBox="0 0 24 24"><path class="tlo" d="M5 7 H19 M5 12 H19 M5 17 H19"/><path class="tln" d="M5 7 H19 M5 12 H19 M5 17 H19"/></symbol>
+  <symbol id="t-book" viewBox="0 0 24 24"><path d="M12 6.2 C9.2 4.2 6 4 3 4.9 V18.9 C6 18 9.2 18.2 12 20.2 C14.8 18.2 18 18 21 18.9 V4.9 C18 4 14.8 4.2 12 6.2 Z"/><path class="tcut" d="M12 6.6 V19.6"/></symbol>
+  <symbol id="t-jar" viewBox="0 0 24 24"><path d="M6.6 2.8 h10.8 v3.6 h-10.8 Z M5.6 10 a3.4 3.4 0 0 1 3.4 -3.2 h6 a3.4 3.4 0 0 1 3.4 3.2 v8 a3.2 3.2 0 0 1 -3.2 3.2 h-6.4 a3.2 3.2 0 0 1 -3.2 -3.2 Z"/><path class="tcut" d="M8.8 12.2 v5"/></symbol>
+  <symbol id="t-gear" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M21.55 11.06 L21.55 12.94 L18.79 14.06 L18.26 15.35 L19.42 18.09 L18.09 19.42 L15.35 18.26 L14.06 18.79 L12.94 21.55 L11.06 21.55 L9.94 18.79 L8.65 18.26 L5.91 19.42 L4.58 18.09 L5.74 15.35 L5.21 14.06 L2.45 12.94 L2.45 11.06 L5.21 9.94 L5.74 8.65 L4.58 5.91 L5.91 4.58 L8.65 5.74 L9.94 5.21 L11.06 2.45 L12.94 2.45 L14.06 5.21 L15.35 5.74 L18.09 4.58 L19.42 5.91 L18.26 8.65 L18.79 9.94 Z M8.90 12.00 a3.10 3.10 0 1 0 6.20 0 a3.10 3.10 0 1 0 -6.20 0 Z"/></symbol>
+  <symbol id="t-help" viewBox="0 0 24 24"><text x="12" y="20.6" text-anchor="middle" font-size="25" style="font-family:var(--toy)">?</text></symbol>
+  <symbol id="t-note" viewBox="0 0 24 24"><path d="M9.6 4.6 L20 2.6 V15.6 a3.3 2.9 0 1 1 -2.6 -2.84 V7.5 l-5.2 1 V18 a3.3 2.9 0 1 1 -2.6 -2.84 Z"/></symbol>
+  <symbol id="t-sun" viewBox="0 0 24 24"><path d="M6.80 12.00 a5.20 5.20 0 1 0 10.40 0 a5.20 5.20 0 1 0 -10.40 0 Z M19.19 10.24 L23.20 12.00 L19.19 13.76 Z M18.33 15.84 L19.92 19.92 L15.84 18.33 Z M13.76 19.19 L12.00 23.20 L10.24 19.19 Z M8.16 18.33 L4.08 19.92 L5.67 15.84 Z M4.81 13.76 L0.80 12.00 L4.81 10.24 Z M5.67 8.16 L4.08 4.08 L8.16 5.67 Z M10.24 4.81 L12.00 0.80 L13.76 4.81 Z M15.84 5.67 L19.92 4.08 L18.33 8.16 Z"/></symbol>
+  <symbol id="t-spark" viewBox="0 0 24 24"><path d="M12 2 C12.7 7.6 16.4 11.3 22 12 C16.4 12.7 12.7 16.4 12 22 C11.3 16.4 7.6 12.7 2 12 C7.6 11.3 11.3 7.6 12 2 Z"/></symbol>
+  <symbol id="t-drop" viewBox="0 0 24 24"><path d="M12 2.6 C15.4 7.2 18.6 10.6 18.6 14.6 a6.6 6.6 0 0 1 -13.2 0 C5.4 10.6 8.6 7.2 12 2.6 Z"/><path class="tcut" d="M9 14.6 a3 3 0 0 0 2.4 2.9"/></symbol>
+  <symbol id="t-phone" viewBox="0 0 24 24"><path d="M8 2.6 h8 a2.4 2.4 0 0 1 2.4 2.4 v14 a2.4 2.4 0 0 1 -2.4 2.4 h-8 a2.4 2.4 0 0 1 -2.4 -2.4 v-14 a2.4 2.4 0 0 1 2.4 -2.4 Z"/><path class="tcut" d="M10.4 18.2 h3.2"/></symbol>
+  <symbol id="t-crank" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 4.4 a7.6 7.6 0 1 0 0.01 0 Z M12 8.6 a3.4 3.4 0 1 1 -0.01 0 Z"/><path d="M12 10.2 L20.6 4.2 a1.9 1.9 0 1 1 1 1.6 L13.4 12.6 Z"/></symbol>
 </svg>
 
 <canvas id="stage" tabindex="-1" aria-label="The game: a top-down view of Gran's hill"></canvas>
@@ -63,8 +77,8 @@
       <span id="svc" class="svc">No Service</span>
       <span id="bat" class="bat"><i></i></span><span id="batn" class="batn">4%</span>
     </button>
-    <button id="hudbook" class="hbtn" aria-label="Gran's book (B)" title="Gran's book (B)"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg></button>
-    <button id="hudmenu" class="hbtn" aria-label="Menu (Esc)" title="Menu (Esc)"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
+    <button id="hudbook" class="hbtn" aria-label="Gran's book (B)" title="Gran's book (B)"><svg class="t" aria-hidden="true"><use href="#t-book"/></svg><b id="bookpip" class="pip" hidden></b></button>
+    <button id="hudmenu" class="hbtn" aria-label="Menu (Esc)" title="Menu (Esc)"><svg class="t" aria-hidden="true"><use href="#t-menu"/></svg></button>
   </div>
 </header>
 <p id="obj" class="obj" hidden></p>
@@ -86,7 +100,7 @@
 <div id="lens" class="lens" role="dialog" aria-label="Through the drop of water">
   <div class="lwrap">
     <canvas id="lenscv" width="320" height="320"></canvas>
-    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint" id="lhint">L or E to look up</small><button id="lback" class="lback" type="button" aria-label="Look up from the lens">Look up</button></div>
+    <div class="lcap"><span id="lnew" class="lnew" hidden>New · seen through the drop</span><h3 id="lname"></h3><p id="lnote" hidden></p><small class="lhint" id="lhint">L or E to look up</small><button id="lback" class="lback" type="button" aria-label="Look up from the lens"><svg class="t" aria-hidden="true"><use href="#t-up"/></svg>Look up</button></div>
   </div>
 </div>
 
@@ -100,7 +114,7 @@
     <p id="gsci" class="gsci"></p>
     <p id="gtext"></p>
     <p id="gopens" class="gopens"></p>
-    <button id="gok" class="primary">Keep it</button>
+    <button id="gok" class="primary"><svg class="t" aria-hidden="true"><use href="#t-check"/></svg>Keep it</button>
   </div>
 </div>
 <section id="insp" class="insp" hidden role="dialog" aria-modal="true" aria-labelledby="iname">
@@ -115,7 +129,7 @@
       <div id="iprog" class="iprog"><div class="irow"><b id="icount"></b><i class="ibarw"><i id="ibar"></i></i></div><div id="islots" class="islots"></div><p id="itease" class="itease"></p></div>
     </div>
     <div class="ifoot">
-      <button id="iok" class="primary">Keep it</button>
+      <button id="iok" class="primary"><svg class="t" aria-hidden="true"><use href="#t-check"/></svg>Keep it</button>
       <p class="ihint">Drag to turn it over · scroll or pinch to lean in</p>
     </div>
   </div>
@@ -132,7 +146,7 @@
     <canvas id="minicv"></canvas>
     <p id="mmo" class="mmo"></p>
     <p id="mhint" class="mhint"></p>
-    <div class="row"><span id="moats" class="moats"></span><button id="mreset">Pick the oats back up</button><button id="mdone" class="primary" hidden>Go on</button></div>
+    <div class="row"><span id="moats" class="moats"></span><button id="mreset" class="ghost small"><svg class="t" aria-hidden="true"><use href="#t-again"/></svg>Pick the oats back up</button><button id="mdone" class="primary" hidden>Go on<svg class="t" aria-hidden="true"><use href="#t-next"/></svg></button></div>
   </div>
 </div>
 <div id="board" class="board" role="dialog" aria-label="The whiteboard in the site office">
@@ -174,7 +188,7 @@
       <div id="p-phone" class="bpane" hidden></div>
       <div id="p-yours" class="bpane" hidden></div>
     </div>
-    <button class="x" data-close aria-label="Close the book"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+    <button class="x" data-close aria-label="Close the book"><svg class="t" aria-hidden="true"><use href="#t-x"/></svg></button>
   </div>
 </section>
 
@@ -197,11 +211,11 @@
         </div>
       </div>
       <div class="pzacts">
-        <button data-close class="primary wide" data-focus>Resume</button>
-        <button id="m-book">Gran's book</button>
-        <button id="m-save">Save</button>
-        <button id="m-opts" aria-expanded="false" aria-controls="pzopts">Options</button>
-        <button id="m-help" aria-expanded="false" aria-controls="help">How to play</button>
+        <button data-close class="primary wide" data-focus><svg class="t" aria-hidden="true"><use href="#t-play"/></svg>Resume</button>
+        <button id="m-book" class="tile"><svg class="t" aria-hidden="true"><use href="#t-book"/></svg>Gran's book</button>
+        <button id="m-save" class="tile"><svg class="t" aria-hidden="true"><use href="#t-jar"/></svg>Save</button>
+        <button id="m-opts" class="tile" aria-expanded="false" aria-controls="pzopts"><svg class="t" aria-hidden="true"><use href="#t-gear"/></svg>Options</button>
+        <button id="m-help" class="tile" aria-expanded="false" aria-controls="help"><svg class="t" aria-hidden="true"><use href="#t-help"/></svg>How to play</button>
       </div>
       <div id="pzopts" class="pzopts" hidden>
         <div class="opts">
@@ -234,7 +248,7 @@
       </div>
       <div id="help" class="help" hidden>
         <p class="for-keys"><span class="pair"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> or the arrows · <span class="pair"><b>Run</b> <kbd>Shift</kbd></span> · <span class="pair"><b>Act</b> <kbd>E</kbd> or <kbd>Space</kbd></span> · <span class="pair"><b>Look closer</b> <kbd>L</kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd>C</kbd></span> · <span class="pair"><b>Gran's book</b> <kbd>B</kbd></span> · <span class="pair"><b>Menu</b> <kbd>Esc</kbd>.</span> A gamepad works too.</p>
-        <p class="for-touch"><b>Move</b> with the stick under your left thumb · <span class="pair"><b>Act</b> <kbd><svg class="i f" aria-hidden="true"><use href="#i-spark"/></svg></kbd></span> · <span class="pair"><b>Look closer</b> <kbd><svg class="i" aria-hidden="true"><use href="#i-drop"/></svg></kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd><svg class="i" aria-hidden="true"><use href="#i-crank"/></svg></kbd></span> · <b>Gran's book</b> and the <b>menu</b> are at the top.</p>
+        <p class="for-touch"><b>Move</b> with the stick under your left thumb · <span class="pair"><b>Act</b> <kbd><svg class="t" aria-hidden="true"><use href="#t-spark"/></svg></kbd></span> · <span class="pair"><b>Look closer</b> <kbd><svg class="t" aria-hidden="true"><use href="#t-drop"/></svg></kbd></span> · <span class="pair"><b>Crank the lantern</b> hold <kbd><svg class="t" aria-hidden="true"><use href="#t-crank"/></svg></kbd></span> · <b>Gran's book</b> and the <b>menu</b> are at the top.</p>
         <p>The hill opens as you earn what opens it — and every key is real science: your own eyes in the dark, a dynamo, a drop of water, oats, roots, sand, water bears. Stand still when the dark asks you to. Look long.</p>
         <p>Saves itself on this device. Nothing is sent anywhere.</p>
       </div>
@@ -246,15 +260,15 @@
 <div id="touch" class="touch" aria-hidden="true">
   <div id="pad" class="pad"><div id="stick" class="stick"><i id="knob"></i></div></div>
   <div class="btns">
-    <button data-btn="crank" class="tb tb-c" tabindex="-1"><svg class="i"><use href="#i-crank"/></svg></button>
-    <button data-btn="lens" class="tb tb-l" tabindex="-1"><svg class="i i-phone"><use href="#i-phone"/></svg><svg class="i i-drop"><use href="#i-drop"/></svg></button>
-    <button data-btn="act" class="tb tb-a" tabindex="-1"><svg class="i f"><use href="#i-spark"/></svg></button>
+    <button data-btn="crank" class="tb tb-c" tabindex="-1"><svg class="t"><use href="#t-crank"/></svg></button>
+    <button data-btn="lens" class="tb tb-l" tabindex="-1"><svg class="t i-phone"><use href="#t-phone"/></svg><svg class="t i-drop"><use href="#t-drop"/></svg></button>
+    <button data-btn="act" class="tb tb-a" tabindex="-1"><svg class="t"><use href="#t-spark"/></svg></button>
   </div>
 </div>
 
 <!-- the title -->
 <div id="cine" class="cine" hidden aria-live="polite">
-  <div class="lb top"><span id="cinebars" class="cbars" data-n="3" aria-hidden="true"><i></i><i></i><i></i><b></b></span><button id="cineskip" class="cskip" type="button">Skip <span aria-hidden="true">›</span></button></div>
+  <div class="lb top"><span id="cinebars" class="cbars" data-n="3" aria-hidden="true"><i></i><i></i><i></i><b></b></span><button id="cineskip" class="cskip ghost small" type="button">Skip<svg class="t" aria-hidden="true"><use href="#t-skip"/></svg></button></div>
   <div class="lb bot"><p id="cinecap" class="ccap"></p></div>
 </div>
 <section id="title" class="title">
@@ -268,10 +282,10 @@
     <p class="tline"><em>If you are reading this, the lights have gone out — and that is the only reason you can see.</em></p>
     <div class="tbtns">
       <button id="t-continue" hidden>Continue <small></small></button>
-      <button id="t-new" class="primary big">Begin</button>
+      <button id="t-new" class="primary big"><svg class="t" aria-hidden="true"><use href="#t-sun"/></svg>Begin</button>
       <div class="tmore" id="tmore">
-        <button id="t-how" class="ghost">How to play</button>
-        <button id="t-sound" class="ghost" aria-label="Play Gran's theme" title="Play Gran's theme"><svg class="i" aria-hidden="true"><use href="#i-note"/></svg>Theme</button>
+        <button id="t-how" class="ghost"><svg class="t" aria-hidden="true"><use href="#t-help"/></svg>How to play</button>
+        <button id="t-sound" class="ghost" aria-label="Play Gran's theme" title="Play Gran's theme"><svg class="t" aria-hidden="true"><use href="#t-note"/></svg><span>Theme</span></button>
       </div>
     </div>
     <p class="tfine"><span>Best with sound · keys, thumbs or a gamepad</span><span>Free · offline · no account · nothing tracked</span><span>Saves on this device</span></p>
@@ -287,14 +301,14 @@
         <canvas class="hart" data-art="move" width="240" height="120" aria-hidden="true"></canvas>
         <h2>Walk the hill</h2>
         <p class="for-keys">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrows. <kbd>E</kbd> does things — talk, open, pick up. Hold <kbd>Shift</kbd> to run.</p>
-        <p class="for-touch">Move with the stick under your left thumb. <kbd><svg class="i f" aria-hidden="true"><use href="#i-spark"/></svg></kbd> does things — talk, open, pick up.</p>
+        <p class="for-touch">Move with the stick under your left thumb. <kbd><svg class="t" aria-hidden="true"><use href="#t-spark"/></svg></kbd> does things — talk, open, pick up.</p>
         <p class="hhint">A small light hovers over anything you can do something with.</p>
       </div>
       <div class="hs">
         <canvas class="hart" data-art="keys" width="240" height="120" aria-hidden="true"></canvas>
         <h2>Every key is real science</h2>
         <p class="for-keys">The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (hold <kbd>C</kbd>), a drop of water that turns a dead phone into a microscope (<kbd>L</kbd>).</p>
-        <p class="for-touch">The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (hold <kbd><svg class="i" aria-hidden="true"><use href="#i-crank"/></svg></kbd>), a drop of water that turns a dead phone into a microscope (<kbd><svg class="i" aria-hidden="true"><use href="#i-drop"/></svg></kbd>).</p>
+        <p class="for-touch">The hill opens as you learn how it works: your own eyes in the dark, a lantern you crank (hold <kbd><svg class="t" aria-hidden="true"><use href="#t-crank"/></svg></kbd>), a drop of water that turns a dead phone into a microscope (<kbd><svg class="t" aria-hidden="true"><use href="#t-drop"/></svg></kbd>).</p>
         <p class="hhint">Look closely at everything. Twenty-six small things are hiding on the hill.</p>
       </div>
       <div class="hs">
@@ -306,7 +320,7 @@
       </div>
     </div>
     <div class="hdots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
-    <div class="row"><button id="h-skip" class="ghost">Skip</button><button id="h-next" class="primary">Next</button></div>
+    <div class="row"><button id="h-skip" class="ghost">Skip</button><button id="h-next" class="primary"><span>Next</span><svg class="t" aria-hidden="true"><use href="#t-next"/></svg></button></div>
   </div>
 </section>
 
@@ -352,6 +366,7 @@
 <script src="progress.js"></script>
 <script src="ui.js"></script>
 <script src="gbook.js"></script>
+<script src="feel.js"></script>
 <script src="hands.js"></script>
 <script>BS.G.start();</script>
 </body>

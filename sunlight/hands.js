@@ -1,21 +1,24 @@
 /* hands.js — the things you press, and what's in your hands.
 
-   look.css says what the controls are made of: a gold jar lid for the one
-   thing on a screen that takes you on, jar glass for everything else,
-   round for pressing and square for reading. This says how they behave.
+   look.css says what the controls are made of: every button is a slab
+   with a dark line round it, a side you can see and a shine on its top
+   half, and its color says what it does (honey for the one thing on a
+   screen that takes you on, jar glass for the rest, a paper label for a
+   small matter, jam for stop and close). This says how they behave.
 
    · Which hands. A keyboard, a gamepad or thumbs: whichever you used
      last. A prompt names its key the way it looks in your hands (a letter
-     on a small lid, the sign on the bead under your thumb, the button on
-     the pad), and the stick and the beads come and go with the thumbs.
-   · The beads. The one that acts fills with gold when something is in
+     on a small honey key, the sign on the bead under your thumb, the
+     button on the pad), and the stick and the beads come and go with the
+     thumbs.
+   · The beads. The one that acts turns to honey when something is in
      reach. The phone's bead is a dead black stone until there's a drop of
      water on its eye, and glows foxfire green when something small is
      near. The crank isn't there until the lantern is yours; held, it
      turns, and the ring round it is your arm.
-   · A lid sounds like a lid and glass like glass, and a switch clicks
-     like the light switch in Gran's kitchen. The lids wear bright with
-     use, the way the latch on the cellar door did.
+   · The honey one sounds like a jar lid and the rest like glass, and a
+     switch clicks like the light switch in Gran's kitchen. The honey
+     ones wear bright with use, the way the latch on the cellar door did.
    · Every screen can be worked without a mouse: arrows or the d-pad walk
      the buttons, Enter or A presses, B goes back, and Tab stays inside
      whatever is open.
@@ -44,8 +47,8 @@
   var LETTER = { keys: { act: "E", lens: "L", crank: "C", book: "B", menu: "Esc" }, pad: { act: "A", lens: "X", crank: "B", book: "Y", menu: "Start" } };
   H.key = function (a) {
     if (kind === "touch") {
-      var sign = a === "act" ? "i-spark" : a === "crank" ? "i-crank" : G.s.items && G.s.items.lens ? "i-drop" : "i-phone";
-      return '<kbd><svg class="i' + (a === "act" ? " f" : "") + '" aria-hidden="true"><use href="#' + sign + '"/></svg></kbd>';
+      var sign = a === "act" ? "t-spark" : a === "crank" ? "t-crank" : G.s.items && G.s.items.lens ? "t-drop" : "t-phone";
+      return '<kbd><svg class="t" aria-hidden="true"><use href="#' + sign + '"/></svg></kbd>';
     }
     return "<kbd>" + ((LETTER[kind] || LETTER.keys)[a] || "") + "</kbd>";
   };
@@ -88,11 +91,18 @@
   try { worn = +localStorage.getItem(WEAR) || 0; } catch (e) { }
   function showWear() { root.style.setProperty("--wear", Math.min(1, worn / 80).toFixed(2)); }
   showWear();
+  /* what it is like is feel.js's business: a press goes down (dull), and
+     when it has done its work it springs back (the honey one rings, the
+     rest say pop).
+     A switch says which way it went as it goes. */
+  var F = BS.feel;
   function pressed(el, byThumb) {
-    if (el.matches("input[type=checkbox]")) A.sfx("click");
-    else if (el.matches(LID)) { A.sfx("lid"); if (worn < 80) { worn++; showWear(); try { localStorage.setItem(WEAR, worn); } catch (e) { } } }
-    else A.sfx("glass");
-    if (byThumb && G.prefs.haptics && navigator.vibrate) navigator.vibrate(el.matches(LID) ? 10 : 6);
+    var lid = el.matches(LID);
+    if (el.matches("input[type=checkbox]")) { if (!F) A.sfx("click"); return; }
+    if (lid && worn < 80) { worn++; showWear(); try { localStorage.setItem(WEAR, worn); } catch (e) { } }
+    if (F) { F.down(el, lid); return; }
+    A.sfx(lid ? "lid" : "glass");
+    if (byThumb && G.prefs.haptics && navigator.vibrate) navigator.vibrate(lid ? 10 : 6);
   }
   function control(t) {
     if (!t || !t.closest) return null;
@@ -102,7 +112,13 @@
   }
   document.addEventListener("pointerdown", function (e) { var el = control(e.target); if (el) pressed(el, e.pointerType === "touch"); }, true);
   /* a press that came from a key or a pad, not a pointer */
-  document.addEventListener("click", function (e) { if (e.detail === 0) { var el = control(e.target); if (el && !el.matches("input[type=checkbox]")) pressed(el, false); } }, true);
+  document.addEventListener("click", function (e) {
+    var el = control(e.target); if (!el || el.matches("input[type=checkbox]")) return;
+    if (e.detail === 0) pressed(el, false);
+    if (F) F.went(el, el.matches(LID));
+  }, true);
+  /* a switch, thrown */
+  document.addEventListener("change", function (e) { var c = e.target; if (F && c && c.type === "checkbox") F.cue(c.checked ? "on" : "off"); }, true);
 
   /* ---------------- knobs on grooves ---------------- */
   function fill(r) { var lo = +r.min || 0, hi = r.max === "" ? 100 : +r.max; r.style.setProperty("--p", ((r.value - lo) / ((hi - lo) || 1) * 100).toFixed(1) + "%"); }
@@ -111,7 +127,7 @@
   document.addEventListener("input", function (e) {
     var r = e.target; if (!r || r.type !== "range") return;
     fill(r);
-    var now = performance.now(); if (now - notchAt > 70) { notchAt = now; A.sfx("notch", (r.value - (+r.min || 0)) / (((r.max === "" ? 100 : +r.max) - (+r.min || 0)) || 1)); }
+    var now = performance.now(); if (now - notchAt > 70) { notchAt = now; var v = (r.value - (+r.min || 0)) / (((r.max === "" ? 100 : +r.max) - (+r.min || 0)) || 1); if (F) F.cue("notch", { v: v }); else A.sfx("notch", v); }
   }, true);
   H.sync();
 
@@ -126,6 +142,7 @@
   function items(ov) {
     return [].filter.call(ov.querySelectorAll('button,a[href],input,textarea,summary'), function (el) {
       if (el.disabled || el.tabIndex < 0 || !el.getClientRects().length) return false;
+      if (el.closest(".arriving")) return true;        /* on its way in as a card opens: it is there */
       return +getComputedStyle(el).opacity > 0.3;      /* not one that is still fading in */
     });
   }
@@ -134,7 +151,8 @@
     return el && list.indexOf(el) >= 0 ? el : list[0];
   }
   function inside(ov) { var el = document.activeElement; return el && el !== ov && ov.contains(el) ? el : null; }
-  function go(el) { if (!el) return; el.focus(); A.sfx("blip"); }
+  /* stepping onto the next thing: down a list is down the scale, up (or along to the right) is up it */
+  function go(el, up) { if (!el) return; el.focus(); if (F) F.cue("move", { up: !!up }); else A.sfx("blip"); }
   function bookTab(d) {
     var tabs = [].slice.call(document.querySelectorAll("#book [data-tab]")), i = 0;
     tabs.forEach(function (t, k) { if (t.classList.contains("on")) i = k; });
@@ -158,7 +176,7 @@
     }
     if (!list.length) return;
     var i = list.indexOf(el);
-    go(i < 0 ? first(ov, list) : list[(i + (dx || dy) + list.length) % list.length]);
+    go(i < 0 ? first(ov, list) : list[(i + (dx || dy) + list.length) % list.length], dx ? dx > 0 : dy < 0);
   }
   function back(ov) {
     if (ov.classList.contains("ask")) { var no = ov.querySelector("[data-no]"); if (no) no.click(); }
@@ -237,7 +255,7 @@
   ui.open = function (which, tab) {
     open0.call(ui, which, tab);
     H.sync();
-    if (which === "menu") { var ms = document.querySelector("#menu .mscroll"); if (ms) ms.scrollTop = 0; }
+    if (which === "menu") { var ms = document.querySelector("#menu .mscroll"); if (ms) ms.scrollTop = 0; if (F) { F.arrive($("menu")); F.count($("pzpct"), 800, 120); } }
     if (which === "book") setTimeout(function () { var t = document.querySelector("#book .tabs button.on"); if (t && G.mode === "book") t.focus({ preventScroll: true }); }, 40);
   };
   /* a tap on the dark around the book closes it */
@@ -254,14 +272,15 @@
   });
 
   /* ---------------- a question, asked properly ----------------
-     H.ask({ title, text, yes, no }) → a promise of true or false. The safe
-     answer has the focus, Esc or a tap outside is "no". */
+     H.ask({ title, text, yes, no, danger }) → a promise of true or false.
+     The safe answer has the focus, Esc or a tap outside is "no". */
   H.ask = function (o) {
     return new Promise(function (res) {
       var el = document.createElement("div"), prev = document.activeElement, over = false;
       el.className = "ask"; el.setAttribute("role", "alertdialog"); el.setAttribute("aria-modal", "true");
       el.setAttribute("aria-labelledby", "askt"); el.setAttribute("aria-describedby", "askp");
-      el.innerHTML = '<div class="askc tooled"><h2 id="askt"></h2><p id="askp"></p><div class="row"><button type="button" class="ghost" data-no></button><button type="button" class="primary" data-yes></button></div></div>';
+      /* an answer that can't be taken back is jam, and then the safe one is the honey */
+      el.innerHTML = '<div class="askc tooled"><h2 id="askt"></h2><p id="askp"></p><div class="row"><button type="button" class="' + (o.danger ? "primary" : "ghost") + '" data-no></button><button type="button" class="' + (o.danger ? "jam" : "primary") + '" data-yes></button></div></div>';
       el.querySelector("h2").textContent = o.title || "";
       el.querySelector("p").textContent = o.text || "";
       el.querySelector("[data-yes]").textContent = o.yes || "Yes";
@@ -281,7 +300,7 @@
       });
       document.addEventListener("keydown", key, true);
       body.appendChild(el);
-      requestAnimationFrame(function () { el.classList.add("on"); el.querySelector("[data-no]").focus({ preventScroll: true }); });
+      requestAnimationFrame(function () { el.classList.add("on"); if (F) F.arrive(el); el.querySelector("[data-no]").focus({ preventScroll: true }); });
     });
   };
 })();

@@ -399,6 +399,7 @@
   function catchFly(f) {
     held = f; f.ht = 0;
     A.sfx("cup"); haptic([6, 40, 6]);
+    if (BS.feel) BS.feel.ladder("fireflies", { gap: 40, base: 4, cap: 6, quiet: true, g: 0.014 });      /* each one cupped, a note higher */
     if (BS.life) BS.life.mood("p", "wow", 3);
     if (G.count) G.count("fireflies");
   }

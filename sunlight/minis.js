@@ -189,7 +189,9 @@
     if (S.won) return;
     if (!passable(x, y) || S.net[x + "," + y] || S.left <= 0) { A.sfx("back"); return; }
     if (S.oats.some(function (o) { return o.x === x && o.y === y && !o.eaten; })) return;
-    S.oats.push({ x: x, y: y }); S.left--; A.sfx("pick");
+    S.oats.push({ x: x, y: y }); S.left--;
+    /* each flake laid is a note above the last, and the gold finding its way is where they land */
+    if (BS.feel) BS.feel.rung(S.oats.length - 1, { base: 2 }); else A.sfx("pick");
     grow();
   }
   function resetSlime() {
@@ -205,7 +207,8 @@
   function sizeMini() {
     if (!slime) return;
     var W = Math.min(window.innerWidth - 24, 720), cs = Math.floor(W / slime.w);
-    cs = Math.min(cs, Math.floor((window.innerHeight * 0.55) / slime.h));
+    /* (on a phone held sideways, leave room under the ground for the words and the two buttons) */
+    cs = Math.max(18, Math.min(cs, Math.floor(Math.min(window.innerHeight * 0.55, window.innerHeight - 215) / slime.h)));
     mcv.width = slime.w * cs; mcv.height = slime.h * cs; slime.cs = cs;
   }
   window.addEventListener("resize", sizeMini);

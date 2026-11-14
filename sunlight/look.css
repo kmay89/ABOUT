@@ -9,19 +9,21 @@
                 and on its own": her pages, her line on the title.
      Wren       a careful ballpoint print: the last page, the map.
      the clock  marker capitals: the deadlines, the site-office board.
+     buttons    a fat soft old-style (Fraunces, at its blackest): the one
+                heavy thing, kept to the things you press.
    The phone speaks in the system's own sans, because it is a phone.
    Mo has no hand of its own. It is the book's italic, in gold, in no box.
 
-   Two kinds of shape, and the difference means something:
-     round is for pressing    a jar lid, a drop of water, a lens, a bead;
-     square is for reading    a page, a slip of paper, a card.
-
-   Three materials, lit the way the hill is lit: from the upper left, with
-   the shadow falling down and to the right.
-     the gold lid   the one thing on a screen that takes you on;
-     jar glass      everything else you can press;
-     paper          lamplit dark paper for the game's cards, and her
-                    parchment for the book.
+   The things you press are another matter: they are toys, and built like
+   toys. A slab with a dark line round it, a side you can see, a dome of
+   light on its top half, and fat lettering with the same dark line. The
+   color says what a thing does, and the colors are Gran's shelf:
+     honey      the one thing on a screen that takes you on;
+     jar glass  the blue-green of an old preserving jar: it does a thing;
+     a label    cream paper: a small matter;
+     jam        it stops, closes or undoes.
+   What you read stays what it was: lamplit dark paper for the game's
+   cards, and her parchment for the book, lit from the upper left.
    Gold is the gold: Mo, the foxfire, the borrowed sun. The cynic is gray.
    Every overlay sits over a canvas that repaints each frame, so nothing
    that stays on screen blurs what is behind it. */
@@ -35,6 +37,7 @@
 @font-face{font-family:"Sunlight Hers";src:url(fonts/quintessential.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"Sunlight Mine";src:url(fonts/shadows-into-light-two.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"Sunlight Marker";src:url(fonts/permanent-marker.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Sunlight Toy";src:url(fonts/fraunces-toy.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
 
 :root{
   --ink:#f3ead8; --soft:#b9ab92; --dim:#8a7d68; --line:rgba(243,234,216,.14);
@@ -49,6 +52,7 @@
   --mine:"Sunlight Mine","Sunlight Book","Iowan Old Style",Palatino,Georgia,serif;
   --marker:"Sunlight Marker","Marker Felt","Chalkboard SE","Comic Sans MS",system-ui,sans-serif;
   --phone:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --toy:"Sunlight Toy","Cooper Black","Sunlight Book",Georgia,serif;
   --serif:var(--book); --sans:var(--phone);
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
@@ -69,7 +73,7 @@
 html,body{height:100%;margin:0;background:#0b0a08;color:var(--ink);overflow:hidden;overscroll-behavior:none}
 body{font:var(--fs)/1.5 var(--book);font-synthesis:none;font-kerning:normal;font-variant-numeric:oldstyle-nums proportional-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;touch-action:none;user-select:none;-webkit-user-select:none}
 body.big{--fs:1.18rem}
-button,input,textarea{font:inherit;color:inherit}
+:where(button,input,textarea){font:inherit;color:inherit}
 b,strong{font-weight:400}
 a{color:var(--gold)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -89,37 +93,77 @@ svg.i.f{fill:currentColor;stroke:none}
 .nocaps{--lab-case:uppercase}
 :is(.lab,.day,.tkick,.lnew,.lhint,.gcard small,.gsci,.gopens span,.opens span,.now span,.chap small,.chdone,.ridehud,.arm,.flash,.savesun,.ipanel small,.isci,.iopens span,.irow b,.ihint,.achtx small,.rcin small,.goalcard small,.dlg b,.bpane h3,.chip small,.endyours small,.mgroup h3,.hpin small,.moats,.key summary small,.bdg small,.tfine,.mstat,.pring span){font-family:var(--caps);font-weight:400;font-style:normal;text-transform:var(--lab-case)}
 
-/* ================= things you press ================= */
-/* jar glass: every button that isn't the one that takes you on */
-button,.btn{position:relative;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:.5em;margin:0;
-  padding:.82em 1.36em .78em 1.44em;border:1px solid var(--glass-line);border-radius:999px;
-  font:1rem/1 var(--caps);letter-spacing:.08em;color:var(--ink);text-decoration:none;text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap;
-  background:var(--glass);box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.4);
-  transition:translate .09s var(--ease),border-color .2s,color .2s,box-shadow .12s,filter .25s}
-button:hover,.btn:hover{border-color:rgba(255,214,120,.66);color:#fff7df}
-button:active,.btn:active,button.down{translate:0 1.5px;box-shadow:inset 1.5px 2px 4px rgba(0,0,0,.55),1px 1px 3px rgba(0,0,0,.4)}
-button[disabled]{opacity:.45;cursor:default;filter:saturate(.4)}
-button.ghost{background:radial-gradient(70% 120% at 20% 0%,rgba(255,240,205,.13),rgba(255,240,205,0) 55%),linear-gradient(168deg,rgba(40,32,20,.62),rgba(12,9,6,.7))}
+/* ================= things you press: built like toys =================
+   Every button is a slab with a dark line round it (--edge), a side you can
+   see (--lip, --d deep), and a dome of light on its top half. Its color
+   (--f1 to --f2) says what it does. Pressed, the top goes down onto where
+   the side was. Lettering is fat and white with the dark line round it, so
+   it reads over anything.
+   A few things you can press are not slabs, because they are something else
+   already (a link, the phone, the goal card, a ribbon in the book, a slide,
+   the wax seal); those are named in the :not() below
+   and dress themselves. The skin is given no weight of its own (:where), so
+   any class can change it. */
+:where(button,.btn){position:relative;display:inline-flex;align-items:center;justify-content:center;gap:.42em;margin:0;border:0;cursor:pointer;white-space:nowrap;text-decoration:none;user-select:none;-webkit-user-select:none}
+:where(button,.btn):not(:where(.quiet,.phonehud,.goalcard,.look,.seal,[data-tab])){
+  --f1:#9be9dc;--f2:#38b3a6;--lip:#1c766f;--edge:#0d3836;--txt:#fff;--tsh:#0d3836;--d:5px;--ol:2.5px;--gloss:.5;
+  --ring:0 0 0 0 rgba(255,255,255,0),0 0 0 0 rgba(255,255,255,0);--ringdn:var(--ring);--ringc:#fff;
+  --up:inset 0 2px 0 rgba(255,255,255,.6),inset 0 -3px 0 rgba(0,0,0,.14),0 0 0 var(--ol) var(--edge),0 var(--d) 0 0 var(--lip),0 var(--d) 0 var(--ol) var(--edge),var(--ring),0 calc(var(--d) + 6px) 10px rgba(0,0,0,.42);
+  --dn:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -2px 0 rgba(0,0,0,.14),0 0 0 var(--ol) var(--edge),0 0 0 0 var(--lip),0 0 0 var(--ol) var(--edge),var(--ringdn),0 3px 5px rgba(0,0,0,.42);
+  min-height:46px;padding:.42em 1.05em .5em;margin-bottom:var(--d);border-radius:14px;
+  font:1.1rem/1 var(--toy);letter-spacing:.015em;color:var(--txt);
+  text-shadow:1.70px 0.00px 0 var(--tsh),1.57px 0.65px 0 var(--tsh),1.20px 1.20px 0 var(--tsh),0.65px 1.57px 0 var(--tsh),0.00px 1.70px 0 var(--tsh),-0.65px 1.57px 0 var(--tsh),-1.20px 1.20px 0 var(--tsh),-1.57px 0.65px 0 var(--tsh),-1.70px 0.00px 0 var(--tsh),-1.57px -0.65px 0 var(--tsh),-1.20px -1.20px 0 var(--tsh),-0.65px -1.57px 0 var(--tsh),-0.00px -1.70px 0 var(--tsh),0.65px -1.57px 0 var(--tsh),1.20px -1.20px 0 var(--tsh),1.57px -0.65px 0 var(--tsh),0 2.6px 0 var(--tsh);
+  background:radial-gradient(130% 100% at 50% -50%,rgba(255,255,255,var(--gloss)) 50%,rgba(255,255,255,calc(var(--gloss)*.3)) 99%,rgba(255,255,255,0) 100%) no-repeat,linear-gradient(180deg,var(--f1),var(--f2));
+  box-shadow:var(--up);transition:translate .06s ease-out,scale .06s ease-out,box-shadow .06s ease-out,filter .15s}
+:where(button,.btn):not(:where(.quiet,.phonehud,.goalcard,.look,.seal,[data-tab])):hover{filter:brightness(1.06) saturate(1.05)}
+:where(button,.btn):not(:where(.quiet,.phonehud,.goalcard,.look,.seal,[data-tab])):is(:active,.down){translate:0 var(--d);scale:.985 .97;box-shadow:var(--dn);filter:brightness(.95)}
+/* the one the keys or the pad are on: a white line round the whole slab, side and all, like the edge of a sticker
+   (the outline is there for a screen that draws no shadows) */
+:where(button,.btn):not(:where(.quiet,.phonehud,.goalcard,.look,.seal,[data-tab])):focus-visible{outline:2px solid transparent;outline-offset:calc(var(--ol) + 2px);
+  --ring:0 0 0 calc(var(--ol) + 3.5px) var(--ringc),0 var(--d) 0 calc(var(--ol) + 3.5px) var(--ringc);--ringdn:0 0 0 calc(var(--ol) + 3.5px) var(--ringc),0 0 0 calc(var(--ol) + 3.5px) var(--ringc)}
+:where(button,.btn):not(:where(.quiet,.phonehud,.goalcard,.look,.seal,[data-tab]))[disabled]{filter:grayscale(.9) brightness(.82);cursor:default}
 
-/* the gold lid: a jar lid seen a little from above. The face is smooth, and
-   worn bright where thumbs land; the knurled rim shows under it as the
-   thickness of the thing. Pressed, the face goes down onto the rim. */
-button.primary,.btn.primary{--d:4px;z-index:0;color:#2b1a05;border:0;margin-bottom:var(--d);
-  padding:.9em 1.72em .84em 1.81em;font-size:1.03rem;letter-spacing:.09em;text-shadow:.5px 1px 0 rgba(255,246,212,.62);
-  background:none;box-shadow:none}
-button.primary::before,.btn.primary::before{content:"";position:absolute;z-index:-2;inset:0;border-radius:inherit;transform:translateY(var(--d));
-  background:repeating-linear-gradient(90deg,#6e4a10 0 1px,#e2b65a 1px 2px,#a87722 2px 3px);
-  box-shadow:3px 5px 12px rgba(0,0,0,.5),0 1px 0 rgba(0,0,0,.4);transition:transform .09s var(--ease)}
-button.primary::after,.btn.primary::after{content:"";position:absolute;z-index:-1;inset:0;border-radius:inherit;
-  background:radial-gradient(90% 130% at 28% 16%,rgba(255,251,230,calc(.5 + var(--wear,0)*.3)),rgba(255,251,230,0) 50%),linear-gradient(168deg,#f8d684 0%,#e6b450 55%,#c08a2e 100%);
-  box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.5)}
-button.primary:hover,.btn.primary:hover{color:#2b1a05;filter:brightness(1.06) saturate(1.06)}
-button.primary:active,.btn.primary:active,button.primary.down{translate:0 calc(var(--d) - 1px);box-shadow:none}
-button.primary:active::before,.btn.primary:active::before,button.primary.down::before{transform:translateY(1px)}
-button.primary:focus-visible,.btn.primary:focus-visible{outline:2px solid #fff6dc;outline-offset:4px}
-button.primary[disabled]{filter:saturate(.2) brightness(.72);opacity:1}
-button.primary.big{--d:5px;font-size:1.22rem;padding:.9em 2.05em .84em 2.16em}
+/* honey: the one that takes you on. It wears: the more it has been pressed
+   on this device, the brighter the light on it (--wear, from hands.js). */
+button.primary,.btn.primary{--f1:#fff09a;--f2:#ffbe2a;--lip:#d27f10;--edge:#4b2606;--tsh:#5a2c05;--d:6px;--gloss:calc(.46 + var(--wear,0)*.26);font-size:1.24rem;min-height:52px;padding:.42em 1.3em .5em;border-radius:16px}
+button.primary.big{--d:8px;--ol:3px;font-size:1.62rem;min-height:66px;padding:.4em 1.5em .48em;border-radius:19px}
 button.primary.wide{display:flex;width:100%}
+/* the light crosses it: once when it is let go, and every few seconds on the big one */
+button.primary::after,.btn.primary::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(105deg,rgba(255,255,255,0) 42%,rgba(255,255,255,.78) 50%,rgba(255,255,255,0) 58%) no-repeat;background-size:260% 100%;background-position:95% 0}
+button.primary.big::after{animation:shine 3.2s ease-in-out infinite}
+/* (the band of light is just off the left edge at 95%, and just off the right at 5%) */
+@keyframes shine{0%,62%{background-position:95% 0}88%,100%{background-position:5% 0}}
+/* ...and the big one breathes, on the beat everything that asks keeps (feel.js) */
+button.primary.big{animation:breathe var(--beat,1.6s) ease-in-out infinite}
+button.primary.big:is(:active,.down){animation:none}
+@keyframes breathe{50%{scale:1.035}}
+/* a paper label: a small matter */
+button.ghost,.btn.ghost{--f1:#fffaea;--f2:#efdcae;--lip:#b8955a;--edge:#4b3413;--txt:#4a2c0e;--tsh:rgba(255,255,255,0);--gloss:.7;text-shadow:0 1px 0 rgba(255,255,255,.7)}
+/* jam: stop, close, undo */
+button.jam,.btn.jam,button.x{--f1:#ff9a86;--f2:#e5433f;--lip:#a2232a;--edge:#4a0b10;--tsh:#5a0f14}
+/* smaller */
+button.small{--d:4px;--ol:2px;min-height:38px;font-size:.92rem;padding:.36em .8em .42em;border-radius:11px;text-shadow:1.20px 0.00px 0 var(--tsh),1.11px 0.46px 0 var(--tsh),0.85px 0.85px 0 var(--tsh),0.46px 1.11px 0 var(--tsh),0.00px 1.20px 0 var(--tsh),-0.46px 1.11px 0 var(--tsh),-0.85px 0.85px 0 var(--tsh),-1.11px 0.46px 0 var(--tsh),-1.20px 0.00px 0 var(--tsh),-1.11px -0.46px 0 var(--tsh),-0.85px -0.85px 0 var(--tsh),-0.46px -1.11px 0 var(--tsh),-0.00px -1.20px 0 var(--tsh),0.46px -1.11px 0 var(--tsh),0.85px -0.85px 0 var(--tsh),1.11px -0.46px 0 var(--tsh),0 2px 0 var(--tsh)}
+button.ghost.small{text-shadow:0 1px 0 rgba(255,255,255,.7)}
+/* round: a thing with only a sign on it */
+button.round,.bead{width:48px;min-height:48px;padding:0;border-radius:50%;flex:none}
+button.round.small{width:40px;min-height:40px}
+/* a tile: the sign over its name */
+button.tile{flex-direction:column;gap:.22em;min-height:76px;padding:.5em .3em .55em;font-size:.8rem;line-height:1.05;white-space:normal;text-align:center;border-radius:15px;text-shadow:1.20px 0.00px 0 var(--tsh),1.11px 0.46px 0 var(--tsh),0.85px 0.85px 0 var(--tsh),0.46px 1.11px 0 var(--tsh),0.00px 1.20px 0 var(--tsh),-0.46px 1.11px 0 var(--tsh),-0.85px 0.85px 0 var(--tsh),-1.11px 0.46px 0 var(--tsh),-1.20px 0.00px 0 var(--tsh),-1.11px -0.46px 0 var(--tsh),-0.85px -0.85px 0 var(--tsh),-0.46px -1.11px 0 var(--tsh),-0.00px -1.20px 0 var(--tsh),0.46px -1.11px 0 var(--tsh),0.85px -0.85px 0 var(--tsh),1.11px -0.46px 0 var(--tsh),0 2px 0 var(--tsh)}
+button.tile svg.t{width:30px;height:30px}
+
+/* signs on buttons: solid and white, with the same dark line as the letters.
+   (Their parts are styled by their own names: a rule can't reach into a <use>.) */
+svg.t{flex:none;width:1.25em;height:1.25em;overflow:visible;fill:currentColor;stroke:var(--tsh);stroke-width:3.4;stroke-linejoin:round;stroke-linecap:round;paint-order:stroke;filter:drop-shadow(0 2px 0 var(--tsh));pointer-events:none}
+.tcut{fill:none;stroke:var(--tsh);stroke-width:1.8;paint-order:normal}
+.tln{fill:none;stroke:currentColor;stroke-width:3.6;paint-order:normal}
+.tlo{fill:none;stroke:var(--tsh);stroke-width:7.6;paint-order:normal}
+button.ghost svg.t,.btn.ghost svg.t{stroke:none;filter:none}
+
+/* on a screen that draws its own colors and no shadows (forced colors), a button still has an edge */
+@media (forced-colors:active){
+  :where(button,.btn):not(:where(.quiet)){border:2px solid ButtonText}
+  svg.t{stroke:none;filter:none}
+}
 
 /* a quiet one: words, and a thread under them */
 .quiet,a.quiet,button.quiet{display:inline-block;padding:.5em .1em;border:0;border-radius:2px;background:none;box-shadow:none;
@@ -129,47 +173,42 @@ a.quiet{position:relative}
 .quiet:hover{color:var(--gold)}.quiet:hover::after{opacity:.95}
 button.quiet:active{translate:0 1px;box-shadow:none}
 
-/* a bead of glass, with one sign in it */
-.bead{width:44px;height:44px;padding:0;border-radius:50%;flex:none;letter-spacing:0;
-  background:radial-gradient(56% 56% at 30% 22%,rgba(255,240,205,.26),rgba(255,240,205,0) 62%),linear-gradient(168deg,rgba(58,46,29,.8),rgba(17,13,8,.88))}
-.bead svg.i{width:21px;height:21px}
+/* the name of a key: a small honey slab */
+kbd{--tsh:#5a2c05;display:inline-grid;place-items:center;min-width:1.85em;height:1.85em;padding:0 .4em;margin-bottom:3px;border-radius:9px;vertical-align:middle;
+  font:400 .92em/1 var(--toy);font-style:normal;letter-spacing:0;color:#fff;text-shadow:1.20px 0.00px 0 var(--tsh),1.11px 0.46px 0 var(--tsh),0.85px 0.85px 0 var(--tsh),0.46px 1.11px 0 var(--tsh),0.00px 1.20px 0 var(--tsh),-0.46px 1.11px 0 var(--tsh),-0.85px 0.85px 0 var(--tsh),-1.11px 0.46px 0 var(--tsh),-1.20px 0.00px 0 var(--tsh),-1.11px -0.46px 0 var(--tsh),-0.85px -0.85px 0 var(--tsh),-0.46px -1.11px 0 var(--tsh),-0.00px -1.20px 0 var(--tsh),0.46px -1.11px 0 var(--tsh),0.85px -0.85px 0 var(--tsh),1.11px -0.46px 0 var(--tsh),0 2px 0 var(--tsh);white-space:nowrap;
+  background:radial-gradient(130% 100% at 50% -50%,rgba(255,255,255,.5) 50%,rgba(255,255,255,.15) 99%,rgba(255,255,255,0) 100%),linear-gradient(180deg,#fff09a,#ffbe2a);
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.6),0 0 0 2px #4b2606,0 3px 0 0 #d27f10,0 3px 0 2px #4b2606,0 6px 6px rgba(0,0,0,.35)}
+kbd svg.t{width:1.1em;height:1.1em;stroke-width:3.8}
 
-/* the name of a key, on a small lid */
-kbd{display:inline-grid;place-items:center;min-width:1.72em;height:1.72em;padding:0 .42em;border-radius:999px;
-  font:.9em/1 var(--caps);letter-spacing:.02em;color:#2b1a05;text-shadow:.5px .5px 0 rgba(255,246,212,.6);white-space:nowrap;
-  background:radial-gradient(90% 120% at 30% 18%,rgba(255,251,230,.7),rgba(255,251,230,0) 55%),linear-gradient(168deg,#f8d684,#d7a23e);
-  box-shadow:inset .5px 1px 0 #fff4d2,inset -.5px -1px 0 rgba(120,76,14,.5),0 1.5px 0 #7a5212,1px 3px 4px rgba(0,0,0,.35)}
-kbd svg.i{width:1.05em;height:1.05em;stroke-width:2}
+/* a red dot: something new is in here */
+.pip{position:absolute;right:-6px;top:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;display:grid;place-items:center;font:.72rem/1 var(--toy);letter-spacing:0;color:#fff;text-shadow:none;background:linear-gradient(180deg,#ff8a78,#e23a3a);box-shadow:0 0 0 2px #4a0b10,0 2px 0 2px #4a0b10;pointer-events:none}
 
 /* a row of them */
-.row{display:flex;gap:.7em;align-items:center;justify-content:flex-end;margin-top:1em}
+.row{display:flex;gap:.8em;align-items:center;justify-content:flex-end;margin-top:1em}
 .row.wrap{flex-wrap:wrap;justify-content:flex-start}
 
-/* a knob on a groove: the same brass as the lids */
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;margin:0;background:none;cursor:pointer;--p:50%}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,#f0b23c,#ffe29a) 0 0/var(--p) 100% no-repeat,rgba(0,0,0,.5);box-shadow:inset 1px 1.5px 2px rgba(0,0,0,.7),0 1px 0 rgba(255,240,210,.09)}
-input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:rgba(0,0,0,.5);box-shadow:inset 1px 1.5px 2px rgba(0,0,0,.7),0 1px 0 rgba(255,240,210,.09)}
-input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:linear-gradient(90deg,#f0b23c,#ffe29a)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-9px;border:0;border-radius:50%;
-  background:radial-gradient(60% 60% at 32% 26%,#fffbe6,rgba(255,251,230,0) 60%),linear-gradient(168deg,#f8d684,#c08a2e);
-  box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.55),0 0 0 1px #7a5212,2px 3px 6px rgba(0,0,0,.5);transition:scale .12s var(--spring)}
-input[type=range]::-moz-range-thumb{width:24px;height:24px;border:0;border-radius:50%;
-  background:radial-gradient(60% 60% at 32% 26%,#fffbe6,rgba(255,251,230,0) 60%),linear-gradient(168deg,#f8d684,#c08a2e);
-  box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.55),0 0 0 1px #7a5212,2px 3px 6px rgba(0,0,0,.5)}
-input[type=range]:active::-webkit-slider-thumb{scale:1.12}
+/* a knob on a groove */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;margin:0;background:none;cursor:pointer;--p:50%}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;background:linear-gradient(90deg,#ffd75a var(--p),#4a3a2a var(--p));box-shadow:inset 0 2px 0 rgba(255,255,255,.25),inset 0 -2px 0 rgba(0,0,0,.25),0 0 0 2.5px #2c1d0c}
+input[type=range]::-moz-range-track{height:14px;border-radius:7px;background:#4a3a2a;box-shadow:inset 0 -2px 0 rgba(0,0,0,.25),0 0 0 2.5px #2c1d0c}
+input[type=range]::-moz-range-progress{height:14px;border-radius:7px;background:#ffd75a;box-shadow:inset 0 2px 0 rgba(255,255,255,.25)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;margin-top:-9px;border:0;border-radius:50%;
+  background:radial-gradient(130% 100% at 50% -30%,#fff3b0 72%,#ffc63a 73%);box-shadow:0 0 0 2.5px #4b2606,0 4px 0 0 #d27f10,0 4px 0 2.5px #4b2606,0 7px 6px rgba(0,0,0,.35);transition:scale .12s var(--spring)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:0;border-radius:50%;
+  background:radial-gradient(130% 100% at 50% -30%,#fff3b0 72%,#ffc63a 73%);box-shadow:0 0 0 2.5px #4b2606,0 4px 0 0 #d27f10,0 4px 0 2.5px #4b2606,0 7px 6px rgba(0,0,0,.35)}
+input[type=range]:active::-webkit-slider-thumb{scale:1.1}
 input[type=range]:focus-visible{outline:none}
-input[type=range]:focus-visible::-webkit-slider-thumb{outline:2px solid #fff6dc;outline-offset:3px}
-input[type=range]:focus-visible::-moz-range-thumb{outline:2px solid #fff6dc;outline-offset:3px}
+input[type=range]:focus-visible::-webkit-slider-thumb{outline:3px solid #fff;outline-offset:4px}
+input[type=range]:focus-visible::-moz-range-thumb{outline:3px solid #fff;outline-offset:4px}
 
-/* a switch: dark when it's off, lit when it's on */
-input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;width:46px;height:26px;margin:0;border-radius:999px;cursor:pointer;
-  background:rgba(0,0,0,.5);border:1px solid rgba(255,236,200,.2);box-shadow:inset 1.5px 2px 3px rgba(0,0,0,.7);transition:background .25s,border-color .25s,box-shadow .25s}
-input[type=checkbox]::before{content:"";position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:50%;
-  background:radial-gradient(60% 60% at 32% 26%,rgba(255,255,255,.5),rgba(255,255,255,0) 62%),linear-gradient(168deg,#b9ab92,#6a5d48);
-  box-shadow:inset .5px 1px 0 rgba(255,255,255,.35),1px 2px 4px rgba(0,0,0,.55);transition:translate .28s var(--spring),background .25s}
-input[type=checkbox]:checked{background:linear-gradient(90deg,rgba(240,168,60,.75),rgba(255,226,154,.9));border-color:rgba(255,214,120,.8);box-shadow:inset 1.5px 2px 3px rgba(120,70,0,.5),0 0 12px rgba(255,200,90,.35)}
-input[type=checkbox]:checked::before{translate:20px 0;background:radial-gradient(60% 60% at 32% 26%,#fffbe6,rgba(255,251,230,0) 60%),linear-gradient(168deg,#fbe3a0,#d19c38);box-shadow:inset .5px 1px 0 #fff4d2,0 0 0 1px rgba(122,82,18,.8),1px 2px 4px rgba(0,0,0,.5)}
-input[type=checkbox]:focus-visible{outline:2px solid #fff6dc;outline-offset:3px}
+/* a switch: dark when it's off, foxfire when it's on */
+input[type=checkbox]{-webkit-appearance:none;appearance:none;position:relative;flex:none;width:58px;height:32px;margin:0 0 4px;border-radius:16px;cursor:pointer;
+  background:linear-gradient(180deg,#4a3a2a,#6b5640);box-shadow:inset 0 3px 0 rgba(0,0,0,.35),0 0 0 2.5px #2c1d0c,0 4px 0 0 #3a2a18,0 4px 0 2.5px #2c1d0c;transition:background .18s}
+input[type=checkbox]::before{content:"";position:absolute;left:3px;top:2px;width:26px;height:26px;border-radius:50%;background:radial-gradient(130% 100% at 50% -30%,#fff 76%,#f3e3bd 77%);
+  box-shadow:0 0 0 2px #2c1d0c,0 3px 0 0 #b8955a,0 3px 0 2px #2c1d0c;transition:translate .2s cubic-bezier(.3,1.7,.5,1)}
+input[type=checkbox]:checked{background:linear-gradient(180deg,#8fe060,#c8f79a)}
+input[type=checkbox]:checked::before{translate:26px 0}
+input[type=checkbox]:focus-visible{outline:3px solid #fff;outline-offset:5px}
 
 /* lamplit dark paper: the game's cards */
 .leaf{background:var(--leaf);border:1px solid var(--leaf-line);border-radius:8px;box-shadow:inset 1px 1px 0 rgba(255,240,210,.07),var(--fall-far)}
@@ -201,13 +240,14 @@ body.playing #hud{opacity:1}
 .chip.hot b{color:#ffb39c}
 .chip.done{opacity:.6}
 .chip.done b{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--coral)}
-.hr{display:flex;gap:7px;align-items:center;flex:none}
-.hbtn{width:42px;height:42px;padding:0;border-radius:50%;letter-spacing:0;
-  background:radial-gradient(56% 56% at 30% 22%,rgba(255,240,205,.24),rgba(255,240,205,0) 62%),linear-gradient(168deg,rgba(52,41,26,.76),rgba(15,11,7,.86))}
-.hbtn svg{width:21px;height:21px}
+.hr{display:flex;gap:10px;align-items:center;flex:none}
+.hbtn{--d:4px;--ol:2px;width:44px;min-height:44px;padding:0;border-radius:50%;flex:none}
+.hbtn svg.t{width:22px;height:22px}
 /* the phone is a phone: its own face, its own glass */
-.phonehud{height:42px;padding:0 13px;gap:7px;font:600 .72rem/1 var(--phone);letter-spacing:0;text-shadow:none;
-  background:radial-gradient(70% 120% at 20% 0%,rgba(255,255,255,.12),rgba(255,255,255,0) 55%),linear-gradient(168deg,rgba(40,40,46,.8),rgba(10,10,12,.9));border-color:rgba(255,255,255,.2)}
+.phonehud{height:42px;padding:0 13px;gap:7px;border-radius:999px;font:600 .72rem/1 var(--phone);letter-spacing:0;color:var(--ink);text-shadow:none;
+  background:radial-gradient(70% 120% at 20% 0%,rgba(255,255,255,.12),rgba(255,255,255,0) 55%),linear-gradient(168deg,rgba(40,40,46,.8),rgba(10,10,12,.9));border:1px solid rgba(255,255,255,.2);box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.4);transition:translate .09s var(--ease),border-color .2s}
+.phonehud:hover{border-color:rgba(255,255,255,.4)}
+.phonehud:active{translate:0 1.5px}
 .bars{display:inline-flex;align-items:flex-end;gap:2px;height:12px}
 .bars i{width:3px;background:rgba(255,255,255,.22);border-radius:1px}
 .bars i:nth-child(1){height:4px}.bars i:nth-child(2){height:6px}.bars i:nth-child(3){height:9px}.bars i:nth-child(4){height:12px}
@@ -222,7 +262,9 @@ body.playing #hud{opacity:1}
 /* the chapter's card: where you are in it, and the next step. Tap it and
    the gold thread shows the way. */
 .goalcard{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:max-content;max-width:min(300px,64vw);margin-top:9px;padding:7px 13px 8px 14px;border-radius:8px;text-align:left;white-space:normal;letter-spacing:0;
-  background:var(--glass);border-color:rgba(255,209,102,.26);transition:opacity .35s,transform .35s,border-color .2s}
+  color:var(--ink);background:var(--glass);border:1px solid rgba(255,209,102,.26);box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.4);transition:opacity .35s,transform .35s,border-color .2s,translate .09s var(--ease)}
+.goalcard:hover{border-color:rgba(255,214,120,.66)}
+.goalcard:active{translate:0 1.5px}
 .goalcard small{font-size:.6rem;line-height:1.25;letter-spacing:.16em;color:var(--gold)}
 .goalcard b{font:italic 400 1.02rem/1.22 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.8)}
 /* a tally, one stroke a step, the way you'd keep count in a margin */
@@ -259,16 +301,16 @@ body.touch .arm{display:none}
 /* a sound, for anyone who can't hear it */
 .caption{position:fixed;left:calc(16px + var(--safe-l));bottom:calc(52px + var(--safe-b));font:italic .98rem/1.3 var(--book);color:#d9ccb2;background:rgba(8,6,4,.6);padding:.16em .7em .22em;border-radius:5px;opacity:0;transition:opacity .3s;z-index:9;pointer-events:none}
 .caption.on{opacity:1}
-/* what you could do here: the key on its little lid, and the thing */
-.prompt{position:fixed;left:0;right:0;bottom:calc(64px + var(--safe-b));width:max-content;max-width:94vw;margin:0 auto;translate:0 6px;display:flex;align-items:center;gap:.5em;
-  background:var(--glass);border:1px solid rgba(255,214,120,.46);border-radius:999px;box-shadow:var(--glass-lit),var(--fall);
-  padding:.3em 1.05em .3em .36em;font:1.06rem/1.2 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.75);
-  opacity:0;transition:opacity .2s,translate .2s var(--ease);z-index:11;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* what you could do here: a paper tag, with the key on a small honey slab and the thing's name */
+.prompt{position:fixed;left:0;right:0;bottom:calc(64px + var(--safe-b));width:max-content;max-width:94vw;margin:0 auto;translate:0 6px;display:flex;align-items:center;gap:.55em;
+  padding:.34em 1.05em .42em .42em;border-radius:999px;font:italic 1.1rem/1.2 var(--book);color:#3d260c;text-shadow:none;
+  background:linear-gradient(180deg,#fffaea,#f1dfb2);box-shadow:inset 0 2px 0 rgba(255,255,255,.8),0 0 0 2.5px #4b3413,0 4px 0 0 #b8955a,0 4px 0 2.5px #4b3413,0 9px 12px rgba(0,0,0,.4);
+  opacity:0;transition:opacity .2s,translate .2s var(--ease);z-index:11;pointer-events:none;white-space:nowrap}
 .prompt.on{opacity:1;translate:0 0}
 .prompt.pop{animation:ppop .45s cubic-bezier(.2,1.8,.4,1)}
 @keyframes ppop{0%{scale:.8}100%{scale:1}}
 .prompt kbd{flex:none}
-.prompt span{overflow:hidden;text-overflow:ellipsis}
+.prompt span{overflow:hidden;text-overflow:ellipsis;padding-bottom:.04em}
 /* saved: a little sun turns in the corner */
 .savesun{position:fixed;right:calc(16px + var(--safe-r));bottom:calc(16px + var(--safe-b));z-index:30;display:flex;align-items:center;gap:7px;font-size:.68rem;line-height:1;letter-spacing:.2em;color:rgba(255,226,160,.9);opacity:0;pointer-events:none;text-shadow:0 1px 2px #000}
 .savesun i{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle,#ffe7a0 35%,transparent 38%),conic-gradient(from 0deg,#ffd166 0 8%,transparent 8% 12.5%,#ffd166 12.5% 20.5%,transparent 20.5% 25%,#ffd166 25% 33%,transparent 33% 37.5%,#ffd166 37.5% 45.5%,transparent 45.5% 50%,#ffd166 50% 58%,transparent 58% 62.5%,#ffd166 62.5% 70.5%,transparent 70.5% 75%,#ffd166 75% 83%,transparent 83% 87.5%,#ffd166 87.5% 95.5%,transparent 95.5%)}
@@ -287,7 +329,7 @@ body.touch .arm{display:none}
 .phonehud.dying{animation:phdie 1.3s ease}
 @keyframes phdie{0%,30%,60%{filter:none}15%,45%{filter:brightness(2.2) saturate(.2)}100%{filter:none}}
 #hudbook.ping{animation:ping 1.4s ease}
-@keyframes ping{0%,100%{box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.4),0 0 0 0 rgba(255,209,102,0)}30%{box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.4),0 0 0 6px rgba(255,209,102,.45);scale:1.12}}
+@keyframes ping{0%,100%{scale:1;rotate:0deg}18%{scale:1.22;rotate:-9deg}36%{scale:1.14;rotate:8deg}54%{scale:1.1;rotate:-5deg}72%{scale:1.04;rotate:2deg}}
 .pctpop{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font:.78rem/1 var(--caps);letter-spacing:.06em;color:#ffd166;text-shadow:0 1px 3px #000;animation:pctup 1.6s ease-out both;pointer-events:none;white-space:nowrap}
 @keyframes pctup{0%{opacity:0;transform:translate(-50%,6px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px)}}
 /* where it's dark, the HUD keeps its voice down */
@@ -361,13 +403,12 @@ em.hlr,em.hlg,em.hlb{font-style:italic}
 .choice.on{display:block;animation:rise .28s var(--ease)}
 @keyframes rise{from{opacity:0;translate:0 10px}}
 .choice p{margin:0 .3em .7em;font:italic 1.1rem/1.35 var(--book);color:var(--soft)}
-.copt{display:flex;justify-content:flex-start;width:100%;text-align:left;white-space:normal;margin:.36em 0;padding:.68em 1em .7em 2.3em;border-radius:7px;
-  font:1.16rem/1.34 var(--book);letter-spacing:0;text-shadow:0 1px 0 rgba(0,0,0,.6);background:rgba(255,244,214,.035);border-color:rgba(255,236,200,.12);box-shadow:none}
-.copt::before{content:"";position:absolute;left:.95em;top:50%;width:.7em;height:.7em;margin-top:-.35em;opacity:.3;background:var(--gold);transition:opacity .2s,scale .25s var(--spring);
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.2c.55 5.6 3.65 8.7 9.3 9.3-5.65.6-8.75 3.7-9.3 9.3-.55-5.6-3.65-8.7-9.3-9.3 5.65-.6 8.75-3.7 9.3-9.3z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.2c.55 5.6 3.65 8.7 9.3 9.3-5.65.6-8.75 3.7-9.3 9.3-.55-5.6-3.65-8.7-9.3-9.3 5.65-.6 8.75-3.7 9.3-9.3z'/%3E%3C/svg%3E") center/contain no-repeat}
-.copt.sel,.copt:hover{border-color:rgba(255,209,102,.8);background:rgba(255,209,102,.12);color:#fff7df}
-.copt.sel::before,.copt:hover::before{opacity:1;scale:1.25;filter:drop-shadow(0 0 4px var(--gold))}
-.copt:active{translate:0 1px;box-shadow:inset 1px 2px 4px rgba(0,0,0,.45)}
+.copt{--f1:#fffaea;--f2:#f1dfb2;--lip:#b8955a;--edge:#4b3413;--txt:#3d260c;--tsh:rgba(0,0,0,0);--gloss:0;--d:4px;display:flex;justify-content:flex-start;width:100%;text-align:left;white-space:normal;min-height:0;margin:0 0 calc(var(--d) + 8px);padding:.62em 1em .66em 2.4em;border-radius:12px;
+  font:1.14rem/1.3 var(--book);letter-spacing:0;text-shadow:none}
+.copt:last-child{margin-bottom:var(--d)}
+.copt::before{content:"";position:absolute;left:.85em;top:50%;width:.85em;height:.85em;margin-top:-.42em;opacity:.35;background:#7a5422;clip-path:polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%);transition:opacity .2s,scale .25s var(--spring)}
+.copt.sel,.copt:hover{--f1:#fff3a8;--f2:#ffd24f;--lip:#d27f10;--edge:#4b2606;--gloss:.45}
+.copt.sel::before,.copt:hover::before{opacity:1;scale:1.3;background:#4b2606}
 
 /* ================= the lens ================= */
 /* the light pools where the glass is; the words sit beside it, in the dark */
@@ -459,7 +500,7 @@ body:has(.lens.on) :is(#clock,#goalcard){opacity:0;pointer-events:none}
 @keyframes slotpop{from{transform:scale(0)}to{transform:scale(1)}}
 @keyframes slotglow{50%{box-shadow:0 0 0 5px rgba(255,209,102,.25)}}
 .itease{margin:.3em 0 0!important;font:italic .98rem/1.3 var(--book)!important;color:var(--soft)!important}
-.ipanel .primary{display:flex;width:100%;font-size:1.12rem}
+.ipanel .primary{display:flex;width:100%}
 .gcard .primary{margin-top:.4em}
 .ipanel .ihint{text-align:center;font-size:.68rem;line-height:1.3;letter-spacing:.14em;color:var(--dim);margin:.9em 0 0}
 @media (max-aspect-ratio:11/10){
@@ -552,12 +593,9 @@ body.playing.framed #hud{opacity:.22;transition:opacity .6s}
 .updcard span{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
 .updcard b{font:1.06rem/1.25 var(--book)}
 .updcard small{font:italic .94rem/1.2 var(--book);color:var(--soft)}
-.updcard button:not(.x){--d:3px;flex:none;z-index:0;color:#2b1a05;border:0;margin-bottom:3px;padding:.72em 1.2em .68em 1.28em;font-size:.92rem;letter-spacing:.09em;text-shadow:.5px 1px 0 rgba(255,246,212,.62);background:none;box-shadow:none}
-.updcard button:not(.x)::before{content:"";position:absolute;z-index:-2;inset:0;border-radius:inherit;transform:translateY(3px);background:repeating-linear-gradient(90deg,#6e4a10 0 1px,#e2b65a 1px 2px,#a87722 2px 3px);box-shadow:2px 4px 8px rgba(0,0,0,.5)}
-.updcard button:not(.x)::after{content:"";position:absolute;z-index:-1;inset:0;border-radius:inherit;background:radial-gradient(90% 130% at 28% 16%,rgba(255,251,230,.55),rgba(255,251,230,0) 50%),linear-gradient(168deg,#f8d684 0%,#e6b450 55%,#c08a2e 100%);box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.5)}
-.updcard button:not(.x):active{translate:0 2px}
-.updcard button:not(.x):active::before{transform:translateY(1px)}
-.updcard button.x{width:38px;height:38px;padding:0;flex:none;font:1.3rem/1 var(--book);letter-spacing:0;color:var(--soft)}
+.updcard button:not(.x){--f1:#fff09a;--f2:#ffbe2a;--lip:#d27f10;--edge:#4b2606;--tsh:#5a2c05;--d:4px;--ol:2px;flex:none;min-height:40px;font-size:1rem;padding:.36em .9em .42em;border-radius:12px}
+.updcard button.x{--d:3px;--ol:2px;width:36px;min-height:36px;padding:0;border-radius:50%;flex:none}
+.updcard button.x svg.t{width:17px;height:17px}
 
 /* ================= set pieces ================= */
 .ridehud{position:fixed;right:calc(14px + var(--safe-r));top:calc(62px + var(--safe-t));display:flex;align-items:center;gap:9px;font-size:.68rem;letter-spacing:.2em;color:var(--soft);opacity:0;transition:opacity .4s;z-index:12;padding:7px 12px 7px 14px;border-radius:999px;
@@ -611,10 +649,10 @@ body.playing.framed #hud{opacity:.22;transition:opacity .6s}
   box-shadow:inset 0 0 0 1px #150b05,inset 0 0 0 3px rgba(60,36,18,.9),inset 0 0 0 4px rgba(232,184,64,.42),inset 2px 2px 0 4px rgba(255,220,160,.08),var(--fall-far);
   translate:0 10px;transition:translate .3s var(--ease)}
 .book.on .bcard,.menu.on .bcard{translate:0 0}
-/* the tabs: stiff paper, lettered in ink. The one you're on is the page's own colour. */
+/* the tabs: stiff paper, lettered in ink. The one you're on is the page's own color. */
 .tabs{display:flex;gap:3px;padding:3px 52px 0 8px;overflow-x:auto;scrollbar-width:none;flex:none}
 .tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:1 1 auto;gap:.4em;padding:.62em .7em .52em;border:0;border-radius:6px 6px 0 0;font-size:.86rem;letter-spacing:.09em;color:#5a4426;text-shadow:none;
+.tabs button{flex:1 1 auto;gap:.4em;padding:.62em .7em .52em;border:0;border-radius:6px 6px 0 0;font:.86rem/1 var(--caps);letter-spacing:.09em;color:#5a4426;text-shadow:none;
   background:linear-gradient(180deg,var(--tab),#c6b68c);box-shadow:inset 1px 1px 0 rgba(255,255,255,.4),inset -1px 0 0 rgba(60,40,20,.2);transition:translate .12s var(--ease),color .2s,background .2s}
 .tabs button svg.i{width:1.15em;height:1.15em;opacity:.75}
 .tabs button:hover{color:var(--sepia);translate:0 -1px}
@@ -622,10 +660,9 @@ body.playing.framed #hud{opacity:.22;transition:opacity .6s}
 .tabs button.on{background:linear-gradient(180deg,#f6eed8,#f3e9cf);color:var(--sepia);translate:0 0;padding-top:.72em;margin-top:-.1em}
 .tabs button.on svg.i{opacity:1;color:#8a5a20}
 .tabs button:focus-visible{outline:2px solid #fff6dc;outline-offset:-3px}
-/* closing it: a bead on the corner of the cover, always in reach */
-.bcard>.x{position:absolute;right:-7px;top:-9px;z-index:3;width:42px;height:42px;padding:0;border-radius:50%;letter-spacing:0;
-  background:radial-gradient(56% 56% at 30% 22%,rgba(255,240,205,.3),rgba(255,240,205,0) 62%),linear-gradient(168deg,#4a3a25,#17110a);border-color:rgba(255,214,120,.5);box-shadow:var(--glass-lit),2px 4px 10px rgba(0,0,0,.55)}
-.bcard>.x svg.i{width:19px;height:19px}
+/* closing it: a round of jam on the corner of the cover, always in reach */
+.bcard>.x{--d:4px;--ol:2px;position:absolute;right:-9px;top:-11px;z-index:3;width:42px;min-height:42px;padding:0;border-radius:50%}
+.bcard>.x svg.t{width:19px;height:19px}
 /* the page */
 .bbody{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;scroll-padding:1em 0 2.4em;padding:1.5em clamp(1.1em,4vw,2.6em) 0;user-select:text;-webkit-user-select:text;touch-action:pan-y;color:var(--sepia);border-radius:1px 6px 6px 1px;
   background:linear-gradient(90deg,rgba(90,60,20,.26),rgba(90,60,20,0) 26px),radial-gradient(ellipse at 60% 30%,#f8f0dc,#ecdfc2 90%);box-shadow:inset 0 0 0 1px rgba(60,40,20,.25);
@@ -722,10 +759,10 @@ textarea:focus-visible{outline:2px solid #8a5a20;outline-offset:2px}
 .achc.got{background:rgba(232,184,64,.15);border-color:rgba(190,140,40,.45)}
 .achc.got i{color:#5a3a0a;background:radial-gradient(circle at 34% 28%,#fff3c0,#e8b840 50%,#9a6a18);box-shadow:inset .5px 1px 0 #fff4d2,1px 2px 4px rgba(60,40,20,.4)}
 .achc.got b{color:#3a2410}.achc.got small{color:#5a4630}
-/* on paper, glass turns to a paper label, and a lid stays a lid */
-.bbody button:not(.primary):not(.look){color:#33261a;border-color:rgba(70,48,24,.5);background:linear-gradient(168deg,rgba(255,255,255,.5),rgba(255,255,255,.14));box-shadow:inset 1px 1px 0 rgba(255,255,255,.7),1px 2px 0 rgba(70,48,24,.16);text-shadow:none}
-.bbody button:not(.primary):not(.look):hover{border-color:#8a5a20}
+/* on paper, the line round the one the keys are on is umber (white would not show) */
 .bbody :focus-visible{outline-color:#8a5a20}
+.bbody :is(button.primary,button.ghost,button.jam){--ringc:#8a5a20}
+.bbody :is(button.primary,button.ghost,button.jam):focus-visible{outline-color:transparent}
 
 /* ================= the menu ================= */
 .mcardx{width:min(600px,96vw);height:auto;max-height:92vh;overflow:hidden;padding:7px 0;color:var(--ink);border-radius:9px;
@@ -765,9 +802,9 @@ textarea:focus-visible{outline:2px solid #8a5a20;outline-offset:2px}
 
 /* ================= thumbs =================
    The stick is a glass bead in a faint ring. Touch down anywhere on the
-   left and it comes to your thumb. The buttons are beads of glass too, and
-   each fills with light when it has something to offer: gold when there's
-   something to do, foxfire green when there's something small to see. The
+   left and it comes to your thumb. The buttons are the same round slabs as the
+   rest, and each lights up when it has something to offer: honey when
+   there's something to do, foxfire green when there's something small to see. The
    crank turns while you hold it, and the ring round it is your arm. */
 #touch{display:none}
 body.touch.playing #touch{display:block}
@@ -780,43 +817,42 @@ body.touch.playing #touch{display:block}
   background:radial-gradient(42% 42% at 33% 26%,rgba(255,255,255,.62),rgba(255,255,255,0) 62%),radial-gradient(60% 60% at 66% 74%,rgba(255,236,200,.22),rgba(255,236,200,0) 70%),rgba(255,240,214,.16);
   box-shadow:2px 4px 9px rgba(0,0,0,.4),inset -2px -3px 6px rgba(0,0,0,.22);transition:transform .06s}
 .btns{position:fixed;right:calc(16px + var(--safe-r));bottom:calc(24px + var(--safe-b));width:160px;height:160px;z-index:20;pointer-events:none}
-.tb{position:absolute;width:62px;height:62px;padding:0;border-radius:50%;letter-spacing:0;color:var(--ink);touch-action:none;pointer-events:auto;border:1.5px solid rgba(255,236,200,.3);
-  background:radial-gradient(52% 52% at 32% 24%,rgba(255,244,214,.3),rgba(255,244,214,0) 64%),radial-gradient(circle at 50% 56%,rgba(40,31,20,.5),rgba(12,9,6,.74));
-  box-shadow:inset 1.5px 2px 0 rgba(255,244,214,.14),inset -2px -3px 7px rgba(0,0,0,.4),2px 4px 10px rgba(0,0,0,.36);
-  transition:scale .1s var(--ease),border-color .3s,box-shadow .3s,background .3s,opacity .4s}
-.tb:hover{border-color:rgba(255,236,200,.3);color:var(--ink)}
-.tb:active{translate:none;box-shadow:inset 1.5px 2px 0 rgba(255,244,214,.14),inset -2px -3px 7px rgba(0,0,0,.4),2px 4px 10px rgba(0,0,0,.36)}
-.tb svg.i{width:27px;height:27px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6));transition:opacity .3s,color .3s,rotate .2s}
-.tb.on{scale:.93}
-.tb-a{right:0;bottom:0;width:82px;height:82px}
-.tb-a svg.i{width:34px;height:34px;opacity:.5}
+/* the beads: the same slabs, round, and (so the hill shows through) dark
+   glass with a pale line round it until they have something to offer */
+.tb{--f1:rgba(64,52,36,.56);--f2:rgba(20,14,8,.72);--lip:rgba(16,11,6,.6);--edge:rgba(255,240,210,.5);--tsh:rgba(20,12,4,.75);--gloss:.2;--d:5px;
+  position:absolute;width:62px;min-height:62px;padding:0;border-radius:50%;touch-action:none;pointer-events:auto;
+  transition:translate .06s ease-out,scale .1s var(--ease),box-shadow .2s,background .25s,opacity .4s}
+.tb svg.t{width:30px;height:30px;opacity:.82;transition:opacity .3s,rotate .2s}
+.tb.on{translate:0 var(--d);scale:.97;box-shadow:var(--dn)}
+.tb-a{right:0;bottom:0;width:82px;min-height:82px;--d:6px}
+.tb-a svg.t{width:40px;height:40px;opacity:.55}
 .tb-l{right:92px;bottom:2px}
-.tb-c{right:6px;bottom:94px}
-/* something to do: the bead fills with gold */
-#touch.near .tb-a{border-color:rgba(255,220,130,.95);
-  background:radial-gradient(52% 52% at 32% 24%,rgba(255,252,236,.6),rgba(255,252,236,0) 64%),radial-gradient(circle at 50% 55%,rgba(255,206,100,.7),rgba(150,98,22,.6) 68%,rgba(40,28,12,.7));
-  box-shadow:inset 1.5px 2px 0 rgba(255,250,230,.4),inset -2px -3px 7px rgba(90,52,6,.45),2px 4px 10px rgba(0,0,0,.36),0 0 0 5px rgba(255,209,102,.16),0 0 26px rgba(255,200,90,.6);animation:wisp 2.6s ease-in-out infinite}
-#touch.near .tb-a svg.i{opacity:1;color:#fffaf0;filter:drop-shadow(0 0 6px rgba(255,236,170,.95))}
-@keyframes wisp{50%{box-shadow:inset 1.5px 2px 0 rgba(255,250,230,.4),inset -2px -3px 7px rgba(90,52,6,.45),2px 4px 10px rgba(0,0,0,.36),0 0 0 9px rgba(255,209,102,.07),0 0 34px rgba(255,200,90,.75)}}
-.tb-a.on{background:radial-gradient(52% 52% at 32% 24%,rgba(255,252,236,.7),rgba(255,252,236,0) 64%),radial-gradient(circle at 50% 55%,rgba(255,226,150,.8),rgba(170,112,28,.6) 68%,rgba(40,28,12,.7))!important}
+.tb-c{right:6px;bottom:96px}
+/* something to do: the bead is honey, and glows on the beat */
+#touch.near .tb-a{--f1:#fff09a;--f2:#ffbe2a;--lip:#d27f10;--edge:#4b2606;--tsh:#5a2c05;--gloss:.5;
+  box-shadow:var(--up),0 0 0 5px rgba(255,209,102,.2),0 0 26px rgba(255,200,90,.6);animation:wisp var(--beat,1.6s) ease-in-out infinite}
+#touch.near .tb-a.on{box-shadow:var(--dn),0 0 0 5px rgba(255,209,102,.2),0 0 26px rgba(255,200,90,.6)}
+#touch.near .tb-a svg.t{opacity:1}
+@keyframes wisp{50%{box-shadow:var(--up),0 0 0 10px rgba(255,209,102,.08),0 0 36px rgba(255,200,90,.82)}}
 /* the phone: a dead black stone until it has a drop of water on its eye */
 .tb-l .i-drop{display:none}
 #touch.haslens .tb-l .i-drop{display:block}
 #touch.haslens .tb-l .i-phone{display:none}
-#touch.small .tb-l{border-color:rgba(170,240,130,.85);box-shadow:inset 1.5px 2px 0 rgba(230,255,210,.3),inset -2px -3px 7px rgba(0,0,0,.4),2px 4px 10px rgba(0,0,0,.36),0 0 0 4px rgba(166,236,124,.14),0 0 20px rgba(166,236,124,.5)}
-#touch.small .tb-l svg.i{color:#dcffc8}
-.tb-l.on{border-color:rgba(255,255,255,.6)}
+/* something small to see: the drop is foxfire */
+#touch.small .tb-l{--f1:#d3f8a6;--f2:#74d04c;--lip:#3f9426;--edge:#173d0c;--tsh:#1d4a10;--gloss:.5;box-shadow:var(--up),0 0 0 4px rgba(166,236,124,.16),0 0 20px rgba(166,236,124,.55)}
+#touch.small .tb-l.on{box-shadow:var(--dn),0 0 0 4px rgba(166,236,124,.16),0 0 20px rgba(166,236,124,.55)}
+#touch.small .tb-l svg.t{opacity:1}
 /* the crank: not there until the lantern is yours */
 .tb-c{opacity:0;pointer-events:none;scale:.6}
 #touch.haslantern .tb-c{opacity:1;pointer-events:auto;scale:1}
-#touch.haslantern .tb-c.on{scale:.93}
-.tb-c::after{content:"";position:absolute;inset:-7px;border-radius:50%;opacity:0;transition:opacity .5s;
-  background:conic-gradient(from 0deg,#ffd166 calc(var(--arm,100) * 1%),rgba(255,236,200,.16) 0);-webkit-mask:radial-gradient(circle,transparent 34px,#000 34.5px 36.5px,transparent 37px);mask:radial-gradient(circle,transparent 34px,#000 34.5px 36.5px,transparent 37px)}
+#touch.haslantern .tb-c.on{scale:.97}
+.tb-c::after{content:"";position:absolute;inset:-12px;border-radius:50%;opacity:0;transition:opacity .5s;pointer-events:none;
+  background:conic-gradient(from 0deg,#ffd166 calc(var(--arm,100) * 1%),rgba(255,236,200,.16) 0);-webkit-mask:radial-gradient(circle,transparent 38px,#000 38.5px 41px,transparent 41.5px);mask:radial-gradient(circle,transparent 38px,#000 38.5px 41px,transparent 41.5px)}
 #touch.tired .tb-c::after,#touch.cranking .tb-c::after{opacity:1}
-#touch.cranking .tb-c{border-color:rgba(255,224,160,.95);
-  background:radial-gradient(52% 52% at 32% 24%,rgba(255,252,236,.6),transparent 64%),radial-gradient(circle,rgba(255,240,200,calc(.25 + var(--lamp,0) * .55)),rgba(255,170,70,calc(.2 + var(--lamp,0) * .35)) 60%,rgba(40,26,10,.7));
-  box-shadow:0 0 calc(10px + var(--lamp,0) * 26px) rgba(255,214,150,calc(.3 + var(--lamp,0) * .45)),2px 4px 10px rgba(0,0,0,.36)}
-#touch.cranking .tb-c svg.i{animation:cranking .7s linear infinite;filter:drop-shadow(0 0 4px rgba(255,236,170,.8))}
+/* turning it: the bead warms as the lamp does */
+#touch.cranking .tb-c{--f1:rgba(255,240,170,calc(.5 + var(--lamp,0) * .5));--f2:rgba(255,178,50,calc(.45 + var(--lamp,0) * .5));--lip:#b26c12;--edge:#4b2606;--tsh:#5a2c05;--gloss:.4;
+  box-shadow:var(--dn),0 0 calc(10px + var(--lamp,0) * 26px) rgba(255,214,150,calc(.3 + var(--lamp,0) * .45))}
+#touch.cranking .tb-c svg.t{opacity:1;animation:cranking .7s linear infinite}
 @keyframes cranking{to{rotate:360deg}}
 
 /* ================= the title ================= */
@@ -845,18 +881,16 @@ body.touch.playing #touch{display:block}
 /* one thing takes you on; the rest sit under it, in glass */
 .tbtns{display:flex;flex-direction:column;align-items:center;gap:1.05em}
 .tmore{display:flex;flex-wrap:wrap;justify-content:center;gap:.7em}
-/* where you were: a snapshot, the day, and the lid that takes you back */
-.contcard{display:grid;width:100%;grid-template-columns:auto 1fr;align-items:center;gap:16px;max-width:440px;padding:10px 18px 10px 10px;border-radius:9px;text-align:left;white-space:normal;letter-spacing:0;
-  background:radial-gradient(120% 90% at 0 0,rgba(255,209,102,.14),transparent 60%),var(--leaf);border-color:rgba(255,209,102,.5);box-shadow:inset 0 0 0 4px rgba(20,15,9,.5),inset 0 0 0 5px rgba(255,209,102,.18),var(--fall-far)}
-.contcard:hover{border-color:rgba(255,224,150,.9)}
-.contcard:active{translate:0 2px;box-shadow:inset 0 0 0 4px rgba(20,15,9,.5),inset 0 0 0 5px rgba(255,209,102,.18),2px 4px 10px rgba(0,0,0,.5)}
-.contcard img{width:128px;height:72px;object-fit:cover;border:3px solid #f1ead8;border-bottom-width:3px;border-radius:2px;box-shadow:2px 3px 8px rgba(0,0,0,.55);rotate:-2.2deg;margin:2px 0 2px 4px}
-.contcard .cc{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
-.contcard .cc b{position:relative;z-index:0;display:inline-block;margin:0 0 9px;padding:.56em 1.2em .5em 1.28em;border-radius:999px;font:1.06rem/1 var(--caps);letter-spacing:.09em;color:#2b1a05;text-shadow:.5px 1px 0 rgba(255,246,212,.62)}
-.contcard .cc b::before{content:"";position:absolute;z-index:-2;inset:0;border-radius:inherit;transform:translateY(3px);background:repeating-linear-gradient(90deg,#6e4a10 0 1px,#e2b65a 1px 2px,#a87722 2px 3px);box-shadow:2px 4px 8px rgba(0,0,0,.5)}
-.contcard .cc b::after{content:"";position:absolute;z-index:-1;inset:0;border-radius:inherit;background:radial-gradient(90% 130% at 28% 16%,rgba(255,251,230,.55),rgba(255,251,230,0) 50%),linear-gradient(168deg,#f8d684 0%,#e6b450 55%,#c08a2e 100%);box-shadow:inset 1px 1.5px 0 #fff4d2,inset -1px -1.5px 0 rgba(120,76,14,.5)}
-.contcard .cc small{display:block;font:italic 1rem/1.25 var(--book);color:#d9ccb0;text-shadow:0 1px 2px rgba(0,0,0,.7)}
-.contcard .cc small+small{font:.72rem/1.3 var(--caps);letter-spacing:.14em;color:var(--soft);text-transform:var(--lab-case);font-style:normal}
+/* where you were: the big honey slab that takes you back, with a photograph of the place stuck to it */
+.contcard{--f1:#fff09a;--f2:#ffbe2a;--lip:#d27f10;--edge:#4b2606;--tsh:#5a2c05;--d:8px;--ol:3px;--gloss:calc(.46 + var(--wear,0)*.26);
+  width:min(430px,100%);min-height:90px;padding:.55em 1.1em .62em 142px;border-radius:19px;justify-content:flex-start;text-align:left;white-space:normal;animation:breathe var(--beat,1.6s) ease-in-out infinite}
+.contcard:is(:active,.down){animation:none}
+.contcard::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(105deg,rgba(255,255,255,0) 42%,rgba(255,255,255,.78) 50%,rgba(255,255,255,0) 58%) no-repeat;background-size:260% 100%;background-position:95% 0;animation:shine 3.2s ease-in-out infinite}
+.contcard img{position:absolute;left:-9px;top:-13px;z-index:1;width:132px;height:74px;object-fit:cover;rotate:-5deg;border:5px solid #fffdf4;border-bottom-width:15px;border-radius:3px;box-shadow:0 0 0 2px #4b3413,3px 6px 10px rgba(0,0,0,.45);background:#6f7f8f}
+.contcard .cc{display:flex;flex-direction:column;align-items:flex-start;gap:.16em;min-width:0}
+.contcard .cc b{font:400 1.6rem/1 var(--toy);letter-spacing:.015em}
+.contcard .cc small{display:block;font:italic 1rem/1.2 var(--book);letter-spacing:0;color:#5a3208;text-shadow:0 1px 0 rgba(255,255,255,.45)}
+.contcard .cc small+small{font:.7rem/1.3 var(--caps);letter-spacing:.12em;text-transform:var(--lab-case);font-style:normal;color:#6b3d0c}
 .tfine{font-size:.7rem;line-height:1.75;letter-spacing:.17em;color:#e2d6bc;margin:1.6em 0 0;text-shadow:0 1px 2px #000,0 0 6px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.8)}
 .tfine span{display:block}
 .tlinks{display:flex;justify-content:center;gap:1.8em;margin:.9em 0 0}
@@ -896,7 +930,15 @@ body.touch.playing #touch{display:block}
 .credits{font:1.04rem/1.5 var(--book);color:var(--soft);margin:1.6em 0;opacity:0;animation:in 2s 5s forwards}
 .credits b{font-family:var(--caps);letter-spacing:.08em;color:var(--ink)}
 .credits .small{font:.74rem/1.5 var(--caps);letter-spacing:.14em;text-transform:var(--lab-case);font-style:normal}
-.end .primary{opacity:0;animation:in 1.5s 6s forwards}
+/* (a transition, not an animation: the button is given the focus before it has come in, and the focus has an animation of its own) */
+.end .primary{opacity:0;transition:opacity .3s,translate .06s ease-out,scale .06s ease-out,box-shadow .06s ease-out,filter .15s}
+.end.on .primary{opacity:1;transition:opacity 1.5s 6s,translate .06s ease-out,scale .06s ease-out,box-shadow .06s ease-out,filter .15s}
+body.reduced .end.on .primary{transition-delay:0s}
+@media (prefers-reduced-motion:reduce){.end.on .primary{transition-delay:0s}}
+/* nothing of the hill's furniture shows through the last page */
+body.ended :is(#prompt,#touch,.cue,.coach){opacity:0;pointer-events:none}
+/* ...and while you are choosing what to say the beads get out of the way: you press the line itself */
+body.choosing #touch{opacity:0;pointer-events:none}
 .end .tlinks{margin-top:1.3em;opacity:0;animation:in 1.5s 6.4s forwards}
 
 .fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .6s;z-index:75}
@@ -913,8 +955,7 @@ body.touch.playing #touch{display:block}
 .cine.out::after{opacity:1;transition:opacity 1.2s ease}
 .ccap{margin:0;max-width:min(860px,90vw);text-align:center;font:italic clamp(1.14rem,2.5vw,1.6rem)/1.42 var(--book);color:#efe3c8;letter-spacing:.01em;opacity:0;transform:translateY(6px);transition:opacity 1.1s ease,transform 1.4s ease;text-shadow:0 0 18px rgba(255,190,90,.18)}
 .ccap.on{opacity:1;transform:none}
-.cskip{padding:.62em 1.1em .58em 1.2em;font-size:.84rem;letter-spacing:.14em;color:rgba(239,227,200,.7);background:none;border-color:rgba(239,227,200,.22);box-shadow:none}
-.cskip:hover,.cskip:focus-visible{color:#ffd166;border-color:rgba(255,209,102,.6)}
+/* (skipping is a small matter: a small paper label, .ghost.small) */
 .cbars{display:inline-flex;align-items:flex-end;gap:3px;height:16px;color:rgba(239,227,200,.7);font:600 .7rem/1 var(--phone);letter-spacing:.06em}
 .cbars i{display:block;width:4px;background:rgba(239,227,200,.75);border-radius:1px;transition:background .6s,opacity .6s}
 .cbars i:nth-child(1){height:6px}.cbars i:nth-child(2){height:10px}.cbars i:nth-child(3){height:14px}
@@ -1136,7 +1177,7 @@ body.phoneup .narr.on{transform:translate(-50%,0)}
 /* the fall into the page */
 .hflash{position:absolute;inset:0;z-index:4;pointer-events:none;background:radial-gradient(circle at 50% 50%,#fffaf0,#ffe9b8 45%,#f2c26a 100%);opacity:0;transition:opacity .85s ease-in}
 .hero.white .hflash{opacity:1}
-.hskip{position:absolute;right:calc(18px + var(--safe-r,0px));bottom:calc(18px + var(--safe-b));z-index:5;padding:.62em 1.1em .58em 1.2em;font-size:.84rem;letter-spacing:.14em;color:rgba(239,227,200,.7);background:none;border-color:rgba(239,227,200,.22);box-shadow:none;opacity:0;transition:opacity .8s,color .2s,border-color .2s}
+.hskip{position:absolute;right:calc(18px + var(--safe-r,0px));bottom:calc(18px + var(--safe-b));z-index:5;opacity:0;transition:opacity .8s,translate .06s ease-out,scale .06s ease-out,box-shadow .06s ease-out}
 .hero.askip .hskip{opacity:1}
 .hero.fall .hskip{opacity:0}
 .hero.fast *,.hero.fast .hbook{transition-duration:.45s!important;transition-delay:0s!important}
@@ -1189,15 +1230,20 @@ body.touch.lanelow .region,body.touch.lanelow .obj{top:auto;bottom:calc(304px + 
   .bbody{padding:1.2em 1.05em 0}
   .mscroll{padding:calc(1.3em - 7px) 1.15em 24px}
   .hcard{padding:1.3em 1.1em 1.1em}
-  .contcard{gap:12px;padding-right:12px}
-  .contcard img{width:104px;height:58px}
+  .contcard{min-height:84px;padding-left:122px;padding-right:.8em}
+  .contcard img{width:112px;height:63px}
+  .contcard .cc b{font-size:1.44rem}
   /* the title: two lines, like the cover */
   .title h1{font-size:clamp(3.5rem,17.5vw,4.6rem)}
   .tline{font-size:1.22rem}
   /* the theme is a bead with a note in it, so three fit across */
-  .tmore button{font-size:.92rem;padding:.8em 1.05em .76em 1.12em}
-  #t-sound{width:46px;height:46px;padding:0;font-size:0;gap:0}
-  #t-sound svg.i{width:21px;height:21px}
+  .tmore button{font-size:.98rem;min-height:42px;padding:.34em .85em .42em}
+  /* with a save there are three of them, and they still go across */
+  .tmore.three{gap:.45em}
+  .tmore.three button{font-size:.9rem;padding:.34em .6em .42em;gap:.32em}
+  #t-sound{width:44px;min-height:42px;padding:0;gap:0;border-radius:50%}
+  #t-sound span{display:none}
+  #t-sound svg.t{width:21px;height:21px}
 }
 /* the book's tabs: with their signs where there's room, without where there isn't,
    and on a narrow screen in two rows, so none is ever out of sight */
@@ -1243,6 +1289,13 @@ body.reduced *,body.reduced *::before,body.reduced *::after{animation-duration:.
 
 /* what the help says depends on what's in your hands */
 body.touch .for-keys,body:not(.touch) .for-touch{display:none}
+/* the narrowest phones: the signs come off the small labels before anything wraps or squeezes */
+@media (max-width:359px){
+  .tmore.three button:not(#t-sound) svg.t{display:none}
+}
+@media (max-width:420px){
+  .updcard button:not(.x) svg.t{display:none}
+}
 
 /* ================= built the same day, in another room =================
    The pause screen, Gran's living book (gbook.js), the cue the game waits
@@ -1268,7 +1321,7 @@ body:has(#menu.on) .achpop,body:has(#book.on) .achpop,body:has(#menu.on) .region
    Once gbook.js has painted its paper and leather it rebinds the book (and
    marks the binding .alive): on a wide screen a plate on the left, the page
    on the right with the gold growing in its margins; silk ribbons for
-   markers, in the colours of her jars; a wax seal to close it. Until it
+   markers, in the colors of her jars; a wax seal to close it. Until it
    has, or if it can't, the plain book further up is what you get. */
 #book{background:radial-gradient(ellipse at 50% 40%,rgba(20,14,6,.55),rgba(0,0,0,.82))}
 #book .bcard.alive{width:min(1080px,96vw);height:min(760px,93vh);display:grid;grid-template-columns:1fr;gap:0;padding:14px 14px 14px 16px;border-radius:12px 18px 18px 12px;
@@ -1321,7 +1374,7 @@ body:has(#menu.on) .achpop,body:has(#book.on) .achpop,body:has(#menu.on) .region
 #book .seal{position:absolute;top:-12px;right:-12px;left:auto;bottom:auto;z-index:6;width:44px;height:44px;min-width:0;border-radius:50%;border:0;padding:0;cursor:pointer;color:rgba(255,226,214,.94);
   background:radial-gradient(circle at 38% 32%,#d4504a,#9a2622 55%,#5a1210);box-shadow:2px 4px 9px rgba(0,0,0,.55),inset 0 -3px 6px rgba(0,0,0,.35),inset 1.5px 2px 3px rgba(255,180,160,.38);transition:scale .12s var(--ease),filter .2s}
 #book .seal::before{content:"";position:absolute;inset:6px;border-radius:50%;border:1.5px dashed rgba(255,200,180,.35)}
-#book .seal svg.i{position:relative;width:17px;height:17px;stroke-width:2.2;filter:drop-shadow(0 1px 0 rgba(60,8,6,.6))}
+#book .seal svg.t{position:relative;width:18px;height:18px}
 #book .seal:hover{filter:brightness(1.1)}
 #book .seal:active{scale:.93;translate:none}
 #book .seal:focus-visible{outline:2px solid #f2c45a;outline-offset:3px}
@@ -1378,21 +1431,22 @@ body:has(#menu.on) .achpop,body:has(#book.on) .achpop,body:has(#menu.on) .region
 }
 
 /* ================= cues: the game waits for you (engine.js G.cue) =================
-   The same slip the prompt is, with the same lid for the key: one way of
-   being asked, everywhere. It rises in once the moment has settled and
+   The same cream tag the prompt is, with the same honey slab for the key:
+   one way of being asked, everywhere. It rises in once the moment has settled and
    breathes until it is answered; the thing it points at gets a soft gold
    ring. Under a thumb there is no key to show, so it is a ring to tap. */
-.cue{position:fixed;left:50%;bottom:11vh;z-index:97;transform:translate(-50%,10px);display:flex;align-items:center;gap:.5em;padding:.3em 1.05em .3em .36em;border-radius:999px;
-  background:var(--glass),rgba(14,11,7,.8);border:1px solid rgba(255,214,120,.5);box-shadow:var(--glass-lit),var(--fall),0 0 24px rgba(255,200,90,.14);
-  font:1.06rem/1.2 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.75);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .45s var(--spring)}
+.cue{position:fixed;left:50%;bottom:11vh;z-index:97;transform:translate(-50%,10px);display:flex;align-items:center;gap:.55em;padding:.34em 1.05em .42em .42em;border-radius:999px;
+  background:linear-gradient(180deg,#fffaea,#f1dfb2);box-shadow:inset 0 2px 0 rgba(255,255,255,.8),0 0 0 2.5px #4b3413,0 4px 0 0 #b8955a,0 4px 0 2.5px #4b3413,0 9px 12px rgba(0,0,0,.4),0 0 24px rgba(255,200,90,.25);
+  font:italic 1.1rem/1.2 var(--book);color:#3d260c;text-shadow:none;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .45s var(--spring)}
 .cue.on{opacity:1;transform:translate(-50%,0);animation:cuebreathe 1.8s ease-in-out .5s infinite}
-.cue.bare{padding:.3em .36em}
+.cue.bare{padding:.34em .42em .42em}
 .cue kbd{flex:none}
 .cue.on kbd{animation:cuekey 1.8s ease-in-out .5s infinite}
-.cue .cuetap{flex:none;position:relative;width:1.72em;height:1.72em;border-radius:50%;background:radial-gradient(circle,#ffe19a 0 30%,rgba(255,225,154,0) 33%)}
-.cue .cuetap::after{content:"";position:absolute;inset:1px;border-radius:50%;border:2px solid #f2c45a;animation:cuering 1.5s ease-out infinite}
-@keyframes cuebreathe{0%,100%{box-shadow:var(--glass-lit),var(--fall),0 0 24px rgba(255,200,90,.14)}50%{box-shadow:var(--glass-lit),var(--fall),0 0 34px rgba(255,200,90,.4)}}
-@keyframes cuekey{0%,100%{translate:0 0}50%{translate:0 1.5px}}
+/* under a thumb there is no key to show: a honey dot in a ring that opens */
+.cue .cuetap{flex:none;position:relative;width:1.85em;height:1.85em;margin-bottom:3px;border-radius:50%;background:radial-gradient(circle,#ffbe2a 0 26%,#4b2606 27% 36%,rgba(255,190,42,0) 37%)}
+.cue .cuetap::after{content:"";position:absolute;inset:1px;border-radius:50%;border:2.5px solid #c9860f;animation:cuering 1.5s ease-out infinite}
+@keyframes cuebreathe{50%{scale:1.045}}
+@keyframes cuekey{0%,100%{translate:0 0;scale:1}50%{translate:0 -2px;scale:1.07}}
 @keyframes cuering{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.25);opacity:0}}
 .cued{animation:cuedring 1.6s ease-in-out infinite}
 @keyframes cuedring{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0),0 0 0 2px rgba(255,209,102,.55)}50%{box-shadow:0 0 0 7px rgba(255,209,102,.16),0 0 0 2px rgba(255,209,102,.9)}}
@@ -1402,7 +1456,7 @@ body.reduced .cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}
 /* ================= the pause screen =================
    The world holds its breath behind a soft blur; one card says where you
    are, what you're doing, what is coming and how far you've come, with the
-   five things you'd want under it: the lid to go back, and four of glass.
+   five things you'd want under it: honey to go back, and four tiles of glass.
    The settings are one press further in. */
 #menu{background:rgba(6,5,3,.55);-webkit-backdrop-filter:blur(5px) saturate(.8);backdrop-filter:blur(5px) saturate(.8);transition:opacity .35s ease}
 #menu .pz{width:min(620px,94vw)}
@@ -1430,8 +1484,12 @@ body.reduced .cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}
 .pzchip.struck{opacity:.6}
 .pzchip.struck b{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--coral)}
 .pzstat{margin:0;font-size:.66rem;line-height:1.55;letter-spacing:.14em;color:var(--soft)}
-.pzacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:9px 8px}
-.pzacts .primary{grid-column:1/-1;margin-bottom:calc(var(--d) + 3px)}
+/* the one that takes you back, then a row of tiles: a sign over its name.
+   A tile whose drawer is open turns honey. */
+.pzacts{display:flex;flex-wrap:wrap;gap:10px 9px}
+.pzacts .primary{flex:1 0 100%;margin-bottom:calc(var(--d) + 6px)}
+.pzacts .tile{flex:1 1 0;min-width:64px}      /* however many there are (the book's is not there until the book is yours), they share the row */
+.pzacts .tile[aria-expanded=true]{--f1:#fff3a8;--f2:#ffd24f;--lip:#d27f10;--edge:#4b2606;--tsh:#5a2c05}
 .pzacts [hidden]{display:none}
 .pzopts{margin-top:1.15em;border-top:1px solid var(--line)}
 .pzopts .opts{margin-bottom:0}
@@ -1449,26 +1507,28 @@ body.reduced .cued{box-shadow:0 0 0 2px rgba(255,209,102,.9)}
   .pzring b{font-size:1.3rem}
   .pznow #pzobj{margin:.1em 0 .4em;font-size:1.06rem}
   .pzclock{margin-bottom:.4em}
-  .pzacts{gap:7px 8px}
-  .pzacts button:not(.primary){padding-top:.66em;padding-bottom:.62em}
+  .pzacts{gap:8px}
+  .pzacts .primary{margin-bottom:calc(var(--d) + 2px);min-height:46px}
+  .pzacts button.tile{flex-direction:row;gap:.4em;min-height:46px;padding:.3em .5em .36em;font-size:.84rem}
+  .pzacts button.tile svg.t{width:22px;height:22px}
 }
 
 /* ================= the first steps (story.js coach) =================
    No cards before the game: the one thing you need is shown when you need
    it, and goes the moment you've done it. */
-.coach{position:fixed;left:50%;bottom:calc(112px + var(--safe-b));z-index:12;transform:translate(-50%,8px);display:flex;align-items:center;gap:.85em;padding:.6em 1.15em .62em .8em;border-radius:14px;
-  background:var(--glass),rgba(14,11,7,.8);border:1px solid rgba(255,214,120,.42);box-shadow:var(--glass-lit),var(--fall);font:1.08rem/1.25 var(--book);color:var(--ink);text-shadow:0 1px 2px rgba(0,0,0,.75);
+.coach{position:fixed;left:50%;bottom:calc(112px + var(--safe-b));z-index:12;transform:translate(-50%,8px);display:flex;align-items:center;gap:.85em;padding:.6em 1.15em .7em .8em;border-radius:16px;
+  background:linear-gradient(180deg,#fffaea,#f1dfb2);box-shadow:inset 0 2px 0 rgba(255,255,255,.8),0 0 0 2.5px #4b3413,0 4px 0 0 #b8955a,0 4px 0 2.5px #4b3413,0 9px 12px rgba(0,0,0,.4);font:1.1rem/1.25 var(--book);color:#3d260c;text-shadow:none;
   opacity:0;pointer-events:none;transition:opacity .5s,transform .5s var(--spring);white-space:nowrap}
 .coach.on{opacity:1;transform:translate(-50%,0)}
 .coach.done{opacity:0;transform:translate(-50%,-8px)}
-.coach .ck{flex:none;display:grid;grid-template-columns:repeat(3,1.72em);grid-template-rows:repeat(2,1.72em);gap:5px 3px;font-size:.84rem}
-.coach .ck kbd{min-width:0;width:1.72em;padding:0;animation:coachkey 2.4s ease-in-out infinite}
+.coach .ck{flex:none;display:grid;grid-template-columns:repeat(3,1.85em);grid-template-rows:repeat(2,1.85em);gap:8px 5px;font-size:.84rem}
+.coach .ck kbd{min-width:0;width:1.85em;padding:0;animation:coachkey 2.4s ease-in-out infinite}
 .coach .ck kbd:first-child{grid-column:2}
 .coach .ck kbd:nth-child(2){grid-column:1;animation-delay:.3s}
 .coach .ck kbd:nth-child(3){animation-delay:.6s}
 .coach .ck kbd:nth-child(4){animation-delay:.9s}
 @keyframes coachkey{0%,70%,100%{translate:0 0;filter:none}80%{translate:0 1.5px;filter:brightness(1.18)}}
-.coach small{display:block;font:italic .94rem/1.4 var(--book);color:var(--soft);margin-top:.14em}
+.coach small{display:block;font:italic .96rem/1.9 var(--book);color:#6b4a1e;margin-top:.1em}
 .coach small kbd{font-size:.78em;font-style:normal;vertical-align:.08em;margin:0 .12em}
 /* on a phone it sits just above the stick it is talking about */
 body.touch .coach{left:14px;bottom:calc(196px + var(--safe-b));transform:translateY(8px);max-width:66vw;white-space:normal;padding:.52em .95em .58em}
@@ -1479,3 +1539,90 @@ body.touch.coaching .prompt{opacity:0!important}
 body.touch.coaching .caption{bottom:calc(276px + var(--safe-b))}
 .stick.teach{animation:stickteach 1.6s ease-in-out infinite}
 @keyframes stickteach{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,0),0 0 0 2px rgba(255,209,102,.6)}50%{box-shadow:0 0 0 10px rgba(255,209,102,.14),0 0 0 2px rgba(255,209,102,.95)}}
+
+/* ================= feel =================
+   How a thing moves when it is pressed; feel.js says when, and what it
+   sounds like. Three rules. A press has two halves: down, and back past
+   where it sat before it settles. What asks to be pressed keeps one slow
+   beat, the same one everywhere. And a card's contents arrive in the order
+   you would read them. Reduced motion leaves all of it at rest. */
+:root{--beat:1.6s}
+/* light off the thing you pressed, and the circle a door closes to */
+#feelcv{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:98}
+#iris{position:fixed;inset:0;display:none;pointer-events:none;z-index:76}
+
+/* let go: a slab springs back past where it sat, and settles. On honey the
+   light crosses it as it does. */
+:is(button,.btn).went:not(.quiet,.look,.seal,.tb,[data-tab]),button.primary.big.went,.contcard.went{animation:bounce .38s var(--spring)}
+@keyframes bounce{0%{translate:0 var(--d);scale:.96 .93;box-shadow:var(--dn)}45%{translate:0 -3px;scale:1.05 1.07;box-shadow:var(--up)}72%{translate:0 1px;scale:.99 .985}100%{translate:0 0;scale:1}}
+button.primary.went::after,.btn.primary.went::after,.contcard.went::after{animation:sweep .5s ease-out}
+@keyframes sweep{from{background-position:130% 0}to{background-position:-60% 0}}
+/* a ribbon you turned to swings from where it is sewn in */
+#book .bpage .tabs button.went{animation:ribbongo .6s var(--spring);transform-origin:50% 0}
+@keyframes ribbongo{0%{rotate:0deg}28%{rotate:-2.6deg}62%{rotate:1.3deg}100%{rotate:0deg}}
+/* the wax seal gives under the thumb */
+#book .seal.went{animation:sealgo .34s var(--spring)}
+@keyframes sealgo{0%{scale:.93}55%{scale:1.05}100%{scale:1}}
+/* a bead let go springs back past its size, so even the quickest tap is seen to land */
+#touch .tb.let{animation:beadgo .34s var(--spring)}
+#touch.near .tb-a.let{animation:beadgo .34s var(--spring),wisp var(--beat) ease-in-out infinite}
+@keyframes beadgo{0%{translate:0 var(--d);scale:.93}48%{translate:0 -3px;scale:1.08}74%{translate:0 1px;scale:.985}100%{translate:0 0;scale:1}}
+/* the stick, let go, springs home */
+.stick:not(.held) i{transition:transform .3s var(--spring)}
+/* the line you are on, when you step onto it, comes forward to meet you */
+.copt.sel{animation:coptsel .24s var(--spring)}
+@keyframes coptsel{0%{translate:-4px 0}100%{translate:0 0}}
+
+/* one beat for everything that asks: the key on the prompt lifts as the bead
+   under your thumb swells, its spark with it, and the ring opens round the
+   thing itself. The mark that says there is more to read nods twice to it. */
+.prompt.on kbd{animation:beatkey var(--beat) ease-in-out infinite}
+@keyframes beatkey{0%,100%{translate:0 0;scale:1}50%{translate:0 -2px;scale:1.07}}
+#touch.near .tb-a{animation-duration:var(--beat)}
+#touch.near .tb-a svg.t{animation:beatspark var(--beat) ease-in-out infinite}
+@keyframes beatspark{50%{scale:1.13}}
+.cue.on{animation-duration:var(--beat);animation-delay:0s}
+.cue.on kbd{animation-duration:var(--beat);animation-delay:0s}
+.cue .cuetap::after{animation-duration:var(--beat)}
+.more{animation-duration:calc(var(--beat)/2),.25s}
+/* and what the keys or the pad are on breathes with it */
+:is(button,.btn,a.quiet,summary,input[type=checkbox]):focus-visible{animation:focusbreath var(--beat) ease-in-out infinite}
+@keyframes focusbreath{50%{filter:brightness(1.09)}}
+
+/* the pause card: what it is, how things stand, what you can do, in that
+   order, and quickly. (.arriving is on the card only while it opens:
+   hands.js. After that a button's own animation is free to play without
+   this one starting over underneath it.) */
+.menu.arriving .pzh,.menu.arriving .pzmain{animation:arrive .3s var(--ease) both}
+.menu.arriving .pzacts>*{animation:popin .34s var(--spring) both}
+@keyframes popin{from{opacity:0;scale:.6}}
+.menu.arriving .pzmain{animation-delay:.03s}
+.menu.arriving .pzacts>:nth-child(1){animation-delay:.06s}
+.menu.arriving .pzacts>:nth-child(2){animation-delay:.085s}
+.menu.arriving .pzacts>:nth-child(3){animation-delay:.11s}
+.menu.arriving .pzacts>:nth-child(4){animation-delay:.135s}
+.menu.arriving .pzacts>:nth-child(5){animation-delay:.16s}
+@keyframes arrive{from{opacity:0;translate:0 9px}}
+/* the ring fills to where you are, rather than being there already. (Its own
+   number, because --p is also how far along a knob is, and that one is a
+   percentage.) */
+@property --ringp{syntax:"<number>";inherits:false;initial-value:0}
+.pzring{--ringp:0;background:conic-gradient(#ffd166 calc(var(--ringp) * 1%),rgba(255,255,255,.09) 0)}
+.menu.on .pzring{--ringp:var(--p);transition:--ringp .8s var(--ease) .12s}
+/* a question asked: its two answers come up after it */
+.ask.arriving .askc>.row>*{animation:popin .34s var(--spring) .06s both}
+.ask.arriving .askc>.row>:nth-child(2){animation-delay:.11s}
+
+/* Begin: the sun over the house flares and the whole picture warms for a
+   breath. A new game then goes down into the dark the drive comes up out of,
+   instead of being cut to it; Continue has no dark to go to, and is let go
+   of as it always was. */
+.title.go .tmark{animation:sunflare 1s ease-out both}
+@keyframes sunflare{0%{scale:1;filter:brightness(1)}28%{scale:1.55;filter:brightness(1.7)}100%{scale:2.4;opacity:0}}
+.title.go::after{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 36%,rgba(255,232,170,.55),rgba(255,200,90,.14) 45%,rgba(255,200,90,0) 72%);animation:bloom 1s ease-out both}
+@keyframes bloom{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
+.title.go.new::before{content:"";position:fixed;inset:0;z-index:3;pointer-events:none;background:#050403;animation:dip .56s ease-in both}
+@keyframes dip{0%,48%{opacity:0}100%{opacity:1}}
+/* the count on the book arrives with a small spring */
+.pip.in{animation:pipin .5s var(--spring)}
+@keyframes pipin{0%{scale:0}60%{scale:1.3}100%{scale:1}}

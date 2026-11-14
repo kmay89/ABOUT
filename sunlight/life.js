@@ -33,6 +33,13 @@
   }
   function kick(s, v) { s.sv += v; }                                 // a squash (−) or stretch (+) impulse
   L.mood = function (id, mood, dur) { var s = st(id); s.mood = mood; s.moodT = now + (dur || 1.5); };
+  /* a hop on the spot: up at `v`, back down under `g`, and `land` is called
+     once, when the feet are down again. False if already in the air. */
+  L.hop = function (id, v, g, land) {
+    var s = st(id); if (s.hop > 0 || s.hv > 0) return false;
+    s.hv = v || 46; s.hg = g || 180; s.hop = 0.01; s.land = land || null; kick(s, 0.08);
+    return true;
+  };
 
   /* ---------------- emote bubbles ---------------- */
   var emotes = [];
@@ -97,7 +104,11 @@
     var lean = moving ? Math.max(-0.12, Math.min(0.12, -s.vx / 92 * 0.09)) : 0;
     s.lean += (lean - s.lean) * Math.min(1, dt * 10);
     /* hops */
-    if (s.hop > 0 || s.hv > 0) { s.hop += s.hv * dt; s.hv -= 180 * dt; if (s.hop <= 0) { s.hop = 0; s.hv = 0; kick(s, -0.09); } }
+    if (s.hop > 0 || s.hv > 0) {
+      var hg = s.hg || 180;
+      s.hop += s.hv * dt - 0.5 * hg * dt * dt; s.hv -= hg * dt;          /* the same hop at any frame rate */
+      if (s.hop <= 0) { s.hop = 0; s.hv = 0; s.hg = 0; kick(s, -0.09); if (s.land) { var down = s.land; s.land = null; down(); } }
+    }
     if (G.prefs && G.prefs.reduced) { s.ss = 0; s.sv = 0; s.lean = 0; }
     return s;
   }
