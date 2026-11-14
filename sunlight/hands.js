@@ -86,7 +86,7 @@
   }, 100);
 
   /* ---------------- what a press sounds like ---------------- */
-  var LID = ".primary,.contcard,.updcard button:not(.x)";
+  var LID = ".primary,.contcard";
   var WEAR = "borrowed-sunlight-game-wear", worn = 0;
   try { worn = +localStorage.getItem(WEAR) || 0; } catch (e) { }
   function showWear() { root.style.setProperty("--wear", Math.min(1, worn / 80).toFixed(2)); }
@@ -228,6 +228,8 @@
 
   /* a pad's button, pressed while something is open. True means it was used here. */
   H.pad = function (a) {
+    /* the loading screen is up: a press skips the names, and the game hears nothing */
+    if (body.classList.contains("booting")) { if (window.BSboot) window.BSboot.skip(); return true; }
     var ov = top(); if (!ov) return false;
     var mine = ov.classList.contains("ask");
     if (!mine && (G.modal || G.choosing || ov.id === "insp" || ov.id === "get" || ov.id === "mini" || ov.id === "choice")) return false;

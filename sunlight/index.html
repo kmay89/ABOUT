@@ -24,9 +24,26 @@
 <link rel="preload" href="fonts/eb-garamond-caps.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/fraunces-toy.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="look.css">
+<!-- the names on the loading screen play once in a sitting; decided here, before the first frame, so the first is on that frame (boot.js) -->
+<script>try{if(!sessionStorage.getItem("borrowed-sunlight-intro")&&!/[?&](beat=|intro=0)/.test(location.search))document.documentElement.className+=" names"}catch(e){}</script>
 </head>
-<body>
+<body class="booting">
 <a class="skip" href="#t-new">Skip to the game</a>
+
+<!-- the first screen: who made this, while the hill loads, looks for a newer version and takes it (boot.js).
+     data-n is how many scripts follow boot.js, for the bar. -->
+<div id="boot" class="boot" data-n="27">
+  <div class="bident" id="bid-lab"><b>ERRER Labs</b><i>presents</i></div>
+  <div class="bident" id="bid-by"><small>Produced by</small><b>Karl Meves</b><i>from the novel Borrowed Sunlight</i></div>
+  <div class="bfoot" role="status" aria-live="polite">
+    <p id="bootmsg" class="bmsg"></p>
+    <p id="bootsub" class="bsub"></p>
+    <span class="bbar" aria-hidden="true"><i id="bootbar"></i></span>
+  </div>
+  <small id="bootver" class="bver"></small>
+</div>
+<script src="version.js"></script>
+<script src="boot.js"></script>
 
 <!-- the signs: one drawing each, used wherever that thing is meant -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -216,6 +233,7 @@
         <button id="m-save" class="tile"><svg class="t" aria-hidden="true"><use href="#t-jar"/></svg>Save</button>
         <button id="m-opts" class="tile" aria-expanded="false" aria-controls="pzopts"><svg class="t" aria-hidden="true"><use href="#t-gear"/></svg>Options</button>
         <button id="m-help" class="tile" aria-expanded="false" aria-controls="help"><svg class="t" aria-hidden="true"><use href="#t-help"/></svg>How to play</button>
+        <button id="m-update" class="ghost" hidden><svg class="t" aria-hidden="true"><use href="#t-again"/></svg><span>Update the game</span></button>
       </div>
       <div id="pzopts" class="pzopts" hidden>
         <div class="opts">
@@ -290,6 +308,7 @@
     </div>
     <p class="tfine"><span>Best with sound · keys, thumbs or a gamepad</span><span>Free · offline · no account · nothing tracked</span><span>Saves on this device</span></p>
     <p class="tlinks"><a class="quiet" href="https://borrowedsunlightnovel.com">Read the novel</a><a class="quiet" href="/">Back to the desk</a></p>
+    <p class="tver" id="tver"></p>
   </div>
 </section>
 
@@ -368,6 +387,6 @@
 <script src="gbook.js"></script>
 <script src="feel.js"></script>
 <script src="hands.js"></script>
-<script>BS.G.start();</script>
+<script>BS.G.start(); if (window.BSboot) BSboot.ready();</script>
 </body>
 </html>

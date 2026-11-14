@@ -31,12 +31,43 @@
   G.s = G.fresh();
   G.prefs = { text: 42, captions: true, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, master: 0.8, music: 0.6, amb: 0.8, haptics: true, big: false };
 
-  var SAVE = "borrowed-sunlight-game-v1", PREFS = "borrowed-sunlight-game-prefs";
+  /* ---------------- saves ----------------
+     A save is one object in this browser's storage, and no release can take
+     it away: an update replaces the game's files and never this. Each save
+     says what shape it is (v) and which release wrote it (ver), and every
+     later release reads every earlier save: carry() runs whatever steps
+     MIGRATE holds between the save's shape and this one, then fills in
+     anything new with what a fresh game starts with. Nothing is removed.
+     The first time a new release runs, the save as the last one left it is
+     copied aside (G.keepBackup, called from ui.js), and that copy is what is
+     read if the save itself is ever there but can't be. */
+  G.VERSION = BS.VERSION = window.SUNLIGHT_VERSION || "dev";
+  var SAVE = "borrowed-sunlight-game-v1", BACKUP = "borrowed-sunlight-game-backup", PREFS = "borrowed-sunlight-game-prefs";
+  var SHAPE = 1;          /* raise this when the shape of a save changes, and add the step to MIGRATE */
+  var MIGRATE = {};       /* MIGRATE[1] = function (s) { ...; return s; } would take a shape-1 save to shape 2 */
+  function carry(s) {
+    if (!s || typeof s !== "object" || typeof s.beat !== "string") return null;
+    var v = +s.v || 1;
+    while (v < SHAPE && MIGRATE[v]) { s = MIGRATE[v](s) || s; s.v = ++v; }
+    var f = G.fresh(); for (var k in f) if (s[k] == null) s[k] = f[k];
+    return s;
+  }
+  G.saves = { key: SAVE, backup: BACKUP, shape: function () { return SHAPE; }, steps: MIGRATE, carry: carry, shapeTo: function (n) { SHAPE = n; } };
   G.save = function () {
-    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; localStorage.setItem(SAVE, JSON.stringify(G.s)); } catch (e) { }
+    try { G.s.x = G.p.x; G.s.y = G.p.y; G.s.dir = G.p.dir; G.s.map = G.mapId; G.s.ver = G.VERSION; localStorage.setItem(SAVE, JSON.stringify(G.s)); } catch (e) { }
   };
-  G.load = function () { try { var j = localStorage.getItem(SAVE); return j ? JSON.parse(j) : null; } catch (e) { return null; } };
-  G.wipe = function () { try { localStorage.removeItem(SAVE); } catch (e) { } };
+  G.load = function () {
+    var j = null; try { j = localStorage.getItem(SAVE); } catch (e) { return null; }
+    if (!j) return null;                                  /* no game on this device (or it was started again) */
+    var s = null; try { s = carry(JSON.parse(j)); } catch (e) { }
+    if (s) return s;
+    try { var b = JSON.parse(localStorage.getItem(BACKUP) || "null"); return b ? carry(b.save) : null; } catch (e) { return null; }
+  };
+  /* the save as it stands, kept aside under the name of the release that wrote it */
+  G.keepBackup = function (from) {
+    try { var j = localStorage.getItem(SAVE), s = j && JSON.parse(j); if (s && typeof s.beat === "string") localStorage.setItem(BACKUP, JSON.stringify({ ver: from || s.ver || "", at: Date.now(), save: s })); return !!s; } catch (e) { return false; }
+  };
+  G.wipe = function () { try { localStorage.removeItem(SAVE); localStorage.removeItem(BACKUP); } catch (e) { } };
   G.savePrefs = function () { try { localStorage.setItem(PREFS, JSON.stringify(G.prefs)); } catch (e) { } };
   try { var pp = JSON.parse(localStorage.getItem(PREFS) || "null"); if (pp) for (var k in pp) G.prefs[k] = pp[k]; } catch (e) { }
 

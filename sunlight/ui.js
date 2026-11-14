@@ -400,56 +400,149 @@
   document.addEventListener("visibilitychange", function () { A.suspend(document.hidden); if (document.hidden && G.mode !== "title") G.save(); });
   window.addEventListener("pagehide", function () { if (G.mode !== "title") G.save(); });
 
-  /* ---------------- staying fresh ----------------
-     The worker fetches network-first, so a new release is what the next
-     visit gets. This is for the visit that's already open: a phone that
-     kept the game in the background for three days. It asks for a new
-     worker when the game opens, whenever you come back to it, and every
-     twenty minutes. When one takes over, the page is out of date:
-       · on the title screen it simply reloads, quietly;
-       · in the middle of play it saves, and a small card offers Refresh
-         (you land back where you were, through Continue);
-       · and if you leave it be, it updates itself the next time you are
-         back on the title screen or away from the tab for a while. */
-  var stale = false, upd = null, hadCtl = false, swReg = null, hiddenAt = 0;
-  function refreshNow() { try { if (G.mode !== "title" && G.s) G.save(); } catch (e) { } location.reload(); }
-  function safeToReload() { return G.mode === "title" && !(BS.cine && BS.cine.running && BS.cine.running()); }
-  function announce() {
-    if (stale) return; stale = true;
-    if (safeToReload()) { refreshNow(); return; }
-    try { if (G.s) G.save(); } catch (e) { }
-    upd = document.createElement("div"); upd.className = "updcard"; upd.setAttribute("role", "status");
-    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button"><svg class="t" aria-hidden="true"><use href="#t-again"/></svg>Refresh</button><button type="button" class="x" aria-label="Later"><svg class="t" aria-hidden="true"><use href="#t-x"/></svg></button>';
-    upd.querySelector("button").addEventListener("click", refreshNow);
-    upd.querySelector(".x").addEventListener("click", function () { upd.classList.remove("on"); });
-    document.body.appendChild(upd);
-    requestAnimationFrame(function () { upd.classList.add("on"); });
+  /* ---------------- versions, and staying fresh ----------------
+     The release is named in one place (version.js) and shown in three: the
+     loading screen, the title and the pause card.
+
+     An update is never a question. The worker fetches network-first, so a
+     new release is what the next visit loads, and taking it is part of the
+     loading screen (boot.js), under a line that says the saved game is
+     safe. That is true by construction: a save is in this browser's
+     storage, which an update never touches (engine.js, "saves").
+
+       · When the game opens it looks for a newer release, behind the names
+         on the loading screen. If one is on its way in, the screen stays
+         until it has arrived, and the game comes up as that release.
+       · The first time a new release runs here, the save as it stood is
+         copied aside, and the loading screen says which version this is
+         and that the saved game is just as it was.
+       · A page left open hears about a release too (it asks every twenty
+         minutes, and whenever you come back to it). On the title it takes
+         it at once, through the loading screen. In the middle of play it
+         saves and says nothing: the update waits for the next time the
+         game is opened, for you to come back after a while away, or for
+         the button on the pause card. Taken from inside the game, it puts
+         you back where you were, without a stop at the title. */
+  var VER = G.VERSION, SEENVER = "borrowed-sunlight-game-version", NEWVER = "borrowed-sunlight-new-version", RESUME = "borrowed-sunlight-resume", TAKEN = "borrowed-sunlight-updated-at";
+  var SAFE = "Your saved game is safe. It stays on this device.";
+  var boot = window.BSboot || { ready: function () { }, hold: function () { return function () { }; }, say: function () { }, note: function () { }, progress: function () { }, cover: function () { }, names: function (f) { f(); }, then: function (f) { f(); }, up: function () { return false; }, changed: false, ctl0: null };
+  var stale = false, newVer = "", hadCtl = false, swReg = null, hiddenAt = 0, shown = false, letGo = null;
+  var canWork = "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost");
+  ui.version = VER;
+  function verLine(t) { var b = $("m-ver"); if (b) b.textContent = t || ("Version " + VER + " · Check for updates"); }
+  verLine(); if ($("tver")) $("tver").textContent = "Version " + VER;
+  boot.then(function () { shown = true; });
+  function store(kind, k, v) { try { var s = kind === "s" ? sessionStorage : localStorage; if (v === undefined) return s.getItem(k); if (v === null) s.removeItem(k); else s.setItem(k, v); } catch (e) { } return null; }
+
+  /* the first run of this release on this device: before anything else, the save as the last one left it is kept aside */
+  (function () {
+    var last = store("l", SEENVER);
+    if (last === VER) return;
+    store("l", SEENVER, VER);
+    if (saved) G.keepBackup(last || saved.ver || "");
+    if (last || saved) store("s", NEWVER, last || "an earlier one");      /* ...and the loading screen will say so (below) */
+  })();
+  function sayNew() {
+    if (store("s", NEWVER) == null) return;
+    store("s", NEWVER, null);
+    boot.note("Now on version " + VER, saved ? "Your saved game is just as you left it." : "", 2200);
+  }
+  /* an update taken from inside the game: straight back to where you were */
+  var resume = store("s", RESUME) === "1"; store("s", RESUME, null);
+  if (resume && saved && !/[?&]beat=/.test(location.search)) begin(true, true);
+
+  function atTitle() { return G.mode === "title" && !begin.rung && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function quiet() { return atTitle() || G.mode === "menu" || (G.mode === "walk" && !G.cut && !G.modal && !G.choosing); }
+  /* never a loop: the game reloads itself for an update at most twice a minute in one sitting, whatever it hears */
+  function mayReload() {
+    var now = Date.now(), log = [];
+    try { log = JSON.parse(store("s", TAKEN) || "[]").filter(function (t) { return now - t < 60000; }); } catch (e) { log = []; }
+    if (log.length >= 2) return false;
+    log.push(now); store("s", TAKEN, JSON.stringify(log)); return true;
+  }
+  /* take it: always through the loading screen, never a bare reload. (asked: you pressed something for it) */
+  function takeUpdate(asked) {
+    if (takeUpdate.going) return;
+    if (!mayReload() && !asked) { offer(); if (letGo) letGo(); return; }
+    takeUpdate.going = true;
+    boot.names(function () {
+      var playing = G.mode !== "title";
+      try { if (playing && G.s) G.save(); } catch (e) { }
+      if (playing) store("s", RESUME, "1");
+      boot.cover(newVer ? "Getting version " + newVer : "Getting the newest version", playing || saved ? SAFE : "");
+      setTimeout(function () { location.reload(); }, 700);
+    });
+  }
+  function offer() {
+    var b = $("m-update"); if (!b) return;
+    b.hidden = false; b.lastChild.textContent = (newVer ? "Update to version " + newVer : "Update the game") + " · keeps your place";
+    verLine("Version " + VER + (newVer ? " · " + newVer + " is ready" : " · a newer one is ready"));
+  }
+  function outOfDate() {
+    stale = true;
+    if (!shown || atTitle()) { takeUpdate(); return; }        /* loading, or on the title: it is part of loading */
+    try { if (G.s && G.mode !== "title") G.save(); } catch (e) { }
+    offer();                                                  /* in play: say nothing, and wait */
+  }
+  if ($("m-update")) $("m-update").addEventListener("click", takeUpdate);
+  /* is there a newer release? Ask for the one file that says (version.js), fresh from the server. If there is,
+     the worker is registered under its name, which makes it a new worker in any browser; if not, the browser
+     is still asked to compare the worker itself. Answers the newer version, or null. */
+  function look() {
+    return fetch("version.js", { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error("no answer"); return r.text(); }).then(function (t) {
+      var m = /SUNLIGHT_VERSION\s*=\s*"([^"]+)"/.exec(t), v = m && m[1];
+      if (v && v !== VER) {
+        newVer = v;
+        if (!canWork) { outOfDate(); return v; }
+        return navigator.serviceWorker.register("sw.js?v=" + encodeURIComponent(v), { updateViaCache: "none" }).then(function (reg) { swReg = reg; return v; });
+      }
+      return swReg ? swReg.update().then(function () { return null; }) : null;
+    });
   }
   ui.checkUpdate = function (manual) {
-    if (!swReg) { if (manual) location.reload(); return; }
-    var b = $("m-ver"); if (manual && b) b.textContent = "Checking…";
-    swReg.update().then(function () {
-      setTimeout(function () { if (manual && !stale && b) { b.textContent = "Up to date · " + (ui.version || ""); } }, 1500);
-    }).catch(function () { if (manual && b) b.textContent = "Offline · " + (ui.version || ""); });
+    if (stale) { if (manual) takeUpdate(true); return; }
+    if (manual) verLine("Checking…");
+    look().then(function (v) {
+      setTimeout(function () { if (manual && !stale) verLine(v || (swReg && (swReg.installing || swReg.waiting)) ? "Getting a newer version…" : "Up to date · version " + VER); }, 1200);
+    }).catch(function () { if (manual) verLine("No signal · version " + VER); });
   };
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-    hadCtl = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener("controllerchange", function () { if (hadCtl) announce(); hadCtl = true; ask(); });
-    navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.sunlightVersion) { ui.version = e.data.sunlightVersion.replace("sunlight-", ""); var b = $("m-ver"); if (b && !/Checking/.test(b.textContent)) b.textContent = "Version " + ui.version + " · Check for updates"; } });
-    function ask() { var c = navigator.serviceWorker.controller; if (c) c.postMessage("version"); }
-    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
-      swReg = reg; ask();
-      reg.update().catch(function () { });
-      setInterval(function () { reg.update().catch(function () { }); }, 20 * 60 * 1000);
-    }).catch(function () { });
+  if (canWork) {
+    var sw = navigator.serviceWorker, release = boot.hold(), freed = false;
+    letGo = function () { if (freed) return; freed = true; sayNew(); release(); };
+    hadCtl = boot.ctl0 == null ? !!sw.controller : !!boot.ctl0;
+    var returning = hadCtl;                                /* there was a worker here when the page opened: this is not a first visit */
+    var changed = function () { if (hadCtl) outOfDate(); hadCtl = true; };
+    if (window.BSboot) { boot.onchange = changed; if (boot.changed) changed(); }      /* boot.js has been listening since the first moment */
+    else sw.addEventListener("controllerchange", changed);
+    sw.addEventListener("message", function (e) {
+      var d = (e.data && e.data.sunlightInstall) || null;
+      if (!d || !returning) return;                          /* (a first visit installs too, and that is not an update) */
+      newVer = d.version || newVer;
+      if (boot.up()) { boot.say("Getting version " + newVer, saved ? SAFE : ""); boot.progress(d.done / d.total * 0.98); }
+    });
+    /* the worker's address carries the release, so a new release is a new worker even to a browser that only compares addresses */
+    sw.register("sw.js?v=" + encodeURIComponent(VER), { updateViaCache: "none" }).then(function (reg) {
+      swReg = reg;
+      setInterval(function () { look().catch(function () { }); }, 20 * 60 * 1000);
+      if (!hadCtl) { letGo(); return; }                      /* a first visit: there is nothing older here to replace */
+      var arriving = function () { return reg.installing || reg.waiting; };
+      /* one is on its way in: the loading screen stays until it has the page, and then the page reloads as it */
+      var wait = function () {
+        if (boot.up() && !newVer) boot.say("Getting the newest version", saved ? SAFE : "");
+        setTimeout(letGo, 25000);                            /* on a very slow line: go on, and take it later */
+      };
+      if (arriving()) { wait(); return; }
+      var patience = setTimeout(letGo, 4000);                /* looking does not get to hold the game up */
+      look().then(function () { clearTimeout(patience); if (freed) return; if (swReg.installing || swReg.waiting) wait(); else letGo(); }, function () { clearTimeout(patience); letGo(); });
+    }, letGo);
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) { hiddenAt = Date.now(); return; }
-      if (swReg) swReg.update().catch(function () { });
-      /* back after a long while with an update waiting: take it now */
-      if (stale && (safeToReload() || Date.now() - hiddenAt > 10 * 60 * 1000)) refreshNow();
+      look().catch(function () { });
+      /* back after a long while with an update waiting, and nothing going on: take it now */
+      if (stale && (atTitle() || (Date.now() - hiddenAt > 10 * 60 * 1000 && quiet()))) takeUpdate();
     });
-    setInterval(function () { if (stale && safeToReload()) refreshNow(); }, 2000);
-  }
+    setInterval(function () { if (stale && atTitle()) takeUpdate(); }, 2000);
+  } else sayNew();
 
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {

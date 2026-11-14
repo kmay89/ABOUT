@@ -242,14 +242,18 @@ Captions for meaningful sounds are on by default.
 | `engine.js` | Loop, input (keys, touch, gamepad), collision, lighting, HUD, dialogue, lens |
 | `minis.js` | The ride, the oats, the pile, the board, the signal |
 | `story.js` | Every beat, chapter by chapter, and everything you can press E on |
-| `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending |
+| `version.js` | Which release this is. The one place it is written |
+| `boot.js` | The first screen: ERRER Labs and Karl Meves, and under them loading, looking for a newer version and taking it |
+| `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending, and staying up to date |
 | `hands.js` | Whose hands are playing (keys, thumbs, a pad): the beads, the names of things, keyboard and pad on every card |
 | `feel.js` | What a press is like: notes in the music's key, the tick in the hand, the spring in a button, the circle a door closes to |
 | `look.css` | Every control and card: the type, the buttons, the paper |
 | `fonts/` | Seven small typefaces, self-hosted, with their licenses |
+| `sw.js` | The worker: the newest release when there is a signal, the copy on the device when there is not |
 
-`tools/make-icons.js` regenerates the app icons (needs Playwright's
-Chromium). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
+`tools/version-check.js` says whether a change is ready to go out as a
+release (Node, nothing to install). `tools/make-icons.js` regenerates the
+app icons (needs Playwright's Chromium). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
 packages (needs `fonttools` and `brotli`; see its first lines). `?beat=pit` (any beat id in `story.js`'s `ORDER`) jumps
 straight to a chapter for testing; it is not linked anywhere.
 
@@ -736,29 +740,111 @@ reduced motion and the test harness's `skipWaits` jump straight to the end.
 The old two-toast version is still there as a fallback if `BS.phone` is
 missing.
 
-## Staying fresh (sw.js + ui.js)
+## Versions, updates and saves (version.js, boot.js, sw.js, ui.js, engine.js)
 
-A new release must be what players see, not what they see the second time
-they reload.
+A new release must be what players get, they must not have to do anything
+to get it, and it must never cost them their place.
 
-- **The worker is network-first.** Every request revalidates with the
+### One version, in one place
+
+`version.js` holds the release, as one string (`1.35.0`), and nothing else
+does. The page loads it, so the game can say what it is: on the loading
+screen, under the title, and on the pause card (Options). The worker loads
+it too, so the copy kept for playing offline is named for the release.
+
+For every release, change that one string:
+
+* the last number for a fix nobody would notice in play;
+* the middle one for anything a player would;
+* the first only if a save could not be carried forward, which has never
+  happened and is built not to (below).
+
+`node sunlight/tools/version-check.js` says whether a change is ready to go
+out: one version, higher than what is live if anything differs from it; a
+worker that takes its name from `version.js` and keeps a copy of every
+script, stylesheet and typeface the page loads; the right count for the
+loading bar.
+
+### The first screen (boot.js)
+
+The first thing on the glass, from the first frame, is who made this:
+
+1. **ERRER Labs** *presents*
+2. *Produced by* **Karl Meves**, *from the novel Borrowed Sunlight*
+
+Then the title. Under the names, one line says what the game is doing, and
+a groove fills with honey as it goes. That is where loading happens, and
+looking for a newer version, and getting it.
+
+* The names play once in a sitting, about two seconds each. A reload, or
+  coming back from an update, goes straight to the loading line. A tap or
+  a key skips them, and that press reaches nothing underneath.
+* Whether they play is decided in the page's head, before the first frame,
+  and the first name is shown by the stylesheet alone, so it does not wait
+  for the game's megabyte of scripts. Each name is timed from when it was
+  drawn: a slow device shows them for longer, never shorter.
+* The title is not shown until the game is built and the look for a newer
+  version has let go. It makes its entrance when the screen lifts.
+* Nothing can leave a player stuck there: if the game has not said it is
+  ready a few seconds after the page finished arriving, the screen lifts
+  anyway.
+* Reduced motion shows the same names for the same time, with nothing
+  moving. `?beat=` has no first screen; `?intro=0` has no names.
+
+### An update is part of loading
+
+An update is never a question. There is no "refresh?" card and no dialog.
+
+* **The worker is network-first.** Every request revalidates with the
   server (`cache: "no-cache"`), and the cache is only the offline copy,
   refreshed on each successful fetch. With no network the cache answers at
   once; after 3.5 s on a slow link it answers instead of a spinner.
-- **The open page notices when it's out of date.** It is registered with
-  `updateViaCache: "none"` and asks for a new worker when the game opens,
-  whenever the tab comes back into view, and every 20 minutes. When a new
-  worker takes control (`controllerchange`, and only if there was an old one
-  first):
-  - on the title screen the page reloads quietly;
-  - mid-game it saves and shows a card, "A fresh version of the hill is
-    ready · Refresh". Refresh reloads to Continue at the same spot;
-  - left alone, it updates itself the next time you're on the title
-    screen, or when you come back after more than ten minutes away.
-- **Menu → Version … · Check for updates** shows the running release (the
-  worker reports its `VERSION`) and checks on demand.
-- Still bump `VERSION` on every release, so the offline copy is refetched
-  whole and open pages hear about it.
+* **When the game opens** it looks for a newer release, behind the names.
+  If one is arriving, the line says *Getting version 1.36.0 · Your saved
+  game is safe. It stays on this device.* and the bar shows how far along
+  it is. When it has arrived the page reloads as that release, still on
+  the loading screen, and says *Now on version 1.36.0 · Your saved game is
+  just as you left it.* Then the title. The names are never cut off for
+  it, and the look is given four seconds at most: on a very slow line the
+  game opens as it is and takes the update later.
+* **A page left open** hears about a release too. It asks for the one file
+  that says (`version.js`) every twenty minutes and whenever you come back
+  to the tab, and registers the worker under the new release's name, which
+  makes it a new worker in any browser.
+  * On the title it takes it at once, through the same loading screen.
+  * In the middle of play it saves, and puts nothing on the screen. The
+    update waits for the next time the game is opened, for you to come
+    back after ten minutes away with nothing going on, or for one button
+    on the pause card: *Update to version 1.36.0 · keeps your place*.
+  * Taken from inside the game, it puts you back where you were, in play,
+    without a stop at the title.
+* **Options → Version … · Check for updates** looks on demand, and says
+  *Up to date*, *No signal*, or that a newer one is ready.
+* **Never a loop.** The game reloads itself for an update at most twice a
+  minute in one sitting, whatever it hears. After that the update waits on
+  the pause card.
+* Where there is no worker (plain http, an old browser) the same lines and
+  the same loading screen are used, and an update is an ordinary reload.
+
+### A save is carried forward
+
+A save is one object in the browser's storage on this device. An update
+replaces the game's files and never touches it, and that is the whole
+reason the line on the loading screen can say what it says.
+
+* Every save says what shape it is (`v`) and which release wrote it
+  (`ver`).
+* Every later release reads every earlier save. `carry()` in `engine.js`
+  runs whatever steps `MIGRATE` holds between the save's shape and this
+  one, then fills in anything new with what a fresh game starts with.
+  Nothing is removed, including things this release has never heard of.
+  (The shape has not changed yet, so `MIGRATE` is empty; raise `SHAPE` and
+  add a step the day it does.)
+* The first time a new release runs on a device, the save as the last one
+  left it is copied aside, under that release's name. If the save is ever
+  there but can't be read, the copy is read instead.
+* Start again clears both. A game that was started again is not brought
+  back.
 
 ## It's a book first (book.js)
 
@@ -853,7 +939,7 @@ The color says what it does, and the colors are Gran's shelf:
 | Honey | The one thing on a screen that takes you on. One to a screen | Begin, Continue, Next, Keep it, Resume, Go on |
 | Jar glass, the blue-green of an old preserving jar | It does a thing | The book and the menu at the top, the tiles on the pause card, Look up |
 | A paper label, lettered in ink | A small matter | How to play, Theme, Skip, Begin again, Pick the oats back up |
-| Jam | It stops, closes or can't be undone | Later on the update card, Start again on its question, the close on the plain book |
+| Jam | It stops, closes or can't be undone | Start again on its question, the close on the plain book |
 | Foxfire green | A switch that is on; the bead when something small is near | Options; the lens bead |
 
 And a few shapes:
