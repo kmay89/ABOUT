@@ -51,18 +51,38 @@
   var VW = 320, VH = 180, SC = 4, K = 4, LK = 2;
   G.quality = 1;     // dynamic resolution: the loop lowers it if frames run long
   G.view = function () { return { w: VW, h: VH, s: SC, k: K, w1: window.innerWidth / baseSC, h1: window.innerHeight / baseSC }; };   // w1, h1: the view at zoom 1
+  /* What kind of screen this is, and where the thumbs are on it. fit.css
+     lays the controls out by the same rules, and says how big the beads are
+     (--tz) and where the glass stops being safe to draw on (#safe). */
+  var safeEl = $("safe"), LAY = G.layout = { t: 0, r: 0, b: 0, l: 0, tz: 1, cx: 16, cb: 24, ui: 1, short: false, corners: false };
+  function measure() {
+    var W = window.innerWidth, Hh = window.innerHeight;
+    try {
+      if (safeEl) { var cs = getComputedStyle(safeEl); LAY.t = parseFloat(cs.paddingTop) || 0; LAY.r = parseFloat(cs.paddingRight) || 0; LAY.b = parseFloat(cs.paddingBottom) || 0; LAY.l = parseFloat(cs.paddingLeft) || 0; }
+      var rs = getComputedStyle(document.documentElement);
+      LAY.tz = parseFloat(rs.getPropertyValue("--tz")) || 1;
+      LAY.cx = parseFloat(rs.getPropertyValue("--ctl-x")) || 16; LAY.cb = parseFloat(rs.getPropertyValue("--ctl-b")) || 24;
+      /* on a big monitor everything but the hill is drawn larger (fit.css scales the page), so a
+         length measured on the glass is this many times a length in the stylesheet */
+      LAY.ui = parseFloat(rs.getPropertyValue("--ui")) || 1;
+    } catch (e) { }
+    LAY.short = Hh <= 480 && W > Hh;           // a phone on its side
+    LAY.corners = W > Hh || W >= 700;          // the thumbs have the two bottom corners (a phone on its side, any iPad); otherwise they have the whole bottom
+  }
   function fit() {
     var W = window.innerWidth, Hh = window.innerHeight;
+    measure();
     SC = Math.max(1.6, Math.min(9, Math.min(W / 300, Hh / 168)));
-    /* a phone held upright: come in close enough that Wren is a person, not
-       a speck; about eleven tiles across */
-    if (Hh > W * 1.15) SC = Math.max(SC, Math.min(9, W / 176));
+    /* held upright: come in close enough that Wren is a person, not a
+       speck. A phone shows about eleven tiles across; an iPad has the glass
+       to show fourteen, and the tiles are still bigger than a phone's */
+    if (Hh > W * 1.15) SC = Math.max(SC, Math.min(9, W / (176 + Math.max(0, Math.min(1, (W - 430) / 400)) * 48)));
     VW = W / SC; VH = Hh / SC;
     var q = Math.min(window.devicePixelRatio || 1, 2);
     if (W * Hh * q * q > 2.6e6) q = Math.sqrt(2.6e6 / (W * Hh));
     q *= G.quality;
     cvs.width = Math.round(W * q); cvs.height = Math.round(Hh * q);
-    cvs.style.width = W + "px"; cvs.style.height = Hh + "px";
+    cvs.style.width = (W / LAY.ui) + "px"; cvs.style.height = (Hh / LAY.ui) + "px";
     K = cvs.width / VW;
     light.width = Math.ceil(VW * LK); light.height = Math.ceil(VH * LK);
     baseSC = SC; zoomNow = 1; applyZoom();
@@ -81,7 +101,14 @@
     VW = window.innerWidth / SC; VH = window.innerHeight / SC; K = cvs.width / VW;
     light.width = Math.ceil(VW * LK); light.height = Math.ceil(VH * LK);
   }
-  window.addEventListener("resize", fit); fit();
+  /* a turned phone reports its new size a beat late, and the browser's own
+     bars come and go: fit now, and again once things have settled */
+  var fitT = 0;
+  function refit() { fit(); clearTimeout(fitT); fitT = setTimeout(function () { fit(); if (G.onFit) G.onFit(); }, 260); if (G.onFit) G.onFit(); }
+  G.refit = refit;
+  window.addEventListener("resize", refit); window.addEventListener("orientationchange", refit);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", refit);
+  fit();
 
   /* ---------------- world ---------------- */
   G.maps = BS.buildWorld();
@@ -176,10 +203,10 @@
     var stick = $("stick"), knob = $("knob"), pad = $("pad") || stick, id = null, cx = 0, cy = 0;
     if (!stick) return;
     function upd(x, y) {
-      var dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), max = 42;
+      var z = (LAY.tz || 1) * (LAY.ui || 1), dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), max = 42 * z;
       if (d > max) { dx = dx / d * max; dy = dy / d * max; }
-      knob.style.transform = "translate(" + dx + "px," + dy + "px)";
-      G.input.ax = Math.abs(dx) > 8 ? dx / max : 0; G.input.ay = Math.abs(dy) > 8 ? dy / max : 0;
+      knob.style.transform = "translate(" + dx / z + "px," + dy / z + "px)";
+      G.input.ax = Math.abs(dx) > 8 * z ? dx / max : 0; G.input.ay = Math.abs(dy) > 8 * z ? dy / max : 0;
     }
     pad.addEventListener("pointerdown", function (e) {
       if (id !== null) return;
@@ -192,7 +219,7 @@
         cx = Math.max(pr.left + half + 4, e.clientX);
         cy = Math.min(pr.bottom - half - 4, e.clientY);
         stick.classList.add("float");
-        stick.style.left = (cx - half - pr.left) + "px"; stick.style.bottom = (pr.bottom - cy - half) + "px";
+        stick.style.left = (cx - half - pr.left) / LAY.ui + "px"; stick.style.bottom = (pr.bottom - cy - half) / LAY.ui + "px";
       }
       stick.classList.add("held");
       try { pad.setPointerCapture(id); } catch (err) { }
@@ -611,6 +638,9 @@
   }
   G.advance = advance;
   ["dlg", "narr", "mo"].forEach(function (id) { $(id).addEventListener("click", function () { advance(); }); });
+  /* ...and so does a tap anywhere on the hill: while someone is speaking the
+     thumbs have stepped out (fit.css), so the whole screen is the button */
+  cvs.addEventListener("pointerup", function () { if (talk && !G.choosing) advance(); });
 
   G.wait = function (ms) { return new Promise(function (r) { setTimeout(r, G.skipWaits ? 0 : ms); }); };
   G.fade = function (on, ms) {
@@ -692,11 +722,14 @@
       var target = o.at || null, ring = o.ring || target, done = false, armed = false, tapOn = o.el || window;
       function place() {
         if (target && target.getBoundingClientRect) {
-          var b = target.getBoundingClientRect(), y = b.bottom + 12;
-          if (o.over) y = b.top + b.height / 2 - 18;                 // sit on the thing itself
-          else if (y > window.innerHeight - 46) y = b.top - 44;
-          cueEl.style.left = Math.max(70, Math.min(window.innerWidth - 70, b.left + b.width / 2)) + "px"; cueEl.style.top = y + "px"; cueEl.style.bottom = "auto";
-        } else { cueEl.style.left = "50%"; cueEl.style.top = "auto"; cueEl.style.bottom = (o.bottom || "11vh"); }
+          /* under the thing it points at; above it if there's no room below; and
+             never past the edge of the glass, a notch or the home bar */
+          var u = LAY.ui || 1, b = target.getBoundingClientRect(), y = b.bottom + 12 * u, half = (cueEl.offsetWidth || 150) * u / 2 + 10 * u;
+          if (o.over) y = b.top + b.height / 2 - 18 * u;             // sit on the thing itself
+          else if (y > window.innerHeight - (LAY.b + 50) * u) y = b.top - 46 * u;
+          y = Math.max((LAY.t + 6) * u, Math.min(window.innerHeight - (LAY.b + 46) * u, y));
+          cueEl.style.left = Math.max(LAY.l * u + half, Math.min(window.innerWidth - LAY.r * u - half, b.left + b.width / 2)) / u + "px"; cueEl.style.top = y / u + "px"; cueEl.style.bottom = "auto";
+        } else { cueEl.style.left = "50%"; cueEl.style.top = "auto"; cueEl.style.bottom = "max(" + (o.bottom || "calc(var(--vh) * 11)") + ", calc(var(--safe-b) + 12px))"; }
       }
       function fire(e) {
         if (done || !armed) return;
@@ -1034,19 +1067,51 @@
   var cam = { x: 0, y: 0, tx: 0, ty: 0, snap: true };
   G.cam = cam;
   var creatures = [];
-  function camera(dt) {
+  /* where the camera wants to be: for a view VW by VH world units at scale
+     SC. With `rest`, where it would settle with Wren standing still and
+     nothing directing it (the opening pans to that, so handing the camera
+     back is seamless on every screen). */
+  function camTarget(VW, VH, SC, rest) {
     var m = G.map, mw = m.w * T, mh = m.h * T;
     var p = G.p, ahead = G.mode === "ride" ? 34 : 10;
-    var lookX = (p.vx || 0) / 92 * ahead, lookY = (p.vy || 0) / 92 * ahead;
+    var lookX = rest ? 0 : (p.vx || 0) / 92 * ahead, lookY = rest ? 0 : (p.vy || 0) / 92 * ahead, focus = rest ? null : G.camFocus;
     /* the open part of the screen: below the HUD and goal card, above the
        touch controls. Keep the player in the middle of that, and let the
        camera run past the edge of a room so they never hide under the UI */
     var touch = document.body.classList.contains("touch") && G.mode !== "title";
-    var padT = (touch ? 196 : 56) / SC, padB = (touch ? 230 : 36) / SC, avail = Math.max(40, VH - padT - padB);
+    var ui = LAY.ui || 1, padT = 56, padB = 36, band = (LAY.b + LAY.cb + 172 * LAY.tz) * ui / SC;
+    if (touch && LAY.corners) { padT = LAY.t + (LAY.short ? 58 : 76); padB = LAY.b + 30; }      // thumbs in the corners
+    else if (touch) { padT = LAY.t + 150; padB = LAY.b + LAY.cb + 172 * LAY.tz + 12; }           // thumbs along the bottom
+    padT *= ui / SC; padB *= ui / SC;
+    var avail = Math.max(40, VH - padT - padB);
     var tx = p.x + lookX - VW / 2, ty = p.y - 10 + lookY - padT - avail / 2;
-    if (G.camFocus) { tx = G.camFocus.x - VW / 2; ty = G.camFocus.y - VH / 2; padT = padB = 0; avail = VH; }
+    if (focus) { tx = focus.x - VW / 2; ty = focus.y - VH / 2; padT = padB = 0; avail = VH; }
     tx = mw <= VW ? (mw - VW) / 2 : Math.max(0, Math.min(mw - VW, tx));
     ty = mh <= avail ? (mh - avail) / 2 - padT : Math.max(-padT, Math.min(mh - VH + padB, ty));
+    /* thumbs in the corners: the room has the whole screen, and only when
+       Wren walks down into a corner does it slide across, just far enough
+       that they come out from under the stick or the beads */
+    if (touch && LAY.corners && !focus) {
+      var sx = p.x - tx, sy = p.y - ty, into = Math.max(0, Math.min(1, (sy - (VH - band - 14)) / 18));
+      if (into > 0) {
+        var zl = (LAY.l + LAY.cx + 142 * LAY.tz) * ui / SC + 10, zr = (LAY.r + LAY.cx + 172 * LAY.tz) * ui / SC + 10;
+        if (sx < zl) tx -= (zl - sx) * into; else if (sx > VW - zr) tx += (sx - (VW - zr)) * into;
+      }
+    }
+    /* ...and the goal card has the top left corner: if Wren's head would be
+       behind it, the room comes down until it isn't */
+    if (!focus && G.mode !== "title") {
+      var hs = hudSafe();
+      if (hs.cardBpx) {
+        var hx = p.x - tx, hy = p.y - 25 - ty, cr = hs.cardRpx / SC, cbm = hs.cardBpx / SC;
+        if (hx < cr + 5 && hy < cbm) ty -= Math.min(44, cbm - hy);
+      }
+    }
+    return [tx, ty];
+  }
+  G.camRest = function () { var w = window.innerWidth / baseSC, h = window.innerHeight / baseSC, t = camTarget(w, h, baseSC, true); return { x: t[0] + w / 2, y: t[1] + h / 2 }; };
+  function camera(dt) {
+    var t = camTarget(VW, VH, SC, false), tx = t[0], ty = t[1];
     if (cam.snap || cam.map !== G.mapId) { cam.x = tx; cam.y = ty; cam.snap = false; cam.map = G.mapId; }
     else { var k = Math.min(1, dt * (G.mode === "ride" ? 9 : 6)); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
     cam.vx = cam.x; cam.vy = cam.y;
@@ -1712,6 +1777,7 @@
     var bb = bar ? bar.getBoundingClientRect() : { bottom: 50 }, cb = card && card.offsetParent ? card.getBoundingClientRect() : null;
     hudC.top = Math.max(22, (bb.bottom + 12) / SC);
     hudC.cardR = cb && cb.width ? (cb.right + 12) / SC : 0; hudC.cardB = cb && cb.width ? (cb.bottom + 12) / SC : 0;
+    hudC.cardRpx = cb && cb.width ? cb.right + 6 : 0; hudC.cardBpx = cb && cb.width ? cb.bottom + 6 : 0;
     return hudC;
   }
   /* a twinkle where something can be done, and a gold pointer to the goal */

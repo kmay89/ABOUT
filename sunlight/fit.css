@@ -1,0 +1,451 @@
+/* fit.css — the same game in every pair of hands.
+
+   look.css says what things are made of. This says where they go on the
+   device you are holding: a phone upright, a phone on its side, an iPad
+   either way (with thumbs, or with a keyboard in front of it), a laptop, a
+   window dragged small, a desk monitor, a wide one. It loads after look.css
+   and only ever moves and sizes things.
+
+   The rules it keeps:
+   · Nothing you can press is ever under a notch, a home bar, a rounded
+     corner or the browser's own bars. Every full-screen layer is padded by
+     the device's safe area, and a card can never be taller than what is
+     left (--vh is the height the screen has right now).
+   · The one thing that takes you on is always on screen. Words scroll
+     under it; it does not scroll away.
+   · Under a thumb, a target is at least 44 px. With a mouse it may be
+     smaller, and things can sit closer together.
+   · Thumbs stay at the edges. On a tall screen the controls take the
+     bottom and the story takes the lane above them; on a wide one they
+     take the two bottom corners and the story runs between them.
+   · Bigger glass gets bigger type and bigger beads, not just more empty
+     hill.
+
+   engine.js (fit, pads) holds the other half: how much of the hill a
+   screen shows, and where Wren stands in it so nothing covers them. */
+
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-touch-callout:none}
+:root{
+  /* the edges of the glass, never less than a small margin */
+  --pad-t:max(10px,var(--safe-t)); --pad-b:max(10px,var(--safe-b));
+  --pad-l:max(10px,var(--safe-l)); --pad-r:max(10px,var(--safe-r));
+  /* the beads under the thumbs: how big they are, how far in from the side
+     and up from the bottom they sit (engine.js reads these too), and how
+     high up the screen they reach */
+  --tz:1; --ctl-x:16px; --ctl-b:24px;
+  --band:calc(var(--ctl-b) + 172px * var(--tz));
+  /* what is left of the screen once the edges are taken off */
+  --room-h:calc(var(--vh) * 100 - var(--pad-t) - var(--pad-b));
+  --room-w:calc(calc(var(--vw) * 100) - var(--pad-l) - var(--pad-r));
+}
+/* a place to measure the safe area from (engine.js reads its padding) */
+#safe{position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;
+  padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
+
+/* ================= every layer keeps clear of the edges ================= */
+.book,.menu,.get,.mini,.board{padding:var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l)}
+#book{padding-top:max(14px,calc(var(--safe-t) + 8px));padding-right:max(14px,calc(var(--safe-r) + 8px))}      /* room for the seal on the corner */
+.ask,.recap{padding:max(1.2em,var(--pad-t)) max(1.2em,var(--pad-r)) max(1.2em,var(--pad-b)) max(1.2em,var(--pad-l))}
+.howto{padding:max(12px,var(--pad-t)) max(12px,var(--pad-r)) max(12px,var(--pad-b)) max(12px,var(--pad-l))}
+.title{padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
+.bcard,#book .bcard.alive,.mcardx,.gcard,.mcard,.wb{max-width:100%;max-height:100%}
+#book .bcard.alive{width:min(1080px,100%);height:min(760px,100%)}
+#menu .pz{max-height:100%}
+#book .seal{top:-8px;right:-8px}      /* the wax seal stays on the glass */
+.lwrap{max-width:var(--room-w);max-height:var(--room-h)}
+.lens{padding:var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l)}
+.ipanel{right:max(calc(var(--vw) * 4),24px,calc(var(--safe-r) + 12px));max-height:calc(var(--room-h) - 12px)}
+.dlg,.narr{width:min(760px,calc(var(--room-w) - 4px))}
+.choice{width:min(720px,calc(var(--room-w) - 4px));max-height:calc(var(--room-h) - 12px);overflow-y:auto;overscroll-behavior:contain}
+.choice.on{display:block}
+.toast,.obj,.objdone,.prompt{max-width:min(620px,calc(var(--room-w) - 12px))}
+.sig{max-width:calc(var(--room-w) - 16px)}
+.cue{max-width:calc(var(--room-w) - 16px)}
+.chap{padding:max(1.5em,var(--pad-t)) max(1.5em,var(--pad-r)) max(1.5em,var(--pad-b)) max(1.5em,var(--pad-l))}
+.cine .lb.top{padding-left:max(18px,calc(var(--safe-l) + 8px));padding-right:max(18px,calc(var(--safe-r) + 8px))}
+.cine .lb.bot{padding-left:max(18px,calc(var(--safe-l) + 8px));padding-right:max(18px,calc(var(--safe-r) + 8px))}
+.hskip{right:calc(18px + var(--safe-r));bottom:max(18px,calc(var(--safe-b) + 8px))}
+
+/* the last screen is as long as it needs to be: it starts at the top and
+   scrolls when the glass is shorter than what it has to say */
+.end{align-items:flex-start;padding:max(2em,var(--pad-t)) max(1em,var(--pad-r)) max(2em,var(--pad-b)) max(1em,var(--pad-l));touch-action:pan-y;overscroll-behavior:contain}
+.ein{margin:auto}
+
+/* ================= under a thumb, everything is big enough ================= */
+body.touch .quiet,body.touch a.quiet,body.touch button.quiet{min-height:44px;display:inline-flex;align-items:center;padding-top:.3em;padding-bottom:.3em}
+body.touch .quiet::after{bottom:calc(50% - .85em)}
+body.touch .mfoot{gap:0 1.6em}
+body.touch .hbtn{width:44px;height:44px}
+body.touch .phonehud{height:44px}
+body.touch .bcard>.x,body.touch #book .seal{width:44px;height:44px}
+body.touch .cskip{min-height:44px;min-width:76px}
+body.touch .hskip{min-height:44px}
+body.touch .tabs button{min-height:44px}
+body.touch .ihint .for-mouse,body:not(.touch) .ihint .for-thumb{display:none}
+
+/* while someone is speaking, or you are choosing, the thumbs have nothing
+   to do: the stick and the beads step out, and a tap anywhere goes on */
+body:has(#dlg.on) #touch,body:has(#narr.on) #touch,body:has(#mo.on) #touch,body:has(#choice.on) #touch,body:has(#chap.on) #touch,body:has(#sig.on) .btns{opacity:0;pointer-events:none;transition:opacity .25s}
+#touch{transition:opacity .25s}
+/* ...and when the hill asks you to hold still, the errands step back */
+body:has(#sig.on) :is(#clock,#goalcard){opacity:0;pointer-events:none}
+
+/* the beads and the stick, at the size and in the place this screen wants them */
+.stick{left:calc(var(--ctl-x) + 4px + var(--safe-l));bottom:calc(var(--ctl-b) + 2px + var(--safe-b));transform:scale(var(--tz));transform-origin:0 100%}
+.btns{right:calc(var(--ctl-x) + var(--safe-r));bottom:calc(var(--ctl-b) + var(--safe-b));transform:scale(var(--tz));transform-origin:100% 100%}
+/* what the story says sits in a stack just above where the thumbs reach:
+   what you can do, then a sound or a goal ticked off, then a note */
+body.touch .prompt,body.touch .coach{bottom:calc(var(--band) + var(--safe-b))}
+body.touch .ridehud{bottom:calc(var(--band) + 4px + var(--safe-b))}
+body.touch .caption,body.touch .objdone{bottom:calc(var(--band) + 48px + var(--safe-b))}
+body.touch .toast{bottom:calc(var(--band) + 94px + var(--safe-b))}
+body.touch.coaching .caption{bottom:calc(var(--band) + 80px + var(--safe-b))}
+
+/* ================= the transient line, on a phone held upright =================
+   One line at a time under the goal card. When Wren is up at the top of the
+   screen that lane would cover them, so the line takes the goal card's
+   place instead and the card steps out until it has been read. */
+body.touch.lanelow .region,body.touch.lanelow .obj{top:calc(62px + var(--safe-t));bottom:auto}
+body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard{opacity:0;transform:translateY(-6px);pointer-events:none}
+
+/* ================= Gran's book, on a narrow page =================
+   Eight ribbons do not fit across a phone with names anyone could read. So
+   they hang in two lengths: four short ones in front and four long ones
+   behind, every name on one line, every ribbon wide enough for a thumb. */
+@media (max-width:760px){
+  #book{padding:max(6px,var(--safe-t)) max(6px,calc(var(--safe-r) + 4px)) max(10px,calc(var(--safe-b) + 6px)) max(5px,var(--safe-l))}
+  #book .bcard.alive{width:100%;height:100%;padding:8px 8px 8px 10px}
+  #book .bpage .tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:40px 40px;gap:0 4px;min-height:0;padding:0 12px 0 16px;align-items:start}
+  #book .bpage .tabs button{grid-row:1;z-index:2;min-height:0;height:44px;padding:0 .2em 9px;font-size:.8rem;letter-spacing:.06em;white-space:nowrap;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #book .bpage .tabs button:nth-of-type(n+5){grid-row:1 / span 2;z-index:1;height:86px;align-items:flex-end;padding:0 .2em 17px}
+  #book .bpage .tabs button:nth-of-type(4n+1){grid-column:1}
+  #book .bpage .tabs button:nth-of-type(4n+2){grid-column:2}
+  #book .bpage .tabs button:nth-of-type(4n+3){grid-column:3}
+  #book .bpage .tabs button:nth-of-type(4n+4){grid-column:4}
+  #book .bpage .tabs button.on{height:50px;padding:0 .2em 13px;box-shadow:none}
+  #book .bpage .tabs button:nth-of-type(n+5).on{height:92px;padding:0 .2em 21px}
+  #book .bpage .tabs button.on::after{content:"";position:absolute;left:18%;right:18%;bottom:13px;height:1px;background:rgba(255,236,190,.8)}
+  #book .bpage .tabs button:nth-of-type(n+5).on::after{bottom:19px}
+  #book .bpage .bbody{padding:1em 1.15em 2.8em 1.5em}
+  #book .seal{top:auto;bottom:-6px;right:-4px}
+}
+@media (max-width:360px){
+  #book .bpage .tabs{gap:0 3px;padding:0 8px 0 11px}
+  #book .bpage .tabs button{font-size:.72rem;letter-spacing:.03em}
+}
+/* a short, wide page (a phone on its side): one row of ribbons is all there
+   is room for, and there the names fit */
+@media (max-height:480px) and (min-width:561px){
+  #book{padding:max(6px,var(--safe-t)) max(8px,var(--safe-r)) max(6px,var(--safe-b)) max(8px,var(--safe-l))}
+  #book .bcard.alive{width:100%;height:100%;padding:7px 8px 7px 10px}
+  #book .bpage .tabs{display:flex;grid-template-rows:none;gap:4px;min-height:42px;padding:0 3.2em 0 1.6em}
+  #book .bpage .tabs button,#book .bpage .tabs button:nth-of-type(n+5){flex:1 1 auto;grid-row:auto;grid-column:auto;z-index:2;height:40px;min-height:0;padding:0 .3em 9px;font-size:.74rem;letter-spacing:.05em;align-items:center}
+  #book .bpage .tabs button.on,#book .bpage .tabs button:nth-of-type(n+5).on{height:46px;padding:0 .3em 13px}
+  #book .bpage .tabs button.on::after,#book .bpage .tabs button:nth-of-type(n+5).on::after{bottom:13px}
+  #book .bpage .bbody{padding:.6em 1.6em 2.2em 1.9em}
+  #book .seal{top:-4px;bottom:auto;right:0}
+}
+
+/* ================= a phone on its side =================
+   The screen is short and wide. The thumbs have the two bottom corners; the
+   HUD has the top; everything the story says runs down the middle, between
+   the thumbs, where nothing is in its way. */
+@media (max-height:480px) and (orientation:landscape){
+  :root{--mid:calc(calc(var(--vw) * 100) - 372px - var(--safe-l) - var(--safe-r))}
+  /* the transient line: under the HUD, in the middle */
+  body.touch .region{top:calc(60px + var(--safe-t));width:min(440px,calc(calc(var(--vw) * 100) - 2 * (16px + max(var(--safe-l),var(--safe-r)))))}
+  body.touch .region span{font-size:1.5rem}
+  body.touch .region small{font-size:.9rem;margin-top:.05em}
+  body.touch .obj{top:calc(56px + var(--safe-t));bottom:auto}
+  body.touch:has(#region.on) #goalcard,body.touch.objnew #goalcard{opacity:0;transform:translateY(-6px);pointer-events:none}
+  /* Wren up at the top: the line drops between the thumbs instead */
+  body.touch.lanelow .region{top:auto;bottom:calc(58px + var(--safe-b));width:max(200px,var(--mid));grid-template-columns:0 auto 0;justify-content:center}
+  body.touch.lanelow .obj{top:calc(56px + var(--safe-t));bottom:auto}       /* a goal is a sentence: it keeps the top, where there is width for it */
+  body.touch.lanelow:has(#region.on):not(.objnew) #goalcard{opacity:1;transform:none;pointer-events:auto}
+  /* between the thumbs, from the bottom up: what you can do, a note, a sound */
+  body.touch .prompt{bottom:calc(12px + var(--safe-b));max-width:max(180px,var(--mid));white-space:normal;text-align:left;border-radius:22px}
+  body.touch .toast{top:auto;bottom:calc(60px + var(--safe-b));max-width:max(200px,var(--mid))}
+  body.touch .objdone{bottom:calc(60px + var(--safe-b));max-width:max(200px,var(--mid))}
+  body.touch .caption{bottom:calc(104px + var(--safe-b));max-width:max(200px,var(--mid))}
+  body.touch .ridehud{bottom:calc(12px + var(--safe-b))}
+  body.touch .coach{left:50%;bottom:calc(12px + var(--safe-b));transform:translate(-50%,8px);max-width:max(220px,var(--mid))}
+  body.touch .coach.on{transform:translate(-50%,0)}
+  body.touch .coach.done{transform:translate(-50%,-8px)}
+  body.touch.coaching .caption{bottom:calc(104px + var(--safe-b))}
+  .sig{top:calc(60px + var(--safe-t))}
+  /* the HUD draws itself in */
+  .svc{display:none}
+  .goalcard{max-width:min(260px,calc(var(--vw) * 40));margin-top:6px}
+  /* the words: no wider than the space between the corners needs */
+  .dlg,.narr{bottom:calc(8px + var(--safe-b));--tfs:calc(var(--fs) * 1.08)}
+  .choice{bottom:calc(8px + var(--safe-b));padding:.7em .8em .6em}
+  .choice p{margin-bottom:.4em}
+  .copt{margin:.26em 0;padding:.56em 1em .58em 2.3em}
+  .mo p{font-size:calc(var(--fs) * 1.4)}
+  /* through the drop: the glass on the left, the words beside it */
+  .lens{background:radial-gradient(circle at 34% 50%,rgba(0,0,0,.32),rgba(0,0,0,.84) 60%,rgba(0,0,0,.9))}
+  .lwrap{flex-direction:row;gap:20px;padding:6px 10px}
+  #lenscv{width:min(calc(var(--room-h) - 64px),calc(var(--vw) * 42));height:min(calc(var(--room-h) - 64px),calc(var(--vw) * 42))}
+  .lcap{align-items:flex-start;text-align:left;max-width:min(340px,calc(var(--vw) * 44));max-height:calc(var(--room-h) - 20px)}
+  .lcap h3{font-size:1.36rem}
+  .lcap p{font-size:.98rem;line-height:1.42}
+  /* a thing in your hands: it on the left, what it is on the right, the lid always there */
+  .ipanel{left:auto;right:max(12px,calc(var(--safe-r) + 6px));top:50%;bottom:auto;transform:translateY(-50%);width:min(380px,calc(var(--vw) * 46));max-height:calc(var(--room-h) - 8px)}
+  .ipanel h2{font-size:1.42rem}
+  .ipanel p{font-size:1rem;line-height:1.4}
+  .iscroll{padding:calc(1em - 7px) 1.1em .9em}
+  .ifoot{padding:.1em 1.1em .8em}
+  .ipanel .ihint{display:none}
+  .iprog{margin:.5em 0 .6em;padding:.5em .7em}
+  .gcard{padding:1em 1.2em .9em}
+  #gicon{width:64px;height:64px}
+  /* the pause card: where you are on the left, what you can do on the right */
+  #menu .pz{width:min(820px,100%)}
+  #menu .pz .mscroll{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);column-gap:1.5em;align-items:center;padding-top:.8em;padding-bottom:14px}
+  .pzh{grid-column:1;text-align:left;margin-bottom:.5em}
+  .pzmain{grid-column:1;margin-bottom:0}
+  .pzacts{grid-column:2;grid-row:1 / span 2;grid-template-columns:1fr 1fr;align-self:center}
+  .pzacts button:not(.primary){min-height:44px}
+  .pzopts,#menu .help{grid-column:1 / -1}
+  .pzstat{font-size:.62rem}
+  /* the settings: side by side, so they are one screen and not three */
+  .pzopts .opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:1.6em}
+  .pzopts .opts label{min-height:44px;font-size:1rem;gap:.7em}
+  .pzopts .opts label.sl{grid-template-columns:1fr;gap:0;padding:.3em 0}
+  /* the oats and the pile: the board on the left, its words beside it */
+  .mcard{display:grid;grid-template-columns:auto minmax(170px,1fr);grid-template-rows:auto auto 1fr auto;column-gap:1em;align-items:start;text-align:left;padding:.7em .9em}
+  .mcard h3{grid-column:2;grid-row:1;font-size:1.24rem;margin:0 0 .3em}
+  #minicv{grid-column:1;grid-row:1 / span 4;align-self:center;margin:0}
+  .mhint{grid-column:2;grid-row:2;font-size:.96rem;line-height:1.34;margin:0}
+  .mmo{grid-column:2;grid-row:3;font-size:1.06rem;line-height:1.3;margin:.4em 0 0}
+  .mcard .row{grid-column:2;grid-row:4;flex-wrap:wrap;justify-content:flex-start;gap:6px;margin-top:.5em}
+  .mcard .row button{flex:1 1 auto;min-height:40px;padding:.6em .7em .56em;font-size:.84rem;letter-spacing:.04em;white-space:normal;line-height:1.15}
+  .moats{flex:1 0 100%;margin:0 0 .2em}
+  .wb{padding:.8em .9em .9em}
+  .wb table{font-size:clamp(.72rem,calc(var(--vw) * 2),.94rem)}
+  .wb th,.wb td{padding:.3em .55em}
+  .wbnote{margin:.5em .2em .5em;font-size:.94rem}
+  /* the title: everything on one screen */
+  .tin{max-width:780px;padding:.7em 1.2em}
+  .tkick{margin-bottom:.2em}
+  .tsub{margin-bottom:.4em}
+  .tline{margin-bottom:.7em}
+  .tbtns{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 12px}
+  .tbtns .tmore{margin:0}
+  .tfine{margin-top:.7em}
+  .tfine span{display:inline}
+  .tfine span+span::before{content:" · "}
+  .tlinks{margin-top:.2em}
+  .contcard{margin:0}
+  .chap h2{font-size:clamp(1.8rem,calc(var(--vw) * 6),2.6rem)}
+  /* the book that opens the story sits a little high, over its cue */
+  .hero[data-low="1"] .hstage{padding-bottom:calc(var(--vh) * 13)}
+  /* Wren's phone, lying the way yours is: the time on the left and what came
+     in on the right; then the thread, with the field to answer in always there */
+  .phx{align-items:center;padding:max(6px,var(--safe-t)) max(8px,var(--safe-r)) max(8px,var(--safe-b)) max(8px,var(--safe-l))}
+  .phd{width:min(640px,calc(var(--room-w) - 60px));height:min(340px,calc(var(--room-h) - 4px));border-radius:36px;padding:8px}
+  .phd::before,.phisl{display:none}
+  .phscr{border-radius:28px}
+  .phs{height:30px;padding:0 24px;font-size:.8rem}
+  .phclk{left:0;right:auto;width:44%;top:50%;transform:translateY(-54%)}
+  .phbig{font-size:clamp(3.2rem,calc(var(--vh) * 19),4.6rem)}
+  .phsrch{left:22%;top:auto;bottom:14%}
+  .phnots{left:44%;right:12px;top:50%;transform:translateY(-54%);gap:6px}
+  .phnote{grid-template-columns:28px 1fr auto;gap:8px;padding:8px 11px;border-radius:16px}
+  .phnote>i{width:28px;height:28px}
+  .phapp{padding-top:30px}
+  .phh{flex-direction:row;justify-content:center;gap:9px;padding:0 12px 6px}
+  .phav i{width:24px;height:24px;font-size:.64rem}
+  .phback{top:4px}
+  .phm{padding:6px 16px 4px;gap:4px}
+  .phb{max-width:64%}
+  .phsend{margin:4px 14px 16px}
+  .phns{top:30px;bottom:18%}
+  .phhome{bottom:5px;width:22%;margin-left:-11%}
+}
+/* the smallest phones on their side: the pause card keeps to one column of
+   words and one of buttons, and the settings to two */
+@media (max-height:480px) and (orientation:landscape) and (max-width:700px){
+  .pzacts button:not(.primary){min-width:0;min-height:44px;padding-left:.5em;padding-right:.5em;font-size:.84rem;letter-spacing:.05em}
+  #menu .pz .mscroll{column-gap:1em;padding-left:1.1em;padding-right:1.1em}
+  .pzopts .opts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pzring{width:66px;height:66px}
+  .pzring span{display:none}
+  .pzmain{gap:.8em}
+  .phonehud{padding:0 10px}
+}
+
+/* ================= a phone held upright ================= */
+@media (max-width:560px) and (orientation:portrait){
+  /* labels that were set too small to read at arm's length */
+  .goalcard small{font-size:.66rem;letter-spacing:.13em}
+  .chip small,.pzchip small{font-size:.64rem;letter-spacing:.1em}
+  .pzring span{font-size:.64rem;letter-spacing:.1em}
+  .pzstat{font-size:.7rem;letter-spacing:.1em}
+  .tfine{font-size:.7rem}
+  /* a short phone: the pause card draws itself in, so the lid and the four
+     of glass are all on it without scrolling */
+}
+@media (max-width:560px) and (max-height:700px) and (orientation:portrait){
+  .pzh{margin-bottom:.7em}
+  .pzh::after{margin-top:.6em}
+  .pzmain{margin-bottom:.8em;gap:.6em}
+  .pzring{width:84px;height:84px}
+  .pzring b{font-size:1.4rem}
+  .pznow #pzobj{margin:.15em 0 .45em}
+  #menu .pz .mscroll{padding-top:1em;padding-bottom:16px}
+}
+@media (max-width:560px) and (max-height:600px) and (orientation:portrait){
+  .pzmain{grid-template-columns:auto 1fr;justify-items:start;text-align:left}
+  .pzclock{justify-content:flex-start}
+  .pzring{width:72px;height:72px}
+  .pzring span{display:none}
+  .pzh h2{font-size:1.7rem}
+}
+
+/* the site-office whiteboard, on a narrow phone: the same four columns, in a smaller hand */
+@media (max-width:480px){
+  .wb{padding:1em .7em 1em}
+  .wb table{width:100%;font-size:clamp(.6rem,calc(var(--vw) * 2.75),.86rem);letter-spacing:0}
+  .wb th,.wb td{padding:.36em .32em}
+  .mini{padding:max(6px,var(--safe-t)) max(6px,var(--safe-r)) max(6px,var(--safe-b)) max(6px,var(--safe-l))}
+  .mcard{padding:.8em .6em .7em}
+  .mcard .row{flex-wrap:wrap;justify-content:center;gap:8px}
+  .moats{flex:1 0 100%;margin:0;text-align:center}
+}
+
+/* ================= an iPad =================
+   More glass, held further away, in two hands or flat on a table. So the
+   type is a size up, the HUD's beads are bigger, and the stick and the beads
+   are bigger too and sit in from the corners, where thumbs actually rest
+   when the hands are holding the sides. */
+@media (pointer:coarse) and (min-width:700px) and (min-height:700px){
+  html{font-size:112.5%}
+  :root{--tz:1.2;--ctl-x:38px;--ctl-b:54px}
+  .pad{width:calc(var(--vw) * 44);height:min(calc(var(--vh) * 62),640px)}
+  #hud{padding:calc(14px + var(--safe-t)) calc(20px + var(--safe-r)) 30px calc(20px + var(--safe-l))}
+  .hr{gap:10px}
+  .hbtn,body.touch .hbtn{width:52px;height:52px}
+  .hbtn svg{width:25px;height:25px}
+  .phonehud,body.touch .phonehud{height:52px;padding:0 17px;gap:9px;font-size:.78rem}
+  .goalcard{max-width:min(360px,calc(var(--vw) * 52));padding:9px 16px 10px 17px}
+  .dlg,.narr{width:min(860px,calc(var(--room-w) - 48px));bottom:calc(30px + var(--safe-b))}
+  .choice{width:min(800px,calc(var(--room-w) - 48px));bottom:calc(34px + var(--safe-b))}
+  .pframe{width:84px;height:84px}
+  body.touch .region{top:calc(212px + var(--safe-t));width:min(640px,calc(var(--vw) * 80))}
+  body.touch .region span{font-size:2.2rem}
+  body.touch .region small{font-size:1.04rem}
+  body.touch .obj{top:calc(212px + var(--safe-t))}
+  body.touch.lanelow .region,body.touch.lanelow .obj{top:calc(84px + var(--safe-t))}
+  .bcard>.x,#book .seal,body.touch .bcard>.x,body.touch #book .seal{width:52px;height:52px}
+  #book .seal svg.i{width:20px;height:20px}
+  #book .bcard.alive{width:min(1180px,100%);height:min(860px,100%)}
+  #menu .pz{width:min(680px,100%)}
+  .hcard{width:min(600px,100%)}
+  .gcard{width:min(580px,100%)}
+  .ipanel{width:min(470px,calc(var(--vw) * 42))}
+  #lenscv{width:min(calc(var(--vh) * 58),calc(var(--vw) * 62),520px);height:min(calc(var(--vh) * 58),calc(var(--vw) * 62),520px)}
+  .lcap{max-width:400px}
+  .tin{max-width:760px}
+  .cskip{min-height:50px;min-width:92px}
+}
+/* an iPad held upright: the page of the book is the whole book, and things
+   that sat beside each other stack */
+@media (pointer:coarse) and (min-width:700px) and (min-height:700px) and (orientation:portrait){
+  #book{padding:max(20px,var(--safe-t)) max(18px,var(--safe-r)) max(22px,var(--safe-b)) max(18px,var(--safe-l))}
+  #book .bcard.alive{height:min(1100px,100%)}
+  .ipanel{width:min(600px,calc(var(--vw) * 84));max-height:calc(var(--vh) * 44)}
+}
+/* an iPad on its side: the thumbs are far apart, so what the story says
+   goes back to where it is on a desk — between them, at the foot */
+@media (pointer:coarse) and (min-width:700px) and (min-height:700px) and (orientation:landscape){
+  :root{--mid:calc(calc(var(--vw) * 100) - 2 * (var(--ctl-x) + 196px * var(--tz)) - var(--safe-l) - var(--safe-r))}
+  body.touch .prompt,body.touch .coach{bottom:calc(var(--ctl-b) + 44px + var(--safe-b));max-width:var(--mid)}
+  body.touch .coach{left:50%;transform:translate(-50%,8px)}
+  body.touch .coach.on{transform:translate(-50%,0)}
+  body.touch .coach.done{transform:translate(-50%,-8px)}
+  body.touch .ridehud{bottom:calc(var(--ctl-b) + 44px + var(--safe-b))}
+  body.touch .caption,body.touch .objdone{bottom:calc(var(--ctl-b) + 100px + var(--safe-b));max-width:var(--mid)}
+  body.touch.coaching .caption{bottom:calc(var(--ctl-b) + 150px + var(--safe-b))}
+  body.touch .toast{top:auto;bottom:calc(var(--ctl-b) + 150px + var(--safe-b));max-width:var(--mid)}
+  body.touch .region{top:calc(96px + var(--safe-t))}
+  body.touch.lanelow .region,body.touch.lanelow .obj{top:auto;bottom:calc(var(--ctl-b) + 200px + var(--safe-b))}
+  body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard{opacity:1;transform:none;pointer-events:auto}
+}
+
+/* ================= the title, on a screen wider than it is tall =================
+   A laptop's browser leaves about 650 px of height, an iPad on its side 830.
+   The whole title has to be there without scrolling: the name, the way in,
+   and the small print. So its measures follow the height of the glass. */
+@media (orientation:landscape) and (min-height:621px) and (max-height:920px){
+  .tin{padding-top:calc(var(--vh) * 2);padding-bottom:calc(var(--vh) * 2)}
+  .tmark{scale:.8;margin:calc(var(--vh) * -1) auto calc(var(--vh) * .4)}
+  .title h1{font-size:min(clamp(3.5rem,calc(var(--vw) * 13),6.4rem),calc(var(--vh) * 12))}
+  .tsub{font-size:min(1.42rem,calc(var(--vh) * 2.9));margin-bottom:calc(var(--vh) * 1.9)}
+  .tline{font-size:min(1.34rem,calc(var(--vh) * 2.75));margin-bottom:calc(var(--vh) * 2.6)}
+  .tbtns{gap:calc(var(--vh) * 1.6)}
+  .tfine{margin-top:calc(var(--vh) * 2);line-height:1.6}
+  .tlinks{margin-top:calc(var(--vh) * .5)}
+}
+@media (orientation:landscape) and (min-height:621px) and (max-height:780px){
+  .tfine span{display:inline}
+  .tfine span+span::before{content:" · "}
+  .tfine{max-width:46em;margin-left:auto;margin-right:auto}
+  .contcard{padding-top:7px;padding-bottom:7px}
+  .contcard img{width:112px;height:63px}
+}
+
+/* ================= notes that arrive together don't land on each other =================
+   Up top, in the middle, from the top down: a Moment, a place's name, a
+   note. Each steps down when the one above it is there. */
+body:not(.touch):has(#region.on) .toast{top:calc(152px + var(--safe-t))}
+body:not(.touch).achon .toast{top:calc(108px + var(--safe-t))}
+body:not(.touch).achon:has(#region.on) .toast{top:calc(196px + var(--safe-t))}
+.toast{transition:opacity .3s,translate .3s var(--ease),top .3s var(--ease)}
+/* the dynamo's needle, when the hill's name is up beside it on a narrow window */
+@media (max-width:1040px){body:not(.touch):has(#ridehud.on) .region{top:calc(112px + var(--safe-t))}}
+
+/* ================= the settings, where there is width for them =================
+   Three short columns instead of one long one that has to be scrolled. */
+@media (min-width:900px) and (min-height:481px){
+  #menu .pz:has(#pzopts:not([hidden])){width:min(940px,100%)}
+  #menu .pz:has(#pzopts:not([hidden])) :is(.pzh,.pzmain,.pzacts){max-width:600px;margin-left:auto;margin-right:auto}
+  .pzopts .opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:2.2em;align-items:start}
+  .pzopts .opts label.sl{grid-template-columns:minmax(5.4em,38%) 1fr}
+}
+
+/* ================= a big monitor =================
+   The hill already fills whatever glass it is given. Everything laid over it
+   was drawn for a laptop, and on a 27-inch screen or a television it would
+   be a postage stamp. So past a certain size the whole page is drawn larger
+   by one factor (--ui): the type, the cards, the beads, the gaps between
+   them, all together, as if the laptop's screen had been held closer. The
+   page is laid out that many times smaller than the glass (--vw and --vh
+   are hundredths of the page, not of the glass) and then scaled up to fit.
+   engine.js keeps the hill's canvas at the size of the glass, and divides
+   by the same factor anywhere it places something by a measured position. */
+@media (min-width:1700px) and (min-height:940px){:root{--ui:1.2}}
+@media (min-width:2100px) and (min-height:1180px){:root{--ui:1.5}}
+@media (min-width:2800px) and (min-height:1560px){:root{--ui:1.9}}
+@media (min-width:3300px) and (min-height:1850px){:root{--ui:2.4}}
+@media (min-width:1700px) and (min-height:940px){
+  body{width:calc(var(--vw) * 100);height:calc(var(--vh) * 100);transform:scale(var(--ui));transform-origin:0 0}
+}
+
+/* ================= the keyboard, over the last page =================
+   A phone's keyboard covers the bottom of the screen without telling the
+   page it has. hands.js measures it (--kb) and the book steps up above it. */
+body.typing #book{padding-bottom:calc(var(--kb,0px) + 6px);align-items:flex-start}
+body.typing #book .bcard.alive{height:100%}
+
+/* an establishing shot is only the picture and the name of the place, at the top */
+body.directing .region{bottom:auto!important}
+body.directing .caption{opacity:0!important}
+
+/* the book that opens the story, on any screen wider than it is tall: a little high, so its cue has the foot of the screen */
+@media (orientation:landscape) and (min-height:481px){.hero .hstage{padding-bottom:calc(var(--vh) * 6)}}
+
+/* turning the screen is not an entrance: what was already open is simply there, the other way round */
+.insp.on .ipanel{transition:opacity .6s .75s}
+@media (max-aspect-ratio:11/10){.ipanel{bottom:max(calc(var(--vh) * 2),10px,calc(var(--safe-b) + 4px))}}

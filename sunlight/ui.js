@@ -443,7 +443,7 @@
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {
     /* the transient line goes in whichever half of the screen you aren't in */
-    if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.5); }
+    if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.36); }
     var gc = $("goalcard");
     if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
     var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];
@@ -460,8 +460,9 @@
   ui.flyToBook = function () {
     var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);
     var r = $("hudbook").getBoundingClientRect();
-    f.style.left = (window.innerWidth / 2 - 22) + "px"; f.style.top = (window.innerHeight / 2 - 22) + "px";
-    requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.transform = "translate(" + (r.left + r.width / 2 - window.innerWidth / 2) + "px," + (r.top + r.height / 2 - window.innerHeight / 2) + "px) scale(.3)"; f.style.opacity = ".2"; }); });
+    var u = (G.layout && G.layout.ui) || 1;       /* lengths on the glass, into lengths on the page */
+    f.style.left = (window.innerWidth / u / 2 - 22) + "px"; f.style.top = (window.innerHeight / u / 2 - 22) + "px";
+    requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.transform = "translate(" + (r.left + r.width / 2 - window.innerWidth / 2) / u + "px," + (r.top + r.height / 2 - window.innerHeight / 2) / u + "px) scale(.3)"; f.style.opacity = ".2"; }); });
     setTimeout(function () {
       f.remove(); ui.bookPing(); A.sfx("seen");
       var n = Object.keys(G.s.seen).length;

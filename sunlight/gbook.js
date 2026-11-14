@@ -23,7 +23,8 @@
   var BS = window.BS, G = BS.G, L = BS.lace;
   var book = document.getElementById("book"); if (!book || !L) return;
   var card = book.querySelector(".bcard"), tabs = book.querySelector(".tabs"), body = book.querySelector(".bbody");
-  var dpr = function () { return Math.min(2.5, window.devicePixelRatio || 1); };
+  var ui = function () { return (G.layout && G.layout.ui) || 1; };
+  var dpr = function () { return Math.min(3, (window.devicePixelRatio || 1) * ui()); };
   function reduced() { return G.prefs && G.prefs.reduced; }
 
   /* ---------------- paper and leather ---------------- */
@@ -166,8 +167,8 @@
     if (!raf) raf = requestAnimationFrame(frame);
   }
   new MutationObserver(function () { if (book.classList.contains("on")) start(); }).observe(book, { attributes: true, attributeFilter: ["class"] });
-  page.addEventListener("pointermove", function (e) { var b = page.getBoundingClientRect(); pointer = [e.clientX - b.left, e.clientY - b.top]; });
-  page.addEventListener("pointerdown", function (e) { var b = page.getBoundingClientRect(); pointer = [e.clientX - b.left, e.clientY - b.top]; });
+  page.addEventListener("pointermove", function (e) { var b = page.getBoundingClientRect(), u = ui(); pointer = [(e.clientX - b.left) / u, (e.clientY - b.top) / u]; });
+  page.addEventListener("pointerdown", function (e) { var b = page.getBoundingClientRect(), u = ui(); pointer = [(e.clientX - b.left) / u, (e.clientY - b.top) / u]; });
   page.addEventListener("pointerleave", function () { pointer = null; });
   window.addEventListener("resize", function () { netKey = ""; plateKey = ""; });
 

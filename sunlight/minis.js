@@ -202,13 +202,20 @@
   $("mdone").addEventListener("click", function () { closeSlime(); });
   function closeSlime() { if (!slime || !slime.won) return; var r = slime.res; slime = null; $("mini").className = "mini"; G.mode = "walk"; r(); }
   var mcv = $("minicv"), mx = mcv.getContext("2d");
+  /* how much glass the board can have. Upright, it sits over its words and
+     takes the width; on a phone held sideways it sits beside them and takes
+     the height (fit.css lays the card out the same way) */
+  function room() {
+    var L = G.layout || {}, u = L.ui || 1, W = window.innerWidth / u - Math.max(10, L.l || 0) - Math.max(10, L.r || 0), H = window.innerHeight / u - Math.max(10, L.t || 0) - Math.max(10, L.b || 0);
+    return L.short ? { w: W - 30 - Math.max(190, W * 0.3), h: H - 26 } : { w: Math.min(W - 36, 720), h: H * 0.55 };
+  }
   function sizeMini() {
+    if (pile && G.mode === "sand") { var q = room(); mcv.width = Math.round(Math.max(200, Math.min(q.w, 720, q.h * 2))); mcv.height = Math.round(mcv.width * 0.5); return; }
     if (!slime) return;
-    var W = Math.min(window.innerWidth - 24, 720), cs = Math.floor(W / slime.w);
-    cs = Math.min(cs, Math.floor((window.innerHeight * 0.55) / slime.h));
+    var r = room(), cs = Math.max(16, Math.floor(Math.min(r.w / slime.w, r.h / slime.h)));
     mcv.width = slime.w * cs; mcv.height = slime.h * cs; slime.cs = cs;
   }
-  window.addEventListener("resize", sizeMini);
+  window.addEventListener("resize", function () { sizeMini(); setTimeout(sizeMini, 300); });
   mcv.addEventListener("pointerdown", function (e) {
     if (!slime) return;
     var r = mcv.getBoundingClientRect(), cs = r.width / slime.w;
@@ -290,7 +297,7 @@
       $("mhint").textContent = G.named("The second board is just out of sight. Up the side of the pile, two seconds — {push|press} up to climb.");
       $("mreset").hidden = true; $("mdone").hidden = true; $("moats").textContent = "";
       G.mode = "sand";
-      mcv.width = Math.min(window.innerWidth - 24, 720); mcv.height = Math.round(mcv.width * 0.5);
+      sizeMini();
     });
   };
   G.minis.sand = {
