@@ -130,12 +130,16 @@
 
   /* ---------------- sizing: one book, closed big, open centered ---------------- */
   function size() {
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var bw = Math.min(vh * 0.64 / 1.5, vw * 0.46), bh = bw * 1.5;
-    var closed = Math.min(1.6, (vw * 0.78) / bw, (vh * 0.8) / bh);
+    var u = (G.layout && G.layout.ui) || 1, vw = window.innerWidth / u, vh = window.innerHeight / u;
+    /* on a short, wide screen (a phone on its side) the book leaves room
+       beneath it for the cue, so "Open the book" is never laid over its cover */
+    var low = vh < 500 && vw > vh, tall = low ? 0.66 : vw > vh ? 0.75 : 0.8;
+    el.setAttribute("data-low", low ? "1" : "0");
+    var bw = Math.min(vh * (low ? 0.56 : 0.64) / 1.5, vw * 0.46), bh = bw * 1.5;
+    var closed = Math.min(1.6, (vw * 0.78) / bw, (vh * tall) / bh);
     el.style.setProperty("--bw", bw + "px"); el.style.setProperty("--bh", bh + "px");
     el.style.setProperty("--closed", closed.toFixed(3));
-    el.style.setProperty("--read", Math.min(1.9, (vw * 0.86) / bw, (vh * 0.8) / bh).toFixed(3));
+    el.style.setProperty("--read", Math.min(1.9, (vw * 0.86) / bw, (vh * tall) / bh).toFixed(3));
   }
 
   function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
@@ -165,7 +169,7 @@
   };
   /* one prompt, the same everywhere (engine.js G.cue): the book waits for you */
   function ask(label, tap, lock, then) {
-    G.cue({ label: label, tap: tap, lock: lock, el: el, bottom: "4.5vh" }).then(function () { if (!ending && el && el.classList.contains("on")) then(); });
+    G.cue({ label: label, tap: tap, lock: lock, el: el, bottom: "calc(var(--vh) * 4.5)" }).then(function () { if (!ending && el && el.classList.contains("on")) then(); });
   }
   /* `ms` from now, or the moment you press: so a line being written can be finished like a line being spoken */
   function soon(ms, fn) {

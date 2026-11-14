@@ -688,7 +688,7 @@
             .then(function () { if (BS.juice && BS.juice.announce) BS.juice.announce("Gran's House", "forty years of her, in boxes"); return wait(1500); })
             .then(function () { A.sfx("rip", 6.5 * T, 8.8 * T); return wait(650); })
             .then(function () { A.sfx("thunk", 6.5 * T, 8.8 * T); return wait(900); })
-            .then(function () { var v = G.view(), touch = document.body.classList.contains("touch"); return G.pan(G.p.x + (touch ? 0 : 26), G.p.y - 10 + v.h1 * (touch ? 0.1 : 0.03) + 14, 1, 4200); })
+            .then(function () { var r = G.camRest(); return G.pan(r.x, r.y, 1, 4200); })       /* to where the camera will rest on this screen, so letting go of it is seamless */
             .then(function () { return wait(450); })
             .then(function () { G.directing = false; document.body.classList.remove("framed", "directing"); });
         })

@@ -531,7 +531,7 @@
   /* the world behind is hidden under the dark: no need to keep painting it */
   I.isOpen = function () { return !!st && performance.now() - st.open > 450; };
   function size() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min((window.devicePixelRatio || 1) * ((G.layout && G.layout.ui) || 1), 2.5);
     W = cv.clientWidth; H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
   }
   function loop(now) {
