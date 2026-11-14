@@ -1,7 +1,7 @@
 /* feel.js — one way of answering.
 
    Everything you do on the hill gets an answer, and the answers are kin.
-   This is where that is kept, so a lid, a door, a goal ticked and a jar
+   This is where that is kept, so a button, a door, a goal ticked and a jar
    filling all speak the same small language:
 
    · In key. The music is D major pentatonic (audio.js), so every sound
@@ -12,7 +12,9 @@
    · Things that repeat climb. The second goal of a chapter is a note
      above the first, and a jar fills up the scale.
    · A press has two halves: it goes down (dull, low) and it comes back
-     (bright, a fifth up). The lid sinks, springs, and rings.
+     (bright, a fifth up). A button is a slab with a side to it (look.css):
+     it sinks onto its side, springs back past where it sat, and the honey
+     one rings. The others say a small "pop", a fourth going up.
    · The same answer reaches the hand: a tick under a thumb, a short
      rumble in a pad.
    · What asks to be pressed keeps one time. The key on a prompt, the bead
@@ -58,8 +60,9 @@
     /* a lid: down, then back with a ring to it */
     lidDown: [function () { A.sfx("lid"); }, 8, [35, 0.2, 0]],
     go: [function () { bell(5, { g: 0.019, dur: 0.42 }); bell(8, { g: 0.015, dur: 0.6, at: 0.055 }); }, [5, 30, 12], [90, 0.2, 0.45]],
-    /* glass answers once, on the way down */
+    /* any other slab: a fingernail on a jar going down, and a small pop coming back (A up to D) */
     glassDown: [function () { A.sfx("glass"); }, 5, [25, 0.15, 0]],
+    pop: [function () { A.tone(F.hz(3), { slide: F.hz(5), type: "sine", g: 0.017, dur: 0.075, a: 0.004 }); }, 4, [20, 0.12, 0]],
     quiet: [function () { A.burst({ type: "highpass", f: 4200, g: 0.012, dur: 0.03 }); tick(0, { g: 0.006, dur: 0.03 }); }, 4],
     /* a switch: up a third is on, down a third is off */
     on: [function () { A.sfx("click"); tick(2, { g: 0.018, dur: 0.06 }); tick(3, { g: 0.02, at: 0.07, dur: 0.09 }); }, 6, [30, 0.2, 0]],
@@ -161,9 +164,10 @@
     document.body.appendChild(cv); cx = cv.getContext("2d"); size();
     window.addEventListener("resize", size);
   }
-  function rr(x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+  function rr(x, y, w, h, r) { r = Math.max(0, Math.min(r, w / 2, h / 2)); cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
   function frame(now) {
-    var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+    /* (a frame is stamped with when it began, which can be before the press that asked for it: never step backwards) */
+    var dt = clamp((now - last) / 1000 || 0.016, 0, 0.05); last = now;
     cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, innerWidth, innerHeight);
     cx.globalCompositeOperation = "lighter";
     for (var i = rings.length - 1; i >= 0; i--) {
@@ -184,7 +188,7 @@
   }
   function run() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
   F.busy = function () { return !!raf; };
-  /* a ring of light that leaves the shape it started as (a lid, a bead) */
+  /* a ring of light that leaves the shape it started as (a button, a bead) */
   F.ring = function (x, y, o) {
     if (reduced()) return;
     o = o || {}; canvas();
@@ -235,10 +239,13 @@
 
   /* ---------------- a control, pressed and let go ----------------
      hands.js says which; this is what it is like. */
+  /* (a line you choose to say has its own sound when it is said) */
+  var SLAB = "button:not(.quiet):not(.look):not(.seal):not(.phonehud):not(.goalcard):not(.copt):not([data-tab]),.btn";
   F.down = function (el, lid) { F.cue(lid ? "lidDown" : el && el.matches && el.matches(".quiet,a.quiet") ? "quiet" : "glassDown"); };
   F.went = function (el, lid) {
     if (!el || !el.getBoundingClientRect) return;
     var r = el.getBoundingClientRect();
+    if (!lid && el.matches && el.matches(SLAB)) F.cue("pop");
     if (lid) {
       F.cue("go");
       if (r.width) { F.ring(r.left + r.width / 2, r.top + r.height / 2, { w: r.width, h: r.height, grow: 20 }); F.sparks(r.left + r.width / 2, r.top + 3, { n: Math.round(clamp(r.width / 18, 8, 16)), spread: r.width * 0.42 }); }
@@ -262,12 +269,14 @@
      Animations with these names all run at --beat (look.css); starting them
      from the same instant keeps them in step however late each one began.
      F.phase() is the same clock for anything drawn by hand (the wisps). */
-  var BEAT = 1600, KEEP = { beatkey: 1, beatspark: 1, wisp: 1, cuebreathe: 1, cuekey: 1, cuering: 1, focusbreath: 1, bob: 1 };
+  var BEAT = 1600, KEEP = { beatkey: 1, beatspark: 1, wisp: 1, cuebreathe: 1, cuekey: 1, cuering: 1, focusbreath: 1, bob: 1, breathe: 1, shine: 1 };
   F.phase = function (div) { var b = BEAT / (div || 1); return (performance.now() % b) / b; };
-  document.addEventListener("animationstart", function (e) {
-    if (!KEEP[e.animationName] || !document.getAnimations) return;
+  function inStep() {
+    if (!document.getAnimations) return;
     try { document.getAnimations().forEach(function (a) { if (KEEP[a.animationName] && a.startTime !== 0) a.startTime = 0; }); } catch (err) { }
-  }, true);
+  }
+  document.addEventListener("animationstart", function (e) { if (KEEP[e.animationName]) inStep(); }, true);
+  inStep();                         /* (Begin was breathing before this script arrived) */
 
   /* ---------------- through a door ----------------
      The picture closes to a circle on Wren, stops for a breath with only

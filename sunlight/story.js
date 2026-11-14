@@ -170,7 +170,7 @@
     if (has(id)) return Promise.resolve();
     G.s.items[id] = Date.now(); G.s.notes[id] = 1;
     var it = ITEMS[id];
-    return G.item({ key: id, name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { G.hud(); G.save(); });
+    return G.item({ key: id, name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { if (id !== "book" && BS.ui && BS.ui.bookNew) BS.ui.bookNew(); G.hud(); G.save(); });
   }
 
   /* ---------------- Gran's pages (unlocked as the book is read) ---------------- */

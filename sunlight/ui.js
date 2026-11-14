@@ -26,7 +26,7 @@
     var el = $(which === "book" ? "book" : "menu");
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
-    if (which === "book") showTab(tab || ui.lastTab || "pages");
+    if (which === "book") { showTab(tab || ui.lastTab || "pages"); if (G.s) G.s.bookNew = 0; pip(); }
     if (which === "menu") { syncMenu(); duck(true); }
     setTimeout(function () { var f = el.querySelector("[data-focus]") || el.querySelector("button"); f && f.focus({ preventScroll: true }); }, 30);
   };
@@ -196,7 +196,7 @@
   $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); if (!$("help").hidden) $("help").scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" }); });
   $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
-    ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going" }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
+    ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going", danger: true }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
   });
 
   /* ---------------- the portrait in the dialogue box ---------------- */
@@ -214,13 +214,13 @@
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
-  /* with a save, Continue is the one gold lid on the screen; beginning again is glass, down with the others */
-  if (saved) { $("t-new").className = "ghost"; $("t-new").textContent = "Begin again"; $("tmore").insertBefore($("t-new"), $("tmore").firstChild); }
+  /* with a save, Continue is the one honey slab on the screen; beginning again is a paper label, down with the others */
+  if (saved) { $("t-new").className = "ghost"; $("t-new").innerHTML = '<svg class="t" aria-hidden="true"><use href="#t-again"/></svg>Begin again'; $("tmore").insertBefore($("t-new"), $("tmore").firstChild); $("tmore").classList.add("three"); }
   /* a question on a card of the game's own (hands.js), or the browser's if that's missing */
   function ask(o) { return BS.hands && BS.hands.ask ? BS.hands.ask(o) : Promise.resolve(confirm(o.title + " " + o.text)); }
   if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
-    /* the most important press in the game gets the most: the lid rings, the
+    /* the most important press in the game gets the most: the button rings, the
        sun over the house flares, and only then does the picture go. (It used
        to cut to black on the frame you pressed.) A second press while it
        rings is not a second beginning. */
@@ -269,7 +269,7 @@
   }
   $("t-new").addEventListener("click", function () {
     if (!saved) { begin(false); return; }
-    ask({ title: "Begin again?", text: "From Monday noon. This replaces your saved game.", yes: "Begin again", no: "Keep my place" }).then(function (yes) { if (yes) begin(false); });
+    ask({ title: "Begin again?", text: "From Monday noon. This replaces your saved game.", yes: "Begin again", no: "Keep my place", danger: true }).then(function (yes) { if (yes) begin(false); });
   });
   $("t-continue").addEventListener("click", function () { begin(true); });
   $("t-sound").addEventListener("click", function () { A.init(); A.theme(); });
@@ -280,7 +280,7 @@
     var h = $("howto"), slides = h.querySelectorAll(".hs"), dots = h.querySelectorAll(".hdots i"), i = 0;
     h.hidden = false; requestAnimationFrame(function () { h.classList.add("on"); });
     drawHowArt();
-    function show(k) { i = k; slides.forEach(function (s, j) { s.classList.toggle("on", j === i); }); dots.forEach(function (d, j) { d.classList.toggle("on", j === i); }); $("h-next").textContent = i === slides.length - 1 ? "Let's go" : "Next"; A.sfx("page"); }
+    function show(k) { i = k; slides.forEach(function (s, j) { s.classList.toggle("on", j === i); }); dots.forEach(function (d, j) { d.classList.toggle("on", j === i); }); $("h-next").firstChild.textContent = i === slides.length - 1 ? "Let's go" : "Next"; A.sfx("page"); }
     function close() { h.classList.remove("on"); setTimeout(function () { h.hidden = true; }, 400); document.removeEventListener("keydown", key); done(); }
     function key(e) { if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE" || e.code === "ArrowRight") { e.preventDefault(); next(); } if (e.code === "Escape") close(); }
     function next() { if (i < slides.length - 1) show(i + 1); else close(); }
@@ -418,7 +418,7 @@
     if (safeToReload()) { refreshNow(); return; }
     try { if (G.s) G.save(); } catch (e) { }
     upd = document.createElement("div"); upd.className = "updcard"; upd.setAttribute("role", "status");
-    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button">Refresh</button><button type="button" class="x" aria-label="Later">×</button>';
+    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button"><svg class="t" aria-hidden="true"><use href="#t-again"/></svg>Refresh</button><button type="button" class="x" aria-label="Later"><svg class="t" aria-hidden="true"><use href="#t-x"/></svg></button>';
     upd.querySelector("button").addEventListener("click", refreshNow);
     upd.querySelector(".x").addEventListener("click", function () { upd.classList.remove("on"); });
     document.body.appendChild(upd);
@@ -455,6 +455,7 @@
     /* the transient line goes in whichever half of the screen you aren't in */
     if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.5); }
     var gc = $("goalcard");
+    pip();
     if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
     var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];
     if (!gs.length || S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf("after")) { gc.hidden = true; return; }
@@ -467,13 +468,25 @@
   /* the goal card: tap it and the gold thread shows you the way (or, if there's nowhere to go, opens the book) */
   $("goalcard").addEventListener("click", function () { if (G.cut) return; if (!(BS.guide && BS.guide.summon("ask"))) ui.open("book", "pages"); });
   ui.bookPing = function () { var b = $("hudbook"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping"); };
+  /* a small red count on the book's button: what has been written into it since you last had it
+     open (a thing seen through the drop, a field note). Opening the book clears it. */
+  var pipN = -1;
+  function pip() {
+    var n = G.s && G.s.items && G.s.items.book ? (G.s.bookNew || 0) : 0;
+    if (n === pipN) return;
+    var el = $("bookpip"), more = pipN >= 0 && n > pipN; pipN = n;
+    el.hidden = !n; el.textContent = n > 9 ? "9+" : String(n);
+    $("hudbook").setAttribute("aria-label", "Gran's book (B)" + (n ? ", " + n + " new" : ""));
+    if (n && more) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
+  }
+  ui.bookNew = function () { if (!G.s || G.mode === "book") return; G.s.bookNew = (G.s.bookNew || 0) + 1; pip(); };
   ui.flyToBook = function () {
     var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);
     var r = $("hudbook").getBoundingClientRect();
     f.style.left = (window.innerWidth / 2 - 22) + "px"; f.style.top = (window.innerHeight / 2 - 22) + "px";
     requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.transform = "translate(" + (r.left + r.width / 2 - window.innerWidth / 2) + "px," + (r.top + r.height / 2 - window.innerHeight / 2) + "px) scale(.3)"; f.style.opacity = ".2"; }); });
     setTimeout(function () {
-      f.remove(); ui.bookPing(); A.sfx("seen");
+      f.remove(); ui.bookPing(); ui.bookNew(); A.sfx("seen");
       var n = Object.keys(G.s.seen).length;
       G.toast("Seen through the drop: " + n + " of " + BS.lens.LOOKS.length, 2400);
       G.s.badges = G.s.badges || {};

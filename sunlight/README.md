@@ -244,9 +244,9 @@ Captions for meaningful sounds are on by default.
 | `story.js` | Every beat, chapter by chapter, and everything you can press E on |
 | `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending |
 | `hands.js` | Whose hands are playing (keys, thumbs, a pad): the beads, the names of things, keyboard and pad on every card |
-| `feel.js` | What a press is like: notes in the music's key, the tick in the hand, the spring in a lid, the circle a door closes to |
-| `look.css` | Every control and card: the type, the lid, the glass, the paper |
-| `fonts/` | Six small typefaces, self-hosted, with their licenses |
+| `feel.js` | What a press is like: notes in the music's key, the tick in the hand, the spring in a button, the circle a door closes to |
+| `look.css` | Every control and card: the type, the buttons, the paper |
+| `fonts/` | Seven small typefaces, self-hosted, with their licenses |
 
 `tools/make-icons.js` regenerates the app icons (needs Playwright's
 Chromium). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
@@ -265,7 +265,7 @@ can't be lost. Saves on the device only; nothing is sent anywhere.
 
 ## Atmosphere (atmos.js)
 
-- **Wind:** one travelling gust field (`G.gust`). Grass tufts, lavender and tree crowns all lean with the same wave, so you can watch a breeze cross the hill.
+- **Wind:** one traveling gust field (`G.gust`). Grass tufts, lavender and tree crowns all lean with the same wave, so you can watch a breeze cross the hill.
 - **Mist:** a tileable noise texture that drifts slowly. It is thickest at dawn, in the woods and in the low hollow by the pond, and thin at dusk and night.
 - **Drift:** seeds and petals float on the wind; leaves fall in the woods.
 - **Water:** by day the pond reflects the sky and catches sun glints. At night it holds its own stars and a wobbling moon, drawn after the darkness layer so they shine through it.
@@ -795,7 +795,7 @@ The pause screen, Gran's living book and the cue the game waits on have
 their own sections above, and keep the shape they were given there. This
 is the type and the materials that they, and everything else, are made of.
 
-### Four hands, and one voice that isn't a hand
+### Four hands, one voice that isn't a hand, and the buttons
 
 Who is speaking is told by the letters, before the words.
 
@@ -806,50 +806,94 @@ Who is speaking is told by the letters, before the words.
 | Wren | Shadows Into Light Two | Your page, the map, the last screen |
 | The clock, and Dad | Permanent Marker | FRI · THU · MON, the whiteboard, the moving boxes |
 | The phone | The device's own system face | The signal and battery chip, the phone screens |
+| Buttons | Fraunces, at its blackest and softest | The word on anything you press, and the key named on a prompt |
 
 * **Mo is none of them.** Mo's line stays the book's italic, gold, in no
   box and no one's handwriting. The novel never says whose voice it is,
   and the type doesn't either.
-* **No bold anywhere.** Emphasis is italic, as in the book. Labels are
-  letterspaced small capitals, from a face cut for it (the small caps of
-  the SemiBold, so they hold up at the size of a label). If that face
+* **Nothing you read is bold.** Emphasis is italic, as in the book. Labels
+  are letterspaced small capitals, from a face cut for it (the small caps
+  of the SemiBold, so they hold up at the size of a label). If that face
   never arrives, `hands.js` notices and the labels become plain capitals.
+* **The one heavy face is on the buttons.** Fraunces is an old-style
+  serif, kin to the Garamond, with a soft, very black cut made for
+  exactly this. One instance of it is kept (weight 900, as soft as it
+  goes, 11 KB), and it is set nowhere but on things you press.
 * Figures are old-style, so a number sits in a sentence like a word.
-* The faces are six files in `fonts/` (about 175 KB together; the three
-  book faces are preloaded, the rest load when first set). Nothing is
+* The faces are seven files in `fonts/` (about 188 KB together; the three
+  book faces and the button face are preloaded, the rest load when first
+  set). Nothing is
   fetched from a font server. Licenses are beside them: `OFL.txt`, and
   `APACHE-2.0.txt` for the marker.
 
-### Round is for pressing, square is for reading
+### Built like toys
 
-A lid, a drop, a lens, a bead, a wax seal: anything round can be pressed.
-A page, a slip, a card: anything square is to be read. The one family of
-exceptions is the book's own, where you turn to a ribbon, unfold a note or
-choose a line; those keep the shape of the thing they are.
+A button is a toy, and is built like one, the way the games that are best
+at buttons build theirs. You can tell it from across the room, you know
+what it will do before you read it, and it moves when you touch it.
 
-Three materials, all lit from the upper left with their shadow down-right,
-which is the light rule the hill already keeps:
+Every one is made of the same five things:
 
-* **The gold lid.** One to a screen: the thing that takes you on (Begin,
-  Continue, Next, Keep it, Resume). A jar lid seen from above,
-  with a worn-bright face, a knurled rim for its thickness, and its word
-  engraved in small capitals. Pressed, it goes down onto its rim. It
-  wears: the more it has been pressed on this device, the brighter the
-  face.
-* **Jar glass.** Every other button: dark glass with the light caught
-  on its upper-left edge. The round ones are beads.
-* **Paper.** Cards are leaves. The dark ones are the night side; a moment
-  that matters (a thing found, a question asked, the pause card) gets a
-  tooled double gold rule. Gran's book keeps the binding `gbook.js` gives
-  it (leather, old paper, silk ribbons, a wax seal) and is set in the same
-  hands: her pages and the line under the plate in hers, the labels in
-  small capitals, your page in yours. Until `gbook.js` has rebound it, or
-  if it can't, the plain book underneath is parchment with index tabs.
+* **A slab** of one color, lighter at the top than the bottom.
+* **A dark line** round it, so it holds its shape over grass, dark paper,
+  parchment or a whiteboard.
+* **A side.** The slab has thickness, and you can see it: a darker band
+  under the face, with the line round that too. Pressed, the face goes
+  down by exactly that much and the side is gone.
+* **A shine:** a dome of light on its top half, and a bright line along
+  its top edge.
+* **Fat lettering,** white, with the same dark line round it, and a sign
+  cut the same way wherever a sign helps (a play arrow on Resume, a tick
+  on Keep it, a jar on Save).
 
-The small parts follow: a slider is a brass knob in a groove that fills
-behind it, and clicks once a notch; a switch is lit when it is on; a key
-named in a line of text is a small lid. Out-of-the-way and one-way things
-(Start again, Back to the desk) are quiet links, never a lid.
+The color says what it does, and the colors are Gran's shelf:
+
+| Color | What it is for | Where |
+|---|---|---|
+| Honey | The one thing on a screen that takes you on. One to a screen | Begin, Continue, Next, Keep it, Resume, Go on |
+| Jar glass, the blue-green of an old preserving jar | It does a thing | The book and the menu at the top, the tiles on the pause card, Look up |
+| A paper label, lettered in ink | A small matter | How to play, Theme, Skip, Begin again, Pick the oats back up |
+| Jam | It stops, closes or can't be undone | Later on the update card, Start again on its question, the close on the plain book |
+| Foxfire green | A switch that is on; the bead when something small is near | Options; the lens bead |
+
+And a few shapes:
+
+* **Round** is a thing with only a sign on it: the two at the top of the
+  screen, the beads under a thumb, a close.
+* **A tile** is a sign over its name. The pause card has a row of them
+  under Resume, sharing the row equally however many there are (the
+  book's is not there until the book is yours). A tile whose drawer is
+  open turns honey.
+* **Continue** is the biggest thing on the title: a honey slab with a
+  photograph of where you were stuck to it at an angle, the day, the
+  chapter and how far.
+* **The main one is alive.** Begin, or Continue, breathes on the beat
+  (below), and the light crosses it every other beat.
+* **A tag** says what to press: the name of the thing in reach, the cue
+  the game waits on and the first-steps hint are cream paper tags, and
+  the key each one names is a small honey slab.
+* **A count** on the book: a small red number when something has been
+  written into it since you last had it open (a thing seen through the
+  drop, a field note). Opening the book clears it. It counts nothing
+  else, and it is not there before the book is yours.
+
+The small parts follow. A slider is a honey knob on a groove that fills
+behind it, and clicks once a notch. A switch is a knob in a slot, green
+when it is on. A line you might say is a slip of paper, and the one you
+are on is honey. Out-of-the-way and one-way things (Start again, Back to
+the desk) are quiet links and not buttons at all.
+
+Some things you can press are something else already, and stay that: the
+phone at the top is a phone, the goal card a card, the ribbons in Gran's
+book ribbons, the things seen through the drop are slides, and the book
+shuts with its wax seal.
+
+What you read is not a toy. Cards are leaves of lamplit dark paper; a
+moment that matters (a thing found, a question asked, the pause card)
+gets a tooled double gold rule. Gran's book keeps the binding `gbook.js`
+gives it (leather, old paper, silk ribbons, a wax seal) and is set in the
+hands above. Until `gbook.js` has rebound it, or if it can't, the plain
+book underneath is parchment with index tabs.
 
 ### Whose hands
 
@@ -858,8 +902,8 @@ the moment it changes: pick up a pad mid-game and the prompts say A.
 
 * **Prompts** show the control as it is in these hands: the letter on a
   keyboard, the button on a pad, and under a thumb the sign that is on the
-  bead itself. The cue (`G.cue`) is the same slip with the same lid, and
-  under a thumb a ring to tap; the first-steps hint names the bead by its
+  bead itself. The cue (`G.cue`) is the same tag with the same honey key,
+  and under a thumb a ring to tap; the first-steps hint names the bead by its
   sign, and has the prompt's place on a phone while it is up.
 * **Sentences** do the same. The script writes `[act]`, `[lens]`,
   `[crank]` or `[book]` and it is read as E, A or "the spark". `[(act)]`
@@ -867,22 +911,27 @@ the moment it changes: pick up a pad mid-game and the prompts say A.
   lit up to say so. `{Tap|Click}` is a word that depends on the hands,
   thumb first. Nothing in the script names a key a phone doesn't have.
 * **Thumbs.** The stick comes to wherever the left thumb lands. The beads
-  are things, and they are only there when the thing is: the spark fills
-  with gold when something is in reach; the lens bead is a dead phone
+  are things, and they are only there when the thing is: the spark turns
+  to honey when something is in reach; the lens bead is a dead phone
   until the drop is made; the crank arrives with the lantern, glows as the
   lamp does, and shows your arm tiring.
 * **Keyboard and pad, everywhere.** On the title, the pause screen, the
   book and every card: arrows or the d-pad walk the controls, Enter or A presses
-  the lit one (with nothing chosen, the lid), Esc or B backs out, and Tab
-  stays inside the card that is open. In the book, left and right turn the
+  the lit one (with nothing chosen, the honey one), Esc or B backs out,
+  and Tab stays inside the card that is open. The one the keys are on has
+  a white line round the whole slab, side and all, like the edge of a
+  sticker (umber on the book's paper, where white would not show). In the book, left and right turn the
   tabs. A knob turns with left and right.
-* **Start again asks on a card of its own,** with the safe answer already
-  in focus, instead of a browser dialog.
-* A press has a sound (a lid, glass, a notch) and, under a thumb on a
+* **Start again asks on a card of its own,** instead of a browser dialog.
+  The answer that wipes the save is jam; the safe one is honey, and has
+  the keys already.
+* A press has a sound (a jar lid, glass, a notch) and, under a thumb on a
   device that has it, a tick in the hand. The sound follows the menu's
   volume, the tick its Haptics switch. What the sounds are, and why, is
   the next section.
 * In the dark the HUD dims with the room, and comes back with the light.
+* While you are choosing what to say, and on the last page, the beads get
+  out of the way.
 
 ### Any screen
 
@@ -890,8 +939,8 @@ Checked from a 320-pixel phone to a desktop, upright and on its side, with
 larger text and with reduced motion.
 
 * The one thing to press is always on the screen. On the found-it card the
-  words scroll and fade inside the gold rule while the lid stays put under
-  them. Through the lens, the note scrolls and the glass and the way back
+  words scroll and fade inside the gold rule while the button stays put
+  under them. Through the lens, the note scrolls and the glass and the way back
   stay where they are; the clock and the goal step back while you look.
 * The how-to card is as tall as its tallest slide, on any screen, so it
   never jumps and never spills.
@@ -901,6 +950,9 @@ larger text and with reduced motion.
   the title gives up its sun before it gives up a word.
 * The pause card and its options scroll inside the gold rule and fade at
   its edges, so a row is never sliced by the frame.
+* With a save, the three small buttons under Continue stay in one row
+  down to a 320-pixel phone (their signs come off first).
+* On a phone held sideways the oats game leaves room for its buttons.
 * Reduced motion leaves every control at rest in its finished state.
 
 ### Put right along the way
@@ -925,7 +977,7 @@ larger text and with reduced motion.
 Everything you do on the hill gets an answer, and the answers are kin.
 `hands.js` says what was pressed. `feel.js` says what that is like: the
 note, the tick in the hand, the way the thing moves. It is a small grammar,
-and a lid, a door, a goal ticked off and a jar filling all speak it.
+and a button, a door, a goal ticked off and a jar filling all speak it.
 
 ### One key
 
@@ -937,8 +989,8 @@ in `audio.js` (0 is the D above middle C, 5 the D above that).
 
 | What you did | What you hear |
 |---|---|
-| Press a lid, and let go | A thock from A down to D; then D and A ringing above it |
-| Press glass | A fingernail on a jar, on D |
+| Press the honey button, and let go | A jar lid: a thock from A down to D; then D and A ringing above it |
+| Press any other button, and let go | A fingernail on a jar, on D; then a small pop, A up to D |
 | Throw a switch | Its click, then F sharp up to A for on, A down to F sharp for off |
 | Turn a knob | One notch, from F sharp to the F sharp two octaves up along its groove |
 | Step down a list, or up | A step down the scale, or up |
@@ -986,11 +1038,13 @@ and falls as it shuts. Nothing breaks it, so it never has to be learned.
 
 Down is dull and low. Back is bright: a D, and the A a fifth over it.
 
-* **A lid** sinks onto its rim, springs up past where it sat and settles;
-  the light crosses its face once; a ring leaves its shape and a few
-  filings fly.
-* **Glass** wobbles once. **A ribbon** in the book swings from where it is
-  sewn in. **The wax seal** gives under the thumb.
+* **Every button** sinks onto its side and is a little squashed there,
+  springs up past where it sat, and settles. That takes under four tenths
+  of a second.
+* **The honey one** also rings; the light crosses its face once; a ring
+  leaves its shape and a few sparks fly. The others say pop.
+* **A ribbon** in the book swings from where it is sewn in. **The wax
+  seal** gives under the thumb.
 * **A bead** under a thumb gives off a ripple going down and springs back
   past its size coming up, so even the quickest tap is seen to land. The
   stick, let go, springs home.
@@ -1002,8 +1056,8 @@ Down is dull and low. Back is bright: a D, and the A a fifth over it.
 
 What asks to be pressed keeps one time, 1.6 seconds, from one clock, however
 late each of them started: the key on a prompt, the bead under your thumb
-and the spark on it, the cue the game waits on, and whatever the keys or
-the pad are on. The ring that opens round the thing itself, and the mark
+and the spark on it, the cue the game waits on, the breath of Begin or
+Continue on the title, and whatever the keys or the pad are on. The ring that opens round the thing itself, and the mark
 that says there is more to read, go twice to it.
 
 ### Thresholds
@@ -1013,8 +1067,8 @@ that says there is more to read, go twice to it.
   took, about nine tenths of a second. It is only for doors. When the
   story moves you, or a night goes by, it is still the plain fade, which is
   how time passes.
-* **Begin.** The most important press in the game gets the most. The lid
-  rings, the sun over the house flares, the picture warms, and then it goes
+* **Begin.** The most important press in the game gets the most. The
+  button rings, the sun over the house flares, the picture warms, and then it goes
   down into the dark the drive comes up out of. That takes half a second.
   It used to cut to black on the frame you pressed. A second press while it
   rings is not a second beginning.
@@ -1033,7 +1087,7 @@ from the swing, during the run, or while the game is waiting on you.
 ### Less motion
 
 Reduced motion keeps every note and drops the rest: no springs, sparks or
-ripples, a door is the plain fade, the pause card is simply there, Begin
+ripples, nothing breathes or shines, a door is the plain fade, the pause card is simply there, Begin
 doesn't hold, and an empty press is a small sound with Wren's feet on the
 ground.
 
@@ -1046,3 +1100,12 @@ ground.
 * A hop was a little higher on a slow device than a fast one. This was
   Beck's hop; it is everyone's now.
 * A quick tap on a bead showed no press at all.
+* The last button of the game, Stay on the hill, never appeared for anyone
+  playing with keys or a pad: it is given the keys before it fades in, and
+  the breathing of whatever has the keys replaced its fade. (That one was
+  new with the beat. It comes in on its own now.)
+* The sparks and rings off a press could stop for the rest of a session:
+  a frame stamped earlier than the press that asked for it stepped time
+  backwards, and the drawing threw.
+* On the question that wipes a save, the bright button was the one that
+  wiped it.
