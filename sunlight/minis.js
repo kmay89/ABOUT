@@ -108,7 +108,7 @@
   var LEVELS = {
     dawn: {
       title: "A path of oatmeal", oats: 3, range: 4,
-      hint: "Tap the ground to lay a flake of oats. The gold grows toward food it can smell — about four steps away — and it will not cross the sun.",
+      hint: "{Tap the ground|Pick a square and press [act]} to lay a flake of oats. The gold grows toward food it can smell — about four steps away — and it will not cross the sun.",
       rows: ["M..sss....", "...sss....", ".........G", ".##....ss.", "....ss.ss.", "....ss...."]
     },
     hedge: {
@@ -125,10 +125,10 @@
         if (ch === "M") net[x + "," + y] = 1;
         if (ch === "G") goal = [x, y];
       }
-      slime = { L: L, w: w, h: h, cells: cells, net: net, edges: [], oats: [], left: L.oats, goal: goal, cur: [1, 1], anim: [], res: res, won: false, t: 0, msg: L.hint };
+      slime = { L: L, w: w, h: h, cells: cells, net: net, edges: [], oats: [], left: L.oats, goal: goal, cur: [1, 1], anim: [], res: res, won: false, t: 0, msg: G.named(L.hint) };
       $("mini").className = "mini on slime";
       $("mtitle").textContent = L.title;
-      $("mhint").textContent = L.hint;
+      $("mhint").textContent = G.named(L.hint);
       $("mreset").hidden = false;
       $("mdone").hidden = true;
       G.mode = "slime";
@@ -196,7 +196,7 @@
     var S = slime, L = S.L;
     S.net = {}; S.edges = []; S.oats = []; S.left = L.oats; S.anim = [];
     for (var y = 0; y < S.h; y++) for (var x = 0; x < S.w; x++) if (L.rows[y][x] === "M") S.net[x + "," + y] = 1;
-    $("mhint").textContent = L.hint; A.sfx("back");
+    $("mhint").textContent = G.named(L.hint); A.sfx("back");
   }
   $("mreset").addEventListener("click", function () { if (slime) resetSlime(); });
   $("mdone").addEventListener("click", function () { closeSlime(); });
@@ -287,7 +287,7 @@
       pile = { phase: "climb", steps: 0, depth: 0, still: 0, t: 0, voice: false, presses: [], res: res, pour: 0, msg: "" };
       $("mini").className = "mini on sand";
       $("mtitle").textContent = "The working pile";
-      $("mhint").textContent = "The second board is just out of sight. Up the side of the pile, two seconds — press up to climb.";
+      $("mhint").textContent = G.named("The second board is just out of sight. Up the side of the pile, two seconds — {push|press} up to climb.");
       $("mreset").hidden = true; $("mdone").hidden = true; $("moats").textContent = "";
       G.mode = "sand";
       mcv.width = Math.min(window.innerWidth - 24, 720); mcv.height = Math.round(mcv.width * 0.5);
@@ -319,7 +319,7 @@
         if (P.phase === "sink" && P.still > 2.2) {
           P.phase = "lunge";
           if (!P.voice) { P.voice = true; A.sfx("mo"); $("mmo").innerHTML = "<em>Be still, child. You can't out-thrash a hill. Pick one way out, and go all at once, and don't argue with it.</em>"; $("mmo").classList.add("on"); }
-          $("mhint").textContent = "The pipe. One way out. Everything at once — press E once.";
+          $("mhint").textContent = G.named("The pipe. One way out. Everything at once — press [act] once.");
         }
         if (P.phase === "lunge" && G.tap("act")) { P.presses.push(P.t); P.lungeAt = P.lungeAt || P.t; }
         if (P.lungeAt != null && P.t - P.lungeAt > 0.45) {
@@ -347,7 +347,7 @@
     x.fillStyle = "#dcc996"; x.beginPath(); x.moveTo(L, gy); x.lineTo(PK, top); x.lineTo(R, gy); x.closePath(); x.fill();
     for (var i = 0; i < 500; i++) { var u = BS.hash(i, 1, 70), v = BS.hash(i, 2, 70), px = L + (R - L) * u, ty = gy - Math.min(px - L, R - px) * tan; x.fillStyle = ["#c9b682", "#ece0b4", "#bba574"][i % 3]; x.fillRect(px, ty + (gy - ty) * v, 2, 2); }
     x.strokeStyle = "rgba(90,70,40,.55)"; x.lineWidth = 1.5; x.beginPath(); x.arc(R, gy, 46, Math.PI, Math.PI + 0.593); x.stroke();
-    x.fillStyle = "rgba(70,50,30,.85)"; x.font = "italic 14px Georgia, serif"; x.textAlign = "right"; x.fillText("≈34° — the angle of repose", R - 52, gy - 8); x.textAlign = "left";
+    x.fillStyle = "rgba(70,50,30,.85)"; x.font = "italic 15px 'Sunlight Book', Georgia, serif"; x.textAlign = "right"; x.fillText("≈34° — the angle of repose", R - 52, gy - 8); x.textAlign = "left";
     /* the trailer edge, the pipe, Beck flat at the firm edge */
     var after = P.phase !== "climb";
     x.fillStyle = "#3e6a46"; x.fillRect(W * 0.9, gy - H * 0.5, W * 0.1, H * 0.5);
@@ -376,7 +376,7 @@
     if (P.phase === "sink" || P.phase === "lunge") {
       var sv = Math.min(1, P.still / 2.2);
       x.fillStyle = "rgba(40,30,20,.35)"; x.fillRect(16, 16, 160, 10); x.fillStyle = sv >= 1 ? "#7fd67f" : "#e8a33a"; x.fillRect(16, 16, 160 * sv, 10);
-      x.fillStyle = "rgba(40,30,20,.9)"; x.font = "13px Georgia, serif"; x.fillText(sv >= 1 ? "still — now, once" : "be still", 184, 25);
+      x.fillStyle = "rgba(40,30,20,.9)"; x.font = "italic 15px 'Sunlight Book', Georgia, serif"; x.fillText(sv >= 1 ? "still — now, once" : "be still", 184, 25);
     }
   }
 

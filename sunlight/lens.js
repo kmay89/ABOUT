@@ -177,13 +177,12 @@
     foxfire: function (x, S, t, st) {
       x.fillStyle = "#120e0a"; x.fillRect(0, 0, S, S);
       x.drawImage(base("ffwood", S, function (x, S, r) { for (var j = 0; j < S; j += 3) { x.fillStyle = "rgba(60,40,24," + (0.3 + r() * 0.5) + ")"; x.fillRect(0, j, S, 2); } }), 0, 0);
-      var E = net("foxfire", S, 70, 34), wash = st && st.wash || 0;
-      x.globalCompositeOperation = "lighter";
-      E.forEach(function (e, i) {
-        var a = (0.35 + 0.25 * Math.sin(t * 0.8 + i)) * (1 - wash);
-        x.strokeStyle = "rgba(160,230,120," + a + ")"; x.lineWidth = e[2]; x.beginPath(); x.moveTo(e[0].x, e[0].y); x.lineTo(e[1].x, e[1].y); x.stroke();
-      });
-      x.globalCompositeOperation = "source-over";
+      /* magnified, the foxfire is frost: fronds feathering out of the seams of the wood, breathing */
+      var wash = st && st.wash || 0, key = "frost" + S;
+      if (!nets[key]) { var fr = R(91), roots = []; for (var i = 0; i < 7; i++) roots.push([S * (0.1 + fr() * 0.8), S * (0.15 + fr() * 0.7), (fr() < 0.5 ? 0 : Math.PI) + (fr() - 0.5) * 0.9]); nets[key] = BS.lace.fronds({ roots: roots, len: S * 0.42, seed: 92, w: S / 95, depth: 3, pal: BS.lace.FOX, bands: 14 }); }
+      x.save(); x.globalCompositeOperation = "lighter";
+      BS.lace.draw(x, nets[key], { x: 0, y: 0 }, t, 1 - wash, { res: 1, per: 18 });
+      x.restore();
     },
     washout: function (x, S, t) {
       x.fillStyle = "#e8e2d4"; x.fillRect(0, 0, S, S);
@@ -193,29 +192,20 @@
     /* Mo: a city, a galaxy, rivers seen from space — and the rivers move */
     mo: function (x, S, t, st) {
       var wash = st && st.wash || 0, dry = st && st.dry || 0;
-      x.fillStyle = dry ? "#3a3428" : "#16120c"; x.fillRect(0, 0, S, S);
-      x.drawImage(base("mowood", S, function (x, S, r) { for (var j = 0; j < S; j += 4) { x.fillStyle = "rgba(70,60,50," + (0.2 + r() * 0.4) + ")"; x.fillRect(0, j, S, 3); } }), 0, 0);
-      var E = net("mo", S, 90, 30);
+      /* the old gray wood of the shelf, its grain like the sea floor */
+      x.drawImage(base("mowood2", S, function (x, S, r) {
+        var g = x.createRadialGradient(S * 0.45, S * 0.45, S * 0.1, S / 2, S / 2, S * 0.75); g.addColorStop(0, "#2a241c"); g.addColorStop(1, "#0e0b08"); x.fillStyle = g; x.fillRect(0, 0, S, S);
+        for (var j = 0; j < 46; j++) { var y0 = r() * S, a = (r() - 0.5) * 0.15; x.strokeStyle = "rgba(" + (r() < 0.5 ? "90,80,64" : "20,16,12") + "," + (0.2 + r() * 0.3) + ")"; x.lineWidth = 0.6 + r() * 2.4; x.beginPath(); x.moveTo(-10, y0); for (var xx = -10; xx < S + 20; xx += 20) x.lineTo(xx, y0 + Math.sin(xx * 0.02 + j) * 4 + xx * a); x.stroke(); }
+        for (j = 0; j < 9; j++) { var kx = r() * S, ky = r() * S; x.strokeStyle = "rgba(20,14,10,.35)"; for (var q = 1; q < 5; q++) { x.lineWidth = 1; x.beginPath(); x.ellipse(kx, ky, q * 5, q * 2.2, 0, 0, 6.3); x.stroke(); } }
+        /* a corner of the waxed cloth, pale and blurred, out of focus */
+        x.save(); x.filter = "blur(6px)"; x.fillStyle = "rgba(220,206,160,.25)"; x.beginPath(); x.moveTo(S * 0.68, -10); x.lineTo(S + 10, -10); x.lineTo(S + 10, S * 0.42); x.closePath(); x.fill(); x.restore();
+      }), 0, 0);
       /* shuttle streaming: flow one way, pause all together, flow back */
       var period = 9, ph = (t % period) / period, dir = ph < 0.45 ? 1 : ph < 0.5 ? 0 : ph < 0.95 ? -1 : 0;
-      var glow = (1 - wash) * (1 - dry);
-      E.forEach(function (e, i) {
-        var w = e[2] * (dry ? 0.6 : 1.4);
-        x.strokeStyle = dry ? "rgba(150,130,70,.8)" : "rgba(255,200,70," + (0.35 + 0.5 * glow) + ")";
-        x.lineWidth = w + 2; x.beginPath(); x.moveTo(e[0].x, e[0].y); x.lineTo(e[1].x, e[1].y); x.stroke();
-        if (!dry) { x.strokeStyle = "rgba(255,240,170," + (0.6 * glow) + ")"; x.lineWidth = w * 0.5; x.stroke(); }
-      });
-      if (dry || glow < 0.15) return;
-      x.globalCompositeOperation = "lighter";
-      E.forEach(function (e, i) {
-        for (var k = 0; k < 3; k++) {
-          var u = ((t * 0.35 * (dir || 0.0001) + k / 3 + i * 0.13) % 1 + 1) % 1;
-          if (dir === 0) u = (k / 3 + i * 0.13) % 1;
-          var px = e[0].x + (e[1].x - e[0].x) * u, py = e[0].y + (e[1].y - e[0].y) * u;
-          circle(x, px, py, 1.6 + e[2] * 0.4, "rgba(255,230,140," + (0.55 * glow) + ")");
-        }
-      });
-      x.globalCompositeOperation = "source-over";
+      /* how far the current has carried, eased through each pause */
+      var cyc = Math.floor(t / period), flowT = 0, inP = t - cyc * period;
+      flowT = Math.min(inP, period * 0.45) - Math.max(0, Math.min(inP - period * 0.5, period * 0.45));
+      BS.lace.drawLens(x, S, t, { dry: dry, wash: wash, dir: dir, flowT: flowT * 2.2 });
       st && (st.dir = dir);
     },
     stone: function (x, S, t) {

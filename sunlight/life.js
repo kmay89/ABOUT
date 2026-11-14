@@ -183,7 +183,7 @@
       var hop = st(m.id).hop || 0, bx = p.x - cam.x + 6, by = p.y - cam.y - 31 - hop - Math.sin(age * 3) * 0.6;
       ctx.save(); ctx.globalAlpha = 1 - out; ctx.translate(bx, by); ctx.scale(s, s);
       if (m.kind === "z") {
-        ctx.font = "italic 700 5px Georgia, serif"; ctx.fillStyle = "rgba(240,240,255,.9)";
+        ctx.font = "italic 5.5px 'Sunlight Book', Georgia, serif"; ctx.fillStyle = "rgba(240,240,255,.9)";
         for (var i = 0; i < 3; i++) { var a = (age * 0.6 + i / 3) % 1; ctx.globalAlpha = (1 - out) * Math.sin(a * Math.PI); ctx.fillText("z", a * 6, -a * 9); }
         ctx.restore(); return;
       }
@@ -193,9 +193,14 @@
       ctx.beginPath(); ctx.moveTo(-2.2, 3.4); ctx.lineTo(-3.6, 6); ctx.lineTo(0.2, 3.4); ctx.fill();
       ctx.strokeStyle = "rgba(60,40,20,.35)"; ctx.lineWidth = 0.3; BS.rr(ctx, -5, -5, 10, 8.6, 3); ctx.stroke();
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      if (m.kind === "!") { ctx.fillStyle = "#e0702a"; ctx.font = "900 7px system-ui, sans-serif"; ctx.fillText("!", 0, -0.6); }
-      else if (m.kind === "?") { ctx.fillStyle = "#3a7ab8"; ctx.font = "900 6.5px system-ui, sans-serif"; ctx.fillText("?", 0, -0.6); }
-      else if (m.kind === "note") { ctx.fillStyle = "#8a5ac8"; ctx.font = "700 6.5px system-ui, sans-serif"; ctx.fillText("♪", Math.sin(age * 6) * 0.6, -0.6); }
+      if (m.kind === "!") { ctx.fillStyle = "#e0702a"; ctx.font = "6.6px 'Sunlight Marker', system-ui, sans-serif"; ctx.fillText("!", 0.2, -0.3); }
+      else if (m.kind === "?") { ctx.fillStyle = "#3a7ab8"; ctx.font = "6.2px 'Sunlight Marker', system-ui, sans-serif"; ctx.fillText("?", 0.2, -0.3); }
+      else if (m.kind === "note") {      /* a quaver, drawn: a head, a stem, a flag (a typed one is whatever font the device has) */
+        var nx = Math.sin(age * 6) * 0.6;
+        ctx.fillStyle = ctx.strokeStyle = "#8a5ac8"; ctx.lineWidth = 0.55; ctx.lineCap = "round";
+        ctx.save(); ctx.translate(nx - 0.9, 1.3); ctx.rotate(-0.4); BS.ell(ctx, 0, 0, 1.25, 0.95); ctx.fill(); ctx.restore();
+        ctx.beginPath(); ctx.moveTo(nx + 0.15, 1.1); ctx.lineTo(nx + 0.15, -3.1); ctx.quadraticCurveTo(nx + 1.5, -2.6, nx + 1.9, -1.2); ctx.stroke();
+      }
       else if (m.kind === "…") { ctx.fillStyle = "#6a5a4a"; for (var d = 0; d < 3; d++) { ctx.globalAlpha = (1 - out) * (0.35 + 0.65 * ((Math.floor(age * 4) % 3) >= d ? 1 : 0)); BS.ell(ctx, -2.4 + d * 2.4, -0.6, 0.7, 0.7); ctx.fill(); } }
       else if (m.kind === "nosig" || m.kind === "dead") {
         for (var b = 0; b < 4; b++) { ctx.fillStyle = "rgba(90,80,70,.35)"; ctx.fillRect(-3.6 + b * 1.7, 1.4 - (b + 1) * 1.1, 1.1, (b + 1) * 1.1); }

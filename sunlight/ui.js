@@ -27,10 +27,13 @@
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
     if (which === "book") showTab(tab || ui.lastTab || "pages");
-    if (which === "menu") syncMenu();
+    if (which === "menu") { syncMenu(); duck(true); }
     setTimeout(function () { var f = el.querySelector("[data-focus]") || el.querySelector("button"); f && f.focus({ preventScroll: true }); }, 30);
   };
+  /* paused, the world goes quiet: the music and the soundscape drop back until you return */
+  function duck(on) { if (!A.setVolume) return; A.setVolume("mus", G.prefs.music * (on ? 0.3 : 1)); A.setVolume("amb", G.prefs.amb * (on ? 0.3 : 1)); }
   ui.closeAll = function () {
+    if ($("menu").classList.contains("on")) duck(false);
     ["book", "menu"].forEach(function (id) { $(id).classList.remove("on"); $(id).setAttribute("aria-hidden", "true"); });
     if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; A.sfx("back"); }
     $("stage").focus({ preventScroll: true });
@@ -87,7 +90,7 @@
       html += '<button class="look' + (s ? "" : " locked") + '" data-look="' + l.id + '"' + (s ? "" : " disabled") + '><canvas width="64" height="64"></canvas><span>' + (s ? l.name : "?") + "</span></button>";
     });
     html += "</div>";
-    html += '<h3>Badges</h3><div class="badges">' + S.BADGES.map(function (b) { var got = (G.s.badges || {})[b[1]]; return '<span class="bdg' + (got ? " got" : "") + '"><b>' + (got ? "★" : "☆") + " " + b[1] + "</b><small>" + (got ? b[2] : b[0] + " small things") + "</small></span>"; }).join("") + "</div>";
+    html += '<h3>Badges</h3><div class="badges">' + S.BADGES.map(function (b) { var got = (G.s.badges || {})[b[1]]; return '<span class="bdg' + (got ? " got" : "") + '"><b>' + b[1] + "</b><small>" + (got ? b[2] : b[0] + " small things") + "</small></span>"; }).join("") + "</div>";
     el.innerHTML = html + "<div id='seenNote' class='seennote' hidden></div>";
     el.querySelectorAll(".look").forEach(function (b) {
       var l = BS.lens.byId[b.getAttribute("data-look")], c = b.querySelector("canvas");
@@ -102,6 +105,8 @@
   ];
   function map() {
     var el = $("p-map");
+    /* the place names are written in my hand: draw again once it has arrived */
+    if (document.fonts && document.fonts.load && !map.asked) { map.asked = true; document.fonts.load("11px 'Sunlight Mine'").then(function () { if (ui.lastTab === "map" && G.mode === "book") map(); }, function () { }); }
     el.innerHTML = '<canvas id="mapcv" width="252" height="222" aria-label="A hand-drawn map of the hill"></canvas><p class="lede small">Drawn as I walked it. The parts I haven\'t been are still blank.</p>';
     var c = $("mapcv"), x = c.getContext("2d"), m = G.maps.hill, f = fog(), TL = BS.TL;
     x.fillStyle = "#efe4c8"; x.fillRect(0, 0, 252, 222);
@@ -117,19 +122,19 @@
     }
     /* soft hand-drawn edge */
     x.strokeStyle = "rgba(90,60,30,.5)"; x.lineWidth = 2; x.strokeRect(1, 1, 250, 220);
-    x.font = "italic 10px Georgia, serif"; x.fillStyle = "#3a2a1a"; x.textAlign = "center";
+    x.font = "11px 'Sunlight Mine', Georgia, serif"; x.fillStyle = "#34343c"; x.textAlign = "center";
     PLACES.forEach(function (p) { if (!from(p.when)) return; var fx = Math.floor(p.x / 4), fy = Math.floor(p.y / 4); if (f[fy * FW + fx] !== "1") return; x.fillText(p.n, p.x * 3, p.y * 3); });
     if (G.mapId === "hill") { x.fillStyle = "#c33"; x.beginPath(); x.arc(G.p.x / T * 3, G.p.y / T * 3, 3.5, 0, 6.3); x.fill(); x.strokeStyle = "#fff"; x.lineWidth = 1; x.stroke(); }
   }
   function phone() {
     var el = $("p-phone"), b = Math.round(G.s.battery);
     var msgs = [["Priya", "did ANYONE finish the quiz"], ["Theo", "the thing that wasn't funny that you laughed at anyway"]];
-    var html = '<div class="phone"><div class="pbar"><span>' + (G.signalBars ? "▂ " : "No Service") + "</span><span>" + b + "%</span></div>";
+    var html = '<div class="phone"><div class="pbar"><span>' + (G.signalBars ? '<span class="bars" data-bars="1"><i></i><i></i><i></i><i></i></span>' : "No Service") + "</span><span>" + b + "%</span></div>";
     if (b <= 0) html += '<p class="dead">A flat black stone.</p>';
     else {
       html += msgs.map(function (m) { return '<p class="msg"><b>' + m[0] + "</b>" + m[1] + "</p>"; }).join("");
       if (G.s.flags.called) html += '<p class="msg gran"><b>Gran</b> 12 min · call</p>';
-      html += '<p class="hint">A lens needs charge: crank the lantern (C), or ride the scooter down the hill. ' + (G.s.rides ? "Rides so far: " + G.s.rides + "." : "") + "</p>";
+      html += '<p class="hint">' + G.named("A lens needs charge: crank the lantern[(crank)], or ride the scooter down the hill. ") + (G.s.rides ? "Rides so far: " + G.s.rides + "." : "") + "</p>";
     }
     el.innerHTML = html + "</div>";
   }
@@ -149,9 +154,28 @@
     $("o-text").value = G.prefs.text; $("o-cap").checked = G.prefs.captions; $("o-red").checked = G.prefs.reduced; $("o-hap").checked = G.prefs.haptics;
     $("o-full").checked = !!G.prefs.fullText; $("o-tilt").checked = G.prefs.tilt !== false; $("o-ptr").checked = G.prefs.pointer !== false;
     $("o-vol").value = G.prefs.master; $("o-mus").value = G.prefs.music; $("o-amb").value = G.prefs.amb; $("o-big").checked = G.prefs.big;
-    var mins = Math.round(G.s.playMs / 60000);
-    $("mstat").textContent = G.s.day + " · " + Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + mins + " min";
+    /* the pause screen proper: where you are, what you're doing, what's coming, how far you've come */
+    var mins = Math.round(G.s.playMs / 60000), f = G.s.flags || {}, C = S.CHAPTERS && S.CHAPTERS[S.chapterIndex ? S.chapterIndex() : 0];
+    var tod = { golden: "evening" }[G.s.tod] || G.s.tod || "";
+    $("pzday").textContent = (G.s.day || "") + (tod ? " · " + tod : "");
+    $("pzch").textContent = C ? "Chapter " + C[0] + " · " + C[1] : "";
+    $("pzobj").innerHTML = G.s.objective ? G.fmt(G.s.objective) : "The hill is yours.";
+    var chips = [];
+    if (f.knowClose) chips.push(["Keys go", "Fri", f.clockStruck >= 3]);
+    if (f.knowDewater) chips.push(["Pumped dry", "Thu", f.clockStruck >= 2, true]);
+    if (f.knowPour) chips.push(["Concrete", f.knowDewater ? "Mon" : "Mon?", false]);
+    $("pzclock").innerHTML = chips.map(function (c) { return '<span class="pzchip' + (c[2] ? " struck" : "") + (c[3] && !c[2] ? " hot" : "") + '"><small>' + c[0] + "</small><b>" + c[1] + "</b></span>"; }).join("");
+    var pct = BS.prog && BS.prog.percent ? BS.prog.percent() : 0, moments = G.s.ach ? Object.keys(G.s.ach).length : 0;
+    $("pzring").style.setProperty("--p", pct); $("pzpct").textContent = pct + "%";
+    $("mstat").textContent = Object.keys(G.s.items).length + " keys · " + Object.keys(G.s.seen).length + " small things seen · " + moments + " moments · " + mins + " min";
+    $("m-book").hidden = !G.s.items.book;
+    $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); $("help").hidden = true;
   }
+  $("m-book").addEventListener("click", function () { ui.closeAll(); ui.open("book"); });
+  $("m-opts").addEventListener("click", function () {
+    var o = $("pzopts"); o.hidden = !o.hidden; $("m-opts").setAttribute("aria-expanded", String(!o.hidden)); $("help").hidden = true; A.sfx("ui");
+    if (!o.hidden) o.scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" });
+  });
   function bindPref(id, k, num, apply) {
     $(id).addEventListener("input", function (e) { G.prefs[k] = num ? +e.target.value : e.target.checked; apply && apply(); G.savePrefs(); });
   }
@@ -169,11 +193,10 @@
   function applyPrefs() { document.body.classList.toggle("reduced", !!G.prefs.reduced); document.body.classList.toggle("big", !!G.prefs.big); }
   applyPrefs();
   $("m-save").addEventListener("click", function () { G.save(); ui.closeAll(); });
-  $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; });
+  $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); if (!$("help").hidden) $("help").scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" }); });
   $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
-    if (!confirm("Start again from Monday noon? Your saved game on this device will be replaced.")) return;
-    G.wipe(); location.reload();
+    ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going" }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
   });
 
   /* ---------------- the portrait in the dialogue box ---------------- */
@@ -191,9 +214,15 @@
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
+  /* with a save, Continue is the one gold lid on the screen; beginning again is glass, down with the others */
+  if (saved) { $("t-new").className = "ghost"; $("t-new").textContent = "Begin again"; $("tmore").insertBefore($("t-new"), $("tmore").firstChild); }
+  /* a question on a card of the game's own (hands.js), or the browser's if that's missing */
+  function ask(o) { return BS.hands && BS.hands.ask ? BS.hands.ask(o) : Promise.resolve(confirm(o.title + " " + o.text)); }
   if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
-    if (!load && !afterHow && !G.prefs.seenHow) { A.init(); showHow(function () { G.prefs.seenHow = true; G.savePrefs(); begin(false, true); }); return; }
+    /* no cards before the game: New game starts the game. What you need is
+       taught where you need it (story.js coachMove, the prompts, the cues);
+       "How to play" is still on the title and the pause screen. */
     /* a new game opens with the drive up the hill */
     if (!load && !opening && BS.cine && BS.cine.play) {
       A.init();
@@ -229,8 +258,8 @@
     $("stage").focus({ preventScroll: true });
   }
   $("t-new").addEventListener("click", function () {
-    if (saved && !confirm("Begin again from Monday noon? This replaces your saved game.")) return;
-    begin(false);
+    if (!saved) { begin(false); return; }
+    ask({ title: "Begin again?", text: "From Monday noon. This replaces your saved game.", yes: "Begin again", no: "Keep my place" }).then(function (yes) { if (yes) begin(false); });
   });
   $("t-continue").addEventListener("click", function () { begin(true); });
   $("t-sound").addEventListener("click", function () { A.init(); A.theme(); });
@@ -257,9 +286,14 @@
       var g = x.createRadialGradient(W / 2, H / 2, 4, W / 2, H / 2, W * 0.6); g.addColorStop(0, "rgba(255,210,120,.18)"); g.addColorStop(1, "rgba(255,210,120,0)"); x.fillStyle = g; x.fillRect(0, 0, W, H);
       if (k === "move") {
         var sp = BS.sprite("wren", 0, 0); x.drawImage(sp, W / 2 - 24, 18, 48, 72);
-        x.fillStyle = "rgba(255,226,170,.85)"; x.font = "bold 18px system-ui"; x.textAlign = "center";
-        x.fillText("◀", W / 2 - 52, 62); x.fillText("▶", W / 2 + 52, 62); x.fillText("▲", W / 2, 16); x.fillText("▼", W / 2, 112);
-        x.font = "bold 13px system-ui"; x.fillStyle = "#ffd166"; x.fillText("✦", W / 2 + 74, 30);
+        /* four arrowheads and a wisp, drawn (typed ones are whatever font the device has) */
+        x.fillStyle = "rgba(255,226,170,.85)";
+        [[-52, 0, Math.PI], [52, 0, 0], [0, -46, -Math.PI / 2], [0, 46, Math.PI / 2]].forEach(function (a) {
+          x.save(); x.translate(W / 2 + a[0], 58 + a[1]); x.rotate(a[2]);
+          x.beginPath(); x.moveTo(7, 0); x.lineTo(-5, -7); x.quadraticCurveTo(-2.5, 0, -5, 7); x.closePath(); x.fill(); x.restore();
+        });
+        x.save(); x.translate(W / 2 + 74, 26); x.fillStyle = "#ffd166"; x.shadowColor = "rgba(255,200,90,.9)"; x.shadowBlur = 8;
+        x.beginPath(); x.moveTo(0, -8); x.quadraticCurveTo(1, -1, 8, 0); x.quadraticCurveTo(1, 1, 0, 8); x.quadraticCurveTo(-1, 1, -8, 0); x.quadraticCurveTo(-1, -1, 0, -8); x.fill(); x.restore();
       }
       if (k === "keys") { BS.icons.lantern(x, 96); x.save(); x.translate(72, 12); BS.icons.lens(x, 96); x.restore(); x.save(); x.translate(144, 12); BS.icons.tun(x, 96); x.restore(); }
       if (k === "goal") {
@@ -267,9 +301,18 @@
         x.fillStyle = "#e8e2d2"; x.fillRect(70, 40, 100, 52); x.fillStyle = "#7a3a2c"; x.beginPath(); x.moveTo(62, 42); x.lineTo(120, 12); x.lineTo(178, 42); x.fill();
         x.fillStyle = "#2a3a48"; x.fillRect(86, 54, 18, 18); x.fillRect(136, 54, 18, 18); x.fillStyle = "#3e5a46"; x.fillRect(112, 62, 16, 30);
         x.fillStyle = "rgba(255,200,80,.9)"; for (var q = 0; q < 14; q++) { x.fillRect(80 + q * 6, 100 + Math.sin(q) * 3, 3, 1.5); }
-        x.font = "bold 12px system-ui"; x.fillStyle = "#ffb08a"; x.fillText("FRI · THU · MON", 120, 116); x.textAlign = "center";
+        x.font = "14px 'Sunlight Marker','Marker Felt',system-ui"; x.fillStyle = "#ffb39c"; x.textAlign = "center"; x.fillText("FRI · THU · MON", 120, 117);
       }
     });
+  }
+
+  /* ---------------- lettering painted into the world ----------------
+     The moving boxes are labeled in marker, and a canvas only draws with a
+     face that has already arrived. So ask for it now, and when it comes,
+     forget the floors that were baked before it did. */
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load("10px 'Sunlight Marker'").then(function () { Object.keys(G.maps).forEach(function (id) { G.repaint(id); }); if (!$("howto").hidden) drawHowArt(); }, function () { });
+    document.fonts.load("italic 10px 'Sunlight Book'").then(function () { }, function () { });
   }
 
   /* ---------------- the hill behind the title ---------------- */
@@ -333,9 +376,13 @@
     });
   };
 
-  /* keyboard in the book: Esc / B close */
+  /* keyboard in the book: Esc / B close. The engine hears Esc everywhere
+     except inside a text box or on a slider, so only that case is handled
+     here. (Handling it in both places closed the menu and then opened it
+     again on the next frame, so Esc never closed it.) */
   document.addEventListener("keydown", function (e) {
-    if ((G.mode === "book" || G.mode === "menu") && (e.code === "Escape")) { e.preventDefault(); ui.closeAll(); }
+    var t = e.target, typing = t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT");
+    if (typing && (G.mode === "book" || G.mode === "menu") && (e.code === "Escape")) { e.preventDefault(); ui.closeAll(); }
     if (!$("end").hidden && (e.code === "Enter" || e.code === "Space") && document.activeElement !== $("endok")) { }
   });
   /* pause when hidden */

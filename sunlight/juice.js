@@ -53,6 +53,11 @@
     var now = G.time();
     if (shown[p[0]] && now - shown[p[0]] < 45) return;
     shown[p[0]] = now;
+    showRegion(p);
+  }
+  /* say a place's name now, in the middle of a scene (the first sight of Gran's house) */
+  J.announce = function (name, sub) { pending = null; regionNow = name; shown[name] = G.time(); showRegion([name, sub]); };
+  function showRegion(p) {
     var r = $("region"); $("rname").textContent = p[0]; $("rsub").textContent = p[1];
     r.classList.remove("on"); void r.offsetWidth; r.classList.add("on");
     /* while a place says its name, everything else at the top steps back */

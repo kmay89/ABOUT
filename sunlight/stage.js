@@ -45,7 +45,7 @@
     var dx = bx - a.x, dy = by - a.y;
     return Math.abs(dx) > Math.abs(dy) * 0.8 ? (dx > 0 ? 2 : 3) : (dy > 0 ? 0 : 1);
   }
-  function free() { return G.mode === "walk" && !G.titleRun && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function free() { return G.mode === "walk" && !G.titleRun && !G.directing && !(BS.cine && BS.cine.running && BS.cine.running()); }
 
   St.update = function (dt) {
     if (!G.s) return;
@@ -127,7 +127,7 @@
 
   /* ---------------- previously ---------------- */
   var rc = document.createElement("div"); rc.className = "recap"; rc.setAttribute("role", "dialog"); rc.setAttribute("aria-live", "polite");
-  rc.innerHTML = '<div class="rcin"><small>Previously</small><b class="rcch"></b><p class="rct"></p><div class="rcgo"><i></i><span class="rco"></span></div><button class="rcb" type="button">Go on</button></div>';
+  rc.innerHTML = '<div class="rcin"><small>Previously</small><b class="rcch"></b><p class="rct"></p><div class="rcgo"><i></i><span class="rco"></span></div><button class="rcb primary" type="button">Go on</button></div>';
   document.body.appendChild(rc);
   var rcOpen = false;
   function closeRecap() { if (!rcOpen) return; rcOpen = false; rc.classList.remove("on"); G.cut = Math.max(0, G.cut - 1); A.sfx("page"); setTimeout(function () { $("stage").focus({ preventScroll: true }); }, 50); }

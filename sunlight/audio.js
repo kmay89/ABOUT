@@ -240,6 +240,12 @@
       for (var i = 0; i < 3 + (Math.random() * 3 | 0); i++) { var f = notes[(Math.random() * 5) | 0] * (1 + (Math.random() - 0.5) * 0.004); tone(f, { g: 0.018 * g, dur: 2.2, a: 0.003, at: i * (0.12 + Math.random() * 0.2), verb: 1, pan: P.p }); tone(f * 2.76, { g: 0.004 * g, dur: 0.9, a: 0.003, at: i * 0.15, pan: P.p }); }
     },
     click: function () { tone(2200, { type: "square", g: 0.012, dur: 0.012 }); burst({ f: 3200, q: 3, g: 0.05, dur: 0.025 }); tone(140, { g: 0.03, dur: 0.04, at: 0.01 }); },
+    /* things you press (hands.js). A gold lid: a soft thock with a little
+       brass in it. Jar glass: a fingernail on a jar. A knob on its groove:
+       one small notch, higher the further along it is. */
+    lid: function () { tone(196, { type: "triangle", slide: 124, g: 0.055, dur: 0.07 }); burst({ f: 2400, q: 3, g: 0.022, dur: 0.028 }); tone(1568, { g: 0.009, dur: 0.11, at: 0.004 }); },
+    glass: function () { tone(2093, { g: 0.014, dur: 0.07 }); tone(3140, { g: 0.006, dur: 0.05, at: 0.003 }); burst({ f: 5200, q: 5, g: 0.01, dur: 0.018 }); },
+    notch: function (k) { tone(660 + (k || 0) * 440, { type: "triangle", g: 0.011, dur: 0.028 }); },
     /* the phone's last breath: three falling blips and a soft click off */
     phonedie: function () { [880, 660, 440].forEach(function (f, i) { tone(f, { type: "square", g: 0.012, dur: 0.09, at: i * 0.16 }); }); tone(220, { slide: 90, g: 0.02, dur: 0.4, at: 0.5 }); cap("[the phone dies]"); },
     creak: function () { tone(210, { type: "triangle", slide: 170, g: 0.018, dur: 0.5, a: 0.12 }); tone(214, { type: "sawtooth", slide: 176, g: 0.006, dur: 0.5, a: 0.15 }); setTimeout(function () { tone(180, { type: "triangle", slide: 215, g: 0.014, dur: 0.45, a: 0.1 }); }, 900); },

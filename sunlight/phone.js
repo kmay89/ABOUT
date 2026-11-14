@@ -10,7 +10,8 @@
    Goes out. Not Delivered. The chat grays, and two gray words are left.
    Then the camera pulls back and it's only a phone in your hand again, and
    the narration is read over it, and it goes down.
-   A tap hurries it along. Reduced motion lets it all simply happen. */
+   It is paced to you: each beat holds until you answer it (see P.lose).
+   Reduced motion drops the animation between beats, never the beats. */
 (function () {
   "use strict";
   var BS = window.BS, G = BS.G, A = BS.audio;
@@ -67,8 +68,6 @@
     ["p", "Priya", "where even ARE you"]
   ];
   var REPLY = "I'm at my gran's";
-  var timers = [], fast = false;
-  function at(ms, fn) { timers.push(setTimeout(fn, fast ? 0 : ms)); }
   function sigTo(n) {
     $$(".phsig").forEach(function (s) { s.setAttribute("data-n", n); });
     $(".phnet").textContent = n > 0 ? "" : "No Service"; G.signalBars = n; G.hud && G.hud();
@@ -91,82 +90,127 @@
     requestAnimationFrame(function () { d.classList.add("in"); });
     return d;
   }
+  /* how long a message wants before the next one lands: long enough to read it */
+  function readTime(m) {
+    if (m[0] === "day" || m[0] === "r") return 520;
+    if (m[0] === "o") return 720;
+    return Math.min(1250, 480 + String(m[2] || m[1] || "").length * 17);
+  }
 
-  /* up, wake, spill, send, stall, out. Resolves when the screen has gone dead and stayed dead a moment */
+  /* Up, wake, spill, reply, send, stall, out — in beats, and the beats wait
+     for you. Each one plays at a pace you can read, then settles and holds
+     with a small prompt until you answer it (E, A, or a tap; on a phone, tap
+     the thing itself): the notification to open it, the message field to
+     reply, the arrow to send. A press while a beat is still playing finishes
+     that beat, the way it finishes a line of dialogue. The send is the one
+     that matters, so it is yours — and its failing can't be hurried.
+     Resolves when the screen has gone dead and you've had your look at it. */
   P.lose = function () {
     return new Promise(function (res) {
-      fast = false; timers = [];
       $(".phm").innerHTML = ""; $(".phnots").innerHTML = ""; el.className = "phx"; sigTo(0);
       var clk = CLOCK[G.s.tod] || "12:04";
       $(".pht").textContent = clk; $(".phbig").textContent = clk; $(".phdate").textContent = G.s.day || "Monday";
       $(".phtx").textContent = "Message"; $(".phsend").className = "phsend";
       $(".phprog i").style.cssText = "";
       $$(".phbat b").forEach(function (b) { b.style.width = Math.max(4, G.s.battery || 4) + "%"; });
-      var done = false, mine = null;
-      function finish() { if (done) return; done = true; el.removeEventListener("click", hurry); res(); }
-      function hurry() { if (done) return; if (el.classList.contains("dead")) { finish(); return; } fast = true; timers.forEach(clearTimeout); end(); }
-      el.addEventListener("click", hurry);
+      var skipAll = !!G.skipWaits, quick = reduced(), rushing = false, canRush = false, sleepers = [], mine = null, over = false;
+      /* a wait that a press can cut short (unless it is firm) */
+      function sleep(ms, firm) {
+        return new Promise(function (r) {
+          if (skipAll || ((quick || rushing) && !firm)) return r();
+          var o = { r: r, firm: firm };
+          o.id = setTimeout(function () { sleepers.splice(sleepers.indexOf(o), 1); r(); }, ms);
+          sleepers.push(o);
+        });
+      }
+      function rush() {
+        if (!canRush) return;
+        rushing = true;
+        sleepers.slice().forEach(function (o) { if (o.firm) return; clearTimeout(o.id); sleepers.splice(sleepers.indexOf(o), 1); o.r(); });
+      }
+      /* steps: [wait before, what happens, firm?] */
+      function beat(steps, rushable) {
+        rushing = false; canRush = rushable !== false; G.cueFn = rush;
+        return steps.reduce(function (p, st) {
+          return p.then(function () { return sleep(st[0], st[2]); }).then(function () { if (!over) st[1](); });
+        }, Promise.resolve()).then(function () { rushing = false; canRush = false; });
+      }
+      function nop() { }
+      function cue(o) { o.el = el; return G.cue(o); }
+      el.addEventListener("pointerup", rush);
       document.body.classList.add("phoneup");
       requestAnimationFrame(function () { el.classList.add("on"); });
-      if (reduced() || G.skipWaits) fast = true;
 
-      /* the screen wakes, and looks for anyone at all */
-      at(500, function () { el.classList.add("wake"); A.sfx("click"); });
-      at(1200, function () { $(".phs .phsig").classList.add("seek"); el.classList.add("seeking"); });
-      /* the one bar */
-      at(2500, function () {
-        $(".phs .phsig").classList.remove("seek"); el.classList.remove("seeking");
-        sigTo(1); A.sfx("signal"); haptic(10); el.classList.add("got");
-        setTimeout(function () { el.classList.remove("got"); }, 1500);
-      });
-      /* and they land, one on top of another */
-      var t = 3100;
-      NOTES.forEach(function (n, i) { at(t, function () { note(n, i); A.sfx("buzz"); haptic([20, 40, 20]); }); t += 620 - i * 120; });
-      t += 900;
-      /* open it */
-      at(t, function () { el.classList.add("open"); A.sfx("click"); });
-      t += 450;
-      var gap = 330;
-      MSGS.forEach(function (m, i) {
-        at(t, function () { bubble(m); if (m[0] === "p" || m[0] === "t") { A.sfx("phone"); haptic(6); } });
-        t += m[0] === "day" ? gap * 0.5 : gap; gap = Math.max(120, gap * 0.86);
-      });
-      t += 900;
-      /* Wren types back, one letter at a time */
-      at(t, function () { $(".phsend").classList.add("typing"); $(".phtx").textContent = ""; });
-      REPLY.split("").forEach(function (c, i) {
-        at(t + 160 + i * 75 + (i === 4 ? 220 : 0), function () { $(".phtx").textContent = REPLY.slice(0, i + 1); if (i % 3 === 0) A.sfx("tok"); });
-      });
-      t += 160 + REPLY.length * 75 + 600;
-      /* send */
-      at(t, function () {
-        $(".phtx").textContent = "Message"; $(".phsend").classList.remove("typing");
-        mine = bubble(["me", REPLY]); A.sfx("whiff"); el.classList.add("sending");
-      });
-      /* the little blue line crawls… a cloud, or a breath of wind, or nothing at all */
-      at(t + 900, function () { el.classList.add("cloud"); $(".phs .phsig").classList.add("tremble"); });
-      at(t + 1700, function () { sigTo(0); });
-      at(t + 1950, function () { sigTo(1); });
-      at(t + 2600, function () { sigTo(0); });
-      at(t + 2760, function () { sigTo(1); el.classList.add("stall"); });
-      t += 3500;
-      at(t, function () { end(); });
-
-      function end() {
-        timers.forEach(clearTimeout); timers = [];
-        if (!$(".phm").children.length) MSGS.forEach(bubble);
-        if (!$(".phnots").children.length) NOTES.forEach(note);
+      /* the screen wakes, and looks for anyone at all — and finds one bar */
+      beat([
+        [600, function () { el.classList.add("wake"); A.sfx("click"); }],
+        [900, function () { $(".phs .phsig").classList.add("seek"); el.classList.add("seeking"); }],
+        [1700, function () {
+          $(".phs .phsig").classList.remove("seek"); el.classList.remove("seeking");
+          sigTo(1); A.sfx("signal"); haptic(10); el.classList.add("got");
+          setTimeout(function () { el.classList.remove("got"); }, 1500);
+        }],
+        [1200, nop]
+      ]).then(function () {
+        /* and they land, one on top of another, each with time to be read */
+        return beat(NOTES.map(function (n, i) {
+          return [i ? 1150 : 300, function () { note(n, i); A.sfx("buzz"); haptic([20, 40, 20]); }];
+        }).concat([[1000, nop]]));
+      }).then(function () {
+        return cue({ label: "Open", tap: "Tap to open", at: $(".phnots"), ring: $(".phnots").firstChild, lock: 150 });
+      }).then(function () {
+        /* three days of them, at the speed you'd read them */
+        var steps = [[0, function () { el.classList.add("open"); A.sfx("click"); }]], w = 700;
+        MSGS.forEach(function (m) {
+          steps.push([w, function () { bubble(m); if (m[0] === "p" || m[0] === "t") { A.sfx("phone"); haptic(6); } }]);
+          w = readTime(m);
+        });
+        steps.push([w + 250, nop]);
+        return beat(steps);
+      }).then(function () {
+        return cue({ label: "Reply", tap: "Tap to reply", at: $(".phsend"), over: true, lock: 200 });
+      }).then(function () {
+        /* Wren types back, one letter at a time */
+        var steps = [[0, function () { $(".phsend").classList.add("typing"); $(".phtx").textContent = ""; }]];
+        REPLY.split("").forEach(function (c, i) {
+          steps.push([(i ? 78 : 240) + (i === 4 ? 240 : 0), function () { $(".phtx").textContent = REPLY.slice(0, i + 1); if (i % 3 === 0) A.sfx("tok"); }]);
+        });
+        steps.push([350, nop]);
+        return beat(steps);
+      }).then(function () {
+        $(".phsend").classList.add("ready");
+        return cue({ label: "Send", tap: "Tap to send", at: $(".phsend i"), lock: 150 });
+      }).then(function () {
+        /* send. The little blue line crawls… a cloud, or a breath of wind, or nothing at all */
+        return beat([
+          [0, function () {
+            $(".phtx").textContent = "Message"; $(".phsend").classList.remove("typing", "ready");
+            mine = bubble(["me", REPLY]); A.sfx("whiff"); haptic(12); el.classList.add("sending");
+          }, true],
+          [1300, function () { el.classList.add("cloud"); $(".phs .phsig").classList.add("tremble"); }, true],
+          [1100, function () { sigTo(0); }, true],
+          [320, function () { sigTo(1); }, true],
+          [900, function () { sigTo(0); }, true],
+          [220, function () { sigTo(1); el.classList.add("stall"); }, true],
+          [1300, nop, true]
+        ], false);
+      }).then(function () {
+        /* and it goes out */
         if (!mine) mine = bubble(["me", REPLY]);
-        $(".phtx").textContent = "Message"; $(".phsend").classList.remove("typing");
         $(".phs .phsig").classList.remove("tremble", "seek");
         el.classList.remove("cloud", "seeking", "got"); el.classList.add("wake", "open", "sending", "stall");
-        sigTo(0); mine.classList.add("failed");
-        el.classList.add("dead");
+        sigTo(0); mine.classList.add("failed"); el.classList.add("dead");
         A.sfx("nosignal"); A.sfx("thud"); haptic([60]);
+        return sleep(2000, true);
+      }).then(function () {
+        return cue({ label: "", lock: 0, bottom: "7vh" });
+      }).then(function () {
         /* and then it's only a phone in your hand again */
-        setTimeout(function () { el.classList.add("back"); }, fast ? 250 : 1500);
-        setTimeout(finish, fast ? 700 : 2300);
-      }
+        el.classList.add("back");
+        return sleep(900, true);
+      }).then(function () {
+        over = true; G.cueFn = null; el.removeEventListener("pointerup", rush); res();
+      });
     });
   };
   /* put it away */
