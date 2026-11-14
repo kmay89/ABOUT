@@ -72,6 +72,13 @@ body{-webkit-touch-callout:none}
 .end{align-items:flex-start;padding:max(2em,var(--pad-t)) max(1em,var(--pad-r)) max(2em,var(--pad-b)) max(1em,var(--pad-l));touch-action:pan-y;overscroll-behavior:contain}
 .ein{margin:auto}
 
+/* labels that were set too small to read (some were 9 px): nothing on the
+   glass is under 10.5 px now, on any device */
+.goalcard small{font-size:.66rem;letter-spacing:.13em}
+.chip small,.pzchip small{font-size:.66rem;letter-spacing:.09em}
+.pzring span{font-size:.66rem;letter-spacing:.09em}
+.pzstat{font-size:.68rem;letter-spacing:.12em}
+
 /* ================= under a thumb, everything is big enough ================= */
 body.touch .quiet,body.touch a.quiet,body.touch button.quiet{min-height:44px;display:inline-flex;align-items:center;padding-top:.3em;padding-bottom:.3em}
 body.touch .quiet::after{bottom:calc(50% - .85em)}
@@ -208,7 +215,6 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
   .pzacts{grid-column:2;grid-row:1 / span 2;grid-template-columns:1fr 1fr;align-self:center}
   .pzacts button:not(.primary){min-height:44px}
   .pzopts,#menu .help{grid-column:1 / -1}
-  .pzstat{font-size:.62rem}
   /* the settings: side by side, so they are one screen and not three */
   .pzopts .opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:1.6em}
   .pzopts .opts label{min-height:44px;font-size:1rem;gap:.7em}
@@ -278,12 +284,7 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
 
 /* ================= a phone held upright ================= */
 @media (max-width:560px) and (orientation:portrait){
-  /* labels that were set too small to read at arm's length */
-  .goalcard small{font-size:.66rem;letter-spacing:.13em}
-  .chip small,.pzchip small{font-size:.64rem;letter-spacing:.1em}
-  .pzring span{font-size:.64rem;letter-spacing:.1em}
   .pzstat{font-size:.7rem;letter-spacing:.1em}
-  .tfine{font-size:.7rem}
   /* a short phone: the pause card draws itself in, so the lid and the four
      of glass are all on it without scrolling */
 }
