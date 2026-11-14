@@ -76,7 +76,7 @@ body{-webkit-touch-callout:none}
    glass is under 10.5 px now, on any device */
 .goalcard small{font-size:.66rem;letter-spacing:.13em}
 .chip small,.pzchip small{font-size:.66rem;letter-spacing:.09em}
-.pzring span{font-size:.66rem;letter-spacing:.09em}
+.pzring span,.pring span{font-size:.66rem;letter-spacing:.09em}
 .pzstat{font-size:.68rem;letter-spacing:.12em}
 
 /* ================= under a thumb, everything is big enough ================= */
@@ -96,7 +96,11 @@ body.touch .ihint .for-mouse,body:not(.touch) .ihint .for-thumb{display:none}
 body:has(#dlg.on) #touch,body:has(#narr.on) #touch,body:has(#mo.on) #touch,body:has(#choice.on) #touch,body:has(#chap.on) #touch,body:has(#sig.on) .btns{opacity:0;pointer-events:none;transition:opacity .25s}
 #touch{transition:opacity .25s}
 /* ...and when the hill asks you to hold still, the errands step back */
-body:has(#sig.on) :is(#clock,#goalcard){opacity:0;pointer-events:none}
+body:has(#sig.on) :is(#clock,#goalcard,#obj,#region){opacity:0!important;pointer-events:none}
+/* through the drop, what you could have done on the hill isn't on offer */
+body:has(.lens.on) .prompt{opacity:0!important}
+/* when Mo speaks, nothing else is written on the screen */
+body:has(#mo.on) :is(#toast,#obj){opacity:0!important}
 
 /* the beads and the stick, at the size and in the place this screen wants them */
 .stick{left:calc(var(--ctl-x) + 4px + var(--safe-l));bottom:calc(var(--ctl-b) + 2px + var(--safe-b));transform:scale(var(--tz));transform-origin:0 100%}
@@ -115,6 +119,10 @@ body.touch.coaching .caption{bottom:calc(var(--band) + 80px + var(--safe-b))}
    place instead and the card steps out until it has been read. */
 body.touch.lanelow .region,body.touch.lanelow .obj{top:calc(62px + var(--safe-t));bottom:auto}
 body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard{opacity:0;transform:translateY(-6px);pointer-events:none}
+/* ...unless a Moment is up there: then it keeps the lane under the card after all */
+body.touch.lanelow.achon .region{top:calc(182px + var(--safe-t))}
+/* on a short phone a note and a place's name would meet: the note takes the lane below */
+@media (max-height:600px) and (orientation:portrait){body.touch:has(#region.on) .toast{bottom:calc(var(--band) + 44px + var(--safe-b))}}
 
 /* ================= Gran's book, on a narrow page =================
    Eight ribbons do not fit across a phone with names anyone could read. So
@@ -147,7 +155,7 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
   #book{padding:max(6px,var(--safe-t)) max(8px,var(--safe-r)) max(6px,var(--safe-b)) max(8px,var(--safe-l))}
   #book .bcard.alive{width:100%;height:100%;padding:7px 8px 7px 10px}
   #book .bpage .tabs{display:flex;grid-template-rows:none;gap:4px;min-height:42px;padding:0 3.2em 0 1.6em}
-  #book .bpage .tabs button,#book .bpage .tabs button:nth-of-type(n+5){flex:1 1 auto;grid-row:auto;grid-column:auto;z-index:2;height:40px;min-height:0;padding:0 .3em 9px;font-size:.74rem;letter-spacing:.05em;align-items:center}
+  #book .bpage .tabs button,#book .bpage .tabs button:nth-of-type(n+5){flex:1 1 auto;min-width:42px;grid-row:auto;grid-column:auto;z-index:2;height:40px;min-height:0;padding:0 .3em 9px;font-size:.74rem;letter-spacing:.05em;align-items:center}
   #book .bpage .tabs button.on,#book .bpage .tabs button:nth-of-type(n+5).on{height:46px;padding:0 .3em 13px}
   #book .bpage .tabs button.on::after,#book .bpage .tabs button:nth-of-type(n+5).on::after{bottom:13px}
   #book .bpage .bbody{padding:.6em 1.6em 2.2em 1.9em}
@@ -165,11 +173,11 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
   body.touch .region span{font-size:1.5rem}
   body.touch .region small{font-size:.9rem;margin-top:.05em}
   body.touch .obj{top:calc(56px + var(--safe-t));bottom:auto}
-  body.touch:has(#region.on) #goalcard,body.touch.objnew #goalcard{opacity:0;transform:translateY(-6px);pointer-events:none}
+  body.touch:has(#region.on) :is(#goalcard,#clock),body.touch.objnew :is(#goalcard,#clock){opacity:0;transform:translateY(-6px);pointer-events:none}
   /* Wren up at the top: the line drops between the thumbs instead */
   body.touch.lanelow .region{top:auto;bottom:calc(58px + var(--safe-b));width:max(200px,var(--mid));grid-template-columns:0 auto 0;justify-content:center}
   body.touch.lanelow .obj{top:calc(56px + var(--safe-t));bottom:auto}       /* a goal is a sentence: it keeps the top, where there is width for it */
-  body.touch.lanelow:has(#region.on):not(.objnew) #goalcard{opacity:1;transform:none;pointer-events:auto}
+  body.touch.lanelow:has(#region.on):not(.objnew) :is(#goalcard,#clock){opacity:1;transform:none;pointer-events:auto}
   /* between the thumbs, from the bottom up: what you can do, a note, a sound */
   body.touch .prompt{bottom:calc(12px + var(--safe-b));max-width:max(180px,var(--mid));white-space:normal;text-align:left;border-radius:22px}
   body.touch .toast{top:auto;bottom:calc(60px + var(--safe-b));max-width:max(200px,var(--mid))}
@@ -190,7 +198,10 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
   .choice p{margin-bottom:.4em}
   .copt{margin:.26em 0;padding:.56em 1em .58em 2.3em}
   .mo p{font-size:calc(var(--fs) * 1.4)}
-  /* through the drop: the glass on the left, the words beside it */
+  /* through the drop: the glass on the left, the words beside it, and the HUD out of the way */
+  body:has(.lens.on) #hud{opacity:0;pointer-events:none}
+  /* a Moment has the top: the place's name waits between the thumbs */
+  body.touch.achon .region{top:auto;bottom:calc(58px + var(--safe-b));width:max(200px,var(--mid));grid-template-columns:0 auto 0;justify-content:center}
   .lens{background:radial-gradient(circle at 34% 50%,rgba(0,0,0,.32),rgba(0,0,0,.84) 60%,rgba(0,0,0,.9))}
   .lwrap{flex-direction:row;gap:20px;padding:6px 10px}
   #lenscv{width:min(calc(var(--room-h) - 64px),calc(var(--vw) * 42));height:min(calc(var(--room-h) - 64px),calc(var(--vw) * 42))}
@@ -308,8 +319,8 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
 /* the site-office whiteboard, on a narrow phone: the same four columns, in a smaller hand */
 @media (max-width:480px){
   .wb{padding:1em .7em 1em}
-  .wb table{width:100%;font-size:clamp(.6rem,calc(var(--vw) * 2.75),.86rem);letter-spacing:0}
-  .wb th,.wb td{padding:.36em .32em}
+  .wb table{width:100%;font-size:clamp(.66rem,calc(var(--vw) * 2.75),.86rem);letter-spacing:0}
+  .wb th,.wb td{padding:.36em .26em}
   .mini{padding:max(6px,var(--safe-t)) max(6px,var(--safe-r)) max(6px,var(--safe-b)) max(6px,var(--safe-l))}
   .mcard{padding:.8em .6em .7em}
   .mcard .row{flex-wrap:wrap;justify-content:center;gap:8px}
@@ -354,7 +365,7 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
 /* an iPad held upright: the page of the book is the whole book, and things
    that sat beside each other stack */
 @media (pointer:coarse) and (min-width:700px) and (min-height:700px) and (orientation:portrait){
-  #book{padding:max(20px,var(--safe-t)) max(18px,var(--safe-r)) max(22px,var(--safe-b)) max(18px,var(--safe-l))}
+  #book{padding:max(20px,var(--safe-t)) max(18px,var(--safe-r)) max(22px,calc(var(--safe-b) + 8px)) max(18px,var(--safe-l))}
   #book .bcard.alive{height:min(1100px,100%)}
   .ipanel{width:min(600px,calc(var(--vw) * 84));max-height:calc(var(--vh) * 44)}
 }
@@ -371,6 +382,7 @@ body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard
   body.touch.coaching .caption{bottom:calc(var(--ctl-b) + 150px + var(--safe-b))}
   body.touch .toast{top:auto;bottom:calc(var(--ctl-b) + 150px + var(--safe-b));max-width:var(--mid)}
   body.touch .region{top:calc(96px + var(--safe-t))}
+  body.touch.achon .region{top:calc(136px + var(--safe-t))}
   body.touch.lanelow .region,body.touch.lanelow .obj{top:auto;bottom:calc(var(--ctl-b) + 200px + var(--safe-b))}
   body.touch.lanelow:has(#region.on) #goalcard,body.touch.lanelow.objnew #goalcard{opacity:1;transform:none;pointer-events:auto}
 }
