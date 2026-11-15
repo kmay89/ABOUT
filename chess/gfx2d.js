@@ -420,7 +420,7 @@ function create(canvas) {
     skin: null, pal: null,
     orientation: 1,             /* 1 = white at the bottom */
     board: new Int8Array(128),
-    hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     /* when the squares were last asked to open out, when a man was
        last touched, when a king was last put in check and when a move
        last landed — each a short moment of light that then holds */
@@ -760,7 +760,7 @@ function create(canvas) {
         var plan = Move.cascade(R.board, { orientation: R.orientation });
         var delay = {};
         for (var i = 0; i < plan.length; i++) delay[plan[i].sq] = plan[i].delay;
-        R.cascade = { t0: performance.now(), plan: plan, delay: delay, end: Move.cascadeEnd(plan), rung: {} };
+        R.cascade = { t0: clock(), plan: plan, delay: delay, end: Move.cascadeEnd(plan), rung: {} };
       }
     }
     R.dirty = true;
@@ -792,7 +792,7 @@ function create(canvas) {
     if (!dir) dir = sqXY(sq).x >= R.ox + R.size / 2 ? 1 : -1;
     /* on the rim of his base and on his crown: a little past flat */
     var kind = Math.abs(R.board[sq]) || 6;
-    R.toppled = { sq: sq, kind: kind, dir: dir, t0: opts.still ? -Infinity : performance.now(),
+    R.toppled = { sq: sq, kind: kind, dir: dir, t0: opts.still ? -Infinity : clock(),
                   rest: lieOf2D(kind, Move).rest };
     R.dirty = true;
   };
@@ -835,7 +835,7 @@ function create(canvas) {
     R.dirty = true;
   };
   R.setHighlights = function (hi) {
-    var nextSel = hi.selected != null ? hi.selected : -1, now = performance.now();
+    var nextSel = hi.selected != null ? hi.selected : -1, now = clock();
     var nextCheck = hi.check != null ? hi.check : -1;
     /* a new touch: the man lights and his squares open out from him. The
        same selection repeated (a redraw) keeps its clocks. */
@@ -845,6 +845,10 @@ function create(canvas) {
     if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = now;
     else if (nextCheck < 0) R.checkAt = -1;
     R.hi.selected = nextSel;
+    /* the man in the hand (ours to lift): his rise is timed from the
+       frame he first shows in it, see the frame */
+    if (nextSel !== hand.sq) { hand.sq = nextSel; hand.shownAt = 0; }
+    R.hi.mark = hi.mark != null ? hi.mark : -1;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -855,12 +859,54 @@ function create(canvas) {
 
   /* animate a move: board must still hold the *before* position;
      `after` is the position once the move lands. done() fires at the end. */
+  /* ---------- weight, as the flat board has it ----------
+     The same answers the carved board gives (see gfx3d.js and motion.js),
+     drawn flat: the board's clock that can hold its breath at a capture,
+     a thud that drops the whole board a pixel or two, the man you have
+     picked up rising off his square while his choices ripple out from
+     him, and a man set down rocking once on his base. A camera that
+     drifts or tilts has no meaning on a flat board, so those two are
+     accepted and ignored. */
+  var hold = { at: 0, until: 0, debt: 0 };
+  function clock() {
+    var t = performance.now();
+    if (hold.until) {
+      if (t < hold.until) return hold.at - hold.debt;
+      hold.debt += hold.until - hold.at; hold.until = 0;
+    }
+    return t - hold.debt;
+  }
+  R.clock = clock;
+  R.hitStop = function (ms) {
+    if (REDUCED || !(ms > 0)) return;
+    var t = performance.now();
+    if (hold.until && t < hold.until) { hold.until = Math.max(hold.until, t + ms); return; }
+    hold.at = t; hold.until = t + Math.min(160, ms);
+    R.dirty = true;
+  };
+  var kicks = [], hand = { sq: -1, shownAt: 0 }, settles = {};
+  R.kick = function (power, sq) {
+    if (REDUCED || !(power > 0)) return;
+    kicks.push({ t0: performance.now(), power: Math.min(1, power) });
+    if (kicks.length > 4) kicks.shift();
+    R.dirty = true;
+  };
+  R.drift = function () {};
+  R.parallax = function () {};
+  R.feelState = function () {
+    var wallNow = performance.now(), impactAmt = 0;
+    for (var ii = 0; ii < R.impacts.length; ii++) impactAmt = Math.max(impactAmt, Move.impactAt(wallNow - R.impacts[ii].t0, R.impacts[ii].power).amount);
+    return { held: !!(hold.until && wallNow < hold.until), kicks: kicks.length, swoop: false, drift: false, impactAmt: impactAmt,
+             par: [0, 0], sel: hand.sq, mark: R.hi.mark, selLift: hand.sq >= 0 && hand.shownAt ? Move.hold(clock() - hand.shownAt) : 0,
+             settling: Object.keys(settles).length, tray: null, flying: false };
+  };
+
   R.animateMove = function (m, after, opts, done) {
     opts = opts || {};
     /* a move played by letting go of a carried man is only the setting
        down, from where he is; any other move travels from its square */
     var drop = null;
-    if (settling && settling.sq === m.from) drop = settleAt(performance.now());
+    if (settling && settling.sq === m.from) drop = settleAt(clock());
     settling = null;
     if (drag && drag.sq === m.from) drag = null;
     var pl;
@@ -874,9 +920,11 @@ function create(canvas) {
        men still arriving keep arriving round it, rather than thirty of
        them popping into place because an engine was quick off the mark */
     R.toppled = null;
+    var taken = m.epSq != null ? R.board[m.epSq] : R.board[m.to];
     R.anim = {
-      m: m, pl: pl, after: new Int8Array(after), t0: performance.now(),
-      dur: pl.dur, glow: !!opts.glow, done: done || null, drop: drop
+      m: m, pl: pl, after: new Int8Array(after), t0: clock(),
+      dur: pl.dur, glow: !!opts.glow, done: done || null, drop: drop,
+      raise: !drop && hand.sq === m.from && hand.shownAt ? Move.hold(clock() - hand.shownAt) : 0, took: !!taken
     };
     R.dirty = true;
     return pl;
@@ -909,7 +957,7 @@ function create(canvas) {
     return { up: up, grow: 1 + 0.16 * (1 - (1 - up) * (1 - up)) };
   }
   R.setDrag = function (sq, x, y) {
-    var now = performance.now();
+    var now = clock();
     if (sq == null || sq < 0 || !onBoard(sq)) {
       if (drag) {
         var at = dragAt();
@@ -1002,7 +1050,7 @@ function create(canvas) {
     if (!th) return false;
     if (!R.dirty && !R.anim) return false;
     refit();
-    var now = performance.now();
+    var now = clock();
     var w = canvas.clientWidth, h = canvas.clientHeight;
     var dpr = R.dpr || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1019,6 +1067,19 @@ function create(canvas) {
       if (Move.springAtRest(v.z, v.v, v.target)) { v.z = v.target; v.v = 0; v.last = 0; }
       else animating = true;
       ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * v.px * (1 - v.z), dpr * v.py * (1 - v.z));
+    }
+
+    /* a thud drops the board a pixel or two and rolls it a hair */
+    var wall = performance.now(), ky = 0, kr = 0;
+    for (var ki = kicks.length - 1; ki >= 0; ki--) {
+      var kt = Move.thud(wall - kicks[ki].t0, kicks[ki].power);
+      if (!kt.live) { kicks.splice(ki, 1); continue; }
+      ky += kt.y; kr += kt.roll; animating = true;
+    }
+    if (hold.until && wall < hold.until) animating = true;
+    if (ky || kr) {
+      var kcx = R.ox + R.size / 2, kcy = R.oy + R.size / 2;
+      ctx.translate(kcx, kcy); ctx.rotate(kr * 0.6); ctx.translate(-kcx, -kcy - ky * R.cell * 1.4);
     }
 
     /* the board itself, straight off the cache */
@@ -1045,6 +1106,7 @@ function create(canvas) {
       fillSq(sel, th.selected, th);
       var sc = sqXY(sel), sl = Math.max(2, R.cell * 0.06);
       pool(sc, th.selectHex, R.cell * 0.78, 0.2);
+    if (R.hi.mark >= 0) fillSq(R.hi.mark, th.selected, th);   /* a note's "look here": the square, not a man in the hand */
       ctx.save();
       ctx.strokeStyle = th.hoverEdge;
       ctx.lineWidth = sl;
@@ -1064,7 +1126,7 @@ function create(canvas) {
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
     for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
-      var im = R.impacts[ii], ia = Move.impactAt(now - im.t0, im.power);
+      var im = R.impacts[ii], ia = Move.impactAt(performance.now() - im.t0, im.power);
       if (!ia.live) { R.impacts.splice(ii, 1); continue; }
       animating = true;
       drawImpact(sqXY(im.sq), im.power, ia);
@@ -1118,11 +1180,34 @@ function create(canvas) {
       fall = Move.kingFall(REDUCED ? Infinity : now - tp.t0, tp.rest);
       if (!fall.done) animating = true;
     }
+    var selLift = 0;
+    var selShown = hand.sq >= 0 && !a && !drag && !home && !REDUCED && R.board[hand.sq];
+    if (selShown) {
+      if (!hand.shownAt) hand.shownAt = now;
+      selLift = Move.hold(now - hand.shownAt);
+      if (now - hand.shownAt < Move.HOLD_RISE) animating = true;
+    } else hand.shownAt = 0;
+    for (var sk in settles) {
+      if (now - settles[sk].t0 >= Move.SETTLE_MS) delete settles[sk]; else animating = true;
+    }
     for (var sq2 = 0; sq2 < 128; sq2++) {
       if (!onBoard(sq2) || skip[sq2]) continue;
       var piece = a ? (a.after[sq2] || 0) : R.board[sq2];
       if (!piece) continue;
       var q = sqXY(sq2);
+      if (sq2 === hand.sq && selLift) {
+        /* in the hand: up off the square, a little larger, his shadow
+           left behind on the wood */
+        groundShadow(q.x, q.y, R.cell, 0.75, 1.08);
+        paintPiece(ctx, piece, q.x, q.y - selLift * R.cell * 0.55, R.cell, th, 1, 1 + selLift * 0.32, 0, 1,
+                   { noShadow: true });
+        continue;
+      }
+      if (settles[sq2]) {
+        var se = settles[sq2];
+        paintPiece(ctx, piece, q.x, q.y, R.cell, th, 1, 1, se.dir * Move.settle(now - se.t0, se.amt).tilt);
+        continue;
+      }
       if (casc && casc.delay[sq2] != null) {
         var dp = Move.dropAt(cascMs - casc.delay[sq2]);
         if (dp.alpha <= 0.004) continue;
@@ -1191,7 +1276,7 @@ function create(canvas) {
          shrinking back from the size he was carried at */
       var s0 = a.drop || f0, grown = a.drop ? 1 + (a.drop.grow - 1) * (1 - stt.p) : 1;
       var mx = s0.x + (f1.x - s0.x) * stt.p;
-      var my = s0.y + (f1.y - s0.y) * stt.p - stt.y * R.cell * 0.6;
+      var my = s0.y + (f1.y - s0.y) * stt.p - stt.y * R.cell * 0.6 - (a.raise || 0) * R.cell * 0.55 * (1 - stt.p);
       if (a.m.promo) {
         var pr = Move.promoteAt(pl, prog);
         if (pr.pawnAlpha > 0.004) {
@@ -1225,6 +1310,11 @@ function create(canvas) {
         R.board.set(a.after);
         R.anim = null;
         if (!REDUCED) R.lastAt = now;
+        if (!REDUCED && a.after[a.m.to]) {
+          var heavy = [0, 0.03, 0.04, 0.04, 0.045, 0.05, 0.05][Math.abs(a.after[a.m.to])] || 0.04;
+          settles[a.m.to] = { t0: now, amt: (a.took ? heavy * 1.7 : heavy) * 1.6, dir: toRight };
+          animating = true;
+        }
         if (a.done) { var cb = a.done; a.done = null; setTimeout(cb, 0); }
       }
     }

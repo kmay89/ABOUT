@@ -928,8 +928,28 @@
   #splash .t{font-size:1.3em; font-weight:700; letter-spacing:.02em}
   #splash .s{color:var(--soft); font-size:.9em}
 
+  /* ---------- the press ----------
+     A button you can feel: it goes down the instant a finger lands, a
+     touch smaller and a shade darker, and comes back up with a small
+     spring past where it started — the way a real key does. Only on
+     :active, never on hover, so a mouse resting on a button does
+     nothing; and only scale and brightness, which move nothing around
+     them. Wide buttons give a little less, or their edges would travel
+     further than a thumb expects. */
+  @media (prefers-reduced-motion: no-preference){
+    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact{
+      transition:transform .2s cubic-bezier(.34,1.9,.55,1), filter .2s ease-out,
+                 border-color .15s, background .15s, box-shadow .15s, color .15s;
+    }
+    .abtn:active, .lchip:active, .chip:active, .stPick:active, .rung:active, .tile:active,
+    #askRow button:active, #toast .tact:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
+    .bigbtn:active, .preset:active, .playBtn:active{transform:scale(.975); filter:brightness(.9); transition-duration:.04s}
+  }
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important; animation:none !important}
+    /* still: a press is a shade darker and nothing moves */
+    .bigbtn:active, .abtn:active, .lchip:active, .chip:active, .stPick:active, .preset:active, .playBtn:active,
+    .rung:active, .tile:active, #askRow button:active, #toast .tact:active{transform:none; filter:brightness(.9)}
   }
 </style>
 </head>
@@ -1269,6 +1289,10 @@
       </div></div>
     <div class="settingRow"><span class="lbl"><b>Sound</b><small>Every piece has its own voice: the material decides how it rings, the weight decides how low, and a piece that slides is heard sliding. All synthesized here — nothing to download.</small></span>
       <button class="chip sel" id="setSound">On</button></div>
+    <div class="settingRow"><span class="lbl"><b>Haptics</b><small>Feel the board: a light tick as you pick a piece up, a knock as it lands, a real hit for a capture. Your own moves in full, the other side's softly.</small><small id="setHapticsNote" class="hide" style="display:block">This device doesn't do haptics — everything else still works.</small></span>
+      <button class="chip sel" id="setHaptics" data-feel="own">On</button></div>
+    <div class="settingRow" id="tiltRow"><span class="lbl"><b>Tilt to look round</b><small>Tip the phone and the 3D board answers, a degree or two, as if you had moved your head over a real one.</small><small id="setTiltNote" class="hide" style="display:block">Your phone asks first — tap to allow motion.</small></span>
+      <button class="chip sel" id="setTilt">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Clock skin</b><small>Simple digits, or the classic tournament look.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
@@ -1423,6 +1447,7 @@
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>
 <script src="fx.js"></script>
+<script src="haptics.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
 <script src="app.js"></script>

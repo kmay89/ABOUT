@@ -571,6 +571,10 @@ async function pickTruth(browser) {
     const skin = JSON.parse(JSON.stringify(Skins.PRESETS[0]));
     Object.assign(skin.board, { light: "#2030ff", dark: "#1020c0", rim: "#1020c0", edge: "#2030ff", pattern: "plain", grain: 0, gloss: 0 });
     Object.assign(skin.pieces, { white: "#ff2020", black: "#20ff20", material: "ink", shine: 0, rim: 0 });
+    /* no place round the board: a table would put the men that are
+       "missing" from these made-up positions in a row beside it, and a
+       park is green — this is about telling men apart by their colour */
+    if (R.setScene) R.setScene("studio");
     R.setFx("low"); R.setSkin(skin);
     R.resetView(); R.setOrientation(cfg.side);
     if (cfg.low) R.orbit(0, -5000);

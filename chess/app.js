@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics */
 (function () {
 "use strict";
 
@@ -33,7 +33,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", roomTone: true };
+var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", tilt: true, roomTone: true };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
@@ -44,6 +44,7 @@ var prefs = { skin: null, use3d: true, sound: true, coach: true, helpers: true, 
      renderer has never heard of */
   if (["auto", "high", "medium", "low"].indexOf(prefs.fx) < 0) prefs.fx = "auto";
   if (["plain", "brief"].indexOf(prefs.coachVoice) < 0) prefs.coachVoice = "plain";
+  prefs.haptics = prefs.haptics !== false;
   if (typeof Scenes === "undefined" || !Scenes.has(prefs.scene)) prefs.scene = "park";
   if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
   Object.keys(prefs.lastClock).forEach(function (k) {
@@ -90,6 +91,7 @@ function snd(kind, opts) {
 /* a piece being lifted off the board: not a move yet, but the first
    thing you hear when you touch one */
 function sndPickUp(piece) {
+  hap("select");
   if (!prefs.sound || typeof Sound === "undefined") return;
   Sound.pickUp(piece);
 }
@@ -101,6 +103,49 @@ function sndMove(desc, plan, captured) {
   if (!prefs.sound || typeof Sound === "undefined" || !plan) return;
   Sound.move(desc, plan, { captured: captured || 0 });
 }
+
+/* ===== touch (haptics.js) =====
+   The hand's half of every moment, on the same instants as the eye's and
+   the ear's: a move is felt as it lands, not when it is decided. It has
+   its own switch, apart from sound — plenty of people play muted and
+   still want to feel the board, and the other way round. Your own moves
+   are felt in full and the other side's softly: the point is to put you
+   in the game, not to jolt you every time the coach replies. */
+var HAP = typeof Haptics !== "undefined";
+function hap(kind, opts) { return HAP && prefs.haptics ? Haptics.play(kind, opts) : false; }
+function hapAt(kind, ms, opts) { if (HAP && prefs.haptics) Haptics.at(kind, ms, opts); }
+/* a man (or a clock) that belongs to whoever is across the table. Two
+   people on one screen are both "you"; a story playing itself is nobody's. */
+function hapTheirs(piece) {
+  if (mode === "tour") return true;
+  var me = mode === "coach" ? humanSide : mode === "lan" ? lanSide : (mode === "lesson" && lesson) ? lesson.side : 0;
+  return !!me && (piece > 0 ? 1 : -1) !== me;
+}
+/* a move, timed off the very plan the board is animating: the knock as
+   it lands, the rook and then the king of a castle, the rising triplet
+   with the promotion's pillar. A capture in a game is felt at
+   fxCapture's instant instead; elsewhere (a lesson) it is felt here. */
+function hapMove(desc, plan, took, withCapture) {
+  if (!HAP || !prefs.haptics || !desc) return;
+  var soft = hapTheirs(desc.piece), dur = plan ? plan.dur : 0;
+  var landAt = plan ? dur * plan.travel : 0;
+  if (desc.rookFrom != null) {
+    var rookAt = plan ? dur * plan.rookOut : 0;
+    hapAt("castle", Math.min(rookAt, landAt), { gap: Math.abs(landAt - rookAt), soft: soft });
+    return;
+  }
+  if (desc.promo) hapAt("promote", dur * 0.3, { soft: soft });
+  if (took) { if (withCapture) hapAt("capture", landAt, { power: FX ? Fx.powerOf(took) : 0.5, soft: soft }); return; }
+  if (!desc.promo) hapAt("land", landAt, { piece: desc.piece, soft: soft });
+}
+/* Buttons answer a press with a tick, the way a real one clicks under
+   the thumb — once, on the way down, for the presses that do something.
+   Anything that already has its own feel says so with data-feel="own". */
+var TAP_FEEL = ".bigbtn, .abtn, .lchip, .playBtn, .chip, .stPick, .preset, .rung, .tile, .tact, #askRow button, #promoRow button";
+document.addEventListener("pointerdown", function (e) {
+  var b = e.target && e.target.closest ? e.target.closest(TAP_FEEL) : null;
+  if (b && !b.disabled && b.getAttribute("data-feel") !== "own") hap("tick");
+}, { passive: true });
 
 /* ===== the big moments (fx.js) =====
    The board's half (a struck square, a king laid down, a camera that
@@ -129,10 +174,27 @@ function fxCapture(desc, took, plan) {
   setTimeout(function () {
     if (!R || at !== gameTicket) return;
     if (R.impact) { R.impact(sq, power); needFrame(); }
+    /* the weight of it: the board holds its breath for a few frames
+       while the camera takes the blow — longer and harder for a queen
+       than for a pawn */
+    if (R.hitStop) R.hitStop(45 + 50 * power);
+    if (R.kick) R.kick(0.35 + 0.65 * power, sq);
     if (!FX) return;
     Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
-    if (prefs.sound) Fx.haptic("capture");
+    hap("capture", { power: power, soft: hapTheirs(desc.piece) });
   }, plan ? plan.dur * plan.travel : 0);
+}
+/* A heavy man set down without taking anything still has weight: a
+   king, a queen or a rook landing gives the camera the smallest of
+   nudges. The light pieces land without one, so it means something. */
+var LAND_WEIGHT = [0, 0, 0, 0, 0.13, 0.16, 0.16];
+function feelLand(desc, took, plan) {
+  if (took || !R || !R.kick || !plan) return;
+  var w = LAND_WEIGHT[Math.abs(desc.piece)] || 0;
+  if (!w) return;
+  var at = gameTicket;
+  setTimeout(function () { if (R && at === gameTicket) { R.kick(w, desc.to); needFrame(); } },
+             plan.dur * plan.travel);
 }
 function fxPromote(desc, plan) {
   if (!FX || !desc.promo) return;
@@ -142,9 +204,10 @@ function fxPromote(desc, plan) {
              plan ? plan.dur * 0.3 : 0);
 }
 function fxCheck(kingSq) {
+  if (kingSq != null && kingSq >= 0 && R && R.kick) { R.kick(0.24, kingSq); needFrame(); }
   if (!FX || kingSq == null || kingSq < 0) return;
   Fx.check(kingSq, { color: skin.marks.check });
-  if (prefs.sound) Fx.haptic("check");
+  hap("check");
 }
 /* win: true (you delivered it), false (it was delivered to you), null
    (two people on one board — a mate is everyone's moment) */
@@ -157,10 +220,16 @@ function fxMate(kingSq, attackerSq, win) {
   /* a narrow phone's 3D view is already framed wide; lean in less. (The
      drawn board's lean is its own small zoom, left at its default.) */
   if (R.focus) R.focus(kingSq, R.kind === "3d" ? { amount: innerWidth < 600 ? 0.6 : 1 } : undefined);
+  /* the camera takes the blow as the king hits the wood, then walks
+     slowly round him while the result sinks in */
+  var at = gameTicket;
+  setTimeout(function () { if (R && at === gameTicket && R.kick) { R.kick(0.9, kingSq); needFrame(); } },
+             typeof Motion !== "undefined" && Motion.kingFallKnock ? Motion.kingFallKnock() : 600);
+  if (R.drift) R.drift(true);
   needFrame();
   if (!FX) return;
   Fx.mate(kingSq, { win: win });
-  if (prefs.sound) Fx.haptic(win === false ? "loss" : "mate");
+  hap(win === false ? "mateLoss" : "mateWin");
 }
 /* the board was redrawn under a finished game — a switch between 2D and
    3D, a return from looking back — so he is laid down again, without the
@@ -176,6 +245,7 @@ function fxCalm() {
   fxDown = null;
   if (R && R.untopple) R.untopple();
   if (R && R.focus) R.focus(null);
+  if (R && R.drift) R.drift(false);
   if (FX) Fx.clear();
   needFrame();
 }
@@ -189,6 +259,8 @@ function mateMood(result) {
 function sndArrival(fresh) {
   var landings = R && R.flourishPlan ? R.flourishPlan() : [];
   if (!fresh) return;
+  var felt = {};
+  landings.forEach(function (l) { if (!felt[l.wave]) { felt[l.wave] = true; hapAt("arrive", l.t); } });
   if (!landings.length) { snd("start"); return; }
   if (!prefs.sound || typeof Sound === "undefined") return;
   var seen = {}, at = gameTicket;
@@ -341,6 +413,7 @@ function useRenderer(r) {
   R = r;
   $("cv3").classList.toggle("hide", R !== R3);
   $("cv2").classList.toggle("hide", R !== R2);
+  if (typeof syncTilt === "function") syncTilt();
   R.setSkin(skin);
   R.setOrientation(orientation);
   R.resize();
@@ -471,6 +544,7 @@ function clockTick(now) {
       clock.lowTicked = sec;
       /* the last five seconds are a heartbeat, quickening, not a ticking */
       if (sec <= 5) snd("low-time", { left: sec }); else snd("tick");
+      if (sec <= 5 && !hapTheirs(clock.run)) hap("heartbeat");
     }
   }
   if (ms <= 0) flagFall(clock.run);
@@ -655,8 +729,21 @@ function currentViewBoard() {
   for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
   return t.board;
 }
+/* what has been taken so far, in the order it was taken, up to the ply
+   being looked at: the row beside the 3D board is drawn from this rather
+   than worked out from the position, so a promoted pawn never turns a
+   captured queen into a pawn and a lesson's sparse position has no
+   phantom row */
+function takenSoFar() {
+  var out = [];
+  if (!G) return out;
+  var upTo = viewPly < 0 ? G.played.length : Math.min(G.played.length, viewPly + 1);
+  for (var i = 0; i < upTo; i++) { var m = G.played[i].m; if (m.capt) out.push(m.capt); }
+  return out;
+}
 function syncBoard() {
   if (!G || !R) return;
+  if (R.setTaken) R.setTaken(takenSoFar());
   var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1, hint: hintArrow };
   if (viewPly < 0) {
     if (prefs.helpers) legalMoves.forEach(function (m) {
@@ -836,7 +923,9 @@ function commitMove(m, source, animOpts) {
     }
   });
   sndMove(desc, plan, took);
+  hapMove(desc, plan, took);
   fxCapture(desc, took, plan);
+  feelLand(desc, took, plan);
   fxPromote(desc, plan);
   needFrame();
   syncMoveList();
@@ -1412,7 +1501,7 @@ function openNote(e) {
     syncBoard();
     setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
   } else if (e.squares && e.squares.length === 1) {
-    R.setHighlights({ selected: e.squares[0], legal: [], legalCapt: [],
+    R.setHighlights({ selected: -1, mark: e.squares[0], legal: [], legalCapt: [],
                       last: R.hi.last, check: R.hi.check, hint: null });
     setTimeout(syncBoard, 3200);
   }
@@ -1497,6 +1586,7 @@ function replayLast() {
 /* ===== undo / takeback ===== */
 function undoPly(n) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  if (HAP) Haptics.cancel();     /* …and so is every buzz still waiting to land */
   if (!G || !G.played.length) return;
   if (mode === "lan") return; /* LAN goes through the polite request */
   clearTimeout(coachTimer); thinking = false;
@@ -1797,6 +1887,7 @@ function popStar(i, live) {
   if (!el || (live && !live())) return;
   el.classList.add("on", "pop");
   sting("lesson-right");                 /* each star lands with the ding of a right answer */
+  hap("star");
   if (FX) Fx.sparkle(el, { count: 18 });
 }
 function renderEndRating(rs, cardAt) {
@@ -1847,9 +1938,11 @@ function renderEndRating(rs, cardAt) {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
       if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick && live()) Sound.countTick(k, n, after >= before);
+      if (live()) hap("count");
     }).then(function () {
       dEl.classList.add("show");
       if (live()) sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+      if (live() && after > before) hap("success");
       rs.newStars.forEach(function (si, k) { setTimeout(function () { popStar(si, live); }, 380 + k * 420); });
       var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
       if (mile || up2) {
@@ -1862,6 +1955,7 @@ function renderEndRating(rs, cardAt) {
                                : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
           m.classList.remove("hide");
           sting(mile ? "milestone" : "levelup");
+          hap("success");
           if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
         }, 500 + rs.newStars.length * 420);
       }
@@ -2035,6 +2129,7 @@ function showProfile() {
 /* ===== game start / end ===== */
 function startGame(newMode, opts) {
   brainTicket++; gameTicket++;   /* every search still running is now stale */
+  if (HAP) Haptics.cancel();     /* …and so is every buzz still waiting to land */
   Brain.cancel();                /* …and stops, rather than holding up the next one */
   opts = opts || {};
   stopTour();
@@ -2099,6 +2194,7 @@ function endGame(result, reason, taught) {
   var iLost = (result === "white" && mySide === -1) || (result === "black" && mySide === 1);
   var mated = reason === "checkmate";
   snd(result === "draw" ? "draw" : iLost ? (mated ? "mate-lose" : "lose") : (mated ? "mate-win" : "win"));
+  if (result === "draw") hap("draw");
   var em = "🤝", title = "A draw!", sub = "";
   if (result === "draw") {
     sub = cap(reason) + ". Draws are real results — half a point each, and often the fairest one.";
@@ -3078,6 +3174,7 @@ function buildOpeningList() {
    thinking or waiting to speak about the last game may follow it in */
 function quietBoard() {
   brainTicket++; gameTicket++;
+  if (HAP) Haptics.cancel();
   Brain.cancel();
   clearTimeout(coachTimer); thinking = false; hintPending = false;
   closePromo(); hideToast(); clearLines();
@@ -3650,6 +3747,7 @@ function lessonAttempt(m) {
       celebrateLesson(verdict);
     });
     sndMove(desc, okPlan, m.capt);
+    hapMove(desc, okPlan, m.capt, true);
     needFrame();
     return;
   }
@@ -3660,6 +3758,7 @@ function lessonAttempt(m) {
   var say = Learn.critique(lesson, G, m);
   var tryPlan = R.animateMove(desc, g2.board, { scale: 0.8 }, function () {
     snd("lesson-wrong");
+    hap("lessonWrong");
     lessonUI('<div class="lkick">Not that one</div>' +
       '<div class="lask">' + esc(Chess.toSAN(Chess.create(before), m)) + '</div>' +
       '<div class="lsay">' + say + '</div>', "bad");
@@ -3674,11 +3773,13 @@ function lessonAttempt(m) {
     })]);
   });
   sndMove(desc, tryPlan, m.capt);
+  hapMove(desc, tryPlan, m.capt, true);
   needFrame();
 }
 
 function celebrateLesson(verdict) {
   snd("lesson-right");
+  hap("lessonRight");
   var why = verdict.best ? lesson.why : (lesson.alsoWhy || lesson.why);
   if (lessonRevealed) {
     /* it was shown first, and the schedule has already heard so: asking
@@ -4218,6 +4319,9 @@ function wireInput() {
       var legal = false;
       for (var i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === over) { legal = true; break; }
       if (R.dragHover) R.dragHover(legal ? over : -1);
+      /* the detent: once per square it can go to, as it crosses onto it */
+      if (legal && over !== carry.felt) hap("hover");
+      carry.felt = legal ? over : -1;
       needFrame();
       return;
     }
@@ -4238,6 +4342,10 @@ function wireInput() {
         var r = stage.getBoundingClientRect();
         var to = R.setDrag ? R.setDrag(c.from, last.x - r.left, last.y - r.top) : R.screenToSquare(last.x - r.left, last.y - r.top);
         dropCarry();
+        /* let go on a square it cannot reach (and not on another of its
+           own men, which simply picks that one up instead): a head shake */
+        if (to >= 0 && to !== c.from && sel === c.from && !ownMan(to) &&
+            !legalMoves.some(function (lm) { return lm.to === to; })) hap("nope");
         if (to >= 0 && to !== c.from && sel === c.from) tapSquare(to);
       } else {
         dropCarry();
@@ -4299,6 +4407,17 @@ function syncSettingsUI() {
   syncRoomTone();
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
+  if (HAP) Haptics.setEnabled(prefs.haptics);
+  /* tilt is a phone thing: no row at all on a desk */
+  var tiltable = typeof window.DeviceOrientationEvent !== "undefined" && (navigator.maxTouchPoints || 0) > 0;
+  $("tiltRow").classList.toggle("hide", !tiltable || REDUCED);
+  var tiltOn = prefs.tilt && !(tiltNeedsAsk() && !tiltAllowed);
+  $("setTilt").classList.toggle("sel", tiltOn);
+  $("setTilt").textContent = tiltOn ? "On" : "Off";
+  $("setTiltNote").classList.toggle("hide", !(tiltNeedsAsk() && !tiltAllowed));
+  $("setHaptics").classList.toggle("sel", prefs.haptics);
+  $("setHaptics").textContent = prefs.haptics ? "On" : "Off";
+  $("setHapticsNote").classList.toggle("hide", HAP && Haptics.supported() !== "none");
   $("setHelpers").classList.toggle("sel", prefs.helpers);
   $("setHelpers").textContent = prefs.helpers ? "On" : "Off";
   $("ckSimple").classList.toggle("sel", prefs.clockSkin === "simple");
@@ -4455,6 +4574,25 @@ function wireUI() {
     /* the switch is a click, which is the gesture a browser wants
        before it will start an audio clock at all */
     if (prefs.sound) { Sound.wake(); Sound.tap(6, 0.8); }
+  });
+  /* tilt: on iOS the phone only sends it after a tap has asked, so the
+     switch is that tap; elsewhere it simply turns it on and off */
+  $("setTilt").addEventListener("click", function () {
+    var DOE = window.DeviceOrientationEvent;
+    var on = prefs.tilt && !(tiltNeedsAsk() && !tiltAllowed);
+    if (!on && DOE && typeof DOE.requestPermission === "function") {
+      DOE.requestPermission().then(function (r) {
+        tiltAllowed = r === "granted";
+        if (tiltAllowed) lsSet(TILT_OK_KEY, "1"); else lsDel(TILT_OK_KEY);
+        prefs.tilt = tiltAllowed; savePrefs(); syncSettingsUI(); syncTilt();
+      }).catch(function () { tiltAllowed = false; syncSettingsUI(); });
+      return;
+    }
+    prefs.tilt = !on; savePrefs(); syncSettingsUI(); syncTilt();
+  });
+  $("setHaptics").addEventListener("click", function () {
+    prefs.haptics = !prefs.haptics; savePrefs(); syncSettingsUI();
+    hap("select");      /* switched on, it says so the only way it can */
   });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
@@ -4641,6 +4779,75 @@ function showUpdateBar(worker) {
 }
 
 /* ===== go ===== */
+/* ===== tilt to look round =====
+   On a phone the board answers how you hold it: tip the phone and the
+   camera steps a degree or two the same way, as if you had moved your
+   head over a real board. It follows movement rather than angle — the
+   level it measures from drifts slowly to however you are holding the
+   phone, so lying down or sitting up is level within a second or two —
+   and it ignores the tremble of a hand, so a still phone means a still
+   board and the loop is allowed to sleep. iOS only sends tilt once it
+   has been asked for in a tap (the Settings switch does that). */
+var tiltAllowed = false, TILT_OK_KEY = "chessroom_tilt_ok";
+function tiltNeedsAsk() {
+  return !!(window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === "function");
+}
+/* true while the phone should be sending tilt at all */
+function tiltWanted() {
+  return !!(prefs.tilt && R3 && R === R3 && R3.parallax && !document.hidden && !REDUCED &&
+            !(tiltNeedsAsk() && !tiltAllowed));
+}
+/* The listener is the switch: with one registered the phone keeps its
+   orientation sensor powered and wakes the page sixty times a second, so
+   it is only there while tilt is on, the 3D board is up and the tab is
+   visible — and goes the moment any of those stops being true. */
+var tiltOn = null, tiltBase = null;
+function syncTilt() {
+  var want = tiltWanted();
+  if (want === !!tiltOn) return;
+  if (want) { tiltBase = null; window.addEventListener("deviceorientation", onTilt); tiltOn = true; }
+  else {
+    window.removeEventListener("deviceorientation", onTilt); tiltOn = false;
+    if (R3 && R3.parallax) { R3.parallax(0, 0); needFrame(); }
+  }
+}
+/* iOS forgets nothing but tells nothing: once a tap has been allowed
+   here, the next visit asks again — quietly, from the first tap, which
+   is answered without a prompt while the permission still stands */
+function tiltRetry() {
+  if (!prefs.tilt || !tiltNeedsAsk() || tiltAllowed || lsGet(TILT_OK_KEY) !== "1") return;
+  try {
+    window.DeviceOrientationEvent.requestPermission().then(function (r) {
+      tiltAllowed = r === "granted";
+      if (!tiltAllowed) lsDel(TILT_OK_KEY);
+      syncSettingsUI(); syncTilt();
+    }).catch(function () {});
+  } catch (e) {}
+}
+function onTilt(e) {
+    if (!tiltWanted()) { syncTilt(); return; }
+    if (e.beta == null || e.gamma == null) return;
+    var base = tiltBase, sent = onTilt.sent || (onTilt.sent = { x: 0, y: 0 });
+    var angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    /* across and along the screen as it is being held */
+    var across = e.gamma, along = e.beta;
+    if (angle === 90) { across = e.beta; along = -e.gamma; }
+    else if (angle === -90 || angle === 270) { across = -e.beta; along = e.gamma; }
+    if (!base) base = tiltBase = { a: across, b: along };
+    base.a += (across - base.a) * 0.012; base.b += (along - base.b) * 0.012;
+    var nx = Math.max(-1, Math.min(1, (across - base.a) / 14));
+    var ny = Math.max(-1, Math.min(1, (along - base.b) / 14));
+    if (Math.abs(nx - sent.x) < 0.05 && Math.abs(ny - sent.y) < 0.05) return;
+    sent.x = nx; sent.y = ny;
+    R3.parallax(nx, -ny);
+    needFrame();
+}
+function wireParallax() {
+  if (REDUCED || typeof window.DeviceOrientationEvent === "undefined") return;
+  syncTilt();
+  document.addEventListener("visibilitychange", syncTilt);
+  document.addEventListener("pointerdown", tiltRetry, { once: true, passive: true });
+}
 function boot() {
   /* the first tap anywhere — not only on the board — is the gesture a
      browser wants before it will start an audio clock, and lets the
@@ -4657,6 +4864,7 @@ function boot() {
   fxInit();
   applySkin(skin, false);
   wireInput();
+  wireParallax();
   syncSettingsUI();
   wireSW();
   wireHashLinks();

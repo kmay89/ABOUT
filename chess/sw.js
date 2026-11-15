@@ -44,12 +44,12 @@
    fetches everything straight from the network as usual; this worker
    installs behind it, and claims the page so the room works offline
    from then on. */
-const VERSION = '2026.10.18.6';
+const VERSION = '2026.11.15.1';
 const CACHE = 'chessroom-' + VERSION;
 const SHELL = [
   './', './index.html',
   './engine.js', './brain.js', './brain-worker.js', './book.js', './eco.js', './teach.js', './learn.js', './rating.js', './skins.js', './scenes.js', './lines.js', './grain.js', './motion.js', './sound.js',
-  './gfx2d.js', './gfx3d.js', './fx.js', './pieces3d.js', './pieces-classic.js', './room.js', './net.js', './app.js',
+  './gfx2d.js', './gfx3d.js', './fx.js', './haptics.js', './pieces3d.js', './pieces-classic.js', './room.js', './net.js', './app.js',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png'

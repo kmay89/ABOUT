@@ -536,14 +536,79 @@ function impactAt(ms, power) {
   return { amount: amount, ring: easeOutQuart(ms / dur), live: true };
 }
 
+/* ---------- weight ----------
+   What makes a thing feel heavy on a screen is not how big the flash is
+   but how the world answers it. These are those answers, written as
+   pure functions of time so both boards ask the same question and a
+   check can ask it too without a renderer anywhere near.
+
+   thud: the camera's answer to an impact. It drops a little toward the
+   board and rolls a hair, then comes back through one small overshoot —
+   an underdamped spring, the way a hand-held camera answers a fist on
+   the table. Most of it is over in a quarter of a second. `power` is
+   0..1; at 1 the drop is under a tenth of a square, which on a phone is
+   a few pixels: felt rather than seen. */
+var THUD_W = 17, THUD_Z = 0.36, THUD_MS = 520;
+function thud(ms, power) {
+  power = clamp(power == null ? 0.5 : power, 0, 1);
+  if (!(ms >= 0) || ms >= THUD_MS || power <= 0) return { y: 0, roll: 0, live: false };
+  var t = ms / 1000, wd = THUD_W * Math.sqrt(1 - THUD_Z * THUD_Z);
+  var env = Math.exp(-THUD_Z * THUD_W * t);
+  return { y: -0.085 * power * env * Math.sin(wd * t),
+           roll: 0.0065 * power * env * Math.sin(wd * t + 0.9), live: true };
+}
+/* swoop: a fresh game opens on a low shot across the board, the men
+   arriving large in front of the place behind them, and the camera
+   rises into the player's own view as the last of them land. 1 at the start of the shot, 0 when it has
+   landed on the player's own view, easing out so it arrives softly. */
+var SWOOP_MS = 1900;
+function swoop(ms) {
+  if (!(ms >= 0)) return 1;
+  if (ms >= SWOOP_MS) return 0;
+  var t = ms / SWOOP_MS;
+  return Math.pow(1 - t, 3);
+}
+/* settle: a man set down rocks once on his base before he is still —
+   the last few degrees of a real piece finding its footing. `amount` is
+   radians of the first rock (a capture lands harder). */
+var SETTLE_MS = 380;
+function settle(ms, amount) {
+  if (!(ms >= 0) || ms >= SETTLE_MS) return { tilt: 0, live: false };
+  return { tilt: (amount == null ? 0.05 : amount) * Math.exp(-ms / 95) * Math.sin(ms / 112 * Math.PI * 2),
+           live: true };
+}
+/* ripple: the places a picked-up man can go appear outward from him, a
+   ring at a time, each popping in with a little overshoot — so the eye
+   is led from the piece to its choices instead of all of them blinking
+   on at once. `dist` is in squares. Returns a scale, 0..~1.08..1. */
+var RIPPLE_STEP = 32, RIPPLE_POP = 210;
+function ripple(ms, dist) {
+  var t = (ms - (dist || 0) * RIPPLE_STEP) / RIPPLE_POP;
+  if (!(t > 0)) return 0;
+  if (t >= 1) return 1;
+  var c = 1.9, u = t - 1;
+  return 1 + (c + 1) * u * u * u + c * u * u;          /* ease out, with a small overshoot */
+}
+function rippleEnd(maxDist) { return (maxDist || 0) * RIPPLE_STEP + RIPPLE_POP; }
+/* hold: a man you have picked up rises off his square and waits there —
+   enough to say "this one, in your hand". He rises and then he is still:
+   a breath too small to see is a GPU kept awake for nothing. */
+var HOLD_LIFT = 0.16, HOLD_RISE = 150;
+function hold(ms) {
+  if (!(ms >= 0)) return 0;
+  return HOLD_LIFT * (ms < HOLD_RISE ? easeOutQuart(ms / HOLD_RISE) : 1);
+}
+
 var Motion = {
   CHARACTER: CHARACTER, MIN_DUR: MIN_DUR, MAX_DUR: MAX_DUR, PULSE_MS: PULSE_MS,
   FALL_MS: FALL_MS, FALL_IMPACT: FALL_IMPACT, DROP: DROP, DROP_MS: DROP_MS,
   plan: plan, setDown: setDown, at: at, rookAt: rookAt, toppleAt: toppleAt, promoteAt: promoteAt,
   checkPulse: checkPulse, character: character, ease: ease, hump: hump, span: span,
-  kingFall: kingFall, lieOf: lieOf, lieLift: lieLift,
+  kingFall: kingFall, kingFallKnock: function () { return FALL.teeter + FALL.drop; }, lieOf: lieOf, lieLift: lieLift,
   cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
   spring: spring, springAtRest: springAtRest, impactAt: impactAt,
+  thud: thud, THUD_MS: THUD_MS, swoop: swoop, SWOOP_MS: SWOOP_MS, settle: settle, SETTLE_MS: SETTLE_MS,
+  ripple: ripple, rippleEnd: rippleEnd, hold: hold, HOLD_LIFT: HOLD_LIFT, HOLD_RISE: HOLD_RISE,
   REVEAL: REVEAL, SELECT_MS: SELECT_MS, AFTERGLOW_MS: AFTERGLOW_MS, LAND: LAND,
   reveal: reveal, selectPulse: selectPulse, afterglow: afterglow, landPower: landPower, landRing: landRing
 };
