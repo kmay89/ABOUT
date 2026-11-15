@@ -403,7 +403,7 @@ function create(canvas) {
     skin: null, pal: null,
     orientation: 1,             /* 1 = white at the bottom */
     board: new Int8Array(128),
-    hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     lines: [], net: [],
     anim: null,                 /* the move in flight */
     size: 0, cell: 0, ox: 0, oy: 0, dirty: true,
@@ -788,14 +788,20 @@ function create(canvas) {
      a bigger capture */
   R.impact = function (sq, power) {
     if (REDUCED || sq == null || sq < 0 || !onBoard(sq)) return;
-    R.impacts.push({ sq: sq, t0: clock(), power: power == null ? 0.5 : power });
+    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : power });
     if (R.impacts.length > 6) R.impacts.shift();
     R.dirty = true;
   };
   R.setHighlights = function (hi) {
     var nextSel = hi.selected != null ? hi.selected : -1;
-    if (nextSel !== sel.sq) { sel.sq = nextSel; sel.t0 = clock(); }
+    if (nextSel !== sel.sq) {
+      sel.sq = nextSel; sel.t0 = clock(); sel.shownAt = 0;
+      var far = 0, all = (hi.legal || []).concat(hi.legalCapt || []);
+      for (var fi = 0; fi < all.length; fi++) far = Math.max(far, Math.hypot((all[fi] & 7) - (nextSel & 7), (all[fi] >> 4) - (nextSel >> 4)) - 1);
+      sel.live = Move.rippleEnd(far) + 40;
+    }
     R.hi.selected = nextSel;
+    R.hi.mark = hi.mark != null ? hi.mark : -1;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -831,7 +837,7 @@ function create(canvas) {
     hold.at = t; hold.until = t + Math.min(160, ms);
     R.dirty = true;
   };
-  var kicks = [], sel = { sq: -1, t0: 0 }, settles = {};
+  var kicks = [], sel = { sq: -1, t0: 0, shownAt: 0, live: 0 }, settles = {};
   R.kick = function (power, sq) {
     if (REDUCED || !(power > 0)) return;
     kicks.push({ t0: performance.now(), power: Math.min(1, power) });
@@ -841,8 +847,11 @@ function create(canvas) {
   R.drift = function () {};
   R.parallax = function () {};
   R.feelState = function () {
-    return { held: !!(hold.until && performance.now() < hold.until), kicks: kicks.length, swoop: false, drift: false,
-             par: [0, 0], sel: sel.sq, selLift: 0, settling: Object.keys(settles).length, tray: null, flying: false };
+    var wallNow = performance.now(), impactAmt = 0;
+    for (var ii = 0; ii < R.impacts.length; ii++) impactAmt = Math.max(impactAmt, Move.impactAt(wallNow - R.impacts[ii].t0, R.impacts[ii].power).amount);
+    return { held: !!(hold.until && wallNow < hold.until), kicks: kicks.length, swoop: false, drift: false, impactAmt: impactAmt,
+             par: [0, 0], sel: sel.sq, mark: R.hi.mark, selLift: sel.sq >= 0 && sel.shownAt ? Move.hold(clock() - sel.shownAt) : 0,
+             settling: Object.keys(settles).length, tray: null, flying: false };
   };
 
   R.animateMove = function (m, after, opts, done) {
@@ -1003,6 +1012,7 @@ function create(canvas) {
       fillSq(R.hi.last[1], th.lastA, th);
     }
     if (R.hi.selected >= 0) fillSq(R.hi.selected, th.selected, th);
+    if (R.hi.mark >= 0) fillSq(R.hi.mark, th.selected, th);
     if (R.hi.check >= 0) {
       var c = sqXY(R.hi.check);
       var gr = ctx.createRadialGradient(c.x, c.y, R.cell * 0.1, c.x, c.y, R.cell * 0.62);
@@ -1027,7 +1037,7 @@ function create(canvas) {
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
     for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
-      var im = R.impacts[ii], ia = Move.impactAt(now - im.t0, im.power);
+      var im = R.impacts[ii], ia = Move.impactAt(performance.now() - im.t0, im.power);
       if (!ia.live) { R.impacts.splice(ii, 1); continue; }
       animating = true;
       drawImpact(sqXY(im.sq), im.power, ia);
@@ -1066,11 +1076,13 @@ function create(canvas) {
       if (!fall.done) animating = true;
     }
     var selLift = 0;
-    if (sel.sq >= 0 && !a && !drag && !REDUCED && R.board[sel.sq]) {
-      var selMs = now - sel.t0;
-      selLift = Move.hold(Math.min(selMs, 6000));
-      if (selMs < 6000) animating = true;
-    }
+    var selShown = sel.sq >= 0 && !a && !drag && !home && !REDUCED && R.board[sel.sq];
+    if (selShown) {
+      if (!sel.shownAt) sel.shownAt = now;
+      selLift = Move.hold(now - sel.shownAt);
+      if (now - sel.shownAt < Move.HOLD_RISE) animating = true;
+    } else sel.shownAt = 0;
+    if (sel.sq >= 0 && now - sel.t0 < sel.live) animating = true;
     for (var sk in settles) {
       if (now - settles[sk].t0 >= Move.SETTLE_MS) delete settles[sk]; else animating = true;
     }

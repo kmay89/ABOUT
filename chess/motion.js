@@ -527,13 +527,13 @@ function ripple(ms, dist) {
   return 1 + (c + 1) * u * u * u + c * u * u;          /* ease out, with a small overshoot */
 }
 function rippleEnd(maxDist) { return (maxDist || 0) * RIPPLE_STEP + RIPPLE_POP; }
-/* hold: a man you have picked up rises off his square and breathes very
-   slightly while he waits — enough to say "this one, in your hand". */
-var HOLD_LIFT = 0.16;
+/* hold: a man you have picked up rises off his square and waits there —
+   enough to say "this one, in your hand". He rises and then he is still:
+   a breath too small to see is a GPU kept awake for nothing. */
+var HOLD_LIFT = 0.16, HOLD_RISE = 150;
 function hold(ms) {
   if (!(ms >= 0)) return 0;
-  var up = ms < 150 ? easeOutQuart(ms / 150) : 1;
-  return HOLD_LIFT * up + 0.012 * Math.sin(ms / 1000 * Math.PI * 1.6) * up;
+  return HOLD_LIFT * (ms < HOLD_RISE ? easeOutQuart(ms / HOLD_RISE) : 1);
 }
 
 var Motion = {
@@ -545,7 +545,7 @@ var Motion = {
   cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
   spring: spring, springAtRest: springAtRest, impactAt: impactAt,
   thud: thud, THUD_MS: THUD_MS, swoop: swoop, SWOOP_MS: SWOOP_MS, settle: settle, SETTLE_MS: SETTLE_MS,
-  ripple: ripple, rippleEnd: rippleEnd, hold: hold, HOLD_LIFT: HOLD_LIFT
+  ripple: ripple, rippleEnd: rippleEnd, hold: hold, HOLD_LIFT: HOLD_LIFT, HOLD_RISE: HOLD_RISE
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Motion;
 else root.Motion = Motion;

@@ -944,8 +944,8 @@ you are playing on is mostly in how the world answers you. None of
 these is large, and every one of them stops: a board that is still is a
 board the phone is allowed to sleep on.
 
-- **A man you pick up rises** off his square and breathes very slightly
-  while you choose, his shadow left behind on the wood; the squares he
+- **A man you pick up rises** off his square and waits there, his shadow
+  left behind on the wood; the squares he
   can reach **ripple outward** from him a ring at a time, each popping
   in with a small overshoot, so the eye is led from the piece to its
   choices instead of everything blinking on at once. When you play the
@@ -967,7 +967,10 @@ board the phone is allowed to sleep on.
   lifted off his square and carried to a row beside the board, on the
   right hand of whoever took him, smallest first — the way people
   actually play. The row is read off the position, so it is right after
-  an undo, a resumed game or a look back.
+  an undo, a resumed game or a look back — and read from the game's own
+  record of captures, never from the position, so a promoted pawn never
+  turns a captured queen into a pawn and a lesson's sparse board has no
+  phantom row.
 - **A fresh game opens on a shot**: low across the board from beside
   your corner, the men arriving large in front of the place behind
   them, and the camera rising into your own view as the last of them

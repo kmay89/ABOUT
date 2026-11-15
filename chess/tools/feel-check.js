@@ -140,12 +140,17 @@ const FS = `__cr.renderer.feelState()`;
 
       /* picking a man up */
       await page.evaluate(() => __cr.renderer.setHighlights({ selected: 0x14, legal: [0x24, 0x34], legalCapt: [] }));
+      await page.evaluate(STEP(16));              /* the frame he first appears in the hand */
       f = await page.evaluate(STEP(400));
-      ok(dim + ": the man you pick up rises off his square", f.sel === 0x14 && (dim === "2d" || f.selLift > 0.1),
+      ok(dim + ": the man you pick up rises off his square", f.sel === 0x14 && f.selLift > 0.1,
          JSON.stringify(f));
-      await page.evaluate(STEP(7000));
+      await page.evaluate(STEP(900));
       const quiet = await page.evaluate(`(() => { window.__t += 16; const r = __cr.renderer; r.dirty = true; r.frame(); return r.frame(); })()`);
-      ok(dim + ": …and after a while holds still, so the board can sleep", quiet === false || quiet === 0);
+      ok(dim + ": …and within a second holds still, so the board can sleep", quiet === false || quiet === 0);
+      /* a note's "look here" marks the square without lifting the man */
+      await page.evaluate(() => __cr.renderer.setHighlights({ selected: -1, mark: 0x74 }));
+      f = await page.evaluate(STEP(400));
+      ok(dim + ": a note's mark lights the square and leaves the man on it", f.sel === -1 && f.mark === 0x74 && f.selLift === 0, JSON.stringify(f));
       await page.evaluate(() => __cr.renderer.setHighlights({}));
 
       /* a capture: the thud, the held breath, the rock on landing */
@@ -156,10 +161,12 @@ const FS = `__cr.renderer.feelState()`;
       }, san);
       for (const s of ["e4", "d5"]) { await play(s); await page.evaluate(STEP(3000)); await page.evaluate(STEP(3000)); }
       await play("exd5");
-      await page.evaluate(() => { __cr.renderer.kick(1, 0x43); __cr.renderer.hitStop(90); });
+      await page.evaluate(() => { const r = __cr.renderer; r.impact(0x43, 1); r.kick(1, 0x43); r.hitStop(90); });
       f = await page.evaluate(STEP(10));
       /* (the app's own capture may have thudded too, on a real timer) */
       ok(dim + ": a capture holds the board's breath and the camera takes the blow", f.held && f.kicks >= 1, JSON.stringify(f));
+      f = await page.evaluate(STEP(30));
+      ok(dim + ": …and the struck square is already alight in the held frame", f.held && f.impactAmt > 0.5, JSON.stringify(f));
       const c0 = await page.evaluate(() => __cr.renderer.clock());
       await page.evaluate(STEP(40));
       const c1 = await page.evaluate(() => __cr.renderer.clock());
@@ -170,6 +177,16 @@ const FS = `__cr.renderer.feelState()`;
       for (let i = 0; i < 12; i++) f = await page.evaluate(STEP(250));
       ok(dim + ": the thud is over and nothing is left moving", !f.held && f.kicks === 0 && f.settling === 0, JSON.stringify(f));
       if (dim === "3d") {
+        /* the row is what the record says, not what the position lacks */
+        await page.evaluate(() => __cr.renderer.setTaken([-5, 1, -1]));
+        f = await page.evaluate(STEP(16));
+        ok(dim + ": the row shows what was taken, smallest first, each side on its own",
+           f.tray && f.tray.black.join() === "-1,-5" && f.tray.white.join() === "1", JSON.stringify(f.tray));
+        await page.evaluate(() => __cr.renderer.setTaken([]));
+        f = await page.evaluate(STEP(16));
+        ok(dim + ": …and a position that lost nothing has an empty row", f.tray.black.length === 0 && f.tray.white.length === 0);
+        await page.evaluate(() => __cr.syncAll());
+        f = await page.evaluate(STEP(16));
         ok(dim + ": the pawn that was taken stands in the row beside the board",
            f.tray && f.tray.black.length === 1 && f.tray.black[0] === -1 && !f.flying, JSON.stringify(f.tray));
         await play("Qxd5");
@@ -195,6 +212,16 @@ const FS = `__cr.renderer.feelState()`;
         await page.evaluate(() => __cr.renderer.orbit(0, 0));
         f = await page.evaluate(STEP(16));
         ok(dim + ": …and stops the moment anybody touches it", f.drift === false);
+        for (let i = 0; i < 8; i++) f = await page.evaluate(STEP(250));
+        ok(dim + ": …keeping the view they were looking at", Math.hypot(f.eye[0] - y1[0], f.eye[2] - y1[2]) < 0.05, JSON.stringify([f.eye, y1]));
+        /* left alone (a take-back, a look back), it springs back to the player's own view */
+        const home = f.eye;
+        await page.evaluate(() => __cr.renderer.drift(true));
+        for (let i = 0; i < 20; i++) await page.evaluate(STEP(250));
+        await page.evaluate(() => __cr.renderer.drift(false));
+        for (let i = 0; i < 24; i++) f = await page.evaluate(STEP(250));
+        ok(dim + ": …or, left alone, comes back to where it started", Math.hypot(f.eye[0] - home[0], f.eye[2] - home[2]) < 0.02 && f.drift === false,
+           JSON.stringify([f.eye, home]));
 
         /* tilt */
         await page.evaluate(() => __cr.renderer.parallax(1, 0));

@@ -398,6 +398,7 @@ function useRenderer(r) {
   R = r;
   $("cv3").classList.toggle("hide", R !== R3);
   $("cv2").classList.toggle("hide", R !== R2);
+  if (typeof syncTilt === "function") syncTilt();
   R.setSkin(skin);
   R.setOrientation(orientation);
   R.resize();
@@ -713,8 +714,21 @@ function currentViewBoard() {
   for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
   return t.board;
 }
+/* what has been taken so far, in the order it was taken, up to the ply
+   being looked at: the row beside the 3D board is drawn from this rather
+   than worked out from the position, so a promoted pawn never turns a
+   captured queen into a pawn and a lesson's sparse position has no
+   phantom row */
+function takenSoFar() {
+  var out = [];
+  if (!G) return out;
+  var upTo = viewPly < 0 ? G.played.length : Math.min(G.played.length, viewPly + 1);
+  for (var i = 0; i < upTo; i++) { var m = G.played[i].m; if (m.capt) out.push(m.capt); }
+  return out;
+}
 function syncBoard() {
   if (!G || !R) return;
+  if (R.setTaken) R.setTaken(takenSoFar());
   var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1, hint: hintArrow };
   if (viewPly < 0) {
     if (prefs.helpers) legalMoves.forEach(function (m) {
@@ -1472,7 +1486,7 @@ function openNote(e) {
     syncBoard();
     setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
   } else if (e.squares && e.squares.length === 1) {
-    R.setHighlights({ selected: e.squares[0], legal: [], legalCapt: [],
+    R.setHighlights({ selected: -1, mark: e.squares[0], legal: [], legalCapt: [],
                       last: R.hi.last, check: R.hi.check, hint: null });
     setTimeout(syncBoard, 3200);
   }
@@ -4542,12 +4556,12 @@ function wireUI() {
     if (!on && DOE && typeof DOE.requestPermission === "function") {
       DOE.requestPermission().then(function (r) {
         tiltAllowed = r === "granted";
-        prefs.tilt = tiltAllowed; savePrefs(); syncSettingsUI();
+        if (tiltAllowed) lsSet(TILT_OK_KEY, "1"); else lsDel(TILT_OK_KEY);
+        prefs.tilt = tiltAllowed; savePrefs(); syncSettingsUI(); syncTilt();
       }).catch(function () { tiltAllowed = false; syncSettingsUI(); });
       return;
     }
-    prefs.tilt = !on; savePrefs(); syncSettingsUI();
-    if (!prefs.tilt && R3 && R3.parallax) { R3.parallax(0, 0); needFrame(); }
+    prefs.tilt = !on; savePrefs(); syncSettingsUI(); syncTilt();
   });
   $("setHaptics").addEventListener("click", function () {
     prefs.haptics = !prefs.haptics; savePrefs(); syncSettingsUI();
@@ -4747,22 +4761,52 @@ function showUpdateBar(worker) {
    and it ignores the tremble of a hand, so a still phone means a still
    board and the loop is allowed to sleep. iOS only sends tilt once it
    has been asked for in a tap (the Settings switch does that). */
-var tiltAllowed = false;
+var tiltAllowed = false, TILT_OK_KEY = "chessroom_tilt_ok";
 function tiltNeedsAsk() {
   return !!(window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === "function");
 }
-function wireParallax() {
-  if (REDUCED || typeof window.DeviceOrientationEvent === "undefined") return;
-  var base = null, sent = { x: 0, y: 0 };
-  window.addEventListener("deviceorientation", function (e) {
-    if (!prefs.tilt || !R3 || R !== R3 || !R3.parallax || document.hidden) return;
+/* true while the phone should be sending tilt at all */
+function tiltWanted() {
+  return !!(prefs.tilt && R3 && R === R3 && R3.parallax && !document.hidden && !REDUCED &&
+            !(tiltNeedsAsk() && !tiltAllowed));
+}
+/* The listener is the switch: with one registered the phone keeps its
+   orientation sensor powered and wakes the page sixty times a second, so
+   it is only there while tilt is on, the 3D board is up and the tab is
+   visible — and goes the moment any of those stops being true. */
+var tiltOn = null, tiltBase = null;
+function syncTilt() {
+  var want = tiltWanted();
+  if (want === !!tiltOn) return;
+  if (want) { tiltBase = null; window.addEventListener("deviceorientation", onTilt); tiltOn = true; }
+  else {
+    window.removeEventListener("deviceorientation", onTilt); tiltOn = false;
+    if (R3 && R3.parallax) { R3.parallax(0, 0); needFrame(); }
+  }
+}
+/* iOS forgets nothing but tells nothing: once a tap has been allowed
+   here, the next visit asks again — quietly, from the first tap, which
+   is answered without a prompt while the permission still stands */
+function tiltRetry() {
+  if (!prefs.tilt || !tiltNeedsAsk() || tiltAllowed || lsGet(TILT_OK_KEY) !== "1") return;
+  try {
+    window.DeviceOrientationEvent.requestPermission().then(function (r) {
+      tiltAllowed = r === "granted";
+      if (!tiltAllowed) lsDel(TILT_OK_KEY);
+      syncSettingsUI(); syncTilt();
+    }).catch(function () {});
+  } catch (e) {}
+}
+function onTilt(e) {
+    if (!tiltWanted()) { syncTilt(); return; }
     if (e.beta == null || e.gamma == null) return;
+    var base = tiltBase, sent = onTilt.sent || (onTilt.sent = { x: 0, y: 0 });
     var angle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
     /* across and along the screen as it is being held */
     var across = e.gamma, along = e.beta;
     if (angle === 90) { across = e.beta; along = -e.gamma; }
     else if (angle === -90 || angle === 270) { across = -e.beta; along = e.gamma; }
-    if (!base) base = { a: across, b: along };
+    if (!base) base = tiltBase = { a: across, b: along };
     base.a += (across - base.a) * 0.012; base.b += (along - base.b) * 0.012;
     var nx = Math.max(-1, Math.min(1, (across - base.a) / 14));
     var ny = Math.max(-1, Math.min(1, (along - base.b) / 14));
@@ -4770,7 +4814,12 @@ function wireParallax() {
     sent.x = nx; sent.y = ny;
     R3.parallax(nx, -ny);
     needFrame();
-  });
+}
+function wireParallax() {
+  if (REDUCED || typeof window.DeviceOrientationEvent === "undefined") return;
+  syncTilt();
+  document.addEventListener("visibilitychange", syncTilt);
+  document.addEventListener("pointerdown", tiltRetry, { once: true, passive: true });
 }
 function boot() {
   /* the first tap anywhere — not only on the board — is the gesture a

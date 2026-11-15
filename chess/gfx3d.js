@@ -895,7 +895,7 @@ function create(canvas, opts) {
   var R = {
     kind: "3d", skin: null, pal: null, orientation: 1,
     board: new Int8Array(128),
-    hi: { selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
     checkAt: -1,
     lines: [], net: [],
     anim: null, lost: false, dirty: true,
@@ -1557,8 +1557,9 @@ function create(canvas, opts) {
   R.clock = clock;
   /* what the feel layer is doing right now, for chess/tools/feel-check.js */
   R.feelState = function () {
-    var lists = takenFrom(R.anim ? R.anim.after : R.board);
-    return { held: !!(hold.until && performance.now() < hold.until), kicks: feel.kicks.length,
+    var lists = trayLists(), wallNow = performance.now(), impactAmt = 0;
+    for (var ii = 0; ii < R.impacts.length; ii++) impactAmt = Math.max(impactAmt, Move.impactAt(wallNow - R.impacts[ii].t0, R.impacts[ii].power).amount);
+    return { impactAmt: impactAmt, mark: R.hi.mark, held: !!(hold.until && performance.now() < hold.until), kicks: feel.kicks.length,
              swoop: feel.swoopT0 >= 0, drift: feel.drift.on, par: [feel.par.x, feel.par.y],
              sel: sel.sq, selLift: sel.lift, settling: Object.keys(settles).length,
              tray: place.ready && R.pal && R.pal.table ? { white: lists[1].slice(), black: lists[-1].slice() } : null,
@@ -1580,7 +1581,7 @@ function create(canvas, opts) {
        pointer, on a desk), sprung so it never jitters. */
   var feel = {
     kicks: [], swoopT0: -1,
-    drift: { on: false, t0: 0, last: 0, done: 0 },
+    drift: { on: false, t0: 0, last: 0, yaw: 0, vel: 0 },
     par: { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, last: 0 }
   };
   var DRIFT_RATE = 0.05, DRIFT_FOR = 14000, DRIFT_WAIT = 1600;
@@ -1596,9 +1597,16 @@ function create(canvas, opts) {
   R.drift = function (on) {
     var d = feel.drift;
     if (on && !REDUCED) { d.on = true; d.t0 = performance.now(); d.last = 0; }
-    else d.on = false;
+    else d.on = false;             /* and the walk springs back to the player's view */
     R.dirty = true;
   };
+  /* anybody touching the camera keeps the view they are looking at: the
+     walk so far becomes part of their own orbit and the overlay is zero */
+  function foldDrift() {
+    var d = feel.drift;
+    if (d.yaw) { cam.tYaw += d.yaw; cam.yaw += d.yaw; }
+    d.yaw = 0; d.vel = 0; d.on = false;
+  }
   /* nx, ny in −1..1: where the phone is tipped (or the pointer is) */
   R.parallax = function (nx, ny) {
     if (REDUCED) return;
@@ -1617,20 +1625,24 @@ function create(canvas, opts) {
       if (wall - feel.swoopT0 >= Move.SWOOP_MS) feel.swoopT0 = -1; else live = true;
     }
     var d = feel.drift;
+    var dts = wall / 1000, ddt = d.last ? Math.min(0.1, dts - d.last) : 0;
+    d.last = dts;
     if (d.on) {
       var since = wall - d.t0;
       if (since > DRIFT_WAIT + DRIFT_FOR) d.on = false;
       else {
-        var ts = wall / 1000, dt = d.last ? Math.min(0.1, ts - d.last) : 0;
-        d.last = ts;
         /* eased in, so the walk begins as gently as it ends */
         var ramp = Math.max(0, Math.min(1, (since - DRIFT_WAIT) / 2500));
         var tail = Math.max(0, Math.min(1, (DRIFT_WAIT + DRIFT_FOR - since) / 2500));
-        cam.tYaw += DRIFT_RATE * dt * ramp * tail;
-        cam.yaw = cam.tYaw;
+        d.yaw += DRIFT_RATE * ddt * ramp * tail;
         live = true;
       }
+    } else if (d.yaw || d.vel) {
+      var back = Move.spring(d.yaw, d.vel, 0, ddt || 1 / 60, 2.5);
+      d.yaw = back.x; d.vel = back.v;
+      if (Move.springAtRest(d.yaw, d.vel, 0)) { d.yaw = 0; d.vel = 0; d.last = 0; } else live = true;
     }
+    if (!d.on && !d.yaw) d.last = 0;
     var p = feel.par;
     if (p.x !== p.tx || p.y !== p.ty || p.vx || p.vy) {
       var pts = wall / 1000, pdt = p.last ? Math.min(0.1, pts - p.last) : 1 / 60;
@@ -1659,6 +1671,7 @@ function create(canvas, opts) {
          wide or low that the eye could see under the table */
       o.yaw += 0.50 * w; o.pitch -= 0.33 * w; o.dist *= 1 - 0.10 * w;
     }
+    o.yaw += feel.drift.yaw;
     o.yaw -= 0.05 * feel.par.x;            /* positive: the camera steps to the viewer's right */
     o.pitch += 0.03 * feel.par.y;
     return o;
@@ -1799,13 +1812,13 @@ function create(canvas, opts) {
             m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3], m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]];
   }
   R.orbit = function (dx, dy) {
-    feel.drift.on = false;
+    foldDrift();
     cam.tYaw -= dx * 0.008;
     cam.tPitch = Math.min(PITCH_MAX, Math.max(PITCH_MIN, cam.tPitch + dy * 0.006));
     R.dirty = true;
   };
   R.zoom = function (f) {
-    feel.drift.on = false;
+    foldDrift();
     cam.tDist = Math.min(17, Math.max(6.5, cam.tDist * f));
     R.dirty = true;
   };
@@ -1820,7 +1833,7 @@ function create(canvas, opts) {
      "show me this from the other side", and the other side seen from a
      tilt and a zoom somebody left an hour ago is not what was asked for. */
   R.setOrientation = function (color) {
-    feel.drift.on = false;
+    feel.drift.on = false; feel.drift.yaw = 0; feel.drift.vel = 0;
     R.orientation = color;
     cam.tYaw = homeYaw(color);
     cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
@@ -1991,7 +2004,7 @@ function create(canvas, opts) {
   R.setPosition = function (board, o) {
     R.board.set(board);
     R.anim = null;
-    settles = {}; tray.fly = null;
+    settles = {}; tray.fly = null; tray.pos = {}; tray.last = 0;
     settling = null;
     R.toppled = null;
     R.cascade = null;
@@ -1999,7 +2012,7 @@ function create(canvas, opts) {
       /* a new game starts from the player's own view, whatever the last
          one ended on */
       R.focus(null);
-      feel.drift.on = false;
+      feel.drift.on = false; feel.drift.yaw = 0; feel.drift.vel = 0;
       if (!REDUCED) {
         feel.swoopT0 = performance.now();
         var plan = Move.cascade(R.board, { orientation: R.orientation });
@@ -2050,7 +2063,7 @@ function create(canvas, opts) {
      a ring of light runs out of it, bright enough for the bloom to find */
   R.impact = function (sq, power) {
     if (REDUCED || sq == null || sq < 0 || !onSq(sq)) return;
-    R.impacts.push({ sq: sq, t0: clock(), power: power == null ? 0.5 : Math.max(0, Math.min(1, power)) });
+    R.impacts.push({ sq: sq, t0: performance.now(), power: power == null ? 0.5 : Math.max(0, Math.min(1, power)) });
     if (R.impacts.length > 6) R.impacts.shift();
     R.dirty = true;
   };
@@ -2062,8 +2075,15 @@ function create(canvas, opts) {
     if (nextCheck >= 0 && nextCheck !== R.hi.check) R.checkAt = clock();
     else if (nextCheck < 0) R.checkAt = -1;
     var nextSel = hi.selected != null ? hi.selected : -1;
-    if (nextSel !== sel.sq) { sel.sq = nextSel; sel.t0 = clock(); sel.lift = 0; }
+    if (nextSel !== sel.sq) {
+      sel.sq = nextSel; sel.t0 = clock(); sel.shownAt = 0; sel.lift = 0;
+      /* how long the ripple runs: out to the farthest square he can reach */
+      var far = 0, all = (hi.legal || []).concat(hi.legalCapt || []);
+      for (var fi = 0; fi < all.length; fi++) far = Math.max(far, Math.hypot(sqX(all[fi]) - sqX(nextSel), sqZ(all[fi]) - sqZ(nextSel)) - 1);
+      sel.live = Move.rippleEnd(far) + 40;
+    }
     R.hi.selected = nextSel;
+    R.hi.mark = hi.mark != null ? hi.mark : -1;
     R.hi.legal = hi.legal || [];
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
@@ -2094,14 +2114,14 @@ function create(canvas, opts) {
        them popping into place because an engine was quick off the mark */
     R.toppled = null;
     var raise = !drop && sel.sq === m.from ? sel.lift : 0;
-    var taken = m.epSq != null ? R.board[m.epSq] : R.board[m.to];
+    var took = m.epSq != null ? R.board[m.epSq] : R.board[m.to];
     var t0 = clock();
-    if (taken && place.ready && !REDUCED) {
+    if (took && place.ready && !REDUCED) {
       var tsq = m.epSq != null ? m.epSq : m.to;
-      tray.fly = { piece: taken, x: sqX(tsq), z: sqZ(tsq), t0: t0 + pl.dur * 0.9, dur: TRAY_FLY_MS };
+      tray.fly = { piece: took, nth: countOf(taken, took) + 1, x: sqX(tsq), z: sqZ(tsq), t0: t0 + pl.dur * 0.9, dur: TRAY_FLY_MS };
     }
     R.anim = { m: m, pl: pl, after: new Int8Array(after), t0: t0,
-               dur: pl.dur, glow: !!o.glow, done: done || null, drop: drop, raise: raise, took: !!taken };
+               dur: pl.dur, glow: !!o.glow, done: done || null, drop: drop, raise: raise, took: !!took };
     R.dirty = true;
     /* handed back so the caller can put a sound on the same plan: both
        are measured from this moment, on clocks that do not drift apart */
@@ -2299,7 +2319,7 @@ function create(canvas, opts) {
      played he sets off from the height he was holding, not from the wood.
      settles: men just set down, rocking once on their bases
      (Motion.settle) — a capture lands harder than a quiet move. */
-  var sel = { sq: -1, t0: 0, lift: 0 };
+  var sel = { sq: -1, t0: 0, shownAt: 0, live: 0, lift: 0 };
   var settles = {};
   /* ---------- the men that have been taken ----------
      On a table there is somewhere to put them: in a row beside the board
@@ -2310,27 +2330,35 @@ function create(canvas, opts) {
      a man just taken is lifted off his square and carried over to it. */
   var TRAY_X = HALF + 0.64, TRAY_STEP = 0.5, TRAY_SCALE = 0.72, TRAY_FLY_MS = 560;
   var tray = { pos: {}, fly: null, last: 0 };
-  var FULL = [0, 8, 2, 2, 2, 1, 1];
-  function takenFrom(board) {
-    var have = { 1: [0, 0, 0, 0, 0, 0, 0], "-1": [0, 0, 0, 0, 0, 0, 0] }, sq;
-    for (sq = 0; sq < 128; sq++) {
-      if (!onSq(sq) || !board[sq]) continue;
-      have[board[sq] > 0 ? 1 : -1][Math.abs(board[sq])]++;
-    }
-    var out = { 1: [], "-1": [] };
+  /* the men taken so far, as piece codes in the order they went — handed
+     in by the app from the game record (R.setTaken), never worked out
+     from the position: a position cannot tell a promoted pawn from the
+     queen it replaced, and a lesson's sparse board has lost nothing */
+  var taken = [];
+  R.setTaken = function (list) {
+    var next = list ? list.slice() : [];
+    if (next.length === taken.length && next.every(function (c, i) { return c === taken[i]; })) return;
+    taken = next;
+    R.dirty = true;
+  };
+  /* each side's row, smallest man first (pawns, knights, bishops, rooks,
+     queens), the way people line them up; a man still on his way over
+     is counted in so his place is kept for him */
+  function trayLists() {
+    var lists = { 1: [], "-1": [] }, i;
+    for (i = 0; i < taken.length; i++) lists[taken[i] > 0 ? 1 : -1].push(taken[i]);
+    var fly = tray.fly;
+    if (fly && countOf(lists[fly.piece > 0 ? 1 : -1], fly.piece) < fly.nth) lists[fly.piece > 0 ? 1 : -1].push(fly.piece);
     [1, -1].forEach(function (c) {
-      var h = have[c], extra = 0, k, n;
-      for (k = 2; k <= 5; k++) extra += Math.max(0, h[k] - FULL[k]);
-      var lost = [0, Math.max(0, 8 - h[1] - extra), 0, 0, 0, 0, 0];
-      for (k = 2; k <= 5; k++) lost[k] = Math.max(0, FULL[k] - h[k]);
-      /* pawns, knights, bishops, rooks, queens: the order a row is read in */
-      for (k = 1; k <= 5; k++) for (n = 0; n < lost[k]; n++) out[c].push(k * c);
+      lists[c] = lists[c].map(function (code, i) { return { code: code, i: i }; })
+        .sort(function (x, y) { return (Math.abs(x.code) - Math.abs(y.code)) || (x.i - y.i); })
+        .map(function (e) { return e.code; });
     });
-    return out;
+    return lists;
   }
   /* the row's men into the instance list; true while any is moving */
-  function placeTray(board, now) {
-    var lists = takenFrom(board), live = false;
+  function placeTray(now) {
+    var lists = trayLists(), live = false;
     var dt = tray.last ? Math.min(0.1, (now - tray.last) / 1000) : 0;
     tray.last = now;
     var fly = tray.fly;
@@ -2343,9 +2371,9 @@ function create(canvas, opts) {
       for (var i = 0; i < list.length; i++) {
         var code = list[i], nth = seen[code] = (seen[code] || 0) + 1;
         var key = code + ":" + nth, tx = x, tz = z0 + dz * i;
-        var newest = fly && fly.piece === code && nth === countOf(list, code);
-        if (newest && now < fly.t0) continue;          /* still going over on his square */
-        if (newest) {
+        var flying = fly && fly.piece === code && nth === fly.nth;
+        if (flying && now < fly.t0) continue;          /* still going over on his square */
+        if (flying) {
           var u = Math.min(1, (now - fly.t0) / fly.dur), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
           var fx = fly.x + (tx - fly.x) * e, fz = fly.z + (tz - fly.z) * e;
           pushPiece(code, fx, fz, Math.sin(Math.PI * e) * 1.3 - RIM_DEPTH * e,
@@ -2354,8 +2382,10 @@ function create(canvas, opts) {
           live = true;
           continue;
         }
+        /* a man already in the row eases to a new slot when an undo or a
+           later capture shuffles the order; one just arrived simply stands */
         var ps = tray.pos[key] || (tray.pos[key] = { x: tx, z: tz });
-        var k = dt ? Math.min(1, dt * 9) : 1;
+        var k = (REDUCED || !dt) ? 1 : Math.min(1, dt * 9);
         ps.x += (tx - ps.x) * k; ps.z += (tz - ps.z) * k;
         if (Math.abs(ps.x - tx) + Math.abs(ps.z - tz) > 0.002) live = true; else { ps.x = tx; ps.z = tz; }
         pushPiece(code, ps.x, ps.z, -RIM_DEPTH, 1, TRAY_SCALE, null);
@@ -2826,11 +2856,16 @@ function create(canvas, opts) {
     if (drag) skip[drag.sq] = true;
     if (home) skip[settling.sq] = true;
     var touchLive = false, selLift = 0;
-    if (sel.sq >= 0 && !a && !drag && !REDUCED && R.board[sel.sq]) {
-      var selMs = nowMs - sel.t0;
-      selLift = Move.hold(Math.min(selMs, 6000));
-      if (selMs < Math.max(6000, Move.rippleEnd(8))) touchLive = true;
-    }
+    var selShown = sel.sq >= 0 && !a && !drag && !home && !REDUCED && R.board[sel.sq];
+    if (selShown) {
+      /* the rise is timed from the frame he first appears in the hand —
+         not from the tap, which may have come while the last move was
+         still landing — so he never pops up in a single frame */
+      if (!sel.shownAt) sel.shownAt = nowMs;
+      selLift = Move.hold(nowMs - sel.shownAt);
+      if (nowMs - sel.shownAt < Move.HOLD_RISE) touchLive = true;
+    } else sel.shownAt = 0;
+    if (sel.sq >= 0 && nowMs - sel.t0 < sel.live) touchLive = true;
     sel.lift = selLift;
     for (var sk in settles) {
       if (nowMs - settles[sk].t0 >= Move.SETTLE_MS) delete settles[sk]; else touchLive = true;
@@ -2949,7 +2984,7 @@ function create(canvas, opts) {
       if (going) pushPiece(going, home.x, home.z, home.y, 1, 1, null);
     }
 
-    if (place.ready && th.table && placeTray(a ? a.after : R.board, nowMs)) touchLive = true;
+    if (place.ready && th.table && placeTray(nowMs)) touchLive = true;
 
     /* ---- pass one: what the light can see ---- */
     shadowPass();
@@ -3091,6 +3126,7 @@ function create(canvas, opts) {
       drawFlatSq(R.hi.last[1], th.last, 0.45);
     }
     if (R.hi.selected >= 0) drawFlatSq(R.hi.selected, th.selected, 0.5);
+    if (R.hi.mark >= 0) drawFlatSq(R.hi.mark, th.selected, 0.5);     /* a note's "look here": the square, not a man in the hand */
     /* where a carried man would land: a breath of colour on the square
        and a thin bright edge round it, so it reads as "here" without
        hiding the square's own colour */
@@ -3159,7 +3195,7 @@ function create(canvas, opts) {
     if (R.impacts.length) {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
       for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
-        var im = R.impacts[ii], ia = Move.impactAt(nowMs - im.t0, im.power);
+        var im = R.impacts[ii], ia = Move.impactAt(performance.now() - im.t0, im.power);
         if (!ia.live) { R.impacts.splice(ii, 1); continue; }
         var ix = sqX(im.sq), iz = sqZ(im.sq), ip = im.power, amt = ia.amount;
         bindMesh(MESH_DISC);
