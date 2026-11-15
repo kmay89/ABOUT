@@ -928,6 +928,35 @@
   #splash .t{font-size:1.3em; font-weight:700; letter-spacing:.02em}
   #splash .s{color:var(--soft); font-size:.9em}
 
+  /* ---------- friends: the challenge, the game you send, your people ----------
+     All of it is built from pieces the room already has — the four-letter
+     card's rows, the lobby's big buttons, the chips — so a friend's corner
+     of the room looks like the rest of it. */
+  .roomQR{display:flex; justify-content:center; margin:2px 0 6px}
+  .roomQR .qrFrame canvas{width:min(132px,34vw)}
+  @media (max-width:359px){ .roomQR{display:none} }
+  #linkPeople{margin:6px 0 2px}
+  #linkPeople .roomRow{margin:6px 0}
+  .peopleChips{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0}
+  .endLinks{display:flex; justify-content:center; flex-wrap:wrap; gap:4px 14px; margin:2px 0}
+  .shareCard textarea.code{min-height:96px}
+  .shareCard .qrFrame{margin:8px auto}
+  .personRow{background:var(--card2); border:1px solid var(--line); border-radius:12px; margin:6px 0; overflow:hidden}
+  .personHead{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px}
+  .pnName{flex:1; min-width:0}
+  .pnName b{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pnName small, .pnScore small{display:block; color:var(--soft); font-size:.78em}
+  .pnScore{flex:none; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--glow)}
+  .pnScore small{letter-spacing:.12em; font-weight:400}
+  .personMore{display:none; padding:0 12px 10px; border-top:1px solid var(--line)}
+  .personRow.open .personMore{display:block}
+  .pgRow{display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px dashed var(--line); font-size:.88em}
+  .pgRow:last-child{border-bottom:0}
+  .pgTx{flex:1; min-width:0}
+  .pgTx small{display:block; color:var(--soft); font-size:.86em}
+  .pgRow .chip{padding:4px 10px; font-size:.85em}
+  .lessonBar .lread{display:block; color:var(--soft); font-size:.86em; margin-top:2px}
+
   /* ---------- the press ----------
      A button you can feel: it goes down the instant a finger lands, a
      touch smaller and a shade darker, and comes back up with a small
@@ -1038,6 +1067,7 @@
       <svg class="rcSpark" id="mRateSpark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"></svg>
     </button>
 
+    <button class="bigbtn resumeBtn hide" id="mOpenBoard"><span class="em">📡</span><span><b id="mOpenBoardTx">Your board is open</b><small id="mOpenBoardSub">Waiting for your friend.</small></span></button>
     <button class="bigbtn resumeBtn hide" id="mResume"><span class="em">🕯️</span><span><b>Continue your game</b><small id="mResumeSub">Your game is right where you left it.</small></span></button>
 
     <button class="playBtn" id="mPlay">
@@ -1052,7 +1082,7 @@
     <div class="secHead"><b>More ways to play</b></div>
     <div class="tileRow">
       <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Take turns on this screen.</small></span></button>
-      <button class="tile" id="mLan"><span class="em">📡</span><span><b>A friend nearby</b><small>Two devices, four letters.</small></span></button>
+      <button class="tile" id="mLan"><span class="em">📡</span><span><b>Play a friend</b><small>Nearby or anywhere — a link, a QR or four letters.</small></span></button>
     </div>
 
     <div class="secHead"><b>Learn</b></div>
@@ -1142,24 +1172,27 @@
     <div id="linkChoose">
       <div class="linkHero">
         <div class="linkHeroArt" aria-hidden="true"><span>♔</span><span class="linkHeroDots">· · ·</span><span>♚</span></div>
-        <h2>Play together, nearby</h2>
-        <p>Two devices, one board. Hold them up to each other and they'll find one another — no accounts, no server, nothing leaves the room.</p>
+        <h2>Play a friend</h2>
+        <p>Across the table or across the country: a link, a QR or four letters opens the same board. No accounts — the mailbox only passes the handshake, and the game goes straight between the two devices.</p>
       </div>
       <label class="nameLbl" for="lanName">Your name <small>— your opponent will see it</small></label>
       <input class="namebox" id="lanName" maxlength="18" placeholder="e.g. Sam" autocomplete="nickname">
       <button class="bigbtn hide" id="linkResume"><span class="em">🕯️</span><span><b>Rejoin your board</b><small id="linkResumeSub">…</small></span></button>
-      <button class="bigbtn" id="linkHostBtn"><span class="em">♔</span><span><b>Start a board</b><small>You'll get four letters to read out.</small></span></button>
-      <button class="bigbtn" id="linkJoinBtn"><span class="em">♚</span><span><b>Join a board</b><small>Type the four letters they read you.</small></span></button>
+      <button class="bigbtn" id="linkHostBtn"><span class="em">♔</span><span><b>Invite a friend</b><small>A link to send, a QR to show, or four letters to read out — then play while you wait.</small></span></button>
+      <button class="bigbtn" id="linkJoinBtn"><span class="em">♚</span><span><b>Join a board</b><small>Type the four letters they gave you, or tap the link they sent.</small></span></button>
+      <div id="linkPeople" class="hide"></div>
     </div>
 
     <!-- the front door: the host's four letters -->
     <div id="linkRoom" class="hide">
       <h2 id="roomTitle">Your board is open</h2>
-      <p id="roomHow">Read these four letters to your friend. On their device: <b>Play together</b> → <b>Join a board</b>.</p>
+      <p id="roomHow">Read these four letters to your friend. On their device: <b>Play a friend</b> → <b>Join a board</b>.</p>
       <div class="codeBig pending" id="roomCode" aria-live="polite">····</div>
+      <div class="roomQR hide" id="roomQRWrap"><div class="qrFrame"><canvas id="roomQR" aria-label="The invite link, as a QR code"></canvas></div></div>
       <div class="roomWait" id="roomWait"><span class="spin"></span><span id="roomWaitTx">opening the board…</span></div>
       <div class="rowbtns linkActions">
-        <button class="chip" id="roomShare">📤 Send the code</button>
+        <button class="chip sel" id="roomShare">📤 Send the invite</button>
+        <button class="chip hide" id="roomKeep">← Back to the room, keep it open</button>
         <button class="chip" id="roomOther">🔳 Codes &amp; QR instead</button>
       </div>
       <p class="linkNote" id="roomNote">The four letters only carry the handshake. The game itself goes straight between the two devices.</p>
@@ -1168,7 +1201,7 @@
     <!-- the front door: the joiner types four letters -->
     <div id="linkJoinRoom" class="hide">
       <h2>Type their four letters</h2>
-      <p id="joinHow">Ask your friend to tap <b>Start a board</b> — they'll read you four letters.</p>
+      <p id="joinHow">Ask your friend to tap <b>Invite a friend</b> — they'll send a link or read you four letters.</p>
       <input class="codeIn" id="roomIn" maxlength="4" inputmode="latin" autocapitalize="characters"
              autocomplete="off" spellcheck="false" placeholder="····" aria-label="Their four-letter code">
       <div class="roomWait" id="joinWait"><span id="joinWaitTx">four letters and you're in</span></div>
@@ -1235,6 +1268,38 @@
   </div>
 </div>
 
+<!-- ===== send a game: the sentence, the link, the QR =====
+     The whole game rides in the link (share.js); this card only shows it
+     three ways and hands it to whatever the phone shares with. -->
+<div class="ov hide" id="ovShare">
+  <div class="card shareCard">
+    <h2 id="shareTitle">Send this game</h2>
+    <p id="shareSub"></p>
+    <textarea class="code" id="shareTx" readonly aria-label="The words and the link to send"></textarea>
+    <div class="qrFrame small hide" id="shareQRWrap"><canvas id="shareQR" aria-label="The link, as a QR code"></canvas></div>
+    <div class="rowbtns">
+      <button class="chip sel" id="shareSend">📤 Send</button>
+      <button class="chip" id="shareCopy">📋 Copy</button>
+      <button class="chip" id="sharePgn">♟ Copy as PGN</button>
+    </div>
+    <p class="linkNote">Nothing is uploaded: the moves are inside the link itself. Whoever opens it gets the board, and their own coach's reading of it.</p>
+    <button class="ghostbtn" id="shareBack">Done</button>
+  </div>
+</div>
+
+<!-- ===== your people: everyone you have sat across from =====
+     Its own card for now, reached from Play a friend and from the end of
+     a game with someone; the rows are drawn by renderPeople(box), so a
+     tab on the record card could hold them later without a rewrite. -->
+<div class="ov hide" id="ovPeople">
+  <div class="card">
+    <h2>Your people</h2>
+    <p>Everyone you've played on another device, and the score between you — most recent first. <small id="peopleMe"></small></p>
+    <div id="peopleList"></div>
+    <button class="ghostbtn" id="peopleBack">Back</button>
+  </div>
+</div>
+
 <!-- ===== promotion ===== -->
 <div class="ov hide" id="ovPromo">
   <div class="card" style="max-width:380px; text-align:center">
@@ -1271,6 +1336,10 @@
     <p id="endReview2" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em;color:var(--soft)"></p>
     <button class="bigbtn hide" id="endPractise"><span class="em">🎓</span><span><b>Practise what this game showed you</b><small id="endPractiseSub"></small></span></button>
     <button class="bigbtn" id="endReview"><span class="em">🔍</span><span><b>Look back at the game</b><small>Step through the moves on the board.</small></span></button>
+    <div class="endLinks hide" id="endShareRow">
+      <button class="linkish" id="endSend">📨 Send this game</button>
+      <button class="linkish hide" id="endPeople"><span id="endPeopleTx">👥 You and your friend ›</span></button>
+    </div>
     <button class="ghostbtn" id="endMenu">Back to the menu</button>
   </div>
 </div>
@@ -1450,6 +1519,8 @@
 <script src="haptics.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
+<script src="share.js"></script>
+<script src="friends.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

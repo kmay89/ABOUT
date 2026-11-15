@@ -527,9 +527,12 @@ Net.roomList = function () {
   return (typeof Room === "undefined") ? Promise.resolve(null) : Room.list();
 };
 /* stop advertising, but stay reachable: a started board keeps its four
-   letters precisely so a player who vanishes can come back to them */
+   letters precisely so a player who vanishes can come back to them.
+   "Not open" is what takes it off the public list of waiting boards —
+   a game under way is nobody else's to tap into — while a knock by code,
+   which is how a player whose link dropped comes back, still works. */
 Net.roomStarted = function () {
-  if (typeof Room !== "undefined" && Net.isHost && Room.code) Room.shut(true, true);
+  if (typeof Room !== "undefined" && Net.isHost && Room.code) Room.shut(true, false);
 };
 /* pack up this device's half — the pigeonholes and the poll. Does not
    speak to the mailbox; Net.roomStarted / Room.shut do that. */

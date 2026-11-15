@@ -8,8 +8,10 @@ scale every club already uses — so you can tell whether you are getting
 better. Around that: a patient coach who hints and explains, an Academy
 of short lessons, opening stories told plainly, a real tournament clock,
 a full 3D board with four piece sets (and a lovely 2D option), and
-same-room two-player that links two devices with four letters or a
-scanned code. No accounts, no server, no ads, nothing tracked.
+two-player that links two devices — across the table or across the
+country — with a link, a QR or four letters, and remembers the score
+between you. Any game can be sent as a link that opens on any phone.
+No accounts, no server, no ads, nothing tracked.
 Installable as a PWA; works offline; quietly announces new versions.
 
 Part of [The Solving Room](../). No libraries, no build step, MIT.
@@ -235,6 +237,16 @@ room.js             the shared front door: four-letter room codes over the
 net.js              nearby two-player: WebRTC over four letters, with the
                     serverless invite/reply codes (deflated, QR-scannable)
                     still underneath, and resume-after-drop
+share.js            a game you can send: the moves, the names and the
+                    result packed into a #game= link (deflated, base64
+                    for URLs, a plain fallback), the receiver's side that
+                    rebuilds every field and replays every move before
+                    believing any of it, the share sentence, and PGN.
+                    Pure: no DOM, no storage
+friends.js          your people: everyone you have played on another
+                    device, by a quiet random id, with the score between
+                    you and your last few games together. Kept on this
+                    phone only, cleaned field by field like the score
 sw.js               offline shell + update notifications, one release at
                     a time: the page and its scripts always come from the
                     same versioned cache, and a new release waits for the
@@ -377,6 +389,26 @@ tools/              dev-only, never shipped:
                     lesson in the Academy, the record and the nearby door
                     — on a phone and on a laptop, failing on a single
                     page error
+  share-check.js    a game you send arrives whole: in node, the codec
+                    round-trips, any zlib reads it, the plain fallback
+                    opens, junk and illegal moves are refused, names lose
+                    markup, the board outranks the result a link claims,
+                    and the PGN replays to the same position; in a
+                    browser, on a phone and a laptop, a game sent from
+                    the end card and opened fresh — the offer, the board,
+                    stepping through, the receiver's coach marking the
+                    blunder, playing on (friendly against the coach), a
+                    link to one moment with a question, a damaged link
+  friends-check.js  the room remembers who you play: in node, the store
+                    against junk, renames, a game recorded twice, an old
+                    board with no id, two Sams, the decider and a friend's
+                    board on the public list; then two real browsers over
+                    the real mailbox — a board kept open while its host
+                    plays the computer, an invite link that says who is
+                    asking, the shelved game surviving, the board leaving
+                    the public list once under way, the score mirrored on
+                    both phones, the decider, and a challenge noticed and
+                    joined in one tap
   grain-check.js    every pattern builds, finite, centred and in range;
                     the same seed paints the same board from the one
                     cache; no two patterns and no two squares alike; laid
@@ -933,6 +965,88 @@ all of the same, in gradients. `motion-check.js` holds the new timings
 to their promises and `grain-check.js` the wood to being wood; the
 render check now also asks the painted board for its grain, and the
 touched man for his halo.
+
+## Friends
+
+Two people who play each other want three things the room used to make
+hard: to get a game going when they are not in the same room, to show
+each other a game, and to know who is ahead. None of it needs an
+account, and none of it puts anything about a game on a server.
+
+**A challenge that waits.** *Play a friend* → *Invite a friend* opens a
+board and gives you three ways in for the other person, all of them the
+same board: a link to send (it reads "Ana challenges you to a game of
+chess — 10 min + 5s a move, you're Black. Tap to sit down"), a QR under
+the four letters for someone across the table, and the four letters
+themselves to read out. Then you don't have to sit and watch them:
+*Back to the room, keep it open* puts you in the lobby with a row that
+says the board is waiting, and you can play the computer meanwhile. The
+moment they arrive, the computer game is put on the shelf exactly as it
+stood — *Continue your game* offers it back afterwards — and the friend
+game begins. The person who taps the link is told who is asking, which
+clock and which colour before they are even in.
+
+It works across the internet as well as across a table, as long as the
+two networks let two phones talk directly — most do. Some pairs (some
+mobile data, some office Wi-Fi) can't, and there is no relay here to
+carry the game for them, so after twenty seconds of knocking the room
+says that plainly instead of spinning: the same Wi-Fi always works, and
+so does one phone's hotspot. Once a game is under way its board leaves
+the public list of waiting boards, so nobody else can tap into it; the
+four letters still let a player whose phone dropped find their way back.
+
+**A game you can send.** Any game — finished, or the one in progress
+from the lobby — becomes a link. The whole game rides in the link (the
+moves, the names, the result; a sixty-move game is a few hundred
+characters), so nothing is uploaded and the part after the `#` never
+reaches a server. The share is a sentence first — "♟ Ana vs Sam · 1–0
+(checkmate) · Italian Game · 34 moves" — and a link second, with a QR
+and a PGN for anyone who wants the game in another program.
+
+Tapping the link offers the game; it is never opened behind your back.
+It opens on the board at the first move with both names in the bar:
+◀ ▶ (or the arrow keys, or a tap on any move) to step through. Then the
+receiving room's own coach reads it, move by move, at the same depth it
+reads your own games, and its marks land in the move list as it goes —
+the annotation is deliberately not in the link, so what arrives is a
+second opinion rather than the sender's word about their own play.
+*Play from here* takes the game over from whatever move is on the
+board, with someone on the same screen or against the coach — a
+friendly game, never rated, because a position from the middle of
+someone else's game is not a fair start.
+
+The same link can point at one moment instead of the whole game: *Send*
+from the bar while looking at a position sends "move 23 — Black to
+play. What would you do?", opened at that move, seen from the side that
+has to answer. The receiver never trusts the link: every field is
+rebuilt, names lose anything that could be markup, a move that is not
+legal refuses the whole link, and if the board says mate the result says
+mate, whatever the link claimed.
+
+**Your people.** Every person you play on another device is remembered
+on this phone: their name as they typed it, the score between you, when
+you last played, and your last dozen games together, each one ready to
+look through or send. There are no friend requests and no search — a
+friend is someone you sat across from. Each room makes up one quiet
+random id the first time it is needed and says it to the other board in
+the greeting that already carried your name, so two people both called
+Sam stay two people and a Sam who renames herself is still Sam. The id
+crosses the direct link and nothing else; the list never leaves the
+phone, *Forget* on a row forgets that person, and the recovery card's
+fresh start forgets everyone.
+
+It shows where it matters. When the boards link: "Sam again! You lead
+3–2." On the end card, the rematch button carries the score — and at one
+game each, and only then, "Level, 1–1 — the decider?" *Your people* (from
+*Play a friend*, or *You and Sam* on the end card) lists everyone in the
+order you last played, the only honest order, with a *Challenge* that
+opens a board "For Sam". When you open *Play a friend*, the room looks
+once at the public list of waiting boards — something anyone on the site
+can already see — and only says so if a board there was opened by one of
+your people, or opened for you. Nothing ranks anybody, and friend games
+never touch your rating.
+
+`node chess/tools/share-check.js` · `node chess/tools/friends-check.js`
 
 ## Where you play
 
@@ -1708,8 +1822,8 @@ matching lesson, so a loss turns into the next thing you learn.
   self-play gaps scale to people — is written down beside the numbers.
   `node chess/tools/calibrate.js`, and `rating-check.js` for the
   arithmetic.
-- **Joining is four letters.** One of you taps *Start a board* and reads
-  out something like `BUZZ`; the other types it. That's the whole
+- **Joining is four letters.** One of you taps *Invite a friend* and reads
+  out something like `BUZZ` (or sends it as a link); the other types it. That's the whole
   ritual, and it is the same one at the domino table and in HIVEMIND —
   one front door across every game here. Boards waiting nearby also
   show up in a list, so you can tap instead of type.
@@ -1717,7 +1831,10 @@ matching lesson, so a loss turns into the next thing you learn.
   directly between the two devices (STUN only for candidate discovery).
   The four letters buy nothing but a place to leave a handshake — a
   WebRTC handshake is ~600 characters and can never be read aloud,
-  while four letters can. Nothing about the game passes through it.
+  while four letters can. Nothing about the game passes through it — not
+  the moves, not the score between friends, not the quiet id that keeps
+  two Sams apart, which crosses only the direct link. A game you send is
+  a link you hand to someone yourself; it never touches the mailbox.
 - **Everything underneath still works.** Offline, on `file://`, or on a
   fork of this without the mailbox, the room falls back by itself to
   the handshake it always had: two phones held up to each other, each
@@ -1796,6 +1913,8 @@ node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
+node chess/tools/share-check.js    # a game you send arrives whole, and a bad link is refused
+node chess/tools/friends-check.js  # two phones, a challenge that waits, and the score between them
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
@@ -1804,7 +1923,7 @@ Or from the repo root, in three groups by how long they take:
 ```
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # pieces, engine, brain, offline, touch, play, rating,
-                               # sound, motion, haptics
+                               # sound, motion, haptics, share, friends
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over
 ```

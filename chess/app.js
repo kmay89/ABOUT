@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Share, Friends */
 (function () {
 "use strict";
 
@@ -524,7 +524,7 @@ function fmtClock(ms) {
    them for choosing a board colour. The Studio is a drawer beside a game
    that goes on, so it does not stop anything. A game between two devices
    keeps running: the other person is still sitting there. */
-var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk"];
+var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk", "ovShare", "ovPeople"];
 function clockPaused() {
   if (mode === "lan") return false;
   for (var i = 0; i < PAUSING.length; i++) if (!$(PAUSING[i]).classList.contains("hide")) return true;
@@ -614,6 +614,7 @@ function syncClocks() {
 function sideName(side) {
   if (mode === "coach") return side === humanSide ? "You" : SKILLS[skill].label;
   if (mode === "lan") return side === lanSide ? (lanMy || "You") : lanOpp;
+  if (mode === "review" && sharedView) return side === 1 ? sharedView.white : sharedView.black;
   return side === 1 ? "White" : "Black";
 }
 var GLYPH = { 1: "♙", 2: "♘", 3: "♗", 4: "♖", 5: "♕", 6: "♔" };
@@ -2225,6 +2226,7 @@ function endGame(result, reason, taught) {
   var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
   renderEndRating(mode === "coach" ? settleRating(result) : null, cardAt);
   renderOddsReview();
+  friendsAtEnd(result, mySide);
   /* the card waits its turn: if something else was opened in the
      meantime, the Result chip offers it instead of stacking on top */
   setTimeout(function () {
@@ -2239,7 +2241,9 @@ function endGame(result, reason, taught) {
       if (iWon) Fx.fireworks({ count: reason === "checkmate" ? 3 : 2, layer: "page" });
     }
   }, cardAt);
-  lsDel(SAVE_KEY);
+  /* a game with a friend that ended must not take with it the coach game
+     that was shelved when they arrived — saveGame looks after its own */
+  if (mode !== "lan") lsDel(SAVE_KEY);
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
@@ -2336,7 +2340,9 @@ function saveGame() {
     /* and the coach's reviews so far, so a reload doesn't throw away the
        look-back's work — or the abandonment rule's sense of the position */
     rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
-    ev: lastEval
+    ev: lastEval,
+    /* a game played on from a sent position is friendly, and stays so */
+    fr: mode === "coach" && ratedDone ? 1 : 0
   }));
 }
 function loadSave() {
@@ -2397,6 +2403,7 @@ function resumeSaveInner(s) {
       reviewMemo[t[0]] = { best: t[1], played: t[2] };
   });
   if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
+  if (s.fr === 1 && mode === "coach") ratedDone = true;
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -2415,13 +2422,13 @@ function lanHandlers() {
     if (Net.isHost) {
       Net.send({ t: "hi", name: lanMy || "Host", clock: lanCfg.clockStr,
                  yourSide: lanCfg.mySide === 1 ? -1 : 1, sans: lanCfg.sans || [],
-                 wMs: lanCfg.wMs, bMs: lanCfg.bMs });
+                 wMs: lanCfg.wMs, bMs: lanCfg.bMs, fid: myFid() });
       beginLan(lanCfg.mySide, lanCfg.clockStr, lanCfg.sans || [], lanCfg.wMs, lanCfg.bMs);
       celebrateLink();
     } else {
       /* the joiner waits for the host's greeting: it carries their name
          and which seat we're in, so the celebration can show both */
-      Net.send({ t: "hi2", name: lanMy || "Friend" });
+      Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
       $("linkTitle").textContent = "Linked — setting up the board…";
       codeBusy("dealing the pieces…");
     }
@@ -2459,15 +2466,16 @@ function lanHandlers() {
       if (over) return;
       Net.resync({ sans: G.played.map(function (r) { return r.san; }),
                    clock: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
-                   yourSide: -lanSide, name: lanMy || "Host" });
+                   yourSide: -lanSide, name: lanMy || "Host", fid: myFid() });
     } else {
-      Net.send({ t: "hi2", name: lanMy || "Friend" });
+      Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
     }
     toast("📡 Back together — the board is exactly as you left it.");
   };
   Net.onResync = function (msg) {
     var wasLan = (mode === "lan");
     lanOpp = String(msg.name || lanOpp || "Friend").slice(0, 18);
+    takeOppId(msg);
     beginLan(msg.yourSide === 1 ? 1 : -1, msg.clock, msg.sans || [], msg.wMs, msg.bMs);
     if (!wasLan) celebrateLink();
     syncAll();
@@ -2477,6 +2485,7 @@ function lanHandlers() {
     switch (msg.t) {
       case "hi":
         lanOpp = String(msg.name || "Friend").slice(0, 18);
+        takeOppId(msg);
         if (!Net.isHost) {
           beginLan(msg.yourSide === 1 ? 1 : -1, msg.clock, msg.sans || [], msg.wMs, msg.bMs);
           celebrateLink();
@@ -2485,6 +2494,7 @@ function lanHandlers() {
         break;
       case "hi2":
         lanOpp = String(msg.name || "Friend").slice(0, 18);
+        takeOppId(msg);
         renderSeats();      /* the host may already be celebrating — keep it true */
         syncBars(); syncTurnStrip();
         break;
@@ -2515,6 +2525,7 @@ function lanHandlers() {
 }
 function beginLan(mySide, clockStr, sans, wMs, bMs) {
   lanSide = mySide;
+  lanGameStart(sans);
   startGame("lan", { clockStr: clockStr || "none" });
   if (sans && sans.length) {
     for (var i = 0; i < sans.length; i++) {
@@ -2613,6 +2624,7 @@ function openLink() {
   $("linkCodeIn").value = "";
   $("codeDrop").open = false;
   offerRejoin();
+  renderLinkPeople();
 }
 /* A board you were in the middle of, offered back to you. This is the
    whole point of remembering the code: a phone that died, a tab that was
@@ -2735,13 +2747,18 @@ function hostFlow(resume) {
     $("roomTitle").textContent = "Your board is open";
     roomWait("opening the board…", true);
     Net.name = lanMy || "Host";
-    Net.roomOpen({ host: lanMy || "Host", name: (lanMy ? lanMy + "'s board" : "A chess board") })
+    /* a new board is a new board: the letters of the last game would be
+       reclaimed still marked as started, and its opponent's healing would
+       walk straight into it */
+    if (!resume && Net.isHost && Room.code) Net.roomLeave();
+    Net.roomOpen({ host: lanMy || "Host", name: roomTitleFor() })
       .then(function (r) {
         if (!r) { hostByHandshake(); return; }
         $("roomCode").textContent = r.code;
         $("roomCode").classList.remove("pending");
         roomWait("waiting for them to type it…", true);
-        $("roomHow").innerHTML = "Read these four letters to your friend. On their device: <b>Play together</b> → <b>Join a board</b>.";
+        $("roomHow").innerHTML = "Read these four letters to your friend. On their device: <b>Play a friend</b> → <b>Join a board</b>.";
+        roomOpened(r.code);
       })
       .catch(function () { hostByHandshake(); });
   };
@@ -2753,7 +2770,7 @@ function hostByHandshake() {
   linkRole = "host"; linkStep = 1;
   linkStage({ step: 1, showCode: true, title: "Show this to your friend",
     how: scanSupported()
-      ? "On their device: <b>Play together</b> → <b>Join a board</b> → <b>Codes &amp; QR</b>, then point their camera at this code."
+      ? "On their device: <b>Play a friend</b> → <b>Join a board</b> → <b>Codes &amp; QR</b>, then point their camera at this code."
       : "Tap <b>Share</b> to send them the link — tapping it opens their board already joining. Then they'll send you a short answer code to paste." });
   codeBusy("making your code…");
   Net.host({ name: lanMy, n: lanNonce }).then(function (code) {
@@ -2784,6 +2801,7 @@ function joinFlow(prefill) {
     /* a four-letter code (a tapped link, a typed hash) needs no handshake
        screen at all — it goes straight in */
     if (Room.isCode(prefill)) {
+      showJoinExtras();
       roomPanel("join");
       $("roomIn").value = Room.tidy(prefill);
       joinByCode(prefill);
@@ -2793,6 +2811,7 @@ function joinFlow(prefill) {
     feedCode(prefill);
     return;
   }
+  showJoinExtras();
   roomPanel("join");
   $("roomIn").value = "";
   joinNote("four letters and you're in");
@@ -2836,7 +2855,7 @@ function refreshRoomList() {
     var box = $("roomList");
     if (!box) return;
     if (!rooms.length) {
-      box.innerHTML = '<div class="roomEmpty">No boards waiting yet — when your friend taps <b>Start a board</b>, theirs appears here.</div>';
+      box.innerHTML = '<div class="roomEmpty">No boards waiting yet — when your friend taps <b>Invite a friend</b>, theirs appears here.</div>';
       return;
     }
     box.innerHTML = rooms.map(function (r) {
@@ -2884,6 +2903,7 @@ function joinByCode(code, retry) {
       return;
     }
     joinNote("found " + (r.name || code) + " — setting up the board…");
+    watchJoinStall(code);
   }, function () {
     roomJoining = false;
     joinNote("that didn't take — try the code again");
@@ -3108,7 +3128,7 @@ function renderSeats() {
   $("seatRow").innerHTML =
     '<div class="seat me"><span class="who">' + escHtml(lanMy || "You") + '</span><span class="side">' + (meWhite ? "♔ White" : "♚ Black") + '</span></div>' +
     '<div class="seat"><span class="who">' + escHtml(lanOpp || "Your friend") + '</span><span class="side">' + (meWhite ? "♚ Black" : "♔ White") + '</span></div>';
-  $("linkedSub").textContent = "Two devices, one board — " + (meWhite ? "you open." : "they open.");
+  $("linkedSub").textContent = linkedLine(meWhite);
 }
 function celebrateLink() {
   stopScan();
@@ -3116,6 +3136,7 @@ function celebrateLink() {
   snd("link");
   $("linkedTitle").textContent = "You're linked!";
   renderSeats();
+  greetFriend();
   $("ovLinked").classList.remove("hide");
   var meWhite = lanSide === 1;
   setTimeout(function () {
@@ -3153,6 +3174,621 @@ function share(text) {
       : { title: "My reply code", text: text };
     navigator.share(msg).catch(function () {});
   } else clip(text);
+}
+
+/* ===== friends: the challenge that waits, a game you can send, your people =====
+   Three things two people who play each other actually do, none of which
+   needs anything but the two phones and the mailbox's four letters:
+
+     • A CHALLENGE THAT WAITS. Opening a board used to park you on four
+       letters until somebody typed them. Now the board stays open while
+       you go back to the room and play the computer; the invite is a
+       sentence ("Sam challenges you — 10+5, you're Black") with a link
+       and a QR that open the same board, nearby or across the country;
+       and the moment they arrive, whatever you were doing is shelved
+       exactly as a lesson shelves it, and the game begins.
+     • A GAME YOU CAN SEND. Any game becomes a link (share.js) that opens
+       on any phone, replayable, and is read on arrival by the receiver's
+       own coach — or a link to one moment of it, with a question.
+     • YOUR PEOPLE. Everyone you have played on another device, the score
+       between you, and the games themselves (friends.js), said where it
+       matters: on the linked card, on the rematch button, and on a card
+       of its own. A profile tab could later hold the same rows —
+       renderPeople() draws into whatever box it is given.
+
+   Everything here stays on the two devices. The id that keeps two Sams
+   apart crosses only the direct link; the mailbox sees what it always
+   saw, a handshake. */
+var friends = Friends.load(lsGet);
+var lanOppId = "";        /* the other board's quiet id, when its room sent one  */
+var lanGameId = "";       /* this game's own name in the record                   */
+var hostFor = "";         /* a board opened "For" a particular friend             */
+var joinExtras = null;    /* what an invite link said about the board it opens    */
+var sharedView = null;    /* the game being looked through from a link            */
+var shareFrom = null;     /* which card the share sheet should go back to         */
+var peopleFrom = null;    /* …and the people card                                 */
+
+function myFid() {
+  if (!friends.me) { friends = Friends.me(friends); Friends.save(friends, lsSet); }
+  return friends.me;
+}
+/* whatever greeting arrives (hi, hi2, a resync), believe only an id of
+   the right shape; a board too old to send one is remembered by name */
+function takeOppId(msg) {
+  lanOppId = msg && Friends.isId(msg.fid) && msg.fid !== friends.me ? msg.fid : "";
+  if (lanOppId && lanOpp && Friends.find(friends, lanOppId)) {
+    friends = Friends.rename(friends, lanOppId, lanOpp);
+    Friends.save(friends, lsSet);
+  }
+}
+/* a new game gets a new name; a game put back together after a tunnel
+   keeps the one it had, so it is never counted twice */
+function lanGameStart(sans) {
+  if (!lanGameId || !sans || !sans.length) {
+    lanGameId = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+}
+function oppRecord() { return Friends.find(friends, lanOppId, lanOppId ? null : lanOpp); }
+
+/* "Sam again! You lead 3–2." — said once, as the boards join */
+function linkedLine(meWhite) {
+  var f = oppRecord(), t = Friends.tally(f);
+  var opens = meWhite ? "you open." : "they open.";
+  if (f && t.games) return (lanOpp || f.name) + " again! " + t.text + " — " + opens;
+  return "Two devices, one board — " + opens;
+}
+function greetFriend() {
+  var t = Friends.tally(oppRecord());
+  if (!t.games) return;
+  hap("success");
+  if (FX && !REDUCED) Fx.sparkle($("seatRow"), { count: 14 });
+}
+
+/* A game between two devices has ended: the score between you moves,
+   and the rematch button says what it now stands at. Only games that
+   were actually played count — a board resigned before anybody moved is
+   not a result between friends. */
+function friendsAtEnd(result, mySide) {
+  var row = $("endShareRow");
+  if (row) row.classList.toggle("hide", !(mode === "coach" || mode === "pass" || mode === "lan") || !G || !G.played.length);
+  var pb = $("endPeople");
+  if (pb) pb.classList.add("hide");
+  if (mode !== "lan" || !mySide) return;
+  var mine = result === "draw" ? "d" : ((result === "white") === (mySide === 1) ? "w" : "l");
+  var out = null;
+  if (G && G.played.length) {
+    out = Friends.record(friends, {
+      id: lanOppId, name: lanOpp || "A friend", result: mine, at: Date.now(), side: mySide,
+      sans: G.played.map(function (r) { return r.san; }), reason: over ? over.reason : "", gid: lanGameId
+    });
+    friends = out.state;
+    Friends.save(friends, lsSet);
+  }
+  var f = out ? out.f : oppRecord(), t = Friends.tally(f);
+  if (!t.games) return;
+  var nextSide = mySide === 1 ? "Black" : "White";
+  $("endRematchSub").textContent = out && out.decider
+    ? "Level, 1–1 — the decider? You'll have " + nextSide + "."
+    : t.text + " · you'll have " + nextSide + " next.";
+  if (pb) {
+    $("endPeopleTx").textContent = "👥 You and " + f.name + " ›";
+    pb.classList.remove("hide");
+  }
+}
+
+/* ----- the challenge that waits ----- */
+function roomTitleFor() {
+  if (hostFor) return "For " + hostFor;
+  return lanMy ? lanMy + "'s board" : "A chess board";
+}
+/* where the invite points, and what it says about the board before
+   anybody sits down: who asked, the clock, and which colour is theirs */
+function inviteUrl(code) {
+  var u = Net.url(code);
+  if (!/^https?:/.test(u)) return u;
+  var bits = [];
+  if (lanMy) bits.push("n=" + encodeURIComponent(lanMy));
+  if (lanCfg && lanCfg.clockStr) bits.push("c=" + encodeURIComponent(lanCfg.clockStr));
+  if (lanCfg && lanCfg.mySide) bits.push("s=" + (lanCfg.mySide === 1 ? "b" : "w"));
+  return u + (bits.length ? "&" + bits.join("&") : "");
+}
+function clockWords(c) {
+  if (!c || c === "none") return "no clock";
+  var p = String(c).split("+");
+  return p[0] + " min" + (+p[1] ? " + " + p[1] + "s a move" : "");
+}
+function challengeText() {
+  var who = lanMy || "Someone";
+  var side = lanCfg && lanCfg.mySide ? (lanCfg.mySide === 1 ? "you're Black" : "you're White") : "";
+  return "♟ " + (hostFor ? hostFor + ", " : "") + who + " challenges you to a game of chess — " +
+    clockWords(lanCfg && lanCfg.clockStr) + (side ? ", " + side : "") + ". Tap to sit down:";
+}
+function shareChallenge(code) {
+  var url = inviteUrl(code), text = challengeText();
+  if (!/^https?:/.test(url)) { clip(code); return; }
+  if (navigator.share) navigator.share({ title: "Chess?", text: text, url: url }).catch(function () {});
+  else clip(text + " " + url);
+}
+/* the board is open: the QR of the invite under the letters, and the
+   way back to the room while it waits */
+function roomOpened(code) {
+  var url = inviteUrl(code), web = /^https?:/.test(url);
+  var qr = $("roomQR");
+  if (qr) {
+    var drawn = web && Net.drawQR(qr, url);
+    $("roomQRWrap").classList.toggle("hide", !drawn);
+  }
+  $("roomKeep").classList.remove("hide");
+  $("roomHow").innerHTML = (hostFor ? "Opened for <b>" + escHtml(hostFor) + "</b>. " : "") +
+    (web ? "Send the invite, let them scan it, or read the four letters out — all three open this board, nearby or anywhere."
+         : "Read these four letters to your friend.") +
+    " You can go back to the room and play while you wait.";
+}
+/* the lobby's row for a board that is open and waiting */
+function syncOpenBoard() {
+  var b = $("mOpenBoard");
+  if (!b) return;
+  var open = Net.isHost && Net.state === "hosting" && !!Room.code && mode !== "lan";
+  b.classList.toggle("hide", !open);
+  if (!open) return;
+  var title = Room.title || "";
+  var forWho = /^For /.test(title) ? title.slice(4) : "";
+  $("mOpenBoardTx").textContent = "Your board " + Room.code + " is open";
+  $("mOpenBoardSub").textContent = "Waiting for " + (forWho || "your friend") + " — tap to show the code, or play while you wait.";
+}
+function showOpenBoard() {
+  if (!(Net.isHost && Room.code)) { syncOpenBoard(); return; }
+  hideAllOverlays();
+  linkRole = "host"; linkStep = 1;
+  $("ovLink").classList.remove("hide");
+  roomPanel("host");
+  $("roomCode").textContent = Room.code;
+  $("roomCode").classList.remove("pending");
+  $("roomTitle").textContent = "Your board is open";
+  roomWait("waiting for them…", true);
+  roomOpened(Room.code);
+}
+function keepBoardOpen() {
+  stopScan();
+  showMenu();
+  toast("📡 Your board stays open. Play while you wait — when they arrive, the room takes you straight to it.");
+}
+/* the joiner's side of an invite link: who is asking, before knocking */
+function takeJoinExtras(hash) {
+  joinExtras = null;
+  if (!/#join=[A-Za-z]{4}&/.test(hash || "")) return;
+  var o = {}, re = /[&](n|c|s)=([^&]*)/g, m;
+  while ((m = re.exec(hash))) {
+    var v = "";
+    try { v = decodeURIComponent(m[2]); } catch (e) { v = ""; }
+    o[m[1]] = v;
+  }
+  var n = String(o.n || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 18);
+  var c = /^(none|\d{1,3}\+\d{1,3})$/.test(o.c || "") ? o.c : "";
+  var s = o.s === "w" || o.s === "b" ? o.s : "";
+  if (n || c || s) joinExtras = { n: n, c: c, s: s };
+}
+function showJoinExtras() {
+  var how = $("joinHow");
+  if (!how) return;
+  var x = joinExtras;
+  joinExtras = null;
+  if (!x) { how.innerHTML = "Ask your friend to tap <b>Invite a friend</b> — they'll send a link or read you four letters."; return; }
+  how.innerHTML = "<b>" + escHtml(x.n || "A friend") + "</b> challenges you — " + escHtml(clockWords(x.c)) +
+    (x.s ? ", you'll have <b>" + (x.s === "w" ? "White" : "Black") + "</b>" : "") + ".";
+}
+/* Two phones on different networks usually find each other through
+   the mailbox; some pairs (some mobile data, some office Wi-Fi) cannot
+   talk directly at all, and there is no relay here to carry them. Rather
+   than knock forever, the room says so — once, plainly. */
+var joinStallT = 0;
+function watchJoinStall(code) {
+  clearTimeout(joinStallT);
+  joinStallT = setTimeout(function () {
+    if (Net.everLinked || mode === "lan" || linkRole !== "join" || $("ovLink").classList.contains("hide")) return;
+    joinNote("still reaching " + code + "… Two phones on different networks sometimes can't talk directly " +
+      "(some mobile data and office Wi-Fi block it). On the same Wi-Fi it always works — so does one phone's hotspot.");
+  }, 22000);
+}
+
+/* ----- the link card's people strip ----- */
+function renderLinkPeople() {
+  hostFor = "";
+  var box = $("linkPeople");
+  if (!box) return;
+  var rows = Friends.table(friends).slice(0, 3);
+  var html = "", any = false;
+  if (Net.isHost && Net.state === "hosting" && Room.code && mode !== "lan") {
+    any = true;
+    html +='<button class="roomRow" data-act="open"><span class="rrCode">' + escHtml(Room.code) +
+      '</span><span class="rrTx"><b>Your board is still open</b><i>waiting — tap to show the code</i></span><span class="rrGo">show ▸</span></button>';
+  }
+  html += '<div class="friendOpen hide" id="friendOpen"></div>';
+  if (rows.length) {
+    any = true;
+    html +='<div class="peopleChips">' + rows.map(function (r, i) {
+      return '<button class="chip" data-act="challenge" data-i="' + i + '">⚔ ' + escHtml(r.name) + "</button>";
+    }).join("") + '<button class="linkish" data-act="people">Your people ›</button></div>';
+  }
+  box.innerHTML = html;
+  box.classList.toggle("hide", !any);
+  Array.prototype.forEach.call(box.querySelectorAll("[data-act]"), function (b) {
+    b.addEventListener("click", function () {
+      var act = b.dataset.act;
+      if (act === "open") showOpenBoard();
+      else if (act === "people") showPeople(null, "link");
+      else if (act === "challenge") challengeFriend(rows[+b.dataset.i].name);
+    });
+  });
+  /* one look at the public list of waiting boards, never polled: a name
+     already on your table, or a board opened "For" you */
+  if (!friends.list.length || Room.live === false) return;
+  Net.roomList().then(function (rooms) {
+    var h = rooms ? Friends.hosting(friends, rooms, prefs.name) : null;
+    var el = $("friendOpen");
+    if (!h || !el || $("ovLink").classList.contains("hide")) return;
+    el.innerHTML = '<button class="roomRow"><span class="rrCode">' + escHtml(h.code) + '</span><span class="rrTx"><b>' +
+      escHtml(h.name) + (h.forYou ? " opened a board for you" : " has a board open") + '</b><i>right now</i></span><span class="rrGo">join ▸</span></button>';
+    el.classList.remove("hide");
+    box.classList.remove("hide");
+    el.querySelector("button").addEventListener("click", function () { grabName(); joinFlow(h.code); });
+  }).catch(function () {});
+}
+function challengeFriend(name) {
+  openLink();
+  hostFor = String(name || "").slice(0, 18);
+  hostFlow(false);
+}
+
+/* ----- your people: the card ----- */
+function relDay(t) {
+  if (!t) return "";
+  var days = Math.floor((Date.now() - t) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return days + " days ago";
+  var d = new Date(t);
+  return d.getDate() + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+}
+var RESULT_WORD = { w: "you won", d: "drawn", l: "they won" };
+function renderPeople(box, focus) {
+  var list = friends.list;
+  if (!list.length) {
+    box.innerHTML = '<div class="roomEmpty">Nobody yet. Play someone on another device — a board you open from <b>Play a friend</b> — and they are kept here, with the score between you.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  list.forEach(function (f, idx) {
+    var t = Friends.tally(f);
+    var wrap = document.createElement("div");
+    wrap.className = "personRow" + (focus && (focus === f.id || focus === f.name) ? " open" : "");
+    var head = document.createElement("button");
+    head.className = "personHead";
+    head.innerHTML = '<span class="pnName"><b>' + escHtml(f.name) + "</b><small>" + escHtml(t.text || "No games yet") +
+      " · " + escHtml(relDay(f.last)) + '</small></span><span class="pnScore">' + f.w + "–" + f.d + "–" + f.l +
+      '<small>' + escHtml(Friends.recent(f, 5)) + "</small></span>";
+    head.addEventListener("click", function () { wrap.classList.toggle("open"); });
+    wrap.appendChild(head);
+    var more = document.createElement("div");
+    more.className = "personMore";
+    var acts = document.createElement("div");
+    acts.className = "rowbtns";
+    acts.appendChild(chipBtn("⚔ Challenge " + f.name, function () { challengeFriend(f.name); }));
+    acts.appendChild(chipBtn("Forget", function () {
+      ask("Forget " + escHtml(f.name) + " and your games together? This phone is the only place they are kept.",
+        [{ label: "Forget", fn: function () {
+            friends = Friends.forget(friends, f.id, f.id ? null : f.name);
+            Friends.save(friends, lsSet);
+            renderPeople(box, null);
+          } },
+         { label: "Keep", fn: function () {}, ghost: true }]);
+    }));
+    more.appendChild(acts);
+    f.games.forEach(function (g) {
+      var line = document.createElement("div");
+      line.className = "pgRow";
+      var plies = g.s.length;
+      line.innerHTML = '<span class="pgTx"><b>' + RESULT_WORD[g.r] + "</b> · " + (g.side === 1 ? "you had White" : "you had Black") +
+        " · " + (plies ? Math.ceil(plies / 2) + (plies > 2 ? " moves" : " move") : "") + "<small>" + escHtml(relDay(g.at)) + (g.y ? " · " + escHtml(g.y) : "") + "</small></span>";
+      if (plies) {
+        var me = prefs.name || "You";
+        var game = { sans: g.s.slice(), white: g.side === 1 ? me : f.name, black: g.side === 1 ? f.name : me,
+                     result: g.r === "d" ? "draw" : ((g.r === "w") === (g.side === 1) ? "white" : "black"),
+                     reason: g.y, clock: "none", day: "", ply: -1, ask: "", from: "" };
+        line.appendChild(chipBtn("▶ Look", function () { openShared(game); }));
+        line.appendChild(chipBtn("📨", function () { shareGame(game, "people"); }));
+      }
+      more.appendChild(line);
+    });
+    wrap.appendChild(more);
+    box.appendChild(wrap);
+    if (idx === 0 && !focus && list.length === 1) wrap.classList.add("open");
+  });
+}
+function showPeople(focus, from) {
+  peopleFrom = from || "menu";
+  hideAllOverlays();
+  renderPeople($("peopleList"), focus);
+  $("peopleMe").textContent = prefs.name ? "Kept on this phone for " + prefs.name + "." : "Kept on this phone.";
+  $("ovPeople").classList.remove("hide");
+}
+function peopleBack() {
+  $("ovPeople").classList.add("hide");
+  if (peopleFrom === "end" && over) { $("ovEnd").classList.remove("hide"); syncTurnStrip(); return; }
+  if (peopleFrom === "link") { openLink(); return; }
+  showMenu();
+}
+
+/* ----- a game you can send ----- */
+function shareName(side) {
+  if (mode === "coach") return side === humanSide ? (prefs.name || "A player") : SKILLS[skill].label;
+  if (mode === "lan") return side === lanSide ? (lanMy || prefs.name || "A player") : (lanOpp || "A friend");
+  if (mode === "review" && sharedView) return side === 1 ? sharedView.white : sharedView.black;
+  return side === 1 ? "White" : "Black";
+}
+/* the game on the board, as a sendable thing; `ply` points at one move */
+function liveGame(ply) {
+  if (!G) return null;
+  return { sans: G.played.map(function (r) { return r.san; }), white: shareName(1), black: shareName(-1),
+           result: over ? over.result : null, reason: over ? over.reason : "", clock: clockStrOf(),
+           day: mode === "review" && sharedView ? sharedView.day : "", ply: ply == null ? -1 : ply, ask: "", from: prefs.name || "" };
+}
+function openingOf(sans) {
+  var s = sans.slice(0, 36).map(function (x) { return x.replace(/[+#]$/, ""); });
+  var eco = (typeof Eco !== "undefined") ? Eco.match(s) : null, entry = Book.match(s);
+  if (eco && (!entry || eco.seq.split(" ").length >= entry.seq.split(" ").length)) return eco.name;
+  return entry ? entry.name : "";
+}
+var lastShare = null;      /* the last sheet's words, for the check */
+function shareGame(game, from) {
+  if (!game || !game.sans || (!game.sans.length && game.ply < 0)) { toast("Nothing to send yet — play a move first."); return; }
+  var at = game.day ? Date.parse(game.day + "T12:00:00") : Date.now();
+  var payload = Share.gamePayload({ sans: game.sans, white: game.white, black: game.black, result: game.result,
+    reason: game.reason, clock: game.clock, at: at, ply: game.ply, ask: game.ask, from: game.from || prefs.name });
+  Share.pack("GAME", payload).then(function (code) {
+    var url = Share.url(code);
+    var clean = Share.cleanGame(payload, Chess) || game;
+    var opening = openingOf(game.sans);
+    var text = Share.text(clean, { opening: opening, url: url });
+    lastShare = { code: code, url: url, text: text };
+    openShareCard({
+      title: game.ply >= 0 ? "Send this position" : (game.result ? "Send this game" : "Send this game so far"),
+      sub: game.ply >= 0 ? "The link opens the board at this move, with your question — their coach does the judging."
+                         : "The whole game rides in the link. It opens on any phone, ready to step through, and their own coach reads it on arrival.",
+      text: text, url: url, pgn: Share.pgn(clean, { opening: opening, site: location.host ? location.host + location.pathname : "" })
+    }, from);
+  }, function () { toast("That game wouldn't pack into a link — copy its moves from the list instead."); });
+}
+function openShareCard(o, from) {
+  shareFrom = from || null;
+  hideAllOverlays();
+  $("shareTitle").textContent = o.title;
+  $("shareSub").textContent = o.sub;
+  $("shareTx").value = o.text;
+  $("shareTx").dataset.url = o.url;
+  $("shareTx").dataset.pgn = o.pgn || "";
+  var web = /^https?:/.test(o.url);
+  var drawn = web && o.url.length <= 1600 && Net.drawQR($("shareQR"), o.url);
+  $("shareQRWrap").classList.toggle("hide", !drawn);
+  $("sharePgn").classList.toggle("hide", !o.pgn);
+  $("ovShare").classList.remove("hide");
+  snd("open");
+}
+function closeShare() {
+  $("ovShare").classList.add("hide");
+  if (shareFrom === "end" && over) { $("ovEnd").classList.remove("hide"); syncTurnStrip(); return; }
+  if (shareFrom === "menu") { showMenu(); return; }
+  if (shareFrom === "people") { $("ovPeople").classList.remove("hide"); return; }
+  syncTurnStrip();
+}
+/* a chip in the lobby for the game in progress — sent as it stands */
+function gameOpsSend(ops, hasLive) {
+  if (!hasLive || !G || !G.played.length || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
+  var row = document.createElement("div"); row.className = "rowbtns";
+  row.appendChild(chipBtn("📨 Send this game so far", function () { shareGame(liveGame(), "menu"); }));
+  ops.appendChild(row);
+}
+
+/* ----- arriving by link: always an offer, never applied behind your back ----- */
+var GAME_HASH = /#game=(GAME[01]\.[A-Za-z0-9_-]+)/;
+function offerSharedGame(delay) {
+  var m = (location.hash || "").match(GAME_HASH);
+  if (!m) return false;
+  history.replaceState(null, "", location.pathname);
+  Share.unpack(m[1]).then(function (p) {
+    var g = p && p.kind === "GAME" ? Share.cleanGame(p.obj, Chess) : null;
+    setTimeout(function () {
+      if (!g) { toast("That game link looks damaged — ask for a fresh one."); return; }
+      var from = g.from ? escHtml(g.from) : "a friend";
+      var head = "<b>" + escHtml(g.white) + " vs " + escHtml(g.black) + "</b>";
+      toast(g.ply >= 0
+        ? "📨 From " + from + ": a position from " + head + ", move " + (Math.floor(g.ply / 2) + 1) + ". Have a look?"
+        : "📨 " + head + " · " + Share.scoreText(g.result) + " · " + Math.ceil(g.sans.length / 2) + " moves — a game sent to you. Open it?",
+        [{ label: "Open", fn: function () { openShared(g); } },
+         { label: "Not now", fn: function () {}, ghost: true }], 20000);
+    }, delay || 0);
+  });
+  return true;
+}
+
+/* ----- the viewer -----
+   A sent game opens on the board as a game that has already happened:
+   the moves in the list, the names in the bar, ◀ ▶ to step, and — while
+   you look — this room's own coach reading it move by move, the same
+   reading it gives your own games, its marks landing in the list as it
+   goes. Nothing about it is saved unless you play on from it. */
+function openShared(g) {
+  if (mode === "lan" && Net.linked() && !over) { toast("Finish (or leave) the game you're linked in first — the link will keep."); return; }
+  stopTour(); quietBoard(); hideAllOverlays(); closeStudio();
+  lesson = null; lessonDone = false; lessonQueue = [];
+  teachSeen = {}; teachCool = 0; taughtAt = [];
+  reviewMemo = {}; assist = { takebacks: 0, hints: 0 }; ratedDone = true; lastEval = 0;
+  mode = "review";
+  G = Chess.create();
+  for (var i = 0; i < g.sans.length; i++) {
+    var m = Chess.fromSAN(G, g.sans[i]);
+    if (!m) break;
+    Chess.play(G, m);
+  }
+  over = g.result ? { result: g.result, reason: REASON_WORDS[g.reason] || g.reason || "" } : null;
+  sharedView = { white: g.white, black: g.black, result: g.result, reason: over ? over.reason : "", day: g.day || "",
+                 ask: g.ask || "", from: g.from || "", ply: g.ply, read: 0, total: G.played.length, done: false };
+  clearSel(); hintArrow = null; viewPly = -1; lastNarratedOpening = "";
+  clockConfig("none");
+  hideOpeningCard();
+  /* a position is seen from the side that has to find the move */
+  orientation = g.ply >= 0 && g.ply % 2 === 0 ? -1 : 1;
+  R.setOrientation(orientation);
+  if (FX) Fx.clear();
+  narrateOpening("", "resume");
+  var start = g.ply >= 0 ? g.ply : 0;
+  if (G.played.length) viewAt(Math.min(start, G.played.length - 1));
+  R.setPosition(currentViewBoard(), { flourish: true });
+  syncAll();
+  sharedBar();
+  snd("open");
+  readSharedGame(gameTicket);
+}
+function sharedBar() {
+  if (mode !== "review" || !sharedView) return;
+  var v = sharedView;
+  var day = v.day ? " · " + relDay(Date.parse(v.day + "T12:00:00")) : "";
+  var res = v.result ? Share.scoreText(v.result) + (v.reason ? " (" + esc(v.reason) + ")" : "") : "unfinished";
+  var said;
+  if (v.ply >= 0) said = "<b>" + esc(v.ask || (v.ply % 2 === 0 ? "Black" : "White") + " to play. What would you do?") + "</b>" +
+    (v.from ? " — from " + esc(v.from) + "." : "");
+  else said = "Step through with ◀ ▶, or tap any move in the list.";
+  var reading = voice() === "off" ? " The coach is off, so nothing is marked."
+    : (v.done ? " The coach has read it" + (Object.keys(marks).length ? " — the marked moves have a note." : ": nothing it needed to say.")
+              : " The coach is reading it… " + v.read + " of " + v.total + ".");
+  lessonUI('<div class="lkick">📨 ' + esc(v.white) + " vs " + esc(v.black) + " · " + res + day + "</div>" +
+           '<div class="lsay">' + said + (v.total ? '<small class="lread">' + reading + "</small>" : "") + "</div>");
+  lessonRow([
+    lessonChip("◀", function () { sharedStep(-1); }),
+    lessonChip("▶", function () { sharedStep(1); }),
+    lessonChip("▶ Play from here", playFromShared, true),
+    lessonChip("📨 Send", function () { shareGame(liveGame(viewPly >= 0 && v.ply >= 0 ? viewPly : v.ply), null); }),
+    lessonChip("Done", showMenu)
+  ]);
+}
+function sharedStep(d) {
+  if (!G || !G.played.length) return;
+  var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+  var to = Math.max(0, Math.min(G.played.length - 1, at + d));
+  if (to === at && viewPly >= 0 && d > 0) { exitView(); return; }
+  if (d > 0 && to === at + 1 && !REDUCED) {
+    /* one step forward is a move being played: it is seen moving */
+    var rec = G.played[to];
+    viewAt(at);
+    viewPly = to === G.played.length - 1 ? -1 : to;
+    showViewBanner(viewPly >= 0);
+    var t = Chess.create();
+    for (var i = 0; i <= to; i++) Chess.make(t, G.played[i].m);
+    var desc = animDescriptor(rec.m);
+    sndMove(desc, R.animateMove(desc, t.board, { scale: 1.3 }, function () { syncBoard(); }), rec.m.capt);
+    syncMoveList(); syncBars(); syncTurnStrip();
+    needFrame();
+    return;
+  }
+  viewAt(to);
+}
+/* the receiver's own coach reads every move, both sides, at the depth it
+   reads your games — so the marks are a second opinion, never the
+   sender's claim about their own play */
+function readSharedGame(ticket) {
+  var v = sharedView, ply = 0;
+  if (!v || voice() === "off") { if (v) { v.done = true; sharedBar(); } return; }
+  function next() {
+    if (ticket !== gameTicket || mode !== "review" || sharedView !== v) return;
+    if (ply >= G.played.length) { v.done = true; sharedBar(); return; }
+    var p = ply, pre = Chess.create();
+    for (var k = 0; k < p; k++) Chess.play(pre, G.played[k].m);
+    var want = G.played[p].m, mine = null, list = Chess.moves(pre);
+    for (var j = 0; j < list.length; j++) {
+      if (list[j].from === want.from && list[j].to === want.to && (list[j].promo || 0) === (want.promo || 0)) { mine = list[j]; break; }
+    }
+    ply++;
+    if (!mine) { next(); return; }
+    Brain.review(pre, mine, { ms: 600, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
+      if (ticket !== gameTicket || mode !== "review" || sharedView !== v) return;
+      if (res) {
+        reviewMemo[p] = { best: res.bestScore, played: res.playedScore };
+        showReview(pre, G.played[p].san, res, mine, p);
+      }
+      v.read = ply;
+      if (ply % 4 === 0 || ply >= G.played.length) sharedBar();
+      setTimeout(next, 0);
+    }, function () { if (ticket === gameTicket) setTimeout(next, 0); });
+  }
+  next();
+}
+/* Take the game over from the move on the board: against the coach (a
+   friendly game — the position was not a fair start, so it is never
+   rated) or with somebody on this screen. */
+function playFromShared() {
+  if (mode !== "review" || !G) return;
+  var upto = viewPly >= 0 ? viewPly : G.played.length - 1;
+  var sans = G.played.slice(0, upto + 1).map(function (r) { return r.san; });
+  var probe = Chess.create();
+  sans.forEach(function (s) { var m = Chess.fromSAN(probe, s); if (m) Chess.play(probe, m); });
+  if (Chess.status(probe).over) { toast("That position is already over — step back a move or two and play on from there."); return; }
+  var side = probe.turn;
+  ask("Play on from move " + (Math.floor(sans.length / 2) + 1) + ", as " + (side === 1 ? "White" : "Black") + "?",
+    [{ label: "🤖 Against the coach", fn: function () { playOnFrom("coach", sans, side); } },
+     { label: "🤝 Two players, one device", fn: function () { playOnFrom("pass", sans, side); } },
+     { label: "Not now", fn: function () {}, ghost: true }]);
+}
+function playOnFrom(kind, sans, side) {
+  sharedView = null;
+  startGame(kind, { humanSide: side, skill: nextLevel(), clockStr: "none" });
+  for (var i = 0; i < sans.length; i++) {
+    var m = Chess.fromSAN(G, sans[i]);
+    if (!m) break;
+    Chess.play(G, m);
+  }
+  /* startGame may have asked the coach for a first move from the empty
+     board; that question is about a position nobody is playing now */
+  brainTicket++; clearTimeout(coachTimer); thinking = false; Brain.cancel();
+  if (kind === "coach") ratedDone = true;     /* friendly: never rated */
+  R.setPosition(G.board);
+  syncAll();
+  narrateOpening("", "resume");
+  saveGame();
+  toast(kind === "coach"
+    ? "You're " + (side === 1 ? "White" : "Black") + ", playing on against " + SKILLS[skill].label + " — a friendly game, not rated."
+    : "Playing on from here — " + (side === 1 ? "White" : "Black") + " to move.");
+}
+function leaveSharedView() {
+  if (mode !== "review") return;
+  gameTicket++; Brain.cancel();
+  sharedView = null; mode = null;
+}
+
+function wireFriends() {
+  $("roomKeep").addEventListener("click", keepBoardOpen);
+  $("mOpenBoard").addEventListener("click", showOpenBoard);
+  $("endSend").addEventListener("click", function () { shareGame(liveGame(), "end"); });
+  $("endPeople").addEventListener("click", function () { showPeople(lanOppId || lanOpp, "end"); });
+  $("peopleBack").addEventListener("click", peopleBack);
+  $("shareBack").addEventListener("click", closeShare);
+  $("shareSend").addEventListener("click", function () {
+    var tx = $("shareTx").value, url = $("shareTx").dataset.url || "";
+    var words = tx.replace(url, "").trim();
+    if (navigator.share && /^https?:/.test(url)) navigator.share({ title: "A chess game", text: words, url: url }).catch(function () {});
+    else clip(tx);
+  });
+  $("shareCopy").addEventListener("click", function () { clip($("shareTx").value); });
+  $("sharePgn").addEventListener("click", function () { clip($("shareTx").dataset.pgn || ""); });
+  ["ovShare", "ovPeople"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) { if (e.target === this) (id === "ovShare" ? closeShare : peopleBack)(); });
+  });
+  /* Escape backs out of these two the way their own buttons do — ahead
+     of the room's general Escape, which would go to the lobby */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || askCancel) return;
+    if (!$("ovShare").classList.contains("hide")) { closeShare(); e.stopImmediatePropagation(); }
+    else if (!$("ovPeople").classList.contains("hide")) { peopleBack(); e.stopImmediatePropagation(); }
+  }, true);
 }
 
 /* ===== opening stories (the tour) ===== */
@@ -4073,7 +4709,7 @@ function adoptSkin(s) {
 
 /* ===== overlays & menus ===== */
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile"].forEach(function (id) {
+  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile", "ovShare", "ovPeople"].forEach(function (id) {
     $(id).classList.add("hide");
   });
   /* the picker is not just hidden but closed: a picker that is hidden
@@ -4086,8 +4722,10 @@ function showMenu() {
   closeStudio();
   if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
+  leaveSharedView();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   hideAllOverlays();
+  syncOpenBoard();
   var lp = Learn.stats(Learn.load());
   $("mAcademySub").textContent = lp.solved
     ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due" : "")
@@ -4138,6 +4776,7 @@ function showMenu() {
     }));
     ops.appendChild(row);
   }
+  gameOpsSend(ops, hasLive);
   $("ovMenu").classList.remove("hide");
   snd("open");
 }
@@ -4371,10 +5010,10 @@ function syncButtons() {
   /* Undo needs a move of yours to take back; after the end of a game
      between two people on one screen it stays, because that is exactly
      when a person playing both sides wants to try the other line */
-  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" &&
+  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" && mode !== "review" &&
     (!over || (mode === "pass" && !/out of time/.test(over.reason))) && (mode !== "coach" || humanMovesMade() > 0);
   $("btnUndo").toggleAttribute("disabled", !canUndo);
-  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || hintPending);
+  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || mode === "review" || hintPending);
   $("btnReplay").toggleAttribute("disabled", !G || !G.played.length || thinking);
 }
 
@@ -4433,7 +5072,7 @@ function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.s
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -4642,7 +5281,7 @@ function wireUI() {
   $("roomShare").addEventListener("click", function () {
     var code = $("roomCode").textContent.trim();
     if (!Room.looksLikeCode(code)) { toast("The code isn't ready yet — one moment."); return; }
-    share(Net.url(code));
+    shareChallenge(code);
   });
   $("roomOther").addEventListener("click", hostByHandshake);
   $("joinOther").addEventListener("click", joinByHandshake);
@@ -4730,8 +5369,10 @@ var JOIN_HASH = /#join=(CHESS(?:1|2)\.[A-Za-z0-9_-]+|[A-Za-z]{4})(?:$|&)/;
 function wireHashLinks() {
   window.addEventListener("hashchange", function () {
     if (offerSharedSkin(0)) return;
+    if (offerSharedGame(0)) return;
     var j = location.hash.match(JOIN_HASH);
     if (j) {
+      takeJoinExtras(location.hash);
       history.replaceState(null, "", location.pathname);
       openLink();
       joinFlow(j[1]);
@@ -4860,6 +5501,7 @@ function boot() {
   Room.configure({ game: "chess", seats: 2, label: "board" });
   wireUI();
   lanHandlers();
+  wireFriends();
   initRenderers();
   fxInit();
   applySkin(skin, false);
@@ -4877,12 +5519,15 @@ function boot() {
 
   /* somebody shared a board look with you */
   offerSharedSkin(1200);
+  /* …or a game, or one moment of one */
+  offerSharedGame(1400);
 
   /* arriving by invite link? straight into the join flow */
   var joinM = location.hash.match(JOIN_HASH);
   setTimeout(function () {
     $("splash").classList.add("gone");
     if (joinM) {
+      takeJoinExtras(location.hash);
       history.replaceState(null, "", location.pathname);
       openLink();
       joinFlow(joinM[1]);
@@ -4923,5 +5568,10 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
-  rejoinLan: rejoinLan, syncNetChip: syncNetChip };
+  rejoinLan: rejoinLan, syncNetChip: syncNetChip,
+  /* friends, for chess/tools/friends-check.js and share-check.js */
+  Share: Share, Friends: Friends, get friends() { return friends; }, get lanOppId() { return lanOppId; },
+  get sharedView() { return sharedView; }, get lastShare() { return lastShare; }, get viewPly() { return viewPly; },
+  shareGame: shareGame, liveGame: liveGame, openShared: openShared, challengeFriend: challengeFriend,
+  showPeople: showPeople, showMenu: showMenu };
 })();
