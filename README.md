@@ -31,7 +31,37 @@ beside the tapes; in 1999 it's a stack of aerial prints with a loupe on
 top); and [*well*](https://kmay89.com/well/) — falling blocks down a
 lit stone shaft, where every move plays a note and nothing ever asks
 for one more go (a small stone well sits on the desk with a faint glow
-coming up out of it).
+coming up out of it); and [Luma](https://kmay89.com/luma/) — a
+lithophane studio that turns any photo into a 3D printable picture made
+only of thickness, for a frame, a nightlight shade or a lamp (it hangs
+on the wall above the bike, lit from behind, and it is the last thing in
+the room to go dark when you throw the switch); and [the
+workshop](https://kmay89.com/workshop/) — the tools for the 3D printer,
+which the scratch-built printer on the side table opens: Luma, and
+[Hollow](https://kmay89.com/hollow/), which turns any STL into a printable
+mold for concrete or resin, with keys, a spout and vents, and shows what
+will release before you print; and
+[Cubby](https://kmay89.com/cubby/) — a drawer-organizer studio for a 3D
+printer: type the inside of any drawer, drag bins across a grid that
+fills it to the millimetre, and download one file with every part
+placed on the plate, no screws, no glue (the drawer under the desk's
+near corner is pulled open, with the bins that were printed for it); and
+[Swatch](https://kmay89.com/swatch/) — a test lab for the printer:
+sessions of small coupons, each carrying its own slicer settings inside
+one Bambu Studio file, for finding the dimensional compensations, fit
+clearances, first-layer, top-surface, ironing, wall and seam settings
+that make a print accurate and good to look at; and
+[Cameo](https://kmay89.com/cameo/) — a photo figurine studio: a photo of
+the dog becomes a relief figurine on a pedestal, cut out and given depth
+by models that run in the browser, printed flat with no supports; and
+[Knurl](https://kmay89.com/knurl/) — a surface texture studio: any STL
+gets a knurl, hexagons, flutes, scales or wood grain cut into its walls,
+shaped so it prints with no supports, and its first layer painted in a
+second colour from a pattern, text or a logo, all in one Bambu Studio file;
+and [Tuck](https://kmay89.com/tuck/) — a fold-up box studio: a box printed
+flat with living hinges, corner flaps whose tongues lock through the side
+walls, a tuck lid, and a name on the first layer that reads right once it
+is closed.
 
 **Live:** <https://kmay89.com>
 
@@ -111,6 +141,17 @@ coming up out of it).
   research can and can't say — and it makes no health claim. Reached
   from the desk by a small stone well with a faint glow coming up out of
   it, and from the games room. Notes in `well/README.md`.
+- `sunlight/` — *Borrowed Sunlight: The Back of the World*, an
+  open-world adventure through the novel, opened by the Game Boy on the
+  desk (a second cartridge beside Hive Mind) and the book itself.
+  Gran's hill, house, cellar, shed, the woods, the hollow, the pond and
+  the pit, Monday noon to Friday morning, every beat from the book. The
+  world opens the old adventure way, key by key — except every key is
+  real science (dark adaptation, induction, energy conversion, a
+  water-drop lens, chemotaxis, mycorrhiza, nurse logs, the angle of
+  repose, cryptobiosis, dormancy). Pixels, sound and music are all
+  made by code as it runs: no image or audio files. Notes and the full
+  design in `sunlight/README.md`.
 - `library/` — the reading room: a voxel engine written from scratch
   that renders block worlds in a browser. An NBT reader and an Anvil
   region reader built from the documented formats, our own palette of
@@ -161,6 +202,105 @@ coming up out of it).
   with `vantage/sync-demo.sh`, never by hand. The engine is
   [kmay89/timelapse_drone](https://github.com/kmay89/timelapse_drone);
   notes in `vantage/README.md`.
+- `luma/` — Luma, a lithophane studio. Drop in a photo and it becomes a
+  3D printable panel whose thickness is the picture: a flat insert for a
+  frame, a curved nightlight shade, or a lamp that goes all the way round
+  an LED tea light. A live Three.js preview lights it from behind;
+  Auto-enhance stretches the photo's own black and white points to the
+  full thickness range, Detail is an unsharp mask with a radius in
+  millimetres so preview and export agree, and the fit check knows the
+  plates of the common printers. The geometry is one closed indexed solid
+  per model (a lamp is a ring, genus one) written as binary STL in a
+  worker, and the photo never leaves the browser. Notes and checks in
+  `luma/README.md`; `npm run check:luma` runs the geometry and image
+  suites.
+- `hollow/` — Hollow, a mold studio. Drop in an STL and get back the hollow
+  of it: a two-part mold with three tapered alignment pegs on an L (so the
+  halves only go together one way), a pour spout on the parting line, air
+  vents wherever the pour would trap a bubble, band grooves or bolt holes
+  and pry slots; an open mold for flat-backed pieces, which turns a hollow
+  model into a body and a core with a collar; or a silicone master that
+  prints standing in its own tray. The parting plane is chosen by trying
+  every height and keeping the one that traps the least surface, and the
+  preview paints what releases, what is steep and what is trapped before
+  anything prints. Everything is a signed distance field traced by marching
+  tetrahedra and simplified by quadric decimation, so every part is a closed
+  solid, and it all runs in a worker in the browser — the model never leaves
+  the device. Exports one STL per part or a 3MF with every part laid out on
+  the plate for Bambu Studio. Notes and the maths in `hollow/README.md`;
+  `npm run check:hollow` runs its suites.
+- `workshop/` — the workshop: one page listing the 3D printer tools (Luma,
+  Hollow, Cubby, Swatch, Cameo, Knurl and Tuck), reached from the desk by the scratch-built
+  printer on the side table;
+- `cubby/` — Cubby, a drawer-organizer studio. The inside of a drawer
+  becomes a grid that fills it exactly; bins cover whole cells, can be
+  split inside, made low or given a finger scoop, and join each other
+  with a printed dovetail clip dropped into blind channels (or just by
+  filling the drawer). Every bin and clip is one closed solid built from
+  rings and earcut, with walls a whole number of nozzle lines; the
+  download is a 3MF per plate with every part placed and named, or a ZIP
+  with STLs and a print sheet, made in the browser with nothing uploaded.
+  Notes and checks in `cubby/README.md`; `npm run check:cubby` runs them;
+  and
+- `swatch/` — Swatch, a test lab for the printer. A test is two things
+  (slicer settings, or a geometry such as a hole's clearance) and a list
+  of values for each; every pair becomes a labelled coupon, and a session
+  puts two or three tests on one plate in the order they depend on each
+  other: accuracy (a caliper gauge for the X-Y compensations, a peg-and-
+  socket fit test, the first layer), then top surfaces (flow, ironing),
+  walls and seams, finishing touches. The download is one 3MF whose
+  `Metadata/model_settings.config` carries each coupon's settings as
+  per-object overrides and whose sparse `project_settings.config` names
+  the Bambu printer's own system presets, so Bambu Studio opens it as a
+  project with no warning and the user's profiles untouched. The settings
+  and their serialization were read from Bambu Studio's source. Notes in
+  `swatch/README.md`;
+  `npm run check:swatch` runs its suites; and
+- `cameo/` — Cameo, a photo figurine studio. The subject is cut out
+  (BRIA RMBG in the browser through transformers.js, or a wand and brush),
+  tidied, and turned into a relief: an exact distance transform rolls the
+  edge over with a quarter-circle profile, Depth Anything V2 lifts the
+  nearer parts and adds fine detail, and one height-field mesher makes the
+  figure (lying on its back, with a tab) and a pedestal with a slot, both
+  closed solids, placed in one 3MF with per-object settings and the sparse
+  Bambu project config. A relief, not a sculpture in the round: that is
+  what a static page can honestly do. Notes in `cameo/README.md`;
+  `npm run check:cameo` runs its suites; and
+- `knurl/` — Knurl, a surface texture studio. An STL or OBJ is welded,
+  its faces sorted into walls, tops, undersides and the bottom (or picked
+  by tapping smooth regions in the 3D view), the chosen faces subdivided
+  to a fine, watertight mesh and displaced along their normals by a
+  procedural height field (twenty-three of them: knurl, hex, flutes,
+  ripples, scales, leather, peel, wood, brick, dots, quilted, basket
+  weave, herringbone, topo lines, hammered, low poly, seigaiha, arabesque,
+  asanoha, chevron, dunes, linen, trellis, or a stamp of your text or
+  picture) with a flat
+  or around-the-axis mapping whose period closes the seam, within a height
+  band, with an ombré if wanted. The relief is cut in by default, fades to
+  nothing at the texture's edges and stays clear of the plate; only the
+  textured faces are subdivided (long thin ones as stitched strips), so
+  a cup gets the same 0.4 mm detail as a box at a fraction of the
+  triangles; readouts and a heat view give the steepest real overhang,
+  the finest feature against the nozzle's line and the thinnest wall
+  under the cut, and one button scales the depth until it prints. The
+  3MF carries per-object slicer settings that suit textured walls.
+- `tuck/` — Tuck, a fold-up box studio. The box is a set of regions of
+  the plane with a bottom and a top height (panels, hinge grooves from
+  above, tongue grooves from below) that tile a sheet; the mesher caps
+  each region, raises walls where height intervals differ and bands them
+  at the sheet's levels, and welds one closed solid whose volume is the
+  sum of area × height. Corner flaps fold in and their tongues lock out
+  through slots placed where the folded tongue lands; a tuck lid with a
+  thumb notch; a name on the first layer turned so it reads once the lid
+  is closed, as a second part on filament 2; a folding 3D view; a die-line
+  SVG for card. Notes in `tuck/README.md`; `npm run check:tuck` runs its
+  suites. Twenty-two one-tap looks with shaded
+  thumbnails, a live swatch, a fast preview with full-detail export, and
+  a link that carries the settings. The bottom face is
+  rasterised and a second-colour inlay (a pattern, a border, text or an
+  image) is meshed as a closed solid two layers tall, exported as a second
+  part on extruder 2 in the same object so Bambu Studio clips it out of the
+  body. Notes in `knurl/README.md`; `npm run check:knurl` runs its suites.
 - `privacy/ terms/ legal/ accessibility/` — the small print, kept
   humane.
 - `netlify/functions/room.js` — the room mailbox, and the only
@@ -323,9 +463,12 @@ If you touch any of the game rooms, run the checks first:
 npm run check        # parity, the well's promises, the mailbox, the chess room
 npm run check:rules  # replays tens of thousands of games of every new room
 npm run check:well   # just the well: names, colours, skies, help lines, shell
+npm run check:luma   # the lithophane studio's geometry and image maths
+npm run check:hollow # the mold studio: fields, surfaces, every kind of mold, the 3MF
+npm run check:cubby  # the drawer studio: closed solids, the grid, the files
 npm run check:open   # opens every room in a real browser and plays it
 npm run check:ai     # the strength ladders — the slow one, a few minutes
-npm run icons        # redraws every new room's icons from scratch
+npm run icons        # redraws every new room's icons, and Hollow's, from scratch
 ```
 
 `check:rules` is not a smoke test: it replays tens of thousands of games

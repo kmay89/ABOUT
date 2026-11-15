@@ -8,3 +8,8 @@ package-lock.json
 # themselves are tens of megabytes and publish = "." would put them on the
 # site. Drop them back into chess/tools/stl/ to regenerate a set.
 chess/tools/stl/
+
+# The front page's photographs, taken by tools/desk-check.js --update. They
+# are this machine's fonts and this machine's Chromium, so every checkout
+# takes its own before changing the desk.
+tools/desk-baseline/

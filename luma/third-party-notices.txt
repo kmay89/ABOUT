@@ -1,0 +1,22 @@
+Luma — Lithophane Studio
+Created for Karl Meves · ERRERLabs, 2026.
+
+Three.js r170, including OrbitControls
+Copyright 2010–2024 Three.js Authors
+MIT License; complete license: vendor/THREE-LICENSE.txt
+Source: https://github.com/mrdoob/three.js/tree/r170
+OrbitControls import path adjusted to use the local Three.js module.
+
+heic2any 0.0.4
+Copyright (c) 2020 Alex Corvi
+MIT License; complete license: vendor/HEIC2ANY-LICENSE.txt
+Source: https://github.com/alexcorvi/heic2any
+Includes its upstream decoder dependencies as distributed by the author.
+
+Sample photograph
+https://images.unsplash.com/photo-1552053831-71594a27632d
+Used under the Unsplash License: https://unsplash.com/license
+This is a demonstration photo and is not the user's personal photo.
+
+Bambu Lab and Bambu Studio are trademarks of their respective owners.
+Luma is an independent tool, not an official Bambu Lab product.

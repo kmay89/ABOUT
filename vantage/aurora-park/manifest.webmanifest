@@ -1,14 +1,14 @@
 {
   "name": "Aurora Park at Geauga Lake",
-  "short_name": "MKSK",
-  "description": "Aerial photographs of the new City of Aurora park on Geauga Lake, taken over the months it was built. Drag the line on each picture to compare the same view before and after.",
+  "short_name": "Aurora Park",
+  "description": "Aerial photographs of the park as it was built.",
   "lang": "en",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0e14",
-  "theme_color": "#0b0e14",
+  "background_color": "#14284f",
+  "theme_color": "#14284f",
   "icons": [
     {
       "src": "icon-192.png",

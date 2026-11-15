@@ -1,0 +1,19 @@
+Tuck — Fold-up Box Studio
+Created for Karl Meves · ERRERLabs, 2026.
+
+Three.js r170, including OrbitControls
+Copyright 2010–2024 Three.js Authors
+MIT License; complete license: vendor/THREE-LICENSE.txt
+Source: https://github.com/mrdoob/three.js/tree/r170
+OrbitControls import path adjusted to use the local Three.js module.
+
+earcut 3.0.1
+Copyright (c) 2024, Mapbox
+ISC License; complete license: vendor/EARCUT-LICENSE.txt
+Source: https://github.com/mapbox/earcut
+
+Nothing is fetched at run time.
+
+Bambu Lab, Bambu Studio, Prusa and PrusaSlicer are trademarks of their
+respective owners. Tuck is an independent tool, not an official product of
+any of them.

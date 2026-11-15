@@ -242,6 +242,64 @@ const SOME = ALL.filter((_, i) => i % 97 === 0);
   ok("the pulse stays inside its bounds", lo >= 0 && hi <= 1.001, lo.toFixed(3) + ".." + hi.toFixed(3));
 })();
 
+/* ---------- the squares opening out, the halo, the afterglow ---------- */
+(function () {
+  const before = Motion.reveal(-50), start = Motion.reveal(1), done = Motion.reveal(Motion.REVEAL.ms + 1);
+  ok("a square not yet due is nothing, and still asks for frames", before.scale === 0 && before.alpha === 0 && before.live);
+  ok("…then grows from nothing", start.scale < 0.1 && start.live, JSON.stringify(start));
+  ok("…and arrives at exactly one, and stops asking", done.scale === 1 && done.alpha === 1 && !done.live, JSON.stringify(done));
+  let peak = 0, back = false, prev = -1;
+  for (let t = 0; t <= Motion.REVEAL.ms; t += 1) {
+    const r = Motion.reveal(t);
+    peak = Math.max(peak, r.scale);
+    if (t > Motion.REVEAL.ms * 0.55 && r.scale < prev - 1e-9 && r.scale < 1) back = back || false;
+    prev = r.scale;
+  }
+  ok("it overshoots a little and settles — a breath, not a bounce", peak > 1 && peak < 1.2, "peak " + peak.toFixed(3));
+  ok("the far corner is open inside a quarter of a second",
+     7 * Motion.REVEAL.step + Motion.REVEAL.ms < 400, (7 * Motion.REVEAL.step + Motion.REVEAL.ms) + " ms");
+
+  const s0 = Motion.selectPulse(0), s1 = Motion.selectPulse(Motion.SELECT_MS + 1), sx = Motion.selectPulse(Infinity);
+  ok("a touched man flares on the touch", s0.amount > 0.95 && s0.live, JSON.stringify(s0));
+  ok("…breathes, and then holds a glow without asking for frames",
+     !s1.live && s1.amount > 0.4 && s1.amount < 0.7 && sx.amount === s1.amount, JSON.stringify(s1));
+  ok("a man not touched has no halo", !Motion.selectPulse(-1).live && Motion.selectPulse(-1).amount === 0);
+  let lo = 2, hi = -1;
+  for (let t = 0; t < Motion.SELECT_MS; t += 5) { const p = Motion.selectPulse(t); lo = Math.min(lo, p.amount); hi = Math.max(hi, p.amount); }
+  ok("the halo stays inside its bounds", lo >= 0.4 && hi <= 1.001, lo.toFixed(3) + ".." + hi.toFixed(3));
+
+  const g0 = Motion.afterglow(0), g1 = Motion.afterglow(Motion.AFTERGLOW_MS);
+  ok("a landed move's square is brightest at the landing and gone by the end",
+     g0.amount === 1 && g0.live && g1.amount === 0 && !g1.live);
+  let rising = false; prev = 2;
+  for (let t = 0; t < Motion.AFTERGLOW_MS; t += 3) { const a = Motion.afterglow(t).amount; if (a > prev + 1e-9) rising = true; prev = a; }
+  ok("…and only ever fades", !rising);
+})();
+
+/* ---------- the ring a landing leaves ---------- */
+(function () {
+  const soft = Motion.landRing(60, 0), hard = Motion.landRing(60, 1);
+  ok("a hard landing's ring is bigger and brighter than a soft one's",
+     hard.r > soft.r && hard.alpha > soft.alpha, JSON.stringify({ soft, hard }));
+  ok("the ring is not there before the landing, and gone after",
+     !Motion.landRing(-1, 0.5).live && !Motion.landRing(Motion.LAND.ms * 1.3 + 1, 0.5).live);
+  let shrank = false, prev = 0, prevA = 2, brightened = false;
+  for (let t = 1; t < Motion.LAND.ms; t += 2) {
+    const l = Motion.landRing(t, 0.6);
+    if (l.r < prev - 1e-9) shrank = true;
+    if (l.alpha > prevA + 1e-9) brightened = true;
+    prev = l.r; prevA = l.alpha;
+  }
+  ok("it only ever runs outward and fades", !shrank && !brightened);
+  const kn = Motion.landPower(Motion.plan({ piece: 2, from: 0x01, to: 0x22 }));
+  const kg = Motion.landPower(Motion.plan({ piece: 6, from: 0x04, to: 0x05 }));
+  const bi = Motion.landPower(Motion.plan({ piece: 3, from: 0x02, to: 0x35 }));
+  const pw = Motion.landPower(Motion.plan({ piece: 1, from: 0x14, to: 0x34 }));
+  ok("the knight lands hardest, the king heavily, the bishop barely",
+     kn > kg && kg > pw && pw > bi && bi >= 0.25 && kn <= 1, JSON.stringify({ kn, kg, pw, bi }));
+  ok("a plan nobody handed over lands somewhere in the middle", Motion.landPower(null) === 0.5);
+})();
+
 /* ---------- the king going over ----------
    The end of a game is the one animation everybody watches to the
    last frame, so it gets the same treatment as a move: exact at the

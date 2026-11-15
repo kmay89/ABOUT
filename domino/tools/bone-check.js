@@ -34,8 +34,8 @@ function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 
 ok("the bone is built", P.length > 0 && I.length > 0);
 ok("a normal for every corner", N.length === P.length);
-/* two faces, four chamfers mitred at their corners, four sides, a back */
-ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " quads");
+/* two faces, three bands of rounding mitred at their corners, four sides, a back */
+ok("nineteen quads make a bone", P.length / 3 === 19 * 4, (P.length / 3 / 4) + " quads");
 
 /* ---------- and it is closed ----------
    The bone is a solid, and a solid has no holes. The test is the vector
@@ -117,7 +117,9 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
   }
   var w = hi[0] - lo[0], d = hi[1] - lo[1], h = hi[2] - lo[2];
   ok("twice as long as it is wide", Math.abs(w / d - 2) < 1e-6, w + " × " + d);
-  ok("and much thinner than it is wide", h < d * 0.4, "thickness " + h.toFixed(2));
+  /* a jumbo set: a little under half as thick as it is wide, and no more
+     — past that it stops being a domino and starts being a block */
+  ok("and a cantina block's thickness: a little over half its width", h > d * 0.45 && h < d * 0.62, "thickness " + h.toFixed(2));
   ok("centred on the origin",
      Math.abs(lo[0] + hi[0]) < 1e-6 && Math.abs(lo[1] + hi[1]) < 1e-6 && Math.abs(lo[2] + hi[2]) < 1e-6);
   /* The chamfer must actually cut the top edge back: nothing at full
@@ -131,11 +133,67 @@ ok("eleven quads make a bone", P.length / 3 === 11 * 4, (P.length / 3 / 4) + " q
       reach = Math.max(reach, Math.abs(p[0]) / (w / 2), Math.abs(p[1]) / (d / 2));
     }
   }
-  ok("the face is inset from the edge by a chamfer", reach < 0.99,
+  ok("the face is inset from the edge by the rounding", reach < 0.99,
      "the face reaches " + (reach * 100).toFixed(0) + "% of the way out");
 })();
 
+
+/* ---------- and the table it lies on ----------
+   The table (gfx3d.js, tableGeometry) is built with the same quads and
+   the same rules. The cloth and the frame are two meshes because they
+   wear different textures, but together they are one closed solid: the
+   frame's lip walls run down to the cloth's edge and the cloth seals the
+   opening. So the two are checked as one surface. The table is not
+   convex — the cloth is let into the frame — so the one test that does
+   not apply is the one above about corners poking through faces. */
+(function () {
+  var t = Gfx3D.tableGeometry(10, 13);
+  var P2 = t.wood.P.concat(t.cloth.P), N2 = t.wood.N.concat(t.cloth.N);
+  var off = t.wood.P.length / 3;
+  var I2 = t.wood.I.concat(t.cloth.I.map(function (i) { return i + off; }));
+  function v2(i) { return [P2[i * 3], P2[i * 3 + 1], P2[i * 3 + 2]]; }
+  function n2(i) { return [N2[i * 3], N2[i * 3 + 1], N2[i * 3 + 2]]; }
+  ok("the table is built", P2.length > 0 && I2.length === (t.wood.P.length / 12 + 1) * 6);
+  var s = [0, 0, 0], wrong = 0, flat = 0;
+  for (var k = 0; k < I2.length; k += 3) {
+    var a = v2(I2[k]), b = v2(I2[k + 1]), c = v2(I2[k + 2]);
+    var f = cross(sub(b, a), sub(c, a));
+    s[0] += f[0]; s[1] += f[1]; s[2] += f[2];
+    var mag = Math.hypot(f[0], f[1], f[2]);
+    if (mag < 1e-9) { flat++; continue; }
+    if (dot(f, n2(I2[k])) <= 0) wrong++;
+  }
+  ok("the cloth and the frame close into one solid", Math.hypot(s[0], s[1], s[2]) < 1e-6,
+     "vector area off by " + Math.hypot(s[0], s[1], s[2]).toExponential(2));
+  ok("every face of the table winds the way its normal points", wrong === 0, wrong + " backwards");
+  ok("and none is degenerate", flat === 0, flat + " flat");
+  /* the cloth is where the bones lie, at z = 0, and the frame stands above it */
+  var lo = 1e9, hi = -1e9, topWood = -1e9;
+  for (var i = 0; i < t.cloth.P.length; i += 3) { lo = Math.min(lo, t.cloth.P[i + 2]); hi = Math.max(hi, t.cloth.P[i + 2]); }
+  for (var j = 0; j < t.wood.P.length; j += 3) topWood = Math.max(topWood, t.wood.P[j + 2]);
+  ok("the cloth is flat at the height the bones rest on", lo === 0 && hi === 0);
+  ok("and the frame stands a lip above it", topWood > 0 && topWood < 0.3, "lip " + topWood);
+  /* a 10 × 13 cloth holds the widest and deepest line ever measured
+     (bound + 2 across, 11 deep) with air to spare */
+  var cx = 0, cy = 0;
+  for (var m = 0; m < t.cloth.P.length; m += 3) { cx = Math.max(cx, Math.abs(t.cloth.P[m])); cy = Math.max(cy, Math.abs(t.cloth.P[m + 1])); }
+  ok("the cloth is as big as it was asked for", cx === 10 && cy === 13, cx + " × " + cy);
+})();
+
+/* ---------- the perno ---------- */
+(function () {
+  var q = Gfx3D.pinGeometry(), wrong = 0, top = -1, base = 1e9, rmax = 0;
+  for (var t = 0; t < q.I.length; t += 3) {
+    var a = [q.P[q.I[t] * 3], q.P[q.I[t] * 3 + 1], q.P[q.I[t] * 3 + 2]], b = [q.P[q.I[t + 1] * 3], q.P[q.I[t + 1] * 3 + 1], q.P[q.I[t + 1] * 3 + 2]], c = [q.P[q.I[t + 2] * 3], q.P[q.I[t + 2] * 3 + 1], q.P[q.I[t + 2] * 3 + 2]];
+    var f = cross(sub(b, a), sub(c, a)), n = [q.N[q.I[t] * 3], q.N[q.I[t] * 3 + 1], q.N[q.I[t] * 3 + 2]];
+    if (Math.hypot(f[0], f[1], f[2]) > 1e-9 && dot(f, n) <= 0) wrong++;
+  }
+  for (var i = 0; i < q.P.length; i += 3) { top = Math.max(top, q.P[i + 2]); base = Math.min(base, q.P[i + 2]); rmax = Math.max(rmax, Math.hypot(q.P[i], q.P[i + 1])); }
+  ok("the perno is turned the right way out", wrong === 0, wrong + " backwards");
+  ok("and stands a hair proud of the face, small, in the middle", base === 0 && top > 0.03 && top < 0.08 && rmax < 0.12, "top " + top + " r " + rmax);
+})();
+
 console.log("\n" + (fail === 0
-  ? "the bone is solid — " + pass + " checks passed"
+  ? "the bone is solid and the table holds it — " + pass + " checks passed"
   : fail + " of " + (pass + fail) + " checks FAILED"));
 if (fail) { failures.forEach(function (f) { console.log("  · " + f); }); process.exit(1); }

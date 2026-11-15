@@ -1,0 +1,17 @@
+{
+  "name": "Borrowed Sunlight — The Back of the World",
+  "short_name": "Borrowed Sunlight",
+  "description": "An open-world adventure through the novel Borrowed Sunlight, where every key is real science. Free, offline, nothing tracked.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0a08",
+  "theme_color": "#0b0a08",
+  "categories": ["games", "education", "books"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

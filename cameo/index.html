@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f2eb">
+  <meta name="description" content="Turn a photo into a 3D printable relief figurine on a pedestal, in your browser: the subject is cut out, its edges rounded over, depth added by a model that runs on your own machine, and the figure prints lying flat with no supports. Free, private, nothing uploaded.">
+  <title>Cameo — Photo Figurine Studio · kmay89.com</title>
+  <link rel="canonical" href="https://kmay89.com/cameo/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kmay89.com">
+  <meta property="og:title" content="Cameo — Photo Figurine Studio">
+  <meta property="og:description" content="A photo in, a relief figurine on a pedestal out: cut out, rounded, given depth, printed flat with no supports. Free, private, in your browser.">
+  <meta property="og:url" content="https://kmay89.com/cameo/">
+  <meta property="og:image" content="https://kmay89.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#" aria-label="Cameo, Photo Figurine Studio home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="20" rx="16" ry="18"/><path d="M13 27c0-5 3-8 7-8s7 3 7 8M16 15.5a4 4 0 1 0 8 0 4 4 0 1 0-8 0"/></svg>
+      <span class="brand-name">Cameo<span class="brand-description">PHOTO FIGURINE STUDIO</span></span>
+    </a>
+    <nav class="header-actions" aria-label="Studio help">
+      <a class="desk-link" href="/" title="Back to Karl's desk at kmay89.com"><span aria-hidden="true">←</span> The desk</a>
+      <a class="desk-link" href="/workshop/">The workshop</a>
+      <label class="printer-chip" for="printerSelect"><span class="status-dot"></span><span class="visually-hidden">Your printer</span><select id="printerSelect" aria-label="Your printer"></select></label>
+      <button id="guideBtn" class="button button-quiet guide-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h6a3 3 0 0 1 2 1 3 3 0 0 1 2-1h6v15h-6a3 3 0 0 0-2 1 3 3 0 0 0-2-1H4zM12 5.5v15"/></svg><span>The guide</span></button>
+    </nav>
+  </header>
+
+  <main id="studio" class="page-width">
+    <section class="intro" aria-labelledby="pageTitle">
+      <div>
+        <p class="eyebrow"><span></span> A PHOTO IN. A FIGURINE OUT.</p>
+        <h1 id="pageTitle">The one in the picture,<br><em>standing</em> on the shelf.</h1>
+      </div>
+      <div class="intro-note">
+        <p>Drop in a photo. The subject is cut out, its edges rounded over, and real depth laid into it by a model that runs on your own machine; it comes back as a relief figurine that prints flat with no supports, and a pedestal with a slot it stands in. Nothing is uploaded.</p>
+        <span class="intro-steps">Photo <span>→</span> Cut-out <span>→</span> Figurine &amp; pedestal <span>→</span> Print</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="stage-pane" aria-label="The photo and the figurine">
+        <div class="stage-card">
+          <div class="stage-head">
+            <div>
+              <h2>The cut-out</h2>
+              <p class="stage-hint" id="cutHint">Drop a photo here, or press Choose. Then let the AI cut the subject out, or do it with the wand and brush.</p>
+            </div>
+            <div class="stage-tools" id="cutTools" hidden>
+              <div class="segmented" role="group" aria-label="Tool">
+                <button id="toolWand" type="button" aria-pressed="true" title="Magic wand: click a colour to add everything like it">Wand</button>
+                <button id="toolAdd" type="button" aria-pressed="false" title="Brush: paint the subject in">Paint</button>
+                <button id="toolErase" type="button" aria-pressed="false" title="Brush: paint the subject out">Erase</button>
+              </div>
+              <label class="mini" for="brushSize">Size <input id="brushSize" type="range" min="2" max="60" value="14"></label>
+              <label class="mini" for="wandTol">Wand <input id="wandTol" type="range" min="4" max="90" value="30"></label>
+              <button id="undoBtn" class="button button-quiet" type="button" disabled>Undo</button>
+              <button id="clearMaskBtn" class="button button-quiet" type="button">Clear</button>
+            </div>
+          </div>
+          <div class="drop" id="drop">
+            <canvas id="photoCanvas" hidden></canvas>
+            <canvas id="maskCanvas" hidden></canvas>
+            <div class="drop-empty" id="dropEmpty">
+              <p><strong>Drop a photo</strong> or</p>
+              <label class="button button-primary"><input id="fileInput" type="file" accept="image/*" hidden>Choose a photo</label>
+              <button id="sampleBtn" class="button" type="button">Try the sample</button>
+              <p class="help">A subject with a clear outline against the background works best: a pet, a person, a car, a plant. JPEG, PNG or HEIC-converted photos; it never leaves this page.</p>
+            </div>
+          </div>
+          <div class="stage-foot" id="cutStatus" role="status"></div>
+        </div>
+
+        <div class="preview-stage">
+          <div class="stage-toolbar">
+            <span class="stage-label">The figurine — the very solids that print</span>
+            <button id="resetViewBtn" class="icon-button stage-reset" type="button" title="Reset the 3D view" aria-label="Reset the 3D view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.3 10a8 8 0 1 1 1 6M4 4v6h6"/></svg></button>
+          </div>
+          <div id="viewer" class="viewer" aria-label="Interactive 3D preview. Drag to orbit; scroll or pinch to zoom.">
+            <p id="viewerEmpty" class="viewer-fallback">The figurine appears here once there is a cut-out.</p>
+            <p id="viewerFallback" class="viewer-fallback" hidden>3D preview needs WebGL, which this browser has turned off. The downloads still work.</p>
+          </div>
+          <div class="stage-bottom">
+            <span id="viewerStatus" class="viewer-status" role="status"><span class="status-dot"></span>Waiting for a photo</span>
+            <span class="orbit-hint">Drag to orbit · scroll to zoom</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Figurine controls">
+        <section class="card" aria-labelledby="aiTitle">
+          <div class="card-head"><span class="step">1</span><h2 id="aiTitle">Cut it out</h2></div>
+          <p class="help">Two models run in your browser: one finds the subject, one guesses how far away every pixel is. They download once (about 70 MB together) and are kept by the browser; the photo stays on your machine.</p>
+          <div class="downloads">
+            <button id="aiCutBtn" class="button button-primary" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.5 6 6 .8-4.4 4.2 1.2 6-5.3-3-5.3 3 1.2-6L3.5 9.8l6-.8z"/></svg><span>Cut out the subject <small>AI background removal</small></span></button>
+            <button id="aiDepthBtn" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M6 14h12M8 10h8M10 6h4"/></svg><span>Add depth <small>AI depth, for the roundness of the body</small></span></button>
+          </div>
+          <p class="help" id="aiStatus">No photo yet.</p>
+          <p class="help small">Without the models the wand and brush make the cut-out, and the figure is rounded from its outline alone — still a good figurine, just smoother.</p>
+        </section>
+
+        <section class="card" aria-labelledby="figTitle">
+          <div class="card-head"><span class="step">2</span><h2 id="figTitle">The figurine</h2></div>
+          <div class="field-grid">
+            <div class="field"><label for="heightInput">Height</label><input id="heightInput" type="number" inputmode="decimal" min="20" max="240" step="1" value="80"><span class="unit">mm</span></div>
+            <div class="field"><label for="roundInput">Edge round</label><input id="roundInput" type="number" inputmode="decimal" min="0.5" max="10" step="0.5" value="3"><span class="unit">mm</span></div>
+            <div class="field"><label for="reliefInput">Depth relief</label><input id="reliefInput" type="number" inputmode="decimal" min="0" max="15" step="0.5" value="4"><span class="unit">mm</span></div>
+            <div class="field"><label for="detailInput">Fine detail</label><input id="detailInput" type="number" inputmode="decimal" min="0" max="4" step="0.25" value="1.5"><span class="unit">mm</span></div>
+            <div class="field"><label for="backInput">Back slab</label><input id="backInput" type="number" inputmode="decimal" min="0.8" max="5" step="0.2" value="1.2"><span class="unit">mm</span></div>
+            <div class="field"><label for="holeInput">Fill holes up to</label><input id="holeInput" type="number" inputmode="numeric" min="0" max="5000" step="50" value="400"><span class="unit">px</span></div>
+          </div>
+          <p class="help">Edge round is the radius the silhouette rolls over; depth relief is how much nearer parts stand proud; fine detail is the fur and folds. Height is the figure without its tab.</p>
+        </section>
+
+        <section class="card" aria-labelledby="pedTitle">
+          <div class="card-head"><span class="step">3</span><h2 id="pedTitle">The pedestal</h2></div>
+          <div class="chips" id="pedChips" role="group" aria-label="Pedestal shape">
+            <button class="chip" type="button" data-shape="oval" aria-pressed="true">Oval</button>
+            <button class="chip" type="button" data-shape="rounded" aria-pressed="false">Rounded block</button>
+            <button class="chip" type="button" data-shape="none" aria-pressed="false">No pedestal</button>
+          </div>
+          <div class="field-grid">
+            <div class="field"><label for="pedHeightInput">Height</label><input id="pedHeightInput" type="number" inputmode="decimal" min="4" max="30" step="1" value="8"><span class="unit">mm</span></div>
+            <div class="field"><label for="pedDepthInput">Depth</label><input id="pedDepthInput" type="number" inputmode="decimal" min="14" max="80" step="1" value="26"><span class="unit">mm</span></div>
+            <div class="field"><label for="clearanceInput">Slot clearance</label><input id="clearanceInput" type="number" inputmode="decimal" min="0" max="1" step="0.05" value="0.3"><span class="unit">mm</span></div>
+          </div>
+          <p class="help">The figure's tab is 3 mm thick and 5 mm tall; the slot is that plus the clearance. 0.3 mm is a snug push on most printers; the fit test in <a href="/swatch/#fit">Swatch</a> tells you yours.</p>
+        </section>
+
+        <section class="card" aria-labelledby="printTitle">
+          <div class="card-head"><span class="step">4</span><h2 id="printTitle">Print</h2></div>
+          <div class="two-fields">
+            <div class="field wide"><label for="printerSelect2">Printer</label><select id="printerSelect2"></select></div>
+            <div class="field wide" id="bedField"><label for="bedSelect">Plate</label><select id="bedSelect"></select></div>
+          </div>
+          <p class="totals" id="totalsLine">Nothing to print yet.</p>
+          <div class="warnings" id="warnings" role="status"></div>
+          <div class="downloads">
+            <button id="download3mf" class="button button-primary" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Download for Bambu Studio <small>.3mf — figure flat on its back, pedestal beside it</small></span></button>
+            <button id="downloadFigure" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Figure STL</span></button>
+            <button id="downloadPedestal" class="button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg><span>Pedestal STL</span></button>
+          </div>
+          <p class="help open-note" id="profileNote"></p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="guide" class="guide" aria-labelledby="guideTitle">
+    <div class="guide-inner">
+      <div class="guide-head">
+        <h2 id="guideTitle">The guide</h2>
+        <button id="guideClose" class="icon-button" type="button" aria-label="Close the guide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+      <h3>What it makes</h3>
+      <p>A relief, not a sculpture in the round: from the front it reads as the figure in the photo, from the side it is a thick plaque with a rounded edge, like a carved cameo. A true all-round figure from one photo needs models far too big for a web page; this one runs entirely on your machine, and a relief prints beautifully flat on its back with no supports at all.</p>
+      <h3>The cut-out</h3>
+      <p>Press <em>Cut out the subject</em> and a background-removal model does it. Where it is wrong, use the wand (click a colour to add everything like it, with the tolerance slider) and the brushes. The cut-out is tidied for printing: specks and hairs go, the biggest piece is kept, small holes close (the limit is yours), and anything in the bottom tenth is joined straight down to the tab so paws and feet stand on it.</p>
+      <h3>The shape</h3>
+      <p>The edge rolls over with a quarter-circle profile of the radius you set, worked out from the exact distance of every point to the outline. Depth from the model is split into a broad part that lifts the nearer body and a fine part for fur and folds, both fading to nothing at the edge so the outline stays crisp. Underneath is a flat slab. The tab is a 3 mm bar under the feet; the pedestal's slot is that plus the clearance, 5 mm deep.</p>
+      <h3>Printing</h3>
+      <p>Open the 3MF as a project. The figure lies on its back with the face up: print it as placed, 0.12 or 0.16 mm layers for the finest face, six top layers, no ironing on it (the 3MF sets that on the object). The pedestal prints standing, its top ironed. Push the tab into the slot; a drop of glue if you like. A textured plate gives the back a nice matte; a smooth plate a gloss.</p>
+      <h3>Privacy and the network</h3>
+      <p>The only things fetched are the AI library and the two models, from jsDelivr and the Hugging Face hub, the first time; the browser keeps them. The photo is never sent anywhere, and the page works without the models.</p>
+      <p class="guide-foot">Cameo runs in your browser. Depth Anything V2 (Apache-2.0) and BRIA RMBG-1.4 (non-commercial licence, see their model card) are their authors' work. Bambu Lab and Bambu Studio are trademarks of their owner; Cameo is an independent tool.</p>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer class="page-width site-footer">
+    <div class="cols">
+      <a href="/">The desk</a>
+      <a href="/workshop/">The workshop</a>
+      <a href="/swatch/">Swatch — surface tests</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/hollow/">Hollow — molds</a>
+      <a href="/cubby/">Cubby — drawer organizers</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/legal/">Legal</a>
+      <a href="https://github.com/kmay89/ABOUT/tree/main/cameo">Source</a>
+    </div>
+    <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

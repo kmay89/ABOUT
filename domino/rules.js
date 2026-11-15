@@ -232,14 +232,17 @@ function play(st, mv) {
   } else if (endL) {
     var joinL = st.left;
     /* the half that matches is consumed; the other half becomes the end.
-       flip records whether the tile's B half points outward, which is
-       all a renderer needs to draw the pips the right way round. */
+       `flip` records that it was the tile's B half that matched — the
+       same meaning at both ends. (It once meant opposite things on the
+       left and the right, and the renderers that trusted it drew every
+       right-hand bone back to front; they now work out the touching half
+       from the line itself — see `rec` in layout.js.) */
     st.left = other(t, joinL);
     flip = (TA[t] !== joinL);
   } else {
     var joinR = st.right;
     st.right = other(t, joinR);
-    flip = (TB[t] !== joinR);
+    flip = (TA[t] !== joinR);
   }
   hand.splice(at, 1);
   st.line.push({ seat: seat, tile: t, end: st.line.length === 0 ? "S" : mv.end, flip: flip, dbl: isDouble(t) });

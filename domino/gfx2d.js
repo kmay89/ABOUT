@@ -48,6 +48,12 @@ function nrand(i) {
   var x = Math.sin(i * 127.1) * 43758.5453;
   return x - Math.floor(x);
 }
+function nrand2(i) { var x = Math.sin(i * 127.1 + 1.7) * 43758.5453; return x - Math.floor(x); }
+/* the same nudge off the slot the round table gives each bone (gfx3d.js) */
+function jit(tile, h) {
+  var across = (nrand2(tile * 3 + 2) - 0.5) * 0.045, horiz = (h === 0 || h === 2 || h === undefined);
+  return { dx: horiz ? 0 : across, dy: horiz ? across : 0, dr: (nrand2(tile * 3 + 3) - 0.5) * 0.018 };
+}
 
 /* ---------- pips ----------
    The layout every domino in the world uses: a 3×3 grid on each half,
@@ -143,6 +149,47 @@ function makePattern(g, skin, dpr) {
   return g.createPattern(c, "repeat");
 }
 
+/* the wood of the frame round the cloth: long grain in the skin's rim
+   and edge colours, the same recipe the round table's texture uses */
+function makeWood(g, skin) {
+  var size = 96, c = document.createElement("canvas");
+  c.width = c.height = size;
+  var x = c.getContext("2d"), dark = skin.table.rim, light = skin.table.edge;
+  x.fillStyle = mix(dark, light, 0.38); x.fillRect(0, 0, size, size);
+  for (var i = 0; i < size; i += 2) {
+    var t = Math.sin(i * 0.5) * 0.5 + 0.5, u = nrand(i + 11) * 0.5;
+    x.strokeStyle = mix(dark, light, 0.15 + t * 0.45 + u * 0.2);
+    x.globalAlpha = 0.55; x.lineWidth = 1 + nrand(i + 3);
+    x.beginPath(); x.moveTo(i + nrand(i), 0); x.lineTo(i + (nrand(i + 1) - 0.5) * 3, size); x.stroke();
+  }
+  x.globalAlpha = 1;
+  return g.createPattern(c, "repeat");
+}
+
+/* the floor beyond the table's edge: saltillo tile, tinted towards the
+   room so a midnight table stands on a midnight floor */
+function makeTiles(g, skin) {
+  var size = 88, c = document.createElement("canvas");
+  c.width = c.height = size;
+  var x = c.getContext("2d"), bg = skin.room.bg;
+  x.fillStyle = mix(mix("#5a3a2a", bg, 0.35), "#000000", 0.2); x.fillRect(0, 0, size, size);
+  var gap = 4;
+  for (var i = 0; i < 2; i++) for (var j = 0; j < 2; j++) {
+    var k = i * 2 + j, cell = size / 2;
+    x.fillStyle = mix(mix(mix("#b5643c", "#8a4a2e", nrand(k * 7 + 2)), bg, 0.30), "#000000", 0.25);
+    x.fillRect(i * cell + gap / 2, j * cell + gap / 2, cell - gap, cell - gap);
+    x.globalAlpha = 0.12;
+    for (var s = 0; s < 24; s++) {
+      x.fillStyle = mix("#d08a5a", "#6a3620", nrand(k * 131 + s));
+      x.beginPath();
+      x.arc(i * cell + gap / 2 + nrand(k * 977 + s) * (cell - gap), j * cell + gap / 2 + nrand(k * 313 + s * 3) * (cell - gap), 2 + nrand(s + k) * 5, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.globalAlpha = 1;
+  }
+  return g.createPattern(c, "repeat");
+}
+
 /* ---------- the renderer ---------- */
 function Gfx2D(canvas) {
   this.cv = canvas;
@@ -159,6 +206,17 @@ function Gfx2D(canvas) {
 Gfx2D.prototype.setSkin = function (skin) {
   this.skin = skin;
   this.pat = null;         /* rebuilt lazily, next frame */
+  this.woodPat = null; this.tilePat = null;
+};
+
+/* how much of the flat table's edge is frame and floor: the wooden
+   frame round the cloth and the strip of tile beyond it. Scaled to the
+   screen so a phone keeps its cloth and a tablet gets a proper rail. */
+Gfx2D.prototype.edges = function () {
+  var m = Math.min(this.w, this.h);
+  var floor = Math.max(8, Math.min(20, m * 0.028));
+  var rail = Math.max(11, Math.min(26, m * 0.040));
+  return { floor: floor, rail: rail, all: floor + rail };
 };
 
 Gfx2D.prototype.resize = function (w, h, dpr) {
@@ -171,14 +229,32 @@ Gfx2D.prototype.resize = function (w, h, dpr) {
   this.pat = null;
 };
 
-/* one bone, at a position and angle, in table units already scaled */
+/* one bone, at a position and angle, in table units already scaled.
+
+   `w`×`h` is the bone in its own frame and `a` is the half at its local
+   -x end (or the top, for an upright bone). When `rot` is a quarter turn
+   — every bone at rest — the body, the edge and the bevel are drawn in
+   *screen* space and only the pips are turned. Rotating the whole
+   drawing used to rotate the lighting with it: a bone heading left had
+   its thick front edge along the top and its lit bevel on the bottom, so
+   half the line looked lit from below. A bone in mid-air during the slam
+   is at an arbitrary angle, and there the whole thing turns — nobody can
+   read the light on something moving that fast. */
 Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
   var g = this.g, sk = this.skin;
   opts = opts || {};
+  var q = ((Math.round(rot) % 360) + 360) % 360;
+  var square = Math.abs(rot - Math.round(rot / 90) * 90) < 0.01;
+  /* in square mode, the body is drawn unrotated at its screen footprint */
+  var sw = w, sh = h, turn = 0;
+  if (square) {
+    turn = q;
+    if (q === 90 || q === 270) { sw = h; sh = w; }
+  }
   g.save();
   g.translate(x, y);
-  g.rotate(rot * Math.PI / 180);
-  var hw = w / 2, hh = h / 2, r = Math.min(w, h) * 0.16;
+  if (!square) g.rotate(rot * Math.PI / 180);
+  var hw = sw / 2, hh = sh / 2, r = Math.min(sw, sh) * 0.16;
 
   if (opts.lift) {
     g.shadowColor = "rgba(0,0,0,.5)";
@@ -193,32 +269,32 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
      offset down by the bone's thickness, drawn under the face, and the
      sliver left showing along the bottom is an edge. It costs one fill
      and it is the same trick the eye is being offered in 3D. */
-  var thick = Math.max(1.5, Math.min(w, h) * 0.075);
+  var thick = Math.max(2.5, Math.min(sw, sh) * 0.14);
   var edgeCol = opts.faceDown ? sk.bones.back : sk.bones.face;
-  rr(g, -hw, -hh + thick, w, h, r);
+  rr(g, -hw, -hh + thick, sw, sh, r);
   g.fillStyle = mix(edgeCol, "#000000", 0.42);
   g.fill();
   g.shadowColor = "transparent";
 
   /* the body */
   if (opts.faceDown) {
-    rr(g, -hw, -hh, w, h, r);
+    rr(g, -hw, -hh, sw, sh, r);
     var gd = g.createLinearGradient(-hw, -hh, hw, hh);
     gd.addColorStop(0, mix(sk.bones.back, "#ffffff", 0.16));
     gd.addColorStop(1, mix(sk.bones.back, "#000000", 0.22));
     g.fillStyle = gd; g.fill();
     g.shadowColor = "transparent";
-    g.strokeStyle = alpha("#000000", 0.35); g.lineWidth = Math.max(1, w * 0.03); g.stroke();
+    g.strokeStyle = alpha("#000000", 0.35); g.lineWidth = Math.max(1, sw * 0.03); g.stroke();
     /* a small mark so a face-down bone is not a blank lozenge */
     g.strokeStyle = alpha(sk.bones.face, 0.30);
-    g.lineWidth = Math.max(1, w * 0.05);
-    rr(g, -hw * 0.55, -hh * 0.72, w * 0.55, h * 0.72, r * 0.7);
+    g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.05);
+    rr(g, -hw * 0.55, -hh * 0.72, sw * 0.55, sh * 0.72, r * 0.7);
     g.stroke();
     g.restore();
     return;
   }
 
-  rr(g, -hw, -hh, w, h, r);
+  rr(g, -hw, -hh, sw, sh, r);
   var face = g.createLinearGradient(-hw, -hh, hw, hh);
   face.addColorStop(0, mix(sk.bones.face, "#ffffff", 0.20 + sk.bones.shine * 0.22));
   face.addColorStop(0.55, sk.bones.face);
@@ -229,35 +305,47 @@ Gfx2D.prototype.bone = function (x, y, w, h, rot, a, b, opts) {
 
   /* the bevel: a light top-left edge and a dark bottom-right one */
   g.save();
-  rr(g, -hw, -hh, w, h, r); g.clip();
+  rr(g, -hw, -hh, sw, sh, r); g.clip();
   g.strokeStyle = alpha("#ffffff", 0.30 + sk.bones.rim * 0.45);
-  g.lineWidth = Math.max(1, w * 0.07);
+  g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.07);
   g.beginPath(); g.moveTo(-hw, hh); g.lineTo(-hw, -hh); g.lineTo(hw, -hh); g.stroke();
   g.strokeStyle = alpha("#000000", 0.22);
   g.beginPath(); g.moveTo(hw, -hh); g.lineTo(hw, hh); g.lineTo(-hw, hh); g.stroke();
   g.restore();
 
   g.strokeStyle = alpha(sk.bones.pip, 0.28);
-  g.lineWidth = Math.max(1, w * 0.028);
-  rr(g, -hw, -hh, w, h, r); g.stroke();
+  g.lineWidth = Math.max(1, Math.min(sw, sh) * 0.028);
+  rr(g, -hw, -hh, sw, sh, r); g.stroke();
 
-  /* the divider across the middle, and the two halves of pips */
+  /* the divider and the pips, in the bone's own frame — turned by the
+     quarter turns the body was spared */
+  if (turn) g.rotate(turn * Math.PI / 180);
   var longAxis = h >= w;
+  var hw2 = w / 2, hh2 = h / 2;
   g.strokeStyle = alpha(sk.bones.pip, 0.55);
   g.lineWidth = Math.max(1, Math.min(w, h) * 0.045);
   g.beginPath();
-  if (longAxis) { g.moveTo(-hw * 0.78, 0); g.lineTo(hw * 0.78, 0); }
-  else { g.moveTo(0, -hh * 0.78); g.lineTo(0, hh * 0.78); }
+  if (longAxis) { g.moveTo(-hw2 * 0.78, 0); g.lineTo(hw2 * 0.78, 0); }
+  else { g.moveTo(0, -hh2 * 0.78); g.lineTo(0, hh2 * 0.78); }
   g.stroke();
 
   var half = longAxis ? { w: w, h: h / 2 } : { w: w / 2, h: h };
   this.pips(longAxis ? 0 : -half.w / 2, longAxis ? -half.h / 2 : 0, half.w, half.h, a);
   this.pips(longAxis ? 0 : half.w / 2, longAxis ? half.h / 2 : 0, half.w, half.h, b);
+  if (turn) g.rotate(-turn * Math.PI / 180);
+  /* the perno: a brass pin raised in the middle of the face */
+  var pr = Math.max(2, Math.min(w, h) * 0.078);
+  var brass = g.createRadialGradient(-pr * 0.35, -pr * 0.35, pr * 0.1, 0, 0, pr);
+  brass.addColorStop(0, "#f6dc8c"); brass.addColorStop(0.55, "#c9a24f"); brass.addColorStop(1, "#7a5a1e");
+  g.beginPath(); g.arc(0, pr * 0.25, pr, 0, Math.PI * 2); g.fillStyle = "rgba(0,0,0,.28)"; g.fill();
+  g.beginPath(); g.arc(0, 0, pr, 0, Math.PI * 2); g.fillStyle = brass; g.fill();
+  g.strokeStyle = "rgba(60,40,10,.55)"; g.lineWidth = Math.max(0.8, pr * 0.18); g.stroke();
+  g.beginPath(); g.arc(-pr * 0.3, -pr * 0.3, pr * 0.28, 0, Math.PI * 2); g.fillStyle = "rgba(255,250,235,.75)"; g.fill();
 
   if (opts.glow) {
     g.strokeStyle = opts.glow;
-    g.lineWidth = Math.max(2, w * 0.10);
-    rr(g, -hw, -hh, w, h, r);
+    g.lineWidth = Math.max(2, Math.min(sw, sh) * 0.10);
+    rr(g, -hw, -hh, sw, sh, r);
     g.stroke();
   }
   g.restore();
@@ -285,7 +373,10 @@ Gfx2D.prototype.pips = function (cx, cy, w, h, n) {
        light — the near wall is the one in its own shadow. The highlight
        used to sit up and to the left, on the same side as the bevel's
        lit edge, which is how you shade a dome. Every pip in the hand was
-       reading as a bump while the table drew holes. */
+       reading as a bump while the table drew holes. (The gradient is in
+       whatever frame the pips are drawn in, so on a turned bone the lit
+       wall turns with it — a degree of wrongness nobody can see at the
+       size of a pip.) */
     g.save();
     g.beginPath(); g.arc(px, py, rad, 0, Math.PI * 2); g.clip();
     var bore = g.createLinearGradient(px - rad, py - rad, px + rad, py + rad);
@@ -322,14 +413,43 @@ Gfx2D.prototype.drawTable = function (scene, now) {
   g.scale(this.dpr, this.dpr);
   g.clearRect(0, 0, this.w, this.h);
 
-  /* the room, then the table on it */
-  g.fillStyle = sk.room.bg;
+  /* The room, then the table in it. The flat table is seen from
+     straight above, so what shows round the cloth is the wooden frame
+     it is let into and, past that, a strip of the cantina's tile floor
+     — enough to say the table ends, not enough to steal cloth from the
+     line. */
+  if (!this.pat) this.pat = makePattern(g, sk, this.dpr);
+  if (!this.woodPat) this.woodPat = makeWood(g, sk);
+  if (!this.tilePat) this.tilePat = makeTiles(g, sk);
+  var ed = this.edges();
+  g.fillStyle = this.tilePat || sk.room.bg;
+  g.fillRect(0, 0, this.w, this.h);
+  /* the one bulb does not reach the floor much */
+  g.fillStyle = alpha("#000000", 0.38);
   g.fillRect(0, 0, this.w, this.h);
 
-  if (!this.pat) this.pat = makePattern(g, sk, this.dpr);
-  var inset = 8, tw = this.w - inset * 2, th = this.h - inset * 2;
+  /* the frame, with the shadow it throws on the floor */
+  var fx = ed.floor, fw = this.w - fx * 2, fh = this.h - fx * 2, fr = Math.max(10, ed.rail * 0.9);
   g.save();
-  rr(g, inset, inset, tw, th, 18);
+  g.shadowColor = "rgba(0,0,0,.55)"; g.shadowBlur = ed.floor * 1.4; g.shadowOffsetY = ed.floor * 0.5;
+  rr(g, fx, fx, fw, fh, fr);
+  g.fillStyle = this.woodPat || sk.table.rim;
+  g.fill();
+  g.restore();
+  /* a bevel on the outer edge: light along the top-left, dark below */
+  g.save();
+  rr(g, fx, fx, fw, fh, fr); g.clip();
+  g.lineWidth = 2.5;
+  g.strokeStyle = "rgba(255,240,215,.22)";
+  g.beginPath(); g.moveTo(fx, fx + fh); g.lineTo(fx, fx); g.lineTo(fx + fw, fx); g.stroke();
+  g.strokeStyle = "rgba(0,0,0,.35)";
+  g.beginPath(); g.moveTo(fx + fw, fx); g.lineTo(fx + fw, fx + fh); g.lineTo(fx, fx + fh); g.stroke();
+  g.restore();
+
+  /* the cloth, let into the frame */
+  var inset = ed.all, tw = this.w - inset * 2, th = this.h - inset * 2, cr = 8;
+  g.save();
+  rr(g, inset, inset, tw, th, cr);
   g.clip();
   g.fillStyle = this.pat || sk.table.felt;
   g.fillRect(inset, inset, tw, th);
@@ -339,18 +459,25 @@ Gfx2D.prototype.drawTable = function (scene, now) {
   lamp.addColorStop(1, alpha("#000000", 0.30));
   g.fillStyle = lamp;
   g.fillRect(inset, inset, tw, th);
+  /* the lip of the frame, standing a little proud of the cloth, throws
+     a thin shadow onto it along the inside edge */
+  g.lineWidth = 6;
+  g.strokeStyle = "rgba(0,0,0,.28)";
+  rr(g, inset - 2, inset - 2, tw + 4, th + 4, cr + 2); g.stroke();
   g.restore();
-  g.strokeStyle = sk.table.rim;
-  g.lineWidth = 3;
-  rr(g, inset, inset, tw, th, 18);
+  g.strokeStyle = mix(sk.table.rim, "#000000", 0.35);
+  g.lineWidth = 1.5;
+  rr(g, inset, inset, tw, th, cr);
   g.stroke();
 
   var t = scene.table, i;
-  /* leave room for the hand below and the seat strip above */
+  /* leave room for the hand below and the seat strip above, and keep
+     the line off the frame at the sides */
   var top = scene.topPad || 44, bot = scene.botPad || 130;
-  var fit = L.fit(t.bbox, this.w, this.h - top - bot, 16);
+  var fit = L.fit(t.bbox, this.w - inset * 2, this.h - top - bot, 10);
   var unit = fit.scale;
-  var ox = fit.ox, oy = fit.oy + top;
+  var ox = fit.ox + inset, oy = fit.oy + top;
+  this.lastFit = { ox: ox, oy: oy, unit: unit };
 
   /* ghost slots first, under everything */
   this.slots = [];
@@ -358,15 +485,32 @@ Gfx2D.prototype.drawTable = function (scene, now) {
     for (i = 0; i < scene.ghosts.length; i++) {
       var gh = scene.ghosts[i];
       var gx = ox + gh.x * unit, gy = oy + gh.y * unit;
-      var gw = (gh.h % 2 === 0 ? L.LEN : L.WID) * unit;
-      var ghh = (gh.h % 2 === 0 ? L.WID : L.LEN) * unit;
+      var along = (gh.rot === undefined ? gh.h * 90 : gh.rot) % 180 === 0;
+      var gw = (along ? L.LEN : L.WID) * unit;
+      var ghh = (along ? L.WID : L.LEN) * unit;
       this.slots.push({ end: gh.end, x: gx - gw / 2, y: gy - ghh / 2, w: gw, h: ghh });
+      var over = scene.hover === gh.end, lean = scene.lean === gh.end;
       g.save();
-      g.setLineDash([6, 5]);
-      g.strokeStyle = alpha(sk.marks.ghost, 0.55 + 0.35 * Math.sin(now / 320));
-      g.lineWidth = 2.5;
+      if (over) {
+        /* the slot under a dragged bone fills in: this is where it lands */
+        rr(g, gx - gw / 2, gy - ghh / 2, gw, ghh, Math.min(gw, ghh) * 0.16);
+        g.fillStyle = alpha(sk.marks.playable, 0.35);
+        g.fill();
+      }
+      g.setLineDash(over ? [] : [6, 5]);
+      g.strokeStyle = over ? sk.marks.playable : alpha(lean ? sk.marks.last : sk.marks.ghost, 0.55 + 0.35 * Math.sin(now / 320));
+      g.lineWidth = over || lean ? 3.5 : 2.5;
       rr(g, gx - gw / 2, gy - ghh / 2, gw, ghh, Math.min(gw, ghh) * 0.16);
       g.stroke();
+      if (lean && !over) {
+        /* Don Chuy's lean: a small star by the end he would choose */
+        g.setLineDash([]);
+        g.font = "700 " + Math.max(12, Math.min(gw, ghh) * 0.5) + "px system-ui, sans-serif";
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillStyle = sk.marks.last;
+        g.shadowColor = "rgba(0,0,0,.6)"; g.shadowBlur = 6;
+        g.fillText("★", gx, gy);
+      }
       g.restore();
     }
   }
@@ -374,25 +518,41 @@ Gfx2D.prototype.drawTable = function (scene, now) {
   /* the line of play */
   for (i = 0; i < t.bones.length; i++) {
     var b = t.bones[i];
-    var bw = (b.rot % 180 === 0 ? L.LEN : L.WID) * unit;
-    var bh = (b.rot % 180 === 0 ? L.WID : L.LEN) * unit;
-    var a = Rl.A(b.tile), c = Rl.B(b.tile);
-    /* `flip` says which half points outward along the line */
-    if (b.flip) { var tmp = a; a = c; c = tmp; }
+    /* The bone is sized in its own frame — always long along local x —
+       and `rot` turns it. Sizing it by the screen-space footprint as well
+       turned every upright bone and every crosswise mula twice, so they
+       lay flat along the line in 2D while the 3D table stood them up. */
+    var bw = L.LEN * unit, bh = L.WID * unit;
+    var fc = L.faces(b), a = fc[0], c = fc[1];
     var anim = scene.anim && scene.anim.idx === b.idx ? scene.anim : null;
-    var px = ox + b.x * unit, py = oy + b.y * unit, lift = 0, rot = b.rot;
+    /* hand-laid: the same hair off the slot the round table gives it */
+    var jj = jit(b.tile, b.h);
+    var px = ox + (b.x + jj.dx) * unit, py = oy + (b.y + jj.dy) * unit, lift = 0, rot = b.rot + jj.dr * 57.3;
     if (anim) {
       var k = Math.min(1, anim.t);
       var e = 1 - Math.pow(1 - k, 3);
-      px = anim.fromX + (px - anim.fromX) * e;
-      py = anim.fromY + (py - anim.fromY) * e;
+      var fx = ox + anim.fromX * unit, fy = oy + anim.fromY * unit;
+      px = fx + (px - fx) * e;
+      py = fy + (py - fy) * e;
       rot = anim.fromRot + (rot - anim.fromRot) * e;
       lift = Math.sin(k * Math.PI) * 1.1;
     }
     this.bone(px, py, bw, bh, rot, a, c, {
       lift: lift,
-      glow: (b.idx === scene.lastIdx && !anim) ? alpha(sk.marks.last, 0.75) : null
+      glow: (b.idx === scene.lastIdx && !anim) ? alpha(sk.marks.last, 0.45 + 0.4 * Math.max(0, 1 - (scene.lastAge || 0) / 2600)) : null
     });
+    /* a ring that spreads out from a bone the moment it lands — the eye
+       goes to movement, and this is the movement that says "here" */
+    if (b.idx === scene.lastIdx && !anim && (scene.lastAge || 0) < 700) {
+      var rk = (scene.lastAge || 0) / 700;
+      g.save();
+      g.strokeStyle = alpha(sk.marks.last, 0.6 * (1 - rk));
+      g.lineWidth = 3;
+      var rw = (b.rot % 180 === 0 ? bw : bh) + unit * rk * 1.6, rh = (b.rot % 180 === 0 ? bh : bw) + unit * rk * 1.6;
+      rr(g, px - rw / 2, py - rh / 2, rw, rh, Math.min(rw, rh) * 0.25);
+      g.stroke();
+      g.restore();
+    }
   }
 
   g.restore();
@@ -411,13 +571,37 @@ Gfx2D.prototype.drawHand = function (scene, now) {
   if (scene.seats) this.seats(scene);
 
   this.hand = L.handRow(scene.hand.length, this.w, this.h, { pad: 10 });
+  /* each bone eases towards how high it should sit rather than jumping:
+     lifting one out of your hand should feel like picking it up */
+  if (!this.lifts) this.lifts = {};
+  var dt = this.lastHandT ? Math.min(0.1, (now - this.lastHandT) / 1000) : 0;
+  this.lastHandT = now;
+  var drag = scene.drag;
   for (i = 0; i < scene.hand.length; i++) {
     var r = this.hand[i], tile = scene.hand[i];
     var playable = scene.playable && scene.playable[tile];
     var sel = scene.selected === tile;
-    var y = r.y - (sel ? 14 : (playable ? 5 : 0));
+    if (drag && drag.tile === tile) {
+      /* the bone is in the player's fingers: leave its place in the row
+         marked, and draw it where the finger is, below */
+      g.save();
+      g.setLineDash([5, 4]);
+      g.strokeStyle = alpha(sk.marks.playable, 0.5);
+      g.lineWidth = 2;
+      rr(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, r.w * 0.16);
+      g.stroke();
+      g.restore();
+      continue;
+    }
+    var goal = sel ? 18 : (playable ? 6 : 0);
+    var cur = this.lifts[tile] === undefined ? goal : this.lifts[tile];
+    cur += (goal - cur) * Math.min(1, dt * 14);
+    this.lifts[tile] = cur;
+    /* the bones you can play breathe, very slightly, on your turn */
+    var bob = (playable && !sel && scene.yourTurn) ? Math.sin(now / 420 + i * 0.7) * 1.2 : 0;
+    var y = r.y - cur - bob;
     this.bone(r.x + r.w / 2, y + r.h / 2, r.w, r.h, 0, Rl.A(tile), Rl.B(tile), {
-      lift: sel ? 1.2 : (playable ? 0.5 : 0.2),
+      lift: 0.2 + cur / 18,
       glow: sel ? sk.marks.playable : (playable ? alpha(sk.marks.playable, 0.55) : null)
     });
     if (!playable && scene.yourTurn) {
@@ -429,6 +613,14 @@ Gfx2D.prototype.drawHand = function (scene, now) {
       g.fill();
       g.restore();
     }
+  }
+  if (drag && this.hand.length) {
+    /* the dragged bone, a little bigger, well off the table, turned
+       slightly as a bone is when you carry it */
+    var r0 = this.hand[0], dw = r0.w * 1.12, dh = r0.h * 1.12;
+    this.bone(drag.x, drag.y - dh * 0.35, dw, dh, drag.over ? 0 : -6, Rl.A(drag.tile), Rl.B(drag.tile), {
+      lift: 1.6, glow: drag.over ? sk.marks.playable : alpha(sk.marks.playable, 0.7)
+    });
   }
 
   g.restore();
@@ -473,6 +665,14 @@ Gfx2D.prototype.seats = function (scene) {
   }
 };
 
+/* a point on the screen, back in table units — the twin of the round
+   table's pointOnTable, so a bone can be flown in from a plate */
+Gfx2D.prototype.pointOnTable = function (px, py) {
+  var f = this.lastFit;
+  if (!f || !f.unit) return null;
+  return { x: (px - f.ox) / f.unit, y: (py - f.oy) / f.unit };
+};
+
 /* which thing a tap landed on */
 Gfx2D.prototype.hit = function (x, y) {
   var i = L.hitHand(this.hand, x, y);
@@ -488,7 +688,7 @@ Gfx2D.prototype.hit = function (x, y) {
   return { kind: "table" };
 };
 
-Gfx2D.prototype.destroy = function () { this.pat = null; };
+Gfx2D.prototype.destroy = function () { this.pat = null; this.woodPat = null; this.tilePat = null; };
 
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx2D;
 else root.Gfx2D = Gfx2D;

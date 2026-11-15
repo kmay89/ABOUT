@@ -1,0 +1,15 @@
+Knurl — Surface Texture Studio
+Created for Karl Meves · ERRERLabs, 2026.
+
+Three.js r170, including OrbitControls
+Copyright 2010–2024 Three.js Authors
+MIT License; complete license: vendor/THREE-LICENSE.txt
+Source: https://github.com/mrdoob/three.js/tree/r170
+OrbitControls import path adjusted to use the local Three.js module.
+
+Nothing is fetched at run time. The textures, the mesher, the inlay and the
+3MF writer are written for this tool.
+
+Bambu Lab, Bambu Studio, Prusa and PrusaSlicer are trademarks of their
+respective owners. Knurl is an independent tool, not an official product of
+any of them.
