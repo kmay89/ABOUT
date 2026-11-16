@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage, Momentum */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage, Momentum, Unlocks */
 (function () {
 "use strict";
 
@@ -744,6 +744,8 @@ function tagHTML(side) {
   if (mode === "coach") {
     if (side === humanSide) {
       if (Rating.summary(rating).games) h += '<span class="elo">' + ratingText() + "</span>";
+      var ttl = unl && unl.equip.title && Unlocks.byId(unl.equip.title);
+      if (ttl) h += '<span class="ttl">' + ttl.emoji + " " + escHtml(ttl.name) + "</span>";
     } else h += '<span class="elo">' + SKILLS[skill].elo + "</span>";
   }
   if (G && !over && viewPly < 0 && G.turn === side) {
@@ -757,6 +759,7 @@ function syncTagState() {
   castPlace();                 /* the coach's face follows its tag when the board turns */
   homeSync();                  /* and a coach game is played on the coach's board */
   moSync(false);               /* and the momentum bar follows the board round */
+  unlEmoteSync();              /* and you can send the coach a face, if you have won some */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
   var live = G && !over && viewPly < 0 && mode && mode !== "tour";
@@ -1051,6 +1054,7 @@ function commitMove(m, source, animOpts) {
   sndMove(desc, plan, took);
   hapMove(desc, plan, took);
   fxCapture(desc, took, plan);
+  unlMove(desc, plan, took);
   feelLand(desc, took, plan);
   fxPromote(desc, plan);
   syncInk();         /* what you drew belongs to the position just left */
@@ -2501,6 +2505,7 @@ function renderEndRating(rs, cardAt) {
       var rung = rungOf(rs.level);
       if (rs.s === 1 && rs.clean && acc >= 80 && !rung.stars[2]) {
         rung.stars[2] = 1; saveLadder();
+        unlBonus("A third star", 40);
         setTimeout(function () { popStar(2, live); }, 700);
       }
       progressAfterLook(rs, acc, c);
@@ -2740,6 +2745,7 @@ function journalAccuracy(acc, perf) {
 /* ---- feats ---- */
 function awardFeats(got) {
   if (!got || !got.length) return;
+  unlBonus(got.length > 1 ? got.length + " feats" : "A feat", 30 * got.length);
   Feats.save(Feats.award(Feats.load(lsGet), got, Date.now(), currentGameId), lsSet);
   if (currentGameId) Games.save(Games.annotate(Games.load(lsGet), currentGameId, { feats: got }), lsSet);
   got.forEach(function (id) {
@@ -3095,6 +3101,7 @@ function endGame(result, reason, taught) {
   var rs = mode === "coach" ? settleRating(result) : null;
   renderEndRating(rs, cardAt);
   moEndCard();
+  unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
   renderOddsReview();
   helpAtEnd();
@@ -5990,10 +5997,12 @@ function renderStudio() {
         return { id: id, name: Skins.PIECE_SETS[id].label, note: Skins.PIECE_SETS[id].note };
       });
   shelf.forEach(function (s) {
-    var b = document.createElement("button");
-    b.className = "stPick" + (skin.pieces.set === s.id ? " sel" : "");
-    b.textContent = s.name;
+    var b = document.createElement("button"), mine = unlSetOwned(s.id);
+    b.className = "stPick" + (skin.pieces.set === s.id ? " sel" : "") + (mine ? "" : " locked");
+    b.textContent = (mine ? "" : "\ud83d\udd12 ") + s.name;
     b.addEventListener("click", function () {
+      /* a carved set is won, not picked: beat its coach well to have it */
+      if (!mine) { hap("nope"); toast("\ud83d\udd12 " + escHtml(Unlocks.howTo(Unlocks.byId("set-" + s.id))) + " to unlock the " + escHtml(s.name) + " pieces.", null, 3200); return; }
       skin.pieces.set = s.id; applySkin(skin); renderStudio();
       if (!prefs.use3d) toast("Carved sets show on the 3D board — tap <b>3D</b> below to see them.", null, 3800);
     });
@@ -6167,7 +6176,9 @@ var CARDS = [
   { id: "ovShare", hide: 1, pause: 1 },
   { id: "ovPeople", hide: 1, pause: 1 },
   { id: "ovNotation", hide: 1, pause: 1 },   /* it has its own Escape and backdrop, as the friends cards do */
-  { id: "ovAsk", pause: 1 }
+  { id: "ovAsk", pause: 1 },
+  { id: "ovCollect", hide: 1, pause: 1, back: 1 },
+  { id: "ovUnlock", pause: 1 }
 ];
 function cardIds(flag) {
   return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
@@ -6197,6 +6208,9 @@ function showMenu() {
     ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due" : "")
     : "Short positions, real feedback.";
   renderLobby();
+  unlLobby();
+  /* anything won and not yet opened is opened here */
+  if (unlQueue.length) unlRevealSoon(700);
   /* a game nobody has moved in yet is not worth coming back to — it
      used to be offered as "0 moves in" */
   var s = loadSave();
@@ -6649,6 +6663,7 @@ function wireUI() {
   castWire();
   homeWire();
   moWire();
+  unlWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -7670,6 +7685,361 @@ function momentumForTest() {
   };
 }
 
+/* ===== the collection (unlocks.js) =====
+   Everything there is to win, kept on this device: every coach has a
+   board, a secret, a set of colours and something special to give (one
+   for each of its stars), and every game played earns experience toward
+   a level that brings something new. When something is won it is not a
+   line of text: a box drops onto the screen, shakes, and bursts open, and
+   what was in it can be put on there and then. The Collection shows all
+   of it, what is yours (equip it) and what is still to win (and how). */
+var unl = null, unlQueue = [], unlShowing = null, unlGameXp = null, unlRevealT = 0, unlEmoteAt = 0;
+var UNL_FX = { "trail-sparkle": "sparkle", "trail-leaves": "leaves", "trail-wind": "wind", "trail-bubbles": "bubbles",
+               "trail-rainbow": "rainbow", "trail-comet": "comet", "burst-confetti": "confetti", "burst-clover": "clover",
+               "burst-prickle": "prickle", "burst-gold": "gold", "burst-stars": "stars", "burst-hearts": "hearts" };
+function unlOk() { return typeof Unlocks !== "undefined"; }
+function unlLoad() {
+  if (!unlOk()) return;
+  unl = Unlocks.load(lsGet);
+  if (unl.migrated) return;
+  /* the first time: what has been played before counts, quietly — no
+     boxes for old games, just the things marked NEW in the collection */
+  try {
+    var list = (Games.load(lsGet).list || []);
+    list.forEach(function (e) {
+      if (e.mode === "coach" && e.skill) {
+        var won = (e.result === "white") === (e.humanSide === 1) && e.result !== "draw";
+        unl.xp += Unlocks.xpFor({ mode: "coach", result: e.result === "draw" ? "draw" : won ? "win" : "loss", tier: levelIndex(e.skill), rated: true }).total;
+      } else unl.xp += 20;
+    });
+  } catch (e) {}
+  Unlocks.grant(unl, ladder, Date.now(), true);
+  /* a set of pieces already in use stays yours */
+  var set = skin && skin.pieces && skin.pieces.set;
+  if (set && set !== "classic" && Unlocks.byId("set-" + set)) unl.owned["set-" + set] = unl.owned["set-" + set] || 1;
+  unl.migrated = true;
+  unlSave();
+}
+function unlSave() { if (unl) Unlocks.save(unl, lsSet); }
+function unlLevel() { return unl ? Unlocks.levelOf(unl.xp) : { level: 1, into: 0, need: 100, frac: 0 }; }
+function unlOwned(id) { return !!(unl && unl.owned[id]); }
+function unlSetOwned(setId) { return setId === "classic" || !Unlocks.byId("set-" + setId) || unlOwned("set-" + setId); }
+
+/* ---- after a game: experience, then whatever it unlocked ---- */
+function unlAtEnd(result, rs) {
+  if (!unl || !G || !(mode === "coach" || mode === "pass" || mode === "lan")) { unlGameXp = null; return; }
+  var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide : 0;
+  var res = result === "draw" ? "draw" : mine === 0 ? "win" : ((result === "white") === (mine === 1) ? "win" : "loss");
+  if (mode === "pass") res = "played";
+  var x = Unlocks.xpFor({ mode: mode, result: res, tier: levelIndex(skill), rated: !!rs,
+                          stars: rs ? rs.newStars.length : 0,
+                          comeback: !!(moStory && moStory.comeback), wire: !!(moStory && moStory.wire) });
+  unlGameXp = { ticket: gameTicket, parts: x.parts.slice(), shown: 0 };
+  unlGain(x.total, true);
+}
+/* more experience for this game, later (a third star once the moves
+   have been looked back over, a feat) */
+function unlBonus(why, xp) {
+  if (!unl || !unlGameXp || unlGameXp.ticket !== gameTicket) return;
+  unlGameXp.parts.push({ why: why, xp: xp });
+  unlGain(xp, false);
+}
+function unlGain(xp, first) {
+  var ch = Unlocks.addXp(unl, xp);
+  var got = Unlocks.grant(unl, ladder, Date.now(), false);
+  unlSave();
+  unlQueue = unlQueue.concat(got);
+  unlXpRow(ch, first);
+  /* after the card has had its say: the result, the number, the stars */
+  if (got.length) unlRevealSoon(first ? 6500 : 1600);
+}
+/* the line on the card: +80 XP, the bar filling, LEVEL UP */
+function unlXpRow(ch, first) {
+  var box = $("endXp");
+  if (!box || !unlGameXp) return;
+  box.classList.remove("hide");
+  var total = 0;
+  unlGameXp.parts.forEach(function (p) { total += p.xp; });
+  $("endXpWhy").textContent = unlGameXp.parts.map(function (p) { return p.why + " +" + p.xp; }).join(" · ");
+  var lvEl = $("endXpLv"), bar = $("endXpBar"), num = $("endXpNum");
+  var from = ch.before, to = ch.after, my = gameTicket;
+  if (first) { lvEl.textContent = from.level; bar.style.width = (from.frac * 100).toFixed(1) + "%"; num.textContent = "+0 XP"; $("endXpUp").classList.add("hide"); }
+  var go = function () {
+    if (my !== gameTicket) return;
+    num.textContent = "+" + total + " XP";
+    num.classList.remove("pop"); void num.offsetWidth; num.classList.add("pop");
+    var steps = [];
+    for (var lv = from.level; lv < to.level; lv++) steps.push(lv + 1);
+    var fill = function () {
+      if (my !== gameTicket) return;
+      if (!steps.length) { bar.style.transition = REDUCED ? "none" : "width .7s cubic-bezier(.2,.8,.3,1)"; bar.style.width = (to.frac * 100).toFixed(1) + "%"; return; }
+      var next = steps.shift();
+      bar.style.transition = REDUCED ? "none" : "width .55s cubic-bezier(.3,.6,.4,1)";
+      bar.style.width = "100%";
+      setTimeout(function () {
+        if (my !== gameTicket) return;
+        lvEl.textContent = next;
+        lvEl.classList.remove("up"); void lvEl.offsetWidth; lvEl.classList.add("up");
+        var upEl = $("endXpUp");
+        upEl.classList.add("hide"); void upEl.offsetWidth; upEl.classList.remove("hide");
+        sting("levelup"); hap("success");
+        if (FX) { try { Fx.sparkle(lvEl, { count: 24 }); } catch (e) {} }
+        pushMile("🆙", "<b>Level " + next + "!</b> " + escHtml(unlLevelGift(next)), { cls: "levelup", sting: "levelup", hap: "success", big: true });
+        bar.style.transition = "none"; bar.style.width = "0%"; void bar.offsetWidth;
+        setTimeout(fill, 160);
+      }, REDUCED ? 0 : 600);
+    };
+    fill();
+  };
+  setTimeout(go, first ? (REDUCED ? 200 : 2600) : 100);
+}
+function unlLevelGift(lv) {
+  var it = Unlocks.ITEMS.filter(function (x) { return x.from.level === lv; })[0];
+  return it ? "Unlocked: " + it.emoji + " " + it.name + "." : "Keep going: there is more to win.";
+}
+
+/* ---- the box: dropped in, shaken, burst open ---- */
+/* never sooner than already promised: a feat's experience arriving a
+   moment after the game's must not open the box over the card early */
+var unlRevealDue = 0;
+function unlRevealSoon(ms) {
+  var due = Date.now() + (REDUCED ? 300 : ms);
+  if (unlRevealT && unlRevealDue > due) return;
+  clearTimeout(unlRevealT);
+  unlRevealDue = due;
+  unlRevealT = setTimeout(function () { unlRevealT = 0; unlReveal(); }, due - Date.now());
+}
+function unlReveal() {
+  if (unlShowing || !unlQueue.length) return;
+  /* not over something else that was asked for: wait for it to go */
+  var open = document.querySelector(".ov:not(.hide)");
+  if (open && open.id !== "ovEnd" && open.id !== "ovMenu") { unlRevealSoon(1200); return; }
+  var it = unlQueue.shift();
+  unlShowing = it;
+  var ov = $("ovUnlock");
+  ov.className = "ov ulOv";
+  $("ulKick").textContent = it.kind === "title" ? "NEW TITLE!" : it.kind === "skill" ? "NEW SKILL!" : "NEW!";
+  $("ulName").textContent = it.name;
+  $("ulKind").textContent = Unlocks.KINDS.filter(function (k) { return k.id === it.kind; })[0].name.replace(/s$/, "").toUpperCase();
+  $("ulHow").textContent = unlHowWon(it);
+  $("ulCount").textContent = unlQueue.length ? "+" + unlQueue.length + " more" : "";
+  $("ulIcon").innerHTML = unlIcon(it, true);
+  $("ulUse").innerHTML = it.kind === "skill" ? "📘 Learn it!" : it.kind === "emote" ? "👍 Got it!" : "✨ Use it!";
+  ov.classList.add("drop");
+  hap("tick");
+  if (prefs.sound) snd("open");
+  var my = it;
+  var open1 = function () {
+    if (unlShowing !== my || ov.classList.contains("burst")) return;
+    ov.classList.remove("drop"); ov.classList.add("burst");
+    if (prefs.sound) { sting("milestone"); if (typeof Stage !== "undefined") Stage.swing(true, true); }
+    hap("success");
+    if (FX) { try { Fx.confetti({ ms: 1800, layer: "page" }); Fx.sparkle($("ulIcon"), { count: 30 }); } catch (e) {} }
+  };
+  ov.onclick = function (e) { if (!ov.classList.contains("burst")) open1(); };
+  setTimeout(open1, REDUCED ? 50 : 1500);
+}
+function unlHowWon(it) {
+  var f = it.from;
+  if (f.level != null) return "For reaching level " + f.level;
+  if (f.all != null) return f.all === 2 ? "For every star of every coach" : "For beating every coach on the ladder";
+  var c = SKILLS[f.coach], who = c ? c.emoji + " " + c.name : f.coach;
+  return "From " + who + (f.star === 0 ? ", for beating it" : f.star === 1 ? ", for beating it with no help" : ", for beating it with no help, and well");
+}
+function unlDone(use) {
+  var it = unlShowing;
+  if (!it) return;
+  unlShowing = null;
+  $("ovUnlock").className = "ov ulOv hide";
+  if (unl.fresh[it.id]) { delete unl.fresh[it.id]; unlSave(); }
+  if (use) unlUse(it);
+  if (unlQueue.length) unlRevealSoon(450);
+  unlLobby();
+}
+/* what equipping a thing does */
+function unlUse(it) {
+  var u = it.use || {};
+  if (it.kind === "board" && u.home && Skins.homeOf(u.home)) { applySkin(Skins.homeOf(u.home)); toast("🎨 " + escHtml(it.name) + " is your board now.", null, 2600); }
+  else if (it.kind === "pieces" && u.set) {
+    var s2 = JSON.parse(JSON.stringify(skin)); s2.pieces.set = u.set; applySkin(s2);
+    toast(it.emoji + " " + escHtml(it.name) + (prefs.use3d ? " on the board." : " — they show on the 3D board."), null, 2800);
+  } else if (it.kind === "colors" && Unlocks.COLORS[it.id]) {
+    var c = Unlocks.COLORS[it.id], s3 = JSON.parse(JSON.stringify(skin));
+    s3.pieces.white = c.white; s3.pieces.black = c.black; s3.pieces.material = c.material; s3.pieces.shine = c.shine; s3.pieces.rim = c.rim;
+    applySkin(s3); unl.equip.colors = it.id; unlSave();
+    toast(it.emoji + " " + escHtml(it.name) + " pieces.", null, 2400);
+  } else if (it.kind === "trail" || it.kind === "burst" || it.kind === "title") {
+    unl.equip[it.kind] = unl.equip[it.kind] === it.id ? null : it.id; unlSave();
+    toast(unl.equip[it.kind] ? it.emoji + " " + escHtml(it.name) + " on." : escHtml(it.name) + " off.", null, 2200);
+    syncTagState();
+  } else if (it.kind === "skill" && u.lesson) {
+    var L = Learn.byId(u.lesson);
+    if (L) { hideAllOverlays(); startLesson(L, []); }
+  }
+  if ($("ovCollect") && !$("ovCollect").classList.contains("hide")) renderCollection();
+}
+/* the picture of a thing, for the box and the collection */
+function unlIcon(it, big) {
+  var u = it.use || {};
+  if (it.kind === "board" && Skins.homeOf(u.home)) return homeSwatch(Skins.homeOf(u.home), "ulSw");
+  if (it.kind === "colors" && Unlocks.COLORS[it.id]) {
+    var c = Unlocks.COLORS[it.id];
+    return '<span class="ulCol"><b style="color:' + c.white + '">♟</b><b style="color:' + c.black + '">♟</b></span>';
+  }
+  if (it.kind === "pieces") return '<span class="ulGlyph ulSet">' + ({ nordic: "♜", modern: "♝", staunton: "♚" }[u.set] || "♞") + "</span>";
+  if (it.kind === "emote") return '<span class="ulEm">' + u.emotes.join("") + "</span>";
+  if (it.kind === "title") return '<span class="ulTitle">' + it.emoji + " " + escHtml(it.name) + "</span>";
+  if (it.kind === "skill" && it.from.coach && typeof Avatar !== "undefined" && Avatar.portrait) {
+    var url = null; try { url = Avatar.portrait(it.from.coach, big ? 160 : 96); } catch (e) {}
+    if (url) return '<span class="ulSkill"><img alt="" src="' + url + '"><i>' + it.emoji + "</i></span>";
+  }
+  return '<span class="ulGlyph">' + it.emoji + "</span>";
+}
+
+/* ---- the collection ---- */
+var unlTab = "board";
+function openCollection(tab) {
+  hideAllOverlays(); closeStudio();
+  if (tab) unlTab = tab;
+  renderCollection();
+  $("ovCollect").classList.remove("hide");
+}
+function renderCollection() {
+  if (!unl) return;
+  var lv = unlLevel(), nx = Unlocks.nextReward(unl), all = Unlocks.countOwned(unl);
+  $("coLv").textContent = lv.level;
+  $("coXpBar").style.width = (lv.frac * 100).toFixed(1) + "%";
+  $("coXpTx").textContent = lv.into + " / " + lv.need + " XP to level " + (lv.level + 1);
+  $("coNext").innerHTML = nx ? "Next: " + nx.emoji + " <b>" + escHtml(nx.name) + "</b> at level " + nx.from.level : "Every level reward is yours.";
+  $("coCount").textContent = all.n + " of " + all.of + " collected";
+  var tabs = $("coTabs");
+  tabs.innerHTML = "";
+  Unlocks.KINDS.forEach(function (k) {
+    var c = Unlocks.countOwned(unl, k.id), fresh = Unlocks.ITEMS.some(function (it) { return it.kind === k.id && unl.fresh[it.id]; });
+    var b = document.createElement("button");
+    b.className = "coTab" + (k.id === unlTab ? " sel" : "") + (fresh ? " new" : "");
+    b.innerHTML = '<span class="em">' + k.emoji + "</span><span>" + escHtml(k.name) + "</span><small>" + c.n + "/" + c.of + "</small>";
+    b.addEventListener("click", function () { unlTab = k.id; renderCollection(); });
+    tabs.appendChild(b);
+  });
+  var kind = Unlocks.KINDS.filter(function (k) { return k.id === unlTab; })[0];
+  $("coKindNote").textContent = kind.note;
+  var grid = $("coGrid");
+  grid.innerHTML = "";
+  Unlocks.ITEMS.filter(function (it) { return it.kind === unlTab; }).forEach(function (it) {
+    var own = unlOwned(it.id), on = unlEquipped(it);
+    var b = document.createElement("button");
+    b.className = "coCard" + (own ? " own" : " locked") + (on ? " on" : "") + (unl.fresh[it.id] ? " fresh" : "");
+    b.innerHTML = '<span class="coPic">' + unlIcon(it, false) + (own ? "" : '<em class="coLock" aria-hidden="true">🔒</em>') + "</span>" +
+      '<b class="coName"></b><small class="coHow"></small>' + (unl.fresh[it.id] ? '<span class="coNew">NEW!</span>' : "");
+    b.querySelector(".coName").textContent = own ? it.name : "???";
+    b.querySelector(".coHow").textContent = own ? (it.note || unlActionWord(it, on)) : Unlocks.howTo(it);
+    b.setAttribute("aria-label", own ? it.name + (on ? ", in use" : "") : "Locked: " + Unlocks.howTo(it));
+    b.addEventListener("click", function () {
+      if (!own) { hap("nope"); toast("🔒 " + escHtml(Unlocks.howTo(it)) + " to unlock this.", null, 2600); return; }
+      if (unl.fresh[it.id]) { delete unl.fresh[it.id]; unlSave(); }
+      unlUse(it);
+      renderCollection(); unlLobby();
+    });
+    grid.appendChild(b);
+  });
+}
+function unlEquipped(it) {
+  var u = it.use || {};
+  if (it.kind === "trail" || it.kind === "burst" || it.kind === "title") return unl.equip[it.kind] === it.id;
+  if (it.kind === "colors") return unl.equip.colors === it.id && Unlocks.COLORS[it.id].white === skin.pieces.white;
+  if (it.kind === "board") return Skins.homeOf(u.home) && Skins.homeOf(u.home).name === skin.name;
+  if (it.kind === "pieces") return skin.pieces.set === u.set;
+  return false;
+}
+function unlActionWord(it, on) {
+  if (it.kind === "skill") return "Tap to learn it";
+  if (it.kind === "emote") return "Send them in a game";
+  return on ? "In use ✓ (tap to take off)" : "Tap to use";
+}
+/* the lobby: your level and how much is waiting to be seen */
+function unlLobby() {
+  if (!unl || !$("mCollect")) return;
+  var lv = unlLevel(), all = Unlocks.countOwned(unl), fresh = Object.keys(unl.fresh).length;
+  $("mLv").textContent = lv.level;
+  $("mLvBar").style.width = (lv.frac * 100).toFixed(1) + "%";
+  $("mCollectSub").textContent = all.n + " of " + all.of + " collected" + (fresh ? " · " + fresh + " new" : "");
+  $("mCollect").classList.toggle("fresh", fresh > 0);
+}
+
+/* ---- in play: trails, bursts, and emotes ---- */
+function unlMove(desc, plan, took) {
+  if (!unl || !FX || !plan || !G) return;
+  if (!sideIsMine(desc.piece > 0 ? 1 : -1) || mode === "lesson") return;
+  var tr = unl.equip.trail && UNL_FX[unl.equip.trail], bu = unl.equip.burst && UNL_FX[unl.equip.burst];
+  var ms = plan.dur * (plan.travel || 1);
+  if (tr) { try { Fx.trail(desc.from, desc.to, { style: tr, ms: ms, hop: Math.abs(desc.piece) === 2 }); } catch (e) {} }
+  if (bu && took) {
+    var t = gameTicket;
+    setTimeout(function () { if (t === gameTicket) { try { Fx.flair(desc.to, { style: bu }); } catch (e) {} } }, ms);
+  }
+}
+/* send a face across the board, and see what the coach makes of it */
+var EMOTE_REPLY = {
+  "👋": ["happy", "👋"], "👍": ["happy", "♪"], "😮": ["surprised", "❗"],
+  "😂": ["gleeful", "😂"], "🔥": ["shocked", "💦"], "😎": ["gleeful", "😏"],
+  "🥳": ["gleeful", "✨"], "💪": ["think", "💪"], "🤔": ["think", "❓"]
+};
+function unlEmoteSync() {
+  var btn = $("emoteBtn"); if (!btn) return;
+  var have = unl ? Unlocks.emotes(unl) : [];
+  btn.classList.toggle("hide", !(have.length && castWho() && G && !over));
+  if (btn.classList.contains("hide")) $("emoteFan").classList.add("hide");
+}
+function unlEmoteOpen() {
+  var fan = $("emoteFan"), have = Unlocks.emotes(unl);
+  if (!fan.classList.contains("hide")) { fan.classList.add("hide"); return; }
+  fan.innerHTML = "";
+  have.forEach(function (e, i) {
+    var b = document.createElement("button");
+    b.className = "emPick"; b.textContent = e; b.style.animationDelay = (i * 35) + "ms";
+    b.setAttribute("aria-label", "Send " + e);
+    b.addEventListener("click", function (ev) { ev.stopPropagation(); unlSendEmote(e); });
+    fan.appendChild(b);
+  });
+  fan.classList.remove("hide");
+}
+function unlSendEmote(e) {
+  $("emoteFan").classList.add("hide");
+  if (Date.now() - unlEmoteAt < 1200) return;
+  unlEmoteAt = Date.now();
+  var mine = document.createElement("span");
+  mine.className = "emote mine"; mine.textContent = e;
+  $("emoteBtn").parentNode.appendChild(mine);
+  setTimeout(function () { mine.remove(); }, 1800);
+  hap("tick");
+  var rep = EMOTE_REPLY[e] || ["happy", "♪"];
+  setTimeout(function () {
+    if (!castWho() || !castFace) return;
+    castFace.mood(rep[0], 1400); castFace.wake(1600);
+    castEmote(rep[1]);
+  }, 650);
+}
+function unlWire() {
+  unlLoad();
+  $("ulUse").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(true); });
+  $("ulNext").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(false); });
+  $("mCollect").addEventListener("click", function () { openCollection(); });
+  $("coClose").addEventListener("click", function () { $("ovCollect").classList.add("hide"); showMenu(); });
+  $("emoteBtn").addEventListener("click", function (ev) { ev.stopPropagation(); unlEmoteOpen(); });
+  document.addEventListener("click", function () { if ($("emoteFan")) $("emoteFan").classList.add("hide"); });
+  unlLobby();
+}
+function unlocksForTest() {
+  return {
+    unlState: function () { return JSON.parse(JSON.stringify(unl)); },
+    unlQueue: function () { return { queue: unlQueue.map(function (i) { return i.id; }), showing: unlShowing ? unlShowing.id : null }; },
+    unlGiveXpForTest: function (n) { unlGameXp = unlGameXp || { ticket: gameTicket, parts: [], shown: 0 }; unlGain(n, false); },
+    unlResetForTest: function () { unl = Unlocks.fresh(); unl.migrated = true; unlQueue = []; unlShowing = null; unlSave(); unlLobby(); },
+    openCollection: openCollection
+  };
+}
+
 function castForTest() {
   return {
     castState: function () {
@@ -8460,6 +8830,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
