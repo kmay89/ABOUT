@@ -932,6 +932,11 @@
     #pInfo{flex:0 0 auto}
     #panelMain{flex:1 1 0; min-height:120px}
   }
+  /* the short labels are for narrow bars only: hidden here, before the
+     two blocks that show them (the rail below, a phone's bar further
+     down), so that both win. Placed after them, it hid every short label
+     on a phone on its side, and New and Last move were bare icons. */
+  .abtn .lbl-short{display:none}
   /* a phone on its side: the buttons become a rail at the edge, and the
      board gets the whole height */
   @media (orientation:landscape) and (max-height:500px){
@@ -987,7 +992,6 @@
     .ptag{max-width:62vw}
   }
   /* the action bar fits one row on a phone */
-  .abtn .lbl-short{display:none}
   @media (max-width:560px){
     #actions{gap:4px; padding:6px 6px calc(6px + var(--safe-bot)); flex-wrap:nowrap}
     .abtn{min-width:0; flex:1 1 0; padding:6px 2px; font-size:.64em; max-width:72px}
@@ -1494,6 +1498,32 @@
     letter-spacing:.1em; text-transform:uppercase; font-weight:700}
   #askBody .kbRow{display:grid; grid-template-columns:8.5em 1fr; gap:10px; text-align:left; font-size:.9em; padding:2px 0}
   #askBody kbd{font:600 .9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--ink)}
+
+  /* ---------- edges: custom clock, promotion, recovery, a phone on its side ----------
+     New controls wear the house classes (chip, bigbtn, ghostbtn); this
+     block only lays them out. */
+  .clkCustom{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin:2px 0 10px}
+  .clkCustom label{display:flex; align-items:center; gap:6px; font-size:.9em; color:var(--soft)}
+  .clkCustom input{width:4.2em; min-height:36px; padding:4px 8px; border-radius:10px; border:1px solid var(--line);
+    background:var(--card2); color:var(--ink); font:inherit; font-variant-numeric:tabular-nums}
+  .clkCustom small{flex-basis:100%; color:var(--soft)}
+  .aqWhy{color:var(--glow); font-weight:650}
+  .recTech{margin:0 0 12px; text-align:left; font-size:.85em; color:var(--soft)}
+  .recTech summary{cursor:pointer}
+  .recTech code{display:block; margin:6px 0; padding:8px 10px; border-radius:10px; background:var(--card2);
+    white-space:pre-wrap; word-break:break-word; font-size:.92em}
+  .recWipeAsk{margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:14px}
+  .recWipeAsk p{margin-top:0}
+  /* a phone on its side: a remark sits over the move list beside the
+     board, as it does over the move list under the board on a phone held
+     upright — never on the near ranks — and nothing tucks under a notch
+     on the left */
+  @media (orientation:landscape) and (max-height:500px){
+    #toast{position:fixed; left:auto; right:calc(80px + env(safe-area-inset-right, 0px)); bottom:8px;
+      max-width:204px; font-size:.85em; z-index:12; transform:translateY(8px)}
+    #toast.show{transform:none}
+    #app{padding-left:env(safe-area-inset-left, 0px)}
+  }
 </style>
 </head>
 <body>
@@ -1688,13 +1718,12 @@
       </div>
     </div>
     <p><b>Clock</b> <small id="clockHint">— optional. Fischer increment adds seconds back after every move.</small></p>
-    <div class="rowbtns" id="clockChips">
-      <button class="chip sel" data-clock="none">No clock</button>
-      <button class="chip" data-clock="3+2">3+2 blitz</button>
-      <button class="chip" data-clock="5+0">5 min</button>
-      <button class="chip" data-clock="10+5">10+5 rapid</button>
-      <button class="chip" data-clock="15+10">15+10</button>
-      <button class="chip" data-clock="30+0">30 min</button>
+    <!-- the chips are drawn from CLK_PRESETS in app.js, plus "Other…" -->
+    <div class="rowbtns" id="clockChips"></div>
+    <div class="clkCustom hide" id="clkCustom">
+      <label>Minutes <input id="clkMin" type="number" inputmode="numeric" min="1" max="180" step="1" value="10"></label>
+      <label>+ seconds a move <input id="clkInc" type="number" inputmode="numeric" min="0" max="60" step="1" value="0"></label>
+      <small id="clkSay"></small>
     </div>
     <button class="bigbtn" id="newStart"><span class="em">▶️</span><span><b>Begin</b></span></button>
     <button class="ghostbtn" id="newBack">Back</button>
@@ -1870,6 +1899,7 @@
   <div class="card" style="max-width:380px; text-align:center">
     <h2>A pawn reaches the last rank!</h2>
     <p>It becomes any piece you like — nearly everyone chooses the queen.</p>
+    <p class="aqWhy hide" id="aqWhy"></p>
     <div id="promoRow"></div>
     <button class="ghostbtn" id="promoCancel">Not that square — put it back</button>
   </div>
@@ -1937,6 +1967,8 @@
       <button class="chip sw sel" id="setPen">On</button></div>
     <div class="settingRow" id="accRow"><span class="lbl"><b>Spoken board</b><small>For a screen reader: each move, the result, and anything you ask with a key are read out. Everything adds the coach's remarks. Nothing is ever spoken aloud otherwise.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="accMoves">Moves</button><button class="chip" id="accAll">Everything</button><button class="chip" id="accOff">Off</button><button class="chip" id="accKeys">The keys ›</button></div></div>
+    <div class="settingRow" id="aqRow"><span class="lbl"><b>Promotion</b><small>Ask which piece every time, or make it a queen at once. Even then the room still asks when another piece would mate and the queen wouldn't, or when the queen would stalemate. Lessons always ask.</small></span>
+      <div class="rowbtns" style="margin:0"><button class="chip sel" id="aqAsk">Ask</button><button class="chip" id="aqQueen">Always a queen</button></div></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -1981,10 +2013,19 @@
   <div class="card" style="text-align:center">
     <div style="font-size:3em">🩹</div>
     <h2>Something stumbled</h2>
-    <p>The room hit an unexpected error. Your game is saved after every move, so nothing is lost. Pick a way back in:</p>
-    <button class="bigbtn" id="recReload"><span class="em">🔄</span><span><b>Reload the room</b><small>Almost always enough.</small></span></button>
-    <button class="bigbtn" id="rec2D"><span class="em">🎴</span><span><b>Reload in 2D</b><small>If the 3D board is the trouble.</small></span></button>
-    <button class="bigbtn" id="recFresh"><span class="em">🌅</span><span><b>Fresh start</b><small>Clears the saved game and settings.</small></span></button>
+    <p id="recWhy">The room hit an error it didn't expect. Your game is saved after every move, so nothing is lost. Pick a way back in:</p>
+    <details class="recTech" id="recTech"><summary>The technical line</summary>
+      <code id="recTechTx"></code>
+      <button class="chip" id="recCopy">Copy it</button></details>
+    <button class="bigbtn" id="recReload"><span class="em">🔄</span><span><b>Try again</b><small>Reloads the room. Almost always enough.</small></span></button>
+    <button class="bigbtn" id="rec2D"><span class="em">🎴</span><span><b>Try again in 2D</b><small>If the 3D board is the trouble.</small></span></button>
+    <button class="bigbtn" id="recGame"><span class="em">♟️</span><span><b>Keep my record, clear the game in progress</b><small>Forgets only the unfinished game. Your rating, stars, lessons, journal, friends, skins and settings stay.</small></span></button>
+    <button class="ghostbtn" id="recWipe">Erase everything on this device…</button>
+    <div class="recWipeAsk hide" id="recWipeAsk">
+      <p id="recWipeTx">This erases your rating and its history, your ladder stars, Academy lessons, the journal of your games, feats, friends, saved skins and settings, and any game in progress. It can't be undone.</p>
+      <button class="bigbtn" id="recWipeGo"><span class="em">🧹</span><span><b>Erase it all</b><small>Then the room starts as if it were new.</small></span></button>
+      <button class="ghostbtn" id="recWipeNo">Keep it</button>
+    </div>
   </div>
 </div>
 
