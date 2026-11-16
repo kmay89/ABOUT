@@ -142,6 +142,13 @@ ink.js              the pen: what you draw, kept with the position — your
                     drawn on, rubbed out by drawing them again, capped,
                     saved, and read back from a save one shape at a time
                     so a bad mark never costs the game it came with
+access.js           the board in words, and moves typed in: a move as a
+                    sentence ("White: knight to f3, check"), a square,
+                    the whole position, a result; a reader for what
+                    people type (Nf3, nf3, exd5, ed5, O-O, 0-0, e8=Q,
+                    e8Q, e2e4, e7e8q) matched against the legal moves,
+                    which says why when it cannot pick one; and which
+                    way an arrow key walks a turned board
 grain.js            the surface of the board, as pixels: a hash, a value
                     noise built on it, a few octaves of that, and three
                     recipes — rings cut at a slant, veins through cloud,
@@ -342,6 +349,13 @@ tools/              dev-only, never shipped:
                     drawing stays with its position through moves, a look
                     back, a reload and a take-back, and a drawn-on board
                     sleeps
+  access-check.js   keys and words: every legal move in a few hundred
+                    positions reached by its SAN, its two squares and in
+                    lower case; the ways people mistype; the words for
+                    moves, squares and positions; then a real browser on
+                    both boards — Tab kept inside an open card, focus in
+                    and back out, the live region after a move, a move
+                    made with the arrows, a game typed to mate
   pieces-check.js   every set builds at both qualities, closed, facing
                     outwards, and wound consistently face by face (a
                     single backwards cap survives a volume test and looks
@@ -2300,6 +2314,72 @@ come from the end card's look-back as that works through your moves.
 `tools/lookback-check.js` plays a real blunder and checks every line
 lands on the square it names.
 
+## Keys, and a board that speaks
+
+The room can now be played without a mouse, and without seeing it.
+
+**Focus that behaves.** While a card is open, the room behind it is
+inert: Tab stays in the card, and a screen reader cannot wander into
+the game underneath. Opening a card puts focus in it — on its first
+button when it asks a question or offers the promotion picker, on its
+heading otherwise — and closing the last one puts focus back where it
+was. It is one door for every card, an observer on the cards' own
+`hide` class, so none of the two dozen places that open a card had to
+change. The Studio, closed, is out of reach too (it used to leave its
+twenty inputs in the tab order). An amber ring marks focus, for a
+keyboard only: a tap or a click never shows it.
+
+**The board speaks.** Each board is a named control ("Chess board.
+Arrow keys move around it…"), and one polite live region reads the game:
+each move as a sentence — "White: knight to f3, check", "Black: pawn
+from e5 takes knight on d4", "castles kingside", "becomes a queen" —
+with "Your move" when it is; the result; a toast that asks something;
+and whatever answers a key you just pressed. Settings → *Spoken board*:
+**Moves** (the default — a screen-reader user hears the game without
+hunting for a switch, and nobody else hears anything, because the
+region is invisible), **Everything** (every remark of the coach's too),
+or **Off**. Every move in the list carries its sentence as its name,
+and the current move is the list's one stop in the tab order. Shift W
+reads where everything is: whose move, then each side's pieces,
+strongest first, and the last move.
+
+**The board under the keys.** Tab to the board and a cursor appears on
+your king, drawn by both the carved and the flat board, and the square
+is read out ("e1, white king"). The arrows walk it, turned the right way
+when the board is; Enter or Space picks up and sets down, with the same
+sound and feel as a tap and a word on where the piece can go; Escape
+puts it back; `[` and `]` step back and forward through the game. A
+click on the board never takes focus, so for a mouse ← → still look
+back through the game exactly as before. A still cursor costs no
+frames.
+
+**Type a move.** Start typing anywhere outside a text box and a small
+entry opens over the board with your first letter in it: `Nf3`, `e4`,
+`exd5`, `O-O`, `e8=Q`, also `nf3`, `ed5`, `0-0`, `e8Q`, or the two
+squares, `e2e4` / `e7e8q`. Enter plays it through the same door as two
+taps, so lessons, the promotion picker and a friend's board see nothing
+new. When it cannot be played the entry stays and says why — "Nbd2 or
+Nfd2 — which one?", "No knight of yours can go to f3.", "You can't
+castle kingside right now." — and Escape closes it. A pawn sent to the
+last rank with no piece named opens the picker, which answers to Q, N,
+R and B.
+
+**One key for a button.** Shift and a letter that is not a piece:
+**U** take back, **H** help, **F** flip, **L** the last move again,
+**M** the menu, **W** where everything is. Plain letters belong to
+notation (N and R are pieces, a to h are files), `?` to the lamp's "why
+that move", Escape to the cards and the pen, so none of these collides.
+**/** shows the keys; so does Settings → *Spoken board* → *The keys*.
+
+Two honest limits. Nothing is ever spoken through the speakers — the
+words go to your own screen reader, at your own rate; and a typed move
+is read only when you press Enter, so there is no guessing ahead as you
+type.
+
+`tools/access-check.js` holds the reader to every legal move in a few
+hundred positions in Node, then plays on both boards in a real browser
+with the keyboard alone.
+
 ## Two ideas worth explaining
 
 **The racing line.** A racing driver's line is one curve that contains a
@@ -2430,6 +2510,7 @@ node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk sav
 node chess/tools/skin-check.js     # presets, share codes, hostile input
 node chess/tools/lines-check.js    # every line the room draws: one grammar, drawn on, then still
 node chess/tools/ink-check.js      # the pen: drawn by mouse and finger, kept with its position
+node chess/tools/access-check.js   # keys and words: typed moves, the board by arrows, focus kept in a card
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
 node chess/tools/games-check.js    # the journal keeps what happened, and gives it back as PGN

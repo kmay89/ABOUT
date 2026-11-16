@@ -1470,6 +1470,30 @@
   .notationSays{min-height:1.4em; margin:6px 0 2px; font-size:.88em; color:var(--soft)}
   .notationSays.bad{color:var(--bad)}
   #notationGo:disabled{opacity:.45; cursor:default}
+
+  /* ---- keys and words (access.js; app.js "keys and words") ----
+     A ring for whoever is on a keyboard and nobody else; the live
+     region out of sight; the entry a typed move appears in, where the
+     turn strip sits, over the board. */
+  :focus-visible{outline:2px solid var(--amber); outline-offset:2px}
+  canvas.board:focus-visible{outline-offset:-3px}
+  [tabindex="-1"]:focus{outline:none}
+  #moveList .m:focus-visible{outline-offset:0}
+  .accVh{position:absolute !important; width:1px; height:1px; margin:-1px; padding:0; border:0;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap}
+  #kbType{position:absolute; top:44px; left:50%; transform:translateX(-50%); z-index:7;
+    display:flex; flex-direction:column; align-items:center; gap:4px; max-width:min(420px, 92%)}
+  #kbIn{width:9ch; padding:6px 14px; border-radius:999px; border:1px solid var(--amber);
+    background:rgba(20,16,12,.92); color:var(--ink); text-align:center;
+    font:600 1.15em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; box-shadow:var(--shadow)}
+  #kbIn:focus{outline:none; border-color:var(--glow)}
+  #kbMsg:empty{display:none}
+  #kbMsg{background:rgba(24,19,14,.94); border:1px solid var(--line); border-radius:12px;
+    padding:6px 12px; font-size:.86em; color:var(--soft); text-align:center; white-space:normal}
+  #askBody .kbGroup{display:block; margin:10px 0 2px; color:var(--amber); font-size:.78em;
+    letter-spacing:.1em; text-transform:uppercase; font-weight:700}
+  #askBody .kbRow{display:grid; grid-template-columns:8.5em 1fr; gap:10px; text-align:left; font-size:.9em; padding:2px 0}
+  #askBody kbd{font:600 .9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--ink)}
 </style>
 </head>
 <body>
@@ -1492,6 +1516,7 @@
       <div id="toast"></div>
       <button id="resultChip" class="hide">🏁 Result</button>
       <div class="lessonBar hide" id="lessonBar"></div>
+      <div id="kbType" class="hide"><input id="kbIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type a move, then Enter" aria-describedby="kbMsg" maxlength="12"><span id="kbMsg"></span></div>
     </div>
     <div id="panel">
       <div id="pInfo">
@@ -1910,6 +1935,8 @@
       <button class="chip sw" id="setWheels">Off</button></div>
     <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
       <button class="chip sw sel" id="setPen">On</button></div>
+    <div class="settingRow" id="accRow"><span class="lbl"><b>Spoken board</b><small>For a screen reader: each move, the result, and anything you ask with a key are read out. Everything adds the coach's remarks. Nothing is ever spoken aloud otherwise.</small></span>
+      <div class="rowbtns" style="margin:0"><button class="chip sel" id="accMoves">Moves</button><button class="chip" id="accAll">Everything</button><button class="chip" id="accOff">Off</button><button class="chip" id="accKeys">The keys ›</button></div></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -2072,6 +2099,8 @@
 <script src="goals.js"></script>
 <script src="share.js"></script>
 <script src="friends.js"></script>
+<div id="accSay" class="accVh" role="status" aria-live="polite" aria-atomic="true"></div>
+<script src="access.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access */
 (function () {
 "use strict";
 
@@ -297,6 +297,7 @@ function toast(html, actions, ms) {
   /* a remark never replaces a question that is still waiting for an
      answer — the notebook has kept the remark */
   if (!actions && el.classList.contains("show") && el.classList.contains("acts")) return;
+  accToast(html, actions);
   el.classList.remove("lamp");
   el.innerHTML = html;
   el.classList.toggle("acts", !!actions);
@@ -915,6 +916,7 @@ function commitMove(m, source, animOpts) {
   }
 
   var st = Chess.status(G);
+  accAfterMove(m, san, st);
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -1937,6 +1939,7 @@ function moveCell(ply) {
   }
   if (ply === G.played.length - 1 && (mode === "coach" || mode === "pass" || mode === "lan")) s.title += " \u00b7 tap to ask why";
   s.addEventListener("click", function () { tapMoveCell(ply); });
+  accCell(s, ply, san);
   return s;
 }
 function stripTags(html) { return String(html).replace(/<[^>]*>/g, ""); }
@@ -2955,6 +2958,7 @@ function endGame(result, reason, taught) {
   $("endEmoji").textContent = em;
   $("endTitle").textContent = title;
   $("endSub").textContent = sub;
+  accAtEnd(result, reason, title);
   /* the final move is the best teaching moment there is — say the thing */
   var lessonLine = $("endLesson");
   if (lessonLine) {
@@ -6840,6 +6844,416 @@ function wireParallax() {
   document.addEventListener("visibilitychange", syncTilt);
   document.addEventListener("pointerdown", tiltRetry, { once: true, passive: true });
 }
+/* ===== keys and words: focus that behaves, a spoken board, keyboard play =====
+   Everything a keyboard or a screen reader needs, in one place, so the
+   rest of the room only has to call in at five doors: toast(),
+   commitMove(), endGame(), moveCell() and the dev handle. The pure half
+   — words for moves and squares, the reader for typed moves — is
+   access.js.
+
+   Focus. Every card is a body-level .ov, shown and hidden by its class
+   from two dozen places; rather than change each of them, one observer
+   watches the cards' classes. While any card is up, everything else on
+   the page is inert (Tab cannot reach the game beneath, a screen reader
+   cannot wander into it), focus goes into the card — its first button
+   for a question or the promotion picker, its heading otherwise — and
+   when the last card goes, focus goes back to where it was. The closed
+   Studio is inert too: it is aria-hidden, and its twenty inputs used to
+   be in the tab order anyway.
+
+   Words. One polite live region, #accSay, outside everything that can
+   be made inert. It reads each move ("White: knight to f3, check"), the
+   result, a toast that asks something, and anything said in answer to
+   a key. prefs.speak: "moves" (the default — a screen-reader user hears
+   the game without hunting for a setting, and nobody else hears
+   anything), "all" (every remark too), "off".
+
+   Keys. Tab reaches the board: the arrows walk a square cursor (drawn
+   by both boards, R.setCursor), Enter or Space picks up and sets down,
+   Escape puts back. Typing a move anywhere outside a text box opens a
+   small entry over the board. Shift + a letter that is not a piece does
+   what a button does; "/" shows the keys. Plain letters belong to
+   notation, "?" to the help lamp's "why", Escape to the cards and the
+   pen. */
+var accSaid = [], accQueue = [], accSayTimer = 0;
+var accKeyAt = 0, accPointerAt = 0;
+var accTop = null, accBack = null;
+var accCur = -1;                 /* the keyboard's square, 0x88; -1 until the board is first focused */
+var kbTypeBack = null, kbBusy = false;
+/* read straight from the store: prefs only keeps the keys its own
+   literal names, and this one is ours */
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.speak = ["moves", "all", "off"].indexOf(p.speak) >= 0 ? p.speak : "moves";
+})();
+
+function accText(html) {
+  try { return new DOMParser().parseFromString(String(html), "text/html").body.textContent.replace(/\s+/g, " ").trim(); }
+  catch (e) { return stripTags(html); }
+}
+/* one sentence at a time, joined if several land together; cleared and
+   set a beat later so the same words said twice are heard twice */
+function accSay(text) {
+  if (!text || prefs.speak === "off") return;
+  accSaid.push(text);
+  if (accSaid.length > 30) accSaid.shift();
+  accQueue.push(text);
+  clearTimeout(accSayTimer);
+  accSayTimer = setTimeout(function () {
+    var el = $("accSay");
+    if (!el) return;
+    var words = accQueue.join(" ");
+    accQueue = [];
+    el.textContent = "";
+    setTimeout(function () { el.textContent = words; }, 40);
+  }, 80);
+}
+/* from toast(): a question always, every remark if asked for, and
+   whatever answers a key just pressed (a piece with nowhere to go, the
+   lamp's chips) */
+function accToast(html, actions) {
+  if (prefs.speak === "off") return;
+  if (!(actions || prefs.speak === "all" || Date.now() - accKeyAt < 900)) return;
+  accSay(accText(html) + (actions ? " " + actions.map(function (a) { return a.label; }).join(", ") + "." : ""));
+}
+/* from commitMove(), with the position already after the move */
+function accAfterMove(m, san, st) {
+  var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide : 0;
+  accSay(Access.sayMove(m, san) + "." + (mine && !st.over && G.turn === mine ? " Your move." : ""));
+}
+/* from endGame() */
+function accAtEnd(result, reason, title) {
+  accSay("Game over. " + title + " " + Access.resultWords(result, reason));
+}
+/* from moveCell(): the cell gets a name a screen reader can say, and the
+   current move is the one stop the move list has in the tab order */
+function accCell(s, ply, san) {
+  var rec = G.played[ply];
+  var cur = s.classList.contains("cur");
+  s.setAttribute("role", "button");
+  s.tabIndex = cur ? 0 : -1;
+  if (cur) s.setAttribute("aria-current", "true");
+  s.setAttribute("aria-label", (Math.floor(ply / 2) + 1) + ". " + Access.sayMove(rec.m, san) +
+    (s.title && s.title.indexOf(" — ") > 0 ? ". " + s.title.slice(s.title.indexOf(" — ") + 3) : ""));
+  s.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); }
+  });
+}
+
+/* ---- focus: the one door every card goes through ---- */
+function accVisible(el) { return !!el && el.getClientRects().length > 0; }
+function accOverlayTop() {
+  var first = ["ovRecover", "ovAsk", "ovPromo"];
+  for (var i = 0; i < first.length; i++) { var o = $(first[i]); if (o && !o.classList.contains("hide")) return o; }
+  var open = document.querySelectorAll("body > .ov:not(.hide)");
+  return open.length ? open[open.length - 1] : null;
+}
+function accFocusInto(ov) {
+  var t = null;
+  if (ov.id === "ovAsk" || ov.id === "ovPromo") {
+    t = [].filter.call(ov.querySelectorAll("button"), accVisible)[0] || null;
+  }
+  if (!t) {
+    t = [].filter.call(ov.querySelectorAll("h1, h2"), accVisible)[0] || null;
+    if (t && !t.hasAttribute("tabindex")) t.setAttribute("tabindex", "-1");
+  }
+  if (!t) t = [].filter.call(ov.querySelectorAll("button, [tabindex], input"), accVisible)[0] || null;
+  if (t) try { t.focus({ preventScroll: true }); } catch (e) {}
+}
+function accSyncFocus() {
+  var top = accOverlayTop();
+  var kids = document.body.children;
+  for (var i = 0; i < kids.length; i++) {
+    var k = kids[i];
+    /* the room and the other cards; never a bar that asks to be tapped
+       over everything (the update bar), nor the live region */
+    if (!(k.id === "app" || k.id === "studio" || k.id === "splash" || k.classList.contains("ov"))) continue;
+    var want = !!top && k !== top;
+    if (k.id === "studio" && k.getAttribute("aria-hidden") === "true") want = true;
+    if (k.inert !== want) k.inert = want;
+  }
+  if (top) {
+    if (!accTop) accBack = document.activeElement;
+    var fresh = top !== accTop;
+    accTop = top;
+    if (fresh && !top.contains(document.activeElement)) accFocusInto(top);
+    return;
+  }
+  if (!accTop) return;
+  accTop = null;
+  var back = accBack; accBack = null;
+  var now = document.activeElement;
+  if (now && now !== document.body && accVisible(now)) return;   /* something already took it */
+  if (back && back !== document.body && document.contains(back) && accVisible(back)) {
+    try { back.focus({ preventScroll: true }); } catch (e) {}
+  }
+}
+
+/* ---- the board under the keyboard ---- */
+function accBoardFocused() { var a = document.activeElement; return !!a && (a === $("cv2") || a === $("cv3")); }
+function accShowCursor() {
+  if (!R || !R.setCursor) return;
+  R.setCursor(accBoardFocused() && G ? accCur : -1);
+  needFrame();
+}
+function accSquareSay(sq) {
+  var board = viewPly >= 0 ? currentViewBoard() : G.board;
+  var w = Access.squareWords(board, sq);
+  if (viewPly < 0 && sel >= 0) {
+    if (sq === sel) w += ", in your hand";
+    else if (legalMoves.some(function (m) { return m.to === sq; })) w += ", you can go here";
+  }
+  accSay(w + ".");
+}
+function accBoardKey(e) {
+  if (!G) return false;
+  var k = e.key;
+  if (/^Arrow/.test(k)) {
+    if (accCur < 0) accCur = G.kings[G.turn === 1 ? 0 : 1];
+    accCur = Access.step(accCur, k, orientation);
+    accShowCursor();
+    accSquareSay(accCur);
+    return true;
+  }
+  if (k === "Enter" || k === " ") {
+    if (accCur < 0) return true;
+    if (viewPly >= 0) { exitView(); accSay("Back to the game."); return true; }
+    if (!canActNow(true)) { accSay(accWhyNot()); return true; }
+    var before = sel, n = G.played.length;
+    tapSquare(accCur);
+    if (G.played.length !== n || pendingPromo) return true;     /* the move speaks for itself */
+    if (sel >= 0 && sel !== before) {
+      var to = legalMoves.map(function (m) { return Chess.sqName(m.to); })
+        .filter(function (v, i, a) { return a.indexOf(v) === i; });
+      accSay("Picked up the " + Access.NAME[Math.abs(G.board[sel])] + " on " + Chess.sqName(sel) + "." +
+        (to.length ? " It can go to " + (to.length > 6 ? to.slice(0, 6).join(", ") + " and " + (to.length - 6) + " more" : to.join(", ")) + "." : ""));
+    } else if (sel < 0 && before >= 0) accSay("Put back.");
+    else if (sel < 0) accSquareSay(accCur);
+    return true;
+  }
+  if (k === "Escape" && sel >= 0 && viewPly < 0) {
+    tapSquare(sel);
+    accSay("Put back.");
+    return true;
+  }
+  if (k === "[" || k === "]") {
+    if (!G.played.length) return true;
+    var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+    if (k === "[") viewAt(Math.max(0, at - 1));
+    else if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); }
+    var rec = G.played[viewPly >= 0 ? viewPly : G.played.length - 1];
+    accSay((viewPly >= 0 ? "Looking back. " : "The game now. ") + "After " + Access.sayMove(rec.m, rec.san) + ".");
+    return true;
+  }
+  return false;
+}
+function accWhyNot() {
+  if (!G || over) return "The game is over.";
+  if (pendingPromo) return "Choose a piece for the pawn first.";
+  if (mode === "coach" && thinking) return SKILLS[skill].label + " is thinking.";
+  if (mode === "lan" && !Net.linked()) return "Your friend isn't connected.";
+  if (mode === "coach" || mode === "lan") return "It isn't your move.";
+  return "There's nothing to move just now.";
+}
+
+/* ---- typing a move ---- */
+function kbTypeOpen(first) {
+  var box = $("kbType"), inp = $("kbIn");
+  if (!box || !inp) return;
+  kbTypeBack = document.activeElement;
+  box.classList.remove("hide");
+  $("kbMsg").textContent = "";
+  inp.value = first || "";
+  inp.focus({ preventScroll: true });
+  try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+}
+function kbTypeClose(refocus) {
+  var box = $("kbType");
+  if (!box || box.classList.contains("hide")) return;
+  box.classList.add("hide");
+  var back = kbTypeBack; kbTypeBack = null;
+  if (refocus && back && back !== document.body && document.contains(back) && accVisible(back)) {
+    try { back.focus({ preventScroll: true }); } catch (e) {}
+  } else if (document.activeElement === $("kbIn")) $("kbIn").blur();
+}
+function kbTypeFail(msg) {
+  $("kbMsg").textContent = msg;
+  accSay(msg);
+  hap("nope");
+  try { $("kbIn").select(); } catch (e) {}
+}
+/* the typed move goes in through the same door as two taps, so a lesson,
+   a promotion, a friend's board and the whole move pipeline see nothing
+   new — and it sounds and feels exactly like a tap */
+function kbPlay(from, to, promoKind) {
+  whenLanded(function () {
+    if (!G || !canActNow()) return;
+    clearSel();
+    tapSquare(from);
+    if (sel !== from) return;
+    if (promoKind) {
+      askPromotion(from, to);
+      var b = $("promoRow").children[[Chess.Q, Chess.N, Chess.R, Chess.B].indexOf(promoKind)];
+      if (b) b.click();
+      return;
+    }
+    tapSquare(to);
+  });
+}
+function kbSubmit(text) {
+  if (!G || over) { kbTypeClose(true); return false; }
+  if (viewPly >= 0) exitView();
+  if (!canActNow(true)) { kbTypeFail(accWhyNot()); return false; }
+  var r = Access.parse(G, text);
+  if (r.error) { kbTypeFail(r.error); return false; }
+  kbTypeClose(true);
+  if (r.promote) kbPlay(r.promote.from, r.promote.to, 0);
+  else kbPlay(r.move.from, r.move.to, r.move.promo ? Math.abs(r.move.promo) : 0);
+  return true;
+}
+
+/* ---- the key card ---- */
+function kbShowKeys() {
+  var html = "<b>The keys</b>";
+  Access.KEYS.forEach(function (grp) {
+    html += '<span class="kbGroup">' + grp[0] + "</span>";
+    grp[1].forEach(function (row) {
+      html += '<span class="kbRow"><kbd>' + escHtml(row[0]) + "</kbd><span>" + escHtml(row[1]) + "</span></span>";
+    });
+  });
+  ask(html, [{ label: "Done", fn: function () {} }]);
+}
+function accWhere() {
+  if (!G) return;
+  var last = G.played[G.played.length - 1];
+  accSay(Access.position(G) + (last ? " The last move: " + Access.sayMove(last.m, last.san) + "." : ""));
+}
+var KB_SHORT = { U: "btnUndo", H: "btnHint", F: "btnFlip", L: "btnReplay", M: "btnMenu" };
+
+function accSyncSettings() {
+  [["accMoves", "moves"], ["accAll", "all"], ["accOff", "off"]].forEach(function (p) {
+    var b = $(p[0]);
+    if (b) { b.classList.toggle("sel", prefs.speak === p[1]); b.setAttribute("aria-pressed", prefs.speak === p[1] ? "true" : "false"); }
+  });
+}
+
+function accWire() {
+  /* every card a dialog, named by its heading */
+  [].forEach.call(document.querySelectorAll("body > .ov"), function (ov) {
+    if (!ov.hasAttribute("role")) ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-modal", "true");
+    if (!ov.hasAttribute("aria-labelledby")) {
+      var h = ov.querySelector("h1, h2");
+      if (h) { if (!h.id) h.id = "accH_" + ov.id; ov.setAttribute("aria-labelledby", h.id); }
+      else ov.setAttribute("aria-label", ov.id === "ovProfile" ? "Your record" : "A card");
+    }
+    new MutationObserver(accSyncFocus).observe(ov, { attributes: true, attributeFilter: ["class"] });
+  });
+  if ($("studio")) new MutationObserver(accSyncFocus).observe($("studio"), { attributes: true, attributeFilter: ["aria-hidden"] });
+  accSyncFocus();
+
+  /* the boards: something a screen reader can name and a keyboard can
+     reach. A click is not an invitation: the board only keeps focus that
+     came from the keyboard, so ← → still step through the game for a
+     mouse (and a finger) exactly as before. */
+  ["cv2", "cv3"].forEach(function (id) {
+    var cv = $(id);
+    if (!cv) return;
+    cv.tabIndex = 0;
+    cv.setAttribute("role", "application");
+    cv.setAttribute("aria-roledescription", "chess board");
+    cv.setAttribute("aria-label", "Chess board. Arrow keys move around it, Enter picks up and sets down, " +
+      "or type a move such as Nf3. Shift W reads the position; slash lists the keys.");
+    cv.addEventListener("focus", function () {
+      if (Date.now() - accPointerAt < 400) { cv.blur(); return; }
+      if (!G) return;
+      if (accCur < 0) accCur = sel >= 0 ? sel : G.kings[(mode === "coach" ? humanSide : G.turn) === 1 ? 0 : 1];
+      accShowCursor();
+      accSquareSay(accCur);
+    });
+    cv.addEventListener("blur", function () { if (R && R.setCursor) { R.setCursor(-1); needFrame(); } });
+  });
+  document.addEventListener("pointerdown", function () { accPointerAt = Date.now(); }, true);
+
+  /* the move list keeps its place under the keyboard while it is redrawn */
+  var listHadFocus = false;
+  document.addEventListener("focusin", function (e) { listHadFocus = !!(e.target.closest && e.target.closest("#moveList")); });
+  document.addEventListener("pointerdown", function (e) { if (!(e.target.closest && e.target.closest("#moveList"))) listHadFocus = false; }, true);
+  if ($("moveList")) new MutationObserver(function () {
+    var a = document.activeElement;
+    if (!listHadFocus || (a && a !== document.body && document.contains(a))) return;
+    var c = $("moveList").querySelector(".m.cur") || $("moveList").querySelector(".m:last-of-type");
+    if (c) c.focus({ preventScroll: true });
+  }).observe($("moveList"), { childList: true });
+
+  /* the entry for a typed move */
+  var inp = $("kbIn");
+  if (inp) {
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); kbBusy = true; kbSubmit(inp.value); kbBusy = false; }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); kbTypeClose(true); }
+      else if (e.key === "Backspace" && !inp.value) { e.preventDefault(); kbTypeClose(true); }
+    });
+    inp.addEventListener("input", function () { $("kbMsg").textContent = ""; });
+    inp.addEventListener("blur", function () { if (!kbBusy) setTimeout(function () { if (document.activeElement !== inp) kbTypeClose(false); }, 0); });
+  }
+
+  /* settings: the spoken board, and the way to the key card */
+  [["accMoves", "moves"], ["accAll", "all"], ["accOff", "off"]].forEach(function (p) {
+    var b = $(p[0]);
+    if (b) b.addEventListener("click", function () {
+      prefs.speak = p[1]; savePrefs(); accSyncSettings();
+      if (p[1] !== "off") accSay(p[1] === "all" ? "Moves and every remark will be read." : "Moves will be read.");
+    });
+  });
+  if ($("accKeys")) $("accKeys").addEventListener("click", kbShowKeys);
+  accSyncSettings();
+
+  /* the keys — ahead of the room's own handler, which still has Escape,
+     the arrows, Home, End and "?" for everything not taken here */
+  document.addEventListener("keydown", function (e) {
+    if (!/^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key)) accKeyAt = Date.now();
+    var t = e.target;
+    if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var card = accOverlayTop();
+    /* the promotion picker answers to the pieces' letters */
+    if (card && card.id === "ovPromo") {
+      var pi = "qnrb".indexOf(e.key.toLowerCase());
+      if (pi >= 0 && $("promoRow").children[pi]) { e.preventDefault(); e.stopImmediatePropagation(); $("promoRow").children[pi].click(); }
+      return;
+    }
+    if (card) return;
+    if (t && t.closest && t.closest("#studio")) return;
+    if (accBoardFocused() && accBoardKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (e.key === "/") { e.preventDefault(); kbShowKeys(); return; }
+    if (e.shiftKey && !e.repeat && KB_SHORT[e.key]) {
+      var b = $(KB_SHORT[e.key]);
+      if (b && !b.disabled && accVisible(b)) { e.preventDefault(); b.click(); }
+      return;
+    }
+    if (e.shiftKey && e.key === "W") { e.preventDefault(); accWhere(); return; }
+    if (e.key.length === 1 && /[a-hKQRBNOnrqko0]/.test(e.key) && G && !over &&
+        (mode === "coach" || mode === "pass" || mode === "lan" || mode === "lesson")) {
+      e.preventDefault();
+      if (viewPly < 0 && !canActNow(true)) { accSay(accWhyNot()); return; }
+      kbTypeOpen(e.key);
+    }
+  }, true);
+}
+accWire();
+
+/* for chess/tools/access-check.js */
+function accForTest() {
+  return {
+    saidForTest: function () { return accSaid.slice(); },
+    typeForTest: function (text) { return kbSubmit(text); },
+    cursorForTest: function () { return accCur; },
+    Access: Access
+  };
+}
+
 function boot() {
   /* the first tap anywhere — not only on the board — is the gesture a
      browser wants before it will start an audio clock, and lets the
@@ -6944,4 +7358,5 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
 helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
+Object.assign(window.__cr, accForTest());
 })();
