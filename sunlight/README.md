@@ -245,10 +245,14 @@ Captions for meaningful sounds are on by default.
 | `ui.js` | Title, Gran's book (pages, field notes, seen, map, phone, your page), menu, ending |
 | `hands.js` | Whose hands are playing (keys, thumbs, a pad): the beads, the names of things, keyboard and pad on every card |
 | `look.css` | Every control and card: the type, the lid, the glass, the paper |
+| `fit.css` | Where all of that goes on the device you are holding: phone, iPad, laptop, big monitor, either way up |
 | `fonts/` | Six small typefaces, self-hosted, with their licenses |
 
 `tools/make-icons.js` regenerates the app icons (needs Playwright's
-Chromium). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
+Chromium). `tools/fit-check.js` walks every screen of the game on
+twenty-eight sizes of device and reports anything off the glass, under a
+notch, too small to press or on top of something else (needs Playwright;
+see **Every device** below). `tools/make-fonts.py` rebuilds `fonts/` from the upstream
 packages (needs `fonttools` and `brotli`; see its first lines). `?beat=pit` (any beat id in `story.js`'s `ORDER`) jumps
 straight to a chapter for testing; it is not linked anywhere.
 
@@ -893,10 +897,11 @@ larger text and with reduced motion.
   stay where they are; the clock and the goal step back while you look.
 * The how-to card is as tall as its tallest slide, on any screen, so it
   never jumps and never spills.
-* On a phone all eight of the book's ribbons share the head of the page,
-  and a long name takes two lines rather than push one out of sight. On a
-  narrow one the day and the hour sit one over the other; on a short one
-  the title gives up its sun before it gives up a word.
+* On a phone the book's eight ribbons hang in two lengths, four short in
+  front and four long behind, every name on one line and every ribbon wide
+  enough for a thumb (see **Every device**). On a narrow one the day and
+  the hour sit one over the other; on a short one the title gives up its
+  sun before it gives up a word.
 * The pause card and its options scroll inside the gold rule and fade at
   its edges, so a row is never sliced by the frame.
 * Reduced motion leaves every control at rest in its finished state.
@@ -917,3 +922,77 @@ larger text and with reduced motion.
   the device had, Comic Sans included; the moments' badges were symbols
   from the device's own fonts. Both are drawn now.
 * A race at start-up (`decor` read before it existed) under `?beat=`.
+
+## Every device (fit.css + engine.js)
+
+`look.css` says what things are made of. `fit.css` loads after it and only
+ever moves and sizes them, so the same game sits right in whatever is
+holding it: a phone upright or on its side, an iPad either way (with
+thumbs, or with a keyboard in front of it), half an iPad in split view, a
+laptop, a window dragged small, a desk monitor, a wide one, a television.
+
+### The rules it keeps
+
+* **Nothing you can press is under the glass's edges.** Every full-screen
+  layer is padded by the device's safe area (the notch, the home bar, the
+  round corners), and no card can be taller than what is left. Heights are
+  measured in `--vh`, a hundredth of the screen *as it is right now*, so a
+  phone browser's bars sliding in and out never push a button off the
+  bottom.
+* **Under a thumb, a target is at least 44 px.** That covers the quiet
+  links on the title, the HUD's beads, the book's ribbons and its seal.
+* **Thumbs stay at the edges, and the story runs where they aren't.** On
+  a tall screen the stick and the beads take the bottom and everything the
+  story says stacks in a lane just above them. On a wide one they take the
+  two bottom corners and the prompt, notes and captions run between them.
+* **While someone is speaking the thumbs step out**, and a tap anywhere on
+  the hill goes on. (The beads used to peek out from behind the words.)
+* **Bigger glass gets bigger everything**, not just more empty hill.
+
+### What each device gets
+
+| In your hands | What changes |
+|---|---|
+| Phone, upright | The layout the HUD was first drawn for. The book fills the screen inside the safe area and its ribbons hang in two lengths. Labels that were under 10 px are a readable size. |
+| Phone, on its side | The pause card puts where-you-are on the left and what-you-can-do on the right, so all five buttons are on it at once; its settings are three columns. The lens sits beside its words instead of over them. The oats and the sand pile put the board on the left and the words beside it. Wren's phone in the opening lies on its side too: the time on the left, the messages on the right. A place's name takes the top and the goal card steps aside for it. |
+| iPad | Type a size up (18 px), bigger HUD beads, and a bigger stick and beads set in from the corners, where thumbs rest when two hands hold the sides. Upright it shows fourteen tiles across (a phone shows eleven) instead of zooming in until Wren is a giant. On its side, prompts go back between the thumbs, where they are on a desk. In split view it is a phone. |
+| Laptop | The title fits a browser's 650 px of height without scrolling: its measures follow the height of the glass. The settings are three columns on one screen. A note, a place's name and a Moment arriving together step down past each other instead of landing in a heap. |
+| Big monitor | Past 1700 × 940 the whole page is drawn larger by one factor (`--ui`: 1.2 at 1080p, 1.5 at 1440p and on an ultra-wide, 1.9, then 2.4 at 4K). The page is laid out that many times smaller than the glass and scaled up, so the type, the cards, the beads and the gaps between them all grow together. Before this, at 4K the dialogue box was a postage stamp. |
+
+### The engine's half
+
+* `fit()` measures the safe area (from `#safe`), the bead size and position
+  (`--tz`, `--ctl-x`, `--ctl-b`) and the page scale (`--ui`) into
+  `G.layout`, and refits when the screen turns (twice: a turned phone
+  reports its new size a beat late).
+* **The camera knows whose thumbs are where.** With thumbs along the
+  bottom it keeps Wren in the open lane above them, as before. With thumbs
+  in the corners the room has the whole screen, and only when Wren walks
+  down into a corner does it slide across, just far enough that they come
+  out from under the stick. And the goal card has the top left: if Wren's
+  head would be behind it, the room comes down until it isn't. (On a phone
+  on its side the game used to open with Wren standing under the left
+  thumb.)
+* `G.camRest()` is where the camera will settle on *this* screen. The
+  opening's slow move in to the stairs ends there, so letting go of the
+  camera is seamless on every device, not just the one it was tuned on.
+* The stick's travel, the cue's position, the oats' board and the opening
+  book all take the page scale and the safe area into account. A cue is
+  never placed past a notch or the home bar.
+* `hands.js`: under a thumb a long press is a hold, not a menu, and two
+  fingers are not a zoom. When a phone's keyboard slides up over the last
+  page, the book steps up above it (`--kb`).
+
+### Checking it
+
+`node tools/fit-check.js` (from this folder, with the site served on
+`localhost:8765`) opens every screen — title, how-to, HUD in three places,
+dialogue, a choice, the pause card and its settings, all eight sections of
+the book, a found thing, the lens, each set piece, the end — on
+twenty-eight sizes of device with their notches and home bars drawn in,
+and lists what it finds: a control off the glass or in the unsafe area, a
+target too small for a thumb, one covered by another, two things that
+shouldn't overlap, words cut off. It also saves a picture of each. It
+needs Playwright, and nothing in the game depends on it. `node
+tools/fit-check.js phones menu,bk_pages` runs a part of it.
+

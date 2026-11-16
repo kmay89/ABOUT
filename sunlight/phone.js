@@ -203,7 +203,7 @@
         A.sfx("nosignal"); A.sfx("thud"); haptic([60]);
         return sleep(2000, true);
       }).then(function () {
-        return cue({ label: "", lock: 0, bottom: "7vh" });
+        return cue({ label: "", lock: 0, bottom: "calc(var(--vh) * 7)" });
       }).then(function () {
         /* and then it's only a phone in your hand again */
         el.classList.add("back");

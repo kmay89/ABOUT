@@ -232,6 +232,22 @@
     else if (now > heldAt) { heldAt = now + 130; H.pad(d); }
   };
 
+  /* ---------------- the glass itself ---------------- */
+  /* Under a thumb, a long press is a hold (the crank is one): not a callout,
+     not a menu, and two fingers are not a zoom. */
+  document.addEventListener("contextmenu", function (e) { if (kind === "touch" && !(e.target.closest && e.target.closest("textarea,input,a[href],.bbody"))) e.preventDefault(); });
+  ["gesturestart", "gesturechange"].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+  /* The keyboard that slides up over the last page: the book makes room
+     for it (fit.css reads --kb), and the page is put back when it goes. */
+  var vv = window.visualViewport, kb = 0;
+  if (vv) {
+    var onVV = function () {
+      var k = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)); if (k < 90) k = 0;
+      if (k !== kb) { kb = k; root.style.setProperty("--kb", k + "px"); body.classList.toggle("typing", k > 0); }
+    };
+    vv.addEventListener("resize", onVV); vv.addEventListener("scroll", onVV);
+  }
+  document.addEventListener("focusout", function (e) { if (e.target && e.target.tagName === "TEXTAREA") setTimeout(function () { window.scrollTo(0, 0); }, 60); });
   /* ---------------- opening and closing ---------------- */
   var open0 = ui.open;
   ui.open = function (which, tab) {
