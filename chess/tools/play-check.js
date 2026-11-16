@@ -363,10 +363,15 @@ const PLAY = `([san, src]) => {
     /* ---- a hint is charged once ---- */
     await fresh();
     await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
-    await page.click("#btnHint");
-    await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText), null, { timeout: 8000 }).catch(() => {});
+    /* 💡 opens the help lamp; its third chip is the hint that is paid for */
+    const buyMove = async () => {
+      await page.click("#btnHint"); await page.waitForTimeout(150);
+      await page.click("#toast .tact >> text=A move");
+    };
+    await buyMove();
+    await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText) && !document.getElementById("toast").classList.contains("acts"), null, { timeout: 8000 }).catch(() => {});
     const spent1 = await page.evaluate(() => __cr.oddsSpent[1]);
-    await page.click("#btnHint");
+    await buyMove();
     await page.waitForTimeout(400);
     const spent2 = await page.evaluate(() => __cr.oddsSpent[1]);
     ok("a second tap on Hint in the same position costs nothing", spent1 === spent2 && spent1 >= 1, spent1 + " then " + spent2);

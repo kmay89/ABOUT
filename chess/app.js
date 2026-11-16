@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Help, Games, Feats, Goals, Share, Friends, Ink */
 (function () {
 "use strict";
 
@@ -67,6 +67,7 @@ function applySkin(s, save) {
   root.style.setProperty("--room", skin.room.bg);
   root.style.setProperty("--amber", skin.marks.select);
   root.style.setProperty("--glow", skin.marks.last);
+  root.style.setProperty("--plan", skin.marks.plan);
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", skin.room.bg);
   /* the pieces' material and the board's finish are both part of how
@@ -281,6 +282,7 @@ function toast(html, actions, ms) {
   /* a remark never replaces a question that is still waiting for an
      answer — the notebook has kept the remark */
   if (!actions && el.classList.contains("show") && el.classList.contains("acts")) return;
+  el.classList.remove("lamp");
   el.innerHTML = html;
   el.classList.toggle("acts", !!actions);
   if (actions) {
@@ -461,7 +463,6 @@ var orientation = 1;
 var sel = -1, legalMoves = [];
 var viewPly = -1;              /* -1 = live; else index into G.played shown */
 var pendingPromo = null;       /* {from, to} awaiting picker */
-var hintArrow = null;
 var lastNarratedOpening = "";
 var tourTimer = 0, tourLine = null, tourStep = 0;
 var coachTimer = 0, thinking = false;
@@ -477,7 +478,6 @@ var coachTimer = 0, thinking = false;
    replied — which in coach mode it always has. Guarding the review with
    brainTicket silently throws it away in the one mode it matters most. */
 var brainTicket = 0, gameTicket = 0;
-var principleN = 0;
 
 /* The ladder. Depth is capped as well as time so a level plays the same
    way on a fast laptop and a slow phone — a coach whose strength depends
@@ -524,7 +524,7 @@ function fmtClock(ms) {
    them for choosing a board colour. The Studio is a drawer beside a game
    that goes on, so it does not stop anything. A game between two devices
    keeps running: the other person is still sitting there. */
-var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk"];
+var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk", "ovShare", "ovPeople"];
 function clockPaused() {
   if (mode === "lan") return false;
   for (var i = 0; i < PAUSING.length; i++) if (!$(PAUSING[i]).classList.contains("hide")) return true;
@@ -612,8 +612,10 @@ function syncClocks() {
 
 /* ===== names, bars, captured ===== */
 function sideName(side) {
+  if (mode === "review" && reviewNames) return reviewNames[side === 1 ? 0 : 1];
   if (mode === "coach") return side === humanSide ? "You" : SKILLS[skill].label;
   if (mode === "lan") return side === lanSide ? (lanMy || "You") : lanOpp;
+  if (mode === "review" && sharedView) return side === 1 ? sharedView.white : sharedView.black;
   return side === 1 ? "White" : "Black";
 }
 var GLYPH = { 1: "♙", 2: "♘", 3: "♗", 4: "♖", 5: "♕", 6: "♔" };
@@ -744,7 +746,7 @@ function takenSoFar() {
 function syncBoard() {
   if (!G || !R) return;
   if (R.setTaken) R.setTaken(takenSoFar());
-  var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1, hint: hintArrow };
+  var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1 };
   if (viewPly < 0) {
     if (prefs.helpers) legalMoves.forEach(function (m) {
       var isCapt = m.capt || (m.flags & Chess.F_EP);
@@ -759,6 +761,8 @@ function syncBoard() {
     if (rec) hi.last = [rec.m.from, rec.m.to];
     hi.selected = -1;
   }
+  helpMarks(hi);
+  syncInk();
   R.setHighlights(hi);
   needFrame();
 }
@@ -784,6 +788,7 @@ function whenLanded(fn) {
 function tapSquare(sq) {
   if (!G) return;
   if (viewPly >= 0) { exitView(); return; }
+  if (sel < 0 && !G.board[sq] && clearInkHere()) return;
   if (!canActNow(true)) { clearSel(); syncBoard(); return; }
   if (R.isAnimating && R.isAnimating() && sel >= 0) {
     /* the second tap of a move made while the last one is landing */
@@ -791,7 +796,6 @@ function tapSquare(sq) {
     whenLanded(function () { if (gameTicket === at && G.played.length === n && canActNow()) tapSquare(sq); });
     return;
   }
-  hintArrow = null;
   var p = G.board[sq];
   if (sel >= 0) {
     var mv = null;
@@ -881,6 +885,7 @@ function commitMove(m, source, animOpts) {
   var fenBefore = Chess.fen(G);
   /* look at the move while the position is still the "before" one */
   var lessons = (prefs.coach && mode !== "tour") ? Teach.afterMove(G, m) : [];
+  featMove(m, mover, source, lessons);
   var desc = animDescriptor(m);
   var san = Chess.play(G, m);
   var ply = G.played.length - 1;
@@ -895,7 +900,6 @@ function commitMove(m, source, animOpts) {
   }
 
   var st = Chess.status(G);
-  hintArrow = null;
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -927,11 +931,13 @@ function commitMove(m, source, animOpts) {
   fxCapture(desc, took, plan);
   feelLand(desc, took, plan);
   fxPromote(desc, plan);
+  syncInk();         /* what you drew belongs to the position just left */
   needFrame();
   syncMoveList();
   syncBars();
   syncTurnStrip();
   narrateOpening(san, source);
+  helpAfterMove(ply, source);
 
   if (st.over) {
     endGame(st.result, st.reason, lessons.length ? lessons[0] : null);
@@ -979,7 +985,7 @@ function scheduleCoach() {
   syncTurnStrip(); syncButtons();
   clearTimeout(coachTimer);
   coachTimer = setTimeout(function () {
-    if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
+    if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
     var ticket = ++brainTicket;
     var answer = function (res) {
       /* the board may have moved on while it was thinking — a take-back,
@@ -988,13 +994,15 @@ function scheduleCoach() {
          says nothing at all, not even "I've stopped thinking", because a
          newer question may be being thought about right now. */
       if (ticket !== brainTicket) return;
-      if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
+      /* a thought nobody needs any more: the board is yours again, and
+         what waits on "not thinking" (the training wheels) gets its turn */
+      if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
       thinking = false;
       /* what the coach thinks of the position, from your side: the
          abandonment rule asks whether you were clearly losing */
-      if (res && typeof res.score === "number") lastEval = -res.score;
+      if (res && typeof res.score === "number") { lastEval = -res.score; trackLow(); }
       var m = res && res.move && Brain.resolve(G, res.move);
       /* a worker that died mid-thought must not leave the coach staring
          at the board: think again, briefly, here */
@@ -1002,6 +1010,7 @@ function scheduleCoach() {
         try { var r2 = Chess.search(G, { ms: 120, maxDepth: 3 }); m = r2 && r2.move; } catch (e) { m = null; }
         if (!m) m = Chess.moves(G)[0] || null;
       }
+      if (m) rememberCoachPlan(res, m);
       if (m) commitMove(m, "coach");
       syncTurnStrip(); syncButtons();
     };
@@ -1050,7 +1059,8 @@ function gentleCheck(fenBefore, played, san, ply, ticket) {
   Brain.review(pre, mine, { ms: 900, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
-    reviewMemo[ply] = { best: res.bestScore, played: res.playedScore };
+    reviewMemo[ply] = reviewEntry(pre, mine, res);
+    saveGame();     /* the squares it named survive a reload from now, not from the next move */
     showReview(pre, san, res, mine, ply);
   });
 }
@@ -1099,7 +1109,7 @@ function showReview(pre, san, res, played, ply) {
       var brilliant = res.only >= 320;
       noteMove({
         ply: ply, side: side, mark: brilliant ? "!!" : "!", icon: brilliant ? "\u2728" : "\u2714",
-        tone: "good", cp: mineScore,
+        tone: "good", cp: mineScore, viewPly: ply > 0 ? ply - 1 : null, squares: [played.from, played.to],
         text: "<b>" + san + "</b> was the move \u2014 and the only one that really worked. " +
               "Everything else here was worth " + pawnsWorth(res.only) + " less. " +
               (brilliant ? "That is the kind of move people remember." : "Well spotted."),
@@ -1123,6 +1133,7 @@ function showReview(pre, san, res, played, ply) {
   noteMove({
     ply: ply, side: side, mark: step.mark, icon: step.tone,
     tone: loss >= 250 ? "bad" : "warn", cp: mineScore,
+    viewPly: ply > 0 ? ply - 1 : null, squares: res.best ? [res.best.from, res.best.to] : null,
     text: "<b>" + san + "</b> was " + step.word + "." + punish + instead + cost +
           " No shame \u2014 this is how everyone learns.",
     brief: step.mark + " " + (res.refute ? res.refute.san + "! \u00b7 " : "") + better +
@@ -1136,9 +1147,13 @@ function showReview(pre, san, res, played, ply) {
   /* …and only while it can still be taken back cleanly: once the game has
      moved two plies past it, the offer would undo more than the blunder */
   if (loss >= 250 && voice() === "plain" && !over && G.played.length - ply <= 2) {
-    toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost,
+    toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost + helpTipLine("undo"),
       [{ label: "\u21a9 Take it back", fn: function () { gentleUndo(ply); } },
-       { label: "Play on", fn: function () {}, ghost: true }], 11000);
+       { label: "\ud83d\udc40 Show me", fn: function () { showMeReview(ply); }, ghost: true },
+       { label: "Play on", fn: function () {}, ghost: true }].concat(wheelsOfferAction()), 11000);
+    /* the problem, drawn while the words are on the screen — but only on
+       the position it is true of: the one right after your move */
+    drawRefutation(ply, 11000);
   }
 }
 /* every remark about a move goes through here, so the mark on the move
@@ -1148,6 +1163,7 @@ function noteMove(e) { note(e); }
    played since, and whoever played it */
 function gentleUndo(ply) {
   if (!G || over || (mode !== "coach" && mode !== "pass")) return;
+  if (viewPly >= 0) exitView();
   var n = G.played.length - ply;
   if (n < 1 || n > 2) return;
   if (mode === "coach") assist.takebacks++;
@@ -1160,7 +1176,9 @@ function gentleUndo(ply) {
    and asking twice in the same position shows the same hint again for
    free. */
 var hintPending = false, hintShown = null;
-function giveHint() {
+/* the lamp's third chip (and the whole of 💡 in the notation voice) —
+   the lamp itself is giveHint(), in the help block below */
+function giveMoveHint() {
   if (mode === "lesson") { if (lesson && !lessonDone && !lessonPaused) giveLessonHint(); return; }
   if (!G || over) { return; }
   if (!canActNow()) { toast(mode === "lan" && G.turn !== lanSide ? "It's your opponent's move — the hint lamp lights on your turn." : "Hints come on your turn."); return; }
@@ -1231,10 +1249,9 @@ function showHint(raw, odds, book, sans, again) {
     }
   }
   var san = Chess.toSAN(G, chosen);
-  hintArrow = null;
   /* the line *is* the hint: one curve that shows where the idea goes */
-  showLines([{ from: chosen.from, to: chosen.to, kind: "run",
-               knight: Math.abs(chosen.piece) === Chess.N }], 9000);
+  showLines([{ from: chosen.from, to: chosen.to, kind: "run", tone: "hint",
+               knight: Math.abs(chosen.piece) === Chess.N }], 9000, "main");
   syncBoard();
   snd("hint");
   var paid = again ? " <i>(the same hint — no charge twice)</i>" : odds.free ? (odds.mood === "behind" ? " <i>(free — you're behind)</i>" : "") :
@@ -1248,6 +1265,7 @@ function showHint(raw, odds, book, sans, again) {
   if (!bookPick && res.pv && res.pv.length > 2 && res.pv[0] === san) {
     ahead = " Then likely " + res.pv.slice(1, 3).join(" ") + ".";
   }
+  var pvMoves = !bookPick && res.pv && res.pv[0] === san ? pvLine(res.pv) : [];
   /* the reason a hint gives is the concrete one when there is one — what
      the move attacks, wins, forks or threatens — and a principle only
      when nothing concrete applies */
@@ -1256,42 +1274,394 @@ function showHint(raw, odds, book, sans, again) {
   if (!told && Teach.explainMove) {
     try { var ex = Teach.explainMove(G, chosen); if (ex && ex.text) told = ex.text.charAt(0).toLowerCase() + ex.text.slice(1); } catch (e) {}
   }
-  if (!told) told = explainMove(chosen, res);
-  toast("💡 <b>" + san + "</b> — " + told + ahead + paid, null, 9000);
+  /* nothing the teacher can prove: say so, rather than dressing a
+     principle up as a reason */
+  if (!told) told = "the engine's choice here — a quiet move with no tactic the teacher can prove yet. Ask what it prepares.";
+  /* the words "then likely…" can be drawn, a ply at a time, when asked */
+  toast("💡 <b>" + san + "</b> — " + told + ahead + paid,
+        pvMoves.length > 1 ? [{ label: "Show the line", fn: function () { showPV(pvMoves); } },
+                              { label: "OK", fn: function () {}, ghost: true }] : null, 9000);
 }
 
+/* the one reason the engine can vouch for that the teacher cannot see:
+   a forced mate in its own line. Everything else about a hinted move
+   comes from Teach.explainMove, which says nothing it has not proved —
+   the old rule-of-thumb reasons ("rooks love open files") are gone. */
 function explainMove(m, res) {
-  var kind = Math.abs(m.piece), bits = [];
   if (res && Math.abs(res.score) > Chess.MATE - 200) {
     var n = Math.ceil((Chess.MATE - Math.abs(res.score)) / 2);
     return "it forces checkmate in " + n + "! Follow the checks.";
   }
-  Chess.make(G, m);
-  var givesCheck = Chess.inCheck(G);
-  Chess.unmake(G);
-  if (m.flags & Chess.F_CASTLE) return "castling — the king tucks into safety and the rook joins the game. Two good deeds, one move.";
-  if (m.promo) return "the pawn becomes a queen — the biggest promotion in board games.";
-  if (m.capt) {
-    var vc = Chess.VAL[Math.abs(m.capt)], vm = Chess.VAL[kind];
-    if (vc > vm) bits.push("it takes a " + pieceName(m.capt) + " with a " + pieceName(m.piece));
-    else if (Chess.attacked(G, m.from, -G.turn) && vc >= vm) bits.push("a fair trade that relieves the pressure");
-    else bits.push("it captures the " + pieceName(m.capt));
-  }
-  if (Chess.attacked(G, m.from, -G.turn) && !Chess.attacked(G, m.to, -G.turn) && !m.capt) {
-    bits.push("it slips the " + pieceName(m.piece) + " out of danger");
-  }
-  if (givesCheck) bits.push("it gives check, so they must deal with that first");
-  var toF = m.to & 7, toR = m.to >> 4, fromR = m.from >> 4;
-  if (!bits.length) {
-    if (kind === Chess.P && (toF === 3 || toF === 4) && (toR === 3 || toR === 4)) bits.push("it claims a share of the centre");
-    else if ((kind === Chess.N || kind === Chess.B) && (fromR === 0 || fromR === 7)) bits.push("it develops a piece toward the middle, where it sees the most squares");
-    else if (kind === Chess.R && G.played.length > 20) bits.push("rooks love open files — this one finds work");
-    else bits.push("it improves the piece's post — " + Book.principle(principleN++));
-  }
-  return bits.join(", and ") + ".";
+  return null;
 }
 function pieceName(p) {
   return ["", "pawn", "knight", "bishop", "rook", "queen", "king"][Math.abs(p)];
+}
+
+/* ===================== help & teaching (help.js) =====================
+   Three things live here, and only here, so the rest of the room calls
+   them from one line each:
+
+   The help lamp. 💡 used to sell one thing, a move. A coach across a
+   table asks "what does that threaten?" far more often than they name a
+   move, so the lamp now offers three: Think (the questions a coach
+   asks, built from this position — free), Their idea (what their last
+   move did, in true words, with its line on the board — free), and A
+   move (the hint that was always there, at the price it always had).
+   Every move the coach plays also leaves a quiet "why" in the notebook
+   when there is something true to say, and tapping the last move in the
+   list asks the same question of it; the view banner asks it of any
+   move in the game. Nothing here is charged unless the priced chip is
+   pressed, and nothing is said that teach.js has not proved — when the
+   honest answer would hand over a threat the person has not paid for,
+   it becomes a question instead (help.js says how).
+
+   The first five minutes. A newcomer used to meet "Not rated yet" and
+   twelve tiles. Now the lobby asks one question — do you know how the
+   pieces move? — and the first games carry four pointers, each said
+   once, at the moment it helps. The welcome goes away when its job is
+   done (a finished game against the computer), never on a timer.
+
+   Training wheels. Opt-in stabilisers for the first games: at the start
+   of your turn, your pieces that can really be won breathe and the
+   attacker's line is drawn; a lifted piece marks the squares where it
+   would be lost instead of dotting them. Never with a clock, never
+   against a friend on another device, counted honestly (a rated game
+   played with them counts as 75%), and offered off again the first
+   game they were not needed. */
+
+/* the parts of the preferences this block owns: read and checked here,
+   so a hand-edited store cannot name a tip nobody gives */
+var TIP_IDS = ["notes", "price", "undo", "why", "wheels", "move", "reply"];
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.welcomed = p.welcomed === true;
+  prefs.wheels = p.wheels === true;
+  prefs.wheelsOffered = p.wheelsOffered === true;
+  prefs.wheelsOffOffered = p.wheelsOffOffered === true;
+  prefs.tips = {};
+  if (p.tips && typeof p.tips === "object") TIP_IDS.forEach(function (k) { if (p.tips[k]) prefs.tips[k] = 1; });
+})();
+
+/* ---- the pointers: four, each once, each tied to the moment ---- */
+var TIPS = {
+  notes: "📓 The coach keeps what it notices in <b>Notes</b> — tap one to go back to that moment.",
+  price: "💡 Help costs a mark when you're ahead, and is free when you're behind.",
+  why: "❓ Tap the coach's move in the list to ask why it played that.",
+  wheels: "🛟 Training wheels are on for your first games — they show what's in danger. Take them off in Settings whenever you like."
+};
+var tipQueued = {};
+/* said once, ever: written down before it is shown, and only when it
+   really is shown — a question waiting for an answer is never covered */
+function coachmark(id, html, el) {
+  if (prefs.tips[id]) return false;
+  var t = $("toast");
+  if (t.classList.contains("show") && t.classList.contains("acts")) return false;
+  prefs.tips[id] = 1; savePrefs();
+  toast(html, null, 8000);
+  if (FX && el) { try { Fx.sparkle(el, { count: 12 }); } catch (e) {} }
+  return true;
+}
+/* A pointer waits for the toast to be free rather than talking over the
+   remark that triggered it, and gives up quietly if the game moves on.
+   The four belong to the first two games against the computer; the
+   wheels' own word is said whenever they first show. */
+function helpTip(id, elFn) {
+  if (!TIPS[id] || prefs.tips[id] || tipQueued[id]) return;
+  if (id !== "wheels" && (mode !== "coach" || Rating.summary(rating).games >= 2)) return;
+  tipQueued[id] = true;
+  var at = gameTicket, tries = 0;
+  /* never in the same breath as the thing that prompted it: whatever
+     that thing says first gets said first */
+  setTimeout(function later() {
+    if (at !== gameTicket || prefs.tips[id]) { tipQueued[id] = false; return; }
+    if ($("toast").classList.contains("show") && tries++ < 8) { setTimeout(later, 1500); return; }
+    coachmark(id, TIPS[id], elFn ? elFn() : null);
+    tipQueued[id] = false;
+  }, 700);
+}
+/* the take-back pointer rides inside the blunder toast it is about,
+   because a remark could not replace a toast with buttons on it */
+function helpTipLine(id) {
+  if (id !== "undo" || prefs.tips.undo || mode !== "coach") return "";
+  prefs.tips.undo = 1; savePrefs();
+  return "<small class='lampLine'>A take-back makes the game count for a little less — the number stays honest.</small>";
+}
+
+/* ---- the welcome ---- */
+function isNewcomer() {
+  if (prefs.welcomed) return false;
+  if (Rating.summary(rating).games) return false;
+  try { if (Learn.stats(Learn.load()).solved) return false; } catch (e) {}
+  return !loadSave();
+}
+function syncWelcome() {
+  var fresh = isNewcomer();
+  $("mWelcome").classList.toggle("hide", !fresh);
+  $("mRating").classList.toggle("hide", fresh);
+}
+function welcomeNew() {
+  /* the gentlest start: the rules, then the gentlest coach — with the
+     wheels on, said once when they first show */
+  if (!prefs.wheels && !prefs.wheelsOffered) { prefs.wheels = true; prefs.wheelsOffered = true; savePrefs(); }
+  showLearn(0);
+}
+function welcomeKnow() { quickPlay(nextLevel()); }
+
+/* ---- the coach's plan, kept for the "why" ----
+   The search that chose the coach's move also knew what it expected
+   next. It was thrown away; now it is kept in memory for this game, so
+   "why did it play that?" can say what it was counting on. A reload
+   forgets it, and the why simply leaves that clause out. */
+var coachMemo = {}, coachMemoGame = null;
+function rememberCoachPlan(res, m) {
+  if (!G || !res || !res.pv || !res.pv.length) return;
+  if (coachMemoGame !== G) { coachMemo = {}; coachMemoGame = G; }
+  var san = Chess.toSAN(G, m).replace(/[+#]$/, "");
+  if (String(res.pv[0]).replace(/[+#]$/, "") !== san) return;
+  coachMemo[G.played.length] = { fen: Chess.fen(G), pv: res.pv.slice(0, 8), score: res.score, depth: res.depth };
+}
+function coachPlanFor(ply, pre) {
+  if (coachMemoGame !== G || !coachMemo[ply]) return null;
+  return coachMemo[ply].fen === Chess.fen(pre) ? coachMemo[ply] : null;
+}
+
+/* ---- the lamp ---- */
+function lampLabel() {
+  var l = oddsLabel(G.turn);
+  return "💡 A move " + (l === "free" ? "· free" : l);
+}
+function giveHint() {
+  if (mode === "lesson" || !G || over || !canActNow() || hintPending) { giveMoveHint(); return; }
+  /* notation voice: the person who asked for one line per remark wants
+     the move, not a menu */
+  if (voice() === "brief") { giveMoveHint(); return; }
+  toast("<span class='lampLine'>Think it through, see what they're up to — or buy the move.</span>",
+    [{ label: "🧭 Think", fn: thinkPrompt },
+     { label: "👁 Their idea", fn: theirIdea },
+     { label: lampLabel(), fn: giveMoveHint, ghost: true }], 12000);
+  $("toast").classList.add("lamp");
+  hap("select");
+}
+/* whose eyes the lamp is for: the person whose turn it is on this
+   screen (both people, in pass and play) */
+function lampSide() { return mode === "pass" ? G.turn : mySide(); }
+/* behind, or the game is over, or this is not a live game: nothing is
+   being sold, so nothing is held back */
+function lampReveal(side) {
+  if (!G || over || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return true;
+  return oddsFor(side).mood === "behind";
+}
+function thinkPrompt() {
+  if (!G || over || !canActNow()) return;
+  var side = lampSide(), last = G.played[G.played.length - 1];
+  var lastMine = last && ((G.played.length - 1) % 2 === 0 ? 1 : -1) === side;
+  var t;
+  try { t = Help.think(G, side, { reveal: lampReveal(side), last: last && !lastMine ? { san: last.san } : null }); }
+  catch (e) { return; }
+  if (!t.lines.length) return;
+  snd("hint"); hap("select");
+  toast("🧭 " + t.lines.join("<br>"), null, 11000);
+  note({ ply: G.played.length ? G.played.length - 1 : null, head: G.played.length ? null : "before the first move",
+         icon: "🧭", tone: "note", key: "think", text: t.lines.join(" "),
+         brief: "think: checks, captures, threats" });
+}
+function theirIdea() {
+  if (!G || !G.played.length) { toast("Nothing has been played yet — the first idea is yours."); return; }
+  var side = lampSide(), ply = G.played.length - 1;
+  /* in pass and play the last move may be your own: then ask about the
+     one before it, which is theirs */
+  if (((ply % 2 === 0) ? 1 : -1) === side && ply > 0) ply--;
+  if (((ply % 2 === 0) ? 1 : -1) === side) { toast("Nothing of theirs has been played yet — the first idea is yours."); return; }
+  showWhy(ply);
+}
+/* The words for one move of this game, from the chair of the person
+   asking. `pre` is rebuilt by playing the game forward, not from a FEN,
+   so a recapture is still known to be one. */
+function explainPly(ply) {
+  if (!G || ply < 0 || ply >= G.played.length) return null;
+  var pre = Chess.create(), i;
+  for (i = 0; i < ply; i++) Chess.make(pre, G.played[i].m);
+  var want = G.played[ply].m, list = Chess.moves(pre), m = null;
+  for (i = 0; i < list.length; i++) {
+    if (list[i].from === want.from && list[i].to === want.to && (list[i].promo || 0) === (want.promo || 0)) { m = list[i]; break; }
+  }
+  if (!m) return null;
+  var side = lampSide(), reveal = lampReveal(side);
+  var sans = G.played.slice(0, ply + 1).map(function (r) { return r.san.replace(/[+#]$/, ""); });
+  var memo = coachPlanFor(ply, pre);
+  /* what the coach was counting on includes its guess at your best
+     reply — which, while that reply is still yours to find, is a hint
+     nobody paid for. It is told once the move has been answered. */
+  var plan = memo && (reveal || ply !== G.played.length - 1) ? memo.pv : null;
+  var r = Help.theirs(pre, m, side, { reveal: reveal, reason: Book.reason ? Book.reason(sans) : null, plan: plan,
+                                       hush: reveal ? {} : Help.hushFor(G, side) });
+  r.ply = ply;
+  r.mover = ply % 2 === 0 ? 1 : -1;
+  r.side = side;
+  return r;
+}
+function showWhy(ply) {
+  var r = null;
+  try { r = explainPly(ply); } catch (e) { r = null; }
+  if (!r) return;
+  snd("hint"); hap("select");
+  var price = r.asked && !over ? " <i>(" + lampLabel() + " shows the answer.)</i>" : "";
+  toast("❓ " + r.text + price, null, 9000);
+  showLines([{ from: r.line.from, to: r.line.to, kind: r.line.kind, tone: r.line.kind === "threat" ? "threat" : "plan",
+               knight: !!r.line.knight }], 6000, "help");
+  if (r.mate && ply === G.played.length - 1 && !over) showMateNet(r.side);
+  whyNote(r);
+}
+function whyNote(r) {
+  note({ ply: r.ply, side: r.mover, icon: r.mate ? "⚠️" : "❓", tone: r.mate ? "warn" : "note", key: "theirs",
+         squares: [r.line.from, r.line.to], text: r.text,
+         brief: G.played[r.ply].san + " · " + (r.mate ? "threatens " + r.mateSan : r.concept ? conceptLabel(r.concept) : "book") });
+}
+/* After a move from across the table — the coach, or the other device
+   — one quiet line in the notebook, but only when there is something
+   true to say: a quiet move is left for the lamp, and a fact that would
+   hand over a threat for free is not written at all. Pass and play has
+   the teacher speaking for both sides already. */
+function helpAfterMove(ply, source) {
+  if (source !== "coach" && source !== "net") return;
+  if (voice() === "off" || mode === "pass") return;
+  var at = gameTicket;
+  setTimeout(function () {
+    if (at !== gameTicket || !G || G.played.length !== ply + 1) return;
+    var r = null;
+    try { r = explainPly(ply); } catch (e) { r = null; }
+    if (r && !r.quiet && !r.asked) whyNote(r);
+    if (source === "coach") helpTip("why", function () { return document.querySelector("#moveList .m.cur"); });
+  }, 650);
+}
+/* a tap on the move list: the last move answers "why?", any other move
+   shows its position as it always did */
+function tapMoveCell(ply) {
+  var askable = mode === "coach" || mode === "pass" || mode === "lan";
+  if (askable && G && ply === G.played.length - 1 && viewPly < 0) { showWhy(ply); return; }
+  viewAt(ply);
+}
+
+/* ---- training wheels ---- */
+var wheelsAt = "", wheelsSeen = null, wheelsGame = null, wheelsFired = 0;
+var hotAt = "", hotSeen = null, hotSlow = false;
+function wheelsOn() {
+  return !!prefs.wheels && !!G && viewPly < 0 && !over && !clock.on &&
+    (mode === "coach" || mode === "pass") && canActNow(true);
+}
+/* Called by syncBoard with the highlight object it is about to hand the
+   renderer: fills in what is in danger and where a lifted piece would
+   be lost. Bookkeeping only; what is said about it is said once per
+   position, after the frame. */
+function helpMarks(hi) {
+  hi.danger = []; hi.hot = []; hi.hotCapt = [];
+  if (!wheelsOn()) return;
+  if (wheelsGame !== G) { wheelsGame = G; wheelsFired = 0; }
+  var here = gameTicket + ":" + G.played.length;
+  if (wheelsAt !== here) {
+    wheelsAt = here;
+    try { wheelsSeen = Help.danger(G, G.turn); } catch (e) { wheelsSeen = { pieces: [], mate: null }; }
+    if (wheelsSeen.pieces.length || wheelsSeen.mate) setTimeout(function () { wheelsSpeak(here); }, 0);
+    helpTip("wheels");
+  }
+  hi.danger = wheelsSeen.pieces.map(function (p) { return p.sq; });
+  if (sel >= 0 && legalMoves.length && !hotSlow) {
+    var key = here + ":" + sel;
+    if (hotAt !== key) {
+      var t0 = performance.now();
+      try { hotSeen = Help.hot(G, legalMoves); } catch (e) { hotSeen = { hot: [], hotCapt: [] }; }
+      /* a slow phone loses the hot marks for the session rather than a
+         beat on every touch */
+      if (performance.now() - t0 > 80) hotSlow = true;
+      hotAt = key;
+    }
+    hi.hot = hotSeen.hot.slice(); hi.hotCapt = hotSeen.hotCapt.slice();
+    hi.legal = hi.legal.filter(function (q) { return hi.hot.indexOf(q) < 0; });
+    hi.legalCapt = hi.legalCapt.filter(function (q) { return hi.hotCapt.indexOf(q) < 0; });
+  }
+}
+function wheelsSpeak(here) {
+  if (!wheelsOn() || here !== gameTicket + ":" + G.played.length || !wheelsSeen) return;
+  var side = G.turn, w = wheelsSeen, text;
+  if (w.mate) {
+    showLines([{ from: w.mate.from, to: w.mate.to, kind: "threat", tone: "threat",
+                 knight: Math.abs(G.board[w.mate.from]) === Chess.N }], 0, "help");
+    showMateNet(side);
+    text = "They threaten mate: <b>" + w.mate.san.replace(/#$/, "") + "</b> would be checkmate.";
+  } else {
+    var p = w.pieces[0];
+    showLines([{ from: p.from, to: p.sq, kind: "threat", tone: "threat",
+                 knight: Math.abs(G.board[p.from]) === Chess.N }], 0, "help");
+    text = "Your " + Teach.pieceName(p.piece) + " on " + Chess.sqName(p.sq) + " can be won — the " +
+      Teach.pieceName(G.board[p.from]) + " on " + Chess.sqName(p.from) + " is after it." +
+      (w.pieces.length > 1 ? " " + (w.pieces.length - 1 === 1 ? "One more piece is" : (w.pieces.length - 1) + " more pieces are") + " marked too." : "");
+  }
+  wheelsFired++;
+  /* help is help: against the computer it is counted, like a hint;
+     two people sharing a board pay nothing for a shared lesson */
+  if (mode === "coach") { assist.wheels = (assist.wheels | 0) + 1; saveGame(); }
+  note({ ply: G.played.length ? G.played.length - 1 : null, icon: "🛟", tone: "warn", key: "wheel",
+         squares: w.mate ? [w.mate.from, w.mate.to] : [w.pieces[0].from, w.pieces[0].sq], text: text,
+         brief: "wheels · " + (w.mate ? "mate threat " + w.mate.san : w.pieces.map(function (q) { return Chess.sqName(q.sq); }).join(" ")) });
+}
+/* the blunder toast's offer, once, when the wheels are off */
+function wheelsOfferAction() {
+  if (prefs.wheels || prefs.wheelsOffered || clock.on || (mode !== "coach" && mode !== "pass")) return [];
+  prefs.wheelsOffered = true; savePrefs();
+  return [{ label: "🛟 Warn me first", ghost: true, fn: function () {
+    prefs.wheels = true; savePrefs(); syncSettingsUI(); wheelsAt = ""; syncBoard();
+    toast("🛟 Training wheels on — what's in danger shows before you move. Settings takes them off.", null, 6000);
+  } }];
+}
+/* the end of a game: the welcome's job may be done, and wheels that
+   were never needed are offered off — once */
+function helpAtEnd() {
+  if (mode === "coach" && !prefs.welcomed) { prefs.welcomed = true; savePrefs(); }
+  if (prefs.wheels && wheelsGame === G && wheelsFired === 0 && G && G.played.length >= 20 && !prefs.wheelsOffOffered &&
+      (mode === "coach" || mode === "pass")) {
+    prefs.wheelsOffOffered = true; savePrefs();
+    var at = gameTicket;
+    setTimeout(function () {
+      if (at !== gameTicket) return;
+      ask("🛟 Nothing of yours was in danger all game. <b>Try the next one without the training wheels?</b>",
+        [{ label: "Take them off", fn: function () { prefs.wheels = false; savePrefs(); syncSettingsUI(); } },
+         { label: "Keep them", fn: function () {} }]);
+    }, 4200);
+  }
+}
+function syncHelpSettings() {
+  $("setWheels").classList.toggle("sel", !!prefs.wheels);
+  $("setWheels").textContent = prefs.wheels ? "On" : "Off";
+}
+function wireHelp() {
+  $("mNew").addEventListener("click", welcomeNew);
+  $("mKnow").addEventListener("click", welcomeKnow);
+  $("whyChip").addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (G && viewPly >= 0) showWhy(viewPly);
+  });
+  $("setWheels").addEventListener("click", function () {
+    prefs.wheels = !prefs.wheels; prefs.wheelsOffered = true; savePrefs(); syncSettingsUI();
+    wheelsAt = ""; hotAt = "";
+    syncBoard();
+  });
+}
+/* dev handles, for chess/tools/lamp-check.js, welcome-check.js and
+   wheels-check.js */
+function helpTestHooks(cr) {
+  cr.Help = Help;
+  cr.helpForTest = {
+    think: function () { var s = lampSide(); return Help.think(G, s, { reveal: lampReveal(s) }); },
+    theirs: function (ply) { return explainPly(ply == null ? G.played.length - 1 : ply); },
+    explainPly: explainPly, showWhy: showWhy, lamp: giveHint,
+    coachMemo: function () { return coachMemoGame === G ? coachMemo : {}; }
+  };
+  cr.tipsResetForTest = function () { prefs.tips = {}; tipQueued = {}; savePrefs(); };
+  cr.wheelsForTest = function (on) { prefs.wheels = !!on; savePrefs(); wheelsAt = ""; hotAt = ""; hotSlow = false; syncSettingsUI(); syncBoard(); };
+  cr.assistForTest = function () { return { takebacks: assist.takebacks, hints: assist.hints, wheels: assist.wheels | 0 }; };
+  cr.isNewcomerForTest = isNewcomer;
 }
 
 /* ===== opening narration =====
@@ -1420,6 +1790,7 @@ function note(e) {
   if (e.mark && e.ply != null) { marks[e.ply] = e.mark; syncMoveList(); }
   if (panelTab !== "notes") { notesUnread++; syncNoteBadge(); }
   renderNotes();
+  helpTip("notes", function () { return $("tabNotes"); });
 }
 function syncNoteBadge() {
   $("notesDot").classList.toggle("hide", notesUnread === 0 || panelTab === "notes");
@@ -1495,15 +1866,20 @@ function renderNotes() {
 /* a note is a way back into the game: the board goes to the position the
    remark is about and draws the squares it is about */
 function openNote(e) {
-  if (e.ply != null && G && G.played[e.ply]) viewAt(e.ply);
+  var at = e.viewPly != null ? e.viewPly : e.ply;
+  if (at != null && G && G.played[at]) viewAt(at);
+  /* a remark about how good a move was opens on the position before it,
+     and the look-back draws its lines there itself */
+  if (e.viewPly != null && viewPly === e.viewPly) return;
+  /* drawn again from nothing, so the eye is pulled the same way twice */
+  clearLines("teach");
   if (e.squares && e.squares.length >= 2) {
-    hintArrow = [e.squares[0], e.squares[1]];
-    syncBoard();
-    setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
+    showLines([{ from: e.squares[0], to: e.squares[1], kind: "run",
+                 tone: e.tone === "bad" || e.tone === "warn" ? "threat" : "hint",
+                 knight: knightHop(e.squares[0], e.squares[1]) }], 4200, "teach");
   } else if (e.squares && e.squares.length === 1) {
-    R.setHighlights({ selected: -1, mark: e.squares[0], legal: [], legalCapt: [],
-                      last: R.hi.last, check: R.hi.check, hint: null });
-    setTimeout(syncBoard, 3200);
+    /* one square is a place: circled, not lifted */
+    showLines([{ sq: e.squares[0], kind: "ring", tone: "hint" }], 3200, "teach");
   }
 }
 
@@ -1544,7 +1920,8 @@ function moveCell(ply) {
       if (notes[n].ply === ply && notes[n].mark) { s.title = san + " " + mk + " \u2014 " + stripTags(notes[n].text); break; }
     }
   }
-  s.addEventListener("click", function () { viewAt(ply); });
+  if (ply === G.played.length - 1 && (mode === "coach" || mode === "pass" || mode === "lan")) s.title += " \u00b7 tap to ask why";
+  s.addEventListener("click", function () { tapMoveCell(ply); });
   return s;
 }
 function stripTags(html) { return String(html).replace(/<[^>]*>/g, ""); }
@@ -1552,9 +1929,10 @@ function viewAt(ply) {
   if (!G || ply < 0 || ply >= G.played.length) return;
   viewPly = (ply === G.played.length - 1) ? -1 : ply;
   showViewBanner(viewPly >= 0);
-  clearSel(); hintArrow = null;
+  clearSel();
   R.setPosition(currentViewBoard());
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
+  syncLookBack();
 }
 function exitView() {
   viewPly = -1;
@@ -1562,6 +1940,7 @@ function exitView() {
   R.setPosition(G.board);
   fxRelay();
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
+  syncLookBack();
 }
 
 /* ===== replay the last move (again, with feeling) ===== */
@@ -1596,6 +1975,7 @@ function undoPly(n) {
   /* a move that has been taken back never happened, so neither did
      anything the room said about it */
   forgetNotesAfter(G.played.length - 1);
+  Ink.dropAfter(ink, G.played.length);
   Object.keys(reviewMemo).forEach(function (k) { if (+k >= G.played.length) delete reviewMemo[k]; });
   /* the ideas named about undone moves were never part of this game */
   taughtAt = taughtAt.filter(function (t) { return t.ply < G.played.length; });
@@ -1603,7 +1983,7 @@ function undoPly(n) {
   taughtAt.forEach(function (t) { teachSeen[t.concept] = (teachSeen[t.concept] || 0) + 1; });
   closePromo();
   hideToast(); clearLines(); hintShown = null; fxCalm();
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
@@ -1658,7 +2038,7 @@ var ladder = loadLadder();
 var assist = { takebacks: 0, hints: 0 };
 var ratedDone = false;          /* this game has been counted */
 var lastEval = 0;               /* the coach's last word on the position, from your side, in cp */
-var reviewMemo = {};            /* ply → {best, played}: the gentle coach's reviews, reused by the look-back */
+var reviewMemo = {};            /* ply → {best, played, bm, rf}: the gentle coach's reviews, reused by the look-back */
 
 function loadLadder() {
   var fresh = { v: 1, rungs: {}, lastSide: -1, day: "", days: 0, bestDays: 0 };
@@ -1745,7 +2125,7 @@ function settleSaved(sv) {
   var a = Array.isArray(sv.assist) ? sv.assist : [0, 0];
   rating = Rating.load(lsGet);
   var out = Rating.update(rating, { level: sv.skill, result: 0, accuracy: null, at: Date.now(),
-                                    assisted: { takebacks: a[0] | 0, hints: a[1] | 0 } });
+                                    assisted: { takebacks: a[0] | 0, hints: a[1] | 0, wheels: a[2] | 0 } });
   if (out.rated) { rating = out.state; Rating.save(rating, lsSet); }
   rungOf(sv.skill).l++; markDay(); saveLadder();
   lsDel(SAVE_KEY);
@@ -1759,7 +2139,9 @@ function leaveGameThen(fn, verb) {
         /* the game may have ended while the question was up */
         if (!ratedAtStake()) { fn(); return; }
         var live = mode === "coach" && G && !over;
-        var out = live ? settleRating("resign") : settleSaved(loadSave());
+        var sv0 = live ? null : loadSave();
+        var out = live ? settleRating("resign") : settleSaved(sv0);
+        journalResigned(sv0);
         if (live) over = { result: humanSide === 1 ? "black" : "white", reason: "you resigned" };
         lsDel(SAVE_KEY);
         fn();
@@ -1790,11 +2172,11 @@ function settleRating(result) {
   ratedDone = true;
   var s = result === "draw" ? 0.5 : result === "resign" ? 0 :
           ((result === "white") === (humanSide === 1) ? 1 : 0);
-  var clean = !assist.takebacks && !assist.hints;
+  var clean = !assist.takebacks && !assist.hints && !assist.wheels;
   /* read back first: another tab may have played a game since this one loaded */
   rating = Rating.load(lsGet);
   var out = Rating.update(rating, { level: skill, result: s, accuracy: null, at: Date.now(),
-                                    assisted: { takebacks: assist.takebacks, hints: assist.hints } });
+                                    assisted: { takebacks: assist.takebacks, hints: assist.hints, wheels: assist.wheels | 0 } });
   if (!out.rated) return null;
   rating = out.state;
   Rating.save(rating, lsSet);
@@ -1835,7 +2217,7 @@ function analyseGame(onStep) {
       /* the accuracy table was fitted with a reviewer of this depth */
       Brain.review(pre, mine, { ms: 900, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
         if (ticket !== gameTicket) { resolve(null); return; }
-        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
+        if (res) { reviewMemo[ply] = reviewEntry(pre, mine, res); got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
         i++; onStep(i, plies.length); next();
       });
     }
@@ -1897,7 +2279,7 @@ function renderEndRating(rs, cardAt) {
   var live = function () { return myGame === gameTicket && !$("ovEnd").classList.contains("hide"); };
   box.classList.toggle("hide", !rs);
   $("endNext").classList.add("hide");
-  $("endMile").classList.add("hide");
+  milesReset(cardAt, rs);
   if (!rs) return;
   var out = rs.out, before = Math.round(out.before), after = Math.round(out.after);
   $("endRateNum").textContent = before;
@@ -1906,7 +2288,7 @@ function renderEndRating(rs, cardAt) {
   dEl.textContent = fmtDelta(after - before) + (out.provisional ? " ?" : "");
   var t = Rating.title(after);
   $("endRateTitle").textContent = t.emoji + " " + t.name + (out.provisional ? " · still finding your level" : "") +
-    (out.weight < 1 ? " · counted as " + Math.round(out.weight * 100) + "% of a game (hints or take-backs)" : "");
+    (out.weight < 1 ? " · counted as " + Math.round(out.weight * 100) + "% of a game (" + (assist.wheels ? (assist.hints || assist.takebacks ? "help and training wheels" : "training wheels") : "hints or take-backs") + ")" : "");
   var stars = $("endStars").children, rung = rungOf(rs.level);
   for (var i = 0; i < 3; i++) {
     var already = rung.stars[i] && rs.newStars.indexOf(i) < 0;
@@ -1930,7 +2312,7 @@ function renderEndRating(rs, cardAt) {
     $("endNextSub").textContent = "A step down the ladder is how everyone climbs it.";
     $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(down.id, "a", clockStrOf()); };
     $("endNext").classList.remove("hide");
-  }
+  } else goalOnEndCard();
 
   /* the choreography, once the card is up */
   var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
@@ -1948,15 +2330,13 @@ function renderEndRating(rs, cardAt) {
       if (mile || up2) {
         setTimeout(function () {
           if (!live()) return;
-          var m = $("endMile"), was = out.levelUp && Rating.levelById(out.levelUp);
-          m.textContent = mile ? (mile.emoji || "🏅") + " " + (mile.kind === "settled" ? "Your rating has settled" :
+          var was = out.levelUp && Rating.levelById(out.levelUp);
+          /* the number's own milestone heads the stack, whatever else this game did */
+          if (mile) pushMile(escHtml(mile.emoji || "🏅"), escHtml((mile.kind === "settled" ? "Your rating has settled" :
                                   mile.kind === "best" ? "A new personal best" : "You're now: " + mile.name) +
-                                  " — " + Math.round(mile.rating || after)
-                               : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
-          m.classList.remove("hide");
-          sting(mile ? "milestone" : "levelup");
-          hap("success");
-          if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+                                  " — " + Math.round(mile.rating || after)), { first: true, sting: "milestone", hap: "success", big: true });
+          else pushMile("🌱", escHtml("You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next."),
+                        { first: true, sting: "levelup", hap: "success", big: true });
         }, 500 + rs.newStars.length * 420);
       }
     });
@@ -1995,6 +2375,7 @@ function renderEndRating(rs, cardAt) {
         rung.stars[2] = 1; saveLadder();
         setTimeout(function () { popStar(2, live); }, 700);
       }
+      progressAfterLook(rs, acc, c);
     }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
   });
 }
@@ -2011,12 +2392,10 @@ function countChips(c) {
 /* the look-back finishes after the game has been counted, so its
    accuracy is written onto the record afterwards */
 function rememberAccuracy(acc, perf) {
-  if (Rating.annotateLast) rating = Rating.annotateLast(rating, { acc: acc, perf: perf });
-  else {
-    var h = rating.history;
-    if (h && h.length) { h[h.length - 1].acc = acc; h[h.length - 1].perf = perf; }
-  }
+  /* read back first, as settleRating does: another tab may have written since */
+  rating = Rating.annotateLast(Rating.load(lsGet), { acc: acc, perf: perf });
   Rating.save(rating, lsSet);
+  journalAccuracy(acc, perf);
 }
 
 /* ---- the lobby ---- */
@@ -2031,6 +2410,7 @@ function sparkPath(vals, w, h, pad) {
            d: "M" + pts.map(function (p) { return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L") };
 }
 function renderLobby() {
+  syncWelcome();
   var sm = Rating.summary(rating), t = sm.title;
   var num = $("mRateNum"), streak = streakDays();
   if (!sm.games) {
@@ -2077,6 +2457,7 @@ function renderLobby() {
   /* bring the coach you're up against next into view */
   var nx = lad.querySelector(".rung.next");
   if (nx) lad.scrollLeft = Math.max(0, nx.offsetLeft - 8 - (lad.clientWidth - nx.offsetWidth) / 3);
+  renderGoal();
 }
 
 /* ---- your record ---- */
@@ -2123,7 +2504,356 @@ function showProfile() {
     b.addEventListener("click", function () { quickPlay(L.id); });
     list.appendChild(b);
   });
+  showProfileTab(profileTab);
   $("ovProfile").classList.remove("hide");
+}
+
+/* ===== progression: the journal, the feats, the next step =====
+   games.js, feats.js and goals.js hold the rules and are checked in
+   node; this block only hands them the board and puts what they say on
+   the cards. Three promises hold it together: every number is a fact
+   about chess or about turning up; a thing is said once, at the moment,
+   and then kept on your record; and games with people count as play —
+   kept in the journal, a day on the streak, feats if you earn them —
+   but never as rating. */
+var lowEval = 0;                    /* the coach's worst word on the position this game, from your side */
+var featPly = {};                   /* ply → what the teaching eyes saw in that move of yours */
+var currentGameId = null;           /* the journal's id for the game just finished */
+var keptGame = null, reviewNames = null;   /* a kept game, open on the board */
+var profileTab = "record", gamesShown = 10, featsAll = false, FEATS_AHEAD = 6;
+var miles = { ticket: -1, next: 0, n: 0, reserved: false, stung: false };
+
+function progressNewGame() { lowEval = 0; featPly = {}; currentGameId = null; keptGame = null; reviewNames = null; }
+function trackLow() { if (lastEval < lowEval) lowEval = lastEval; }
+/* your own move, looked at while the position is still the one before
+   it: the teacher may be quiet (the coach's voice off), but its eyes
+   are still what can tell a fork from a lucky capture */
+function featMove(m, mover, source, lessons) {
+  var mine = mode === "coach" ? mover === humanSide : mode === "lan" ? source === "local" : false;
+  if (!mine || !G) return;
+  try { featPly[G.played.length] = Feats.onMove({}, m, prefs.coach ? lessons : Teach.afterMove(G, m)); } catch (e) {}
+}
+
+/* ---- the end card's stack: at most three lines, one sting ---- */
+function milesReset(cardAt, rs) {
+  var box = $("endMiles");
+  box.innerHTML = ""; box.classList.add("hide");
+  var em = $("endNext").querySelector(".em");
+  if (em) em.textContent = "⬆️";
+  /* a rated game reveals its number and stars first; what else the game
+     did waits until they have landed */
+  var after = REDUCED ? 150 : (cardAt || 1100) + (rs ? 3000 + rs.newStars.length * 420 : 700);
+  /* and the number's own milestone, when there is one, keeps its place
+     at the top of the stack whatever arrives before it */
+  var reserved = !!(rs && rs.out && (rs.out.milestone || (rs.out.levelUp && rs.out.next)));
+  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false };
+}
+function pushMile(icon, html, o) {
+  o = o || {};
+  if (miles.ticket !== gameTicket) return false;
+  if (o.first && miles.reserved) miles.reserved = false;
+  else { if (miles.n >= 3) return false; miles.n++; }
+  var now = Date.now(), at = o.first ? now : Math.max(now, miles.next), my = miles.ticket;
+  if (!o.first) miles.next = at + 500;
+  setTimeout(function () {
+    if (my !== gameTicket || !over) return;
+    var box = $("endMiles"), line = document.createElement("div");
+    line.className = "erMile" + (o.cls ? " " + o.cls : "");
+    line.innerHTML = '<span class="em">' + icon + "</span> " + html;
+    if (o.first) box.insertBefore(line, box.firstChild); else box.appendChild(line);
+    box.classList.remove("hide");
+    /* kept for when the card comes back, but only heard while it is up */
+    if ($("ovEnd").classList.contains("hide")) return;
+    if (!miles.stung) { miles.stung = true; sting(o.sting || "lesson-right"); }
+    hap(o.hap || "star");
+    if (FX) {
+      Fx.sparkle(line, { count: 14 });
+      if (o.big) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+    }
+  }, Math.max(0, at - now));
+  return true;
+}
+
+/* ---- the journal ---- */
+function journalEntry(result, reason) {
+  var sans = G.played.map(function (r) { return r.san; });
+  var mk = {};
+  Object.keys(marks).forEach(function (k) { mk[k] = marks[k]; });
+  return { at: Date.now(), mode: mode, skill: mode === "coach" ? skill : null,
+           humanSide: mode === "coach" ? humanSide : mode === "lan" ? lanSide : 0,
+           result: result, reason: reason, sans: sans,
+           rv: Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }),
+           marks: mk, eco: Games.openingOf(sans), opp: mode === "lan" ? lanOpp : null,
+           clockStr: clockStrOf(), assist: [assist.takebacks, assist.hints],
+           low: mode === "coach" ? lowEval : null };
+}
+function recordGame(e) {
+  var r = Games.add(Games.load(lsGet), e);
+  Games.save(r.state, lsSet);
+  return r.id;
+}
+/* a rated game left by starting another is counted as a loss, so it is
+   kept as one — from the board if it was live, from the shelf if not */
+function journalResigned(sv) {
+  try {
+    if (sv) recordGame({ at: Date.now(), mode: "coach", skill: sv.skill, humanSide: sv.humanSide,
+                         result: sv.humanSide === 1 ? "black" : "white", reason: "resigned by starting another game",
+                         sans: sv.sans, assist: sv.assist, clockStr: sv.clockStr,
+                         rv: sv.rv, low: typeof sv.lo === "number" ? sv.lo : null, eco: Games.openingOf(sv.sans) });
+    else if (G && mode === "coach" && G.played.length) recordGame(journalEntry(humanSide === 1 ? "black" : "white", "resigned by starting another game"));
+  } catch (e) {}
+}
+function journalAccuracy(acc, perf) {
+  if (!currentGameId) return;
+  Games.save(Games.annotate(Games.load(lsGet), currentGameId, { acc: acc, perf: perf }), lsSet);
+}
+
+/* ---- feats ---- */
+function awardFeats(got) {
+  if (!got || !got.length) return;
+  Feats.save(Feats.award(Feats.load(lsGet), got, Date.now(), currentGameId), lsSet);
+  if (currentGameId) Games.save(Games.annotate(Games.load(lsGet), currentGameId, { feats: got }), lsSet);
+  got.forEach(function (id) {
+    var f = Feats.byId(id);
+    if (!f) return;
+    note({ ply: G && G.played.length ? G.played.length - 1 : null, icon: "🏅", tone: "good", key: "feat:" + id,
+           text: "<b>Feat: " + escHtml(f.name) + "</b> — kept in your record.", brief: "Feat · " + escHtml(f.name) });
+    /* the fourth and later still count — they wait on your record */
+    pushMile(f.emoji, "<b>Feat:</b> " + escHtml(f.name), { cls: "feat", sting: "lesson-right" });
+  });
+}
+
+/* ---- the next step ---- */
+function goalCtx() {
+  var lp = null, st = { due: 0 }, nx = null, solved = {};
+  try { lp = Learn.load(); st = Learn.stats(lp); nx = Learn.next(lp); } catch (e) {}
+  if (lp && lp.lessons) Object.keys(lp.lessons).forEach(function (k) { if (lp.lessons[k].solved > 0) solved[k] = 1; });
+  var fd = Feats.load(lsGet);
+  return { rating: rating, ladder: ladder, learn: { due: st.due }, lesson: nx ? { id: nx.id, title: nx.title } : null,
+           feat: Feats.nextFor(fd, Rating.titleIndex(rating.r)), featsDone: fd.done, solved: solved };
+}
+function goalGo(a) {
+  if (!a) return;
+  if (a.type === "practise") { startPractice(); return; }
+  if (a.type === "lesson") { var L = Learn.byId(a.id); if (L) startLesson(L, []); return; }
+  leaveGameThen(function () { startCoachGame(a.level || nextLevel(), a.side || "a", "none"); }, "a new game");
+}
+function renderGoal() {
+  var btn = $("mGoal");
+  if (!btn) return;
+  var g = null;
+  try {
+    var r = Goals.choose(Goals.load(lsGet), goalCtx(), dayKey(Date.now()));
+    Goals.save(r.state, lsSet);
+    g = r.goal;
+  } catch (e) { g = null; }
+  btn.classList.toggle("hide", !g);
+  btn.parentNode.classList.toggle("withGoal", !!g);
+  if (!g) return;
+  $("mGoalEm").textContent = g.icon;
+  $("mGoalTx").innerHTML = g.text;          /* goals.js escapes; only <b> rides along */
+  btn.setAttribute("aria-label", "Next step: " + stripTags(g.text));
+  btn.onclick = function () { goalGo(g.action); };
+}
+/* a game just ended: if the step the lobby named has been taken, say so
+   once; and when the end card has no next coach to offer, offer the
+   next step instead of nothing */
+function goalAtEnd() {
+  try {
+    var said = Goals.settle(Goals.load(lsGet), goalCtx());
+    if (said) { Goals.save(said.state, lsSet); if (said.text) pushMile("✓", escHtml(said.text.replace(/^✓\s*/, "")), { cls: "done", sting: "lesson-done", hap: "success" }); }
+  } catch (e) {}
+}
+function goalOnEndCard() {
+  var g = null;
+  try { g = Goals.pick(goalCtx(), Goals.load(lsGet).skip); } catch (e) { g = null; }
+  if (!g || g.kind === "play") return;     /* "Play again" already says that */
+  $("endNext").querySelector(".em").textContent = g.icon;
+  $("endNextTx").textContent = "Next: " + stripTags(g.text);
+  $("endNextSub").textContent = "The nearest step from here.";
+  $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); goalGo(g.action); };
+  $("endNext").classList.remove("hide");
+}
+
+/* ---- the moment a game ends ---- */
+function progressAtEnd(result, reason, rs) {
+  if (!G || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
+  var plies = G.played.length;
+  try {
+    /* a game with people is a day you played, once it was properly a game */
+    if ((mode === "pass" || mode === "lan") && plies >= ABANDON_PLIES) markDay();
+    /* a rated game is kept from its first move; a game between people
+       once both have moved */
+    currentGameId = plies >= (mode === "coach" ? 1 : 2) ? recordGame(journalEntry(result, reason)) : null;
+    /* the step the lobby pointed at comes first: it is why you played */
+    if (rs) goalAtEnd();
+    if (mode === "coach" || mode === "lan") {
+      var flags = {};
+      Object.keys(featPly).forEach(function (k) {
+        if (+k < plies) for (var f in featPly[k]) flags[f] = 1;
+      });
+      awardFeats(Feats.onGame(Feats.load(lsGet), flags, {
+        g: G, mode: mode, mySide: mode === "coach" ? humanSide : lanSide, result: result,
+        low: mode === "coach" ? lowEval : null, level: skill, ladder: ladder, marks: marks, levels: Rating.LEVELS }));
+    }
+  } catch (e) { /* what the game did is a bonus; the game itself is already counted */ }
+}
+/* the look-back has measured the game: what only it can say */
+function progressAfterLook(rs, acc, counts) {
+  try {
+    goalAtEnd();     /* the third star lands here */
+    awardFeats(Feats.onAfter(Feats.load(lsGet), { mode: "coach", won: rs.s === 1, acc: acc, counts: counts, ladder: ladder }));
+  } catch (e) {}
+}
+
+/* ---- the record's faces ----
+   Each face is a .pftab and a .pfPane with the same data-tab; a face
+   that draws itself registers here. Another face (your people, say)
+   needs only its two elements and, if it draws, one line below. */
+var PROFILE_TABS = { games: renderGamesTab, feats: renderFeatsTab };
+function showProfileTab(name) {
+  if (!document.querySelector('#pfTabs .pftab[data-tab="' + name + '"]')) name = "record";
+  profileTab = name;
+  [].forEach.call(document.querySelectorAll("#pfTabs .pftab"), function (b) {
+    var on = b.getAttribute("data-tab") === name;
+    b.classList.toggle("sel", on); b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  [].forEach.call(document.querySelectorAll("#ovProfile .pfPane"), function (p) {
+    p.classList.toggle("hide", p.getAttribute("data-tab") !== name);
+  });
+  if (PROFILE_TABS[name]) PROFILE_TABS[name]();
+}
+function myName() { return (prefs.name && String(prefs.name).trim()) || "You"; }
+function renderGamesTab() {
+  var st = Games.load(lsGet), list = st.list.slice().reverse(), box = $("pfGamesList");
+  $("pfGamesNote").textContent = list.length ? list.length + (list.length === 1 ? " game" : " games") + " kept · the last " + Games.MAX + " stay" : "";
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = '<p class="pfEmpty">Every game you finish is kept here — against a coach, across the table, or with a friend nearby — to step back through, move by move, or copy out for anyone.</p>';
+  }
+  list.slice(0, gamesShown).forEach(function (e) {
+    var n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
+    var b = document.createElement("button");
+    b.className = "gameRow";
+    b.innerHTML = '<span class="rgE">' + escHtml(n.icon) + '</span><span class="rgT"><b>' +
+      escHtml(e.mode === "pass" ? "Two players" : (e.mode === "lan" ? "Nearby · " : "") + n.who) +
+      "</b><small>" + escHtml(Games.summaryLine(e)) + '</small></span><span class="gRes' +
+      (/^(won|lost|drew)$/.test(o) ? " " + o : "") + '">' + escHtml(o) + "</span>";
+    b.addEventListener("click", function () { openRecord(e); });
+    box.appendChild(b);
+  });
+  $("pfGamesMore").classList.toggle("hide", list.length <= gamesShown);
+  $("pfPgnAll").classList.toggle("hide", !list.length);
+}
+function renderFeatsTab() {
+  var sm = Feats.summary(Feats.load(lsGet)), games = Games.load(lsGet), box = $("pfFeatsList");
+  $("pfFeatsNote").textContent = sm.earned ? sm.earned + " of " + sm.total + " — each one a fact about a game you played"
+                                           : "Things done on the board, kept the first time they happen";
+  box.innerHTML = "";
+  /* what you have done, then the next few not done yet — the gentlest
+     first — and the rest behind one tap, so the face stays a face */
+  var undone = 0;
+  sm.rows.forEach(function (r) {
+    if (!r.done && !featsAll && ++undone > FEATS_AHEAD) return;
+    var e = r.done && r.done.game ? Games.get(games, r.done.game) : null;
+    var t = document.createElement(e ? "button" : "div");
+    t.className = "featTile" + (r.done ? " on" : "");
+    var sub = r.done ? Games.fmtDay(r.done.at) + (e ? " · " + Games.names(e, Rating.LEVELS).who : "") : r.how;
+    t.innerHTML = '<span class="em">' + escHtml(r.emoji) + "</span><b>" + escHtml(r.name) + "</b><small>" + escHtml(sub) + "</small>";
+    if (r.done) t.setAttribute("aria-label", r.name + ", done " + Games.fmtDay(r.done.at));
+    if (e) t.addEventListener("click", function () { openRecord(e); });
+    box.appendChild(t);
+  });
+  var rest = sm.total - sm.earned - FEATS_AHEAD;
+  $("pfFeatsMore").classList.toggle("hide", featsAll || rest <= 0);
+  $("pfFeatsMore").textContent = "Show the other " + Math.max(0, rest);
+}
+
+/* ---- a kept game, on the board ----
+   Opened the way a lesson is: the game you were playing stays on the
+   shelf (it was saved after every move), and the board becomes a
+   read-only replay with the lesson bar as its navigator. */
+function shareText(text, title) {
+  if (navigator.share && (navigator.maxTouchPoints || 0) > 0) navigator.share({ title: title, text: text }).catch(function () {});
+  else clip(text);
+}
+function openRecord(e) {
+  if (!e) return;
+  if (mode === "lan" && G && !over && Net.linked()) { toast("Finish or leave the game with your friend first — then it's all here."); return; }
+  var g = Chess.create();
+  for (var i = 0; i < e.sans.length; i++) { var m = Chess.fromSAN(g, e.sans[i]); if (!m) break; Chess.play(g, m); }
+  if (!g.played.length) { toast("That game couldn't be read back — its moves don't add up."); return; }
+  stopTour(); quietBoard(); hideAllOverlays(); closeStudio();
+  leaveSharedView();   /* a sent game being looked at gives way to this one */
+  lesson = null; lessonDone = false; lessonQueue = [];
+  mode = "review"; G = g; over = { result: e.result, reason: e.reason || "" };
+  keptGame = e;
+  var nm = Games.names(e, Rating.LEVELS, myName());
+  reviewNames = [nm.white, nm.black];
+  thinking = false; clockConfig("none"); clearSel(); clearLines(); viewPly = -1;
+  reviewMemo = {};
+  e.rv.forEach(function (t) { reviewMemo[t[0]] = { best: t[1], played: t[2] }; });
+  Object.keys(e.marks).forEach(function (k) { marks[k] = e.marks[k]; });
+  orientation = e.humanSide || 1;
+  R.setOrientation(orientation);
+  if (FX) Fx.clear();
+  fxDown = null;
+  hideOpeningCard();
+  if (e.eco) showOpeningCard(e.eco.name, e.eco.code, "", "");
+  R.setPosition(G.board);
+  syncAll();
+  viewAt(0);
+  reviewBar();
+  needFrame();
+}
+function reviewBar() {
+  var e = keptGame, n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
+  var head = e.mode === "pass" ? "Two players · " + o : "Against " + n.them + " — you " + o;
+  var bits = [cap(e.reason || "")];
+  if (e.eco) bits.push(e.eco.name.split(":")[0]);
+  if (e.acc != null) bits.push(Math.round(e.acc) + "% accuracy");
+  lessonUI('<div class="lkick">From your games · ' + escHtml(Games.fmtDay(e.at)) + "</div>" +
+           '<div class="lask">' + escHtml(head) + "</div>" +
+           '<div class="lsay">' + escHtml(bits.filter(Boolean).join(" · ")) + "</div>");
+  lessonRow([lessonChip("◀", function () { reviewStep(-1); }), lessonChip("▶", function () { reviewStep(1); }),
+             lessonChip("📨 Send", function () { shareGame(recordToSend(e), "journal"); }),
+             lessonChip("Copy PGN", function () { shareText(Games.pgn(e, Rating.LEVELS, myName()), "A chess game"); }),
+             lessonChip("Done", showMenu, true)]);
+}
+/* a kept game in the shape the sender wants */
+function recordToSend(e) {
+  var n = Games.names(e, Rating.LEVELS, myName());
+  return { sans: e.sans.slice(), white: n.white, black: n.black, result: e.result || null, reason: e.reason || "",
+           clock: "", day: e.at ? new Date(e.at).toISOString().slice(0, 10) : "", ply: -1, ask: "", from: prefs.name || "" };
+}
+function reviewStep(d) {
+  if (!G || !G.played.length) return;
+  var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+  if (d < 0) viewAt(Math.max(0, at - 1));
+  else if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); }
+}
+function wireProgression() {
+  /* what the score and the ladder already prove goes in the cabinet
+     quietly, before any game could announce it as new */
+  try {
+    var back = Feats.fromRecord(Feats.load(lsGet), { history: rating.history, ladder: ladder, levels: Rating.LEVELS, now: Date.now() });
+    if (back.ids.length) Feats.save(back.state, lsSet);
+  } catch (e) {}
+  [].forEach.call(document.querySelectorAll("#pfTabs .pftab"), function (b) {
+    b.addEventListener("click", function () { showProfileTab(b.getAttribute("data-tab")); });
+  });
+  $("pfGamesMore").addEventListener("click", function () { gamesShown += 10; renderGamesTab(); });
+  $("pfFeatsMore").addEventListener("click", function () { featsAll = true; renderFeatsTab(); });
+  $("pfPgnAll").addEventListener("click", function () { shareText(Games.pgnAll(Games.load(lsGet), Rating.LEVELS, myName()), "My chess games"); });
+}
+function progressionForTest() {
+  return { Games: Games, Feats: Feats, Goals: Goals,
+    goalForTest: function () { return Goals.pick(goalCtx(), Goals.load(lsGet).skip); },
+    gamesForTest: function () { return Games.load(lsGet); },
+    featsForTest: function () { return Feats.load(lsGet); },
+    lowEvalForTest: function (v) { if (typeof v === "number") lowEval = v; return lowEval; },
+    reviewForTest: function () { return keptGame; },
+    openRecord: openRecord, showProfileTab: showProfileTab, renderLobby: renderLobby };
 }
 
 /* ===== game start / end ===== */
@@ -2137,7 +2867,8 @@ function startGame(newMode, opts) {
   teachSeen = {}; teachCool = 0; taughtAt = [];
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
-  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0; progressNewGame();
+  ink = Ink.create();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
@@ -2146,7 +2877,7 @@ function startGame(newMode, opts) {
   clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
   hideToast(); clearLines();
   if (R && R.resetView) R.resetView();
-  clearSel(); hintArrow = null; viewPly = -1; lastNarratedOpening = ""; thinking = false;
+  clearSel(); viewPly = -1; lastNarratedOpening = ""; thinking = false;
   showViewBanner(false);
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
@@ -2223,8 +2954,12 @@ function endGame(result, reason, taught) {
   /* a mate gets a moment on the board — the king laid down, the camera
      leaning in — before the card comes up over it */
   var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
-  renderEndRating(mode === "coach" ? settleRating(result) : null, cardAt);
+  var rs = mode === "coach" ? settleRating(result) : null;
+  renderEndRating(rs, cardAt);
+  progressAtEnd(result, reason, rs);
   renderOddsReview();
+  helpAtEnd();
+  friendsAtEnd(result, mySide);
   /* the card waits its turn: if something else was opened in the
      meantime, the Result chip offers it instead of stacking on top */
   setTimeout(function () {
@@ -2239,7 +2974,9 @@ function endGame(result, reason, taught) {
       if (iWon) Fx.fireworks({ count: reason === "checkmate" ? 3 : 2, layer: "page" });
     }
   }, cardAt);
-  lsDel(SAVE_KEY);
+  /* a game with a friend that ended must not take with it the coach game
+     that was shelved when they arrived — saveGame looks after its own */
+  if (mode !== "lan") lsDel(SAVE_KEY);
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
@@ -2332,11 +3069,15 @@ function saveGame() {
     /* the odds ledger is part of the game's story, so it survives a reload */
     odds: [oddsSpent[1], oddsSpent[-1], oddsNudged],
     /* and so is the help taken, or a reload would wash a rated game clean */
-    assist: [assist.takebacks, assist.hints],
+    assist: [assist.takebacks, assist.hints, assist.wheels | 0],
     /* and the coach's reviews so far, so a reload doesn't throw away the
        look-back's work — or the abandonment rule's sense of the position */
-    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
-    ev: lastEval
+    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return rvPack(+k); }) : [],
+    ev: lastEval, lo: lowEval,
+    /* a game played on from a sent position is friendly, and stays so */
+    fr: mode === "coach" && ratedDone ? 1 : 0,
+    /* what you drew, filed by position */
+    ink: Ink.pack(ink)
   }));
 }
 function loadSave() {
@@ -2366,7 +3107,8 @@ function saveLan() {
     v: 1, code: Net.code, host: !!Net.isHost, side: lanSide,
     sans: G.played.map(function (r) { return r.san; }),
     clockStr: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
-    my: lanMy, opp: lanOpp, title: Room.title || "", at: Date.now()
+    my: lanMy, opp: lanOpp, title: Room.title || "", at: Date.now(),
+    ink: Ink.pack(ink)
   }));
 }
 function loadLan() {
@@ -2391,12 +3133,12 @@ function resumeSaveInner(s) {
   }
   if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 2 ? g.turn : 0; clock.lastT = performance.now(); }
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
-  if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0) };
-  if (Array.isArray(s.rv)) s.rv.forEach(function (t) {
-    if (Array.isArray(t) && typeof t[0] === "number" && t[0] < g.played.length && typeof t[1] === "number" && typeof t[2] === "number")
-      reviewMemo[t[0]] = { best: t[1], played: t[2] };
-  });
+  if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0), wheels: Math.max(0, s.assist[2] | 0) };
+  if (Array.isArray(s.rv)) s.rv.forEach(function (t) { rvUnpack(t, g.played.length); });
   if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
+  if (typeof s.lo === "number" && isFinite(s.lo)) lowEval = Math.max(-100000, Math.min(0, s.lo));
+  if (s.fr === 1 && mode === "coach") ratedDone = true;
+  ink = Ink.unpack(s.ink, g.played.length);
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -2415,13 +3157,13 @@ function lanHandlers() {
     if (Net.isHost) {
       Net.send({ t: "hi", name: lanMy || "Host", clock: lanCfg.clockStr,
                  yourSide: lanCfg.mySide === 1 ? -1 : 1, sans: lanCfg.sans || [],
-                 wMs: lanCfg.wMs, bMs: lanCfg.bMs });
+                 wMs: lanCfg.wMs, bMs: lanCfg.bMs, fid: myFid() });
       beginLan(lanCfg.mySide, lanCfg.clockStr, lanCfg.sans || [], lanCfg.wMs, lanCfg.bMs);
       celebrateLink();
     } else {
       /* the joiner waits for the host's greeting: it carries their name
          and which seat we're in, so the celebration can show both */
-      Net.send({ t: "hi2", name: lanMy || "Friend" });
+      Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
       $("linkTitle").textContent = "Linked — setting up the board…";
       codeBusy("dealing the pieces…");
     }
@@ -2459,15 +3201,16 @@ function lanHandlers() {
       if (over) return;
       Net.resync({ sans: G.played.map(function (r) { return r.san; }),
                    clock: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
-                   yourSide: -lanSide, name: lanMy || "Host" });
+                   yourSide: -lanSide, name: lanMy || "Host", fid: myFid() });
     } else {
-      Net.send({ t: "hi2", name: lanMy || "Friend" });
+      Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
     }
     toast("📡 Back together — the board is exactly as you left it.");
   };
   Net.onResync = function (msg) {
     var wasLan = (mode === "lan");
     lanOpp = String(msg.name || lanOpp || "Friend").slice(0, 18);
+    takeOppId(msg);
     beginLan(msg.yourSide === 1 ? 1 : -1, msg.clock, msg.sans || [], msg.wMs, msg.bMs);
     if (!wasLan) celebrateLink();
     syncAll();
@@ -2477,6 +3220,7 @@ function lanHandlers() {
     switch (msg.t) {
       case "hi":
         lanOpp = String(msg.name || "Friend").slice(0, 18);
+        takeOppId(msg);
         if (!Net.isHost) {
           beginLan(msg.yourSide === 1 ? 1 : -1, msg.clock, msg.sans || [], msg.wMs, msg.bMs);
           celebrateLink();
@@ -2485,6 +3229,7 @@ function lanHandlers() {
         break;
       case "hi2":
         lanOpp = String(msg.name || "Friend").slice(0, 18);
+        takeOppId(msg);
         renderSeats();      /* the host may already be celebrating — keep it true */
         syncBars(); syncTurnStrip();
         break;
@@ -2515,6 +3260,7 @@ function lanHandlers() {
 }
 function beginLan(mySide, clockStr, sans, wMs, bMs) {
   lanSide = mySide;
+  lanGameStart(sans);
   startGame("lan", { clockStr: clockStr || "none" });
   if (sans && sans.length) {
     for (var i = 0; i < sans.length; i++) {
@@ -2523,6 +3269,9 @@ function beginLan(mySide, clockStr, sans, wMs, bMs) {
       Chess.play(G, m);
     }
     R.setPosition(G.board);
+    /* a rejoin keeps the notes you drew on this board, too */
+    var kept = loadLan();
+    if (kept && kept.code && kept.code === Net.code) ink = Ink.unpack(kept.ink, G.played.length);
     if (clock.on && wMs != null) { clock.w = wMs; clock.b = bMs; }
     if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
     narrateOpening("", "resume");
@@ -2571,8 +3320,9 @@ function onNetMove(msg) {
 }
 function lanUndo(n) {
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
+  Ink.dropAfter(ink, G.played.length);
   over = null;
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
   syncAll();
@@ -2613,6 +3363,7 @@ function openLink() {
   $("linkCodeIn").value = "";
   $("codeDrop").open = false;
   offerRejoin();
+  renderLinkPeople();
 }
 /* A board you were in the middle of, offered back to you. This is the
    whole point of remembering the code: a phone that died, a tab that was
@@ -2735,13 +3486,18 @@ function hostFlow(resume) {
     $("roomTitle").textContent = "Your board is open";
     roomWait("opening the board…", true);
     Net.name = lanMy || "Host";
-    Net.roomOpen({ host: lanMy || "Host", name: (lanMy ? lanMy + "'s board" : "A chess board") })
+    /* a new board is a new board: the letters of the last game would be
+       reclaimed still marked as started, and its opponent's healing would
+       walk straight into it */
+    if (!resume && Net.isHost && Room.code) Net.roomLeave();
+    Net.roomOpen({ host: lanMy || "Host", name: roomTitleFor() })
       .then(function (r) {
         if (!r) { hostByHandshake(); return; }
         $("roomCode").textContent = r.code;
         $("roomCode").classList.remove("pending");
         roomWait("waiting for them to type it…", true);
-        $("roomHow").innerHTML = "Read these four letters to your friend. On their device: <b>Play together</b> → <b>Join a board</b>.";
+        $("roomHow").innerHTML = "Read these four letters to your friend. On their device: <b>Play a friend</b> → <b>Join a board</b>.";
+        roomOpened(r.code);
       })
       .catch(function () { hostByHandshake(); });
   };
@@ -2753,7 +3509,7 @@ function hostByHandshake() {
   linkRole = "host"; linkStep = 1;
   linkStage({ step: 1, showCode: true, title: "Show this to your friend",
     how: scanSupported()
-      ? "On their device: <b>Play together</b> → <b>Join a board</b> → <b>Codes &amp; QR</b>, then point their camera at this code."
+      ? "On their device: <b>Play a friend</b> → <b>Join a board</b> → <b>Codes &amp; QR</b>, then point their camera at this code."
       : "Tap <b>Share</b> to send them the link — tapping it opens their board already joining. Then they'll send you a short answer code to paste." });
   codeBusy("making your code…");
   Net.host({ name: lanMy, n: lanNonce }).then(function (code) {
@@ -2784,6 +3540,7 @@ function joinFlow(prefill) {
     /* a four-letter code (a tapped link, a typed hash) needs no handshake
        screen at all — it goes straight in */
     if (Room.isCode(prefill)) {
+      showJoinExtras();
       roomPanel("join");
       $("roomIn").value = Room.tidy(prefill);
       joinByCode(prefill);
@@ -2793,6 +3550,7 @@ function joinFlow(prefill) {
     feedCode(prefill);
     return;
   }
+  showJoinExtras();
   roomPanel("join");
   $("roomIn").value = "";
   joinNote("four letters and you're in");
@@ -2836,7 +3594,7 @@ function refreshRoomList() {
     var box = $("roomList");
     if (!box) return;
     if (!rooms.length) {
-      box.innerHTML = '<div class="roomEmpty">No boards waiting yet — when your friend taps <b>Start a board</b>, theirs appears here.</div>';
+      box.innerHTML = '<div class="roomEmpty">No boards waiting yet — when your friend taps <b>Invite a friend</b>, theirs appears here.</div>';
       return;
     }
     box.innerHTML = rooms.map(function (r) {
@@ -2884,6 +3642,7 @@ function joinByCode(code, retry) {
       return;
     }
     joinNote("found " + (r.name || code) + " — setting up the board…");
+    watchJoinStall(code);
   }, function () {
     roomJoining = false;
     joinNote("that didn't take — try the code again");
@@ -3108,7 +3867,7 @@ function renderSeats() {
   $("seatRow").innerHTML =
     '<div class="seat me"><span class="who">' + escHtml(lanMy || "You") + '</span><span class="side">' + (meWhite ? "♔ White" : "♚ Black") + '</span></div>' +
     '<div class="seat"><span class="who">' + escHtml(lanOpp || "Your friend") + '</span><span class="side">' + (meWhite ? "♚ Black" : "♔ White") + '</span></div>';
-  $("linkedSub").textContent = "Two devices, one board — " + (meWhite ? "you open." : "they open.");
+  $("linkedSub").textContent = linkedLine(meWhite);
 }
 function celebrateLink() {
   stopScan();
@@ -3116,6 +3875,7 @@ function celebrateLink() {
   snd("link");
   $("linkedTitle").textContent = "You're linked!";
   renderSeats();
+  greetFriend();
   $("ovLinked").classList.remove("hide");
   var meWhite = lanSide === 1;
   setTimeout(function () {
@@ -3155,6 +3915,622 @@ function share(text) {
   } else clip(text);
 }
 
+/* ===== friends: the challenge that waits, a game you can send, your people =====
+   Three things two people who play each other actually do, none of which
+   needs anything but the two phones and the mailbox's four letters:
+
+     • A CHALLENGE THAT WAITS. Opening a board used to park you on four
+       letters until somebody typed them. Now the board stays open while
+       you go back to the room and play the computer; the invite is a
+       sentence ("Sam challenges you — 10+5, you're Black") with a link
+       and a QR that open the same board, nearby or across the country;
+       and the moment they arrive, whatever you were doing is shelved
+       exactly as a lesson shelves it, and the game begins.
+     • A GAME YOU CAN SEND. Any game becomes a link (share.js) that opens
+       on any phone, replayable, and is read on arrival by the receiver's
+       own coach — or a link to one moment of it, with a question.
+     • YOUR PEOPLE. Everyone you have played on another device, the score
+       between you, and the games themselves (friends.js), said where it
+       matters: on the linked card, on the rematch button, and on a card
+       of its own. A profile tab could later hold the same rows —
+       renderPeople() draws into whatever box it is given.
+
+   Everything here stays on the two devices. The id that keeps two Sams
+   apart crosses only the direct link; the mailbox sees what it always
+   saw, a handshake. */
+var friends = Friends.load(lsGet);
+var lanOppId = "";        /* the other board's quiet id, when its room sent one  */
+var lanGameId = "";       /* this game's own name in the record                   */
+var hostFor = "";         /* a board opened "For" a particular friend             */
+var joinExtras = null;    /* what an invite link said about the board it opens    */
+var sharedView = null;    /* the game being looked through from a link            */
+var shareFrom = null;     /* which card the share sheet should go back to         */
+var peopleFrom = null;    /* …and the people card                                 */
+
+function myFid() {
+  if (!friends.me) { friends = Friends.me(friends); Friends.save(friends, lsSet); }
+  return friends.me;
+}
+/* whatever greeting arrives (hi, hi2, a resync), believe only an id of
+   the right shape; a board too old to send one is remembered by name */
+function takeOppId(msg) {
+  lanOppId = msg && Friends.isId(msg.fid) && msg.fid !== friends.me ? msg.fid : "";
+  if (lanOppId && lanOpp && Friends.find(friends, lanOppId)) {
+    friends = Friends.rename(friends, lanOppId, lanOpp);
+    Friends.save(friends, lsSet);
+  }
+}
+/* a new game gets a new name; a game put back together after a tunnel
+   keeps the one it had, so it is never counted twice */
+function lanGameStart(sans) {
+  if (!lanGameId || !sans || !sans.length) {
+    lanGameId = Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+}
+function oppRecord() { return Friends.find(friends, lanOppId, lanOppId ? null : lanOpp); }
+
+/* "Sam again! You lead 3–2." — said once, as the boards join */
+function linkedLine(meWhite) {
+  var f = oppRecord(), t = Friends.tally(f);
+  var opens = meWhite ? "you open." : "they open.";
+  if (f && t.games) return (lanOpp || f.name) + " again! " + t.text + " — " + opens;
+  return "Two devices, one board — " + opens;
+}
+function greetFriend() {
+  var t = Friends.tally(oppRecord());
+  if (!t.games) return;
+  hap("success");
+  if (FX && !REDUCED) Fx.sparkle($("seatRow"), { count: 14 });
+}
+
+/* A game between two devices has ended: the score between you moves,
+   and the rematch button says what it now stands at. Only games that
+   were actually played count — a board resigned before anybody moved is
+   not a result between friends. */
+function friendsAtEnd(result, mySide) {
+  var row = $("endShareRow");
+  if (row) row.classList.toggle("hide", !(mode === "coach" || mode === "pass" || mode === "lan") || !G || !G.played.length);
+  var pb = $("endPeople");
+  if (pb) pb.classList.add("hide");
+  if (mode !== "lan" || !mySide) return;
+  var mine = result === "draw" ? "d" : ((result === "white") === (mySide === 1) ? "w" : "l");
+  var out = null;
+  if (G && G.played.length) {
+    out = Friends.record(friends, {
+      id: lanOppId, name: lanOpp || "A friend", result: mine, at: Date.now(), side: mySide,
+      sans: G.played.map(function (r) { return r.san; }), reason: over ? over.reason : "", gid: lanGameId
+    });
+    friends = out.state;
+    Friends.save(friends, lsSet);
+  }
+  var f = out ? out.f : oppRecord(), t = Friends.tally(f);
+  if (!t.games) return;
+  var nextSide = mySide === 1 ? "Black" : "White";
+  $("endRematchSub").textContent = out && out.decider
+    ? "Level, 1–1 — the decider? You'll have " + nextSide + "."
+    : t.text + " · you'll have " + nextSide + " next.";
+  if (pb) {
+    $("endPeopleTx").textContent = "👥 You and " + f.name + " ›";
+    pb.classList.remove("hide");
+  }
+}
+
+/* ----- the challenge that waits ----- */
+function roomTitleFor() {
+  if (hostFor) return "For " + hostFor;
+  return lanMy ? lanMy + "'s board" : "A chess board";
+}
+/* where the invite points, and what it says about the board before
+   anybody sits down: who asked, the clock, and which colour is theirs */
+function inviteUrl(code) {
+  var u = Net.url(code);
+  if (!/^https?:/.test(u)) return u;
+  var bits = [];
+  if (lanMy) bits.push("n=" + encodeURIComponent(lanMy));
+  if (lanCfg && lanCfg.clockStr) bits.push("c=" + encodeURIComponent(lanCfg.clockStr));
+  if (lanCfg && lanCfg.mySide) bits.push("s=" + (lanCfg.mySide === 1 ? "b" : "w"));
+  return u + (bits.length ? "&" + bits.join("&") : "");
+}
+function clockWords(c) {
+  if (!c || c === "none") return "no clock";
+  var p = String(c).split("+");
+  return p[0] + " min" + (+p[1] ? " + " + p[1] + "s a move" : "");
+}
+function challengeText() {
+  var who = lanMy || "Someone";
+  var side = lanCfg && lanCfg.mySide ? (lanCfg.mySide === 1 ? "you're Black" : "you're White") : "";
+  return "♟ " + (hostFor ? hostFor + ", " : "") + who + " challenges you to a game of chess — " +
+    clockWords(lanCfg && lanCfg.clockStr) + (side ? ", " + side : "") + ". Tap to sit down:";
+}
+function shareChallenge(code) {
+  var url = inviteUrl(code), text = challengeText();
+  if (!/^https?:/.test(url)) { clip(code); return; }
+  if (navigator.share) navigator.share({ title: "Chess?", text: text, url: url }).catch(function () {});
+  else clip(text + " " + url);
+}
+/* the board is open: the QR of the invite under the letters, and the
+   way back to the room while it waits */
+function roomOpened(code) {
+  var url = inviteUrl(code), web = /^https?:/.test(url);
+  var qr = $("roomQR");
+  if (qr) {
+    var drawn = web && Net.drawQR(qr, url);
+    $("roomQRWrap").classList.toggle("hide", !drawn);
+  }
+  $("roomKeep").classList.remove("hide");
+  $("roomHow").innerHTML = (hostFor ? "Opened for <b>" + escHtml(hostFor) + "</b>. " : "") +
+    (web ? "Send the invite, let them scan it, or read the four letters out — all three open this board, nearby or anywhere."
+         : "Read these four letters to your friend.") +
+    " You can go back to the room and play while you wait.";
+}
+/* the lobby's row for a board that is open and waiting */
+function syncOpenBoard() {
+  var b = $("mOpenBoard");
+  if (!b) return;
+  var open = Net.isHost && Net.state === "hosting" && !!Room.code && mode !== "lan";
+  b.classList.toggle("hide", !open);
+  if (!open) return;
+  var title = Room.title || "";
+  var forWho = /^For /.test(title) ? title.slice(4) : "";
+  $("mOpenBoardTx").textContent = "Your board " + Room.code + " is open";
+  $("mOpenBoardSub").textContent = "Waiting for " + (forWho || "your friend") + " — tap to show the code, or play while you wait.";
+}
+function showOpenBoard() {
+  if (!(Net.isHost && Room.code)) { syncOpenBoard(); return; }
+  hideAllOverlays();
+  linkRole = "host"; linkStep = 1;
+  $("ovLink").classList.remove("hide");
+  roomPanel("host");
+  $("roomCode").textContent = Room.code;
+  $("roomCode").classList.remove("pending");
+  $("roomTitle").textContent = "Your board is open";
+  roomWait("waiting for them…", true);
+  roomOpened(Room.code);
+}
+function keepBoardOpen() {
+  stopScan();
+  showMenu();
+  toast("📡 Your board stays open. Play while you wait — when they arrive, the room takes you straight to it.");
+}
+/* the joiner's side of an invite link: who is asking, before knocking */
+function takeJoinExtras(hash) {
+  joinExtras = null;
+  if (!/#join=[A-Za-z]{4}&/.test(hash || "")) return;
+  var o = {}, re = /[&](n|c|s)=([^&]*)/g, m;
+  while ((m = re.exec(hash))) {
+    var v = "";
+    try { v = decodeURIComponent(m[2]); } catch (e) { v = ""; }
+    o[m[1]] = v;
+  }
+  var n = String(o.n || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 18);
+  var c = /^(none|\d{1,3}\+\d{1,3})$/.test(o.c || "") ? o.c : "";
+  var s = o.s === "w" || o.s === "b" ? o.s : "";
+  if (n || c || s) joinExtras = { n: n, c: c, s: s };
+}
+function showJoinExtras() {
+  var how = $("joinHow");
+  if (!how) return;
+  var x = joinExtras;
+  joinExtras = null;
+  if (!x) { how.innerHTML = "Ask your friend to tap <b>Invite a friend</b> — they'll send a link or read you four letters."; return; }
+  how.innerHTML = "<b>" + escHtml(x.n || "A friend") + "</b> challenges you — " + escHtml(clockWords(x.c)) +
+    (x.s ? ", you'll have <b>" + (x.s === "w" ? "White" : "Black") + "</b>" : "") + ".";
+}
+/* Two phones on different networks usually find each other through
+   the mailbox; some pairs (some mobile data, some office Wi-Fi) cannot
+   talk directly at all, and there is no relay here to carry them. Rather
+   than knock forever, the room says so — once, plainly. */
+var joinStallT = 0;
+function watchJoinStall(code) {
+  clearTimeout(joinStallT);
+  joinStallT = setTimeout(function () {
+    if (Net.everLinked || mode === "lan" || linkRole !== "join" || $("ovLink").classList.contains("hide")) return;
+    joinNote("still reaching " + code + "… Two phones on different networks sometimes can't talk directly " +
+      "(some mobile data and office Wi-Fi block it). On the same Wi-Fi it always works — so does one phone's hotspot.");
+  }, 22000);
+}
+
+/* ----- the link card's people strip ----- */
+function renderLinkPeople() {
+  hostFor = "";
+  var box = $("linkPeople");
+  if (!box) return;
+  var rows = Friends.table(friends).slice(0, 3);
+  var html = "", any = false;
+  if (Net.isHost && Net.state === "hosting" && Room.code && mode !== "lan") {
+    any = true;
+    html +='<button class="roomRow" data-act="open"><span class="rrCode">' + escHtml(Room.code) +
+      '</span><span class="rrTx"><b>Your board is still open</b><i>waiting — tap to show the code</i></span><span class="rrGo">show ▸</span></button>';
+  }
+  html += '<div class="friendOpen hide" id="friendOpen"></div>';
+  if (rows.length) {
+    any = true;
+    html +='<div class="peopleChips">' + rows.map(function (r, i) {
+      return '<button class="chip" data-act="challenge" data-i="' + i + '">⚔ ' + escHtml(r.name) + "</button>";
+    }).join("") + '<button class="linkish" data-act="people">Your people ›</button></div>';
+  }
+  box.innerHTML = html;
+  box.classList.toggle("hide", !any);
+  Array.prototype.forEach.call(box.querySelectorAll("[data-act]"), function (b) {
+    b.addEventListener("click", function () {
+      var act = b.dataset.act;
+      if (act === "open") showOpenBoard();
+      else if (act === "people") showPeople(null, "link");
+      else if (act === "challenge") challengeFriend(rows[+b.dataset.i].name);
+    });
+  });
+  /* one look at the public list of waiting boards, never polled: a name
+     already on your table, or a board opened "For" you */
+  if (!friends.list.length || Room.live === false) return;
+  Net.roomList().then(function (rooms) {
+    var h = rooms ? Friends.hosting(friends, rooms, prefs.name) : null;
+    var el = $("friendOpen");
+    if (!h || !el || $("ovLink").classList.contains("hide")) return;
+    el.innerHTML = '<button class="roomRow"><span class="rrCode">' + escHtml(h.code) + '</span><span class="rrTx"><b>' +
+      escHtml(h.name) + (h.forYou ? " opened a board for you" : " has a board open") + '</b><i>right now</i></span><span class="rrGo">join ▸</span></button>';
+    el.classList.remove("hide");
+    box.classList.remove("hide");
+    el.querySelector("button").addEventListener("click", function () { grabName(); joinFlow(h.code); });
+  }).catch(function () {});
+}
+function challengeFriend(name) {
+  openLink();
+  hostFor = String(name || "").slice(0, 18);
+  hostFlow(false);
+}
+
+/* ----- your people: the card ----- */
+function relDay(t) {
+  if (!t) return "";
+  var days = Math.floor((Date.now() - t) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return days + " days ago";
+  var d = new Date(t);
+  return d.getDate() + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+}
+var RESULT_WORD = { w: "you won", d: "drawn", l: "they won" };
+function renderPeople(box, focus) {
+  var list = friends.list;
+  if (!list.length) {
+    box.innerHTML = '<div class="roomEmpty">Nobody yet. Play someone on another device — a board you open from <b>Play a friend</b> — and they are kept here, with the score between you.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  list.forEach(function (f, idx) {
+    var t = Friends.tally(f);
+    var wrap = document.createElement("div");
+    wrap.className = "personRow" + (focus && (focus === f.id || focus === f.name) ? " open" : "");
+    var head = document.createElement("button");
+    head.className = "personHead";
+    head.innerHTML = '<span class="pnName"><b>' + escHtml(f.name) + "</b><small>" + escHtml(t.text || "No games yet") +
+      " · " + escHtml(relDay(f.last)) + '</small></span><span class="pnScore">' + f.w + "–" + f.d + "–" + f.l +
+      '<small>' + escHtml(Friends.recent(f, 5)) + "</small></span>";
+    head.addEventListener("click", function () { wrap.classList.toggle("open"); });
+    wrap.appendChild(head);
+    var more = document.createElement("div");
+    more.className = "personMore";
+    var acts = document.createElement("div");
+    acts.className = "rowbtns";
+    acts.appendChild(chipBtn("⚔ Challenge " + f.name, function () { challengeFriend(f.name); }));
+    acts.appendChild(chipBtn("Forget", function () {
+      ask("Forget " + escHtml(f.name) + " and your games together? This phone is the only place they are kept.",
+        [{ label: "Forget", fn: function () {
+            friends = Friends.forget(friends, f.id, f.id ? null : f.name);
+            Friends.save(friends, lsSet);
+            renderPeople(box, null);
+          } },
+         { label: "Keep", fn: function () {}, ghost: true }]);
+    }));
+    more.appendChild(acts);
+    f.games.forEach(function (g) {
+      var line = document.createElement("div");
+      line.className = "pgRow";
+      var plies = g.s.length;
+      line.innerHTML = '<span class="pgTx"><b>' + RESULT_WORD[g.r] + "</b> · " + (g.side === 1 ? "you had White" : "you had Black") +
+        " · " + (plies ? Math.ceil(plies / 2) + (plies > 2 ? " moves" : " move") : "") + "<small>" + escHtml(relDay(g.at)) + (g.y ? " · " + escHtml(g.y) : "") + "</small></span>";
+      if (plies) {
+        var me = prefs.name || "You";
+        var game = { sans: g.s.slice(), white: g.side === 1 ? me : f.name, black: g.side === 1 ? f.name : me,
+                     result: g.r === "d" ? "draw" : ((g.r === "w") === (g.side === 1) ? "white" : "black"),
+                     reason: g.y, clock: "none", day: "", ply: -1, ask: "", from: "" };
+        line.appendChild(chipBtn("▶ Look", function () { openShared(game); }));
+        line.appendChild(chipBtn("📨", function () { shareGame(game, "people"); }));
+      }
+      more.appendChild(line);
+    });
+    wrap.appendChild(more);
+    box.appendChild(wrap);
+    if (idx === 0 && !focus && list.length === 1) wrap.classList.add("open");
+  });
+}
+function showPeople(focus, from) {
+  peopleFrom = from || "menu";
+  hideAllOverlays();
+  renderPeople($("peopleList"), focus);
+  $("peopleMe").textContent = prefs.name ? "Kept on this phone for " + prefs.name + "." : "Kept on this phone.";
+  $("ovPeople").classList.remove("hide");
+}
+function peopleBack() {
+  $("ovPeople").classList.add("hide");
+  if (peopleFrom === "end" && over) { $("ovEnd").classList.remove("hide"); syncTurnStrip(); return; }
+  if (peopleFrom === "link") { openLink(); return; }
+  showMenu();
+}
+
+/* ----- a game you can send ----- */
+function shareName(side) {
+  if (mode === "coach") return side === humanSide ? (prefs.name || "A player") : SKILLS[skill].label;
+  if (mode === "lan") return side === lanSide ? (lanMy || prefs.name || "A player") : (lanOpp || "A friend");
+  if (mode === "review" && sharedView) return side === 1 ? sharedView.white : sharedView.black;
+  return side === 1 ? "White" : "Black";
+}
+/* the game on the board, as a sendable thing; `ply` points at one move */
+function liveGame(ply) {
+  if (!G) return null;
+  return { sans: G.played.map(function (r) { return r.san; }), white: shareName(1), black: shareName(-1),
+           result: over ? over.result : null, reason: over ? over.reason : "", clock: clockStrOf(),
+           day: mode === "review" && sharedView ? sharedView.day : "", ply: ply == null ? -1 : ply, ask: "", from: prefs.name || "" };
+}
+function openingOf(sans) {
+  var s = sans.slice(0, 36).map(function (x) { return x.replace(/[+#]$/, ""); });
+  var eco = (typeof Eco !== "undefined") ? Eco.match(s) : null, entry = Book.match(s);
+  if (eco && (!entry || eco.seq.split(" ").length >= entry.seq.split(" ").length)) return eco.name;
+  return entry ? entry.name : "";
+}
+var lastShare = null;      /* the last sheet's words, for the check */
+function shareGame(game, from) {
+  if (!game || !game.sans || (!game.sans.length && game.ply < 0)) { toast("Nothing to send yet — play a move first."); return; }
+  var at = game.day ? Date.parse(game.day + "T12:00:00") : Date.now();
+  var payload = Share.gamePayload({ sans: game.sans, white: game.white, black: game.black, result: game.result,
+    reason: game.reason, clock: game.clock, at: at, ply: game.ply, ask: game.ask, from: game.from || prefs.name });
+  Share.pack("GAME", payload).then(function (code) {
+    var url = Share.url(code);
+    var clean = Share.cleanGame(payload, Chess) || game;
+    var opening = openingOf(game.sans);
+    var text = Share.text(clean, { opening: opening, url: url });
+    lastShare = { code: code, url: url, text: text };
+    openShareCard({
+      title: game.ply >= 0 ? "Send this position" : (game.result ? "Send this game" : "Send this game so far"),
+      sub: game.ply >= 0 ? "The link opens the board at this move, with your question — their coach does the judging."
+                         : "The whole game rides in the link. It opens on any phone, ready to step through, and their own coach reads it on arrival.",
+      text: text, url: url, pgn: Share.pgn(clean, { opening: opening, site: location.host ? location.host + location.pathname : "" })
+    }, from);
+  }, function () { toast("That game wouldn't pack into a link — copy its moves from the list instead."); });
+}
+function openShareCard(o, from) {
+  shareFrom = from || null;
+  hideAllOverlays();
+  $("shareTitle").textContent = o.title;
+  $("shareSub").textContent = o.sub;
+  $("shareTx").value = o.text;
+  $("shareTx").dataset.url = o.url;
+  $("shareTx").dataset.pgn = o.pgn || "";
+  var web = /^https?:/.test(o.url);
+  var drawn = web && o.url.length <= 1600 && Net.drawQR($("shareQR"), o.url);
+  $("shareQRWrap").classList.toggle("hide", !drawn);
+  $("sharePgn").classList.toggle("hide", !o.pgn);
+  $("ovShare").classList.remove("hide");
+  snd("open");
+}
+function closeShare() {
+  $("ovShare").classList.add("hide");
+  if (shareFrom === "end" && over) { $("ovEnd").classList.remove("hide"); syncTurnStrip(); return; }
+  if (shareFrom === "menu") { showMenu(); return; }
+  if (shareFrom === "people") { $("ovPeople").classList.remove("hide"); return; }
+  syncTurnStrip();
+}
+/* a chip in the lobby for the game in progress — sent as it stands */
+function gameOpsSend(ops, hasLive) {
+  if (!hasLive || !G || !G.played.length || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
+  var row = document.createElement("div"); row.className = "rowbtns";
+  row.appendChild(chipBtn("📨 Send this game so far", function () { shareGame(liveGame(), "menu"); }));
+  ops.appendChild(row);
+}
+
+/* ----- arriving by link: always an offer, never applied behind your back ----- */
+var GAME_HASH = /#game=(GAME[01]\.[A-Za-z0-9_-]+)/;
+function offerSharedGame(delay) {
+  var m = (location.hash || "").match(GAME_HASH);
+  if (!m) return false;
+  history.replaceState(null, "", location.pathname);
+  Share.unpack(m[1]).then(function (p) {
+    var g = p && p.kind === "GAME" ? Share.cleanGame(p.obj, Chess) : null;
+    setTimeout(function () {
+      if (!g) { toast("That game link looks damaged — ask for a fresh one."); return; }
+      var from = g.from ? escHtml(g.from) : "a friend";
+      var head = "<b>" + escHtml(g.white) + " vs " + escHtml(g.black) + "</b>";
+      toast(g.ply >= 0
+        ? "📨 From " + from + ": a position from " + head + ", move " + (Math.floor(g.ply / 2) + 1) + ". Have a look?"
+        : "📨 " + head + " · " + Share.scoreText(g.result) + " · " + Math.ceil(g.sans.length / 2) + " moves — a game sent to you. Open it?",
+        [{ label: "Open", fn: function () { openShared(g); } },
+         { label: "Not now", fn: function () {}, ghost: true }], 20000);
+    }, delay || 0);
+  });
+  return true;
+}
+
+/* ----- the viewer -----
+   A sent game opens on the board as a game that has already happened:
+   the moves in the list, the names in the bar, ◀ ▶ to step, and — while
+   you look — this room's own coach reading it move by move, the same
+   reading it gives your own games, its marks landing in the list as it
+   goes. Nothing about it is saved unless you play on from it. */
+function openShared(g) {
+  if (mode === "lan" && Net.linked() && !over) { toast("Finish (or leave) the game you're linked in first — the link will keep."); return; }
+  stopTour(); quietBoard(); hideAllOverlays(); closeStudio();
+  lesson = null; lessonDone = false; lessonQueue = [];
+  teachSeen = {}; teachCool = 0; taughtAt = [];
+  reviewMemo = {}; assist = { takebacks: 0, hints: 0 }; ratedDone = true; lastEval = 0;
+  keptGame = null; reviewNames = null;   /* a kept game being looked at gives way to this one */
+  mode = "review";
+  G = Chess.create();
+  for (var i = 0; i < g.sans.length; i++) {
+    var m = Chess.fromSAN(G, g.sans[i]);
+    if (!m) break;
+    Chess.play(G, m);
+  }
+  over = g.result ? { result: g.result, reason: REASON_WORDS[g.reason] || g.reason || "" } : null;
+  sharedView = { white: g.white, black: g.black, result: g.result, reason: over ? over.reason : "", day: g.day || "",
+                 ask: g.ask || "", from: g.from || "", ply: g.ply, read: 0, total: G.played.length, done: false };
+  clearSel(); clearLines(); viewPly = -1; lastNarratedOpening = "";
+  clockConfig("none");
+  hideOpeningCard();
+  /* a position is seen from the side that has to find the move */
+  orientation = g.ply >= 0 && g.ply % 2 === 0 ? -1 : 1;
+  R.setOrientation(orientation);
+  if (FX) Fx.clear();
+  narrateOpening("", "resume");
+  var start = g.ply >= 0 ? g.ply : 0;
+  if (G.played.length) viewAt(Math.min(start, G.played.length - 1));
+  R.setPosition(currentViewBoard(), { flourish: true });
+  syncAll();
+  sharedBar();
+  snd("open");
+  readSharedGame(gameTicket);
+}
+function sharedBar() {
+  if (mode !== "review" || !sharedView) return;
+  var v = sharedView;
+  var day = v.day ? " · " + relDay(Date.parse(v.day + "T12:00:00")) : "";
+  var res = v.result ? Share.scoreText(v.result) + (v.reason ? " (" + esc(v.reason) + ")" : "") : "unfinished";
+  var said;
+  if (v.ply >= 0) said = "<b>" + esc(v.ask || (v.ply % 2 === 0 ? "Black" : "White") + " to play. What would you do?") + "</b>" +
+    (v.from ? " — from " + esc(v.from) + "." : "");
+  else said = "Step through with ◀ ▶, or tap any move in the list.";
+  var reading = voice() === "off" ? " The coach is off, so nothing is marked."
+    : (v.done ? " The coach has read it" + (Object.keys(marks).length ? " — the marked moves have a note." : ": nothing it needed to say.")
+              : " The coach is reading it… " + v.read + " of " + v.total + ".");
+  lessonUI('<div class="lkick">📨 ' + esc(v.white) + " vs " + esc(v.black) + " · " + res + day + "</div>" +
+           '<div class="lsay">' + said + (v.total ? '<small class="lread">' + reading + "</small>" : "") + "</div>");
+  lessonRow([
+    lessonChip("◀", function () { sharedStep(-1); }),
+    lessonChip("▶", function () { sharedStep(1); }),
+    lessonChip("▶ Play from here", playFromShared, true),
+    lessonChip("📨 Send", function () { shareGame(liveGame(viewPly >= 0 && v.ply >= 0 ? viewPly : v.ply), null); }),
+    lessonChip("Done", showMenu)
+  ]);
+}
+function sharedStep(d) {
+  if (!G || !G.played.length) return;
+  var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+  var to = Math.max(0, Math.min(G.played.length - 1, at + d));
+  if (to === at && viewPly >= 0 && d > 0) { exitView(); return; }
+  if (d > 0 && to === at + 1 && !REDUCED) {
+    /* one step forward is a move being played: it is seen moving */
+    var rec = G.played[to];
+    viewAt(at);
+    viewPly = to === G.played.length - 1 ? -1 : to;
+    showViewBanner(viewPly >= 0);
+    var t = Chess.create();
+    for (var i = 0; i <= to; i++) Chess.make(t, G.played[i].m);
+    var desc = animDescriptor(rec.m);
+    sndMove(desc, R.animateMove(desc, t.board, { scale: 1.3 }, function () { syncBoard(); }), rec.m.capt);
+    syncMoveList(); syncBars(); syncTurnStrip();
+    needFrame();
+    return;
+  }
+  viewAt(to);
+}
+/* the receiver's own coach reads every move, both sides, at the depth it
+   reads your games — so the marks are a second opinion, never the
+   sender's claim about their own play */
+function readSharedGame(ticket) {
+  var v = sharedView, ply = 0;
+  if (!v || voice() === "off") { if (v) { v.done = true; sharedBar(); } return; }
+  function next() {
+    if (ticket !== gameTicket || mode !== "review" || sharedView !== v) return;
+    if (ply >= G.played.length) { v.done = true; sharedBar(); return; }
+    var p = ply, pre = Chess.create();
+    for (var k = 0; k < p; k++) Chess.play(pre, G.played[k].m);
+    var want = G.played[p].m, mine = null, list = Chess.moves(pre);
+    for (var j = 0; j < list.length; j++) {
+      if (list[j].from === want.from && list[j].to === want.to && (list[j].promo || 0) === (want.promo || 0)) { mine = list[j]; break; }
+    }
+    ply++;
+    if (!mine) { next(); return; }
+    Brain.review(pre, mine, { ms: 600, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
+      if (ticket !== gameTicket || mode !== "review" || sharedView !== v) return;
+      if (res) {
+        reviewMemo[p] = { best: res.bestScore, played: res.playedScore };
+        showReview(pre, G.played[p].san, res, mine, p);
+      }
+      v.read = ply;
+      if (ply % 4 === 0 || ply >= G.played.length) sharedBar();
+      setTimeout(next, 0);
+    }, function () { if (ticket === gameTicket) setTimeout(next, 0); });
+  }
+  next();
+}
+/* Take the game over from the move on the board: against the coach (a
+   friendly game — the position was not a fair start, so it is never
+   rated) or with somebody on this screen. */
+function playFromShared() {
+  if (mode !== "review" || !G) return;
+  var upto = viewPly >= 0 ? viewPly : G.played.length - 1;
+  var sans = G.played.slice(0, upto + 1).map(function (r) { return r.san; });
+  var probe = Chess.create();
+  sans.forEach(function (s) { var m = Chess.fromSAN(probe, s); if (m) Chess.play(probe, m); });
+  if (Chess.status(probe).over) { toast("That position is already over — step back a move or two and play on from there."); return; }
+  var side = probe.turn;
+  ask("Play on from move " + (Math.floor(sans.length / 2) + 1) + ", as " + (side === 1 ? "White" : "Black") + "?",
+    [{ label: "🤖 Against the coach", fn: function () { playOnFrom("coach", sans, side); } },
+     { label: "🤝 Two players, one device", fn: function () { playOnFrom("pass", sans, side); } },
+     { label: "Not now", fn: function () {}, ghost: true }]);
+}
+function playOnFrom(kind, sans, side) {
+  sharedView = null;
+  startGame(kind, { humanSide: side, skill: nextLevel(), clockStr: "none" });
+  for (var i = 0; i < sans.length; i++) {
+    var m = Chess.fromSAN(G, sans[i]);
+    if (!m) break;
+    Chess.play(G, m);
+  }
+  /* startGame may have asked the coach for a first move from the empty
+     board; that question is about a position nobody is playing now */
+  brainTicket++; clearTimeout(coachTimer); thinking = false; Brain.cancel();
+  if (kind === "coach") ratedDone = true;     /* friendly: never rated */
+  R.setPosition(G.board);
+  syncAll();
+  narrateOpening("", "resume");
+  saveGame();
+  toast(kind === "coach"
+    ? "You're " + (side === 1 ? "White" : "Black") + ", playing on against " + SKILLS[skill].label + " — a friendly game, not rated."
+    : "Playing on from here — " + (side === 1 ? "White" : "Black") + " to move.");
+}
+function leaveSharedView() {
+  if (mode !== "review") return;
+  gameTicket++; Brain.cancel();
+  sharedView = null; mode = null;
+}
+
+function wireFriends() {
+  $("roomKeep").addEventListener("click", keepBoardOpen);
+  $("mOpenBoard").addEventListener("click", showOpenBoard);
+  $("endSend").addEventListener("click", function () { shareGame(liveGame(), "end"); });
+  $("endPeople").addEventListener("click", function () { showPeople(lanOppId || lanOpp, "end"); });
+  $("peopleBack").addEventListener("click", peopleBack);
+  $("shareBack").addEventListener("click", closeShare);
+  $("shareSend").addEventListener("click", function () {
+    var tx = $("shareTx").value, url = $("shareTx").dataset.url || "";
+    var words = tx.replace(url, "").trim();
+    if (navigator.share && /^https?:/.test(url)) navigator.share({ title: "A chess game", text: words, url: url }).catch(function () {});
+    else clip(tx);
+  });
+  $("shareCopy").addEventListener("click", function () { clip($("shareTx").value); });
+  $("sharePgn").addEventListener("click", function () { clip($("shareTx").dataset.pgn || ""); });
+  ["ovShare", "ovPeople"].forEach(function (id) {
+    $(id).addEventListener("click", function (e) { if (e.target === this) (id === "ovShare" ? closeShare : peopleBack)(); });
+  });
+  /* Escape backs out of these two the way their own buttons do — ahead
+     of the room's general Escape, which would go to the lobby */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || askCancel) return;
+    if (!$("ovShare").classList.contains("hide")) { closeShare(); e.stopImmediatePropagation(); }
+    else if (!$("ovPeople").classList.contains("hide")) { peopleBack(); e.stopImmediatePropagation(); }
+  }, true);
+}
+
 /* ===== opening stories (the tour) ===== */
 function buildOpeningList() {
   var box = $("openingList");
@@ -3179,6 +4555,7 @@ function quietBoard() {
   clearTimeout(coachTimer); thinking = false; hintPending = false;
   closePromo(); hideToast(); clearLines();
   clearNotes(); showPanelTab("moves");
+  ink = Ink.create();
   if (R && R.resetView) R.resetView();
 }
 function startTour(line) {
@@ -3186,7 +4563,7 @@ function startTour(line) {
   quietBoard();
   mode = "tour";
   G = Chess.create();
-  over = null; clearSel(); hintArrow = null; viewPly = -1;
+  over = null; clearSel(); viewPly = -1;
   clockConfig("none");
   orientation = 1;
   R.setOrientation(1);
@@ -3243,7 +4620,7 @@ function tourPlayOn() {
   /* the book's moves were nobody's: a fresh, rated game from here, against
      the coach that gives you a fair fight */
   mode = "coach"; humanSide = side; skill = nextLevel();
-  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0; progressNewGame();
   orientation = side; R.setOrientation(side);
   syncAll(); saveGame();
   toast("You're " + (side === 1 ? "White" : "Black") + ", picking up where the book ends, against " + SKILLS[skill].label + ".");
@@ -3390,29 +4767,320 @@ function oddsNudge() {
   if (!pick) return;
   oddsLastNudge = G.played.length;
   oddsNudged++;
-  if (pick.squares && pick.squares.length) {
-    R.setNet(pick.concept === "backRank" ? [] : []);
-    showLines([{ from: pick.squares[0], to: pick.squares[Math.min(1, pick.squares.length - 1)],
-                 kind: pick.concept === "hanging" ? "threat" : "ghost" }], 5200);
+  /* drawn only on the live board: a nudge is about the position in play,
+     not one being looked back at */
+  if (pick.squares && pick.squares.length && viewPly < 0) {
+    /* a back rank's squares come as [landing, king, other landings…]:
+       the landings are the net, the line runs from the first to the king */
+    var net = pick.concept === "backRank" ? [pick.squares[0]].concat(pick.squares.slice(2)) : [];
+    if (R2 && R2.setNet) R2.setNet(net);
+    if (R3 && R3.setNet) R3.setNet(net);
+    var nTo = pick.squares[Math.min(1, pick.squares.length - 1)];
+    showLines([{ from: pick.squares[0], to: nTo, kind: pick.concept === "hanging" ? "threat" : "ghost",
+                 tone: pick.concept === "hanging" ? "threat" : "hint", knight: knightHop(pick.squares[0], nTo) }], 5200, "main");
   }
   toast("🫱 " + pick.text + " <i>(free — you're behind)</i>", null, 7000);
 }
 
-/* ---- the lines on the board ---- */
-var lineTimer = 0;
-function showLines(list, ms) {
-  if (R.setLines) R.setLines(list);
-  if (R2 && R2.setLines) R2.setLines(list);
-  if (R3 && R3.setLines) R3.setLines(list);
-  clearTimeout(lineTimer);
-  needFrame();
-  if (ms) lineTimer = setTimeout(clearLines, ms);
+/* ---- the lines on the board ----
+   Every line the room draws goes through here, in layers, each with its
+   own timer: a hint ("main"), a remark or a note ("teach"), a lesson's
+   answer, the look-back's lines ("review"), the line behind a hint
+   ("pv"), and room for what comes later. A free nudge arriving while a
+   hint is up no longer wipes the hint; both stay, and each goes when it
+   is done. The boards get the union, in this order, the later on top.
+   `clearLines()` with no layer is the old clean sweep (a move, a new
+   game, a take-back), and takes the mate net with it. */
+var LINE_LAYERS = ["review", "lesson", "teach", "help", "ideas", "pv", "sight", "main"];
+var lineLayers = {}, lineTimers = {};
+function showLines(list, ms, key) {
+  key = key || "main";
+  clearTimeout(lineTimers[key]);
+  lineLayers[key] = list || [];
+  if (ms) lineTimers[key] = setTimeout(function () { clearLines(key); }, ms);
+  pushLines();
 }
-function clearLines() {
-  clearTimeout(lineTimer);
-  if (R2 && R2.setLines) { R2.setLines([]); R2.setNet([]); }
-  if (R3 && R3.setLines) { R3.setLines([]); R3.setNet([]); }
+function clearLines(key) {
+  if (key == null) {
+    for (var k in lineTimers) clearTimeout(lineTimers[k]);
+    lineLayers = {}; lineTimers = {};
+    if (R2 && R2.setNet) R2.setNet([]);
+    if (R3 && R3.setNet) R3.setNet([]);
+  } else {
+    clearTimeout(lineTimers[key]);
+    delete lineLayers[key]; delete lineTimers[key];
+  }
+  pushLines();
+}
+function pushLines() {
+  var all = [];
+  for (var i = 0; i < LINE_LAYERS.length; i++) if (lineLayers[LINE_LAYERS[i]]) all = all.concat(lineLayers[LINE_LAYERS[i]]);
+  if (R2 && R2.setLines) R2.setLines(all);
+  if (R3 && R3.setLines) R3.setLines(all);
   needFrame();
+}
+/* a knight's line arcs over the traffic, so whoever draws one says so */
+function knightHop(a, b) {
+  var df = Math.abs((a & 7) - (b & 7)), dr = Math.abs((a >> 4) - (b >> 4));
+  return (df === 1 && dr === 2) || (df === 2 && dr === 1);
+}
+
+/* ===================== the pen =====================
+   Your own arrows and rings (ink.js keeps them, the boards draw them).
+   Hold a square and drag on a phone, or right-drag with a mouse: a
+   ribbon grows under your finger and snaps to the square you reach; let
+   go where you started and it is a ring instead; draw the same shape
+   again to rub it out. The board decides what you meant — a stroke from
+   one of their men is a threat, anything else your plan — and on a desk
+   Shift and Alt say it outright.
+
+   A drawing belongs to the position it was made on: play on and the
+   live board is clean, step back and it is exactly where you left it,
+   reload and it is still there. There is no toolbar and no colour to
+   pick — the skin's plan colour is the pen. */
+var PEN_HOLD_MS = 420;
+var ink = Ink.create(), pen = null;
+/* the two pen preferences are read here rather than in the list above,
+   so the pen can be taken out in one piece: on unless switched off, and
+   whether the one-time word about it has been said */
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.pen = p.pen !== false;
+  prefs.sawPen = p.sawPen === true;
+})();
+/* which position is on the board: 0 is the start, n is after n moves */
+function posIndex() { return !G ? 0 : viewPly >= 0 ? viewPly + 1 : G.played.length; }
+function penActive() { return !!pen; }
+function penMod(e) { return e && e.shiftKey ? 1 : e && e.altKey ? 0 : null; }
+function penTone() { return (pen.mod != null ? pen.mod : pen.t) ? "threat" : "plan"; }
+function penTap() {
+  if (prefs.sound && typeof Sound !== "undefined" && Sound.tap) { try { Sound.tap(6, 0.8); } catch (e) {} }
+}
+/* the pen comes down: a man that was in the hand settles back quietly */
+function penStart(sq, mod) {
+  if (!G || sq == null || sq < 0) return false;
+  if (sel >= 0) { clearSel(); syncBoard(); }
+  pen = { from: sq, to: sq, t: Ink.toneFor(currentViewBoard(), sq, mySide()), mod: mod };
+  if (R.setSketch) R.setSketch({ from: sq, to: sq, tone: penTone() });
+  hap("select"); penTap();
+  needFrame();
+  return true;
+}
+/* …follows the finger, a detent at each square the head crosses onto… */
+function penTo(sq) {
+  if (!pen || sq === pen.to) return;
+  pen.to = sq;
+  if (R.setSketch) R.setSketch({ from: pen.from, to: sq >= 0 ? sq : pen.from, tone: penTone() });
+  if (sq >= 0) hap("hover");
+  needFrame();
+}
+/* …and is lifted: the shape is set (or rubbed out) on this position */
+function penEnd(commit) {
+  if (!pen) return;
+  var p = pen; pen = null;
+  if (R.setSketch) R.setSketch(null);
+  needFrame();
+  if (!commit || !G) return;
+  var to = p.to < 0 ? p.from : p.to;
+  var got = Ink.toggle(ink, posIndex(), { from: p.from, to: to, t: p.mod != null ? p.mod : p.t });
+  syncInk();
+  hap("tick"); penTap();
+  saveGame();
+  if (got === "full") toast("That is as much as one position holds — tap an empty square to clear it.");
+  else if (got === "added" && !prefs.sawPen) {
+    prefs.sawPen = true; savePrefs();
+    toast("✎ Your arrows stay with this position. Tap an empty square to clear them.", null, 6000);
+  }
+}
+/* the drawing of the position on the board, on both boards, and the
+   small pill that says it is there and takes it away */
+function syncInk() {
+  var list = G ? Ink.at(ink, posIndex()).map(function (sh) {
+    return { from: sh.from, to: sh.to, tone: sh.t ? "threat" : "plan" };
+  }) : [];
+  if (R2 && R2.setInk) R2.setInk(list);
+  if (R3 && R3.setInk) R3.setInk(list);
+  var pill = $("inkPill");
+  if (pill) {
+    pill.classList.toggle("hide", !list.length);
+    $("inkCount").textContent = String(list.length);
+  }
+}
+function clearInkHere() {
+  if (!G || !Ink.clear(ink, posIndex())) return false;
+  syncInk(); hap("tick"); saveGame(); needFrame();
+  return true;
+}
+function syncPenSetting() {
+  var b = $("setPen");
+  if (!b) return;
+  b.classList.toggle("sel", prefs.pen);
+  b.textContent = prefs.pen ? "On" : "Off";
+}
+function wirePen() {
+  $("inkClear").addEventListener("click", function () { clearInkHere(); });
+  $("setPen").addEventListener("click", function () { prefs.pen = !prefs.pen; savePrefs(); syncPenSetting(); });
+}
+
+/* ===================== the line behind the words =====================
+   Every sentence the coach says that names a move can be drawn: the
+   better move on the position *before* the slip (where its squares are
+   true), the problem it ran into on the position *after* (where the
+   piece that punishes it is actually standing), and the line behind a
+   hint, a ply at a time. Nothing is drawn that the room has not already
+   said in words — the notebook, the mark, the toast — and no line ever
+   starts on an empty square, because each is drawn only on the position
+   it is true of. At most three on the board at once, all in kinds the
+   grammar already has: a ghost for what you did, a run for what was
+   better, a threat for what hits you. */
+var BAD_MARK = { "??": 1, "?": 1, "?!": 1 };
+/* what a review named, as squares: the better move, and the reply that
+   punishes the one played (Brain.review only finds one when it cost a
+   pawn or more) */
+function reviewEntry(pre, mine, res) {
+  var e = { best: res.bestScore, played: res.playedScore, bm: null, rf: null };
+  if (res.best && Chess.onBoard(res.best.from) && Chess.onBoard(res.best.to)) e.bm = [res.best.from, res.best.to];
+  if (res.refute && res.refute.san) {
+    try {
+      var after = Chess.create(Chess.fen(pre));
+      Chess.play(after, mine);
+      var rm = Chess.fromSAN(after, res.refute.san);
+      if (rm) e.rf = [rm.from, rm.to];
+    } catch (err) { e.rf = null; }
+  }
+  return e;
+}
+/* the save: [ply, best, played, bmFrom, bmTo, rfFrom, rfTo], -1 for none.
+   An older save's three-long entries still read, with no squares. */
+function rvPack(k) {
+  var r = reviewMemo[k], bm = r.bm || [-1, -1], rf = r.rf || [-1, -1];
+  return [k, r.best, r.played, bm[0], bm[1], rf[0], rf[1]];
+}
+function rvUnpack(t, plies) {
+  if (!Array.isArray(t) || (t.length !== 3 && t.length !== 7)) return;
+  if (typeof t[0] !== "number" || t[0] !== (t[0] | 0) || t[0] < 0 || t[0] >= plies) return;
+  if (typeof t[1] !== "number" || typeof t[2] !== "number" || !isFinite(t[1]) || !isFinite(t[2])) return;
+  /* a pair of squares, or none (-1, -1); anything else is a save that
+     lies, and the entry goes rather than a line to nowhere */
+  var bad = false, sq = function (a, b) {
+    if (a === -1 && b === -1) return null;
+    if (typeof a === "number" && typeof b === "number" && a === (a | 0) && b === (b | 0) &&
+        a >= 0 && b >= 0 && a < 128 && b < 128 && Chess.onBoard(a) && Chess.onBoard(b)) return [a, b];
+    bad = true; return null;
+  };
+  var bm = t.length === 7 ? sq(t[3], t[4]) : null, rf = t.length === 7 ? sq(t[5], t[6]) : null;
+  if (!bad) reviewMemo[t[0]] = { best: t[1], played: t[2], bm: bm, rf: rf };
+}
+/* the mark a move carries: the coach's, or — for a game nobody reviewed
+   aloud, like a clocked one — the one the look-back's numbers give it,
+   by the same yardstick the end card counts with */
+function markAt(ply) {
+  if (voice() === "off") return null;
+  if (marks[ply]) return marks[ply];
+  var r = reviewMemo[ply];
+  if (!r || r.best < -650 || r.played > 650) return null;
+  var loss = r.best - r.played;
+  return loss >= 250 ? "??" : loss >= 110 ? "?" : null;
+}
+function markedPlies() {
+  var out = [];
+  if (!G) return out;
+  for (var p = 1; p < G.played.length; p++) if (markAt(p)) out.push(p);
+  return out;
+}
+/* the lines for one position (0 = the start, n = after n moves) */
+function reviewLinesFor(pos) {
+  var out = [];
+  if (!G) return out;
+  var here = reviewMemo[pos], mk = markAt(pos), rec = G.played[pos];
+  if (here && mk && rec) {
+    if (mk === "!" || mk === "!!") out.push({ sq: rec.m.to, kind: "ring", tone: "hint" });
+    else if (here.bm && !(here.bm[0] === rec.m.from && here.bm[1] === rec.m.to)) {
+      out.push({ from: rec.m.from, to: rec.m.to, kind: "ghost", tone: "hint", knight: knightHop(rec.m.from, rec.m.to) });
+      out.push({ from: here.bm[0], to: here.bm[1], kind: "run", tone: "hint", knight: knightHop(here.bm[0], here.bm[1]) });
+    }
+  }
+  var prev = reviewMemo[pos - 1], pm = markAt(pos - 1);
+  if (prev && prev.rf && BAD_MARK[pm]) out.push({ from: prev.rf[0], to: prev.rf[1], kind: "threat", tone: "threat", knight: knightHop(prev.rf[0], prev.rf[1]) });
+  return out;
+}
+/* the refutation, live, for as long as the toast that names it — while
+   the board still shows the position right after the move it punishes */
+function drawRefutation(ply, ms) {
+  var r = reviewMemo[ply];
+  if (!G || !r || !r.rf || viewPly >= 0 || G.played.length !== ply + 1) return;
+  showLines([{ from: r.rf[0], to: r.rf[1], kind: "threat", tone: "threat", knight: knightHop(r.rf[0], r.rf[1]) }], ms, "review");
+}
+/* "Show me": the position before the slip, your move faint and the better
+   one drawn; → steps on to the problem, → again back to the game */
+function showMeReview(ply) {
+  if (!G || !G.played[ply]) return;
+  if (ply > 0) viewAt(ply - 1);
+}
+/* Looking back: the lines that belong to this position, the remark that
+   belongs to it in the banner, and a way to walk from one marked move to
+   the next. The room's other lines (a hint, a nudge, a note's arrow) are
+   about some other position, so they go. */
+function syncLookBack() {
+  clearLines("main"); clearLines("pv"); clearLines("teach"); clearLines("review");
+  if (G && viewPly >= 0) {
+    var lines = reviewLinesFor(viewPly + 1);
+    if (lines.length) showLines(lines, 0, "review");
+  }
+  syncViewBanner();
+}
+function noteBriefFor(ply) {
+  for (var i = notes.length - 1; i >= 0; i--) if (notes[i].ply === ply && notes[i].mark) return stripTags(notes[i].brief || notes[i].text);
+  return "";
+}
+function syncViewBanner() {
+  var txt = $("vbText"), nav = $("reviewNav");
+  if (!txt || !nav) return;
+  var looking = G && viewPly >= 0;
+  var said = looking ? noteBriefFor(viewPly + 1) || noteBriefFor(viewPly) : "";
+  txt.textContent = said ? said + " \u00b7 tap to return" : "Looking back \u2014 tap to return \u00b7 hold a square to draw";
+  var marked = looking ? markedPlies() : [];
+  nav.innerHTML = "";
+  nav.classList.toggle("hide", !marked.length);
+  if (!marked.length) return;
+  var here = viewPly + 1, idx = marked.indexOf(here);
+  var prev = null, next = null, i;
+  for (i = marked.length - 1; i >= 0; i--) if (marked[i] < here) { prev = marked[i]; break; }
+  for (i = 0; i < marked.length; i++) if (marked[i] > here) { next = marked[i]; break; }
+  var chip = function (label, to, aria) {
+    var b = document.createElement("button");
+    b.className = "lchip"; b.textContent = label; b.setAttribute("aria-label", aria);
+    if (to == null) b.disabled = true;
+    else b.addEventListener("click", function (e) { e.stopPropagation(); viewAt(Math.max(0, to - 1)); });
+    return b;
+  };
+  nav.appendChild(chip("\u25c0", prev, "The previous move worth a second look"));
+  var n = document.createElement("span");
+  n.className = "rnN"; n.textContent = (idx >= 0 ? idx + 1 : "\u00b7") + " of " + marked.length;
+  nav.appendChild(n);
+  nav.appendChild(chip("\u25b6", next, "The next move worth a second look"));
+}
+/* the line a hint is counting on, as moves on a scratch board */
+function pvLine(pv) {
+  var out = [];
+  try {
+    var g = Chess.create(Chess.fen(G));
+    for (var i = 0; i < pv.length && i < 6; i++) {
+      var m = Chess.fromSAN(g, pv[i]);
+      if (!m) break;
+      out.push(m); Chess.play(g, m);
+    }
+  } catch (e) { return out; }
+  return out;
+}
+/* …drawn a ply at a time: theirs coming at you, yours as a ghost */
+function showPV(moves) {
+  if (!G || viewPly >= 0) return;
+  showLines(moves.slice(1, 4).map(function (m, i) {
+    return { from: m.from, to: m.to, kind: i % 2 ? "ghost" : "threat", tone: i % 2 ? "hint" : "threat",
+             delay: i * 260, knight: Math.abs(m.piece) === Chess.N };
+  }), 7000, "pv");
 }
 /* the mate net: every square around the king that is denied to it */
 function showMateNet(side) {
@@ -3474,10 +5142,9 @@ function teachMoment(list, mover, source, ply) {
     teachSeen[item.concept] = shown + 1;
     taughtAt.push({ concept: item.concept, ply: ply });
     teachCool = major ? 0 : 2;
-    if (item.squares && item.squares.length >= 2) {
-      hintArrow = [item.squares[0], item.squares[1]];
-      syncBoard();
-      setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
+    if (item.squares && item.squares.length >= 2 && viewPly < 0) {
+      showLines([{ from: item.squares[0], to: item.squares[1], kind: "run", tone: "hint",
+                   knight: knightHop(item.squares[0], item.squares[1]) }], 4200, "teach");
     }
     /* Named, kept, and re-readable. Naming is what turns a thing that
        happened into a pattern you can recognise again, and keeping it is
@@ -3528,7 +5195,7 @@ function renderAcademy() {
   var p = Learn.load(), st = Learn.stats(p);
   $("aSolved").textContent = st.solved + "/" + st.total;
   $("aDue").textContent = st.due;
-  $("aStreak").textContent = st.streak;
+  $("aStreak").textContent = streakDays();
   $("aPractise").classList.toggle("hide", st.due === 0);
   $("aPractiseSub").textContent = st.due + " idea" + (st.due === 1 ? "" : "s") + " ready to come back.";
   var nx = Learn.next(p);
@@ -3584,7 +5251,7 @@ function startLesson(L, queue) {
   G = Chess.create(L.fen);
   lessonPrev = null;
   clockConfig("none");
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   orientation = L.side;
   R.setOrientation(orientation);
   R.setPosition(G.board, { flourish: true });
@@ -3660,6 +5327,8 @@ function showWorkedExample() {
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
     var wPlan = R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
+      /* Leave was tapped while the man was still moving: nothing to show */
+      if (mode !== "lesson" || lesson !== L0) return;
       lessonUI('<div class="lkick">Watch first</div>' +
         '<div class="lask">' + esc(lesson.best) + '</div>' +
         '<div class="lsay">' + lesson.why + '</div>');
@@ -3716,11 +5385,11 @@ function giveLessonHint() {
 function revealLesson() {
   var m = Chess.fromSAN(G, lesson.best);
   lessonRevealed = true;
-  if (m) { hintArrow = [m.from, m.to]; syncBoard(); }
+  if (m) showLines([{ from: m.from, to: m.to, kind: "run", tone: "hint", knight: Math.abs(m.piece) === Chess.N }], 0, "lesson");
   lessonUI('<div class="lkick">The answer</div><div class="lask">' + esc(lesson.best) + '</div>' +
     '<div class="lsay">' + lesson.why + '</div>');
   lessonRow([lessonChip("Let me play it", function () {
-    hintArrow = null; syncBoard(); askLesson();
+    clearLines("lesson"); askLesson();
   }, true), lessonChip("Leave", exitLesson)]);
   /* the arrow is on the board; the board is still the question, so it
      can be played straight from here */
@@ -3737,7 +5406,7 @@ function lessonAttempt(m) {
   var before = Chess.fen(G);
   var g2 = Chess.create(before);
   Chess.play(g2, m);
-  hintArrow = null;
+  clearLines("lesson");
 
   if (verdict.ok) {
     lessonDone = true;
@@ -4073,7 +5742,7 @@ function adoptSkin(s) {
 
 /* ===== overlays & menus ===== */
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile"].forEach(function (id) {
+  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile", "ovShare", "ovPeople"].forEach(function (id) {
     $(id).classList.add("hide");
   });
   /* the picker is not just hidden but closed: a picker that is hidden
@@ -4086,8 +5755,12 @@ function showMenu() {
   closeStudio();
   if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
+  if (mode === "review") { keptGame = null; reviewNames = null; }
+  leaveSharedView();
+  if (mode === "review") mode = null;
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   hideAllOverlays();
+  syncOpenBoard();
   var lp = Learn.stats(Learn.load());
   $("mAcademySub").textContent = lp.solved
     ? "Learned " + lp.solved + " of " + lp.total + (lp.due ? " · " + lp.due + " due" : "")
@@ -4138,6 +5811,7 @@ function showMenu() {
     }));
     ops.appendChild(row);
   }
+  gameOpsSend(ops, hasLive);
   $("ovMenu").classList.remove("hide");
   snd("open");
 }
@@ -4249,6 +5923,7 @@ function wireInput() {
   var stage = $("stage");
   var pts = new Map(), downSq = -1, downXY = null, dragging = false, pinchD = 0;
   var carry = null;      /* { from, picked } while a press began on a man of the side to move */
+  var holdT = 0;         /* a finger held still long enough becomes a pen (see penStart) */
   function local(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   function ownMan(sq) {
     if (!G || sq < 0 || !canActNow(true)) return false;
@@ -4264,10 +5939,10 @@ function wireInput() {
     /* anything you can press that happens to sit on the stage — a lesson's
        buttons, the clock, a question — is not the board. Capturing the
        pointer for those used to swallow every mouse click on them. */
-    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, button, a")) return;
+    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, #inkPill, button, a")) return;
     /* a remark lying over the board goes as soon as the board is
        touched; the notebook has kept it */
-    if (!$("toast").classList.contains("acts")) hideToast();
+    if (!$("toast").classList.contains("acts") || $("toast").classList.contains("lamp")) hideToast();
     /* the first touch is the gesture a browser wants before it will
        start an audio clock at all. A synth that cannot start is a
        silent board, never a board that ignores the tap. */
@@ -4279,14 +5954,35 @@ function wireInput() {
       var at = local(e);
       downSq = R.screenToSquare(at.x, at.y);
       carry = null;
+      clearTimeout(holdT);
+      /* the right button is the pen, at once: it never picks a man up
+         and never turns the camera (that stays on the left button) */
+      if (e.button === 2) {
+        penStart(downSq, penMod(e));
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
       if (viewPly < 0 && ownMan(downSq)) {
         /* already in hand: the release decides (a tap puts it down) */
         var already = sel === downSq;
         if (!already) { tapSquare(downSq); }
         carry = { from: downSq, picked: !already };
       }
+      /* a finger held still becomes the pen; one that moves first is a
+         carry or a turn of the board, as it always was */
+      if (e.pointerType !== "mouse" && prefs.pen && downSq >= 0) {
+        var heldSq = downSq;
+        holdT = setTimeout(function () {
+          holdT = 0;
+          if (pts.size !== 1 || dragging) return;
+          if (carry) { dropCarry(); carry = null; }
+          penStart(heldSq, null);
+        }, PEN_HOLD_MS);
+      }
     } else if (pts.size === 2) {
-      /* a second finger means zoom, never a move */
+      /* a second finger means zoom, never a move — and never a drawing */
+      clearTimeout(holdT);
+      if (penActive()) penEnd(false);
       if (carry) { dropCarry(); carry = null; }
       var arr = Array.from(pts.values());
       pinchD = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
@@ -4306,9 +6002,16 @@ function wireInput() {
       needFrame();
       return;
     }
+    if (penActive()) {
+      /* the head reads the wood, not the men: a tall piece leaning into
+         the pointer must not steal the square you are reaching for */
+      var pat = local(e);
+      penTo(R.screenToSquare(pat.x, pat.y, { plane: true }));
+      return;
+    }
     if (!downXY) return;
     var dx = e.clientX - downXY.x, dy = e.clientY - downXY.y;
-    if (!dragging && Math.hypot(dx, dy) > 9) dragging = true;
+    if (!dragging && Math.hypot(dx, dy) > 9) { dragging = true; clearTimeout(holdT); }
     if (!dragging) return;
     if (carry && sel === carry.from) {
       /* the piece goes with the finger; the square it is over is the
@@ -4334,6 +6037,15 @@ function wireInput() {
     var last = pts.get(e.pointerId);
     pts.delete(e.pointerId);
     if (pts.size > 0) return;
+    clearTimeout(holdT);
+    /* a stroke ends where the finger lifts — keyed off the pen itself,
+       not the button, which some trackpads report differently on the
+       way up */
+    if (penActive()) {
+      penEnd(e.type !== "pointercancel");
+      carry = null; downSq = -1; downXY = null; dragging = false; pinchD = 0;
+      return;
+    }
     if (carry) {
       var c = carry; carry = null;
       if (dragging && last && e.type !== "pointercancel") {
@@ -4356,6 +6068,8 @@ function wireInput() {
   }
   stage.addEventListener("pointerup", up);
   stage.addEventListener("pointercancel", up);
+  /* the board is a page you draw on: no menu ever opens over it */
+  stage.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   stage.addEventListener("wheel", function (e) {
     if (R.zoom) { R.zoom(e.deltaY > 0 ? 1.07 : 0.93); needFrame(); e.preventDefault(); }
   }, { passive: false });
@@ -4371,10 +6085,10 @@ function syncButtons() {
   /* Undo needs a move of yours to take back; after the end of a game
      between two people on one screen it stays, because that is exactly
      when a person playing both sides wants to try the other line */
-  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" &&
+  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" && mode !== "review" &&
     (!over || (mode === "pass" && !/out of time/.test(over.reason))) && (mode !== "coach" || humanMovesMade() > 0);
   $("btnUndo").toggleAttribute("disabled", !canUndo);
-  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || hintPending);
+  $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || mode === "review" || hintPending);
   $("btnReplay").toggleAttribute("disabled", !G || !G.played.length || thinking);
 }
 
@@ -4389,6 +6103,7 @@ function syncOddsUI() {
   lbl.textContent = oddsLabel(G.turn);
   lbl.className = "hintCost " + o.mood;
   lbl.title = o.why;
+  if (o.mood === "ahead") helpTip("price", function () { return $("btnHint"); });
 }
 
 /* ===== settings ===== */
@@ -4420,9 +6135,11 @@ function syncSettingsUI() {
   $("setHapticsNote").classList.toggle("hide", HAP && Haptics.supported() !== "none");
   $("setHelpers").classList.toggle("sel", prefs.helpers);
   $("setHelpers").textContent = prefs.helpers ? "On" : "Off";
+  syncPenSetting();
   $("ckSimple").classList.toggle("sel", prefs.clockSkin === "simple");
   $("ckClassic").classList.toggle("sel", prefs.clockSkin === "classic");
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
+  syncHelpSettings();
 }
 
 /* the two ways a configured game begins, shared by the menu and the
@@ -4433,7 +6150,7 @@ function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.s
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -4452,6 +6169,7 @@ function wireUI() {
   $("btnMenu").addEventListener("click", showMenu);
   $("btnUndo").addEventListener("click", undoSmart);
   $("btnHint").addEventListener("click", giveHint);
+  wireHelp();
   $("btnReplay").addEventListener("click", replayLast);
   $("btnFlip").addEventListener("click", function () {
     orientation = -orientation;
@@ -4473,6 +6191,7 @@ function wireUI() {
   $("mPlay").addEventListener("click", function () { quickPlay(); });
   $("mRating").addEventListener("click", showProfile);
   $("pfBack").addEventListener("click", showMenu);
+  wireProgression();
   $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
@@ -4532,6 +6251,7 @@ function wireUI() {
       var open = ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].filter(function (id) { return !$(id).classList.contains("hide"); });
       if (open.length) { showMenu(); return; }
       if (!$("ovMenu").classList.contains("hide") && G && mode) { hideAllOverlays(); return; }
+      if (clearInkHere()) return;
       if (viewPly >= 0) exitView();
       return;
     }
@@ -4541,6 +6261,7 @@ function wireUI() {
     else if (e.key === "ArrowRight") { if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); } e.preventDefault(); }
     else if (e.key === "Home") { viewAt(0); e.preventDefault(); }
     else if (e.key === "End") { if (viewPly >= 0) exitView(); e.preventDefault(); }
+    else if (e.key === "?") { showWhy(at); e.preventDefault(); }
   });
   $("resultChip").addEventListener("click", function () { if (over) { exitView(); $("ovEnd").classList.remove("hide"); } });
 
@@ -4550,9 +6271,11 @@ function wireUI() {
     $("ovEnd").classList.add("hide");
     var down = fxDown;
     fxCalm(); fxDown = down;      /* the light goes; the fallen king comes back with the final position */
-    if (G && G.played.length) viewAt(0);
+    var marked = G ? markedPlies() : [];
+    if (G && G.played.length) viewAt(marked.length ? Math.max(0, marked[0] - 1) : 0);
     syncTurnStrip();
-    toast("Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
+    toast(marked.length ? "\u25c0 \u25b6 step between the moves worth a second look \u2014 or tap any move in the list. 🏁 Result brings the card back."
+                        : "Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
   });
   $("endMenu").addEventListener("click", showMenu);
 
@@ -4595,6 +6318,7 @@ function wireUI() {
     hap("select");      /* switched on, it says so the only way it can */
   });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
+  wirePen();
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
   $("ckClassic").addEventListener("click", function () { prefs.clockSkin = "classic"; savePrefs(); syncSettingsUI(); });
   $("setBack").addEventListener("click", showMenu);
@@ -4642,7 +6366,7 @@ function wireUI() {
   $("roomShare").addEventListener("click", function () {
     var code = $("roomCode").textContent.trim();
     if (!Room.looksLikeCode(code)) { toast("The code isn't ready yet — one moment."); return; }
-    share(Net.url(code));
+    shareChallenge(code);
   });
   $("roomOther").addEventListener("click", hostByHandshake);
   $("joinOther").addEventListener("click", joinByHandshake);
@@ -4730,8 +6454,10 @@ var JOIN_HASH = /#join=(CHESS(?:1|2)\.[A-Za-z0-9_-]+|[A-Za-z]{4})(?:$|&)/;
 function wireHashLinks() {
   window.addEventListener("hashchange", function () {
     if (offerSharedSkin(0)) return;
+    if (offerSharedGame(0)) return;
     var j = location.hash.match(JOIN_HASH);
     if (j) {
+      takeJoinExtras(location.hash);
       history.replaceState(null, "", location.pathname);
       openLink();
       joinFlow(j[1]);
@@ -4860,6 +6586,7 @@ function boot() {
   Room.configure({ game: "chess", seats: 2, label: "board" });
   wireUI();
   lanHandlers();
+  wireFriends();
   initRenderers();
   fxInit();
   applySkin(skin, false);
@@ -4877,12 +6604,15 @@ function boot() {
 
   /* somebody shared a board look with you */
   offerSharedSkin(1200);
+  /* …or a game, or one moment of one */
+  offerSharedGame(1400);
 
   /* arriving by invite link? straight into the join flow */
   var joinM = location.hash.match(JOIN_HASH);
   setTimeout(function () {
     $("splash").classList.add("gone");
     if (joinM) {
+      takeJoinExtras(location.hash);
       history.replaceState(null, "", location.pathname);
       openLink();
       joinFlow(joinM[1]);
@@ -4923,5 +6653,25 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
-  rejoinLan: rejoinLan, syncNetChip: syncNetChip };
+  rejoinLan: rejoinLan, syncNetChip: syncNetChip,
+  /* friends, for chess/tools/friends-check.js and share-check.js */
+  Share: Share, Friends: Friends, get friends() { return friends; }, get lanOppId() { return lanOppId; },
+  get sharedView() { return sharedView; }, get lastShare() { return lastShare; }, get viewPly() { return viewPly; },
+  shareGame: shareGame, liveGame: liveGame, openShared: openShared, challengeFriend: challengeFriend,
+  showPeople: showPeople, showMenu: showMenu,
+  /* the pen, for chess/tools/ink-check.js: a check that cannot hold a
+     finger down can still draw through the same door the finger does */
+  inkForTest: function (pos) { return Ink.at(ink, pos == null ? posIndex() : pos); },
+  penForTest: function (from, to, t) {
+    var got = Ink.toggle(ink, posIndex(), { from: from, to: to == null ? from : to, t: t ? 1 : 0 });
+    syncInk(); saveGame(); needFrame(); return got;
+  },
+  posIndexForTest: function () { return posIndex(); }, PEN_HOLD_MS: PEN_HOLD_MS,
+  /* the coach's reviews with the squares they name, for lookback-check.js */
+  reviewMemoForTest: function () { return reviewMemo; },
+  /* a machine drawing in software can take longer than a held finger to
+     deliver a quick tap; a check that means "a tap" can say so */
+  penHoldForTest: function (ms) { PEN_HOLD_MS = ms > 0 ? ms : 420; } };
+helpTestHooks(window.__cr);
+Object.assign(window.__cr, progressionForTest());
 })();

@@ -152,8 +152,26 @@ function derive(skin) {
     dot: rgba(m.legal, 0.48), ring: rgba(m.capture, 0.66),
     checkCore: rgba(m.check, 0.58), checkEdge: rgba(m.check, 0),
     hint: m.hint,
+    /* every line the room draws, coloured by what it means rather than
+       by who drew it (see lines.js): the room's own lines keep exactly
+       the colours they always had; your pen gets the skin's plan colour,
+       and a friend's the same pen pushed back toward the room */
+    tone: {
+      hint: m.hint, threat: rgba(m.capture, 0.66), lane: rgba(m.last, 0.50),
+      plan: m.plan || m.hint, sight: m.hint,
+      theirs: (function () {
+        var c = mixRgb(rgbOf(m.plan || m.hint), rgbOf((skin.room && skin.room.bg) || "#000000"), 0.4);
+        return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+      })()
+    },
+    /* solid versions of the two pen tones, for a heat tint under the men */
+    planHex: m.plan || m.hint, captureHex: m.capture,
     /* the marks themselves, for the soft light drawn in them */
     legalHex: m.legal, captHex: m.capture, selectHex: m.select, lastHex: m.last, checkHex: m.check,
+    /* the training wheels' warning: a skin may name its own, and
+       otherwise it is the colour the board already uses for a king in
+       danger */
+    dangerHex: m.danger || m.check,
     wFill: p.white, wLine: shade(p.white, luma(p.white) > 0.5 ? -0.68 : -0.35),
     bFill: p.black, bLine: shade(p.black, luma(p.black) > 0.5 ? -0.7 : -0.55),
     wEdge: shade(p.white, 0.55), bEdge: shade(p.black, 0.5),
@@ -420,12 +438,15 @@ function create(canvas) {
     skin: null, pal: null,
     orientation: 1,             /* 1 = white at the bottom */
     board: new Int8Array(128),
-    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, danger: [], hot: [], hotCapt: [] },
     /* when the squares were last asked to open out, when a man was
        last touched, when a king was last put in check and when a move
        last landed — each a short moment of light that then holds */
     hiAt: -1, selAt: -1, checkAt: -1, lastAt: -1,
     lines: [], net: [],
+    /* your pen (still, never animating), the one stroke under your
+       finger, and the tint under a king's squares — see setInk */
+    ink: [], sketch: null, heat: [],
     anim: null,                 /* the move in flight */
     size: 0, cell: 0, ox: 0, oy: 0, dirty: true,
     /* the big moments: a king lying where it was mated, light under a
@@ -732,10 +753,47 @@ function create(canvas) {
             Math.min(2.5, window.devicePixelRatio || 1)].join("|");
   }
 
-  /* the racing lines: a small list of {from,to,kind}. They animate, so
-     while any exist the renderer keeps asking for frames. */
-  R.setLines = function (list) { R.lines = list || []; R.dirty = true; };
+  /* the racing lines: a small list of {from,to,kind,tone}. Each is drawn
+     on as it arrives and, if its kind carries a spark, keeps the frames
+     coming while it shows. The app repaints the whole list whenever any
+     layer of it changes, so a line already on the board keeps the
+     moment it was born (by its key) and is not drawn on a second time —
+     and that moment is on this board's own clock, which hit-stop holds,
+     so the two boards each keep their own. */
+  var lineBorn = {};
+  R.setLines = function (list) {
+    R.lines = list || [];
+    var next = {}, now = clock();
+    for (var i = 0; i < R.lines.length; i++) {
+      var k = root.Lines ? root.Lines.keyOf(R.lines[i]) : String(i);
+      next[k] = lineBorn[k] != null ? lineBorn[k] : now;
+    }
+    lineBorn = next;
+    R.dirty = true;
+  };
+  function bornOf(spec) {
+    var t = lineBorn[root.Lines.keyOf(spec)];
+    return t == null ? -Infinity : t;
+  }
   R.setNet = function (squares) { R.net = squares || []; R.dirty = true; };
+  /* Your own drawing: arrows {from,to,tone} and rings {sq,tone} (or
+     from === to). It is a note, not an event, so it never asks for a
+     frame of its own — a board with a drawing on it sleeps like any
+     other still board. */
+  R.setInk = function (list) { R.ink = list || []; R.dirty = true; };
+  /* the one stroke under the finger while you draw it: drawn on once,
+     quickly, as the pen comes down, then simply following the finger
+     from square to square */
+  var sketchFrom = -1, sketchAt = -Infinity;
+  R.setSketch = function (s) {
+    R.sketch = s && s.from >= 0 ? s : null;
+    var f = R.sketch ? R.sketch.from : -1;
+    if (f !== sketchFrom) { sketchFrom = f; sketchAt = clock(); }
+    R.dirty = true;
+  };
+  /* a soft tint on a handful of squares, -1..1: warm where it is theirs,
+     cool where it is yours — under the last-move fills, under the men */
+  R.setHeat = function (list) { R.heat = list || []; R.dirty = true; };
 
   R.setSkin = function (skin) {
     R.skin = skin;
@@ -853,9 +911,25 @@ function create(canvas) {
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
     R.hi.check = hi.check != null ? hi.check : -1;
-    R.hi.hint = hi.hint || null;
+    /* the training wheels (help.js): pieces of yours that can be won,
+       and where the man in your hand would be lost. A new set of
+       pieces in danger starts its breath again; the same set redrawn
+       keeps its clock. */
+    var nextDanger = hi.danger || [];
+    if (nextDanger.join() !== R.hi.danger.join()) R.dangerAt = nextDanger.length ? now : -1;
+    R.hi.danger = nextDanger;
+    R.hi.hot = hi.hot || [];
+    R.hi.hotCapt = hi.hotCapt || [];
     R.dirty = true;
   };
+  /* a slow breath for a few seconds, then held: a warning that keeps
+     blinking is an alarm, and an alarm keeps the board (and the phone)
+     awake for nothing */
+  R.dangerAt = -1;
+  function dangerBreath(t) {
+    if (REDUCED || t < 0 || t > 6400) return { amount: 0.55, live: false };
+    return { amount: 0.55 + 0.45 * Math.sin(t / 6400 * Math.PI * 4 - Math.PI / 2), live: true };
+  }
 
   /* animate a move: board must still hold the *before* position;
      `after` is the position once the move lands. done() fires at the end. */
@@ -898,7 +972,8 @@ function create(canvas) {
     for (var ii = 0; ii < R.impacts.length; ii++) impactAmt = Math.max(impactAmt, Move.impactAt(wallNow - R.impacts[ii].t0, R.impacts[ii].power).amount);
     return { held: !!(hold.until && wallNow < hold.until), kicks: kicks.length, swoop: false, drift: false, impactAmt: impactAmt,
              par: [0, 0], sel: hand.sq, mark: R.hi.mark, selLift: hand.sq >= 0 && hand.shownAt ? Move.hold(clock() - hand.shownAt) : 0,
-             settling: Object.keys(settles).length, tray: null, flying: false };
+             settling: Object.keys(settles).length, tray: null, flying: false,
+             sketching: !!R.sketch, inkCount: R.ink.length, heat: R.heat.length };
   };
 
   R.animateMove = function (m, after, opts, done) {
@@ -988,31 +1063,6 @@ function create(canvas) {
              y: Math.max(R.oy + lo, Math.min(R.oy + R.size - lo, y)) };
   }
 
-  /* the hint: the ribbon the racing line is drawn with, bent over the
-     traffic for a knight, standing still, with a brighter spine and its
-     tip lit so the eye lands where the idea does */
-  function arrow(from, to, color, alpha) {
-    if (!root.Lines) return;
-    var a = sqXY(from), b = sqXY(to);
-    var df = Math.abs(fileOf(to) - fileOf(from)), dr = Math.abs(rankOf(to) - rankOf(from));
-    var knight = (df === 1 && dr === 2) || (df === 2 && dr === 1);
-    ctx.save();
-    ctx.globalAlpha = alpha == null ? 0.85 : alpha;
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = R.cell * 0.4 * (R.dpr || 1);
-    ribbon(root.Lines.build(a, b, { kind: "run", scale: R.cell, knight: knight }));
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = (alpha == null ? 0.85 : alpha) * 0.7;
-    ctx.fillStyle = shade(color, 0.55);
-    ribbon(root.Lines.build(a, b, { kind: "ghost", scale: R.cell, knight: knight }));
-    var tip = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, R.cell * 0.42);
-    tip.addColorStop(0, rgba(color, 0.45)); tip.addColorStop(1, rgba(color, 0));
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = tip;
-    ctx.fillRect(b.x - R.cell * 0.42, b.y - R.cell * 0.42, R.cell * 0.84, R.cell * 0.84);
-    ctx.restore();
-  }
   /* a Lines outline, filled: the shaft and the head */
   function ribbon(L) {
     ctx.beginPath();
@@ -1096,6 +1146,13 @@ function create(canvas) {
     var pulse = { amount: 1, live: false };
     if (R.hi.check >= 0 && R.checkAt >= 0) pulse = Move.checkPulse(now - R.checkAt);
     if (selP.live || ag.live || pulse.live) animating = true;
+    /* heat first, so the last move and the touched man read over it */
+    for (var hti = 0; hti < R.heat.length; hti++) {
+      var ht = R.heat[hti];
+      if (!ht || !onBoard(ht.sq)) continue;
+      var hv = Math.max(-1, Math.min(1, +ht.v || 0));
+      fillSq(ht.sq, rgba(hv >= 0 ? th.captureHex : th.planHex, 0.12 + 0.30 * Math.abs(hv)), th);
+    }
     if (R.hi.last) {
       fillSq(R.hi.last[0], th.lastB, th);
       fillSq(R.hi.last[1], th.lastA, th);
@@ -1115,6 +1172,18 @@ function create(canvas) {
       ctx.stroke();
       ctx.restore();
     }
+    /* the square under a carried man: a tint and an edge, as the carved
+       board gives it, so the hand knows where he will be set down */
+    if (hover >= 0 && onBoard(hover)) {
+      fillSq(hover, th.hoverFill, th);
+      var hc = sqXY(hover), hl = Math.max(2, R.cell * 0.05);
+      ctx.save();
+      ctx.strokeStyle = th.hoverEdge;
+      ctx.lineWidth = hl;
+      rr(ctx, hc.x - R.cell / 2 + hl / 2, hc.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (R.hi.check >= 0) {
       var c = sqXY(R.hi.check);
       var gr = ctx.createRadialGradient(c.x, c.y, R.cell * 0.1, c.x, c.y, R.cell * 0.62);
@@ -1122,6 +1191,15 @@ function create(canvas) {
       ctx.fillStyle = gr;
       ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
       if (pulse.amount > 0.5) softRing(c, th.checkHex, R.cell * (0.30 + 0.18 * pulse.amount), R.cell * 0.08, 0.5 * pulse.amount);
+    }
+    /* the training wheels: your pieces that can be won, breathing */
+    if (R.hi.danger.length) {
+      var db = dangerBreath(now - R.dangerAt);
+      if (db.live) animating = true;
+      for (var di = 0; di < R.hi.danger.length; di++) {
+        fillSq(R.hi.danger[di], rgba(th.dangerHex, 0.16 + 0.22 * db.amount), th);
+        pool(sqXY(R.hi.danger[di]), th.dangerHex, R.cell * 0.62, 0.12 + 0.16 * db.amount);
+      }
     }
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
@@ -1347,6 +1425,19 @@ function create(canvas) {
       ctx.strokeStyle = rgba(th.captHex, 0.5 * cr.alpha); ctx.lineWidth = Math.max(1, R.cell * 0.03);
       ctx.beginPath(); ctx.arc(cp.x, cp.y, R.cell * 0.40 * cr.scale, 0, Math.PI * 2); ctx.stroke();
     }
+    /* hot squares: where the man in your hand would be lost — a ring in
+       the warning colour where the dot would be, a heavier one round a
+       capture that loses the exchange */
+    for (var hti = 0; hti < R.hi.hot.length + R.hi.hotCapt.length; hti++) {
+      var hc = hti < R.hi.hot.length, hsq = hc ? R.hi.hot[hti] : R.hi.hotCapt[hti - R.hi.hot.length];
+      var hp = sqXY(hsq), hr = revealOf(hsq);
+      if (hr.live) animating = true;
+      if (hr.scale < 0.01) continue;
+      var rad = R.cell * (hc ? 0.2 : 0.4) * hr.scale;
+      softRing(hp, th.dangerHex, rad, R.cell * 0.07, 0.6 * hr.alpha);
+      ctx.strokeStyle = rgba(th.dangerHex, 0.85 * hr.alpha); ctx.lineWidth = Math.max(1.5, R.cell * (hc ? 0.04 : 0.06));
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, rad, 0, Math.PI * 2); ctx.stroke();
+    }
 
     /* the mate net: squares the king cannot use, marked rather than drawn
        as a curve — a net is a place, not a direction */
@@ -1365,14 +1456,24 @@ function create(canvas) {
       ctx.restore();
     }
 
-    /* the lines themselves */
+    /* your own drawing, then the stroke under your finger: under the
+       room's lines, so a hint drawn over your note still reads */
+    if (root.Lines) {
+      for (var ik = 0; ik < R.ink.length; ik++) drawInk(R.ink[ik], 1, th);
+      if (R.sketch) {
+        var skr = root.Lines.revealAt(now - sketchAt, 160, REDUCED);
+        if (skr.live) animating = true;
+        drawInk(R.sketch, skr.u, th);
+      }
+    }
+
+    /* the lines themselves: each drawn on as it arrives, and kept awake
+       only while one is still arriving or carries a spark */
     if (R.lines.length && root.Lines) {
       for (var li2 = 0; li2 < R.lines.length; li2++) {
-        drawLine(R.lines[li2], now, th);
+        if (drawLine(R.lines[li2], now, th)) animating = true;
       }
-      animating = true;                 /* keep the spark moving */
     }
-    if (R.hi.hint && !R.lines.length) arrow(R.hi.hint[0], R.hi.hint[1], th.hint, 0.8);
 
     /* the man in the hand, over everything: he grows a size as he comes
        up off the board (instantly, for anyone who asked for stillness) */
@@ -1399,42 +1500,57 @@ function create(canvas) {
   };
 
   /* one racing line: a tapered ribbon, an arrowhead, and a spark that
-     travels it so the eye is pulled the way the idea moves */
+     travels it so the eye is pulled the way the idea moves. It is drawn
+     on from the piece first, and the spark only sets off once the line
+     has arrived. Returns whether it wants another frame. */
   function drawLine(spec, now, th) {
-    var a = sqXY(spec.from), b = sqXY(spec.to);
-    var colour = spec.colour ||
-      (spec.kind === "threat" ? th.ring : spec.kind === "lane" ? th.lastA : th.hint);
-    var L = root.Lines.build(a, b, {
-      kind: spec.kind, scale: R.cell, knight: spec.knight, alpha: spec.alpha
-    });
+    var Ln = root.Lines;
+    var rv = Ln.revealAt(now - bornOf(spec) - (spec.delay || 0), Ln.REVEAL_MS, REDUCED);
+    if (rv.u <= 0) return rv.live;
+    var colour = th.tone[Ln.toneOf(spec)] || th.hint;
+    var L = spec.kind === "ring" || spec.sq != null
+      ? Ln.buildRing(sqXY(spec.sq != null ? spec.sq : spec.from), { scale: R.cell, reveal: rv.u, alpha: spec.alpha })
+      : Ln.build(sqXY(spec.from), sqXY(spec.to), { kind: spec.kind, scale: R.cell, knight: spec.knight, alpha: spec.alpha, reveal: rv.u });
     ctx.save();
     ctx.globalAlpha = L.alpha;
     ctx.fillStyle = colour;
     ctx.shadowColor = colour;
     ctx.shadowBlur = R.cell * 0.35 * L.glow;
-    ctx.beginPath();
-    ctx.moveTo(L.poly[0].x, L.poly[0].y);
-    for (var i = 1; i < L.poly.length; i++) ctx.lineTo(L.poly[i].x, L.poly[i].y);
-    ctx.closePath();
-    ctx.fill();
-    if (L.head) {
+    ribbon(L);
+    var spark = rv.u >= 1 && L.period && !REDUCED;
+    if (spark) {
+      var sp = Ln.sparkAt(L.pts, Ln.phase(L, now));
+      var gr = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, R.cell * 0.26);
+      gr.addColorStop(0, "rgba(255,255,255,.95)");
+      gr.addColorStop(0.45, colour);
+      gr.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.9 * L.alpha;
+      ctx.fillStyle = gr;
       ctx.beginPath();
-      ctx.moveTo(L.head[0].x, L.head[0].y);
-      ctx.lineTo(L.head[1].x, L.head[1].y);
-      ctx.lineTo(L.head[2].x, L.head[2].y);
-      ctx.closePath();
+      ctx.arc(sp.x, sp.y, R.cell * 0.26, 0, Math.PI * 2);
       ctx.fill();
     }
-    var sp = root.Lines.sparkAt(L.pts, root.Lines.phase(L, now));
-    var gr = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, R.cell * 0.26);
-    gr.addColorStop(0, "rgba(255,255,255,.95)");
-    gr.addColorStop(0.45, colour);
-    gr.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.globalAlpha = 0.9 * L.alpha;
-    ctx.fillStyle = gr;
-    ctx.beginPath();
-    ctx.arc(sp.x, sp.y, R.cell * 0.26, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.restore();
+    return rv.live || !!spark;
+  }
+  /* a stroke of your pen: an even, straight ribbon (or a ring round one
+     square), no spark and barely any glow — ink on the board, not light */
+  function drawInk(s, u, th) {
+    var Ln = root.Lines;
+    if (!s || !onBoard(s.from != null ? s.from : s.sq)) return;
+    var from = s.from != null ? s.from : s.sq, to = s.to != null && s.to >= 0 && onBoard(s.to) ? s.to : from;
+    var colour = th.tone[Ln.toneOf({ tone: s.tone, kind: "ink" })] || th.tone.plan;
+    var L = from === to
+      ? Ln.buildRing(sqXY(from), { scale: R.cell, reveal: u, r: 0.42 })
+      : Ln.build(sqXY(from), sqXY(to), { kind: "ink", scale: R.cell, reveal: u });
+    if (!L.poly.length) return;
+    ctx.save();
+    ctx.globalAlpha = L.alpha;
+    ctx.fillStyle = colour;
+    ctx.shadowColor = colour;
+    ctx.shadowBlur = R.cell * 0.12;
+    ribbon(L);
     ctx.restore();
   }
 

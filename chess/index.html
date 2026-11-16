@@ -43,7 +43,13 @@
 
   /* ---------- layout ---------- */
   #app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
-  #stage{position:relative; flex:1; min-height:0; background-size:cover; background-position:center}
+  #stage{position:relative; flex:1; min-height:0; background-size:cover; background-position:center;
+    -webkit-touch-callout:none}
+  /* the board itself takes every gesture made on it — a held finger
+     drawing, a man carried, a turn of the camera — rather than letting
+     the browser claim the drag for a scroll halfway through and cancel
+     it. Only the boards: anything that sits on the stage keeps its own. */
+  #stage canvas.board{touch-action:none}
   canvas.board{position:absolute; inset:0; width:100%; height:100%; display:block}
   #wrap{display:flex; flex-direction:row; flex:1; min-height:0}
   #panel{
@@ -185,6 +191,13 @@
     text-align:center; cursor:pointer;
   }
   #viewBanner:hover{background:rgba(143,176,255,.2)}
+  /* the look-back's walk from one marked move to the next: on its own
+     line under the remark, so a long remark never squeezes it */
+  #viewBanner #vbText{display:block}
+  #reviewNav{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:5px}
+  #reviewNav .lchip{margin:0; padding:3px 12px}
+  #reviewNav .lchip:disabled{opacity:.35; cursor:default}
+  #reviewNav .rnN{font-variant-numeric:tabular-nums; color:var(--soft); min-width:4.5em; text-align:center}
 
   /* the log: one line per move pair, each line its own soft slab so the
      eye can run down the column without losing its place */
@@ -490,6 +503,27 @@
   #netChip.lost .pulse{background:var(--bad); animation:blip 1s ease-in-out infinite}
   #netChip.healing, #netChip.lost{color:var(--ink); border-color:var(--amber)}
   @keyframes blip{0%,100%{opacity:.25} 50%{opacity:1}}
+
+  /* ---------- the pen ----------
+     Only there while the position on the board has something drawn on
+     it: how many marks, and the one way to take them all away. Styled
+     like the link's chip, in the pen's own colour. */
+  #inkPill{
+    position:absolute; top:40px; right:10px; z-index:4;
+    display:flex; align-items:center; gap:8px; white-space:nowrap;
+    background:rgba(20,16,12,.82); border:1px solid var(--line); border-radius:999px;
+    padding:2px 4px 2px 11px; font-size:.76em; color:var(--soft); pointer-events:auto;
+  }
+  #inkPill .pen{color:var(--plan, var(--blue))}
+  #inkPill b{color:var(--ink)}
+  #inkPill button{
+    font:inherit; color:var(--ink); background:transparent; border:1px solid var(--line);
+    border-radius:999px; padding:2px 10px; cursor:pointer;
+  }
+  @media (pointer:coarse){
+    #inkPill{padding-left:13px}
+    #inkPill button{min-height:44px; min-width:44px; padding:0 14px}
+  }
 
   /* ---------- the moment the boards join ---------- */
   .linkedCard{max-width:420px; text-align:center}
@@ -820,6 +854,48 @@
     background:linear-gradient(90deg, rgba(62,207,142,.18), rgba(255,209,102,.18)); border:1px solid rgba(255,209,102,.4);
     animation:mileIn .6s cubic-bezier(.2,1.4,.4,1) both}
   @keyframes mileIn{from{transform:scale(.7); opacity:0} to{transform:none; opacity:1}}
+  /* ---------- progression: the next step, the journal, the feats ----------
+     Every number here is a fact about chess or about turning up, said
+     once and then kept. The lobby gets one line (the next step, beside
+     the link it shares a row with); the record grows faces instead of
+     length; the end card gains a short stack of what this game changed. */
+  .playMore.withGoal{display:flex; align-items:center; justify-content:space-between; gap:4px 10px; flex-wrap:wrap; text-align:left}
+  .goalLine{display:flex; align-items:baseline; gap:6px; text-align:left; color:var(--ink); min-width:0; flex:1 1 260px}
+  .goalLine .em{flex:none; color:var(--glow)}
+  .goalLine b{color:var(--glow); font-weight:700}
+  .playMore.withGoal #mCoach{flex:none; margin-left:auto}
+  @media (max-width:520px){ .playMore.withGoal #mCoach{margin-left:0} }
+  .pfTabs{display:flex; gap:4px; margin:4px 0 8px; border-bottom:1px solid var(--line)}
+  .pftab{flex:1; padding:6px 10px; border-radius:10px 10px 0 0; font-size:.76em; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--soft); border:1px solid transparent; border-bottom:none; margin-bottom:-1px}
+  .pftab.sel{color:var(--glow); background:var(--card2); border-color:var(--line)}
+  .pftab:hover{color:var(--ink)}
+  .pfList{display:flex; flex-direction:column; gap:6px}
+  .gameRow{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:8px 12px}
+  .gameRow .rgE{font-size:1.3em; flex:none; width:1.4em; text-align:center}
+  .gameRow .rgT{flex:1; min-width:0}
+  .gameRow .rgT b{font-size:.94em} .gameRow .rgT small{display:block; color:var(--soft); font-size:.76em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .gRes{flex:none; font-size:.7em; font-weight:800; letter-spacing:.08em; text-transform:uppercase; padding:2px 8px; border-radius:999px;
+    background:#1c1713; border:1px solid var(--line); color:var(--soft)}
+  .gRes.won{color:var(--good); border-color:rgba(62,207,142,.45)} .gRes.lost{color:var(--bad)}
+  .pfEmpty{color:var(--soft); font-size:.86em; margin:6px 2px}
+  .pfMore{justify-content:center; margin-top:6px}
+  .featGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+  .featTile{display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
+    background:#1c1713; border:1px dashed var(--line); border-radius:12px; padding:8px 9px; color:var(--soft)}
+  .featTile .em{font-size:1.2em; line-height:1.1; opacity:.5; filter:grayscale(1)}
+  .featTile b{font-size:.82em; line-height:1.2; color:var(--soft)}
+  .featTile small{font-size:.7em; line-height:1.3}
+  .featTile.on{background:var(--card2); border:1px solid rgba(255,209,102,.4); color:var(--ink)}
+  .featTile.on .em{opacity:1; filter:none}
+  .featTile.on b{color:var(--ink)} .featTile.on small{color:var(--soft)}
+  @media (max-width:420px){ .featGrid{grid-template-columns:1fr 1fr} }
+  .erMiles{display:flex; flex-direction:column; gap:6px; margin:4px 0 8px}
+  .erMiles .erMile{margin-top:0; font-weight:600; font-size:.92em; text-align:left}
+  .erMiles .erMile .em{margin-right:2px}
+  .erMiles .erMile.feat{background:linear-gradient(90deg, rgba(255,209,102,.16), rgba(240,160,32,.06))}
+  .erMiles .erMile.done{background:linear-gradient(90deg, rgba(62,207,142,.16), rgba(62,207,142,.04)); border-color:rgba(62,207,142,.45)}
   .primaryBtn{border-color:var(--amber); background:linear-gradient(135deg, rgba(240,160,32,.18), transparent 70%), var(--card2)}
   #ovEnd .card{max-width:440px}
   #endEmoji{display:inline-block; animation:endPop .8s cubic-bezier(.2,1.5,.4,1) both}
@@ -928,6 +1004,35 @@
   #splash .t{font-size:1.3em; font-weight:700; letter-spacing:.02em}
   #splash .s{color:var(--soft); font-size:.9em}
 
+  /* ---------- friends: the challenge, the game you send, your people ----------
+     All of it is built from pieces the room already has — the four-letter
+     card's rows, the lobby's big buttons, the chips — so a friend's corner
+     of the room looks like the rest of it. */
+  .roomQR{display:flex; justify-content:center; margin:2px 0 6px}
+  .roomQR .qrFrame canvas{width:min(132px,34vw)}
+  @media (max-width:359px){ .roomQR{display:none} }
+  #linkPeople{margin:6px 0 2px}
+  #linkPeople .roomRow{margin:6px 0}
+  .peopleChips{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0}
+  .endLinks{display:flex; justify-content:center; flex-wrap:wrap; gap:4px 14px; margin:2px 0}
+  .shareCard textarea.code{min-height:96px}
+  .shareCard .qrFrame{margin:8px auto}
+  .personRow{background:var(--card2); border:1px solid var(--line); border-radius:12px; margin:6px 0; overflow:hidden}
+  .personHead{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px}
+  .pnName{flex:1; min-width:0}
+  .pnName b{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pnName small, .pnScore small{display:block; color:var(--soft); font-size:.78em}
+  .pnScore{flex:none; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--glow)}
+  .pnScore small{letter-spacing:.12em; font-weight:400}
+  .personMore{display:none; padding:0 12px 10px; border-top:1px solid var(--line)}
+  .personRow.open .personMore{display:block}
+  .pgRow{display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px dashed var(--line); font-size:.88em}
+  .pgRow:last-child{border-bottom:0}
+  .pgTx{flex:1; min-width:0}
+  .pgTx small{display:block; color:var(--soft); font-size:.86em}
+  .pgRow .chip{padding:4px 10px; font-size:.85em}
+  .lessonBar .lread{display:block; color:var(--soft); font-size:.86em; margin-top:2px}
+
   /* ---------- the press ----------
      A button you can feel: it goes down the instant a finger lands, a
      touch smaller and a shade darker, and comes back up with a small
@@ -937,20 +1042,32 @@
      them. Wide buttons give a little less, or their edges would travel
      further than a thumb expects. */
   @media (prefers-reduced-motion: no-preference){
-    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact{
+    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact, #inkPill button{
       transition:transform .2s cubic-bezier(.34,1.9,.55,1), filter .2s ease-out,
                  border-color .15s, background .15s, box-shadow .15s, color .15s;
     }
     .abtn:active, .lchip:active, .chip:active, .stPick:active, .rung:active, .tile:active,
-    #askRow button:active, #toast .tact:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
+    #askRow button:active, #toast .tact:active, #inkPill button:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
     .bigbtn:active, .preset:active, .playBtn:active{transform:scale(.975); filter:brightness(.9); transition-duration:.04s}
   }
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important; animation:none !important}
     /* still: a press is a shade darker and nothing moves */
     .bigbtn:active, .abtn:active, .lchip:active, .chip:active, .stPick:active, .preset:active, .playBtn:active,
-    .rung:active, .tile:active, #askRow button:active, #toast .tact:active{transform:none; filter:brightness(.9)}
+    .rung:active, .tile:active, #askRow button:active, #toast .tact:active, #inkPill button:active{transform:none; filter:brightness(.9)}
   }
+  /* ---- help & teaching (help.js): the welcome, the lamp, the why ----
+     The welcome sits where the rating card will be, the same size and
+     never amber — the one amber thing in the lobby stays "Play". */
+  .welcome{margin:4px 0 10px; padding:12px 14px; border-radius:16px;
+    background:linear-gradient(135deg, rgba(143,176,255,.12), rgba(143,176,255,.02) 60%), var(--card2);
+    border:1px solid rgba(143,176,255,.35)}
+  .welcome .wlTitle{display:block; font-size:1.08em; margin-bottom:6px}
+  .welcome .bigbtn{margin:6px 0; padding:10px 12px}
+  .welcome .wlWhy{display:block; color:var(--soft); font-size:.8em; line-height:1.4; margin-top:6px}
+  #whyChip{margin-left:8px; font-size:.95em; padding:2px 10px; vertical-align:middle}
+  #toast.lamp{text-align:center}
+  #toast .lampLine{display:block; font-size:.92em; color:var(--soft)}
 </style>
 </head>
 <body>
@@ -965,6 +1082,7 @@
       </div>
       <div id="turnStrip">…</div>
       <div id="netChip" class="hide"><span class="pulse"></span><span id="netChipTx">linked</span></div>
+      <div id="inkPill" class="hide"><span><span class="pen">✎</span> <b id="inkCount">0</b></span><button id="inkClear" aria-label="Clear your drawing on this position">Clear</button></div>
       <div class="pbar bot">
         <div class="ptag"><span id="nameBot">White</span><span class="cap" id="capBot"></span></div>
         <div class="clock off" id="clockBot">5:00</div>
@@ -975,7 +1093,7 @@
     </div>
     <div id="panel">
       <div id="pInfo">
-        <div id="viewBanner" class="hide">Looking back — tap to return to the game</div>
+        <div id="viewBanner" class="hide"><span id="vbText">Looking back — tap to return to the game</span><span id="reviewNav" class="hide"></span><button class="lchip" id="whyChip" title="What this move did, in plain words — free">❓ Why this move?</button></div>
         <div id="openingCard" class="hide">
           <div class="ocTop"><span class="ocEyebrow">Opening</span><span id="ocEco"></span></div>
           <div id="ocName"></div>
@@ -1007,7 +1125,7 @@
     <button class="abtn" id="btnMenu"><span class="ic">☰</span>Menu</button>
     <button class="abtn" id="btnNew"><span class="ic">✚</span><span class="lbl-long">New game</span><span class="lbl-short">New</span></button>
     <button class="abtn" id="btnUndo"><span class="ic">↩</span><span id="undoLbl">Undo</span></button>
-    <button class="abtn" id="btnHint"><span class="ic">💡</span>Hint<span class="hintCost" id="hintCost"></span></button>
+    <button class="abtn" id="btnHint"><span class="ic">💡</span>Help<span class="hintCost" id="hintCost"></span></button>
     <button class="abtn" id="btnReplay"><span class="ic">🔁</span><span class="lbl-long">Last move</span><span class="lbl-short">Replay</span></button>
     <button class="abtn" id="btnFlip"><span class="ic">⇅</span>Flip</button>
     <button class="abtn" id="btnDim"><span class="ic" id="dimIc">③</span><span id="dimLbl">3D</span></button>
@@ -1038,13 +1156,21 @@
       <svg class="rcSpark" id="mRateSpark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"></svg>
     </button>
 
+    <div class="welcome hide" id="mWelcome" role="group" aria-labelledby="mWelcomeTitle">
+      <b class="wlTitle" id="mWelcomeTitle">Welcome. Do you know how the pieces move?</b>
+      <button class="bigbtn" id="mNew"><span class="em">🐣</span><span><b>I'm new to chess</b><small>The rules in five gentle minutes, then a first game.</small></span></button>
+      <button class="bigbtn" id="mKnow"><span class="em">▶</span><span><b>I know how the pieces move</b><small>Straight into a gentle first game.</small></span></button>
+      <small class="wlWhy">Every game against the computer moves a number that's yours. The coach says what it sees. The Academy makes it stick.</small>
+    </div>
+
+    <button class="bigbtn resumeBtn hide" id="mOpenBoard"><span class="em">📡</span><span><b id="mOpenBoardTx">Your board is open</b><small id="mOpenBoardSub">Waiting for your friend.</small></span></button>
     <button class="bigbtn resumeBtn hide" id="mResume"><span class="em">🕯️</span><span><b>Continue your game</b><small id="mResumeSub">Your game is right where you left it.</small></span></button>
 
     <button class="playBtn" id="mPlay">
       <span class="pbGo" aria-hidden="true">▶</span>
       <span class="pbTx"><b>Play the computer</b><small id="mPlaySub">A gentle first game against 🌱 Sprout.</small></span>
     </button>
-    <div class="playMore"><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
+    <div class="playMore"><button class="linkish goalLine hide" id="mGoal"><span class="em" id="mGoalEm" aria-hidden="true"></span><span id="mGoalTx"></span></button><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
 
     <div class="secHead"><b>Climb the ladder</b><small id="mLadderNote">Beat each coach to earn its stars</small></div>
     <div class="ladder" id="mLadder" role="list"></div>
@@ -1052,7 +1178,7 @@
     <div class="secHead"><b>More ways to play</b></div>
     <div class="tileRow">
       <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Take turns on this screen.</small></span></button>
-      <button class="tile" id="mLan"><span class="em">📡</span><span><b>A friend nearby</b><small>Two devices, four letters.</small></span></button>
+      <button class="tile" id="mLan"><span class="em">📡</span><span><b>Play a friend</b><small>Nearby or anywhere — a link, a QR or four letters.</small></span></button>
     </div>
 
     <div class="secHead"><b>Learn</b></div>
@@ -1081,11 +1207,30 @@
       <div class="pfNum"><span class="rcKick">Your rating</span><b id="pfRate">—</b><small id="pfRd"></small></div>
       <div class="pfTitle"><b id="pfTitle"></b><small id="pfNext"></small><div class="pfBar"><i id="pfBar"></i></div></div>
     </div>
+    <!-- one face at a time, so the record is never longer than it was;
+         a new face is a .pftab and a .pfPane with the same data-tab -->
+    <div class="pfTabs" id="pfTabs" role="tablist">
+      <button class="pftab sel" data-tab="record" role="tab" aria-selected="true">Record</button>
+      <button class="pftab" data-tab="games" role="tab" aria-selected="false">Games</button>
+      <button class="pftab" data-tab="feats" role="tab" aria-selected="false">Feats</button>
+    </div>
+    <div class="pfPane" data-tab="record" id="pfRecord">
     <svg class="pfChart" id="pfChart" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Your rating over your recent games"></svg>
     <div class="pfStats" id="pfStats"></div>
     <div class="secHead"><b>The ladder</b><small>★ win · ★ win without help · ★ win without help at 80%+ accuracy</small></div>
     <div id="pfLadder"></div>
-    <div class="howBox"><b>How the number works.</b> Every game against the computer is rated, with or without a clock. Each coach has a rating of its own, so beating a stronger one moves you further than beating a gentler one, and your first few games move you most while the room is still finding your level. Hints and take-backs are always allowed — each one makes that game count for a little less (a take-back a fifth, a hint a tenth), because the number is meant to say what you can do on your own. Starting a new game is free while a game is young; once it is well under way, or you are clearly behind, leaving counts as a loss. Games between two people, lessons and opening stories never touch it.</div>
+    <div class="howBox" id="pfHow"><b>How the number works.</b> Every game against the computer is rated, with or without a clock. Each coach has a rating of its own, so beating a stronger one moves you further than beating a gentler one, and your first few games move you most while the room is still finding your level. Hints and take-backs are always allowed — each one makes that game count for a little less (a take-back a fifth, a hint a tenth), because the number is meant to say what you can do on your own. Starting a new game is free while a game is young; once it is well under way, or you are clearly behind, leaving counts as a loss. Games between two people, lessons and opening stories never touch it.</div>
+    </div>
+    <div class="pfPane hide" data-tab="games" id="pfGames">
+      <div class="secHead"><b>Your games</b><small id="pfGamesNote"></small></div>
+      <div id="pfGamesList" class="pfList"></div>
+      <div class="rowbtns pfMore"><button class="ghostbtn hide" id="pfGamesMore">Show more</button><button class="ghostbtn hide" id="pfPgnAll">Copy them all (PGN)</button></div>
+    </div>
+    <div class="pfPane hide" data-tab="feats" id="pfFeats">
+      <div class="secHead"><b>Feats</b><small id="pfFeatsNote"></small></div>
+      <div id="pfFeatsList" class="featGrid"></div>
+      <div class="rowbtns pfMore"><button class="ghostbtn hide" id="pfFeatsMore">Show the rest</button></div>
+    </div>
     <button class="ghostbtn" id="pfBack">Back</button>
   </div>
 </div>
@@ -1142,24 +1287,27 @@
     <div id="linkChoose">
       <div class="linkHero">
         <div class="linkHeroArt" aria-hidden="true"><span>♔</span><span class="linkHeroDots">· · ·</span><span>♚</span></div>
-        <h2>Play together, nearby</h2>
-        <p>Two devices, one board. Hold them up to each other and they'll find one another — no accounts, no server, nothing leaves the room.</p>
+        <h2>Play a friend</h2>
+        <p>Across the table or across the country: a link, a QR or four letters opens the same board. No accounts — the mailbox only passes the handshake, and the game goes straight between the two devices.</p>
       </div>
       <label class="nameLbl" for="lanName">Your name <small>— your opponent will see it</small></label>
       <input class="namebox" id="lanName" maxlength="18" placeholder="e.g. Sam" autocomplete="nickname">
       <button class="bigbtn hide" id="linkResume"><span class="em">🕯️</span><span><b>Rejoin your board</b><small id="linkResumeSub">…</small></span></button>
-      <button class="bigbtn" id="linkHostBtn"><span class="em">♔</span><span><b>Start a board</b><small>You'll get four letters to read out.</small></span></button>
-      <button class="bigbtn" id="linkJoinBtn"><span class="em">♚</span><span><b>Join a board</b><small>Type the four letters they read you.</small></span></button>
+      <button class="bigbtn" id="linkHostBtn"><span class="em">♔</span><span><b>Invite a friend</b><small>A link to send, a QR to show, or four letters to read out — then play while you wait.</small></span></button>
+      <button class="bigbtn" id="linkJoinBtn"><span class="em">♚</span><span><b>Join a board</b><small>Type the four letters they gave you, or tap the link they sent.</small></span></button>
+      <div id="linkPeople" class="hide"></div>
     </div>
 
     <!-- the front door: the host's four letters -->
     <div id="linkRoom" class="hide">
       <h2 id="roomTitle">Your board is open</h2>
-      <p id="roomHow">Read these four letters to your friend. On their device: <b>Play together</b> → <b>Join a board</b>.</p>
+      <p id="roomHow">Read these four letters to your friend. On their device: <b>Play a friend</b> → <b>Join a board</b>.</p>
       <div class="codeBig pending" id="roomCode" aria-live="polite">····</div>
+      <div class="roomQR hide" id="roomQRWrap"><div class="qrFrame"><canvas id="roomQR" aria-label="The invite link, as a QR code"></canvas></div></div>
       <div class="roomWait" id="roomWait"><span class="spin"></span><span id="roomWaitTx">opening the board…</span></div>
       <div class="rowbtns linkActions">
-        <button class="chip" id="roomShare">📤 Send the code</button>
+        <button class="chip sel" id="roomShare">📤 Send the invite</button>
+        <button class="chip hide" id="roomKeep">← Back to the room, keep it open</button>
         <button class="chip" id="roomOther">🔳 Codes &amp; QR instead</button>
       </div>
       <p class="linkNote" id="roomNote">The four letters only carry the handshake. The game itself goes straight between the two devices.</p>
@@ -1168,7 +1316,7 @@
     <!-- the front door: the joiner types four letters -->
     <div id="linkJoinRoom" class="hide">
       <h2>Type their four letters</h2>
-      <p id="joinHow">Ask your friend to tap <b>Start a board</b> — they'll read you four letters.</p>
+      <p id="joinHow">Ask your friend to tap <b>Invite a friend</b> — they'll send a link or read you four letters.</p>
       <input class="codeIn" id="roomIn" maxlength="4" inputmode="latin" autocapitalize="characters"
              autocomplete="off" spellcheck="false" placeholder="····" aria-label="Their four-letter code">
       <div class="roomWait" id="joinWait"><span id="joinWaitTx">four letters and you're in</span></div>
@@ -1235,6 +1383,38 @@
   </div>
 </div>
 
+<!-- ===== send a game: the sentence, the link, the QR =====
+     The whole game rides in the link (share.js); this card only shows it
+     three ways and hands it to whatever the phone shares with. -->
+<div class="ov hide" id="ovShare">
+  <div class="card shareCard">
+    <h2 id="shareTitle">Send this game</h2>
+    <p id="shareSub"></p>
+    <textarea class="code" id="shareTx" readonly aria-label="The words and the link to send"></textarea>
+    <div class="qrFrame small hide" id="shareQRWrap"><canvas id="shareQR" aria-label="The link, as a QR code"></canvas></div>
+    <div class="rowbtns">
+      <button class="chip sel" id="shareSend">📤 Send</button>
+      <button class="chip" id="shareCopy">📋 Copy</button>
+      <button class="chip" id="sharePgn">♟ Copy as PGN</button>
+    </div>
+    <p class="linkNote">Nothing is uploaded: the moves are inside the link itself. Whoever opens it gets the board, and their own coach's reading of it.</p>
+    <button class="ghostbtn" id="shareBack">Done</button>
+  </div>
+</div>
+
+<!-- ===== your people: everyone you have sat across from =====
+     Its own card for now, reached from Play a friend and from the end of
+     a game with someone; the rows are drawn by renderPeople(box), so a
+     tab on the record card could hold them later without a rewrite. -->
+<div class="ov hide" id="ovPeople">
+  <div class="card">
+    <h2>Your people</h2>
+    <p>Everyone you've played on another device, and the score between you — most recent first. <small id="peopleMe"></small></p>
+    <div id="peopleList"></div>
+    <button class="ghostbtn" id="peopleBack">Back</button>
+  </div>
+</div>
+
 <!-- ===== promotion ===== -->
 <div class="ov hide" id="ovPromo">
   <div class="card" style="max-width:380px; text-align:center">
@@ -1263,14 +1443,18 @@
         <div class="erBar"><i id="endAccBar"></i></div>
         <div class="erCounts" id="endCounts"></div>
       </div>
-      <div class="erMile hide" id="endMile"></div>
     </div>
+    <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
     <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
     <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
     <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em"></p>
     <p id="endReview2" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em;color:var(--soft)"></p>
     <button class="bigbtn hide" id="endPractise"><span class="em">🎓</span><span><b>Practise what this game showed you</b><small id="endPractiseSub"></small></span></button>
     <button class="bigbtn" id="endReview"><span class="em">🔍</span><span><b>Look back at the game</b><small>Step through the moves on the board.</small></span></button>
+    <div class="endLinks hide" id="endShareRow">
+      <button class="linkish" id="endSend">📨 Send this game</button>
+      <button class="linkish hide" id="endPeople"><span id="endPeopleTx">👥 You and your friend ›</span></button>
+    </div>
     <button class="ghostbtn" id="endMenu">Back to the menu</button>
   </div>
 </div>
@@ -1297,6 +1481,10 @@
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
       <button class="chip sel" id="setHelpers">On</button></div>
+    <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
+      <button class="chip" id="setWheels">Off</button></div>
+    <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
+      <button class="chip sel" id="setPen">On</button></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -1438,11 +1626,13 @@
 <script src="pieces-classic.js"></script>
 <script src="skins.js"></script>
 <script src="lines.js"></script>
+<script src="ink.js"></script>
 <script src="grain.js"></script>
 <script src="motion.js"></script>
 <script src="sound.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>
+<script src="help.js"></script>
 <script src="scenes.js"></script>
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>
@@ -1450,6 +1640,11 @@
 <script src="haptics.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
+<script src="games.js"></script>
+<script src="feats.js"></script>
+<script src="goals.js"></script>
+<script src="share.js"></script>
+<script src="friends.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

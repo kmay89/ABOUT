@@ -336,15 +336,20 @@ function expected(r, rj, rdj) {
    the game's weight, each hint 90%, and no game falls below a quarter.
    The weight scales how much the game teaches the rating (it is played
    as that fraction of a game), so a helped win lifts you a little, and
-   a helped loss costs you a little: the same in both directions. */
+   a helped loss costs you a little: the same in both directions.
+   Training wheels (help.js) are a different kind of help — not a move
+   handed over but a hand on the saddle all game — so they are counted
+   once, not per warning: a game played with them is three quarters of
+   a game, whatever else was taken. */
 function assistWeight(assisted) {
-  var t = 0, h = 0;
+  var t = 0, h = 0, wh = 0;
   /* whole counts, exactly as the history will record them */
   if (assisted && typeof assisted === "object") {
     t = Math.floor(num(assisted.takebacks, 0, 0, 1000));
     h = Math.floor(num(assisted.hints, 0, 0, 1000));
+    wh = Math.floor(num(assisted.wheels, 0, 0, 1000));
   }
-  var w = Math.pow(0.8, t) * Math.pow(0.9, h);
+  var w = Math.pow(0.8, t) * Math.pow(0.9, h) * (wh > 0 ? 0.75 : 1);
   return w < 0.25 ? 0.25 : w;
 }
 
@@ -481,7 +486,9 @@ function cleanEntry(e) {
   };
   if (e.assisted && typeof e.assisted === "object") {
     var t = Math.floor(num(e.assisted.takebacks, 0, 0, 1000)), hh = Math.floor(num(e.assisted.hints, 0, 0, 1000));
-    if (t || hh) out.assisted = { takebacks: t, hints: hh };
+    var ww = Math.floor(num(e.assisted.wheels, 0, 0, 1000));
+    if (t || hh || ww) out.assisted = { takebacks: t, hints: hh };
+    if (ww) out.assisted.wheels = ww;
   }
   return out;
 }
@@ -558,7 +565,9 @@ function update(state, game) {
   var assisted = null;
   if (g.assisted && typeof g.assisted === "object") {
     var tb = Math.floor(num(g.assisted.takebacks, 0, 0, 1000)), hn = Math.floor(num(g.assisted.hints, 0, 0, 1000));
-    if (tb || hn) assisted = { takebacks: tb, hints: hn };
+    var wn = Math.floor(num(g.assisted.wheels, 0, 0, 1000));
+    if (tb || hn || wn) assisted = { takebacks: tb, hints: hn };
+    if (wn) assisted.wheels = wn;
   }
   s.history.push({ at: at, r: round1(r1), rd: round1(rd1), delta: round1(r1 - r0), level: L.id,
                    result: result, acc: acc, perf: perf, assisted: assisted });
@@ -661,6 +670,19 @@ function summary(state) {
   };
 }
 
+/* The look-back measures a game after it has been counted, so its
+   accuracy is written onto the newest entry afterwards. Pure: a copy is
+   cleaned, patched and handed back, and the caller saves it — so a page
+   that re-reads storage first never writes over another tab's game. */
+function annotateLast(state, patch) {
+  var s = clean(state), h = s.history, p = patch && typeof patch === "object" ? patch : {};
+  if (!h.length) return s;
+  var e = h[h.length - 1];
+  if (typeof p.acc === "number" && p.acc === p.acc) e.acc = round1(num(p.acc, 0, 0, 100));
+  if (typeof p.perf === "number" && p.perf === p.perf) e.perf = Math.round(num(p.perf, 0, PERF_MIN, PERF_MAX));
+  return s;
+}
+
 var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
@@ -670,7 +692,8 @@ var Rating = {
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,
   fresh: fresh, load: load, save: save, clean: clean, update: update,
-  title: title, display: display, suggestLevel: suggestLevel, summary: summary
+  title: title, titleIndex: titleIndex, display: display, suggestLevel: suggestLevel, summary: summary,
+  annotateLast: annotateLast
 };
 
 if (typeof module !== "undefined" && module.exports) module.exports = Rating;

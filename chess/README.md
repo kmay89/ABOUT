@@ -8,8 +8,10 @@ scale every club already uses — so you can tell whether you are getting
 better. Around that: a patient coach who hints and explains, an Academy
 of short lessons, opening stories told plainly, a real tournament clock,
 a full 3D board with four piece sets (and a lovely 2D option), and
-same-room two-player that links two devices with four letters or a
-scanned code. No accounts, no server, no ads, nothing tracked.
+two-player that links two devices — across the table or across the
+country — with a link, a QR or four letters, and remembers the score
+between you. Any game can be sent as a link that opens on any phone.
+No accounts, no server, no ads, nothing tracked.
 Installable as a PWA; works offline; quietly announces new versions.
 
 Part of [The Solving Room](../). No libraries, no build step, MIT.
@@ -91,6 +93,16 @@ rating.js           the score: the coach ladder as data — eight rungs
                     counts a helped game for less, never for nothing.
                     Pure arithmetic: no DOM, no clock, no storage of its
                     own
+games.js            the journal: every finished game — coach, one screen,
+                    nearby — kept with its moves, marks, reviews, opening
+                    and accuracy, the last fifty; PGN out. Pure, rebuilt
+                    field by field on every read
+feats.js            feats: things done on the board that the rules or the
+                    teaching eyes can vouch for, each earned once and kept
+                    with the game it happened in. Pure
+goals.js            the next step: one line, picked from your state by a
+                    fixed order of plain rules, said done once, and moved
+                    aside after five days without changing. Pure
 teach.js            the teaching eyes: forks, pins, skewers, hanging
                     pieces, back ranks, mate threats — spotted and named
                     in plain words, and only when they are true: every
@@ -99,6 +111,13 @@ teach.js            the teaching eyes: forks, pins, skewers, hanging
                     "hanging" piece has to stay lost once the capture is
                     played out. Also explainMove(), which tells a hint
                     what the move really does, or says nothing
+help.js             the help lamp's words and the training wheels' eyes:
+                    Think (the questions a coach asks, with the rules'
+                    own counts), Their idea (what a move did, told from
+                    your chair, with a threat you haven't paid for turned
+                    into a question and a mate threat always named), and
+                    what of yours can really be won before you move.
+                    Says nothing teach.js has not proved. Pure functions
 learn.js            the Academy: an 18-lesson course built on retrieval
                     practice, worked-example fading, interleaving and
                     SM-2 spacing, with mastery tracked per idea — and
@@ -114,7 +133,15 @@ scenes.js           where the board is: a park, a café, a grand room, a
 lines.js            the racing line: pure geometry that turns a chess
                     idea into one tapered curve with a travelling spark —
                     a plan, a threat, a promotion lane — drawn identically
-                    by both renderers
+                    by both renderers. Every line the room draws comes
+                    from here: your pen (ink), a reach (sight), a circled
+                    square (ring), each drawn on from the piece, coloured
+                    by a meaning (a tone) rather than a number
+ink.js              the pen: what you draw, kept with the position — your
+                    arrows and rings filed by which position they were
+                    drawn on, rubbed out by drawing them again, capped,
+                    saved, and read back from a save one shape at a time
+                    so a bad mark never costs the game it came with
 grain.js            the surface of the board, as pixels: a hash, a value
                     noise built on it, a few octaves of that, and three
                     recipes — rings cut at a slant, veins through cloud,
@@ -235,6 +262,16 @@ room.js             the shared front door: four-letter room codes over the
 net.js              nearby two-player: WebRTC over four letters, with the
                     serverless invite/reply codes (deflated, QR-scannable)
                     still underneath, and resume-after-drop
+share.js            a game you can send: the moves, the names and the
+                    result packed into a #game= link (deflated, base64
+                    for URLs, a plain fallback), the receiver's side that
+                    rebuilds every field and replays every move before
+                    believing any of it, the share sentence, and PGN.
+                    Pure: no DOM, no storage
+friends.js          your people: everyone you have played on another
+                    device, by a quiet random id, with the score between
+                    you and your last few games together. Kept on this
+                    phone only, cleaned field by field like the score
 sw.js               offline shell + update notifications, one release at
                     a time: the page and its scripts always come from the
                     same versioned cache, and a new release waits for the
@@ -273,7 +310,23 @@ tools/              dev-only, never shipped:
                     that must not stop the Academy opening
   skin-check.js     presets are complete, share codes round-trip, and
                     hostile input (markup, bad colours, junk numbers)
-                    comes back safe
+                    comes back safe — and every look has a pen colour,
+                    even one decoded from a code that never carried it
+  lines-check.js    every line the room draws, in Node: every kind a sane
+                    shape, all 64×63 square pairs a closed outline with no
+                    NaN and no longer than its bend allows, the pen a
+                    ruler, the reveal taking the line by distance on one
+                    eased 380 ms clock (and instantly for stillness), a
+                    ring round and closed, the spark never ahead of what
+                    is drawn, colour a meaning and never a number
+  ink-check.js      the pen: the paper fuzzed in Node (rubbing out,
+                    recolouring, the caps, hostile saves and links), then a
+                    real mouse and a real held finger on a laptop and a
+                    phone, carved and flat — a stroke draws and moves
+                    nothing, a quick touch still picks a man up, the
+                    drawing stays with its position through moves, a look
+                    back, a reload and a take-back, and a drawn-on board
+                    sleeps
   pieces-check.js   every set builds at both qualities, closed, facing
                     outwards, and wound consistently face by face (a
                     single backwards cap survives a volume test and looks
@@ -302,6 +355,25 @@ tools/              dev-only, never shipped:
                     every rung played through the coach's worker inside
                     its own budget, and the same move after a hint as
                     before it
+  games-check.js    the journal is a faithful record: real games written,
+                    read back, copied out as PGN and the movetext replayed
+                    to the same position; fifty kept; junk refused whole
+  feats-check.js    every feat is true: earned by real games through the
+                    engine (Scholar's mate, a smothered mate from the old
+                    trap, back-rank, a castle that mates, en passant,
+                    underpromotion) and refused where it would be false —
+                    a lost game, a pin walked into, two chairs on one
+                    screen, a "comeback" no coach saw
+  goals-check.js    the next step is the nearest true one: each rule fired
+                    from a hand-made state, the highest rung within reach
+                    rather than the lowest, "done" once, five days and
+                    then the subject changes
+  progress-check.js in a real browser, phone and laptop: the lobby's one
+                    line, a friend game kept and counted as a day but not
+                    as rating, a coach game's feats said once and kept
+                    with their game, the record in faces no longer than it
+                    was, a kept game replayed and copied as PGN without
+                    costing the game on the shelf
   calibrate.js      not a check — the measurement. Neighbouring rungs
                     play seeded, clock-frozen matches from sound openings,
                     the Elo gaps are pinned between 400 and 1800, and each
@@ -377,6 +449,35 @@ tools/              dev-only, never shipped:
                     lesson in the Academy, the record and the nearby door
                     — on a phone and on a laptop, failing on a single
                     page error
+  share-check.js    a game you send arrives whole: in node, the codec
+                    round-trips, any zlib reads it, the plain fallback
+                    opens, junk and illegal moves are refused, names lose
+                    markup, the board outranks the result a link claims,
+                    and the PGN replays to the same position; in a
+                    browser, on a phone and a laptop, a game sent from
+                    the end card and opened fresh — the offer, the board,
+                    stepping through, the receiver's coach marking the
+                    blunder, playing on (friendly against the coach), a
+                    link to one moment with a question, a damaged link
+  friends-check.js  the room remembers who you play: in node, the store
+                    against junk, renames, a game recorded twice, an old
+                    board with no id, two Sams, the decider and a friend's
+                    board on the public list; then two real browsers over
+                    the real mailbox — a board kept open while its host
+                    plays the computer, an invite link that says who is
+                    asking, the shelved game surviving, the board leaving
+                    the public list once under way, the score mirrored on
+                    both phones, the decider, and a challenge noticed and
+                    joined in one tap
+  lookback-check.js the line behind the words: a real blunder in a real
+                    browser, carved and flat — the review keeps the better
+                    move and the refutation as squares, the refutation is
+                    drawn while the toast names it, Show me goes to the
+                    position before the slip with your move faint and the
+                    better one drawn, → draws the problem, the save keeps
+                    the squares and refuses ones that are not squares, the
+                    end card's look-back walks the marked moves, and a
+                    hint's line is drawn a ply at a time and goes
   grain-check.js    every pattern builds, finite, centred and in range;
                     the same seed paints the same board from the one
                     cache; no two patterns and no two squares alike; laid
@@ -397,6 +498,34 @@ tools/              dev-only, never shipped:
                     busy room keeps the end of a fanfare, a muted room is
                     silent echo and all, and nothing asked for before the
                     first tap is saved up for it
+  help-check.js     the lamp against the teacher's bar, no browser: Think's
+                    counts equal the rules' over two hundred positions and
+                    never locate a piece of theirs for free; Their idea
+                    turns a threat into a question when you are level,
+                    names it when you are behind, always names a mate,
+                    speaks from your chair, and reads 1,500 random moves
+                    in plain words without disturbing the game; the
+                    wheels' danger and hot squares on positions a person
+                    can check by eye, timed; a game with the wheels
+                    counted as three quarters, and recorded as such
+  lamp-check.js     the lamp in a real browser: three chips, two free and
+                    kept in the notebook, the third the old hint at the
+                    old price; the coach's line kept only for the move it
+                    played, and not told until you have answered; the
+                    move list and the view banner asking why; a threat
+                    against you asked about, not handed over; the
+                    notation voice buying the move in one tap
+  welcome-check.js  a first visit on a phone: one question, two doors
+                    that both lead to a game, four pointers each said
+                    once and remembered across a reload, the welcome
+                    retired by the first finished game, and the take-back
+                    pointer and the wheels offer inside the blunder toast
+  wheels-check.js   the training wheels on both boards: the queen a
+                    knight chases breathes with the attacker's line drawn,
+                    a lifted piece's hot squares are exactly where the
+                    exchange loses it, a hot square still takes the move,
+                    a mate threat drawn, nothing with a clock, and a
+                    rated game with them recorded and shown at 75%
   coach-check.js    plays a real game in a real browser and reads what the
                     room wrote down: the notebook fills, names the opening
                     and the tactic, marks the mistake on the move list,
@@ -420,7 +549,9 @@ tools/              dev-only, never shipped:
                     clock and thuds the camera and both stop, the taken
                     men find their row (and lose it again on a take-back),
                     the walk round a mated king stops when touched, and
-                    tilt comes to rest
+                    tilt comes to rest — and every line is drawn on, then
+                    either keeps its spark or lies still, so a board with
+                    your arrows on it sleeps like any other
   fx-check.js       the big moments in a real browser: all 64 squares
                     round-trip between squareToScreen and screenToSquare
                     on both boards, both sides, mid-push-in and after an
@@ -501,8 +632,11 @@ next is marked next, and the strip scrolls it into view. Tap any rung
 to play it.
 
 **A day on the streak.** A day you play is a day on your streak, and a
-lesson in the Academy counts as much as a game. The longest one is
-kept. The rating card only mentions it once it is two days long.
+lesson in the Academy counts as much as a game — and so does a game
+with a person, across the table or nearby, once it is properly a game
+(twenty plies). The longest one is kept. The rating card only mentions
+it once it is two days long. There is one streak: the Academy shows the
+same number, on the same calendar.
 
 Two players on one device, a friend nearby and the three ways to learn
 sit one row further down. They are not less important; they are just
@@ -682,6 +816,103 @@ read is rebuilt field by field, so a junk save cannot strand the room.
 `rating-check.js` holds all of it to account, and `engine-check.js
 --slow` plays every rung against its neighbour to confirm the ladder is
 still a ladder after any change to the search.
+
+## What the room keeps
+
+A game used to end and be gone. The number remembered that you had won;
+nothing remembered the game. And the room never said what it was you
+might do next, beyond the coach it suggested. Three small things fix
+that, under one law, which is the same law the score keeps:
+
+- **Every number is a fact** about chess or about turning up — a
+  rating, an accuracy, a star, a feat the rules or the engine can vouch
+  for, a day you played. Nothing is minted. There are no points, no
+  coins, no levels beside the rating, nothing with a rarity colour.
+- **Said once, kept forever.** A milestone, a feat, a step taken is
+  said at the moment, on the end card, and then it lives on your
+  record. The lobby points; it never celebrates.
+- **Goals are derived, never assigned.** The room reads your state and
+  names the nearest true step. Ignore it and nothing happens. Nothing
+  expires, there are no countdowns, and a lapse is met with silence —
+  no "you lost your streak", ever.
+- **Games with people count as play, never as rating.** A game across
+  the table or with a friend nearby is kept in the journal and is a day
+  on the streak; a feat earned against a friend nearby is a feat (the
+  rules are the same rules). The number never sees any of it.
+
+**The next step.** Under the Play button, in the row it shares with
+*Choose your opponent*, one line names what you are playing for right
+now, picked by a fixed order of plain rules (`goals.js` writes them
+down): your first game; ideas due in the Academy, when three or more
+are waiting; about how many games until your rating settles (worked out
+by playing draws on a copy of your score — the deviation shrinks the
+same whatever the result); the star a coach within reach still holds
+back — the *highest* rung no more than 300 above you, not the lowest,
+so a 920 who has Acorn's three stars is sent to Bamboo rather than back
+to Sprout — and which of its three stars; a title sixty points away or
+less, once the score has settled; a feat you have not done that fits
+your title; the next lesson; and, always, a fair game. Tap it and the
+room takes you there. When a step the lobby showed you is taken, the
+end card says so once — "✓ Done: beat 🌿 Fern without a hint" — and the
+lobby simply shows the next one. A step shown on five different days
+without moving steps aside for the next, until it changes. When the end
+card has no next coach to offer, it offers the next step instead of
+nothing.
+
+**The journal.** Every finished game is kept: against a coach, two
+players on one screen, a friend nearby. Its moves, the coach's marks
+(`!!` to `??`) and reviews, the opening it was, the help taken, and —
+once the look-back has measured it — the accuracy. The last fifty stay.
+A rated game you left by starting another is kept as the loss it was
+counted as. Your record's *Games* face lists them newest first; tap one
+and the board becomes that game, read-only, with the lesson bar as its
+navigator: ◀ ▶ (or the arrow keys, or the move list), *Copy PGN*, and
+*Done*. A game you were in the middle of stays on the shelf, exactly as
+a lesson leaves it, and *Continue* is still there afterwards. *Copy them
+all* gives every game as PGN — the plain text every chess program
+reads, with your names, the coach's rating, the opening's code, how it
+ended and the coach's marks on the moves — so a game can go to a club
+coach, to lichess's analysis board, or into a notebook. Nothing locked
+in.
+
+**Feats.** Twenty-nine things done on the board, each a sentence the
+rules or the engine can vouch for: mate with each piece, a smothered
+mate (the mated king's every neighbour its own man), a back-rank mate,
+promoting or castling *with* mate, castling long, en passant, an
+underpromotion; a fork, a pin or a skewer that won — read off the
+teaching eyes as you played the move, which only call a fork a fork if
+it wins something whatever they reply, and not off what the teacher
+happened to say aloud (it stays quiet about things you have mastered);
+a win with Black, in fifteen moves, from a pawn ending, without your
+queen, in sixty moves or more; and, where only the coach can see it, a
+comeback from three pawns down, a lost game saved, a move it marked
+`!!`, a game the look-back finds no slip in, 90% accuracy, three stars
+on a coach, every coach beaten, Oak beaten. A feat is earned the first
+time it is true, said on the end card (three lines at most, one sound;
+the rest wait quietly on your record), and kept with the date and the
+game — tap it on your record's *Feats* face and that game opens on the
+board. The ones not done yet are written as plain sentences, the next
+few gentlest first; they are the kind of thing a coach sets as
+homework, and the next step may name one when nothing nearer is
+waiting. Two people on one screen earn none — both chairs are you. A
+player who had won a hundred games before the cabinet existed is not
+told "a first win" on the hundred-and-first: what the rating history
+and the ladder already prove (a win, Oak beaten, every coach beaten,
+three stars) is filled in quietly when the room opens, dated where the
+history can date it, and never announced.
+
+**Your record, in faces.** *Record · Games · Feats*, one at a time, so
+the record is never longer than it was; the Record face is exactly what
+it always was. A new face is a tab and a pane with the same `data-tab`
+and, if it draws itself, one entry in `PROFILE_TABS` in app.js.
+
+Each store is `localStorage` under `chessroom_` — `chessroom_games`,
+`chessroom_feats`, `chessroom_goal` — rebuilt field by field by a pure
+module with a `clean()` that node checks against junk, and wiped by the
+recovery card's fresh start with everything else. `games-check.js`,
+`feats-check.js` and `goals-check.js` hold the rules to account in node;
+`progress-check.js` walks it all in a real browser, on a phone and on a
+laptop.
 
 ## Bringing your own pieces
 
@@ -933,6 +1164,88 @@ all of the same, in gradients. `motion-check.js` holds the new timings
 to their promises and `grain-check.js` the wood to being wood; the
 render check now also asks the painted board for its grain, and the
 touched man for his halo.
+
+## Friends
+
+Two people who play each other want three things the room used to make
+hard: to get a game going when they are not in the same room, to show
+each other a game, and to know who is ahead. None of it needs an
+account, and none of it puts anything about a game on a server.
+
+**A challenge that waits.** *Play a friend* → *Invite a friend* opens a
+board and gives you three ways in for the other person, all of them the
+same board: a link to send (it reads "Ana challenges you to a game of
+chess — 10 min + 5s a move, you're Black. Tap to sit down"), a QR under
+the four letters for someone across the table, and the four letters
+themselves to read out. Then you don't have to sit and watch them:
+*Back to the room, keep it open* puts you in the lobby with a row that
+says the board is waiting, and you can play the computer meanwhile. The
+moment they arrive, the computer game is put on the shelf exactly as it
+stood — *Continue your game* offers it back afterwards — and the friend
+game begins. The person who taps the link is told who is asking, which
+clock and which colour before they are even in.
+
+It works across the internet as well as across a table, as long as the
+two networks let two phones talk directly — most do. Some pairs (some
+mobile data, some office Wi-Fi) can't, and there is no relay here to
+carry the game for them, so after twenty seconds of knocking the room
+says that plainly instead of spinning: the same Wi-Fi always works, and
+so does one phone's hotspot. Once a game is under way its board leaves
+the public list of waiting boards, so nobody else can tap into it; the
+four letters still let a player whose phone dropped find their way back.
+
+**A game you can send.** Any game — finished, or the one in progress
+from the lobby — becomes a link. The whole game rides in the link (the
+moves, the names, the result; a sixty-move game is a few hundred
+characters), so nothing is uploaded and the part after the `#` never
+reaches a server. The share is a sentence first — "♟ Ana vs Sam · 1–0
+(checkmate) · Italian Game · 34 moves" — and a link second, with a QR
+and a PGN for anyone who wants the game in another program.
+
+Tapping the link offers the game; it is never opened behind your back.
+It opens on the board at the first move with both names in the bar:
+◀ ▶ (or the arrow keys, or a tap on any move) to step through. Then the
+receiving room's own coach reads it, move by move, at the same depth it
+reads your own games, and its marks land in the move list as it goes —
+the annotation is deliberately not in the link, so what arrives is a
+second opinion rather than the sender's word about their own play.
+*Play from here* takes the game over from whatever move is on the
+board, with someone on the same screen or against the coach — a
+friendly game, never rated, because a position from the middle of
+someone else's game is not a fair start.
+
+The same link can point at one moment instead of the whole game: *Send*
+from the bar while looking at a position sends "move 23 — Black to
+play. What would you do?", opened at that move, seen from the side that
+has to answer. The receiver never trusts the link: every field is
+rebuilt, names lose anything that could be markup, a move that is not
+legal refuses the whole link, and if the board says mate the result says
+mate, whatever the link claimed.
+
+**Your people.** Every person you play on another device is remembered
+on this phone: their name as they typed it, the score between you, when
+you last played, and your last dozen games together, each one ready to
+look through or send. There are no friend requests and no search — a
+friend is someone you sat across from. Each room makes up one quiet
+random id the first time it is needed and says it to the other board in
+the greeting that already carried your name, so two people both called
+Sam stay two people and a Sam who renames herself is still Sam. The id
+crosses the direct link and nothing else; the list never leaves the
+phone, *Forget* on a row forgets that person, and the recovery card's
+fresh start forgets everyone.
+
+It shows where it matters. When the boards link: "Sam again! You lead
+3–2." On the end card, the rematch button carries the score — and at one
+game each, and only then, "Level, 1–1 — the decider?" *Your people* (from
+*Play a friend*, or *You and Sam* on the end card) lists everyone in the
+order you last played, the only honest order, with a *Challenge* that
+opens a board "For Sam". When you open *Play a friend*, the room looks
+once at the public list of waiting boards — something anyone on the site
+can already see — and only says so if a board there was opened by one of
+your people, or opened for you. Nothing ranks anybody, and friend games
+never touch your rating.
+
+`node chess/tools/share-check.js` · `node chess/tools/friends-check.js`
 
 ## Where you play
 
@@ -1500,6 +1813,133 @@ The board is only interrupted for one thing now: a blunder you can still
 take back, said while the position is still in front of you. Everything
 quieter is in the notebook, where it can be read twice.
 
+## The help lamp
+
+💡 used to sell one thing: a move. A coach across a real table asks
+*"what does that threaten?"* far more often than they name a move, and
+strong players differ from weak ones mostly in that habit — the rules
+pages teach it (checks, captures, threats) and then nothing helped you
+practise it. So the button now says **Help**, and tapping it offers
+three things at once rather than selling one:
+
+- **🧭 Think** — the questions, built from the position on the board:
+  *"You have two checks and one capture to look at."* · *"Their last move
+  was Nc3 — what does it attack?"* · one question about the position
+  (your quietest piece, a king still in the middle, a piece that hasn't
+  moved, a king that should be working in an ending). The counts are the
+  rules' own. Loose pieces are counted, not located — *"one piece of
+  yours is loose. Which?"* — unless you are behind, when the room was
+  already giving that word away for free. Free; kept in Notes.
+- **👁 Their idea** — what their last move did, in true words, with its
+  line on the board: the book's own reason when the move is in a curated
+  line, otherwise the teacher's sentence turned round to your side of
+  the table (*"unless you stop it"*, not *"unless they stop it"*). Free;
+  kept in Notes.
+- **💡 A move** — the hint that was always there, at the price it always
+  had (the chip shows it). This is the only chip that costs anything,
+  and the only help that makes a rated game count for less.
+
+**Fair about threats.** Naming a threat against you is a hint in all but
+name, and hints are priced by the odds. So when you are level or ahead,
+a sentence that would name one of your pieces that can really be won is
+held back, and the explanation ends with a question instead — *"Is
+everything of yours still guarded?"* — with the price of the move chip
+beside it. Nobody is charged for anything they didn't press. **A mate
+threat is the one exception: always named, never charged.** The room
+already draws the mate net for nothing on every check, and a coach who
+answered "is everything guarded?" while you walked into mate would be
+being cute, not kind.
+
+**A why for every coach move.** The search that chose the coach's move
+also knew what it expected next; that used to be thrown away. Now, when
+the coach's move has something true to say about it — a capture, a
+threat, a developing move, the book's reason — one quiet line goes into
+the notebook, and tapping the last move in the move list asks the same
+question out loud. Looking back at any earlier move, the banner offers
+**❓ Why this move?**, for your moves as well as theirs (and **?** does it
+from the keyboard). Once you have answered a move, its why can also say
+what the coach was counting on — *"The coach was counting on …Nf6 d3"* —
+but not before: that line contains the engine's guess at *your* best
+reply, which is a hint nobody paid for. The line is kept in memory for
+the game only; after a reload the why simply leaves that clause out.
+When the teacher has nothing it can prove about a move, the why says so
+and asks what it might prepare. The old rule-of-thumb reasons a hint
+used to fall back on (*"rooks love open files"*) are gone for the same
+reason.
+
+The notation voice wants the move, not a menu: there, 💡 goes straight
+to it. `node chess/tools/help-check.js` holds the words to the teacher's
+bar without a browser; `lamp-check.js` checks the till in a real one.
+
+## The first five minutes
+
+A newcomer used to meet a rating card that said *Not rated yet* and
+twelve tiles, with *New to chess?* on the third row. Now a first visit
+— no games, no lessons solved, no game waiting — finds one question
+where the rating card will be: **do you know how the pieces move?**
+
+- **🐣 I'm new to chess** opens the twelve rules pages, whose last
+  button already starts a game against the gentlest coach — with the
+  training wheels on, said once when they first show.
+- **▶ I know how the pieces move** goes straight into a game against
+  the coach the ladder suggests.
+
+Under them, one line on why playing alone here is worth it: every game
+against the computer moves a number that's yours, the coach says what
+it sees, and the Academy makes it stick. There is no tour, no arrows
+pointing at buttons and no mascot. During the first two games against
+the computer the room says four things, each once, at the moment it
+helps: that the coach keeps what it notices in **Notes** (the first time
+it writes one), that **help is free when you're behind** (the first
+time you're ahead), that **a take-back makes the game count for a
+little less** (inside the first blunder toast, which is the moment it
+is offered), and that **you can tap the coach's move to ask why** (its
+first move). Four is the ceiling; a fifth would be a tutorial. They are
+remembered in your preferences, so a reload does not repeat them.
+
+The welcome is retired by the thing it asked for — a finished game
+against the computer — never by a timer, and the lobby shows your first
+number instead. `node chess/tools/welcome-check.js` plays that on a
+phone and counts what was said.
+
+## Training wheels
+
+Hanging pieces decide most games under a thousand, and the first twenty
+games are mostly a sequence of dropped pieces — which is where most new
+players quit. **Training wheels** (Settings; on for the *I'm new* door;
+offered once from the first blunder toast as *🛟 Warn me first*) put a
+hand on the saddle:
+
+- At the start of your turn, your pieces that **can really be won**
+  breathe in the warning colour — at most three, worth a minor piece or
+  more — and the attacker's line is drawn to the most valuable one. A
+  mate threat against you is drawn from the piece that would deliver it.
+  One line goes in the notebook; nothing is said aloud.
+- Lift a piece and the squares where it **would be lost** ring in the
+  warning colour instead of showing a dot: a capture that loses the
+  exchange, or a quiet move to a square where the piece can be won. It
+  is a wheel, not a wall — a hot square still takes the move, and the
+  gentle review then does its job.
+
+Every mark rests on the teacher's own standard: a piece "can be won"
+only when the exchange count wins it *and* the win survives the capture
+being played out, the same test that stops the coach crying wolf. The
+breath lasts a few seconds and then holds still, so the board (and the
+phone) can rest. The hot squares are bounded — a lifted piece looks at
+no more than thirty destinations, and on a phone too slow to do it
+quickly they drop for the session rather than slowing every tap.
+
+Against the computer the wheels are help, and counted as such: a rated
+game in which they warned you counts as **75% of a game** — once, not
+per warning — and cannot earn the clean star. The end card says so,
+and the record keeps it. Two people sharing a board pay nothing for a
+shared lesson. They never show with a clock running (a warning that
+costs time is unfair) or against a friend on another device. And after
+a full game in which nothing of yours was ever in danger, the room asks
+once whether to try the next one without them.
+`node chess/tools/wheels-check.js` checks the marks against the
+exchange count on both boards.
+
 ## The coach
 
 A teaching engine has a different job from a strong one. It still has to
@@ -1659,6 +2099,74 @@ And `teach-check.js` reads every legal move at every fourth position of
 a few random games — thousands of calls — and none may throw, print
 "undefined", or point an arrow off the board.
 
+## Lines, and your own pen
+
+Every line on the board is now one line. The hint, a free nudge, the
+coach naming a fork, a note you tap an hour later, a lesson's answer,
+the look-back's better move, your own pen: all of them are the same
+ribbon from `lines.js`, drawn on from the piece to the square in a
+little over a third of a second, because the direction *is* the
+content and drawing it on shows the direction before your eye has to
+work it out. One easing, one duration, no bounce; ask for less motion
+and every line is simply there. Colour is not a number any more but a
+meaning — a hint, a threat, a lane, your plan — and each board turns the
+meaning into its own skin's colour, so a threat on the walnut board and
+a threat on the glass one are the same threat. Lines live in layers,
+each on its own timer, so a nudge arriving while a hint is up no longer
+wipes the hint. And a line only keeps the board drawing while it is
+arriving or carries a spark: a still one lets the board sleep.
+
+**Your own pen.** Hold a square and drag on a phone — or right-drag with
+a mouse — and a ribbon grows under your finger, snapping to each square
+it reaches with a small detent. Let go where you started and it is a
+ring instead. Draw the same shape again to rub it out; tap an empty
+square with nothing in your hand, press Escape, or use the little ✎
+pill at the top of the board to clear the lot. There is no toolbar and
+no colour to pick, because the board already knows what you meant: a
+stroke that starts on one of *their* men is about what that man
+threatens, drawn in the capture colour; anything else is your plan, in
+the skin's own plan colour (every look has one; a shared look that never
+carried one takes its preset's). On a desk, Shift and Alt say it
+outright. The 3D board still turns on a left-drag from an empty square,
+and on a finger that moves before it has been held.
+
+Your drawing belongs to the **position**, not the screen. Play on and
+the live board is clean; step back and it is exactly where you left it;
+reload and it is still there; take a move back and the drawing on the
+position that no longer exists goes with it. That is the difference
+between a note on move 12 and graffiti on move 20, and it is why
+looking back — the room's main way of learning — gets better rather
+than messier when you draw. It is a note, not an event, so it never
+asks for a frame: a board with your arrows on it sleeps like any other.
+If you like to rest a finger on a piece while you think, Settings has a
+switch for the held-finger pen; the right button always draws.
+
+**The line behind the words.** Every sentence the coach says that names
+a move can now be seen. "**Qxe5+** is the problem" is drawn as a threat
+while the take-back offer is on the screen — but only while the board
+still shows the position right after your move, because that is the
+only position it is true of. **👀 Show me** goes back to the position
+before the slip: your move as a faint ghost, the better one drawn as the
+hint, the coach's remark in the banner; → steps to the problem drawn on
+the position after; → again is the game. The end card's "Look back"
+lands on the first move worth a second look, with ◀ ▶ in the banner to
+walk from one to the next, and tapping a marked move or its note brings
+the same lines with it. A hint from the engine's own search offers
+**Show the line**, and the next three plies grow on a beat apart — theirs
+coming at you, yours as a ghost — then go. No line ever starts on an
+empty square, at most three are drawn at once, and nothing is drawn
+that the room has not already said in words. Two honest limits: the
+refutation exists only for a slip that cost a pawn or more, so an
+inaccuracy has no threat drawn; and a game the coach reviewed before
+this (an older save) shows its lines only once it is looked over again.
+A clocked game gets no gentle review while it is played, so its lines
+come from the end card's look-back as that works through your moves.
+
+`tools/lines-check.js` holds the grammar to account in Node;
+`tools/ink-check.js` draws with a real mouse and a real finger;
+`tools/lookback-check.js` plays a real blunder and checks every line
+lands on the square it names.
+
 ## Two ideas worth explaining
 
 **The racing line.** A racing driver's line is one curve that contains a
@@ -1702,14 +2210,19 @@ matching lesson, so a loss turns into the next thing you learn.
   test time; a typo cannot ship — and every reason given for a move that
   claims something on the board is checked on the board.
   `node chess/tools/book-check.js`
+- **The help lamp never names a move you did not pay for, and a mate
+  threat is always named and never charged.** Its other words are the
+  rules' counts or something the teacher has proved; a threat against
+  you that would change the game is asked about, not handed over,
+  unless you are behind. `node chess/tools/help-check.js`
 - **The ladder is measured, not named.** Every coach's rating comes out
   of matches against its neighbours, played with the clock frozen and
   the dice seeded so any game can be replayed. The one assumption — how
   self-play gaps scale to people — is written down beside the numbers.
   `node chess/tools/calibrate.js`, and `rating-check.js` for the
   arithmetic.
-- **Joining is four letters.** One of you taps *Start a board* and reads
-  out something like `BUZZ`; the other types it. That's the whole
+- **Joining is four letters.** One of you taps *Invite a friend* and reads
+  out something like `BUZZ` (or sends it as a link); the other types it. That's the whole
   ritual, and it is the same one at the domino table and in HIVEMIND —
   one front door across every game here. Boards waiting nearby also
   show up in a list, so you can tap instead of type.
@@ -1717,7 +2230,10 @@ matching lesson, so a loss turns into the next thing you learn.
   directly between the two devices (STUN only for candidate discovery).
   The four letters buy nothing but a place to leave a handshake — a
   WebRTC handshake is ~600 characters and can never be read aloud,
-  while four letters can. Nothing about the game passes through it.
+  while four letters can. Nothing about the game passes through it — not
+  the moves, not the score between friends, not the quiet id that keeps
+  two Sams apart, which crosses only the direct link. A game you send is
+  a link you hand to someone yourself; it never touches the mailbox.
 - **Everything underneath still works.** Offline, on `file://`, or on a
   fork of this without the mailbox, the room falls back by itself to
   the handshake it always had: two phones held up to each other, each
@@ -1779,8 +2295,14 @@ node chess/tools/book-check.js     # every opening line legal, explained, and tr
 node chess/tools/teach-check.js    # the teaching eyes see what's there, and only that
 node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk saves
 node chess/tools/skin-check.js     # presets, share codes, hostile input
+node chess/tools/lines-check.js    # every line the room draws: one grammar, drawn on, then still
+node chess/tools/ink-check.js      # the pen: drawn by mouse and finger, kept with its position
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
+node chess/tools/games-check.js    # the journal keeps what happened, and gives it back as PGN
+node chess/tools/feats-check.js    # every feat is a fact about the board
+node chess/tools/goals-check.js    # the next step is the nearest true one, and never nags
+node chess/tools/progress-check.js # the room keeps what you did, on a phone and a laptop
 node chess/tools/brain-check.js    # the coach's thread: in order, cancellable, options intact
 node chess/tools/offline-check.js  # the room survives the train tunnel, and a release
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
@@ -1791,11 +2313,18 @@ node chess/tools/motion-check.js   # every piece arrives, and no two the same wa
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
+node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger
+node chess/tools/lamp-check.js     # three chips, two free, one priced — and a why for the coach's moves
+node chess/tools/welcome-check.js  # one question for a newcomer, four pointers once, then out of the way
+node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
+node chess/tools/share-check.js    # a game you send arrives whole, and a bad link is refused
+node chess/tools/friends-check.js  # two phones, a challenge that waits, and the score between them
+node chess/tools/lookback-check.js # the line behind the words lands on the square it names
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
@@ -1803,10 +2332,12 @@ Or from the repo root, in three groups by how long they take:
 
 ```
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
-                               # pieces, engine, brain, offline, touch, play, rating,
-                               # sound, motion, haptics
+                               # lines, ink, pieces, engine, brain, offline, touch, play, rating,
+                               # sound, motion, haptics, the journal, feats, the
+                               # next step, share, friends (and progress-check,
+                               # share-check, friends-check and lookback-check in a browser)
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
-npm run check:chess:features   # features-check: the whole room, twice over
+npm run check:chess:features   # features-check: the whole room, twice over; then the look-back
 ```
 
 The ones that open a browser need `playwright-core` and a Chromium on
