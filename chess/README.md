@@ -589,6 +589,13 @@ tools/              dev-only, never shipped:
                     exactly, the eight house skins all light up and all
                     differ, and every place draws cleanly with something
                     of its own behind the table
+  perf-check.js     the board keeps its frames: in node, the ladder against
+                    made-up frame times (pixels before effects, a capped
+                    screen given every pixel back); in a browser, the
+                    shadow map kept while nothing that casts has moved and
+                    drawn again when a man does, a frame inside its budget
+                    of draw calls and triangles, the lens's depth on in a
+                    place and off in the studio
   feel-check.js     the board has weight, and comes to rest: the curves in
                     Node, then both boards in a real browser with the
                     page's clock stood still and stepped by hand — the
@@ -1142,10 +1149,71 @@ board (legal squares lighting under him), and is set down from wherever
 he was let go, or glides home if the square was not his to take. The
 coordinates are printed in ink chosen against the pixels really under
 them, so every house skin reads at 4.5:1. And **Auto** effects watch the
-frame rate: if the frames come slowly the room steps down a tier for the
-rest of the session, and the Studio says why.
+frame rate: if the frames come slowly the room gives something up for
+the rest of the session (pixels first, then a tier; see *The lens, and
+the frames it costs*), and the Studio says why.
 
 `board-check.js` measures every one of those claims on a real canvas.
+
+### The lens, and the frames it costs
+
+**The print.** The last pass grades the picture the way a print is
+graded: a little more shape in the middle tones (an S laid over the
+curve, so black and white stay where they were), colour a touch fuller,
+warmth in what is lit and a breath of cool in what is not, a vignette.
+Each place also says how much of its own sky reaches into the shade.
+Open sky over the park used to fill every shadow until ivory on a pale
+square had no edge left; the park now asks for half of it, under a
+warmer sun, and the men stand on the board again.
+
+**Depth.** A lens looking down at a board holds the board and lets the
+rest go. The band of the picture that holds the board and every man on
+it is worked out from the camera each frame (the eight corners of a box
+a king tall) and is never touched, because a square you cannot read is
+not worth any amount of atmosphere. Outside it the picture eases into a
+copy of itself blurred at a quarter of the size: the far edge of the
+table and the room behind it soften, and so does the near edge under
+your hands. Four small passes; off in the studio (nothing behind the
+board to lose) and on the simplest tier.
+
+**The frame.** Where the field meets the frame there is a dark line of
+stringing with a pale one outside it, the frame is shaded a little
+where it stands against the squares, and a chamfer round the outside
+edge catches the light. Paint, not geometry. Each man's contact shade
+is firmer too, so he stands on the square, not above it.
+
+**What a frame is made of.** The men are the heavy part of a frame (the
+default set is 29,000 triangles for six models, about 140,000 for a
+full board) and used to be drawn three times: into the shadow map, in
+the reflection, and themselves. But the map only changes when something
+that casts has moved. A camera going round the board, a fresh game's
+opening shot, the walk round a mated king, a phone being tilted: the
+light has not moved and neither have the men. So what casts is written
+down as plain numbers each frame and compared with the last map's; if
+they match, the map is kept and a third of the frame's triangles are
+not drawn. In the soft-shadow tier a pixel that nothing stands over,
+which is most of the board, finds that out in five lookups, not twenty.
+
+**Holding the frame rate.** When frames come slowly the first thing to
+go is something nobody can point at: the board is drawn with fewer
+pixels and stretched to fit, a rung at a time (86%, 74%, 64% of the
+width), stopping as soon as the frames are smooth. A device that is
+really struggling (under twenty-five frames a second, where a slide
+judders) is not asked to wait for the ladder: it loses a tier of
+effects at once as well, as it always did. One frame rate cannot be
+told from another by its gaps alone, though: a phone in low-power mode
+draws thirty frames a second however little it is asked to do. So the pixels
+are a trial. If drawing fewer of them all the way down the ladder did
+not make the frames come at least an eighth faster, they were never the
+problem; they are all given back and that door is closed for the
+session. A tier somebody chose in the Studio is never second-guessed
+and is drawn with every pixel it has.
+
+`perf-check.js` checks the ladder in node against made-up frame times,
+and in a browser counts what a frame is made of: the map kept on a
+still board and under a moving camera, drawn again when a man moves, a
+frame inside its budget of draw calls and triangles, the picture
+shrinking under slow frames and coming back under a cap.
 
 ### A second pass over the light
 
@@ -2618,6 +2686,7 @@ node chess/tools/pieces-check.js   # every carved set closed, light, and safe
 node chess/tools/gfx-check.js      # the room lights up, every tier, every skin and every place
 node chess/tools/fx-check.js       # every big moment lands on its square, then goes quiet
 node chess/tools/feel-check.js     # the board has weight, and comes to rest
+node chess/tools/perf-check.js     # the board keeps what it has drawn, and gives up pixels before light
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back

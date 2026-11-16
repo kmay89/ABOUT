@@ -136,7 +136,11 @@ function derive(skin, place) {
        enough that you would only notice them switched off. */
     bloom: 0.40 + b.gloss * 0.34,
     bloomCut: 0.72,
-    vignette: 0.30,
+    vignette: 0.34,
+    /* the lens's depth (how far the room either side of the board goes
+       soft, 0 for none) and the print: see the composite shader */
+    focus: REDUCED ? 0.7 : 0.9,
+    punch: 0.34, sat: 1.07, split: 0.022,
     /* the lens's grain, not the board's: the two shared a name once,
        and the lens's few thousandths won — which is why the carved
        board never showed the wood its skin asked for */
@@ -167,7 +171,10 @@ function inPlace(th, place, b) {
   th.fillDir = d.fill.dir;
   th.keyCol = scale3(lin3(d.key.col), d.key.power);
   th.fillCol = scale3(lin3(d.fill.col), d.fill.power);
-  th.sky = scale3(place.sky, 1.15);
+  /* (how much of the place's sky reaches into the shade is the place's
+     own say: open sky over a park fills every shadow on the board until
+     ivory on a pale square has no edge left, so the park asks for less) */
+  th.sky = scale3(place.sky, 0.92 * (d.amb == null ? 1 : d.amb));
   th.ground = mix3(scale3(lin3(vec3(b.light)), 0.06), scale3(lin3(vec3(t.edge)), 0.10), 0.5);
   th.exposure = d.exposure;
   /* the table as a reflection sees it: its average colour, under the
@@ -489,12 +496,21 @@ var GLSL_LIGHT = [
   "  if (uShadowSoft > 0.5){",
   "    float blk = 0.0, nb = 0.0;",
   "    for (int i = 0; i < 4; i++){",
-  "      vec2 g = vec2(i < 2 ? -1.0 : 1.0, (i == 0 || i == 3) ? -1.0 : 1.0) * uShadowTexel * 6.0;",
+  "      vec2 g = vec2(i < 2 ? -1.0 : 1.0, (i == 0 || i == 3) ? -1.0 : 1.0) * uShadowTexel * 7.5;",
   "      vec2 o = vec2(g.x*rc - g.y*rs, g.x*rs + g.y*rc);",
   "      float d = unpackDepth(texture2D(uShadow, c.xy + o));",
   "      if (d < c.z - bias){ blk += d; nb += 1.0; }",
   "    }",
-  "    float spread = nb > 0.0 ? clamp(1.1 + (c.z - blk / nb) * 300.0, 1.1, 9.0) : 1.6;",
+  /* Most of a board is in plain light. If nothing stands between the
+     lamp and here, nor anywhere as far out as the widest edge could
+     reach, there is no edge to soften and the sixteen taps below are
+     sixteen answers already known: five lookups instead of twenty for
+     most of the pixels on the screen. (The fifth is the point itself,
+     so a shadow thinner than the search — a finial's — is not missed.) */
+  "    float d0 = unpackDepth(texture2D(uShadow, c.xy));",
+  "    if (d0 < c.z - bias){ blk += d0; nb += 1.0; }",
+  "    if (nb < 0.5) return 1.0;",
+  "    float spread = clamp(1.1 + (c.z - blk / nb) * 300.0, 1.1, 9.0);",
   "    float soft = 0.0;",
   "    for (int y = 0; y < 4; y++){",
   "      for (int x = 0; x < 4; x++){",
@@ -541,7 +557,7 @@ var GLSL_LIGHT = [
   "  /* a shadow is never quite black: some of the key light arrives",
   "     anyway, off the table and the walls, and a hard zero is the",
   "     thing that makes a rendered shadow look like a sticker */",
-  "  float sh = (NoLr > 0.0 ? mix(0.18, 1.0, shadowAt(world, NoLr)) : 0.42) * cook;",
+  "  float sh = (NoLr > 0.0 ? mix(0.13, 1.0, shadowAt(world, NoLr)) : 0.38) * cook;",
   "  vec3 H = normalize(L + V);",
   "  float NoH = max(dot(N, H), 0.0), VoH = max(dot(V, H), 0.0);",
   "  vec3 spec = F_Schlick(f0, VoH) * D_GGX(NoH, a) * V_Smith(NoV, NoLs, a);",
@@ -725,8 +741,9 @@ var FSH_BLUR = [
 var FSH_COMPOSITE = [
   "precision highp float;",
   GLSL_COMMON,
-  "uniform sampler2D uScene, uBloom, uBloom2;",
+  "uniform sampler2D uScene, uBloom, uBloom2, uSoft;",
   "uniform float uBloomAmt, uBloomAmt2, uVignette, uGrain, uTime, uAberration;",
+  "uniform float uFocusTop, uFocusBot, uFocusAmt, uPunch, uSat, uTone;",
   "varying vec2 vUV;",
   "float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
   "void main(){",
@@ -740,6 +757,18 @@ var FSH_COMPOSITE = [
   "  c.r = texture2D(uScene, vUV + off).r;",
   "  c.g = texture2D(uScene, vUV).g;",
   "  c.b = texture2D(uScene, vUV - off).b;",
+  /* A lens looking down at a board holds the board and lets the rest
+     go: the far edge of the table and the room behind it soften, and
+     so does the near edge under your hands. The band that holds the
+     board and every man on it is worked out from the camera each frame
+     and is never touched, because a square you cannot read is not
+     worth any amount of atmosphere; outside it the picture eases into
+     a copy of itself blurred at a quarter of the size. */
+  "  if (uFocusAmt > 0.0){",
+  "    float away = max(vUV.y - uFocusTop, uFocusBot - vUV.y);",
+  "    float coc = uFocusAmt * smoothstep(0.0, 0.17, away);",
+  "    if (coc > 0.004) c = mix(c, texture2D(uSoft, vUV).rgb, coc);",
+  "  }",
   /* two blooms: a tight one that puts a halo on a highlight, and a wide
      one, an eighth of the width, that lets a lamp warm the whole corner
      of the frame it hangs in — the second is what a lens really does */
@@ -748,6 +777,15 @@ var FSH_COMPOSITE = [
   "  c = aces(c);",
   /* back out to sRGB for the screen */
   "  c = pow(c, vec3(1.0/2.2));",
+  /* the print: a little more shape in the middle tones (an S laid over
+     the curve, so black and white stay where they were), colour a touch
+     fuller, and the old photographer's split: warmth in what is lit,
+     a breath of cool in what is not. Small numbers; switched off, the
+     picture goes flat in a way you would notice without knowing why. */
+  "  c = mix(c, c * c * (3.0 - 2.0 * c), uPunch);",
+  "  float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));",
+  "  c = mix(vec3(lum), c, uSat);",
+  "  c += vec3(1.0, 0.25, -1.0) * (lum - 0.5) * uTone;",
   "  c += (hash(vUV * 1024.0 + uTime) - 0.5) * uGrain;",
   "  gl_FragColor = vec4(c, 1.0);",
   "}"].join("\n");
@@ -840,6 +878,37 @@ function boardTexture(th) {
     g.fillStyle = gl2;
     g.fillRect(margin, margin, S - margin * 2, S - margin * 2);
   }
+  /* what a cabinet-maker does where the field meets the frame: a dark
+     line of stringing with a pale one outside it, the frame shaded a
+     little where it stands against the squares, and a chamfer round
+     the outside edge to catch the light. Paint, not geometry: it costs
+     nothing to draw and it is the difference between a board and a
+     printed square. */
+  var fx0 = margin, fw = S - margin * 2, ln = Math.max(2, S * 0.0034);
+  for (var sd = 0; sd < 4; sd++) {
+    /* a soft shade on the frame, fading outward from each side of the field */
+    var horiz = sd < 2, far = sd % 2 === 1;
+    var e0 = far ? fx0 + fw : fx0, e1 = far ? e0 + margin * 0.55 : e0 - margin * 0.55;
+    var sg = horiz ? g.createLinearGradient(0, e0, 0, e1) : g.createLinearGradient(e0, 0, e1, 0);
+    sg.addColorStop(0, "rgba(0,0,0,0.26)"); sg.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = sg;
+    var lo = Math.min(e0, e1), span = Math.abs(e1 - e0);
+    if (horiz) g.fillRect(fx0 - margin * 0.55, lo, fw + margin * 1.1, span);
+    else g.fillRect(lo, fx0 - margin * 0.55, span, fw + margin * 1.1);
+  }
+  g.lineJoin = "miter";
+  g.strokeStyle = "rgba(20,12,6,0.62)"; g.lineWidth = ln;
+  g.strokeRect(fx0 - ln * 0.5, fx0 - ln * 0.5, fw + ln, fw + ln);
+  g.strokeStyle = "rgba(255,244,222,0.30)"; g.lineWidth = ln * 0.8;
+  g.strokeRect(fx0 - ln * 1.9, fx0 - ln * 1.9, fw + ln * 3.8, fw + ln * 3.8);
+  /* the chamfer: light on the two edges that face the lamp's side of
+     the picture, shade on the two that do not */
+  var ch = Math.max(3, S * 0.006);
+  g.lineWidth = ch;
+  g.strokeStyle = "rgba(255,246,228,0.34)";
+  g.beginPath(); g.moveTo(ch * 0.5, S - ch * 0.5); g.lineTo(ch * 0.5, ch * 0.5); g.lineTo(S - ch * 0.5, ch * 0.5); g.stroke();
+  g.strokeStyle = "rgba(0,0,0,0.30)";
+  g.beginPath(); g.moveTo(S - ch * 0.5, ch * 0.5); g.lineTo(S - ch * 0.5, S - ch * 0.5); g.lineTo(ch * 0.5, S - ch * 0.5); g.stroke();
   g.fillStyle = th.coord;
   g.font = "600 " + Math.round(margin * 0.62) + "px system-ui, sans-serif";
   g.textAlign = "center"; g.textBaseline = "middle";
@@ -1113,6 +1182,13 @@ function create(canvas, opts) {
              bloom2: gl.getUniformLocation(progComp, "uBloom2"),
              bloomAmt2: gl.getUniformLocation(progComp, "uBloomAmt2"),
              vignette: gl.getUniformLocation(progComp, "uVignette"),
+             soft: gl.getUniformLocation(progComp, "uSoft"),
+             focusTop: gl.getUniformLocation(progComp, "uFocusTop"),
+             focusBot: gl.getUniformLocation(progComp, "uFocusBot"),
+             focusAmt: gl.getUniformLocation(progComp, "uFocusAmt"),
+             punch: gl.getUniformLocation(progComp, "uPunch"),
+             sat: gl.getUniformLocation(progComp, "uSat"),
+             tone: gl.getUniformLocation(progComp, "uTone"),
              grain: gl.getUniformLocation(progComp, "uGrain"),
              time: gl.getUniformLocation(progComp, "uTime"),
              aberration: gl.getUniformLocation(progComp, "uAberration"),
@@ -1206,9 +1282,9 @@ function create(canvas, opts) {
      Nothing here changes what the board means — only how much light it
      is drawn with. */
   var TIERS = {
-    high:   { shadow: 1024, soft: true,  bloom: true,  wide: true,  grain: true,  aberration: true,  mirror: true,  bump: 1024 },
-    medium: { shadow: 512,  soft: false, bloom: true,  wide: false, grain: true,  aberration: false, mirror: false, bump: 512 },
-    low:    { shadow: 0,    soft: false, bloom: false, wide: false, grain: false, aberration: false, mirror: false, bump: 256 }
+    high:   { shadow: 1024, soft: true,  bloom: true,  wide: true,  grain: true,  aberration: true,  mirror: true,  focus: true,  bump: 1024 },
+    medium: { shadow: 512,  soft: false, bloom: true,  wide: false, grain: true,  aberration: false, mirror: false, focus: true,  bump: 512 },
+    low:    { shadow: 0,    soft: false, bloom: false, wide: false, grain: false, aberration: false, mirror: false, focus: false, bump: 256 }
   };
   var quality = Kit.autoQuality();
   /* What the device looks able for — cores and screen, read before a
@@ -1216,7 +1292,7 @@ function create(canvas, opts) {
      with eight cores and a hot battery can still drop to twenty frames a
      second the moment the shadows and the bloom go on. */
   function deviceFx() { return quality.segs < 30 ? "medium" : "high"; }
-  var ORDER = ["low", "medium", "high"], STEP_KEY = "chess.fx.stepped";
+  var ORDER = ["low", "medium", "high"], STEP_KEY = "chess.fx.stepped", RES_KEY = "chess.fx.res";
   function remembered() {
     try { var s = root.sessionStorage && root.sessionStorage.getItem(STEP_KEY); return TIERS[s] ? s : null; }
     catch (e) { return null; }
@@ -1245,8 +1321,28 @@ function create(canvas, opts) {
      was slow a minute ago will be slow again the moment it warms up, and
      a board that flips between looks is worse than either look. A device
      that keeps up is left alone and no longer watched at all. */
-  var FRAME_SLOW = 40, SAMPLE_MIN = 45, RUNS_MIN = 2;
-  var perf = { on: fxMode === "auto" && fxName !== "low", gaps: [], runs: 0, last: 0 };
+  var SAMPLE_MIN = 45, RUNS_MIN = 2;
+  var perf = { on: fxMode === "auto", gaps: [], runs: 0, last: 0 };
+  /* where the pixel ladder stands (see pace, above): remembered for the
+     session like the tier, so a reload does not start the trial again */
+  var res = (function () {
+    var st = { at: 0, origin: null, locked: false };
+    if (fxMode !== "auto") return st;
+    try {
+      var v = root.sessionStorage && root.sessionStorage.getItem(RES_KEY);
+      if (v) {
+        st.at = Math.max(0, Math.min(PACE.RES.length - 1, parseInt(v, 10) || 0));
+        st.locked = v.indexOf("x") >= 0;
+        /* a ladder left half-climbed has nothing to compare itself with any more */
+        if (!st.locked && st.at > 0) st.locked = true;
+      }
+    } catch (e) {}
+    return st;
+  })();
+  function resScale() { return PACE.RES[res.at] || 1; }
+  function rememberRes() {
+    try { if (root.sessionStorage) root.sessionStorage.setItem(RES_KEY, res.at + (res.locked ? "x" : "")); } catch (e) {}
+  }
   function sampleFrame(now, busy) {
     if (!perf.on) return;
     if (!busy) { perf.last = 0; return; }          /* a single redraw is not a frame rate */
@@ -1265,16 +1361,25 @@ function create(canvas, opts) {
     var p75 = g[Math.floor(g.length * 0.75)];
     perf.gaps = []; perf.runs = 0;
     var i = ORDER.indexOf(fxName);
-    if (p75 <= FRAME_SLOW || i <= 0) { perf.on = false; return; }
-    var next = ORDER[i - 1];
-    try { if (root.sessionStorage) root.sessionStorage.setItem(STEP_KEY, next); } catch (e) {}
-    applyFx(next);
-    /* the new tier gets a fair sample of its own before it can step again */
-    perf.on = next !== "low";
+    var next = pace({ res: res.at, origin: res.origin, locked: res.locked, tier: i }, p75);
+    perf.p75 = p75;
+    res.origin = next.origin;
+    if (next.res !== res.at || next.locked !== res.locked) {
+      var resized = next.res !== res.at;
+      res.at = next.res; res.locked = next.locked;
+      rememberRes();
+      if (resized) R.resize();
+    }
+    if (next.tier !== i) {
+      try { if (root.sessionStorage) root.sessionStorage.setItem(STEP_KEY, ORDER[next.tier]); } catch (e) {}
+      applyFx(ORDER[next.tier]);
+    }
+    /* whatever changed gets a fair sample of its own before anything changes again */
+    perf.on = next.watch;
   }
 
-  var scene = null, bloomA = null, bloomB = null, bloomC = null, bloomD = null;
-  var postOk = false, bloomOk = false, wideOk = false;
+  var scene = null, bloomA = null, bloomB = null, bloomC = null, bloomD = null, softA = null, softB = null;
+  var postOk = false, bloomOk = false, wideOk = false, softOk = false;
   /* A card that cannot give us an off-screen target will not change its
      mind, and retrying every frame would cost more than the chain ever
      saved. One failure is remembered and the renderer carries on
@@ -1285,7 +1390,8 @@ function create(canvas, opts) {
     if (!w || !h || postDead) return;
     if (scene && scene.w === w && scene.h === h) return;
     freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD);
-    scene = bloomA = bloomB = bloomC = bloomD = null;
+    freeTarget(softA); freeTarget(softB);
+    scene = bloomA = bloomB = bloomC = bloomD = softA = softB = null;
     scene = makeTarget(w, h, HDR_TYPE, gl.LINEAR, true);
     if (!scene && HDR_TYPE !== gl.UNSIGNED_BYTE) scene = makeTarget(w, h, gl.UNSIGNED_BYTE, gl.LINEAR, true);
     postOk = !!scene;
@@ -1296,6 +1402,15 @@ function create(canvas, opts) {
       bloomA = makeTarget(bw, bh, scene.type, gl.LINEAR, false);
       bloomB = bloomA ? makeTarget(bw, bh, scene.type, gl.LINEAR, false) : null;
       bloomOk = !!bloomB;
+    }
+    /* the out-of-focus copy, a quarter of the size: its own pair, because
+       the bloom's is a picture of the highlights only */
+    softOk = false;
+    if (postOk && FX.focus) {
+      var sw = Math.max(4, w >> 2), sh2 = Math.max(4, h >> 2);
+      softA = makeTarget(sw, sh2, scene.type, gl.LINEAR, false);
+      softB = softA ? makeTarget(sw, sh2, scene.type, gl.LINEAR, false) : null;
+      softOk = !!softB;
     }
     wideOk = false;
     if (bloomOk && FX.wide) {
@@ -1315,6 +1430,7 @@ function create(canvas, opts) {
     var want = FX.shadow;
     if (shadowSize === want) return;
     freeTarget(shadowT); shadowT = null; shadowSize = 0;
+    shLen = -1;                 /* a new map has nothing on it yet */
     if (!want) return;
     shadowT = makeTarget(want, want, gl.UNSIGNED_BYTE, gl.NEAREST, true);
     shadowSize = shadowT ? want : 0;
@@ -1422,7 +1538,7 @@ function create(canvas, opts) {
     PIECES = {};
     for (var k = 1; k <= 6; k++) {
       var m = built.pieces[k];
-      PIECES[k] = { mesh: uploadRaw(m.pos, m.nrm, m.shade, m.idx),
+      PIECES[k] = { mesh: uploadRaw(m.pos, m.nrm, m.shade, m.idx), kind: k,
                     radius: m.radius, height: m.height,
                     /* how this set's man lies when he is laid down, measured
                        once off the mesh rather than guessed per frame */
@@ -1434,6 +1550,7 @@ function create(canvas, opts) {
     setId = built.id;
     setFaces = built.faces || "";
     setName = built.name;
+    shLen = -1;                 /* other men cast other shadows */
   }
   loadPieces(Kit.DEFAULT_ID);
   var FACE_LETTER = { 1: "p", 2: "n", 3: "b", 4: "r", 5: "q", 6: "k" };
@@ -2038,7 +2155,10 @@ function create(canvas, opts) {
     if (w && h && (w !== seenW || h !== seenH)) R.resize();
   }
   R.resize = function () {
-    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    /* never more than two device pixels to a CSS one (a third buys
+       nothing the eye can find on wood and ivory), and fewer if the
+       frame rate has asked for it */
+    var dpr = Math.min(2, window.devicePixelRatio || 1) * resScale();
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     seenW = w; seenH = h;
@@ -2067,7 +2187,8 @@ function create(canvas, opts) {
     if (!TIERS[name] || name === fxName) return;
     fxName = name; FX = TIERS[name];
     freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD);
-    scene = bloomA = bloomB = bloomC = bloomD = null;
+    freeTarget(softA); freeTarget(softB);
+    scene = bloomA = bloomB = bloomC = bloomD = softA = softB = null;
     sizeShadow(); sizeTargets(); loadBoardTex();
     R.dirty = true;
   }
@@ -2077,14 +2198,30 @@ function create(canvas, opts) {
     if (name === "auto") {
       fxMode = "auto";
       applyFx(autoFx());
-      perf.on = fxName !== "low"; perf.gaps = []; perf.runs = 0; perf.last = 0;
+      perf.on = true; perf.gaps = []; perf.runs = 0; perf.last = 0;
       R.dirty = true;
       return;
     }
     if (!TIERS[name]) return;
     fxMode = "chosen";
     perf.on = false;
+    /* a look somebody chose is drawn with every pixel it has */
+    if (res.at !== 0) { res.at = 0; res.origin = null; res.locked = false; R.resize(); }
     applyFx(name);
+  };
+  /* what a frame costs and what has been given up to keep it coming,
+     for the Studio's sentence and for chess/tools/perf-check.js */
+  var counts = { frames: 0, shadowDrawn: 0, shadowKept: 0 };
+  R.stats = function () {
+    return { fx: fxName, mode: fxMode, scale: resScale(), resLocked: res.locked, watching: perf.on, p75: perf.p75 || 0,
+             frames: counts.frames, shadowDrawn: counts.shadowDrawn, shadowKept: counts.shadowKept,
+             focus: !!(softOk && FX.focus && R.pal && R.pal.focus > 0 && place.ready && R.pal.table),
+             width: canvas.width, height: canvas.height };
+  };
+  /* for the check: a run of frame gaps, judged exactly as real ones are */
+  R.paceForTest = function (gaps) {
+    perf.on = true; perf.gaps = gaps.slice(); perf.runs = RUNS_MIN; sampleEnd();
+    return R.stats();
   };
 
   /* lines, born by key on this board's own clock so a repaint of the
@@ -2779,7 +2916,7 @@ function create(canvas, opts) {
        right at the base, which a 1024-pixel map an eighth of a square
        wide cannot resolve on its own. Without one it is still the only
        shadow there is, so it stays correspondingly darker. */
-    var contact = shadowSize ? 0.075 : 0.24;
+    var contact = shadowSize ? 0.135 : 0.26;
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     bindMesh(MESH_DISC);
@@ -2831,9 +2968,37 @@ function create(canvas, opts) {
      matter. Back faces are the ones recorded — the standard dodge for
      self-shadowing acne, which works here because every carved piece is
      a closed solid with its winding already checked. */
+  /* The map only changes when something that casts has moved. A camera
+     going round the board, a fresh game's opening shot, the walk round
+     a mated king, a phone being tilted: the light has not moved and
+     neither have the men, so the map from the frame before is still
+     true and a third of the frame's triangles need not be drawn again.
+     What casts is written down as plain numbers (the light, then every
+     man's pose) and compared with the last map's. */
+  var SH_MAX = 96 * 10 + 24;
+  var shNow = new Float32Array(SH_MAX), shWas = new Float32Array(SH_MAX), shLen = -1;
+  function shadowFresh(onTable) {
+    var n = 0, i, q, s = shNow;
+    for (i = 0; i < 16; i++) s[n++] = lightVP[i];
+    s[n++] = shadowSize; s[n++] = onTable ? 1 : 0;
+    for (i = 0; i < instances.length; i++) {
+      q = instances[i];
+      if (q.a < 0.35) continue;
+      if (n + 10 > SH_MAX) { shLen = -1; return false; }       /* more men than a board holds: just draw it */
+      s[n++] = q.P.kind; s[n++] = q.x; s[n++] = q.y; s[n++] = q.z; s[n++] = q.s; s[n++] = q.sy;
+      s[n++] = q.ry; s[n++] = q.lean; s[n++] = q.ax; s[n++] = q.az;
+    }
+    var same = n === shLen;
+    for (i = 0; same && i < n; i++) if (s[i] !== shWas[i]) same = false;
+    if (same) return true;
+    shNow = shWas; shWas = s; shLen = n;
+    return false;
+  }
   function shadowPass() {
     var onTable = !!(place.ready && R.pal && R.pal.table);
     if (!shadowSize || (!instances.length && !onTable)) return;
+    if (shadowFresh(onTable)) { counts.shadowKept++; return; }
+    counts.shadowDrawn++;
     gl.bindFramebuffer(gl.FRAMEBUFFER, shadowT.fb);
     gl.viewport(0, 0, shadowSize, shadowSize);
     gl.clearColor(1, 1, 1, 1);
@@ -3224,6 +3389,7 @@ function create(canvas, opts) {
     if (place.ready && th.table && placeTray(nowMs)) touchLive = true;
 
     /* ---- pass one: what the light can see ---- */
+    counts.frames++;
     shadowPass();
 
     /* ---- pass two: the room, into a texture if we have one ---- */
@@ -3560,6 +3726,23 @@ function create(canvas, opts) {
      the grain, in that order, because that is the order a camera does
      them in. The blur runs at a quarter of the width, which is four
      times less work and — since it is a blur — no visible difference. */
+  /* the band of the picture, bottom to top as fractions of its height,
+     that holds the board and every man standing on it: the eight
+     corners of a box a king tall, through the camera */
+  var FOCUS_H = 1.1, focusUV = [0, 1];
+  function focusBand() {
+    var lo = 2, hi = -2;
+    for (var i = 0; i < 8; i++) {
+      var x = (i & 1) ? HALF : -HALF, z = (i & 2) ? HALF : -HALF, y = (i & 4) ? FOCUS_H : 0;
+      var w = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+      if (w < 1e-3) continue;
+      var v = (vp[1] * x + vp[5] * y + vp[9] * z + vp[13]) / w * 0.5 + 0.5;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    focusUV[0] = lo <= hi ? lo : 0; focusUV[1] = lo <= hi ? hi : 1;
+    return focusUV;
+  }
   function post(th) {
     gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
@@ -3599,9 +3782,36 @@ function create(canvas, opts) {
       }
     }
 
+    /* the out-of-focus copy: only where the board is somewhere (in the
+       studio there is nothing behind it to lose), four small passes */
+    var focus = softOk && FX.focus && th.focus > 0 && !!(place.ready && th.table);
+    if (focus) {
+      gl.useProgram(progBlur);
+      gl.uniform1i(UL.tex, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.viewport(0, 0, softA.w, softA.h);
+      var sp = [[softA, scene, 1, 0], [softB, softA, 0, 1], [softA, softB, 1.7, 0], [softB, softA, 0, 1.7]];
+      for (var si = 0; si < 4; si++) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, sp[si][0].fb);
+        gl.bindTexture(gl.TEXTURE_2D, sp[si][1].tex);
+        gl.uniform2f(UL.dir, sp[si][2] / softA.w, sp[si][3] / softA.h);
+        fullscreen(UL.aPos);
+      }
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(progComp);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, focus ? softB.tex : blankTex);
+    gl.uniform1i(UC.soft, 3);
+    var band = focus ? focusBand() : null;
+    gl.uniform1f(UC.focusAmt, focus ? th.focus : 0);
+    gl.uniform1f(UC.focusBot, band ? band[0] : 0);
+    gl.uniform1f(UC.focusTop, band ? band[1] : 1);
+    gl.uniform1f(UC.punch, th.punch);
+    gl.uniform1f(UC.sat, th.sat);
+    gl.uniform1f(UC.tone, th.split);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, scene.tex);
     gl.uniform1i(UC.scene, 0);
@@ -3626,14 +3836,56 @@ function create(canvas, opts) {
     R.anim = null;
     freePieces();
     freeTarget(scene); freeTarget(bloomA); freeTarget(bloomB); freeTarget(bloomC); freeTarget(bloomD); freeTarget(shadowT);
-    scene = bloomA = bloomB = bloomC = bloomD = shadowT = null;
-    shadowSize = 0; postOk = bloomOk = false;
+    freeTarget(softA); freeTarget(softB);
+    scene = bloomA = bloomB = bloomC = bloomD = softA = softB = shadowT = null;
+    shadowSize = 0; postOk = bloomOk = softOk = false;
   };
   R.resize();
   return R;
 }
 
-var Gfx3D = { create: create, derive: derive };
+/* ---------- holding the frame rate ----------
+   What to give up, and in what order, when frames come slowly. The
+   first thing to go is something nobody can point at: the board is
+   drawn with a few fewer pixels and stretched to fit (most of a frame
+   on a phone is spent filling pixels, so this is also what buys the
+   most), a rung at a time, stopping the moment the frames are smooth.
+   A device that is really struggling — under twenty-five frames a
+   second, where a slide judders — is not asked to wait for the ladder:
+   it loses a tier of effects at once as well, as it always did.
+
+   One frame rate cannot be told from another by its gaps alone: a
+   phone in low-power mode draws thirty frames a second however little
+   it is asked to do, and looks exactly like a phone that is a little
+   short of breath. So the pixels are a trial. If drawing fewer of them
+   all the way down the ladder did not make the frames come at least an
+   eighth faster, they were never the problem: they are all given back,
+   and that door is closed for the session.
+
+   Pure, so it can be checked with made-up frame times: given where the
+   ladder stands (res: rung of RES, origin: the slow figure the trial
+   started from, locked: the trial is over, tier: 0 low … 2 high) and
+   the 75th-percentile gap between frames in ms, say where it stands
+   next and whether to keep watching. */
+var PACE = { TARGET: 21, SLOW: 40, GAIN: 0.88, RES: [1, 0.86, 0.74, 0.64] };
+function pace(st, p75) {
+  var o = { res: st.res | 0, origin: st.origin == null ? null : st.origin, locked: !!st.locked,
+            tier: st.tier | 0, watch: true };
+  if (!(p75 > PACE.TARGET)) { o.watch = false; return o; }       /* smooth: leave it alone */
+  if (!o.locked) {
+    if (o.origin == null) o.origin = p75;
+    if (o.res < PACE.RES.length - 1) o.res++;                     /* one rung fewer pixels, and look again */
+    else {
+      if (p75 > o.origin * PACE.GAIN) o.res = 0;                  /* it never helped: give them back */
+      o.locked = true;
+    }
+  }
+  if (p75 > PACE.SLOW && o.tier > 0) o.tier--;
+  o.watch = !o.locked || (p75 > PACE.SLOW && o.tier > 0);
+  return o;
+}
+
+var Gfx3D = { create: create, derive: derive, pace: pace, PACE: PACE };
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx3D;
 else root.Gfx3D = Gfx3D;
 })(typeof self !== "undefined" ? self : this);
