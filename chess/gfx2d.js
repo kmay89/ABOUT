@@ -1014,7 +1014,7 @@ function create(canvas) {
      the board: dragged off the edge, it waits at the edge. setDrag hands
      back the square under the finger (-1 off the board), which is where a
      drop lands. */
-  var drag = null, hover = -1;
+  var drag = null, hover = -1, cursor = -1;
   /* Let go of, he is never simply teleported: a move played there and
      then sets him down from under the finger (see animateMove), and a
      drop the app refuses glides him home. `settling` is that glide —
@@ -1052,6 +1052,12 @@ function create(canvas) {
   R.dragHover = function (sq) {
     var next = sq != null && sq >= 0 && onBoard(sq) ? sq : -1;
     if (next !== hover) { hover = next; R.dirty = true; }
+  };
+  /* the keyboard's square (app.js, keys and words), or -1: drawn only
+     when it moves, so a still cursor costs no frames */
+  R.setCursor = function (sq) {
+    var next = sq != null && sq >= 0 && onBoard(sq) ? sq : -1;
+    if (next !== cursor) { cursor = next; R.dirty = true; }
   };
   /* where the carried man is drawn: the pointer, carried back through
      the lean-in so it stays under the finger, and kept on the board */
@@ -1181,6 +1187,20 @@ function create(canvas) {
       ctx.strokeStyle = th.hoverEdge;
       ctx.lineWidth = hl;
       rr(ctx, hc.x - R.cell / 2 + hl / 2, hc.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+    }
+    /* the keyboard's square: a dark line and a bright one inside it, so
+       it reads on a light square and a dark one alike */
+    if (cursor >= 0) {
+      var kc = sqXY(cursor), kl = Math.max(2, R.cell * 0.05);
+      ctx.save();
+      ctx.lineWidth = kl * 2.2;
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      rr(ctx, kc.x - R.cell / 2 + kl * 1.1, kc.y - R.cell / 2 + kl * 1.1, R.cell - kl * 2.2, R.cell - kl * 2.2, R.cell * 0.08);
+      ctx.stroke();
+      ctx.lineWidth = kl;
+      ctx.strokeStyle = th.hoverEdge;
       ctx.stroke();
       ctx.restore();
     }
