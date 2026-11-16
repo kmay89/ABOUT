@@ -234,6 +234,11 @@ sound.js            what the room sounds like. The pieces by modal
                     a rating — a short score in D major, written down as
                     data and played by a tiny synth into a reverb grown
                     from noise. All synthesized — no samples
+unlocks.js          the collection: every reward there is (each coach's
+                    board, secret, colours and special; trails, bursts,
+                    emotes, colours and titles by level), how each is won,
+                    the arithmetic of experience, and the stored state,
+                    kept safe from a tampered store. Pure
 momentum.js         who has the game, from what anybody can see: material,
                     pieces in play, a king tucked away, and a surge for
                     whoever just landed a blow (a trade half made is not a
@@ -574,6 +579,16 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  unlocks-check.js  the collection: in node, every item whole and winnable,
+                    three rewards per coach (its real board and a real
+                    lesson first), real colours and sets, something at
+                    nearly every level, experience that always pays and
+                    pays more for more, things given once and only when
+                    won, a quiet catch-up, a tampered store made safe; in
+                    a browser, the card's experience and LEVEL UP, the box
+                    only after the card, Use it!, the lobby, the shelf, a
+                    locked carved set, a trail laid by your move only, a
+                    face sent and answered, a reload, an older room
   momentum-check.js the momentum bar: in node, level at the start, a piece a
                     clear lean, a half-made trade no lurch, never a loss the
                     coach has not shown, a surge that fades, the lead and
@@ -1848,6 +1863,54 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## The collection: something to win
+
+Playing well should leave you with something, and the next thing should
+always be in sight.
+
+**Every coach has three things to give, one per star:**
+- ★ **Beat it:** its own board, and its secret, a skill card naming the
+  trick it is known for (Acorn's knight hop, Clover's fork, Bamboo's pin,
+  Cactus's skewer, Pine's back rank, Oak's quiet promotion…) with a
+  button straight into the Academy lesson that teaches it.
+- ★★ **Beat it with no help:** a set of piece colours in its style.
+  Acorn & Oak in wood, Lucky Clover in green glass, Desert Bloom in pink
+  and sand, Gold & Ebony in metal.
+- ★★★ **Beat it with no help, and well (80%+):** something special. A
+  new shape of carved piece (Sprout gives Nordic, Fern Modern, Pine
+  Staunton: the carved sets are won now, not picked; a set already in use
+  stays yours), a trail (Acorn's falling leaves, Bamboo's wind ribbons)
+  or a burst (Clover's four-leaf burst, Cactus's prickle pop, Oak's golden
+  fireworks).
+
+**Every game earns experience**, won, drawn or lost: a win more, a harder
+coach more, new stars, a comeback and a feat each a bonus. Level two
+comes in a game or two, then it is a steady walk to twenty, and nearly
+every level brings something:
+- emotes to send across the board (the coach answers);
+- trails: sparkles, bubbles, a rainbow, a comet;
+- bursts: confetti, starfall, hearts;
+- colours: Candy, Ocean, Royal, Galaxy;
+- titles worn on your name tag: Rising Star, Friend of the Grove, Legend
+  of the Room.
+
+Beating every coach makes you a Ladder Climber; every star of every
+coach, a Master Gardener.
+
+**Getting it is a moment.** The end card counts the experience in, with
+what it was for, fills the bar, and bounces LEVEL UP! when it crosses a
+level. Then, once the card has had its say, a gift box drops onto the
+screen, shakes twice, and bursts open: light rays turn behind it, NEW!
+bounces in, the thing itself pops out with confetti, a harp and a bell.
+**Use it!** puts it on there and then. Several wins come one box at a
+time.
+
+**The collection** (the lobby's *Your collection*, with your level and
+what is new) is a shelf for every kind: what is yours, to put on or take
+off, and what is still to win, as a silhouette saying exactly how. All of
+it is stored on this device. A room that had played before finds what
+its old games earned already waiting, marked new, without a box for each.
+
 ## Momentum: who has the game
 
 A game of chess has a shape: you are pressing, then you lose a piece,
@@ -2955,6 +3018,7 @@ node chess/tools/wheels-check.js   # what can be lost is marked on both boards, 
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
+node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed

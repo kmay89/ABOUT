@@ -859,6 +859,139 @@
   /* on a wide screen the board fills the stage to its foot, so the bar
      rides in your own row, between your name and your clock */
   @media (min-width:900px){ .mo{bottom:12px; width:min(38%, 420px)} }
+
+  /* ---------- the collection: level, the box, the shelf ---------- */
+  .xpLv{flex:none; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-weight:900; font-size:1.15em;
+    color:#3a1c00; background:radial-gradient(circle at 35% 30%, #fff8d6, #ffd166 55%, #f08a20); box-shadow:0 0 0 3px #fff, 0 4px 10px rgba(0,0,0,.4)}
+  .xpLv.big{width:58px; height:58px; font-size:1.6em}
+  .xpLv.up{animation:lvUp .7s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes lvUp{0%{transform:scale(1)} 30%{transform:scale(1.5) rotate(-8deg)} 60%{transform:scale(.9) rotate(4deg)} 100%{transform:scale(1)}}
+  .xpMid{flex:1; min-width:0; text-align:left}
+  .xpTop{display:flex; justify-content:space-between; align-items:baseline; font-size:.82em}
+  .xpTop b{letter-spacing:.12em; text-transform:uppercase; color:var(--amber); font-size:.9em}
+  .xpTop span{font-weight:900; color:#ffe08a}
+  .xpTop span.pop{animation:lvUp .5s ease-out}
+  .xpUp{font-style:italic; font-weight:900; font-size:1em; color:#fff; -webkit-text-stroke:1.5px #0b4f8a; paint-order:stroke fill;
+    text-shadow:0 2px 0 #0b4f8a; animation:lvUp .7s cubic-bezier(.2,1.6,.4,1)}
+  .xpBar{position:relative; height:12px; border-radius:999px; margin:4px 0 3px; background:rgba(0,0,0,.45); overflow:hidden;
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.5), 0 0 0 2px rgba(255,255,255,.7)}
+  .xpBar i{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:999px; background:linear-gradient(180deg, #a6f5ff, #39b6ff 60%, #2a7fe0)}
+  .xpBar i::after{content:""; position:absolute; left:4px; right:4px; top:2px; height:3px; border-radius:999px; background:rgba(255,255,255,.6)}
+  .xpMid small{display:block; color:var(--soft); font-size:.72em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .endXp{display:flex; align-items:center; gap:10px; margin:10px 0 2px; padding:8px 10px; border-radius:14px; background:var(--card2); border:1px solid var(--line)}
+  .erMile.levelup{border-color:#39b6ff; background:linear-gradient(180deg, rgba(57,182,255,.18), rgba(57,182,255,.06))}
+  .collectBtn{position:relative; margin-top:8px}
+  .collectBtn.fresh::after{content:"NEW"; position:absolute; top:-7px; left:14px; padding:1px 8px; border-radius:999px; font-size:.62em; font-weight:900;
+    letter-spacing:.1em; color:#fff; background:#e0245e; box-shadow:0 2px 6px rgba(224,36,94,.5); animation:newBob 1.4s ease-in-out infinite}
+  @keyframes newBob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)}}
+  .giftBtn small{color:rgba(255,255,255,.85)}
+  .giftBtn .em{animation:ulShake .9s ease-in-out infinite; font-size:1.7em}
+  .giftBtn.pop{animation:ulItemIn .6s cubic-bezier(.2,1.6,.4,1)}
+  .collectBtn.boxes{border-color:#e0245e; box-shadow:0 0 0 2px rgba(224,36,94,.35), 0 0 18px rgba(224,36,94,.35)}
+  .collectBtn.boxes .em{animation:ulShake .9s ease-in-out infinite}
+  .collectBtn.boxes::after{content:"OPEN!"}
+  .lvBadge{flex:none; display:flex; flex-direction:column; align-items:center; gap:3px; margin-left:auto}
+  .lvBadge b{width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:900; color:#3a1c00;
+    background:radial-gradient(circle at 35% 30%, #fff8d6, #ffd166 55%, #f08a20); box-shadow:0 0 0 2px #fff}
+  .lvBadge > i{display:block; width:40px; height:5px; border-radius:999px; background:rgba(0,0,0,.4); overflow:hidden}
+  .lvBadge > i > i{display:block; height:100%; width:0; background:#39b6ff}
+  .ptag .ttl{display:inline-block; margin-left:6px; padding:0 7px; border-radius:999px; font-size:.68em; font-weight:800; vertical-align:middle;
+    color:#3a1c00; background:linear-gradient(180deg, #fff1b0, #ffc94a)}
+  .stPick.locked{opacity:.6}
+  .rung .rgGift{position:absolute; top:6px; right:6px; display:flex; align-items:center; gap:1px; padding:1px 5px; border-radius:999px; font-size:.7em;
+    background:rgba(224,36,94,.9); box-shadow:0 2px 5px rgba(0,0,0,.35); animation:newBob 2.2s ease-in-out infinite}
+  .rung .rgGift i{font-style:normal}
+  .rung .rgGift.done{background:rgba(57,182,90,.85); animation:none; color:#fff; font-weight:900}
+  /* the box */
+  .ulOv{background:radial-gradient(circle at 50% 42%, rgba(60,40,110,.92), rgba(8,6,18,.96)); z-index:60; display:grid; place-items:center}
+  .ulOv.hide{display:none}
+  .ulStage{position:relative; width:min(92vw, 420px); text-align:center; padding:20px 12px}
+  .ulRays{position:absolute; left:50%; top:38%; width:560px; height:560px; margin:-280px 0 0 -280px; border-radius:50%; opacity:0; pointer-events:none;
+    background:repeating-conic-gradient(from 0deg, rgba(255,230,140,.38) 0 9deg, rgba(255,230,140,0) 9deg 22deg);
+    -webkit-mask:radial-gradient(circle, #000 18%, transparent 68%); mask:radial-gradient(circle, #000 18%, transparent 68%)}
+  .ulOv.burst .ulRays{opacity:1; animation:ulSpin 9s linear infinite, ulRayIn .5s ease-out}
+  @keyframes ulSpin{to{transform:rotate(360deg)}}
+  @keyframes ulRayIn{from{opacity:0; transform:scale(.3)} to{opacity:1; transform:scale(1)}}
+  .ulBox{position:relative; width:120px; height:110px; margin:30px auto 44px; display:block}
+  .ulBody{position:absolute; left:10px; right:10px; bottom:0; height:70px; border-radius:10px;
+    background:linear-gradient(90deg, transparent 42%, #ffe08a 42% 58%, transparent 58%), linear-gradient(180deg, #ff6a8a, #d8345c);
+    box-shadow:inset 0 -8px 0 rgba(0,0,0,.18), 0 8px 18px rgba(0,0,0,.5)}
+  .ulLid{position:absolute; left:2px; right:2px; top:20px; height:26px; border-radius:8px; z-index:2;
+    background:linear-gradient(90deg, transparent 42%, #ffe08a 42% 58%, transparent 58%), linear-gradient(180deg, #ff8aa5, #e2416a);
+    box-shadow:0 4px 8px rgba(0,0,0,.35)}
+  .ulBow{position:absolute; left:50%; top:0; width:56px; height:30px; margin-left:-28px; z-index:3;
+    background:radial-gradient(ellipse at 25% 60%, #ffe08a 0 38%, transparent 40%), radial-gradient(ellipse at 75% 60%, #ffe08a 0 38%, transparent 40%)}
+  .ulOv.drop .ulBox{animation:ulDrop .55s cubic-bezier(.3,1.6,.5,1), ulShake .5s ease-in-out .7s 2}
+  @keyframes ulDrop{from{transform:translateY(-120vh) rotate(-12deg)} to{transform:none}}
+  @keyframes ulShake{0%,100%{transform:rotate(0)} 20%{transform:rotate(-9deg) scale(1.05)} 40%{transform:rotate(8deg)} 60%{transform:rotate(-6deg) scale(1.08)} 80%{transform:rotate(5deg)}}
+  .ulOv.burst .ulBox{animation:ulPop .45s ease-out forwards}
+  .ulOv.burst .ulLid{animation:ulLid .5s ease-out forwards}
+  @keyframes ulPop{0%{transform:scale(1.15); opacity:1} 100%{transform:scale(.4) translateY(60px); opacity:0}}
+  @keyframes ulLid{to{transform:translate(40px,-120px) rotate(40deg); opacity:0}}
+  .ulItem{position:absolute; left:0; right:0; top:96px; display:grid; place-items:center; opacity:0; pointer-events:none}
+  .ulOv.burst .ulItem{animation:ulItemIn .8s cubic-bezier(.2,1.6,.4,1) .15s forwards}
+  @keyframes ulItemIn{0%{opacity:0; transform:scale(.2) translateY(40px)} 60%{opacity:1; transform:scale(1.15)} 100%{opacity:1; transform:scale(1)}}
+  .ulIcon{width:130px; height:130px; border-radius:30px; display:grid; place-items:center; background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 50%, #ffc35a);
+    box-shadow:0 0 0 5px #fff, 0 0 40px 12px rgba(255,220,120,.6), 0 12px 24px rgba(0,0,0,.5); overflow:hidden}
+  .ulKick{position:relative; z-index:2; font-weight:900; font-style:italic; font-size:clamp(30px, 9.5vw, 50px); white-space:nowrap; line-height:1; color:#fff;
+    -webkit-text-stroke:3px #3a1c00; paint-order:stroke fill; text-shadow:0 4px 0 #3a1c00, 0 10px 20px rgba(0,0,0,.5); opacity:0;
+    background:linear-gradient(180deg, #fffbe6 0 30%, #ffe066 55%, #ff9a2e 100%); -webkit-background-clip:text; background-clip:text}
+  .ulOv.burst .ulKick{animation:ulKick .9s cubic-bezier(.2,1.6,.4,1) .25s forwards}
+  @keyframes ulKick{0%{opacity:0; transform:scale(.3) rotate(-10deg)} 60%{opacity:1; transform:scale(1.15) rotate(3deg)} 100%{opacity:1; transform:none}}
+  .ulKind, .ulName, .ulHow, .ulBtns, .ulCount{opacity:0; position:relative; z-index:2}
+  .ulOv.burst .ulKind, .ulOv.burst .ulName, .ulOv.burst .ulHow, .ulOv.burst .ulBtns, .ulOv.burst .ulCount{animation:ulUp .5s ease-out forwards}
+  .ulOv.burst .ulName{animation-delay:.5s} .ulOv.burst .ulHow{animation-delay:.6s} .ulOv.burst .ulBtns{animation-delay:.75s} .ulOv.burst .ulCount{animation-delay:.85s}
+  @keyframes ulUp{from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:none}}
+  .ulKind{margin-top:14px; font-size:.72em; font-weight:900; letter-spacing:.2em; color:#ffd166}
+  .ulName{font-size:1.6em; font-weight:900; color:#fff; text-shadow:0 2px 0 rgba(0,0,0,.4)}
+  .ulHow{color:#d9d2ff; font-size:.88em; margin:4px 0 14px}
+  .ulBtns{display:flex; gap:8px; justify-content:center} .ulBtns .bigbtn{flex:1; max-width:180px; justify-content:center}
+  .ulCount{color:#bdb4e8; font-size:.8em; margin-top:8px}
+  .ulSw, .ulIcon .ulSw{width:96px; height:96px; border-radius:14px; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; overflow:hidden; position:relative; border:3px solid rgba(0,0,0,.35)}
+  .ulSw i{display:block} .ulSw b{position:absolute; width:30%; aspect-ratio:1; border-radius:50%; bottom:14%; border:2px solid; box-shadow:0 2px 3px rgba(0,0,0,.4)}
+  .ulSw b:first-of-type{left:12%} .ulSw b:last-of-type{right:12%}
+  .ulCol{display:flex; gap:2px; font-size:64px; line-height:1} .ulCol b{-webkit-text-stroke:1.5px rgba(0,0,0,.45); text-shadow:0 3px 4px rgba(0,0,0,.35)}
+  .ulGlyph{font-size:70px; line-height:1; filter:drop-shadow(0 3px 3px rgba(0,0,0,.35))}
+  .ulSet{color:#3a2a1e; -webkit-text-stroke:1px #fff}
+  .ulEm{font-size:40px; letter-spacing:2px}
+  .ulTitle{display:inline-block; padding:8px 12px; border-radius:12px; font-weight:900; font-size:15px; color:#3a1c00; background:linear-gradient(180deg, #fff1b0, #ffc94a); box-shadow:0 3px 0 #c98a1a}
+  .ulSkill{position:relative; width:100%; height:100%; display:grid; place-items:center} .ulSkill img{width:110%; height:110%; object-fit:cover; object-position:50% 25%}
+  .ulSkill i{position:absolute; right:6px; bottom:4px; font-style:normal; font-size:34px; filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))}
+  /* the shelf */
+  .coCard0{max-width:560px}
+  .coHead{display:flex; align-items:center; gap:12px} .coHead h2{margin:0 0 2px}
+  .coNext{margin:8px 0 4px; font-size:.86em; color:var(--soft)} .coNext b{color:var(--ink)}
+  .coTabs{display:flex; gap:6px; overflow-x:auto; padding:6px 2px 4px; scrollbar-width:none}
+  .coTab{position:relative; flex:none; display:flex; flex-direction:column; align-items:center; gap:1px; min-width:66px; padding:6px 8px; border-radius:14px;
+    background:var(--card2); border:1px solid var(--line); font-size:.74em; font-weight:700}
+  .coTab .em{font-size:1.5em} .coTab small{color:var(--soft); font-weight:600}
+  .coTab.sel{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,160,32,.3)}
+  .coTab.new::after{content:""; position:absolute; top:4px; right:6px; width:9px; height:9px; border-radius:50%; background:#e0245e; box-shadow:0 0 0 2px var(--card2)}
+  .coKindNote{font-size:.8em; color:var(--soft); margin:4px 2px 8px}
+  .coGrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); gap:10px; max-height:52dvh; overflow-y:auto; padding:4px 2px}
+  .coCard{position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 8px; border-radius:16px; text-align:center;
+    background:var(--card2); border:1px solid var(--line)}
+  .coPic{position:relative; width:84px; height:84px; border-radius:18px; display:grid; place-items:center; overflow:hidden;
+    background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 55%, #ffc35a)}
+  .coPic .ulSw{width:68px; height:68px; border-width:2px} .coPic .ulGlyph{font-size:46px} .coPic .ulCol{font-size:40px} .coPic .ulEm{font-size:22px}
+  .coPic .ulTitle{font-size:10px; padding:4px 6px} .coPic .ulSkill i{font-size:24px}
+  .coCard.locked .coPic{background:#2a241f} .coCard.locked .coPic > *:not(.coLock){filter:grayscale(1) brightness(.25) contrast(.8)}
+  .coLock{position:absolute; inset:0; display:grid; place-items:center; font-style:normal; font-size:26px}
+  .coName{font-size:.86em} .coCard.locked .coName{color:var(--soft)}
+  .coHow{font-size:.7em; color:var(--soft); line-height:1.25}
+  .coCard.own:hover{border-color:var(--amber)} .coCard.on{border-color:#39b6ff; box-shadow:0 0 0 2px rgba(57,182,255,.35)}
+  .coCard.on .coHow{color:#8fd3ff; font-weight:700}
+  .coNew{position:absolute; top:-6px; right:-4px; padding:1px 7px; border-radius:999px; font-size:.62em; font-weight:900; color:#fff; background:#e0245e; animation:newBob 1.4s ease-in-out infinite}
+  .coFoot{display:flex; align-items:center; justify-content:space-between; margin-top:10px} .coFoot small{color:var(--soft)}
+  /* emotes you send */
+  .emoteWrap{position:relative; pointer-events:auto}
+  .emoteBtn{width:34px; height:34px; border-radius:50%; font-size:18px; background:rgba(20,16,12,.72); border:1px solid var(--line); box-shadow:var(--shadow)}
+  .emoteFan{position:absolute; left:0; bottom:42px; display:flex; gap:6px; padding:6px; border-radius:20px; background:rgba(20,16,12,.85); border:1px solid var(--line)}
+  .emPick{width:38px; height:38px; border-radius:50%; font-size:22px; background:#fff; animation:emIn .35s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes emIn{from{opacity:0; transform:scale(.3) translateY(10px)} to{opacity:1; transform:none}}
+  .emote.mine{left:6px; right:auto; top:-34px}
+  @media (prefers-reduced-motion: reduce){ .ulOv.drop .ulBox, .ulOv.burst .ulBox, .ulOv.burst .ulRays, .ulOv.burst .ulItem, .ulOv.burst .ulKick{animation:none; opacity:1}
+    .ulOv.burst .ulBox{opacity:0} .collectBtn.fresh::after, .coNew{animation:none} }
   .tileRow{display:grid; grid-template-columns:1fr 1fr; gap:8px}
   .tileRow.three{grid-template-columns:1fr 1fr 1fr}
   .tile{
@@ -1321,6 +1454,14 @@
   .chip.sel, .stPick.sel, .lchip.go, #toast .tact{font-weight:700}
   .abtn.primary .ic{color:var(--gold-ink)}
   #endNext small, #endNext.hide + #endRematch small{color:rgba(36,26,8,.74); text-shadow:none}
+  /* the present: pink, the one thing on the card that is a gift */
+  #endGift{
+    --fa:#ff7a98; --fb:#d8345c; --edge:#7d1834;
+    background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#ffc0d0; color:#fff;
+    text-shadow:0 1px 0 rgba(0,0,0,.25);
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), 0 calc(var(--d) + 5px) 16px rgba(224,36,94,.35), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #endGift small{color:rgba(255,255,255,.88)}
   .playBtn small{text-shadow:none}
   /* the quiet second choice in a toast stays flat: it is the way out, not the way on */
   #toast .tact.ghost{
@@ -1686,6 +1827,7 @@
       </div>
       <div class="pbar bot">
         <div class="ptag"><span id="nameBot">White</span><span class="cap" id="capBot"></span></div>
+        <div class="emoteWrap"><button class="emoteBtn hide" id="emoteBtn" aria-label="Send the coach a face">🙂</button><div class="emoteFan hide" id="emoteFan"></div></div>
         <div class="clock off" id="clockBot">5:00</div>
       </div>
       <div class="oppFace hide" id="oppFaceWrap" aria-hidden="true"><canvas id="oppFace"></canvas><span class="oppEmoji" id="oppEmoji"></span></div>
@@ -1788,6 +1930,7 @@
 
     <div class="secHead"><b>Climb the ladder</b><small id="mLadderNote">Beat each coach to earn its stars</small></div>
     <div class="ladder" id="mLadder" role="list"></div>
+    <button class="bigbtn collectBtn" id="mCollect"><span class="em">🎁</span><span><b>Your collection</b><small id="mCollectSub">Boards, pieces, colours, trails and more to win.</small></span><span class="lvBadge" aria-label="Your level"><b id="mLv">1</b><i><i id="mLvBar"></i></i></span></button>
 
     <div class="secHead"><b>More ways to play</b></div>
     <div class="tileRow three">
@@ -2063,6 +2206,32 @@
 </div>
 
 <!-- ===== game over ===== -->
+<div class="ov ulOv hide" id="ovUnlock" role="dialog" aria-labelledby="ulName" aria-modal="true">
+  <div class="ulStage">
+    <div class="ulRays" aria-hidden="true"></div>
+    <div class="ulKick" id="ulKick">NEW!</div>
+    <div class="ulBox" aria-hidden="true"><span class="ulLid"></span><span class="ulBody"></span><span class="ulBow"></span></div>
+    <div class="ulItem"><div class="ulIcon" id="ulIcon"></div></div>
+    <div class="ulKind" id="ulKind"></div>
+    <div class="ulName" id="ulName">Something new</div>
+    <div class="ulHow" id="ulHow"></div>
+    <div class="ulBtns"><button class="bigbtn primaryBtn" id="ulUse">Use it!</button><button class="bigbtn" id="ulNext">Nice!</button></div>
+    <div class="ulCount" id="ulCount"></div>
+  </div>
+</div>
+<div class="ov hide" id="ovCollect" role="dialog" aria-labelledby="coTitle">
+  <div class="card coCard0">
+    <div class="coHead">
+      <span class="xpLv big" id="coLv">1</span>
+      <div class="xpMid"><h2 id="coTitle">Your collection</h2><div class="xpBar"><i id="coXpBar"></i></div><small id="coXpTx"></small></div>
+    </div>
+    <div class="coNext" id="coNext"></div>
+    <div class="coTabs" id="coTabs" role="tablist"></div>
+    <p class="coKindNote" id="coKindNote"></p>
+    <div class="coGrid" id="coGrid"></div>
+    <div class="coFoot"><small id="coCount"></small><button class="ghostbtn" id="coClose">Done</button></div>
+  </div>
+</div>
 <div class="ov hide" id="ovEnd">
   <div class="card" style="text-align:center">
     <div style="font-size:3em" id="endEmoji">🏁</div>
@@ -2081,11 +2250,16 @@
         <div class="erCounts" id="endCounts"></div>
       </div>
     </div>
+    <div class="endXp hide" id="endXp">
+      <span class="xpLv" id="endXpLv">1</span>
+      <div class="xpMid"><div class="xpTop"><b>Experience</b><em class="xpUp hide" id="endXpUp">LEVEL UP!</em><span id="endXpNum">+0 XP</span></div><div class="xpBar"><i id="endXpBar"></i></div><small id="endXpWhy"></small></div>
+    </div>
     <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
     <div class="endStory hide" id="endStory">
       <div class="esHead"><b>The story of the game</b><small id="endStoryTx"></small></div>
       <svg id="endStoryG" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
     </div>
+    <button class="bigbtn giftBtn hide" id="endGift"><span class="em">🎁</span><span><b id="endGiftTx">Open your prize!</b><small id="endGiftSub"></small></span></button>
     <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
     <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
     <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em"></p>
@@ -2298,6 +2472,7 @@
 <script src="motion.js"></script>
 <script src="sound.js"></script>
 <script src="momentum.js"></script>
+<script src="unlocks.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

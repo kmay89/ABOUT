@@ -135,7 +135,25 @@ function sprite(kind, hex) {
   if (spriteCount > 96) { sprites = {}; spriteCount = 0; }
   var S = 64, r = S / 2, c = document.createElement("canvas");
   c.width = c.height = S;
-  var g = c.getContext("2d"), rgb = rgbOf(hex), hot = rgbOf(mixHex(hex, "#ffffff", 0.65)), gr;
+  var g = c.getContext("2d");
+  if (kind === "glyph") {
+    /* a little picture from the emoji font: a leaf, a clover, a heart */
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "46px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+    g.fillText(hex, r, r + 3);
+    sprites[key] = c; spriteCount++;
+    return c;
+  }
+  var rgb = rgbOf(hex), hot = rgbOf(mixHex(hex, "#ffffff", 0.65)), gr;
+  if (kind === "bubble") {
+    /* a soap bubble: a thin rim, a tint, and a window of light */
+    gr = g.createRadialGradient(r * 0.8, r * 0.7, 0, r, r, r * 0.92);
+    gr.addColorStop(0, rgba(hot, 0.05)); gr.addColorStop(0.75, rgba(rgb, 0.18)); gr.addColorStop(0.92, rgba(hot, 0.85)); gr.addColorStop(1, rgba(rgb, 0));
+    g.fillStyle = gr; g.beginPath(); g.arc(r, r, r * 0.92, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.9)"; g.beginPath(); g.ellipse(r * 0.68, r * 0.6, r * 0.18, r * 0.1, -0.7, 0, Math.PI * 2); g.fill();
+    sprites[key] = c; spriteCount++;
+    return c;
+  }
   if (kind === "glow") {
     /* light: a white-hot centre, the colour around it, a long falloff */
     gr = g.createRadialGradient(r, r, 0, r, r, r);
@@ -270,7 +288,7 @@ reduced = prefersReduced();
    so a big moment makes no garbage for the collector to stop the board
    over halfway through. */
 var GLOW = 1, RING = 2, SPARK = 3, CHIP = 4, DUST = 5, CONF = 6, STAR = 7, BEAM = 8,
-    SWEEP = 9, WASH = 10, ROCKET = 11, EMBER = 12;
+    SWEEP = 9, WASH = 10, ROCKET = 11, EMBER = 12, GLYPH = 13;
 /* which of them are light (added) and which are matter (laid over) */
 var LIGHT = {};
 LIGHT[GLOW] = LIGHT[RING] = LIGHT[SPARK] = LIGHT[STAR] = LIGHT[BEAM] = LIGHT[SWEEP] =
@@ -278,7 +296,7 @@ LIGHT[GLOW] = LIGHT[RING] = LIGHT[SPARK] = LIGHT[STAR] = LIGHT[BEAM] = LIGHT[SWE
 /* which of them can be thinned on a slow frame without anybody missing
    them: the many small ones, never the one ring that says what happened */
 var THIN = {};
-THIN[SPARK] = THIN[CONF] = THIN[EMBER] = THIN[STAR] = THIN[DUST] = THIN[CHIP] = true;
+THIN[SPARK] = THIN[CONF] = THIN[EMBER] = THIN[STAR] = THIN[DUST] = THIN[CHIP] = THIN[GLYPH] = true;
 
 function Particle() {
   this.layer = null; this.kind = 0; this.an = null;
@@ -580,6 +598,122 @@ function mate(target, o) {
    wide again, and you see its back in shade), sways, and falls slower
    when it is broadside to the air than when it is edge-on — which is the
    flutter. A face turned square to you catches the light for a moment. */
+/* ---------- what you have won: trails and bursts ----------
+   A trail is what a piece leaves along its way as it moves; a burst is
+   what comes off a capture on top of the blow itself. Both are a recipe
+   of the same particles as everything else, laid out ahead with delays,
+   so they cost nothing between moves. */
+function glyph(L, x, y, ch, size, life, o) {
+  var p = make(L, GLYPH, null); if (!p) return null;
+  o = o || {};
+  p.x = x; p.y = y; p.vx = o.vx || 0; p.vy = o.vy || 0; p.g = o.g || 0; p.drag = o.drag || 0;
+  p.size = size; p.size1 = o.grow || 0; p.life = life; p.age = -(o.delay || 0); p.a = o.a == null ? 1 : o.a;
+  p.rot = o.rot || 0; p.vrot = o.vrot || 0; p.ph = rnd(0, 6.28); p.vph = o.sway ? rnd(2, 4) : 0; p.w = o.sway || 0;
+  p.spr = sprite(o.bubble ? "bubble" : "glyph", ch);
+  return p;
+}
+var RAINBOW = ["#ff5a5a", "#ffa33a", "#ffe14d", "#5ee07a", "#4fb6ff", "#8c6bff", "#e46bff"];
+var TRAILS = {
+  sparkle: function (L, x, y, s, t, d, dx, dy) {
+    star(L, null, x + rnd(-0.15, 0.15) * s, y + rnd(-0.2, 0.1) * s, rnd(-20, 20), rnd(-40, -10), 30, 1.5, rnd(420, 640), s * rnd(0.38, 0.6), pick(["#fff3b0", "#ffd166", "#ffffff"]), d);
+  },
+  leaves: function (L, x, y, s, t, d) {
+    glyph(L, x, y - s * 0.2, pick(["\ud83c\udf42", "\ud83c\udf43", "\ud83c\udf41"]), s * rnd(0.55, 0.75), rnd(1000, 1400),
+          { vx: rnd(-25, 25), vy: rnd(-30, 0), g: s * 1.6, drag: 1.2, rot: rnd(0, 6.28), vrot: rnd(-3, 3), sway: s * 1.2, delay: d });
+  },
+  wind: function (L, x, y, s, t, d, dx, dy) {
+    spark(L, null, x, y - s * 0.15, -dx * rnd(1.5, 3) + rnd(-20, 20), -dy * rnd(1.5, 3) + rnd(-30, 10), 0, 1.2, rnd(380, 560),
+          s * rnd(0.07, 0.11), pick(["#e8fff0", "#a9f0c4", "#ffffff"]), 0.07, d);
+  },
+  bubbles: function (L, x, y, s, t, d) {
+    glyph(L, x + rnd(-0.2, 0.2) * s, y - s * 0.1, pick(["#bfe9ff", "#e0d4ff", "#c9ffe9"]), s * rnd(0.32, 0.55), rnd(900, 1300),
+          { vy: -s * rnd(0.5, 0.9), drag: 0.6, sway: s * 0.8, delay: d, bubble: true, a: 0.95 });
+  },
+  rainbow: function (L, x, y, s, t, d) {
+    glow(L, null, x, y - s * 0.1, s * 0.45, s * 0.9, 650, 0.8, RAINBOW[Math.floor(t * 6.99)], 1, d);
+  },
+  comet: function (L, x, y, s, t, d, dx, dy) {
+    ember(L, null, x, y - s * 0.15, rnd(-15, 15), rnd(-15, 15), 0, 2, rnd(480, 760), s * rnd(0.55, 0.85), pick(["#ff8a3a", "#ffd166", "#ff5a3a"]), d);
+    if (Math.random() < 0.5) spark(L, null, x, y - s * 0.15, -dx * 2, -dy * 2, 0, 2, 300, s * 0.05, "#ffffff", 0.06, d);
+  }
+};
+function trail(from, to, o) {
+  o = o || {};
+  var L = stageL, make1 = TRAILS[o.style];
+  if (!make1 || !ready(L)) return 0;
+  var a = where(from, 0.2), b = where(to, 0.2);
+  if (!a || !b) return 0;
+  var ms = clamp(+o.ms || 400, 120, 2000), n0 = P.length, s = (a.s + b.s) / 2;
+  var steps = Math.round(clamp(Math.hypot(b.x - a.x, b.y - a.y) / (s * 0.3), 5, 26) * quality);
+  var dx = (b.x - a.x) / ms * 1000 * 0.1, dy = (b.y - a.y) / ms * 1000 * 0.1;
+  for (var i = 0; i < steps; i++) {
+    var t = i / Math.max(1, steps - 1), e = easeInOutSine(t);
+    var x = a.x + (b.x - a.x) * e + a.up.x, y = a.y + (b.y - a.y) * e + a.up.y - Math.sin(Math.PI * t) * s * (o.hop ? 0.9 : 0.12);
+    make1(L, x, y, s, t, t * ms * 0.92, dx, dy);
+  }
+  kick();
+  return P.length - n0;
+}
+var FLAIRS = {
+  confetti: function (L, x, y, s, k) {
+    for (var i = 0; i < Math.round(40 * quality); i++) {
+      var p = make(L, CONF, null); if (!p) break;
+      var a = rnd(0, Math.PI * 2), sp = s * rnd(1.4, 3.2), col = pick(CONFETTI);
+      p.x = x; p.y = y; p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp * k - s * 2.2; p.g = s * 7; p.drag = rnd(2.4, 3.4);
+      p.life = rnd(1000, 1400); p.round = Math.random() < 0.25; p.w = s * rnd(0.16, 0.26); p.hh = p.w * 0.55;
+      p.rot = rnd(0, 6.28); p.vrot = rnd(-4, 4); p.ph = rnd(0, 6.28); p.vph = rnd(6, 11);
+      p.col = col; p.col2 = shade(col, -0.3); p.col3 = shade(col, 0.42);
+    }
+  },
+  clover: function (L, x, y, s, k) {
+    glow(L, null, x, y, s * 0.4, s * 1.6, 480, 0.7, "#5ee07a", 1, 0);
+    for (var i = 0; i < 10; i++) {
+      var a = i / 10 * Math.PI * 2;
+      glyph(L, x, y, "\ud83c\udf40", s * 0.7, 1100, { vx: Math.cos(a) * s * 2.6, vy: Math.sin(a) * s * 2.6 * k - s * 0.5, drag: 3, g: s * 1.5, vrot: rnd(-5, 5) });
+    }
+  },
+  prickle: function (L, x, y, s, k) {
+    for (var i = 0; i < 14; i++) {
+      var a = i / 14 * Math.PI * 2;
+      spark(L, null, x, y, Math.cos(a) * s * 4.2, Math.sin(a) * s * 4.2 * k, 0, 4, 380, s * 0.09, pick(["#9be36d", "#f3ecd6"]), 0.05, 0);
+    }
+    for (var j = 0; j < 4; j++) glyph(L, x + rnd(-0.3, 0.3) * s, y, pick(["\ud83c\udf35", "\ud83c\udf38"]), s * 0.75, 1100, { vy: -s * rnd(2, 3), g: s * 6, vrot: rnd(-4, 4), delay: j * 40 });
+  },
+  gold: function (L, x, y, s, k) {
+    glow(L, null, x, y, s * 0.5, s * 2.0, 600, 0.85, "#ffd166", 1, 0);
+    ring(L, null, x, y, s * 0.3, s * 1.8, s * 0.08, s * 0.01, 600, 0.9, "#ffe08a", k, 0);
+    for (var i = 0; i < Math.round(22 * quality); i++) {
+      var a = rnd(0, Math.PI * 2), sp = s * rnd(2, 4.2);
+      star(L, null, x, y, Math.cos(a) * sp, Math.sin(a) * sp * k - s, s * 2.5, 1.8, rnd(700, 1050), s * rnd(0.35, 0.6), pick(["#ffe08a", "#ffd166", "#fff6d6"]), rnd(0, 120));
+    }
+  },
+  stars: function (L, x, y, s, k) {
+    for (var i = 0; i < Math.round(16 * quality); i++) {
+      var a = rnd(0, Math.PI * 2), sp = s * rnd(1.5, 3.5);
+      star(L, null, x, y, Math.cos(a) * sp, Math.sin(a) * sp * k - s * 2.5, s * 5, 1.2, rnd(800, 1100), s * rnd(0.4, 0.7), pick(RAINBOW), rnd(0, 80));
+    }
+    for (var j = 0; j < 3; j++) glyph(L, x, y, "\u2b50", s * 0.8, 1100, { vx: rnd(-1, 1) * s * 2, vy: -s * rnd(2.5, 3.5), g: s * 5, vrot: rnd(-4, 4), delay: j * 60 });
+  },
+  hearts: function (L, x, y, s, k) {
+    glow(L, null, x, y, s * 0.4, s * 1.4, 500, 0.6, "#ff7ab3", 1, 0);
+    for (var i = 0; i < 8; i++) {
+      glyph(L, x + rnd(-0.35, 0.35) * s, y, pick(["\ud83d\udc96", "\ud83d\udc95", "\u2764\ufe0f"]), s * rnd(0.55, 0.8), rnd(1000, 1400),
+            { vy: -s * rnd(1.4, 2.4), drag: 1.4, sway: s * 1.4, vrot: rnd(-1.5, 1.5), delay: i * 45 });
+    }
+  }
+};
+function flair(target, o) {
+  o = o || {};
+  var L = stageL, make1 = FLAIRS[o.style];
+  if (!make1 || !ready(L)) return 0;
+  var w = where(target, 0.35);
+  if (!w) return 0;
+  var n0 = P.length;
+  make1(L, w.x + w.up.x * 0.5, w.y + w.up.y * 0.5, w.s, flatOf(w));
+  kick();
+  return P.length - n0;
+}
+
 function confetti(o) {
   o = o || {};
   var L = layerFor(o.layer);
@@ -930,6 +1064,12 @@ function step(dtms) {
       p.vy = p.vy * dr + p.g * dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.layer && p.y > p.layer.h + 40) { retire(i); continue; }
+    } else if (kd === GLYPH) {
+      var dg = p.drag ? Math.exp(-p.drag * dt) : 1;
+      p.vx *= dg; p.vy = p.vy * dg + p.g * dt;
+      p.ph += p.vph * dt;
+      p.x += p.vx * dt + Math.sin(p.ph) * p.w * dt; p.y += p.vy * dt;
+      p.rot += p.vrot * dt;
     } else if (kd === SPARK || kd === STAR || kd === EMBER || kd === ROCKET || kd === DUST) {
       var d = p.drag ? Math.exp(-p.drag * dt) : 1;
       p.vx *= d; p.vy = p.vy * d + p.g * dt;
@@ -1114,6 +1254,19 @@ function paint(ctx, p, L) {
     ctx.drawImage(p.spr, x - sz / 2, y - (sz * p.k) / 2, sz, sz * p.k);
     return;
   }
+  case GLYPH: {
+    /* pops in a little large, settles, and fades at the end */
+    var gu = Math.min(1, u / 0.12);
+    sz = p.size * (gu < 1 ? 0.4 + 0.8 * gu : 1 + 0.2 * Math.max(0, 1 - (u - 0.12) / 0.15)) * (p.size1 ? 1 + (p.size1 - 1) * u : 1);
+    a = u > 0.7 ? (1 - u) / 0.3 : 1;
+    if (a <= 0.004 || sz <= 0.3) return;
+    ctx.globalAlpha = a * p.a;
+    ctx.translate(x, y);
+    ctx.rotate(p.rot);
+    ctx.drawImage(p.spr, -sz / 2, -sz / 2, sz, sz);
+    placed = MOVED;
+    return;
+  }
   case CONF: {
     a = p.life - p.age < 500 ? (p.life - p.age) / 500 : 1;
     if (a <= 0.004) return;
@@ -1275,6 +1428,7 @@ var Fx = {
   attach: attach, setProjector: setProjector, setReduced: setReduced,
   isReduced: function () { return reduced; },
   capture: capture, check: check, promote: promote, mate: mate,
+  trail: trail, flair: flair, TRAILS: Object.keys(TRAILS), FLAIRS: Object.keys(FLAIRS),
   confetti: confetti, fireworks: fireworks, sparkle: sparkle, flash: flash,
   shake: shake, countUp: countUp, haptic: haptic,
   clear: clear, busy: busy, stats: stats, powerOf: powerOf,
