@@ -18,7 +18,10 @@
    has landed; a still frame is a third fewer triangles than one that
    redraws the map; the whole frame stays inside a budget of draw calls
    and triangles; slow frames shrink the picture and a cap gives it
-   back; the lens's depth is on in a place and off in the studio.
+   back; the lens's depth is on in a place and off in the studio. On the
+   flat board, each man is drawn from a picture baked once at his size
+   (with his shadow) rather than built up from paths every frame, a
+   still board bakes nothing new, and glass is still drawn by hand.
 
    Needs `playwright-core` for the browser half; without it, or without
    a browser, the Node half still runs and the rest says so.
@@ -215,6 +218,49 @@ const FRAME = `(n) => {
     ok("a screen capped at thirty a second gets every pixel back, and keeps its effects",
        capped.width === w0 && capped.scale === 1 && capped.resLocked === true && capped.fx === full.fx && capped.watching === false, JSON.stringify(capped));
     ok("…and the room remembers that for the session", await page.evaluate(() => /x/.test(sessionStorage.getItem("chess.fx.res") || "")));
+
+    /* ---- the flat board: the men, baked ---- */
+    const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+    await ctx2.addInitScript(() => {
+      try { const p = JSON.parse(localStorage.getItem("chessroom_prefs") || "{}"); p.welcomed = true; p.coach = false; p.use3d = false; localStorage.setItem("chessroom_prefs", JSON.stringify(p)); } catch (e) {}
+      const C = CanvasRenderingContext2D.prototype; window.__c2 = { img: 0, fill: 0, made: 0 };
+      const di = C.drawImage, fi = C.fill;
+      C.drawImage = function () { if (this.canvas && this.canvas.id === "cv2") window.__c2.img++; return di.apply(this, arguments); };
+      C.fill = function () { if (this.canvas && this.canvas.id === "cv2") window.__c2.fill++; return fi.apply(this, arguments); };
+      const ce = Document.prototype.createElement;
+      Document.prototype.createElement = function (t) { if (String(t).toLowerCase() === "canvas") window.__c2.made++; return ce.apply(this, arguments); };
+    });
+    const p2 = await ctx2.newPage();
+    p2.on("pageerror", (e) => errs.push("2d: " + e.message));
+    await p2.goto(base + "/chess/index.html");
+    await p2.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 120000 });
+    await p2.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
+    /* (and every man has landed: the opening drop is not a move, so isAnimating does not cover it) */
+    await p2.waitForFunction(() => __cr.renderer.kind === "2d" && !__cr.renderer.isAnimating() && !__cr.renderer.cascade, null, { timeout: 60000 });
+    await p2.waitForTimeout(300);
+    const flat = await p2.evaluate(() => {
+      const R = __cr.renderer;
+      R.dirty = true; R.frame();                      /* (the first frame at this size bakes) */
+      const c = window.__c2; c.img = 0; c.fill = 0; c.made = 0;
+      for (let i = 0; i < 3; i++) { R.dirty = true; R.frame(); }
+      return { img: c.img / 3, fill: c.fill / 3, made: c.made };
+    });
+    ok("flat board: each of the thirty-two men is drawn from his baked picture, with his shadow",
+       flat.img >= 64, JSON.stringify(flat));
+    ok("…not built up from paths, fills and gradients every frame", flat.fill <= 40, JSON.stringify(flat));
+    ok("…and a frame of a still board bakes nothing new", flat.made === 0, JSON.stringify(flat));
+    const glass = await p2.evaluate(() => {
+      const R = __cr.renderer, glassSkin = Skins.PRESETS.find((k) => k.pieces.material === "glass");
+      R.setSkin(glassSkin);
+      R.dirty = true; R.frame();
+      const c = window.__c2; c.img = 0; c.fill = 0;
+      R.dirty = true; R.frame();
+      const out = { img: c.img, fill: c.fill, id: glassSkin.id };
+      R.setSkin(Skins.PRESETS[0]); R.dirty = true; R.frame();
+      return out;
+    });
+    ok("…but glass, which lets the board through in layers, is still drawn by hand", glass.fill >= 64, JSON.stringify(glass));
+    await ctx2.close();
 
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {

@@ -325,6 +325,118 @@ function lieOf2D(kind, Move) {
   return LIE[kind] || { rest: 1.7, lift: 0 };
 }
 
+/* ---------- the men, baked (see paintPiece) ----------
+   The box every painter stays inside, with room for the outline and the
+   blur of the cast shadow: left, top, right, bottom in unit space. */
+var MAN_BOX = [-0.56, -1.12, 0.62, 0.12];
+var SPRITE_BYTES = 24e6;       /* bitmap memory kept per skin before the cache starts again */
+function bakeCanvas(w, h) {
+  if (typeof document === "undefined") return null;
+  var c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  return c;
+}
+function bakeMan(kind, white, pal, k) {
+  var bw = MAN_BOX[2] - MAN_BOX[0], bh = MAN_BOX[3] - MAN_BOX[1];
+  var W = Math.max(2, Math.ceil(bw * k)), H = Math.max(2, Math.ceil(bh * k));
+  var man = bakeCanvas(W, H), cast = bakeCanvas(W, H);
+  if (!man || !cast) return null;
+  var g = man.getContext("2d");
+  if (!g) return null;
+  var put = function (c) { c.setTransform(W / bw, 0, 0, H / bh, -MAN_BOX[0] * W / bw, -MAN_BOX[1] * H / bh); };
+  put(g);
+  var fill = white ? pal.wFill : pal.bFill, line = white ? pal.wLine : pal.bLine;
+  /* the body: lighter toward the crown, which is nearer the lamp, and
+     a step darker at the foot */
+  var body = g.createLinearGradient(0, -1, 0, 0);
+  body.addColorStop(0, shade(fill, white ? 0.30 : 0.26));
+  body.addColorStop(0.55, fill);
+  body.addColorStop(1, shade(fill, white ? -0.16 : -0.30));
+  g.beginPath(); PAINTERS[kind](g);
+  g.fillStyle = body;
+  g.fill();
+  g.save();
+  g.beginPath(); PAINTERS[kind](g);
+  g.clip();
+  /* turning away from the lamp on the right: the form shadow that makes
+     a cut-out look like a turned piece */
+  var form = g.createLinearGradient(-0.30, 0, 0.32, 0);
+  form.addColorStop(0, "rgba(0,0,0,0)");
+  form.addColorStop(0.5, "rgba(0,0,0,0)");
+  form.addColorStop(1, "rgba(0,0,0," + (white ? 0.26 : 0.34) + ")");
+  g.fillStyle = form;
+  g.fillRect(-0.6, -1.2, 1.2, 1.3);
+  /* the lamp caught on the crown and the left shoulder */
+  var glow = g.createRadialGradient(-0.13, -0.70, 0.01, -0.13, -0.70, 0.46);
+  glow.addColorStop(0, "rgba(255,255,255," + (white ? 0.42 : 0.30) + ")");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = glow;
+  g.fillRect(-0.6, -1.2, 1.2, 1.3);
+  /* the foot, where the board and the man shade each other */
+  var foot = g.createLinearGradient(0, -0.22, 0, 0);
+  foot.addColorStop(0, "rgba(0,0,0,0)");
+  foot.addColorStop(1, "rgba(0,0,0," + (white ? 0.20 : 0.28) + ")");
+  g.fillStyle = foot;
+  g.fillRect(-0.6, -0.25, 1.2, 0.3);
+  /* the skin's own shine down the left shoulder, as the hand-drawn path had it */
+  if (pal.sheen > 0.02) {
+    var sh = g.createLinearGradient(-0.3, -0.9, 0.25, 0.0);
+    sh.addColorStop(0, "rgba(255,255,255," + (0.55 * pal.sheen).toFixed(3) + ")");
+    sh.addColorStop(0.45, "rgba(255,255,255," + (0.12 * pal.sheen).toFixed(3) + ")");
+    sh.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = sh;
+    g.fillRect(-0.5, -1.05, 1, 1.1);
+  }
+  g.restore();
+  g.beginPath(); PAINTERS[kind](g);
+  g.strokeStyle = line;
+  g.lineWidth = 0.035;
+  g.lineJoin = "round";
+  g.stroke();
+  if (pal.rimLight > 0.02) {
+    g.globalAlpha = Math.min(0.6, pal.rimLight * 0.55);
+    g.strokeStyle = white ? pal.wEdge : pal.bEdge;
+    g.lineWidth = 0.016;
+    g.stroke();
+    g.globalAlpha = 1;
+  }
+  /* the shadow he throws: his silhouette, blurred, in black. Drawn with
+     the trick liftedShadow uses (the shape far off the canvas, only its
+     blur thrown back), because canvas filters are not everywhere yet */
+  var c2 = cast.getContext("2d");
+  var FAR = W * 4;
+  c2.setTransform(W / bw, 0, 0, H / bh, (-MAN_BOX[0] * W / bw) - FAR, -MAN_BOX[1] * H / bh);
+  c2.shadowColor = "#000";
+  c2.shadowBlur = Math.max(1, k * 0.05);
+  c2.shadowOffsetX = FAR;
+  c2.fillStyle = "#000";
+  c2.beginPath(); PAINTERS[kind](c2);
+  c2.fill();
+  return { man: man, cast: cast };
+}
+/* the baked man for this skin, side and size. By the time this is
+   asked, the canvas is already scaled to his unit box, so its transform
+   alone says how many device pixels one unit is (the larger of the two
+   axes: a man squashed on landing is baked for his full height) */
+function sprites(ctx, kind, white, pal) {
+  if (!ctx.getTransform || typeof document === "undefined") return null;
+  var m = ctx.getTransform();
+  var k = Math.max(Math.sqrt(m.a * m.a + m.b * m.b), Math.sqrt(m.c * m.c + m.d * m.d));
+  if (!(k > 4)) return null;
+  var px = Math.min(640, Math.ceil(k / 8) * 8);
+  var cache = pal.__men || (pal.__men = { bytes: 0, at: {} });
+  var key = kind + (white ? "w" : "b") + px;
+  var hit = cache.at[key];
+  if (hit !== undefined) return hit;
+  /* two bitmaps of four bytes a pixel each; a board resized many times
+     over, or a very big one, starts the cache again rather than piling up */
+  var cost = Math.ceil((MAN_BOX[2] - MAN_BOX[0]) * px) * Math.ceil((MAN_BOX[3] - MAN_BOX[1]) * px) * 8;
+  if (cache.bytes + cost > SPRITE_BYTES) { cache.at = {}; cache.bytes = 0; }
+  hit = cache.at[key] = bakeMan(kind, white, pal, px);
+  cache.bytes += cost;
+  return hit;
+}
+
 function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, extra) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
@@ -359,6 +471,31 @@ function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, ext
     ctx.fill();
     ctx.restore();
   }
+  /* The body, baked. A man is the same picture every frame he stands
+     still, so he is painted once at the size he is shown (in device
+     pixels, a step of eight at a time) with everything a flat fill
+     cannot carry: lit from the top left, turning into his own shade on
+     the right, darker where he meets the board, a glow where the lamp
+     catches his crown, and a soft shadow thrown down and to the right
+     of him. After that a frame draws him with one drawImage instead of
+     a path, a fill, a stroke, a clip and two gradients. Glass is still
+     drawn by hand, because it lets the board through in layers. */
+  var spr = (pal.alpha == null || pal.alpha >= 0.999) ? sprites(ctx, kind, white, pal) : null;
+  if (spr) {
+    if (!(extra && extra.noShadow)) {
+      ctx.globalAlpha = baseAlpha * (white ? 0.30 : 0.36);
+      ctx.drawImage(spr.cast, MAN_BOX[0] + 0.07, MAN_BOX[1] + 0.035, MAN_BOX[2] - MAN_BOX[0], MAN_BOX[3] - MAN_BOX[1]);
+      ctx.globalAlpha = baseAlpha;
+      ctx.beginPath();
+      ctx.ellipse(0.02, -0.015, 0.29, 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle = pal.shadow;
+      ctx.fill();
+    }
+    ctx.drawImage(spr.man, MAN_BOX[0], MAN_BOX[1], MAN_BOX[2] - MAN_BOX[0], MAN_BOX[3] - MAN_BOX[1]);
+    ctx.restore();
+    return;
+  }
+
   /* soft ground shadow — unless the piece is lying down, when a shadow
      drawn in its own frame would stand up on end with it */
   if (!(extra && extra.noShadow)) {
@@ -565,6 +702,8 @@ function create(canvas) {
   var paintCv = document.createElement("canvas");
   var paintCtx = paintCv.getContext("2d", { willReadFrequently: true });
   var boardKey = "", boardPad = 0, labels = null;
+  /* the board's own shadow on whatever it stands on, baked with it */
+  var shadowCv = document.createElement("canvas"), shadowPad = 0;
 
   /* The coordinates go over the men rather than under them. These men
      are drawn big — a foot nearly as wide as the square, a crown nearly
@@ -738,6 +877,60 @@ function create(canvas) {
       g.fillStyle = gl;
       g.fillRect(pad, pad, R.size, R.size);
     }
+
+    /* What a cabinet-maker does where the field meets the frame (the
+       carved board has the same): a dark line of stringing with a pale
+       one outside it, the frame shaded a little where it stands against
+       the squares, a chamfer round the outside edge, and a breath of
+       falloff across the field away from the lamp. All of it is paint,
+       baked once with the rest. */
+    var ln = Math.max(1, R.cell * 0.035), sp;
+    for (var sd = 0; sd < 4; sd++) {
+      var horiz = sd < 2, far = sd % 2 === 1;
+      var e0 = far ? pad + R.size : pad, e1 = far ? e0 + pad * 0.6 : e0 - pad * 0.6;
+      sp = horiz ? g.createLinearGradient(0, e0, 0, e1) : g.createLinearGradient(e0, 0, e1, 0);
+      sp.addColorStop(0, "rgba(0,0,0,0.24)"); sp.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = sp;
+      var lo = Math.min(e0, e1), span = Math.abs(e1 - e0);
+      if (horiz) g.fillRect(pad - pad * 0.6, lo, R.size + pad * 1.2, span);
+      else g.fillRect(lo, pad - pad * 0.6, span, R.size + pad * 1.2);
+    }
+    g.lineJoin = "miter";
+    g.strokeStyle = "rgba(20,12,6,0.62)"; g.lineWidth = ln;
+    g.strokeRect(pad - ln * 0.5, pad - ln * 0.5, R.size + ln, R.size + ln);
+    g.strokeStyle = "rgba(255,244,222,0.30)"; g.lineWidth = ln * 0.8;
+    g.strokeRect(pad - ln * 1.9, pad - ln * 1.9, R.size + ln * 3.8, R.size + ln * 3.8);
+    var fall = g.createRadialGradient(pad + R.size * 0.3, pad + R.size * 0.25, R.size * 0.1,
+                                      pad + R.size * 0.5, pad + R.size * 0.5, R.size * 0.82);
+    fall.addColorStop(0, "rgba(255,248,232,0.06)");
+    fall.addColorStop(0.55, "rgba(0,0,0,0)");
+    fall.addColorStop(1, "rgba(0,0,0,0.12)");
+    g.fillStyle = fall;
+    g.fillRect(pad, pad, R.size, R.size);
+    var ch = Math.max(1.5, R.cell * 0.05), rad = R.cell * 0.28;
+    g.lineWidth = ch;
+    g.strokeStyle = "rgba(255,246,228,0.30)";
+    rr(g, ch * 0.5, ch * 0.5, W - ch, H - ch, rad);
+    g.save(); g.beginPath(); g.rect(0, 0, W, H * 0.5); g.clip();
+    rr(g, ch * 0.5, ch * 0.5, W - ch, H - ch, rad); g.stroke(); g.restore();
+    g.save(); g.beginPath(); g.rect(0, H * 0.5, W, H * 0.5); g.clip();
+    g.strokeStyle = "rgba(0,0,0,0.28)";
+    rr(g, ch * 0.5, ch * 0.5, W - ch, H - ch, rad); g.stroke(); g.restore();
+
+    /* and its shadow, a little below and to the right, as soft as a
+       board standing on a table under a lamp: baked here, drawn once a
+       frame under the board */
+    shadowPad = Math.round(R.cell * 0.9);
+    shadowCv.width = Math.round((W + shadowPad * 2) * dpr);
+    shadowCv.height = Math.round((H + shadowPad * 2) * dpr);
+    var sg = shadowCv.getContext("2d"), FAR = (W + shadowPad * 2) * dpr * 2;
+    sg.setTransform(dpr, 0, 0, dpr, -FAR, 0);
+    sg.shadowColor = "rgba(0,0,0,0.5)";
+    sg.shadowBlur = R.cell * 0.45 * dpr;
+    sg.shadowOffsetX = FAR;
+    sg.fillStyle = "#000";
+    rr(sg, shadowPad, shadowPad, W, H, R.cell * 0.28);
+    sg.fill();
 
     /* the coordinates are worked out here, with the board they belong
        to, and drawn every frame over the men (see drawCoords) */
@@ -1141,6 +1334,8 @@ function create(canvas) {
     /* the board itself, straight off the cache */
     if (boardKey !== key()) buildBoard();
     var pad = boardPad;
+    if (shadowPad) ctx.drawImage(shadowCv, R.ox - pad - shadowPad + R.cell * 0.10, R.oy - pad - shadowPad + R.cell * 0.18,
+                                 R.size + (pad + shadowPad) * 2, R.size + (pad + shadowPad) * 2);
     ctx.drawImage(boardCv, R.ox - pad, R.oy - pad, R.size + pad * 2, R.size + pad * 2);
 
     /* square highlights (under the pieces) */
@@ -1632,7 +1827,7 @@ function create(canvas) {
   return R;
 }
 
-var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS,
+var Gfx2D = { create: create, derive: derive, paintPiece: paintPiece, PAINTERS: PAINTERS, MAN_BOX: MAN_BOX,
               coordLabels: coordLabels, contrast: contrast, COORD_NEED: COORD_NEED };
 if (typeof module !== "undefined" && module.exports) module.exports = Gfx2D;
 else root.Gfx2D = Gfx2D;

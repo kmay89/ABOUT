@@ -1209,6 +1209,22 @@ problem; they are all given back and that door is closed for the
 session. A tier somebody chose in the Studio is never second-guessed
 and is drawn with every pixel it has.
 
+**The flat board** gets the same care. Each man used to be built up
+from paths every frame (a fill, a stroke, a clip and two gradients) in
+one flat colour. Now he is painted once at the size he is shown, in
+device pixels, with what a flat fill could not carry: lighter toward his
+crown, which is nearer the lamp, turning into his own shade on the
+right, darker at his foot, a glow where the light catches his shoulder,
+and a soft shadow thrown down and to the right of him. A frame then
+draws him with one `drawImage`. The board's frame gets the carved
+board's stringing, shade and chamfer and a breath of falloff across the
+field, baked into the board's picture with everything else, and the
+whole board throws a soft shadow onto the table. A frame of the flat
+board now takes about half as long as it did. Glass is still drawn by
+hand, because it lets the board through in layers, and the baked men are
+capped by memory (24 MB a skin), so a board resized many times over
+starts again rather than piling up.
+
 `perf-check.js` checks the ladder in node against made-up frame times,
 and in a browser counts what a frame is made of: the map kept on a
 still board and under a moving camera, drawn again when a man moves, a
