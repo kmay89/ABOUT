@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar */
 (function () {
 "use strict";
 
@@ -721,6 +721,7 @@ function tagHTML(side) {
 }
 function syncTagState() {
   var topSide = -orientation, botSide = orientation;
+  castPlace();                 /* the coach's face follows its tag when the board turns */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
   var live = G && !over && viewPly < 0 && mode && mode !== "tour";
@@ -982,6 +983,7 @@ function commitMove(m, source, animOpts) {
 
   var st = Chess.status(G);
   accAfterMove(m, san, st);
+  castAfterMove(m, st);
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -1064,6 +1066,7 @@ function commitMove(m, source, animOpts) {
 /* ===== the practice opponent ===== */
 function scheduleCoach() {
   thinking = true;
+  castThinking(true);
   syncTurnStrip(); syncButtons();
   clearTimeout(coachTimer);
   coachTimer = setTimeout(function () {
@@ -1082,6 +1085,7 @@ function scheduleCoach() {
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
       thinking = false;
+      castThinking(false);
       /* what the coach thinks of the position, from your side: the
          abandonment rule asks whether you were clearly losing */
       if (res && typeof res.score === "number") { lastEval = -res.score; trackLow(); }
@@ -2537,6 +2541,7 @@ function renderLobby() {
     b.addEventListener("click", function () { quickPlay(Lv.id); });
     lad.appendChild(b);
   });
+  castLadderFaces(lad);
   $("mLadderNote").textContent = total ? total + " of " + Rating.LEVELS.length * 3 + " stars — tap a coach to play it"
                                        : "Beat each coach to earn its stars — tap one to play it";
   /* bring the coach you're up against next into view */
@@ -2979,6 +2984,7 @@ function startGame(newMode, opts) {
   hideAllOverlays();
   saveGame();
   watchNetChip(mode === "lan" && Net.everLinked);
+  castStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   needFrame();
 }
@@ -2996,6 +3002,7 @@ function endGame(result, reason, taught) {
   /* the last move's lesson counts toward "what this game was about" */
   if (taught && taught.concept) teachSeen[taught.concept] = (teachSeen[taught.concept] || 0) + 1;
   over = { result: result, reason: reason };
+  castAtEnd(result);
   clock.run = 0;
   clearSel();
   note({ ply: G && G.played.length ? G.played.length - 1 : null,
@@ -3132,7 +3139,7 @@ function renderOddsReview() {
 
 function rematch() {
   $("ovEnd").classList.add("hide");
-  if (mode === "coach") startCoachGame(skill, humanSide === 1 ? "b" : "w", clockStrOf());
+  if (mode === "coach") { castRematch = true; startCoachGame(skill, humanSide === 1 ? "b" : "w", clockStrOf()); }
   else if (mode === "pass") startGame("pass", { clockStr: clockStrOf(), fresh: true });
   else if (mode === "lan") {
     if (!Net.linked()) { toast("The link closed. Host or join again to keep playing — the room remembers you."); return; }
@@ -6578,6 +6585,7 @@ function wireUI() {
   wireChips("skillChips", "skill", function (v) { if (newCardCtx) newCardCtx.skill = v; });
   clkWire();
   aqWire();
+  castWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -6928,6 +6936,241 @@ function aqWire() {
   $("aqAsk").addEventListener("click", function () { prefs.autoQueen = false; savePrefs(); aqSync(); });
   $("aqQueen").addEventListener("click", function () { prefs.autoQueen = true; savePrefs(); aqSync(); });
   aqSync();
+}
+
+/* ===================== the cast: a face across the board =====================
+   Playing the computer is playing somebody. Each coach on the ladder is a
+   character (cast.js: a name, a look, a voice, a way of talking), drawn
+   as a little plant in a pot in its own name tag (avatar.js), and it
+   behaves like someone sitting across the table: it introduces itself
+   the first time you meet, says hello when you come back, thinks with
+   its eyes up, looks at the move that was just made, is pleased with a
+   capture and put out by losing one, says check, and has something to
+   say at the end.
+
+   It never says anything about the position you could not see for
+   yourself: the lines are about how it feels to be in the game. "I'm
+   ahead" is said only when the material on the board already says so.
+   Everything it says is in a bubble that goes away by itself (or at a
+   tap), and the Settings switch "Opponents talk" quiets the words; the
+   face still reacts. */
+var castFace = null, castFaceFailed = false, castMeetFace = null, castSaid = {}, castSayT = 0, castTypeT = 0;
+var castMoves = 0, castFelt = { ahead: false, behind: false }, castRematch = false, castSeed = 0, castLastSay = 0;
+(function () {
+  var stored = {};
+  try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
+  prefs.chatter = !(stored.chatter === false || stored.chatter === "false");
+  prefs.met = stored.met && typeof stored.met === "object" ? stored.met : {};
+})();
+function castWho() { return mode === "coach" && typeof Cast !== "undefined" ? Cast.get(skill) : null; }
+function castLevel() { return Rating.levelById ? Rating.levelById(skill) : null; }
+/* the face goes in the coach's own name tag, wherever the board has put it */
+function castPlace() {
+  var wrap = $("oppFaceWrap"), say = $("oppSay"), who = castWho();
+  if (!who) { wrap.classList.add("hide"); castHush(); return; }
+  var top = -humanSide === -orientation;
+  var bar = document.querySelector(top ? ".pbar.top" : ".pbar.bot");
+  if (bar && wrap.parentNode !== bar) bar.insertBefore(wrap, bar.firstChild);
+  say.classList.toggle("below", !top);
+  wrap.classList.remove("hide");
+  if (!castFace && !castFaceFailed && typeof Avatar !== "undefined") {
+    try { castFace = Avatar.create($("oppFace")); } catch (e) { castFace = null; }
+    if (!castFace) castFaceFailed = true;
+  }
+  wrap.classList.toggle("flat", !castFace);
+  var lv = castLevel();
+  $("oppEmoji").textContent = lv ? lv.emoji : "";
+  if (castFace && castFace.id !== skill) castFace.set(skill);
+}
+/* one line of a kind, in a bubble, with the mouth moving and a babble
+   under it at the coach's own pitch */
+function castSay(kind, mood) {
+  var who = castWho();
+  if (!who) return false;
+  if (castFace && mood) castFace.mood(mood, 1600);
+  if (!prefs.chatter) return false;
+  var n = castSaid[kind] = (castSaid[kind] || 0) + 1;
+  var text = Cast.line(skill, kind, n - 1 + castSeed);
+  if (!text) return false;
+  var say = $("oppSay");
+  say.innerHTML = '<span class="who">' + escHtml(who.name) + "</span>" + escHtml(text);
+  say.classList.remove("hide");
+  clearTimeout(castSayT);
+  var ms = Cast.readMs(text), syl = Cast.syllables(text);
+  castSayT = setTimeout(castHush, ms);
+  castLastSay = Date.now();
+  if (castFace) { castFace.talk(Math.min(ms - 300, 250 + syl * 1000 / who.voice.rate), who.voice.rate); if (mood) castFace.mood(mood, ms); }
+  snd("babble", { hz: who.voice.hz, n: Math.min(10, syl), rate: who.voice.rate, seed: n * 31 + text.length });
+  return true;
+}
+function castHush() { clearTimeout(castSayT); $("oppSay").classList.add("hide"); }
+/* the eyes go to a square: where it is on the screen, as the face sees it */
+function castLook(sq) {
+  if (!castFace || !R || !R.squareToScreen) return;
+  var p = R.squareToScreen(sq), st = $("stage").getBoundingClientRect();
+  if (!p || !st.width) return;
+  var top = -humanSide === -orientation;
+  castFace.lookAt((p.x / st.width) * 2 - 1, top ? -0.75 : 0.75);
+}
+/* material on the board, from the coach's side, in pawns: what anyone
+   can count for themselves */
+function castMaterial() {
+  var sum = 0, cs = -humanSide;
+  for (var sq = 0; sq < 128; sq++) {
+    if (sq & 0x88) continue;
+    var pc = G.board[sq];
+    if (pc && Math.abs(pc) !== 6) sum += (pc * cs > 0 ? 1 : -1) * Chess.VAL[Math.abs(pc)];
+  }
+  return sum / 100;
+}
+/* a new game: hello (the first time, the whole introduction), or hello
+   again, or "again?" after a rematch */
+function castStart() {
+  castSaid = {}; castMoves = 0; castFelt = { ahead: false, behind: false };
+  if (castMeetOn) castMeetDone();
+  castSeed = Math.floor(Date.now() / 60000) % 3;
+  castHush();
+  clearTimeout(castTypeT);
+  castPlace();
+  var who = castWho(), was = castRematch;
+  castRematch = false;
+  if (!who) return;
+  if (castFace) { castFace.mood("happy", 1300); castFace.wake(2400); castFace.lookAt(0, -0.2); }
+  if (!prefs.met[skill]) { castMeet(); return; }
+  var t = gameTicket;
+  setTimeout(function () { if (t === gameTicket && castWho() === who && !over) castSay(was ? "again" : "greet", "happy"); }, 950);
+}
+/* meeting a coach for the first time: it comes in large over the board,
+   introduces itself (typed out as it is said), and goes to its seat. Not
+   a card: nothing waits on it, the board under it takes a move, and any
+   touch sends it to its seat early. */
+var castMeetT = 0, castMeetOn = false;
+function castMeet() {
+  var who = castWho(), lv = castLevel();
+  if (!who) return;
+  $("meetName").textContent = (lv ? lv.emoji + " " : "") + who.name;
+  $("meetTitle").textContent = who.title.charAt(0).toUpperCase() + who.title.slice(1) + (lv ? " · rated " + lv.elo : "");
+  $("meetHint").textContent = humanSide === 1 ? "You have White: your move." : "You have Black: " + who.name + " opens.";
+  var text = Cast.line(skill, "hello", 0), box = $("meetSay"), card = $("castMeet");
+  box.textContent = "";
+  card.classList.remove("leave");
+  card.classList.toggle("below", -humanSide !== -orientation);
+  card.classList.remove("hide");
+  castMeetOn = true;
+  prefs.met[skill] = 1; savePrefs();
+  clearTimeout(castMeetT);
+  castMeetT = setTimeout(castMeetDone, Cast.readMs(text) + 1600);
+  if (!castMeetFace && typeof Avatar !== "undefined") { try { castMeetFace = Avatar.create($("meetFace")); } catch (e) { castMeetFace = null; } }
+  if (castMeetFace) { castMeetFace.resize(); castMeetFace.set(skill); castMeetFace.lookAt(0, 0); castMeetFace.mood("happy", 1500); castMeetFace.wake(4000); }
+  var syl = Cast.syllables(text);
+  if (castMeetFace) castMeetFace.talk(300 + syl * 1000 / who.voice.rate, who.voice.rate);
+  if (prefs.chatter) snd("babble", { hz: who.voice.hz, n: Math.min(10, syl), rate: who.voice.rate, seed: text.length });
+  if (REDUCED) { box.textContent = text; return; }
+  var i = 0;
+  (function type() {
+    i = Math.min(text.length, i + 2);
+    box.textContent = text.slice(0, i);
+    if (i < text.length) castTypeT = setTimeout(type, 38);
+  })();
+}
+function castMeetDone() {
+  if (!castMeetOn) return;
+  castMeetOn = false;
+  clearTimeout(castTypeT); clearTimeout(castMeetT);
+  var card = $("castMeet");
+  card.classList.add("leave");
+  setTimeout(function () { if (!castMeetOn) { card.classList.add("hide"); card.classList.remove("leave"); if (castMeetFace) castMeetFace.sleep(); } }, 560);
+  if (castFace) { castFace.mood("happy", 900); castFace.lookAt(0, -0.6); }
+}
+/* after any move: look at it, and say something if there is something to say */
+function castAfterMove(m, st) {
+  if (!castWho()) return;
+  var t = gameTicket, coachSide = -humanSide, byCoach = m.piece * coachSide > 0;
+  var took = m.capt ? Math.abs(m.capt) : (m.flags & Chess.F_EP) ? 1 : 0;
+  if (byCoach) castMoves++;
+  /* as the piece lands, not as it sets off */
+  setTimeout(function () {
+    if (t !== gameTicket || !castWho()) return;
+    castLook(m.to);
+    if (over) return;                       /* the end has its own words */
+    var said = false;
+    if (st.reason === "check") said = castSay(byCoach ? "check" : "checked", byCoach ? "happy" : "surprised");
+    if (!said && took) {
+      if (byCoach && (took >= 2 || castMoves % 3 === 0)) said = castSay("took", "happy");
+      else if (!byCoach && (took >= 2 || !castSaid.lost)) said = castSay("lost", took >= 5 ? "sad" : "surprised");
+      else if (castFace) castFace.mood(byCoach ? "happy" : "surprised", 900);
+    }
+    /* how it is going, once each way, and only when the board shows it */
+    if (!said && byCoach && Date.now() - castLastSay > 6000) {
+      var mat = castMaterial();
+      if (mat >= 3 && !castFelt.ahead) { castFelt.ahead = true; castSay("ahead", "happy"); }
+      else if (mat <= -3 && !castFelt.behind) { castFelt.behind = true; castSay("behind", "sad"); }
+    }
+  }, REDUCED ? 60 : 380);
+}
+/* thinking: eyes up, head on one side, now and then a word */
+function castThinking(on) {
+  if (!castFace || !castWho()) return;
+  if (on) {
+    castFace.mood("think", 0); castFace.wake(30000);
+    if (castMoves > 1 && castMoves % 5 === 2 && Date.now() - castLastSay > 6000) castSay("think");
+  } else {
+    castFace.mood("idle", 1); castFace.sleep();
+  }
+}
+/* the end: pleased, put out, or content with half */
+function castAtEnd(result) {
+  var who = castWho();
+  if (!who) return;
+  castHush();
+  var coachWon = (result === "white" && humanSide === -1) || (result === "black" && humanSide === 1);
+  var kind = result === "draw" ? "draw" : coachWon ? "win" : "lose";
+  setTimeout(function () { if (castWho() === who) castSay(kind, kind === "win" ? "win" : kind === "lose" ? "lose" : "happy"); }, REDUCED ? 100 : 900);
+  if (castFace) castFace.wake(3000);
+}
+/* the ladder shows who you would be playing: each coach's face, as a
+   still, in place of its emoji (drawn once a session, a moment after
+   the lobby is up, so it never holds the lobby up) */
+var castStillsT = 0;
+function castLadderFaces(lad) {
+  if (typeof Avatar === "undefined" || !Avatar.portrait) return;
+  clearTimeout(castStillsT);
+  castStillsT = setTimeout(function () {
+    var spots = lad.querySelectorAll(".rung .rgE");
+    Rating.LEVELS.forEach(function (Lv, i) {
+      var el = spots[i], url = Avatar.portrait(Lv.id, 112);
+      if (!el || !url) return;
+      el.innerHTML = '<img class="rgFace" alt="" src="' + url + '">';
+    });
+  }, 60);
+}
+function castSync() {
+  $("setChatter").classList.toggle("sel", !!prefs.chatter);
+  $("setChatter").textContent = prefs.chatter ? "On" : "Off";
+}
+function castWire() {
+  /* any touch, anywhere, sends a coach that is still introducing itself
+     to its seat (and still does whatever else the touch was for) */
+  document.addEventListener("pointerdown", function () { if (castMeetOn) castMeetDone(); }, true);
+  document.addEventListener("keydown", function () { if (castMeetOn) castMeetDone(); }, true);
+  $("oppSay").addEventListener("click", castHush);
+  $("setChatter").addEventListener("click", function () {
+    prefs.chatter = !prefs.chatter; savePrefs(); castSync();
+    if (!prefs.chatter) castHush();
+  });
+  castSync();
+}
+function castForTest() {
+  return {
+    castState: function () {
+      return { on: !!castWho(), id: skill, face: castFace ? castFace.state() : null, flat: $("oppFaceWrap").classList.contains("flat"),
+               shown: !$("oppFaceWrap").classList.contains("hide"), saying: $("oppSay").classList.contains("hide") ? "" : $("oppSay").textContent,
+               meeting: castMeetOn, met: Object.keys(prefs.met), said: castSaid,
+               bar: $("oppFaceWrap").parentNode && $("oppFaceWrap").parentNode.className };
+    },
+    castMaterial: castMaterial,
+    castMeetDone: castMeetDone
+  };
 }
 
 /* ===================== rec: a recovery card that tells the truth =====================
@@ -7707,5 +7950,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
+Object.assign(window.__cr, castForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();

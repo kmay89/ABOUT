@@ -1524,6 +1524,50 @@
     #toast.show{transform:none}
     #app{padding-left:env(safe-area-inset-left, 0px)}
   }
+
+  /* ---- the cast: a face across the board (cast.js, avatar.js) ----
+     The coach sits in its own name tag as a little plant in a pot, a
+     touch larger than the tag so it reads as a someone rather than an
+     icon, and talks in a bubble under it. */
+  .oppFace{flex:none; position:relative; width:60px; height:66px; margin:-16px -8px -16px -6px; pointer-events:none;
+    background:radial-gradient(closest-side at 50% 62%, rgba(20,16,12,.55), rgba(20,16,12,0))}
+  .oppFace canvas{display:block; width:100%; height:100%}
+  .oppFace .oppEmoji{display:none; position:absolute; inset:0; align-items:center; justify-content:center; font-size:30px}
+  .oppFace.flat canvas{display:none} .oppFace.flat .oppEmoji{display:flex}
+  .oppSay{position:absolute; z-index:6; left:12px; top:62px; max-width:min(320px, calc(100% - 24px));
+    background:#fffaf0; color:#2b2016; border-radius:16px; padding:8px 13px; font-weight:600; font-size:.9em; line-height:1.35;
+    box-shadow:0 6px 20px rgba(0,0,0,.35); pointer-events:auto; cursor:pointer;
+    transform-origin:28px -8px; transition:opacity .18s, transform .22s cubic-bezier(.3,1.6,.5,1)}
+  .oppSay::before{content:""; position:absolute; left:22px; top:-7px; border:8px solid transparent; border-top:0; border-bottom-color:#fffaf0}
+  .oppSay.below{top:auto; bottom:62px; transform-origin:28px calc(100% + 8px)}
+  .oppSay.below::before{top:auto; bottom:-7px; border-bottom:0; border-top:8px solid #fffaf0; border-bottom-color:transparent}
+  .oppSay.hide{display:block; opacity:0; transform:scale(.7) translateY(-6px); pointer-events:none}
+  .oppSay .who{display:block; font-size:.72em; letter-spacing:.1em; text-transform:uppercase; color:#8a6a3e; font-weight:800}
+  /* the first time you meet a coach it comes in large over the board,
+     says who it is, and goes to its seat. It never stands in the way:
+     the board under it still takes a move, and any touch sends it to
+     its seat early */
+  .castMeet{position:absolute; z-index:5; left:50%; top:46%; width:min(340px, 88%); transform:translate(-50%, -50%);
+    text-align:center; pointer-events:none; padding:8px 14px 16px; border-radius:24px;
+    background:radial-gradient(closest-side, rgba(20,16,12,.86), rgba(20,16,12,.72) 70%, rgba(20,16,12,0));
+    transition:opacity .45s, transform .55s cubic-bezier(.5,0,.2,1)}
+  .castMeet.hide{display:block; opacity:0; transform:translate(-50%, -50%) scale(.82); visibility:hidden;
+    transition:opacity .45s, transform .55s cubic-bezier(.5,0,.2,1), visibility 0s .55s}
+  .castMeet.leave{opacity:0; transform:translate(-150%, -130%) scale(.25)}
+  .castMeet.below.leave{transform:translate(-150%, 30%) scale(.25)}
+  #meetFace{display:block; width:170px; height:190px; margin:-4px auto -4px}
+  .meetKick{color:var(--amber); font-size:.72em; letter-spacing:.16em; text-transform:uppercase; font-weight:800}
+  .meetName{font-size:1.5em; font-weight:800; line-height:1.2}
+  .meetTitle{color:var(--soft); font-style:italic; font-size:.9em; margin-bottom:8px}
+  .meetSay{min-height:3.1em; background:#fffaf0; color:#2b2016; border-radius:16px; padding:9px 13px; font-weight:600;
+    text-align:left; position:relative; font-size:.95em; line-height:1.35}
+  .meetSay::before{content:""; position:absolute; left:50%; margin-left:-8px; top:-7px; border:8px solid transparent; border-top:0; border-bottom-color:#fffaf0}
+  .meetHint{color:var(--ink); font-size:.8em; margin-top:7px; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.8)}
+  .rung .rgE .rgFace{display:block; width:58px; height:64px; margin:-12px auto -8px}
+  .pbar.top .oppFace{margin-top:-6px; margin-bottom:-26px} .pbar.bot .oppFace{margin-top:-26px; margin-bottom:-6px}
+  @media (min-width:900px){ .oppFace{width:78px; height:84px} .pbar.top .oppFace{margin-bottom:-46px} .pbar.bot .oppFace{margin-top:-46px}
+    .oppSay{top:84px} .oppSay.below{bottom:84px} }
+  @media (prefers-reduced-motion: reduce){ .oppSay, .oppSay.hide, .castMeet, .castMeet.hide, .castMeet.leave{transition:none} .oppSay.hide{transform:none} }
 </style>
 </head>
 <body>
@@ -1542,6 +1586,16 @@
       <div class="pbar bot">
         <div class="ptag"><span id="nameBot">White</span><span class="cap" id="capBot"></span></div>
         <div class="clock off" id="clockBot">5:00</div>
+      </div>
+      <div class="oppFace hide" id="oppFaceWrap" aria-hidden="true"><canvas id="oppFace"></canvas><span class="oppEmoji" id="oppEmoji"></span></div>
+      <div class="oppSay hide" id="oppSay" role="status" aria-live="polite"></div>
+      <div class="castMeet hide" id="castMeet" role="status" aria-live="polite">
+        <canvas id="meetFace" aria-hidden="true"></canvas>
+        <div class="meetKick">Your opponent</div>
+        <div class="meetName" id="meetName"></div>
+        <div class="meetTitle" id="meetTitle"></div>
+        <div class="meetSay" id="meetSay"></div>
+        <div class="meetHint" id="meetHint"></div>
       </div>
       <div id="toast"></div>
       <button id="resultChip" class="hide">🏁 Result</button>
@@ -1965,6 +2019,8 @@
       <button class="chip sw" id="setWheels">Off</button></div>
     <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
       <button class="chip sw sel" id="setPen">On</button></div>
+    <div class="settingRow" id="castRow"><span class="lbl"><b>Opponents talk</b><small>The coaches introduce themselves and say a word now and then: when they take something, when they lose something, at check and at the end. Never about what is on the board.</small></span>
+      <button class="chip sw sel" id="setChatter">On</button></div>
     <div class="settingRow" id="accRow"><span class="lbl"><b>Spoken board</b><small>For a screen reader: each move, the result, and anything you ask with a key are read out. Everything adds the coach's remarks. Nothing is ever spoken aloud otherwise.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="accMoves">Moves</button><button class="chip" id="accAll">Everything</button><button class="chip" id="accOff">Off</button><button class="chip" id="accKeys">The keys ›</button></div></div>
     <div class="settingRow" id="aqRow"><span class="lbl"><b>Promotion</b><small>Ask which piece every time, or make it a queen at once. Even then the room still asks when another piece would mate and the queen wouldn't, or when the queen would stalemate. Lessons always ask.</small></span>
@@ -2142,6 +2198,8 @@
 <script src="friends.js"></script>
 <div id="accSay" class="accVh" role="status" aria-live="polite" aria-atomic="true"></div>
 <script src="access.js"></script>
+<script src="cast.js"></script>
+<script src="avatar.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

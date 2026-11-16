@@ -858,6 +858,21 @@ var STINGS = {
     var hz = +(o && o.hz);
     N(s, 0, "tick", 0, 0.55, { hz: hz >= 400 && hz <= 3000 ? hz : 1320, ring: 0.8, cut: 2400 });
   } },
+  /* a coach talking: a few soft blips at the coach's own pitch, one a
+     syllable, wandering a little up and down the way speech does — the
+     sound of somebody saying something, not words. `hz` is the voice,
+     `n` the syllables, `rate` how many a second, `seed` which tune. */
+  /* (asked with nothing, it says the longest thing it can: ten
+     syllables at the slowest rate, which is the length it promises) */
+  babble: { len: 1.5, send: 0, gain: 0.5, score: function (s, o) {
+    var hz = +(o && o.hz) || 400, n = Math.max(1, Math.min(10, (o && o.n) | 0 || 10));
+    var gap = 1 / Math.max(8, Math.min(16, +(o && o.rate) || 8)), seed = ((o && o.seed) | 0) || 7;
+    for (var i = 0; i < n; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      var f = hz * Math.pow(2, ((seed % 7) - 3) / 12) * (i === n - 1 ? 0.9 : 1);
+      N(s, i * gap, "tick", 0, 0.22, { hz: Math.max(120, Math.min(1800, f)), ring: 0.35, cut: 1500 });
+    }
+  } },
   /* a card arriving is air moving, rising into one quiet note */
   open: { len: 3.4, send: 0.2, gain: 0.9, score: function (s, o) {
     if (o.reduced) { N(s, 0, "air", 0, 0.45, { from: 900, len: 0.12 }); N(s, 0.04, "chime", 19, 0.14, { ring: 0.5 }); return; }
