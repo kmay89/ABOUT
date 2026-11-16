@@ -1740,7 +1740,8 @@ function helpTestHooks(cr) {
     explainPly: explainPly, showWhy: showWhy, lamp: giveHint,
     coachMemo: function () { return coachMemoGame === G ? coachMemo : {}; }
   };
-  cr.tipsResetForTest = function () { prefs.tips = {}; tipQueued = {}; savePrefs(); };
+  /* every once-only word is unsaid again: the pointers, and the offer of the wheels */
+  cr.tipsResetForTest = function () { prefs.tips = {}; tipQueued = {}; prefs.wheelsOffered = false; savePrefs(); };
   cr.wheelsForTest = function (on) { prefs.wheels = !!on; savePrefs(); wheelsAt = ""; hotAt = ""; hotSlow = false; syncSettingsUI(); syncBoard(); };
   cr.assistForTest = function () { return { takebacks: assist.takebacks, hints: assist.hints, wheels: assist.wheels | 0 }; };
   cr.toastForTest = function (html, actions, ms, extras) { toast(html, actions, ms, extras); };
