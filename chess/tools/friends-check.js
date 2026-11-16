@@ -291,6 +291,17 @@ async function browserHalf() {
     await until(S, () => __cr.lanOppId, 8000);
     await until(A, () => __cr.lanOppId, 8000);
     const ids = { a: await A.evaluate(() => ({ me: __cr.friends.me, opp: __cr.lanOppId })), s: await S.evaluate(() => ({ me: __cr.friends.me, opp: __cr.lanOppId })) };
+    /* the joiner says who it is on every meeting, even one that comes
+       before the host's greeting has landed (the link re-made mid-hello) */
+    const hello = await S.evaluate(() => {
+      const was = __cr.Net.send, wasMode = __cr.mode, sent = [];
+      __cr.Net.send = (m) => { sent.push(m); return true; };
+      __cr.setModeForTest(null);
+      try { __cr.Net.onRelink(); } finally { __cr.setModeForTest(wasMode); __cr.Net.send = was; }
+      return sent;
+    });
+    ok("a joiner whose link is re-made before the greeting still says its name and id",
+       hello.length === 1 && hello[0].t === "hi2" && /^f[0-9a-z]{10}$/.test(hello[0].fid) && !!hello[0].name, JSON.stringify(hello));
     ok("each phone learns the other's quiet id", /^f[0-9a-z]{10}$/.test(ids.a.me) && ids.a.opp === ids.s.me && ids.s.opp === ids.a.me && ids.a.me !== ids.s.me, JSON.stringify(ids));
     ok("a game under way is off the public list", !!(await until(S, (c) => __cr.Room.list().then((l) => !(l || []).some((r) => r.code === c)), 10000, code)));
     const meWhite = await A.evaluate(() => __cr.lanSide === 1);

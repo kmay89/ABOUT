@@ -225,6 +225,31 @@ const PLAY = `([san, src]) => {
     ok("in the notation voice, one tap buys the move", /💡/.test(br.text) && br.chips === 0, JSON.stringify(br));
     await page.evaluate(() => __cr.setVoiceForTest("plain"));
 
+    /* what you ask for takes the place of buttons that were only
+       extras; a question still waiting for its answer keeps its place */
+    const rule = await page.evaluate(() => {
+      const el = document.getElementById("toast"), tx = () => el.innerText.replace(/\s+/g, " ").trim();
+      const out = {};
+      el.classList.remove("show", "acts", "lamp");
+      __cr.toastForTest("a hint", [{ label: "Show the line", fn() {} }], 9000, true);
+      __cr.toastForTest("what you asked next");
+      out.extras = tx();
+      el.classList.remove("show", "acts", "lamp");
+      __cr.toastForTest("allow a take-back?", [{ label: "Allow", fn() {} }], 9000);
+      __cr.toastForTest("a passing remark");
+      out.question = tx();
+      el.classList.remove("show", "acts", "lamp");
+      __cr.toastForTest("a hint", [{ label: "Show the line", fn() {} }], 9000, true);
+      __cr.toastForTest("allow a take-back?", [{ label: "Allow", fn() {} }], 9000);
+      __cr.toastForTest("a passing remark");
+      out.after = tx();
+      el.classList.remove("show", "acts", "lamp");
+      return out;
+    });
+    ok("a hint's \"Show the line\" gives way to the next thing you ask", rule.extras === "what you asked next", JSON.stringify(rule));
+    ok("…a question waiting for an answer does not give way to a remark", /^allow a take-back\?/.test(rule.question), JSON.stringify(rule));
+    ok("…and a question that followed a hint is still a question", /^allow a take-back\?/.test(rule.after), JSON.stringify(rule));
+
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the check itself fell over", false, String(e && e.stack || e).split("\n").slice(0, 3).join(" "));
