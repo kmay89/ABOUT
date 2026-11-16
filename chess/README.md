@@ -254,6 +254,16 @@ fx.js               the big moments, as light: a layer over the board for
                     per step, a shake, a buzz. Procedural sprites, 400
                     particles at most, asleep and a pixel big when idle,
                     nothing at all under reduced motion
+cast.js             who the coaches are: each one's name, a line about them,
+                    the look of its face, its voice, and what it says at
+                    each moment (hello, hello again, thinking, a capture
+                    either way, check either way, ahead or behind, the end)
+avatar.js           the coach's face: a little plant in a pot, built from
+                    turned shapes and leaves in its own small WebGL canvas,
+                    that breathes, blinks, looks at the move, thinks with
+                    its head on one side, hops, droops and talks; and a
+                    still of each face for the ladder. Sleeps when nothing
+                    is happening
 press.js            what a finger does to a button: when a key goes down, how
                     long it stays down (long enough to be seen, however
                     quick the tap), where on it the light falls, and that
@@ -430,6 +440,15 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  cast-check.js     the coach across the board is somebody: in node, every
+                    coach has a face that can be built and every kind of
+                    line, and no line tells you about the position; in a
+                    browser, the first meeting comes in over the board
+                    without blocking it, the face sits in the coach's tag
+                    on both boards and follows it when the board turns,
+                    looks at the move, sleeps when idle, says hello again
+                    next time, speaks at check, goes quiet when asked, and
+                    the ladder shows the faces
   press-check.js    a key goes down when it is pressed: in node, press.js
                     against a pretend page and a clock stepped by hand (a
                     mouse press at once, a quick tap still seen, a scroll
@@ -2180,6 +2199,44 @@ once whether to try the next one without them.
 `node chess/tools/wheels-check.js` checks the marks against the
 exchange count on both boards.
 
+## Who you are playing
+
+Playing the computer is playing somebody. Each of the eight coaches on
+the ladder is a character: a little plant in a pot with a face, drawn
+live in its own name tag across the board. Acorn is small and earnest
+and only just learned how the knight moves; Sprout is learning
+alongside you; Clover trusts to luck; Fern is quiet and notices things;
+Bamboo is a martial artist who bends and does not break; Cactus is
+prickly, with a drawl and a frown; Pine counts; and Oak, in spectacles,
+is the old tree who is glad you came.
+
+**They behave like someone across the table.** The first time you play
+one it comes in large over the board and introduces itself, typed out
+as it is said, then goes to its seat. That never stands in the way: the
+board under it still takes a move, and any touch sends it to its seat.
+After that it says hello again, or "again?" after a rematch. It thinks
+with its eyes up and its head on one side, looks at the move that was
+just made, is pleased with a capture and put out by losing a piece, says
+check and reacts to being checked, and has something to say at the end.
+Each has its own voice: a soft babble under each line, high and quick
+for Acorn, low and slow for Oak.
+
+**They never tell you anything about the position.** The lines are about
+how it feels to be in the game. "I've got more pieces than you" is said
+only when the material on the board already says so, and the check reads
+every line for squares, moves and verdicts. The words can be switched
+off (Settings, *Opponents talk*); the face still reacts.
+
+**They cost almost nothing.** The face is a few thousand triangles in a
+small canvas, and its loop runs only while something is moving: a
+reaction, a line being said, the coach thinking. Between those it holds
+still and wakes for a blink every few seconds. The ladder in the lobby
+shows each face as a still, drawn once by one renderer off the page,
+because eight live faces would be eight WebGL contexts. Without WebGL
+the tag shows the coach's emoji instead.
+
+`cast-check.js` checks all of it.
+
 ## The coach
 
 A teaching engine has a different job from a strong one. It still has to
@@ -2706,6 +2763,7 @@ node chess/tools/perf-check.js     # the board keeps what it has drawn, and give
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back
+node chess/tools/cast-check.js     # the coach across the board is somebody, and minds its manners
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger
