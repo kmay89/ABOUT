@@ -54,7 +54,8 @@ var COLORS = {
   "col-candy":  { white: "#ffd1e6", black: "#5fd3b5", material: "porcelain", shine: 0.75, rim: 0.4 },
   "col-ocean":  { white: "#c8f2ff", black: "#1b3d8f", material: "glass", shine: 0.95, rim: 0.7 },
   "col-royal":  { white: "#fff4d6", black: "#5a2a8c", material: "metal", shine: 0.9, rim: 0.55 },
-  "col-galaxy": { white: "#e8eaff", black: "#2a1b5c", material: "glass", shine: 1.0, rim: 0.9 }
+  "col-galaxy": { white: "#e8eaff", black: "#2a1b5c", material: "glass", shine: 1.0, rim: 0.9 },
+  "col-champion": { white: "#fff3c4", black: "#7a4e00", material: "metal", shine: 1.0, rim: 0.85 }
 };
 
 /* Every thing there is. `from` is how it is won: { coach, star } (a star
@@ -131,7 +132,13 @@ var ITEMS = [
 
   /* ---- the ladder as a whole ---- */
   { id: "title-climber", kind: "title", name: "Ladder Climber", emoji: "🪜", from: { all: 0 } },
-  { id: "title-master", kind: "title", name: "Master Gardener", emoji: "🏅", from: { all: 2 } }
+  { id: "title-master", kind: "title", name: "Master Gardener", emoji: "🏅", from: { all: 2 } },
+
+  /* ---- the end of the road (journey.js) ---- */
+  { id: "title-champion", kind: "title", name: "Grove Champion", emoji: "🏆", from: { cup: 1 } },
+  { id: "col-champion", kind: "colors", name: "Champion Gold", emoji: "🥇", from: { cup: 1 } },
+  { id: "trail-victory", kind: "trail", name: "Victory lap", emoji: "🎆", from: { cup: 1 } },
+  { id: "title-acorn", kind: "title", name: "The Golden Acorn", emoji: "🌰", from: { complete: 100 } }
 ];
 var BY_ID = {};
 ITEMS.forEach(function (it) { BY_ID[it.id] = it; });
@@ -185,10 +192,14 @@ function clean(s) {
 function load(get) { try { return clean(JSON.parse(get(KEY) || "null")); } catch (e) { return fresh(); } }
 function save(st, set) { try { set(KEY, JSON.stringify(st)); } catch (e) {} }
 
-/* Is this item's condition met? ladder: { rungs: { id: { stars: [a,b,c] } } } */
-function earned(it, ladder, level) {
+/* Is this item's condition met? ladder: { rungs: { id: { stars: [a,b,c] } } };
+   extra: { cupWon, completion } from journey.js */
+function earned(it, ladder, level, extra) {
   var f = it.from;
+  extra = extra || {};
   if (f.level != null) return level >= f.level;
+  if (f.cup) return !!extra.cupWon;
+  if (f.complete != null) return (extra.completion | 0) >= f.complete;
   var rungs = (ladder && ladder.rungs) || {};
   if (f.coach) { var r = rungs[f.coach]; return !!(r && r.stars && r.stars[f.star]); }
   if (f.all != null) return COACHES.every(function (c) { var r = rungs[c]; return !!(r && r.stars && r.stars[f.all]); });
@@ -197,10 +208,10 @@ function earned(it, ladder, level) {
 /* give everything that has been earned and is not yet owned; returns the
    new ones, in catalogue order. `quiet` gives them without marking them
    to be revealed (a first run, catching up on games played before). */
-function grant(st, ladder, at, quiet) {
+function grant(st, ladder, at, quiet, extra) {
   var lv = levelOf(st.xp).level, got = [];
   ITEMS.forEach(function (it) {
-    if (st.owned[it.id] || !earned(it, ladder, lv)) return;
+    if (st.owned[it.id] || !earned(it, ladder, lv, extra)) return;
     st.owned[it.id] = at || 1;
     st.fresh[it.id] = 1;
     if (!quiet) got.push(it);
@@ -233,6 +244,8 @@ function emotes(st) {
 function howTo(it) {
   var f = it.from;
   if (f.level != null) return "Reach level " + f.level;
+  if (f.cup) return "Win the Grove Cup";
+  if (f.complete != null) return "Reach " + f.complete + "% completion";
   if (f.all === 0) return "Beat every coach on the ladder";
   if (f.all === 2) return "Earn all three stars from every coach";
   var who = NAMES[f.coach] || f.coach;

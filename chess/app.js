@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage, Momentum, Unlocks */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage, Momentum, Unlocks, Journey */
 (function () {
 "use strict";
 
@@ -3101,6 +3101,7 @@ function endGame(result, reason, taught) {
   var rs = mode === "coach" ? settleRating(result) : null;
   renderEndRating(rs, cardAt);
   moEndCard();
+  jrnAtEnd(result, rs);
   unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
   renderOddsReview();
@@ -6178,7 +6179,10 @@ var CARDS = [
   { id: "ovNotation", hide: 1, pause: 1 },   /* it has its own Escape and backdrop, as the friends cards do */
   { id: "ovAsk", pause: 1 },
   { id: "ovCollect", hide: 1, pause: 1, back: 1 },
-  { id: "ovUnlock", pause: 1 }
+  { id: "ovUnlock", pause: 1 },
+  { id: "ovJourney", hide: 1, pause: 1, back: 1 },
+  { id: "ovChapter", hide: 1, pause: 1, back: 1 },
+  { id: "ovCredits", hide: 1, pause: 1 }
 ];
 function cardIds(flag) {
   return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
@@ -6209,6 +6213,7 @@ function showMenu() {
     : "Short positions, real feedback.";
   renderLobby();
   unlLobby();
+  jrnLobby();
   /* a game nobody has moved in yet is not worth coming back to — it
      used to be offered as "0 moves in" */
   var s = loadSave();
@@ -6661,6 +6666,7 @@ function wireUI() {
   castWire();
   homeWire();
   moWire();
+  jrnWire();
   unlWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
@@ -7693,7 +7699,7 @@ function momentumForTest() {
    of it, what is yours (equip it) and what is still to win (and how). */
 var unl = null, unlQueue = [], unlShowing = null, unlGameXp = null, unlRevealT = 0, unlEmoteAt = 0;
 var UNL_FX = { "trail-sparkle": "sparkle", "trail-leaves": "leaves", "trail-wind": "wind", "trail-bubbles": "bubbles",
-               "trail-rainbow": "rainbow", "trail-comet": "comet", "burst-confetti": "confetti", "burst-clover": "clover",
+               "trail-rainbow": "rainbow", "trail-comet": "comet", "trail-victory": "victory", "burst-confetti": "confetti", "burst-clover": "clover",
                "burst-prickle": "prickle", "burst-gold": "gold", "burst-stars": "stars", "burst-hearts": "hearts" };
 function unlOk() { return typeof Unlocks !== "undefined"; }
 function unlLoad() {
@@ -7711,7 +7717,7 @@ function unlLoad() {
       } else unl.xp += 20;
     });
   } catch (e) {}
-  Unlocks.grant(unl, ladder, Date.now(), true);
+  Unlocks.grant(unl, ladder, Date.now(), true, jrnExtra());
   /* a set of pieces already in use stays yours */
   var set = skin && skin.pieces && skin.pieces.set;
   if (set && set !== "classic" && Unlocks.byId("set-" + set)) unl.owned["set-" + set] = unl.owned["set-" + set] || 1;
@@ -7747,7 +7753,7 @@ function unlBonus(why, xp) {
 }
 function unlGain(xp, first) {
   var ch = Unlocks.addXp(unl, xp);
-  var got = Unlocks.grant(unl, ladder, Date.now(), false);
+  var got = Unlocks.grant(unl, ladder, Date.now(), false, jrnExtra());
   unlSave();
   unlQueue = unlQueue.concat(got);
   unlXpRow(ch, first);
@@ -8081,6 +8087,277 @@ function unlocksForTest() {
     unlGiveXpForTest: function (n) { unlGameXp = unlGameXp || { ticket: gameTicket, parts: [], shown: 0 }; unlGain(n, false); },
     unlResetForTest: function () { unl = Unlocks.fresh(); unl.migrated = true; unlQueue = []; unlShowing = null; unlSave(); unlLobby(); },
     openCollection: openCollection
+  };
+}
+
+/* ===== the journey (journey.js) =====
+   The ladder as a road you travel and can finish: a map with a stop for
+   each coach, a chapter card going in, CHAPTER CLEARED coming out, the
+   Grove Cup at the end of the road, and an ending that says you beat the
+   room. Then the completion, to a hundred. */
+var jrn = null, jrnCupTicket = -1, jrnCupCoach = null, jrnEndT = 0, jrnFwT = 0;
+function jrnOk() { return typeof Journey !== "undefined"; }
+function jrnLoad() { if (jrnOk()) jrn = Journey.load(lsGet); }
+function jrnSave() { if (jrn) Journey.save(jrn, lsSet); }
+function jrnStars() { var n = 0; Rating.LEVELS.forEach(function (L) { n += starCount(L.id); }); return n; }
+function jrnCompletion() {
+  if (!jrnOk() || !jrn) return { pct: 0, parts: [], whole: false };
+  var ls = { solved: 0, total: 1 };
+  try { ls = Learn.stats(Learn.load()); } catch (e) {}
+  return Journey.completion({ stars: jrnStars(), lessons: { solved: ls.solved, total: ls.total },
+                              collect: unl && unlOk() ? Unlocks.countOwned(unl) : { n: 0, of: 1 }, cupWon: !!jrn.cup.won });
+}
+/* what the collection needs to know about the road */
+function jrnExtra() { return jrn ? { cupWon: !!jrn.cup.won, completion: jrnCompletion().pct } : {}; }
+function jrnName(id) { return SKILLS[id] ? SKILLS[id].emoji + " " + SKILLS[id].name : id; }
+function jrnPortrait(id, px) {
+  if (typeof Avatar === "undefined" || !Avatar.portrait) return "";
+  try { return Avatar.portrait(id, px || 96) || ""; } catch (e) { return ""; }
+}
+
+/* ---- the lobby's road sign ---- */
+function jrnLobby() {
+  if (!jrn || !$("mJourney")) return;
+  var r = Journey.road(ladder, jrn), c = jrnCompletion();
+  var ch = r.next && Journey.chapterOf(r.next);
+  $("mJourneyTx").textContent = r.at === "done" ? "You beat the Chess Room!" : r.at === "cup" ? "The Grove Cup is open!" :
+    "Chapter " + ch.n + ": " + ch.title;
+  $("mJourneySub").textContent = r.at === "done" ? "Completion " + c.pct + "% — can you reach a hundred?" :
+    r.at === "cup" ? "Bamboo, Pine and Oak, in a row. Win it and you have beaten the room." :
+    jrnName(r.next) + " is waiting. " + r.count + " of " + r.of + " chapters cleared.";
+  $("mJourneyBar").style.width = (r.at === "done" ? c.pct : Math.round(r.count / (r.of + 1) * 100)) + "%";
+  $("mJourneyPct").textContent = c.pct + "%";
+  $("mJourney").classList.toggle("cup", r.at === "cup");
+  $("mJourney").classList.toggle("done", r.at === "done");
+}
+
+/* ---- the map ---- */
+function openJourney() {
+  hideAllOverlays(); closeStudio();
+  renderJourney();
+  $("ovJourney").classList.remove("hide");
+  /* the road you have travelled draws itself in, and anything newly
+     cleared gets its stamp */
+  var fresh = $("jrMap").querySelector(".jrNode.stamp");
+  if (fresh) setTimeout(function () { fresh.scrollIntoView({ block: "center", behavior: REDUCED ? "auto" : "smooth" }); }, 120);
+  else { var here = $("jrMap").querySelector(".jrNode.here"); if (here) here.scrollIntoView({ block: "center" }); }
+}
+function renderJourney() {
+  var r = Journey.road(ladder, jrn), c = jrnCompletion(), map = $("jrMap");
+  $("jrPct").textContent = c.pct + "%";
+  $("jrPctRing").style.setProperty("--p", c.pct);
+  $("jrSub").textContent = r.at === "done" ? "The road is travelled. Now: everything, to a hundred." :
+    r.at === "cup" ? "Every chapter cleared. One thing left: the Grove Cup." : r.count + " of " + r.of + " chapters cleared";
+  map.innerHTML = "";
+  var stops = Journey.CHAPTERS.map(function (ch, i) { return { kind: "chapter", ch: ch, i: i }; });
+  stops.push({ kind: "cup", i: stops.length }, { kind: "end", i: stops.length + 1 });
+  var GAP = 132, TOP = 70, H = TOP * 2 + GAP * (stops.length - 1);
+  map.style.height = H + "px";
+  var pts = stops.map(function (s, i) { return [i % 2 ? 72 : 28, TOP + i * GAP]; });
+  /* the road: gold where you have been, a dotted line where you have not */
+  var reached = r.at === "done" ? stops.length - 1 : r.at === "cup" ? 8 : r.count;
+  var seg = function (a, b) { var p = pts[a], q = pts[b], my = (p[1] + q[1]) / 2; return "M" + p[0] + "," + p[1] + " C" + p[0] + "," + my + " " + q[0] + "," + my + " " + q[0] + "," + q[1]; };
+  var svg = '<svg class="jrRoad" viewBox="0 0 100 ' + H + '" preserveAspectRatio="none" aria-hidden="true">';
+  for (var k = 0; k < pts.length - 1; k++) {
+    var walked = k < reached, newly = walked && k === reached - 1 && stops[k].kind === "chapter" && !jrn.shown[stops[k].ch.id];
+    svg += '<path class="' + (walked ? "walked" : "ahead") + (newly ? " draw" : "") + '" d="' + seg(k, k + 1) + '"/>';
+  }
+  map.innerHTML = svg + "</svg>";
+  stops.forEach(function (s, i) {
+    var b = document.createElement("button"), p = pts[i];
+    b.className = "jrNode";
+    b.style.left = p[0] + "%"; b.style.top = p[1] + "px";
+    if (s.kind === "chapter") {
+      var ch = s.ch, done = Journey.cleared(ladder, ch.id), open = r.open[i], here = r.next === ch.id;
+      b.className += done ? " done" : open ? " open" : " locked";
+      if (here) b.className += " here";
+      if (done && !jrn.shown[ch.id]) { b.className += " stamp"; jrn.shown[ch.id] = 1; }
+      var url = open ? jrnPortrait(ch.id, 112) : "";
+      b.innerHTML = '<span class="jrPic">' + (url ? '<img alt="" src="' + url + '">' : '<em>' + (open ? SKILLS[ch.id].emoji : "🔒") + "</em>") + "</span>" +
+        '<span class="jrLbl"><small>Chapter ' + ch.n + "</small><b></b></span>" +
+        (open ? '<span class="jrStars">' + starsHTML(ch.id) + "</span>" : "") +
+        (done ? '<span class="jrStamp">CLEARED!</span>' : "") + (here ? '<span class="jrHere">▼</span>' : "");
+      b.querySelector(".jrLbl b").textContent = open ? ch.title : "???";
+      b.setAttribute("aria-label", "Chapter " + ch.n + (open ? ", " + ch.title + ", " + jrnName(ch.id) + (done ? ", cleared" : "") : ", locked"));
+      b.addEventListener("click", function () { if (open) openChapter(ch.id); else { hap("nope"); toast("🔒 Clear chapter " + (ch.n - 1) + " first.", null, 2000); } });
+    } else if (s.kind === "cup") {
+      b.className += " cup" + (r.cupWon ? " done" : r.cupOpen ? " open" : " locked") + (r.at === "cup" ? " here" : "");
+      b.innerHTML = '<span class="jrPic"><em>🏆</em></span><span class="jrLbl"><small>The finale</small><b>The Grove Cup</b></span>' +
+        (r.cupOpen && !r.cupWon ? '<span class="jrDots">' + Journey.CUP.map(function (c2, j) { return '<i class="' + (j < jrn.cup.run ? "on" : "") + '"></i>'; }).join("") + "</span>" : "") +
+        (r.cupWon ? '<span class="jrStamp">WON!</span>' : "") + (r.at === "cup" ? '<span class="jrHere">▼</span>' : "");
+      b.addEventListener("click", function () { if (r.cupOpen) openCup(); else { hap("nope"); toast("🔒 Clear all eight chapters to open the Grove Cup.", null, 2400); } });
+    } else {
+      b.className += " end" + (r.cupWon ? " open" : " locked");
+      b.innerHTML = '<span class="jrPic"><em>' + (c.whole ? "🌰" : "🎬") + '</em></span><span class="jrLbl"><small>' +
+        (r.cupWon ? "Completion " + c.pct + "%" : "The end of the road") + "</small><b>" + (r.cupWon ? "Watch the ending" : "???") + "</b></span>";
+      b.addEventListener("click", function () { if (r.cupWon) showCredits(c.whole); else { hap("nope"); toast("🔒 Win the Grove Cup to reach the end.", null, 2200); } });
+    }
+    map.appendChild(b);
+  });
+  jrnSave();
+  /* what is left, to a hundred */
+  $("jrLeft").innerHTML = c.parts.map(function (p) {
+    return '<span class="' + (p.frac >= 1 ? "full" : "") + '"><i>' + p.emoji + "</i><b>" + escHtml(p.name) + "</b><small>" + p.have + "/" + p.of + "</small><em style=\"--f:" + (p.frac * 100).toFixed(0) + '%"></em></span>';
+  }).join("");
+}
+
+/* ---- a chapter card: the story going in, the stars, what it gives ---- */
+function openChapter(id) {
+  var ch = Journey.chapterOf(id), done = Journey.cleared(ladder, id), card = $("ovChapter");
+  $("chKick").textContent = "Chapter " + ch.n;
+  $("chTitle").textContent = ch.title;
+  $("chWho").textContent = jrnName(id) + " · " + SKILLS[id].elo;
+  $("chStory").textContent = done ? ch.outro : ch.intro;
+  var url = jrnPortrait(id, 200);
+  $("chPic").innerHTML = url ? '<img alt="" src="' + url + '">' : "<em>" + SKILLS[id].emoji + "</em>";
+  card.style.setProperty("--chBg", "url(" + "data:," + ")");
+  card.dataset.place = ch.place;
+  var r = ladder.rungs[id], st = r ? r.stars : [0, 0, 0];
+  $("chStars").innerHTML = ["Beat " + SKILLS[id].name, "Beat it with no help", "No help, and play well (80%+)"].map(function (t, i) {
+    var gift = unl && unlOk() ? Unlocks.ITEMS.filter(function (x) { return x.from.coach === id && x.from.star === i; }) : [];
+    return '<div class="chStar' + (st[i] ? " on" : "") + '"><i>★</i><span>' + escHtml(t) + "</span><b>" +
+      gift.map(function (g) { return '<em title="' + escHtml(g.name) + '" class="' + (unlOwned(g.id) ? "own" : "") + '">' + g.emoji + "</em>"; }).join("") + "</b></div>";
+  }).join("");
+  $("chPlay").innerHTML = done ? "▶ Play again" : "▶ Play";
+  $("chPlay").onclick = function () { jrnPlay(id, false); };
+  $("ovJourney").classList.add("hide");
+  card.classList.remove("cupCard");
+  card.classList.remove("hide");
+  jrn.intro[id] = 1; jrnSave();
+}
+function openCup() {
+  var card = $("ovChapter"), next = Journey.cupNext(jrn);
+  $("chKick").textContent = "The finale";
+  $("chTitle").textContent = "The Grove Cup";
+  $("chWho").textContent = jrn.cup.won ? "Won" : "Match " + (jrn.cup.run + 1) + " of 3";
+  $("chStory").textContent = jrn.cup.won
+    ? "You won the Grove Cup. The coaches still talk about it."
+    : "Three of the grove's best, one after another: Bamboo, Pine, and Oak. Lose or draw one and the Cup starts again from the first. Win all three and you have beaten the Chess Room.";
+  $("chPic").innerHTML = "<em>🏆</em>";
+  $("chStars").innerHTML = Journey.CUP.map(function (id, i) {
+    var url = jrnPortrait(id, 96), won = jrn.cup.won || i < jrn.cup.run, now = !jrn.cup.won && i === jrn.cup.run;
+    return '<div class="chStar cupStep' + (won ? " on" : "") + (now ? " now" : "") + '"><i>' + (won ? "✔" : i + 1) + "</i><span>" +
+      escHtml(jrnName(id)) + (now ? " — next" : "") + "</span><b>" + (url ? '<img alt="" src="' + url + '">' : "") + "</b></div>";
+  }).join("");
+  $("chPlay").innerHTML = jrn.cup.won ? "🎬 Watch the ending" : "▶ Play " + escHtml(jrnName(next));
+  $("chPlay").onclick = function () { if (jrn.cup.won) showCredits(jrnCompletion().whole); else jrnPlay(next, true); };
+  $("ovJourney").classList.add("hide");
+  card.classList.add("cupCard");
+  card.classList.remove("hide");
+}
+function jrnPlay(id, cup) {
+  $("ovChapter").classList.add("hide");
+  leaveGameThen(function () {
+    startCoachGame(id, "a", "none");
+    jrnCupTicket = cup ? gameTicket : -1;
+    jrnCupCoach = cup ? id : null;
+    if (cup) toast("🏆 <b>Grove Cup</b>, match " + (jrn.cup.run + 1) + " of 3: " + escHtml(jrnName(id)), null, 3200);
+  }, "a journey game");
+}
+
+/* ---- the end of a game: a chapter cleared, a cup match, the cup ---- */
+function jrnAtEnd(result, rs) {
+  var btn = $("endCup");
+  btn.classList.add("hide"); btn.classList.remove("won");
+  btn.querySelector(".em").textContent = "\ud83d\uddfa\ufe0f";
+  if (!jrn || mode !== "coach") return;
+  var won = (result === "white") === (humanSide === 1) && result !== "draw";
+  /* the cup */
+  if (jrnCupTicket === gameTicket && jrnCupCoach === skill) {
+    var res = Journey.cupResult(jrn, skill, won, Date.now());
+    jrnCupTicket = -1;
+    jrnSave();
+    if (res.won) {
+      pushMile("🏆", "<b>The Grove Cup is yours!</b> You have beaten the Chess Room.", { first: true, cls: "cupwon", sting: "milestone", hap: "success", big: true });
+      $("endCupTx").textContent = "You won the Grove Cup!";
+      $("endCupSub").textContent = "Watch the ending ▶";
+      btn.onclick = function () { showCredits(false); };
+      btn.classList.add("won");
+      $("endCup").querySelector(".em").textContent = "\ud83c\udfc6";
+      btn.classList.remove("hide");
+    } else if (res.advanced) {
+      pushMile("🏆", "<b>Cup: " + res.step + " of 3 won.</b> Next: " + escHtml(jrnName(res.next)) + ".", { cls: "cup", sting: "lesson-right" });
+      $("endCupTx").textContent = "Cup match " + (res.step + 1) + " of 3: " + jrnName(res.next);
+      $("endCupSub").textContent = "Keep the run going ▶";
+      btn.onclick = function () { $("ovEnd").classList.add("hide"); jrnPlay(res.next, true); };
+      btn.classList.remove("hide");
+    } else if (res.reset) {
+      pushMile("🏆", "The Cup starts again: you reached match " + (res.reached + 1) + " of 3. " + escHtml(jrnName(Journey.CUP[0])) + " is first again.", { cls: "cup" });
+      $("endCupTx").textContent = "Try the Grove Cup again";
+      $("endCupSub").textContent = "From the first match: " + jrnName(Journey.CUP[0]) + " ▶";
+      btn.onclick = function () { $("ovEnd").classList.add("hide"); jrnPlay(Journey.CUP[0], true); };
+      btn.classList.remove("hide");
+    }
+    return;
+  }
+  /* a chapter cleared, the first time */
+  var ch = Journey.chapterOf(skill);
+  if (ch && rs && rs.s === 1 && rs.newStars.indexOf(0) >= 0) {
+    var r = Journey.road(ladder, jrn), next = r.next && Journey.chapterOf(r.next);
+    pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (next ? "Next on the road: " + escHtml(next.title) + "." : "The Grove Cup is open!"),
+             { cls: "chapter", sting: "levelup", hap: "success", big: !next });
+    $("endCupTx").textContent = next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
+    $("endCupSub").textContent = "See it on the map ▶";
+    btn.onclick = function () { $("ovEnd").classList.add("hide"); openJourney(); };
+    btn.classList.remove("hide");
+  }
+}
+
+/* ---- the ending ---- */
+function showCredits(trueEnding) {
+  hideAllOverlays(); closeStudio();
+  var ov = $("ovCredits"), c = jrnCompletion();
+  var games = [];
+  try { games = Games.load(lsGet).list || []; } catch (e) {}
+  var wins = games.filter(function (g) { return g.mode === "coach" && g.result !== "draw" && (g.result === "white") === (g.humanSide === 1); }).length;
+  var sm = Rating.summary(rating), lv = unlLevel();
+  $("crKick").textContent = trueEnding ? "100% — everything" : "The end of the road";
+  $("crTitle").textContent = trueEnding ? "THE GOLDEN ACORN" : "YOU BEAT THE CHESS ROOM!";
+  $("crTrophy").textContent = trueEnding ? "🌰" : "🏆";
+  $("crCast").innerHTML = Rating.LEVELS.map(function (L, i) {
+    var url = jrnPortrait(L.id, 112);
+    return '<span style="--i:' + i + '">' + (url ? '<img alt="" src="' + url + '">' : "<em>" + L.emoji + "</em>") + "<b>" + escHtml(L.name) + "</b></span>";
+  }).join("");
+  $("crStats").innerHTML = [
+    ["♟", games.length, "games played"], ["🏅", wins, "wins against the coaches"],
+    ["⭐", jrnStars() + "/24", "stars"], ["📈", sm.rating, "your rating"],
+    ["🎁", Unlocks.countOwned(unl).n + "/" + Unlocks.countOwned(unl).of, "collected"], ["🆙", lv.level, "your level"]
+  ].map(function (r) { return "<span><i>" + r[0] + "</i><b>" + escHtml(String(r[1])) + "</b><small>" + escHtml(r[2]) + "</small></span>"; }).join("");
+  $("crRoll").innerHTML = "<p class=crHead>Starring</p>" + Rating.LEVELS.map(function (L) {
+    var who = typeof Cast !== "undefined" && Cast.get(L.id);
+    return "<p><b>" + escHtml(L.emoji + " " + L.name) + "</b><small>" + escHtml(who ? who.title : "") + "</small></p>";
+  }).join("") + "<p class=crHead>And you</p><p><b>" + escHtml(prefs.name || "The player") + "</b><small>" +
+    (trueEnding ? "who did all of it" : "who beat every one of them") + "</small></p>" +
+    (trueEnding ? "" : "<p class=crHead>Still to find</p><p><small>Completion " + c.pct + "%: every star, every lesson, everything in the collection. A hundred has its own ending.</small></p>") +
+    "<p class=crHead>Thank you for playing</p>";
+  ov.classList.remove("hide", "go"); void ov.offsetWidth; ov.classList.add("go");
+  if (trueEnding) jrn.trueEnding = 1; else jrn.ending = 1;
+  jrnSave();
+  sting("mate-win"); hap("success");
+  if (prefs.sound && typeof Stage !== "undefined") Stage.swing(true, true);
+  if (FX) {
+    try { Fx.confetti({ ms: 4200, layer: "page" }); } catch (e) {}
+    clearInterval(jrnFwT);
+    var n = 0;
+    jrnFwT = setInterval(function () {
+      if (ov.classList.contains("hide") || ++n > 8) { clearInterval(jrnFwT); return; }
+      try { Fx.fireworks({ count: 2, layer: "page" }); } catch (e) {}
+    }, 1400);
+  }
+}
+function jrnWire() {
+  jrnLoad();
+  $("mJourney").addEventListener("click", openJourney);
+  $("jrClose").addEventListener("click", function () { $("ovJourney").classList.add("hide"); showMenu(); });
+  $("chBack").addEventListener("click", function () { $("ovChapter").classList.add("hide"); openJourney(); });
+  $("crDone").addEventListener("click", function () { clearInterval(jrnFwT); $("ovCredits").classList.add("hide"); openJourney(); });
+  jrnLobby();
+}
+function journeyForTest() {
+  return {
+    jrnState: function () { return { st: JSON.parse(JSON.stringify(jrn)), road: Journey.road(ladder, jrn), completion: jrnCompletion() }; },
+    openJourney: openJourney, openChapter: openChapter, openCup: openCup, jrnPlay: jrnPlay, showCredits: showCredits,
+    reloadLadderForTest: function () { ladder = loadLadder(); jrnLobby(); }
   };
 }
 
@@ -8874,6 +9151,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
