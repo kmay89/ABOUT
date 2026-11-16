@@ -166,7 +166,10 @@ const LISTEN = `(() => {
     await page.waitForTimeout(400);
     ok("…and the lobby shows the first number instead", (await shown("mRating")) && !(await shown("mWelcome")));
 
-    /* ---- the take-back pointer rides inside the blunder toast ---- */
+    /* ---- the take-back pointer rides inside the blunder toast ----
+       (tipsResetForTest also un-says the once-only offer of the wheels:
+       an earlier game in this check may already have used it, if the
+       engine on a busy machine called one of its moves a blunder) */
     await page.evaluate(() => { __cr.tipsResetForTest(); __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none", fresh: true }); __cr.setVoiceForTest("plain"); });
     await page.evaluate(LISTEN);
     await page.waitForTimeout(400);

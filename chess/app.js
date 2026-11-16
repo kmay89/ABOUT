@@ -325,11 +325,15 @@ function sndArrival(fresh) {
 
 /* ===== toast — the one funnel for every message ===== */
 var toastTimer = 0;
-function toast(html, actions, ms) {
+function toast(html, actions, ms, extras) {
   var el = $("toast");
   /* a remark never replaces a question that is still waiting for an
-     answer — the notebook has kept the remark */
-  if (!actions && el.classList.contains("show") && el.classList.contains("acts")) return;
+     answer — the notebook has kept the remark. But buttons that are
+     only extras (a hint's "Show the line", the help lamp's menu) are
+     not a question, and what you ask for next takes their place. */
+  if (!actions && el.classList.contains("show") && el.classList.contains("acts") &&
+      !el.classList.contains("lamp") && !toastExtras) return;
+  toastExtras = !!(actions && extras);
   accToast(html, actions);
   el.classList.remove("lamp");
   el.innerHTML = html;
@@ -350,6 +354,7 @@ function toast(html, actions, ms) {
   toastTimer = setTimeout(hideToast, ms || (actions ? 9000 : 4200));
 }
 function hideToast() { $("toast").classList.remove("show"); }
+var toastExtras = false;   /* the toast on show has buttons, but waits for no answer */
 
 /* A question that needs an answer before anything else happens: above
    every card (a question asked from the lobby used to be drawn beneath
@@ -1357,7 +1362,7 @@ function showHint(raw, odds, book, sans, again) {
   /* the words "then likely…" can be drawn, a ply at a time, when asked */
   toast("💡 <b>" + san + "</b> — " + told + ahead + paid,
         pvMoves.length > 1 ? [{ label: "Show the line", fn: function () { showPV(pvMoves); } },
-                              { label: "OK", fn: function () {}, ghost: true }] : null, 9000);
+                              { label: "OK", fn: function () {}, ghost: true }] : null, 9000, true);
 }
 
 /* the one reason the engine can vouch for that the teacher cannot see:
@@ -1735,9 +1740,11 @@ function helpTestHooks(cr) {
     explainPly: explainPly, showWhy: showWhy, lamp: giveHint,
     coachMemo: function () { return coachMemoGame === G ? coachMemo : {}; }
   };
-  cr.tipsResetForTest = function () { prefs.tips = {}; tipQueued = {}; savePrefs(); };
+  /* every once-only word is unsaid again: the pointers, and the offer of the wheels */
+  cr.tipsResetForTest = function () { prefs.tips = {}; tipQueued = {}; prefs.wheelsOffered = false; savePrefs(); };
   cr.wheelsForTest = function (on) { prefs.wheels = !!on; savePrefs(); wheelsAt = ""; hotAt = ""; hotSlow = false; syncSettingsUI(); syncBoard(); };
   cr.assistForTest = function () { return { takebacks: assist.takebacks, hints: assist.hints, wheels: assist.wheels | 0 }; };
+  cr.toastForTest = function (html, actions, ms, extras) { toast(html, actions, ms, extras); };
   cr.isNewcomerForTest = isNewcomer;
 }
 
@@ -3277,14 +3284,18 @@ function lanHandlers() {
      missed while somebody was in a tunnel, the host simply re-states the
      whole game — it is a few hundred bytes and it cannot drift. */
   Net.onRelink = function () {
+    /* The joiner says who it is every time the boards meet — also when
+       the link was re-made before the host's first greeting had landed
+       (two knocks answered, the first channel replaced). Its first
+       hello went down with that first channel, and without this one the
+       host would play a nameless "Friend" it could never recognise. */
+    if (!Net.isHost) Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
     if (mode !== "lan") return;
     if (Net.isHost) {
       if (over) return;
       Net.resync({ sans: G.played.map(function (r) { return r.san; }),
                    clock: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
                    yourSide: -lanSide, name: lanMy || "Host", fid: myFid() });
-    } else {
-      Net.send({ t: "hi2", name: lanMy || "Friend", fid: myFid() });
     }
     toast("📡 Back together — the board is exactly as you left it.");
   };
@@ -7670,6 +7681,8 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
   rejoinLan: rejoinLan, syncNetChip: syncNetChip,
+  /* for friends-check.js: a meeting that happens before the board is dealt */
+  setModeForTest: function (m) { mode = m; },
   /* friends, for chess/tools/friends-check.js and share-check.js */
   Share: Share, Friends: Friends, get friends() { return friends; }, get lanOppId() { return lanOppId; },
   get sharedView() { return sharedView; }, get lastShare() { return lastShare; }, get viewPly() { return viewPly; },
