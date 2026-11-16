@@ -254,7 +254,6 @@ function summaryLine(e) {
 /* ---------- PGN ----------
    The seven-tag roster first, then what the room knows; the coach's
    marks ride on the moves as the suffixes every reader understands. */
-function pgnEsc(s) { return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"'); }
 function pad2(n) { return ("0" + n).slice(-2); }
 var TERMINATION = [
   [/checkmate/i, "checkmate"], [/resign/i, "resignation"], [/out of time|\btime\b|flag/i, "time forfeit"],
@@ -284,22 +283,11 @@ function pgn(e, levels, me) {
   TERMINATION.forEach(function (t) { if (term === "normal" && t[0].test(e.reason)) term = t[1]; });
   tags.push(["Termination", term]);
   tags.push(["Annotator", "The Chess Room"]);
-  var head = tags.map(function (t) { return "[" + t[0] + ' "' + pgnEsc(t[1]) + '"]'; }).join("\n");
-  /* the movetext, wrapped at 79 columns the way the standard asks */
-  var toks = [];
-  e.sans.forEach(function (s, i) {
-    if (i % 2 === 0) toks.push((i / 2 + 1) + ".");
-    toks.push(s + (e.marks[i] || ""));
-  });
-  toks.push(res);
-  var lines = [], cur = "";
-  toks.forEach(function (t) {
-    if (cur && cur.length + 1 + t.length > 79) { lines.push(cur); cur = t; }
-    else cur = cur ? cur + " " + t : t;
-  });
-  if (cur) lines.push(cur);
-  return head + "\n\n" + lines.join("\n") + "\n";
+  /* the one writer (pgn.js): the roster in its order, the movetext
+     wrapped at 79 columns the way the standard asks */
+  return pgnWriter().write({ headers: tags, sans: e.sans, marks: e.marks, result: res });
 }
+function pgnWriter() { return root.Pgn || require("./pgn.js"); }
 function pgnAll(state, levels, me) {
   var list = state && Array.isArray(state.list) ? state.list : [];
   return list.map(function (e) { return pgn(e, levels, me); }).join("\n");
