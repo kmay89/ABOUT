@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Help */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Help, Games, Feats, Goals */
 (function () {
 "use strict";
 
@@ -612,6 +612,7 @@ function syncClocks() {
 
 /* ===== names, bars, captured ===== */
 function sideName(side) {
+  if (mode === "review" && reviewNames) return reviewNames[side === 1 ? 0 : 1];
   if (mode === "coach") return side === humanSide ? "You" : SKILLS[skill].label;
   if (mode === "lan") return side === lanSide ? (lanMy || "You") : lanOpp;
   return side === 1 ? "White" : "Black";
@@ -882,6 +883,7 @@ function commitMove(m, source, animOpts) {
   var fenBefore = Chess.fen(G);
   /* look at the move while the position is still the "before" one */
   var lessons = (prefs.coach && mode !== "tour") ? Teach.afterMove(G, m) : [];
+  featMove(m, mover, source, lessons);
   var desc = animDescriptor(m);
   var san = Chess.play(G, m);
   var ply = G.played.length - 1;
@@ -996,7 +998,7 @@ function scheduleCoach() {
       thinking = false;
       /* what the coach thinks of the position, from your side: the
          abandonment rule asks whether you were clearly losing */
-      if (res && typeof res.score === "number") lastEval = -res.score;
+      if (res && typeof res.score === "number") { lastEval = -res.score; trackLow(); }
       var m = res && res.move && Brain.resolve(G, res.move);
       /* a worker that died mid-thought must not leave the coach staring
          at the board: think again, briefly, here */
@@ -2115,7 +2117,9 @@ function leaveGameThen(fn, verb) {
         /* the game may have ended while the question was up */
         if (!ratedAtStake()) { fn(); return; }
         var live = mode === "coach" && G && !over;
-        var out = live ? settleRating("resign") : settleSaved(loadSave());
+        var sv0 = live ? null : loadSave();
+        var out = live ? settleRating("resign") : settleSaved(sv0);
+        journalResigned(sv0);
         if (live) over = { result: humanSide === 1 ? "black" : "white", reason: "you resigned" };
         lsDel(SAVE_KEY);
         fn();
@@ -2253,7 +2257,7 @@ function renderEndRating(rs, cardAt) {
   var live = function () { return myGame === gameTicket && !$("ovEnd").classList.contains("hide"); };
   box.classList.toggle("hide", !rs);
   $("endNext").classList.add("hide");
-  $("endMile").classList.add("hide");
+  milesReset(cardAt, rs);
   if (!rs) return;
   var out = rs.out, before = Math.round(out.before), after = Math.round(out.after);
   $("endRateNum").textContent = before;
@@ -2286,7 +2290,7 @@ function renderEndRating(rs, cardAt) {
     $("endNextSub").textContent = "A step down the ladder is how everyone climbs it.";
     $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(down.id, "a", clockStrOf()); };
     $("endNext").classList.remove("hide");
-  }
+  } else goalOnEndCard();
 
   /* the choreography, once the card is up */
   var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
@@ -2304,15 +2308,13 @@ function renderEndRating(rs, cardAt) {
       if (mile || up2) {
         setTimeout(function () {
           if (!live()) return;
-          var m = $("endMile"), was = out.levelUp && Rating.levelById(out.levelUp);
-          m.textContent = mile ? (mile.emoji || "🏅") + " " + (mile.kind === "settled" ? "Your rating has settled" :
+          var was = out.levelUp && Rating.levelById(out.levelUp);
+          /* the number's own milestone heads the stack, whatever else this game did */
+          if (mile) pushMile(escHtml(mile.emoji || "🏅"), escHtml((mile.kind === "settled" ? "Your rating has settled" :
                                   mile.kind === "best" ? "A new personal best" : "You're now: " + mile.name) +
-                                  " — " + Math.round(mile.rating || after)
-                               : "🌱 You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next.";
-          m.classList.remove("hide");
-          sting(mile ? "milestone" : "levelup");
-          hap("success");
-          if (FX) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+                                  " — " + Math.round(mile.rating || after)), { first: true, sting: "milestone", hap: "success", big: true });
+          else pushMile("🌱", escHtml("You've outgrown " + was.emoji + " " + was.name + " — " + up2.emoji + " " + up2.name + " is next."),
+                        { first: true, sting: "levelup", hap: "success", big: true });
         }, 500 + rs.newStars.length * 420);
       }
     });
@@ -2351,6 +2353,7 @@ function renderEndRating(rs, cardAt) {
         rung.stars[2] = 1; saveLadder();
         setTimeout(function () { popStar(2, live); }, 700);
       }
+      progressAfterLook(rs, acc, c);
     }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
   });
 }
@@ -2367,12 +2370,10 @@ function countChips(c) {
 /* the look-back finishes after the game has been counted, so its
    accuracy is written onto the record afterwards */
 function rememberAccuracy(acc, perf) {
-  if (Rating.annotateLast) rating = Rating.annotateLast(rating, { acc: acc, perf: perf });
-  else {
-    var h = rating.history;
-    if (h && h.length) { h[h.length - 1].acc = acc; h[h.length - 1].perf = perf; }
-  }
+  /* read back first, as settleRating does: another tab may have written since */
+  rating = Rating.annotateLast(Rating.load(lsGet), { acc: acc, perf: perf });
   Rating.save(rating, lsSet);
+  journalAccuracy(acc, perf);
 }
 
 /* ---- the lobby ---- */
@@ -2434,6 +2435,7 @@ function renderLobby() {
   /* bring the coach you're up against next into view */
   var nx = lad.querySelector(".rung.next");
   if (nx) lad.scrollLeft = Math.max(0, nx.offsetLeft - 8 - (lad.clientWidth - nx.offsetWidth) / 3);
+  renderGoal();
 }
 
 /* ---- your record ---- */
@@ -2480,7 +2482,348 @@ function showProfile() {
     b.addEventListener("click", function () { quickPlay(L.id); });
     list.appendChild(b);
   });
+  showProfileTab(profileTab);
   $("ovProfile").classList.remove("hide");
+}
+
+/* ===== progression: the journal, the feats, the next step =====
+   games.js, feats.js and goals.js hold the rules and are checked in
+   node; this block only hands them the board and puts what they say on
+   the cards. Three promises hold it together: every number is a fact
+   about chess or about turning up; a thing is said once, at the moment,
+   and then kept on your record; and games with people count as play —
+   kept in the journal, a day on the streak, feats if you earn them —
+   but never as rating. */
+var lowEval = 0;                    /* the coach's worst word on the position this game, from your side */
+var featPly = {};                   /* ply → what the teaching eyes saw in that move of yours */
+var currentGameId = null;           /* the journal's id for the game just finished */
+var reviewEntry = null, reviewNames = null;   /* a kept game, open on the board */
+var profileTab = "record", gamesShown = 10, featsAll = false, FEATS_AHEAD = 6;
+var miles = { ticket: -1, next: 0, n: 0, reserved: false, stung: false };
+
+function progressNewGame() { lowEval = 0; featPly = {}; currentGameId = null; reviewEntry = null; reviewNames = null; }
+function trackLow() { if (lastEval < lowEval) lowEval = lastEval; }
+/* your own move, looked at while the position is still the one before
+   it: the teacher may be quiet (the coach's voice off), but its eyes
+   are still what can tell a fork from a lucky capture */
+function featMove(m, mover, source, lessons) {
+  var mine = mode === "coach" ? mover === humanSide : mode === "lan" ? source === "local" : false;
+  if (!mine || !G) return;
+  try { featPly[G.played.length] = Feats.onMove({}, m, prefs.coach ? lessons : Teach.afterMove(G, m)); } catch (e) {}
+}
+
+/* ---- the end card's stack: at most three lines, one sting ---- */
+function milesReset(cardAt, rs) {
+  var box = $("endMiles");
+  box.innerHTML = ""; box.classList.add("hide");
+  var em = $("endNext").querySelector(".em");
+  if (em) em.textContent = "⬆️";
+  /* a rated game reveals its number and stars first; what else the game
+     did waits until they have landed */
+  var after = REDUCED ? 150 : (cardAt || 1100) + (rs ? 3000 + rs.newStars.length * 420 : 700);
+  /* and the number's own milestone, when there is one, keeps its place
+     at the top of the stack whatever arrives before it */
+  var reserved = !!(rs && rs.out && (rs.out.milestone || (rs.out.levelUp && rs.out.next)));
+  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false };
+}
+function pushMile(icon, html, o) {
+  o = o || {};
+  if (miles.ticket !== gameTicket) return false;
+  if (o.first && miles.reserved) miles.reserved = false;
+  else { if (miles.n >= 3) return false; miles.n++; }
+  var now = Date.now(), at = o.first ? now : Math.max(now, miles.next), my = miles.ticket;
+  if (!o.first) miles.next = at + 500;
+  setTimeout(function () {
+    if (my !== gameTicket || !over) return;
+    var box = $("endMiles"), line = document.createElement("div");
+    line.className = "erMile" + (o.cls ? " " + o.cls : "");
+    line.innerHTML = '<span class="em">' + icon + "</span> " + html;
+    if (o.first) box.insertBefore(line, box.firstChild); else box.appendChild(line);
+    box.classList.remove("hide");
+    /* kept for when the card comes back, but only heard while it is up */
+    if ($("ovEnd").classList.contains("hide")) return;
+    if (!miles.stung) { miles.stung = true; sting(o.sting || "lesson-right"); }
+    hap(o.hap || "star");
+    if (FX) {
+      Fx.sparkle(line, { count: 14 });
+      if (o.big) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+    }
+  }, Math.max(0, at - now));
+  return true;
+}
+
+/* ---- the journal ---- */
+function journalEntry(result, reason) {
+  var sans = G.played.map(function (r) { return r.san; });
+  var mk = {};
+  Object.keys(marks).forEach(function (k) { mk[k] = marks[k]; });
+  return { at: Date.now(), mode: mode, skill: mode === "coach" ? skill : null,
+           humanSide: mode === "coach" ? humanSide : mode === "lan" ? lanSide : 0,
+           result: result, reason: reason, sans: sans,
+           rv: Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }),
+           marks: mk, eco: Games.openingOf(sans), opp: mode === "lan" ? lanOpp : null,
+           clockStr: clockStrOf(), assist: [assist.takebacks, assist.hints],
+           low: mode === "coach" ? lowEval : null };
+}
+function recordGame(e) {
+  var r = Games.add(Games.load(lsGet), e);
+  Games.save(r.state, lsSet);
+  return r.id;
+}
+/* a rated game left by starting another is counted as a loss, so it is
+   kept as one — from the board if it was live, from the shelf if not */
+function journalResigned(sv) {
+  try {
+    if (sv) recordGame({ at: Date.now(), mode: "coach", skill: sv.skill, humanSide: sv.humanSide,
+                         result: sv.humanSide === 1 ? "black" : "white", reason: "resigned by starting another game",
+                         sans: sv.sans, assist: sv.assist, clockStr: sv.clockStr,
+                         rv: sv.rv, low: typeof sv.lo === "number" ? sv.lo : null, eco: Games.openingOf(sv.sans) });
+    else if (G && mode === "coach" && G.played.length) recordGame(journalEntry(humanSide === 1 ? "black" : "white", "resigned by starting another game"));
+  } catch (e) {}
+}
+function journalAccuracy(acc, perf) {
+  if (!currentGameId) return;
+  Games.save(Games.annotate(Games.load(lsGet), currentGameId, { acc: acc, perf: perf }), lsSet);
+}
+
+/* ---- feats ---- */
+function awardFeats(got) {
+  if (!got || !got.length) return;
+  Feats.save(Feats.award(Feats.load(lsGet), got, Date.now(), currentGameId), lsSet);
+  if (currentGameId) Games.save(Games.annotate(Games.load(lsGet), currentGameId, { feats: got }), lsSet);
+  got.forEach(function (id) {
+    var f = Feats.byId(id);
+    if (!f) return;
+    note({ ply: G && G.played.length ? G.played.length - 1 : null, icon: "🏅", tone: "good", key: "feat:" + id,
+           text: "<b>Feat: " + escHtml(f.name) + "</b> — kept in your record.", brief: "Feat · " + escHtml(f.name) });
+    /* the fourth and later still count — they wait on your record */
+    pushMile(f.emoji, "<b>Feat:</b> " + escHtml(f.name), { cls: "feat", sting: "lesson-right" });
+  });
+}
+
+/* ---- the next step ---- */
+function goalCtx() {
+  var lp = null, st = { due: 0 }, nx = null, solved = {};
+  try { lp = Learn.load(); st = Learn.stats(lp); nx = Learn.next(lp); } catch (e) {}
+  if (lp && lp.lessons) Object.keys(lp.lessons).forEach(function (k) { if (lp.lessons[k].solved > 0) solved[k] = 1; });
+  var fd = Feats.load(lsGet);
+  return { rating: rating, ladder: ladder, learn: { due: st.due }, lesson: nx ? { id: nx.id, title: nx.title } : null,
+           feat: Feats.nextFor(fd, Rating.titleIndex(rating.r)), featsDone: fd.done, solved: solved };
+}
+function goalGo(a) {
+  if (!a) return;
+  if (a.type === "practise") { startPractice(); return; }
+  if (a.type === "lesson") { var L = Learn.byId(a.id); if (L) startLesson(L, []); return; }
+  leaveGameThen(function () { startCoachGame(a.level || nextLevel(), a.side || "a", "none"); }, "a new game");
+}
+function renderGoal() {
+  var btn = $("mGoal");
+  if (!btn) return;
+  var g = null;
+  try {
+    var r = Goals.choose(Goals.load(lsGet), goalCtx(), dayKey(Date.now()));
+    Goals.save(r.state, lsSet);
+    g = r.goal;
+  } catch (e) { g = null; }
+  btn.classList.toggle("hide", !g);
+  btn.parentNode.classList.toggle("withGoal", !!g);
+  if (!g) return;
+  $("mGoalEm").textContent = g.icon;
+  $("mGoalTx").innerHTML = g.text;          /* goals.js escapes; only <b> rides along */
+  btn.setAttribute("aria-label", "Next step: " + stripTags(g.text));
+  btn.onclick = function () { goalGo(g.action); };
+}
+/* a game just ended: if the step the lobby named has been taken, say so
+   once; and when the end card has no next coach to offer, offer the
+   next step instead of nothing */
+function goalAtEnd() {
+  try {
+    var said = Goals.settle(Goals.load(lsGet), goalCtx());
+    if (said) { Goals.save(said.state, lsSet); if (said.text) pushMile("✓", escHtml(said.text.replace(/^✓\s*/, "")), { cls: "done", sting: "lesson-done", hap: "success" }); }
+  } catch (e) {}
+}
+function goalOnEndCard() {
+  var g = null;
+  try { g = Goals.pick(goalCtx(), Goals.load(lsGet).skip); } catch (e) { g = null; }
+  if (!g || g.kind === "play") return;     /* "Play again" already says that */
+  $("endNext").querySelector(".em").textContent = g.icon;
+  $("endNextTx").textContent = "Next: " + stripTags(g.text);
+  $("endNextSub").textContent = "The nearest step from here.";
+  $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); goalGo(g.action); };
+  $("endNext").classList.remove("hide");
+}
+
+/* ---- the moment a game ends ---- */
+function progressAtEnd(result, reason, rs) {
+  if (!G || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
+  var plies = G.played.length;
+  try {
+    /* a game with people is a day you played, once it was properly a game */
+    if ((mode === "pass" || mode === "lan") && plies >= ABANDON_PLIES) markDay();
+    /* a rated game is kept from its first move; a game between people
+       once both have moved */
+    currentGameId = plies >= (mode === "coach" ? 1 : 2) ? recordGame(journalEntry(result, reason)) : null;
+    /* the step the lobby pointed at comes first: it is why you played */
+    if (rs) goalAtEnd();
+    if (mode === "coach" || mode === "lan") {
+      var flags = {};
+      Object.keys(featPly).forEach(function (k) {
+        if (+k < plies) for (var f in featPly[k]) flags[f] = 1;
+      });
+      awardFeats(Feats.onGame(Feats.load(lsGet), flags, {
+        g: G, mode: mode, mySide: mode === "coach" ? humanSide : lanSide, result: result,
+        low: mode === "coach" ? lowEval : null, level: skill, ladder: ladder, marks: marks, levels: Rating.LEVELS }));
+    }
+  } catch (e) { /* what the game did is a bonus; the game itself is already counted */ }
+}
+/* the look-back has measured the game: what only it can say */
+function progressAfterLook(rs, acc, counts) {
+  try {
+    goalAtEnd();     /* the third star lands here */
+    awardFeats(Feats.onAfter(Feats.load(lsGet), { mode: "coach", won: rs.s === 1, acc: acc, counts: counts, ladder: ladder }));
+  } catch (e) {}
+}
+
+/* ---- the record's faces ----
+   Each face is a .pftab and a .pfPane with the same data-tab; a face
+   that draws itself registers here. Another face (your people, say)
+   needs only its two elements and, if it draws, one line below. */
+var PROFILE_TABS = { games: renderGamesTab, feats: renderFeatsTab };
+function showProfileTab(name) {
+  if (!document.querySelector('#pfTabs .pftab[data-tab="' + name + '"]')) name = "record";
+  profileTab = name;
+  [].forEach.call(document.querySelectorAll("#pfTabs .pftab"), function (b) {
+    var on = b.getAttribute("data-tab") === name;
+    b.classList.toggle("sel", on); b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  [].forEach.call(document.querySelectorAll("#ovProfile .pfPane"), function (p) {
+    p.classList.toggle("hide", p.getAttribute("data-tab") !== name);
+  });
+  if (PROFILE_TABS[name]) PROFILE_TABS[name]();
+}
+function myName() { return (prefs.name && String(prefs.name).trim()) || "You"; }
+function renderGamesTab() {
+  var st = Games.load(lsGet), list = st.list.slice().reverse(), box = $("pfGamesList");
+  $("pfGamesNote").textContent = list.length ? list.length + (list.length === 1 ? " game" : " games") + " kept · the last " + Games.MAX + " stay" : "";
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = '<p class="pfEmpty">Every game you finish is kept here — against a coach, across the table, or with a friend nearby — to step back through, move by move, or copy out for anyone.</p>';
+  }
+  list.slice(0, gamesShown).forEach(function (e) {
+    var n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
+    var b = document.createElement("button");
+    b.className = "gameRow";
+    b.innerHTML = '<span class="rgE">' + escHtml(n.icon) + '</span><span class="rgT"><b>' +
+      escHtml(e.mode === "pass" ? "Two players" : (e.mode === "lan" ? "Nearby · " : "") + n.who) +
+      "</b><small>" + escHtml(Games.summaryLine(e)) + '</small></span><span class="gRes' +
+      (/^(won|lost|drew)$/.test(o) ? " " + o : "") + '">' + escHtml(o) + "</span>";
+    b.addEventListener("click", function () { openRecord(e); });
+    box.appendChild(b);
+  });
+  $("pfGamesMore").classList.toggle("hide", list.length <= gamesShown);
+  $("pfPgnAll").classList.toggle("hide", !list.length);
+}
+function renderFeatsTab() {
+  var sm = Feats.summary(Feats.load(lsGet)), games = Games.load(lsGet), box = $("pfFeatsList");
+  $("pfFeatsNote").textContent = sm.earned ? sm.earned + " of " + sm.total + " — each one a fact about a game you played"
+                                           : "Things done on the board, kept the first time they happen";
+  box.innerHTML = "";
+  /* what you have done, then the next few not done yet — the gentlest
+     first — and the rest behind one tap, so the face stays a face */
+  var undone = 0;
+  sm.rows.forEach(function (r) {
+    if (!r.done && !featsAll && ++undone > FEATS_AHEAD) return;
+    var e = r.done && r.done.game ? Games.get(games, r.done.game) : null;
+    var t = document.createElement(e ? "button" : "div");
+    t.className = "featTile" + (r.done ? " on" : "");
+    var sub = r.done ? Games.fmtDay(r.done.at) + (e ? " · " + Games.names(e, Rating.LEVELS).who : "") : r.how;
+    t.innerHTML = '<span class="em">' + escHtml(r.emoji) + "</span><b>" + escHtml(r.name) + "</b><small>" + escHtml(sub) + "</small>";
+    if (r.done) t.setAttribute("aria-label", r.name + ", done " + Games.fmtDay(r.done.at));
+    if (e) t.addEventListener("click", function () { openRecord(e); });
+    box.appendChild(t);
+  });
+  var rest = sm.total - sm.earned - FEATS_AHEAD;
+  $("pfFeatsMore").classList.toggle("hide", featsAll || rest <= 0);
+  $("pfFeatsMore").textContent = "Show the other " + Math.max(0, rest);
+}
+
+/* ---- a kept game, on the board ----
+   Opened the way a lesson is: the game you were playing stays on the
+   shelf (it was saved after every move), and the board becomes a
+   read-only replay with the lesson bar as its navigator. */
+function shareText(text, title) {
+  if (navigator.share && (navigator.maxTouchPoints || 0) > 0) navigator.share({ title: title, text: text }).catch(function () {});
+  else clip(text);
+}
+function openRecord(e) {
+  if (!e) return;
+  if (mode === "lan" && G && !over && Net.linked()) { toast("Finish or leave the game with your friend first — then it's all here."); return; }
+  var g = Chess.create();
+  for (var i = 0; i < e.sans.length; i++) { var m = Chess.fromSAN(g, e.sans[i]); if (!m) break; Chess.play(g, m); }
+  if (!g.played.length) { toast("That game couldn't be read back — its moves don't add up."); return; }
+  stopTour(); quietBoard(); hideAllOverlays(); closeStudio();
+  lesson = null; lessonDone = false; lessonQueue = [];
+  mode = "review"; G = g; over = { result: e.result, reason: e.reason || "" };
+  reviewEntry = e;
+  var nm = Games.names(e, Rating.LEVELS, myName());
+  reviewNames = [nm.white, nm.black];
+  thinking = false; clockConfig("none"); clearSel(); hintArrow = null; viewPly = -1;
+  reviewMemo = {};
+  e.rv.forEach(function (t) { reviewMemo[t[0]] = { best: t[1], played: t[2] }; });
+  Object.keys(e.marks).forEach(function (k) { marks[k] = e.marks[k]; });
+  orientation = e.humanSide || 1;
+  R.setOrientation(orientation);
+  if (FX) Fx.clear();
+  fxDown = null;
+  hideOpeningCard();
+  if (e.eco) showOpeningCard(e.eco.name, e.eco.code, "", "");
+  R.setPosition(G.board);
+  syncAll();
+  viewAt(0);
+  reviewBar();
+  needFrame();
+}
+function reviewBar() {
+  var e = reviewEntry, n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
+  var head = e.mode === "pass" ? "Two players · " + o : "Against " + n.them + " — you " + o;
+  var bits = [cap(e.reason || "")];
+  if (e.eco) bits.push(e.eco.name.split(":")[0]);
+  if (e.acc != null) bits.push(Math.round(e.acc) + "% accuracy");
+  lessonUI('<div class="lkick">From your games · ' + escHtml(Games.fmtDay(e.at)) + "</div>" +
+           '<div class="lask">' + escHtml(head) + "</div>" +
+           '<div class="lsay">' + escHtml(bits.filter(Boolean).join(" · ")) + "</div>");
+  lessonRow([lessonChip("◀", function () { reviewStep(-1); }), lessonChip("▶", function () { reviewStep(1); }),
+             lessonChip("Copy PGN", function () { shareText(Games.pgn(e, Rating.LEVELS, myName()), "A chess game"); }),
+             lessonChip("Done", showMenu, true)]);
+}
+function reviewStep(d) {
+  if (!G || !G.played.length) return;
+  var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+  if (d < 0) viewAt(Math.max(0, at - 1));
+  else if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); }
+}
+function wireProgression() {
+  /* what the score and the ladder already prove goes in the cabinet
+     quietly, before any game could announce it as new */
+  try {
+    var back = Feats.fromRecord(Feats.load(lsGet), { history: rating.history, ladder: ladder, levels: Rating.LEVELS, now: Date.now() });
+    if (back.ids.length) Feats.save(back.state, lsSet);
+  } catch (e) {}
+  [].forEach.call(document.querySelectorAll("#pfTabs .pftab"), function (b) {
+    b.addEventListener("click", function () { showProfileTab(b.getAttribute("data-tab")); });
+  });
+  $("pfGamesMore").addEventListener("click", function () { gamesShown += 10; renderGamesTab(); });
+  $("pfFeatsMore").addEventListener("click", function () { featsAll = true; renderFeatsTab(); });
+  $("pfPgnAll").addEventListener("click", function () { shareText(Games.pgnAll(Games.load(lsGet), Rating.LEVELS, myName()), "My chess games"); });
+}
+function progressionForTest() {
+  return { Games: Games, Feats: Feats, Goals: Goals,
+    goalForTest: function () { return Goals.pick(goalCtx(), Goals.load(lsGet).skip); },
+    gamesForTest: function () { return Games.load(lsGet); },
+    featsForTest: function () { return Feats.load(lsGet); },
+    lowEvalForTest: function (v) { if (typeof v === "number") lowEval = v; return lowEval; },
+    reviewForTest: function () { return reviewEntry; },
+    openRecord: openRecord, showProfileTab: showProfileTab, renderLobby: renderLobby };
 }
 
 /* ===== game start / end ===== */
@@ -2494,7 +2837,7 @@ function startGame(newMode, opts) {
   teachSeen = {}; teachCool = 0; taughtAt = [];
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
-  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0; progressNewGame();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
@@ -2580,7 +2923,9 @@ function endGame(result, reason, taught) {
   /* a mate gets a moment on the board — the king laid down, the camera
      leaning in — before the card comes up over it */
   var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
-  renderEndRating(mode === "coach" ? settleRating(result) : null, cardAt);
+  var rs = mode === "coach" ? settleRating(result) : null;
+  renderEndRating(rs, cardAt);
+  progressAtEnd(result, reason, rs);
   renderOddsReview();
   helpAtEnd();
   /* the card waits its turn: if something else was opened in the
@@ -2694,7 +3039,7 @@ function saveGame() {
     /* and the coach's reviews so far, so a reload doesn't throw away the
        look-back's work — or the abandonment rule's sense of the position */
     rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
-    ev: lastEval
+    ev: lastEval, lo: lowEval
   }));
 }
 function loadSave() {
@@ -2755,6 +3100,7 @@ function resumeSaveInner(s) {
       reviewMemo[t[0]] = { best: t[1], played: t[2] };
   });
   if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
+  if (typeof s.lo === "number" && isFinite(s.lo)) lowEval = Math.max(-100000, Math.min(0, s.lo));
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -3601,7 +3947,7 @@ function tourPlayOn() {
   /* the book's moves were nobody's: a fresh, rated game from here, against
      the coach that gives you a fair fight */
   mode = "coach"; humanSide = side; skill = nextLevel();
-  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0; progressNewGame();
   orientation = side; R.setOrientation(side);
   syncAll(); saveGame();
   toast("You're " + (side === 1 ? "White" : "Black") + ", picking up where the book ends, against " + SKILLS[skill].label + ".");
@@ -3886,7 +4232,7 @@ function renderAcademy() {
   var p = Learn.load(), st = Learn.stats(p);
   $("aSolved").textContent = st.solved + "/" + st.total;
   $("aDue").textContent = st.due;
-  $("aStreak").textContent = st.streak;
+  $("aStreak").textContent = streakDays();
   $("aPractise").classList.toggle("hide", st.due === 0);
   $("aPractiseSub").textContent = st.due + " idea" + (st.due === 1 ? "" : "s") + " ready to come back.";
   var nx = Learn.next(p);
@@ -4446,6 +4792,7 @@ function showMenu() {
   closeStudio();
   if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
+  if (mode === "review") { reviewEntry = null; reviewNames = null; mode = null; }
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   hideAllOverlays();
   var lp = Learn.stats(Learn.load());
@@ -4795,7 +5142,7 @@ function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.s
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -4836,6 +5183,7 @@ function wireUI() {
   $("mPlay").addEventListener("click", function () { quickPlay(); });
   $("mRating").addEventListener("click", showProfile);
   $("pfBack").addEventListener("click", showMenu);
+  wireProgression();
   $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
@@ -5289,4 +5637,5 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
   rejoinLan: rejoinLan, syncNetChip: syncNetChip };
 helpTestHooks(window.__cr);
+Object.assign(window.__cr, progressionForTest());
 })();

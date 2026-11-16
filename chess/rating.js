@@ -670,6 +670,19 @@ function summary(state) {
   };
 }
 
+/* The look-back measures a game after it has been counted, so its
+   accuracy is written onto the newest entry afterwards. Pure: a copy is
+   cleaned, patched and handed back, and the caller saves it — so a page
+   that re-reads storage first never writes over another tab's game. */
+function annotateLast(state, patch) {
+  var s = clean(state), h = s.history, p = patch && typeof patch === "object" ? patch : {};
+  if (!h.length) return s;
+  var e = h[h.length - 1];
+  if (typeof p.acc === "number" && p.acc === p.acc) e.acc = round1(num(p.acc, 0, 0, 100));
+  if (typeof p.perf === "number" && p.perf === p.perf) e.perf = Math.round(num(p.perf, 0, PERF_MIN, PERF_MAX));
+  return s;
+}
+
 var Rating = {
   VERSION: VERSION, KEY: KEY, LEVELS: LEVELS, TITLES: TITLES, PERF: PERF,
   START_R: START_R, START_RD: START_RD, OPP_RD: OPP_RD, PROVISIONAL_RD: PROVISIONAL_RD,
@@ -679,7 +692,8 @@ var Rating = {
   winPct: winPct, moveAccuracy: moveAccuracy, gameAccuracy: gameAccuracy, perfFromAccuracy: perfFromAccuracy,
   expected: expected, assistWeight: assistWeight, abandonResult: abandonResult,
   fresh: fresh, load: load, save: save, clean: clean, update: update,
-  title: title, display: display, suggestLevel: suggestLevel, summary: summary
+  title: title, titleIndex: titleIndex, display: display, suggestLevel: suggestLevel, summary: summary,
+  annotateLast: annotateLast
 };
 
 if (typeof module !== "undefined" && module.exports) module.exports = Rating;

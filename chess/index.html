@@ -820,6 +820,48 @@
     background:linear-gradient(90deg, rgba(62,207,142,.18), rgba(255,209,102,.18)); border:1px solid rgba(255,209,102,.4);
     animation:mileIn .6s cubic-bezier(.2,1.4,.4,1) both}
   @keyframes mileIn{from{transform:scale(.7); opacity:0} to{transform:none; opacity:1}}
+  /* ---------- progression: the next step, the journal, the feats ----------
+     Every number here is a fact about chess or about turning up, said
+     once and then kept. The lobby gets one line (the next step, beside
+     the link it shares a row with); the record grows faces instead of
+     length; the end card gains a short stack of what this game changed. */
+  .playMore.withGoal{display:flex; align-items:center; justify-content:space-between; gap:4px 10px; flex-wrap:wrap; text-align:left}
+  .goalLine{display:flex; align-items:baseline; gap:6px; text-align:left; color:var(--ink); min-width:0; flex:1 1 260px}
+  .goalLine .em{flex:none; color:var(--glow)}
+  .goalLine b{color:var(--glow); font-weight:700}
+  .playMore.withGoal #mCoach{flex:none; margin-left:auto}
+  @media (max-width:520px){ .playMore.withGoal #mCoach{margin-left:0} }
+  .pfTabs{display:flex; gap:4px; margin:4px 0 8px; border-bottom:1px solid var(--line)}
+  .pftab{flex:1; padding:6px 10px; border-radius:10px 10px 0 0; font-size:.76em; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--soft); border:1px solid transparent; border-bottom:none; margin-bottom:-1px}
+  .pftab.sel{color:var(--glow); background:var(--card2); border-color:var(--line)}
+  .pftab:hover{color:var(--ink)}
+  .pfList{display:flex; flex-direction:column; gap:6px}
+  .gameRow{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:8px 12px}
+  .gameRow .rgE{font-size:1.3em; flex:none; width:1.4em; text-align:center}
+  .gameRow .rgT{flex:1; min-width:0}
+  .gameRow .rgT b{font-size:.94em} .gameRow .rgT small{display:block; color:var(--soft); font-size:.76em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .gRes{flex:none; font-size:.7em; font-weight:800; letter-spacing:.08em; text-transform:uppercase; padding:2px 8px; border-radius:999px;
+    background:#1c1713; border:1px solid var(--line); color:var(--soft)}
+  .gRes.won{color:var(--good); border-color:rgba(62,207,142,.45)} .gRes.lost{color:var(--bad)}
+  .pfEmpty{color:var(--soft); font-size:.86em; margin:6px 2px}
+  .pfMore{justify-content:center; margin-top:6px}
+  .featGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+  .featTile{display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
+    background:#1c1713; border:1px dashed var(--line); border-radius:12px; padding:8px 9px; color:var(--soft)}
+  .featTile .em{font-size:1.2em; line-height:1.1; opacity:.5; filter:grayscale(1)}
+  .featTile b{font-size:.82em; line-height:1.2; color:var(--soft)}
+  .featTile small{font-size:.7em; line-height:1.3}
+  .featTile.on{background:var(--card2); border:1px solid rgba(255,209,102,.4); color:var(--ink)}
+  .featTile.on .em{opacity:1; filter:none}
+  .featTile.on b{color:var(--ink)} .featTile.on small{color:var(--soft)}
+  @media (max-width:420px){ .featGrid{grid-template-columns:1fr 1fr} }
+  .erMiles{display:flex; flex-direction:column; gap:6px; margin:4px 0 8px}
+  .erMiles .erMile{margin-top:0; font-weight:600; font-size:.92em; text-align:left}
+  .erMiles .erMile .em{margin-right:2px}
+  .erMiles .erMile.feat{background:linear-gradient(90deg, rgba(255,209,102,.16), rgba(240,160,32,.06))}
+  .erMiles .erMile.done{background:linear-gradient(90deg, rgba(62,207,142,.16), rgba(62,207,142,.04)); border-color:rgba(62,207,142,.45)}
   .primaryBtn{border-color:var(--amber); background:linear-gradient(135deg, rgba(240,160,32,.18), transparent 70%), var(--card2)}
   #ovEnd .card{max-width:440px}
   #endEmoji{display:inline-block; animation:endPop .8s cubic-bezier(.2,1.5,.4,1) both}
@@ -1063,7 +1105,7 @@
       <span class="pbGo" aria-hidden="true">▶</span>
       <span class="pbTx"><b>Play the computer</b><small id="mPlaySub">A gentle first game against 🌱 Sprout.</small></span>
     </button>
-    <div class="playMore"><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
+    <div class="playMore"><button class="linkish goalLine hide" id="mGoal"><span class="em" id="mGoalEm" aria-hidden="true"></span><span id="mGoalTx"></span></button><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
 
     <div class="secHead"><b>Climb the ladder</b><small id="mLadderNote">Beat each coach to earn its stars</small></div>
     <div class="ladder" id="mLadder" role="list"></div>
@@ -1100,11 +1142,30 @@
       <div class="pfNum"><span class="rcKick">Your rating</span><b id="pfRate">—</b><small id="pfRd"></small></div>
       <div class="pfTitle"><b id="pfTitle"></b><small id="pfNext"></small><div class="pfBar"><i id="pfBar"></i></div></div>
     </div>
+    <!-- one face at a time, so the record is never longer than it was;
+         a new face is a .pftab and a .pfPane with the same data-tab -->
+    <div class="pfTabs" id="pfTabs" role="tablist">
+      <button class="pftab sel" data-tab="record" role="tab" aria-selected="true">Record</button>
+      <button class="pftab" data-tab="games" role="tab" aria-selected="false">Games</button>
+      <button class="pftab" data-tab="feats" role="tab" aria-selected="false">Feats</button>
+    </div>
+    <div class="pfPane" data-tab="record" id="pfRecord">
     <svg class="pfChart" id="pfChart" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Your rating over your recent games"></svg>
     <div class="pfStats" id="pfStats"></div>
     <div class="secHead"><b>The ladder</b><small>★ win · ★ win without help · ★ win without help at 80%+ accuracy</small></div>
     <div id="pfLadder"></div>
-    <div class="howBox"><b>How the number works.</b> Every game against the computer is rated, with or without a clock. Each coach has a rating of its own, so beating a stronger one moves you further than beating a gentler one, and your first few games move you most while the room is still finding your level. Hints and take-backs are always allowed — each one makes that game count for a little less (a take-back a fifth, a hint a tenth), because the number is meant to say what you can do on your own. Starting a new game is free while a game is young; once it is well under way, or you are clearly behind, leaving counts as a loss. Games between two people, lessons and opening stories never touch it.</div>
+    <div class="howBox" id="pfHow"><b>How the number works.</b> Every game against the computer is rated, with or without a clock. Each coach has a rating of its own, so beating a stronger one moves you further than beating a gentler one, and your first few games move you most while the room is still finding your level. Hints and take-backs are always allowed — each one makes that game count for a little less (a take-back a fifth, a hint a tenth), because the number is meant to say what you can do on your own. Starting a new game is free while a game is young; once it is well under way, or you are clearly behind, leaving counts as a loss. Games between two people, lessons and opening stories never touch it.</div>
+    </div>
+    <div class="pfPane hide" data-tab="games" id="pfGames">
+      <div class="secHead"><b>Your games</b><small id="pfGamesNote"></small></div>
+      <div id="pfGamesList" class="pfList"></div>
+      <div class="rowbtns pfMore"><button class="ghostbtn hide" id="pfGamesMore">Show more</button><button class="ghostbtn hide" id="pfPgnAll">Copy them all (PGN)</button></div>
+    </div>
+    <div class="pfPane hide" data-tab="feats" id="pfFeats">
+      <div class="secHead"><b>Feats</b><small id="pfFeatsNote"></small></div>
+      <div id="pfFeatsList" class="featGrid"></div>
+      <div class="rowbtns pfMore"><button class="ghostbtn hide" id="pfFeatsMore">Show the rest</button></div>
+    </div>
     <button class="ghostbtn" id="pfBack">Back</button>
   </div>
 </div>
@@ -1282,8 +1343,8 @@
         <div class="erBar"><i id="endAccBar"></i></div>
         <div class="erCounts" id="endCounts"></div>
       </div>
-      <div class="erMile hide" id="endMile"></div>
     </div>
+    <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
     <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
     <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
     <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em"></p>
@@ -1472,6 +1533,9 @@
 <script src="haptics.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
+<script src="games.js"></script>
+<script src="feats.js"></script>
+<script src="goals.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

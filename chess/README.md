@@ -91,6 +91,16 @@ rating.js           the score: the coach ladder as data — eight rungs
                     counts a helped game for less, never for nothing.
                     Pure arithmetic: no DOM, no clock, no storage of its
                     own
+games.js            the journal: every finished game — coach, one screen,
+                    nearby — kept with its moves, marks, reviews, opening
+                    and accuracy, the last fifty; PGN out. Pure, rebuilt
+                    field by field on every read
+feats.js            feats: things done on the board that the rules or the
+                    teaching eyes can vouch for, each earned once and kept
+                    with the game it happened in. Pure
+goals.js            the next step: one line, picked from your state by a
+                    fixed order of plain rules, said done once, and moved
+                    aside after five days without changing. Pure
 teach.js            the teaching eyes: forks, pins, skewers, hanging
                     pieces, back ranks, mate threats — spotted and named
                     in plain words, and only when they are true: every
@@ -309,6 +319,25 @@ tools/              dev-only, never shipped:
                     every rung played through the coach's worker inside
                     its own budget, and the same move after a hint as
                     before it
+  games-check.js    the journal is a faithful record: real games written,
+                    read back, copied out as PGN and the movetext replayed
+                    to the same position; fifty kept; junk refused whole
+  feats-check.js    every feat is true: earned by real games through the
+                    engine (Scholar's mate, a smothered mate from the old
+                    trap, back-rank, a castle that mates, en passant,
+                    underpromotion) and refused where it would be false —
+                    a lost game, a pin walked into, two chairs on one
+                    screen, a "comeback" no coach saw
+  goals-check.js    the next step is the nearest true one: each rule fired
+                    from a hand-made state, the highest rung within reach
+                    rather than the lowest, "done" once, five days and
+                    then the subject changes
+  progress-check.js in a real browser, phone and laptop: the lobby's one
+                    line, a friend game kept and counted as a day but not
+                    as rating, a coach game's feats said once and kept
+                    with their game, the record in faces no longer than it
+                    was, a kept game replayed and copied as PGN without
+                    costing the game on the shelf
   calibrate.js      not a check — the measurement. Neighbouring rungs
                     play seeded, clock-frozen matches from sound openings,
                     the Elo gaps are pinned between 400 and 1800, and each
@@ -536,8 +565,11 @@ next is marked next, and the strip scrolls it into view. Tap any rung
 to play it.
 
 **A day on the streak.** A day you play is a day on your streak, and a
-lesson in the Academy counts as much as a game. The longest one is
-kept. The rating card only mentions it once it is two days long.
+lesson in the Academy counts as much as a game — and so does a game
+with a person, across the table or nearby, once it is properly a game
+(twenty plies). The longest one is kept. The rating card only mentions
+it once it is two days long. There is one streak: the Academy shows the
+same number, on the same calendar.
 
 Two players on one device, a friend nearby and the three ways to learn
 sit one row further down. They are not less important; they are just
@@ -717,6 +749,103 @@ read is rebuilt field by field, so a junk save cannot strand the room.
 `rating-check.js` holds all of it to account, and `engine-check.js
 --slow` plays every rung against its neighbour to confirm the ladder is
 still a ladder after any change to the search.
+
+## What the room keeps
+
+A game used to end and be gone. The number remembered that you had won;
+nothing remembered the game. And the room never said what it was you
+might do next, beyond the coach it suggested. Three small things fix
+that, under one law, which is the same law the score keeps:
+
+- **Every number is a fact** about chess or about turning up — a
+  rating, an accuracy, a star, a feat the rules or the engine can vouch
+  for, a day you played. Nothing is minted. There are no points, no
+  coins, no levels beside the rating, nothing with a rarity colour.
+- **Said once, kept forever.** A milestone, a feat, a step taken is
+  said at the moment, on the end card, and then it lives on your
+  record. The lobby points; it never celebrates.
+- **Goals are derived, never assigned.** The room reads your state and
+  names the nearest true step. Ignore it and nothing happens. Nothing
+  expires, there are no countdowns, and a lapse is met with silence —
+  no "you lost your streak", ever.
+- **Games with people count as play, never as rating.** A game across
+  the table or with a friend nearby is kept in the journal and is a day
+  on the streak; a feat earned against a friend nearby is a feat (the
+  rules are the same rules). The number never sees any of it.
+
+**The next step.** Under the Play button, in the row it shares with
+*Choose your opponent*, one line names what you are playing for right
+now, picked by a fixed order of plain rules (`goals.js` writes them
+down): your first game; ideas due in the Academy, when three or more
+are waiting; about how many games until your rating settles (worked out
+by playing draws on a copy of your score — the deviation shrinks the
+same whatever the result); the star a coach within reach still holds
+back — the *highest* rung no more than 300 above you, not the lowest,
+so a 920 who has Acorn's three stars is sent to Bamboo rather than back
+to Sprout — and which of its three stars; a title sixty points away or
+less, once the score has settled; a feat you have not done that fits
+your title; the next lesson; and, always, a fair game. Tap it and the
+room takes you there. When a step the lobby showed you is taken, the
+end card says so once — "✓ Done: beat 🌿 Fern without a hint" — and the
+lobby simply shows the next one. A step shown on five different days
+without moving steps aside for the next, until it changes. When the end
+card has no next coach to offer, it offers the next step instead of
+nothing.
+
+**The journal.** Every finished game is kept: against a coach, two
+players on one screen, a friend nearby. Its moves, the coach's marks
+(`!!` to `??`) and reviews, the opening it was, the help taken, and —
+once the look-back has measured it — the accuracy. The last fifty stay.
+A rated game you left by starting another is kept as the loss it was
+counted as. Your record's *Games* face lists them newest first; tap one
+and the board becomes that game, read-only, with the lesson bar as its
+navigator: ◀ ▶ (or the arrow keys, or the move list), *Copy PGN*, and
+*Done*. A game you were in the middle of stays on the shelf, exactly as
+a lesson leaves it, and *Continue* is still there afterwards. *Copy them
+all* gives every game as PGN — the plain text every chess program
+reads, with your names, the coach's rating, the opening's code, how it
+ended and the coach's marks on the moves — so a game can go to a club
+coach, to lichess's analysis board, or into a notebook. Nothing locked
+in.
+
+**Feats.** Twenty-nine things done on the board, each a sentence the
+rules or the engine can vouch for: mate with each piece, a smothered
+mate (the mated king's every neighbour its own man), a back-rank mate,
+promoting or castling *with* mate, castling long, en passant, an
+underpromotion; a fork, a pin or a skewer that won — read off the
+teaching eyes as you played the move, which only call a fork a fork if
+it wins something whatever they reply, and not off what the teacher
+happened to say aloud (it stays quiet about things you have mastered);
+a win with Black, in fifteen moves, from a pawn ending, without your
+queen, in sixty moves or more; and, where only the coach can see it, a
+comeback from three pawns down, a lost game saved, a move it marked
+`!!`, a game the look-back finds no slip in, 90% accuracy, three stars
+on a coach, every coach beaten, Oak beaten. A feat is earned the first
+time it is true, said on the end card (three lines at most, one sound;
+the rest wait quietly on your record), and kept with the date and the
+game — tap it on your record's *Feats* face and that game opens on the
+board. The ones not done yet are written as plain sentences, the next
+few gentlest first; they are the kind of thing a coach sets as
+homework, and the next step may name one when nothing nearer is
+waiting. Two people on one screen earn none — both chairs are you. A
+player who had won a hundred games before the cabinet existed is not
+told "a first win" on the hundred-and-first: what the rating history
+and the ladder already prove (a win, Oak beaten, every coach beaten,
+three stars) is filled in quietly when the room opens, dated where the
+history can date it, and never announced.
+
+**Your record, in faces.** *Record · Games · Feats*, one at a time, so
+the record is never longer than it was; the Record face is exactly what
+it always was. A new face is a tab and a pane with the same `data-tab`
+and, if it draws itself, one entry in `PROFILE_TABS` in app.js.
+
+Each store is `localStorage` under `chessroom_` — `chessroom_games`,
+`chessroom_feats`, `chessroom_goal` — rebuilt field by field by a pure
+module with a `clean()` that node checks against junk, and wiped by the
+recovery card's fresh start with everything else. `games-check.js`,
+`feats-check.js` and `goals-check.js` hold the rules to account in node;
+`progress-check.js` walks it all in a real browser, on a phone and on a
+laptop.
 
 ## Bringing your own pieces
 
@@ -1948,6 +2077,10 @@ node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk sav
 node chess/tools/skin-check.js     # presets, share codes, hostile input
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
+node chess/tools/games-check.js    # the journal keeps what happened, and gives it back as PGN
+node chess/tools/feats-check.js    # every feat is a fact about the board
+node chess/tools/goals-check.js    # the next step is the nearest true one, and never nags
+node chess/tools/progress-check.js # the room keeps what you did, on a phone and a laptop
 node chess/tools/brain-check.js    # the coach's thread: in order, cancellable, options intact
 node chess/tools/offline-check.js  # the room survives the train tunnel, and a release
 node chess/tools/pieces-check.js   # every carved set closed, light, and safe
@@ -1975,7 +2108,8 @@ Or from the repo root, in three groups by how long they take:
 ```
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # pieces, engine, brain, offline, touch, play, rating,
-                               # sound, motion, haptics
+                               # sound, motion, haptics, the journal, feats, the
+                               # next step (and progress-check in a browser)
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over
 ```

@@ -652,6 +652,25 @@ function sane(s) {
      (() => { const m = Rating.summary(many); m.history.length = 0; m.vs.club[0] = -1; return many.history.length === 200 && many.vs.club[0] >= 0; })());
 })();
 
+/* ---------- the look-back's late word ----------
+   app.js has always asked for annotateLast and fallen back to writing
+   the history in place; now it exists, it must be pure and careful. */
+(function () {
+  const two = run(Rating.fresh(), [{ level: "club", result: 1 }, { level: "club", result: 0 }]);
+  const s = two[1].state, before = JSON.stringify(s);
+  const a = Rating.annotateLast(s, { acc: 83.27, perf: 1040 });
+  ok("annotateLast writes accuracy and performance onto the newest game only",
+     a.history[1].acc === 83.3 && a.history[1].perf === 1040 && a.history[0].acc === null);
+  ok("…and leaves the state it was handed untouched", JSON.stringify(s) === before);
+  const junk = Rating.annotateLast(s, { acc: "x", perf: 1e9 });
+  ok("…clamping what does not belong (a word for accuracy, a perf of a billion)",
+     junk.history[1].acc === null && junk.history[1].perf <= 2400, JSON.stringify(junk.history[1]));
+  ok("…and an empty history is simply handed back", Rating.annotateLast(Rating.fresh(), { acc: 50 }).history.length === 0);
+  ok("titleIndex is exported and agrees with title()",
+     typeof Rating.titleIndex === "function" && Rating.TITLES[Rating.titleIndex(1250)].name === Rating.title(1250).name &&
+     Rating.titleIndex(NaN) === 0);
+})();
+
 const verdict = (browserToo) => {
   console.log(failed ? `\n${failed} problem${failed > 1 ? "s" : ""} with the score`
                      : "\nthe score is honest: it moves the right way, weighs help kindly, and survives anything" +
