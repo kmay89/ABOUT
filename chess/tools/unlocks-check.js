@@ -19,8 +19,9 @@
    In a browser, the room:
      - a fresh room shows the collection, empty, at level one;
      - beat Acorn: the card counts the experience in and levels up, and
-       only after the card has had its say does a box drop, shake and
-       burst open, with Acorn's board first; "Use it!" puts it on; the
+       then a present shakes on the card (nothing drops onto you), and
+       tapping it opens the box: it shakes and bursts open, with Acorn's
+       board first; "Use it!" puts it on; the
        rest follow; the lobby says what is new;
      - the collection shows what is yours and how to win the rest, and a
        locked carved set in the Studio says how to win it rather than
@@ -169,12 +170,15 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 8000 }).catch(() => {});
     const xp = await until(() => { const r = document.getElementById("endXp"); return !r.classList.contains("hide") && /\+\d+ XP/.test(document.getElementById("endXpNum").textContent) && document.getElementById("endXpNum").textContent !== "+0 XP" ? document.getElementById("endXpNum").textContent + " | " + document.getElementById("endXpWhy").textContent : null; }, 6000);
     ok("the card counts the experience in, and says what for", xp && /A win/.test(xp), xp);
-    const early = await page.evaluate(() => document.getElementById("ovUnlock").classList.contains("hide"));
     const lvl = await until(() => { const u = document.getElementById("endXpUp"); return u && !u.classList.contains("hide") ? u.textContent + " " + document.getElementById("endXpLv").textContent : null; }, 6000);
     ok("…and levels up on the card", lvl && /LEVEL UP/.test(lvl) && +lvl.split(" ").pop() >= 2, lvl);
-    const shown = await until(() => !document.getElementById("ovUnlock").classList.contains("hide") ? __cr.unlQueue().showing : null, 9000);
-    ok("only after the card has had its say does a box drop", early && shown && Date.now() - t0 > 4500, "after " + (Date.now() - t0) + "ms");
-    ok("…and the first thing in it is Acorn's board", shown === "board-acorn", shown);
+    const gift = await until(() => { const g = document.getElementById("endGift"); return !g.classList.contains("hide") ? document.getElementById("endGiftTx").textContent : null; }, 6000);
+    ok("then a present shakes on the card, counted", gift && /Open your \d+ prizes!/.test(gift), gift);
+    await page.waitForTimeout(Math.max(0, 7500 - (Date.now() - t0)));
+    ok("…and nothing drops onto you by itself", await page.evaluate(() => document.getElementById("ovUnlock").classList.contains("hide")));
+    await page.evaluate(() => document.getElementById("endGift").click());
+    const shown = await until(() => !document.getElementById("ovUnlock").classList.contains("hide") ? __cr.unlQueue().showing : null, 3000);
+    ok("tapping it opens the box, and the first thing in it is Acorn's board", shown === "board-acorn", shown);
     const burst = await until(() => document.getElementById("ovUnlock").classList.contains("burst") ? document.getElementById("ulName").textContent : null, 3000);
     ok("…which shakes and bursts open, named", burst === Skins.homeOf("acorn").name, burst);
     await page.evaluate(() => document.getElementById("ulUse").click()); await page.waitForTimeout(300);

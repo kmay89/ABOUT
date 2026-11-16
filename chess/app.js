@@ -7733,9 +7733,10 @@ function unlAtEnd(result, rs) {
                           stars: rs ? rs.newStars.length : 0,
                           comeback: !!(moStory && moStory.comeback), wire: !!(moStory && moStory.wire) });
   unlGameXp = { ticket: gameTicket, parts: x.parts.slice(), shown: 0 };
+  $("endGift").classList.add("hide");
   unlGain(x.total, true);
-  /* anything still waiting from before opens on this card too */
-  if (unlQueue.length) unlRevealSoon(6500);
+  /* anything still waiting from before is offered on this card too */
+  if (unlQueue.length) unlGiftSoon(2600);
 }
 /* more experience for this game, later (a third star once the moves
    have been looked back over, a feat) */
@@ -7750,8 +7751,8 @@ function unlGain(xp, first) {
   unlSave();
   unlQueue = unlQueue.concat(got);
   unlXpRow(ch, first);
-  /* after the card has had its say: the result, the number, the stars */
-  if (got.length) unlRevealSoon(first ? 6500 : 1600);
+  /* the present on the card, once the card has had its say */
+  if (got.length) unlGiftSoon(first ? 2600 : 300);
 }
 /* the line on the card: +80 XP, the bar filling, LEVEL UP */
 function unlXpRow(ch, first) {
@@ -7809,25 +7810,38 @@ function unlRevealSoon(ms) {
   unlRevealDue = due;
   unlRevealT = setTimeout(function () { unlRevealT = 0; unlReveal(); }, due - Date.now());
 }
-/* A box opens by itself only over the end card: never over a game in
-   play (a rematch started quickly must not have a box land on the board
-   and take its taps), never over the lobby or a card you went to for
-   something else. What is waiting waits: the lobby's collection button
-   says how many boxes there are to open, and opens them when tapped. */
+/* A box is opened, never dropped on you: it would land on whatever you
+   were about to tap (Rematch, a game just started). What you have won
+   waits as a present, shaking, on the end card and on the lobby's
+   collection button, and opens when you tap it. */
 var unlAsked = false;
-function unlCanReveal() {
-  if (unlAsked) return true;
-  var open = document.querySelector(".ov:not(.hide):not(#ovUnlock)");
-  return !!open && open.id === "ovEnd";
+function unlCanReveal() { return unlAsked; }
+/* the present on the end card: shaking, counted, a tap away */
+function unlGiftSoon(ms) {
+  var my = gameTicket;
+  setTimeout(function () { if (my === gameTicket) unlGiftSync(); }, REDUCED ? 0 : ms);
+}
+function unlGiftSync() {
+  var g = $("endGift"), n = unlQueue.length + (unlShowing ? 1 : 0);
+  if (!g) return;
+  g.classList.toggle("hide", !n);
+  if (!n) return;
+  $("endGiftTx").textContent = n > 1 ? "Open your " + n + " prizes!" : "Open your prize!";
+  $("endGiftSub").textContent = unlQueue.length ? "Something new for your collection." : "";
+  if (g.dataset.pop !== String(n)) {
+    g.dataset.pop = String(n);
+    g.classList.remove("pop"); void g.offsetWidth; g.classList.add("pop");
+    hap("tick");
+  }
+}
+function unlOpenBoxes() {
+  if (!unlQueue.length || unlShowing) return;
+  unlAsked = true;
+  unlReveal();
 }
 function unlReveal() {
   if (unlShowing || !unlQueue.length) return;
-  if (!unlCanReveal()) {
-    /* a card still choreographing itself: try again shortly; a game in
-       play: leave it for later */
-    if (over || !G || mode === null) unlRevealSoon(1200);
-    return;
-  }
+  if (!unlCanReveal()) return;
   var it = unlQueue.shift();
   unlShowing = it;
   var ov = $("ovUnlock");
@@ -7868,7 +7882,7 @@ function unlDone(use) {
   if (unl.fresh[it.id]) { delete unl.fresh[it.id]; unlSave(); }
   if (use) unlUse(it);
   if (unlQueue.length) unlRevealSoon(450); else unlAsked = false;
-  unlLobby();
+  unlLobby(); unlGiftSync();
 }
 /* what equipping a thing does */
 function unlUse(it) {
@@ -8048,10 +8062,11 @@ function unlSendEmote(e) {
 function unlWire() {
   unlLoad();
   $("ulUse").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(true); });
+  $("endGift").addEventListener("click", unlOpenBoxes);
   $("ulNext").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(false); });
   $("mCollect").addEventListener("click", function () {
     /* boxes waiting: open them, here and now */
-    if (unlQueue.length && !unlShowing) { unlAsked = true; unlReveal(); return; }
+    if (unlQueue.length && !unlShowing) { unlOpenBoxes(); return; }
     openCollection();
   });
   $("coClose").addEventListener("click", function () { $("ovCollect").classList.add("hide"); showMenu(); });

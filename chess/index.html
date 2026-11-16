@@ -884,6 +884,9 @@
   .collectBtn.fresh::after{content:"NEW"; position:absolute; top:-7px; left:14px; padding:1px 8px; border-radius:999px; font-size:.62em; font-weight:900;
     letter-spacing:.1em; color:#fff; background:#e0245e; box-shadow:0 2px 6px rgba(224,36,94,.5); animation:newBob 1.4s ease-in-out infinite}
   @keyframes newBob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)}}
+  .giftBtn small{color:rgba(255,255,255,.85)}
+  .giftBtn .em{animation:ulShake .9s ease-in-out infinite; font-size:1.7em}
+  .giftBtn.pop{animation:ulItemIn .6s cubic-bezier(.2,1.6,.4,1)}
   .collectBtn.boxes{border-color:#e0245e; box-shadow:0 0 0 2px rgba(224,36,94,.35), 0 0 18px rgba(224,36,94,.35)}
   .collectBtn.boxes .em{animation:ulShake .9s ease-in-out infinite}
   .collectBtn.boxes::after{content:"OPEN!"}
@@ -1451,6 +1454,14 @@
   .chip.sel, .stPick.sel, .lchip.go, #toast .tact{font-weight:700}
   .abtn.primary .ic{color:var(--gold-ink)}
   #endNext small, #endNext.hide + #endRematch small{color:rgba(36,26,8,.74); text-shadow:none}
+  /* the present: pink, the one thing on the card that is a gift */
+  #endGift{
+    --fa:#ff7a98; --fb:#d8345c; --edge:#7d1834;
+    background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#ffc0d0; color:#fff;
+    text-shadow:0 1px 0 rgba(0,0,0,.25);
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), 0 calc(var(--d) + 5px) 16px rgba(224,36,94,.35), inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  #endGift small{color:rgba(255,255,255,.88)}
   .playBtn small{text-shadow:none}
   /* the quiet second choice in a toast stays flat: it is the way out, not the way on */
   #toast .tact.ghost{
@@ -2202,7 +2213,7 @@
     <div class="ulBox" aria-hidden="true"><span class="ulLid"></span><span class="ulBody"></span><span class="ulBow"></span></div>
     <div class="ulItem"><div class="ulIcon" id="ulIcon"></div></div>
     <div class="ulKind" id="ulKind"></div>
-    <div class="ulName" id="ulName"></div>
+    <div class="ulName" id="ulName">Something new</div>
     <div class="ulHow" id="ulHow"></div>
     <div class="ulBtns"><button class="bigbtn primaryBtn" id="ulUse">Use it!</button><button class="bigbtn" id="ulNext">Nice!</button></div>
     <div class="ulCount" id="ulCount"></div>
@@ -2248,6 +2259,7 @@
       <div class="esHead"><b>The story of the game</b><small id="endStoryTx"></small></div>
       <svg id="endStoryG" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
     </div>
+    <button class="bigbtn giftBtn hide" id="endGift"><span class="em">🎁</span><span><b id="endGiftTx">Open your prize!</b><small id="endGiftSub"></small></span></button>
     <button class="bigbtn primaryBtn hide" id="endNext"><span class="em">⬆️</span><span><b id="endNextTx">Next opponent</b><small id="endNextSub"></small></span></button>
     <button class="bigbtn" id="endRematch"><span class="em">🔄</span><span><b id="endRematchTx">Rematch</b><small id="endRematchSub">Same setup, colours swapped.</small></span></button>
     <p id="endLesson" class="hide" style="background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left;font-size:.88em"></p>
