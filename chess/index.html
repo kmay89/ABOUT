@@ -1463,6 +1463,13 @@
   #whyChip{margin-left:8px; font-size:.95em; padding:2px 10px; vertical-align:middle}
   #toast.lamp{text-align:center}
   #toast .lampLine{display:block; font-size:.92em; color:var(--soft)}
+
+  /* ---------- notation: the Open a game or position card (pgn.js) ---------- */
+  .notationCard{max-width:560px}
+  .notationCard textarea.code{min-height:150px; font-size:.82em; white-space:pre-wrap}
+  .notationSays{min-height:1.4em; margin:6px 0 2px; font-size:.88em; color:var(--soft)}
+  .notationSays.bad{color:var(--bad)}
+  #notationGo:disabled{opacity:.45; cursor:default}
 </style>
 </head>
 <body>
@@ -1571,9 +1578,10 @@
     <div class="ladder" id="mLadder" role="list"></div>
 
     <div class="secHead"><b>More ways to play</b></div>
-    <div class="tileRow">
+    <div class="tileRow three">
       <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Take turns on this screen.</small></span></button>
       <button class="tile" id="mLan"><span class="em">📡</span><span><b>Play a friend</b><small>Nearby or anywhere — a link, a QR or four letters.</small></span></button>
+      <button class="tile" id="mNotation"><span class="em">📋</span><span><b>Open a game or position</b><small>Paste a PGN or a FEN, or choose a file.</small></span></button>
     </div>
 
     <div class="secHead"><b>Learn</b></div>
@@ -1794,6 +1802,28 @@
     </div>
     <p class="linkNote">Nothing is uploaded: the moves are inside the link itself. Whoever opens it gets the board, and their own coach's reading of it.</p>
     <button class="ghostbtn" id="shareBack">Done</button>
+  </div>
+</div>
+
+<!-- ===== notation in: a game (PGN) or a position (FEN) =====
+     Read as you type (pgn.js) and said in a line before anything opens; a
+     game opens in the sent-game viewer, a position on the same board with
+     Play from here. Reached from the lobby, a .pgn file dropped on it, or a
+     #fen= / #pgn= link (offered first, never opened behind your back). -->
+<div class="ov hide" id="ovNotation">
+  <div class="card notationCard">
+    <h2>Open a game or position</h2>
+    <p>Paste a game (PGN) or a position (FEN) from a book, a club's database or another site — or choose a <b>.pgn</b> file.</p>
+    <textarea class="code" id="notationIn" spellcheck="false" autocomplete="off" aria-label="A game or a position, as text"
+      placeholder="[White &quot;…&quot;] 1. e4 e5 2. Nf3 …&#10;or a position: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"></textarea>
+    <p class="notationSays" id="notationSays" aria-live="polite"></p>
+    <div class="rowbtns">
+      <button class="chip" id="notationPaste">📋 Paste</button>
+      <button class="chip" id="notationFile">📂 Choose a file</button>
+      <input type="file" id="notationFileIn" class="hide" accept=".pgn,.fen,.txt,text/plain" aria-hidden="true" tabindex="-1">
+    </div>
+    <button class="bigbtn" id="notationGo" disabled><span class="em">♟</span><span><b id="notationGoTx">Step through it</b><small id="notationGoSub">Paste something first.</small></span></button>
+    <button class="ghostbtn" id="notationBack">Back</button>
   </div>
 </div>
 
@@ -2036,6 +2066,7 @@
 <script src="press.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
+<script src="pgn.js"></script>
 <script src="games.js"></script>
 <script src="feats.js"></script>
 <script src="goals.js"></script>

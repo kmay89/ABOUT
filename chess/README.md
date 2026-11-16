@@ -275,6 +275,14 @@ share.js            a game you can send: the moves, the names and the
                     rebuilds every field and replays every move before
                     believing any of it, the share sentence, and PGN.
                     Pure: no DOM, no storage
+pgn.js              notation, both ways: a strict PGN writer (the
+                    seven-tag roster, [SetUp]/[FEN] for a set-up start,
+                    lines under 80 columns) that the journal and game
+                    links write through; a forgiving reader (comments,
+                    side lines, NAGs, 0-0, e8Q, several games at once)
+                    that replays every move and stops, saying which and
+                    why, at the first that is not legal; and a FEN check
+                    stricter than the engine's own loader. Pure
 friends.js          your people: everyone you have played on another
                     device, by a quiet random id, with the score between
                     you and your last few games together. Kept on this
@@ -474,6 +482,17 @@ tools/              dev-only, never shipped:
                     stepping through, the receiver's coach marking the
                     blunder, playing on (friendly against the coach), a
                     link to one moment with a question, a damaged link
+  pgn-check.js      notation goes out and comes back the same game: in
+                    node, real and 300 seeded games round-trip from the
+                    usual start and from set-up positions, sloppy and
+                    hostile pastes, the first illegal move named, noise
+                    that never throws, the FEN check on good and bad
+                    positions, one writer for the journal and links; in a
+                    browser, on a phone and a laptop, a PGN pasted and
+                    stepped through, PGN and FEN copied out and read back,
+                    a FEN played on against the coach and reloaded still
+                    unrated, a take-back, a mate the end card won't rate,
+                    and #fen= / #pgn= links offered
   friends-check.js  the room remembers who you play: in node, the store
                     against junk, renames, a game recorded twice, an old
                     board with no id, two Sams, the decider and a friend's
@@ -1261,6 +1280,61 @@ your people, or opened for you. Nothing ranks anybody, and friend games
 never touch your rating.
 
 `node chess/tools/share-check.js` · `node chess/tools/friends-check.js`
+
+## Notation: PGN and FEN
+
+Every chess program speaks two plain-text languages: PGN for a game and
+FEN for a position. The room now speaks both, out and in (`pgn.js`).
+
+**Out.** Wherever the moves are, one chip — *📋 PGN · FEN* — copies the
+game as PGN or the position as FEN: in the lobby beside *Send this game
+so far* for the game in progress, and in the bar of the journal's viewer
+and the sent-game viewer. When you are looking back at an earlier move,
+the FEN is the position you are looking at. The PGN is the strict kind:
+the seven-tag roster in its order, `[SetUp "1"]` and `[FEN]` when the
+game began from a set-up position, the coach's marks on the moves, lines
+under eighty columns, the result at the end. The journal's *Copy* and a
+sent game's PGN are written by the same writer, so the format lives in
+one place.
+
+**In.** *Open a game or position* (the third tile under *More ways to
+play*) takes a paste, a `.pgn` file chosen or dropped on the card, and
+says what it read before anything opens — "21 moves · White: anna_k ·
+Black: Sam1987 · 0–1", or "A position, Black to move · 7 men". The
+reader is forgiving the way a person is (tags or none, `{}` and `;`
+comments, side lines however deep, `$1` and `!?`, `12...`, `0-0`, `e8Q`,
+`exd6 e.p.`, a paste of several games — the first, and a note) but it
+trusts nothing: every move is played on the room's own rules, and at the
+first one that is not legal it stops, keeps what came before, and names
+the move and the reason ("It stops at 4. Qxf7: no White queen can play
+that here"). A position is checked harder than the engine's loader does:
+exactly one king each, no pawn on the first or last rank, the side not to
+move not in check, at most thirty-two men; castling rights and an
+en-passant square the board can't have are dropped, with a note.
+
+A game opens in the sent-game viewer — one viewer, not a third — where
+the coach reads it as it reads a game sent by a friend, and *Play from
+here* takes over from any move. A position opens on the same board, seen
+from the side to move, with the same *Play from here*: against the coach
+or two players on this screen.
+
+**Set-up positions are honest.** A game that did not begin from the
+usual position carries it everywhere the room rebuilds a board from the
+moves — the save and a reload, a take-back, looking back, the move list
+(which numbers from the position's own move, Black first if it is
+Black's turn). It is never rated, against any coach, and it stays so
+after a reload. It is not kept in the journal either: the journal, its
+feats and the next step are about whole games of your own, and the end
+card says so; its *Send* copies the PGN, because a game link carries
+moves from the usual start only. No opening is named and no book move
+hinted from a set-up position.
+
+**Links.** `#fen=<FEN>` (spaces or lichess's underscores) and
+`#pgn=<URL-encoded PGN>` open the same card, filled in — always offered
+first ("📋 A link with a position, Black to move. Open it?"), never
+opened behind your back, and refused politely when they don't read.
+
+`node chess/tools/pgn-check.js`
 
 ## Where you play
 
@@ -2384,6 +2458,7 @@ node chess/tools/play-check.js     # sit down, play, come back — and the playt
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
 node chess/tools/share-check.js    # a game you send arrives whole, and a bad link is refused
 node chess/tools/friends-check.js  # two phones, a challenge that waits, and the score between them
+node chess/tools/pgn-check.js      # a game goes out as PGN and comes back the same game; a FEN only if it can stand
 node chess/tools/lookback-check.js # the line behind the words lands on the square it names
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
@@ -2394,8 +2469,8 @@ Or from the repo root, in three groups by how long they take:
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # lines, ink, pieces, engine, brain, offline, touch, play, rating,
                                # sound, motion, haptics, the journal, feats, the
-                               # next step, share, friends (and progress-check,
-                               # share-check, friends-check and lookback-check in a browser)
+                               # next step, share, friends, notation (and progress-check,
+                               # share-check, friends-check, pgn-check and lookback-check in a browser)
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over; then the look-back
 ```
