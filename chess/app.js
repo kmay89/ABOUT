@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage, Momentum */
 (function () {
 "use strict";
 
@@ -756,6 +756,7 @@ function syncTagState() {
   var topSide = -orientation, botSide = orientation;
   castPlace();                 /* the coach's face follows its tag when the board turns */
   homeSync();                  /* and a coach game is played on the coach's board */
+  moSync(false);               /* and the momentum bar follows the board round */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
   var live = G && !over && viewPly < 0 && mode && mode !== "tour";
@@ -1018,6 +1019,7 @@ function commitMove(m, source, animOpts) {
   var st = Chess.status(G);
   accAfterMove(m, san, st);
   castAfterMove(m, st);
+  moAfterMove(m);
   /* the music closes in a little while a king is in check */
   if (typeof Stage !== "undefined" && !st.over) Stage.mood(st.reason === "check" ? "tense" : "calm");
 
@@ -3023,6 +3025,7 @@ function startGame(newMode, opts) {
   watchNetChip(mode === "lan" && Net.everLinked);
   castStart();
   if (typeof Stage !== "undefined") Stage.newGame();
+  moStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   needFrame();
 }
@@ -3043,6 +3046,7 @@ function endGame(result, reason, taught) {
   castAtEnd(result);
   /* the tune steps out so the ending can be heard; the next game brings it back */
   if (typeof Stage !== "undefined") Stage.mood("end");
+  moAtEnd(result);
   clock.run = 0;
   clearSel();
   note({ ply: G && G.played.length ? G.played.length - 1 : null,
@@ -3090,6 +3094,7 @@ function endGame(result, reason, taught) {
   var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
   var rs = mode === "coach" ? settleRating(result) : null;
   renderEndRating(rs, cardAt);
+  moEndCard();
   progressAtEnd(result, reason, rs);
   renderOddsReview();
   helpAtEnd();
@@ -6643,6 +6648,7 @@ function wireUI() {
   aqWire();
   castWire();
   homeWire();
+  moWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -7199,6 +7205,7 @@ function castAtEnd(result) {
     if (castWho() !== who) return;
     /* beaten for the first time, it hands over its board instead */
     if (kind === "lose" && homeJust === lvl) castSay("gift", "lose");
+    else if (kind === "lose" && moStory && moStory.comeback) castSay("comeback", "shocked");
     else castSay(kind, kind === "win" ? "win" : kind === "lose" ? "lose" : "happy");
   }, REDUCED ? 100 : 900);
   if (castFace) castFace.wake(3000);
@@ -7362,6 +7369,304 @@ function homeForTest() {
                unlocked: Rating.LEVELS.filter(function (Lv) { return homeUnlocked(Lv.id); }).map(function (Lv) { return Lv.id; }),
                just: homeJust };
     }
+  };
+}
+
+/* ===== momentum (momentum.js) =====
+   A bar in the top player row that leans toward whoever has the game,
+   read only off what anybody can see on the board (so it is never a
+   hint), with a glowing star where the two sides meet that springs to
+   its new place after every move. When the game turns, it says so: a
+   banner, a harp running up (or three soft notes down), and the coach
+   feels it, nervous and sweating when you have it and pleased with
+   itself when it does. At the end, the story of the game is drawn on
+   the card, and a win from behind is a comeback, and is celebrated as
+   one. */
+var moSt = null, moX = 0.5, moV = 0, moGoal = 0.5, moRaf = 0, moLast = 0, moSparkAt = 0;
+var moStory = null, moBannerAt = 0, moBannerT = 0;
+(function () {
+  var stored = {};
+  try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
+  prefs.momentum = !(stored.momentum === false || stored.momentum === "false");
+})();
+function moMode() { return mode === "coach" || mode === "pass" || mode === "lan"; }
+function moOn() { return !!(prefs.momentum && G && moSt && moMode() && typeof Momentum !== "undefined"); }
+/* the history, rebuilt from the moves themselves whenever it is out of
+   step with the board: a take-back, a saved game picked up, a rejoin */
+function moRebuild() {
+  if (typeof Momentum === "undefined" || !G) { moSt = null; return; }
+  var g = Chess.create(G.startFen || undefined);
+  var st = Momentum.create(g.board);
+  for (var i = 0; i < G.played.length; i++) {
+    var m = G.played[i].m;
+    var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+    Chess.play(g, m);
+    var s = Chess.status(g);
+    Momentum.step(st, { board: g.board, mover: m.piece > 0 ? 1 : -1, captured: took, check: s.reason === "check" || s.reason === "checkmate", mate: s.reason === "checkmate",
+                        piece: m.promo ? (m.piece > 0 ? m.promo : -m.promo) : m.piece, retake: !!took && Chess.attacked(g, m.to, m.piece > 0 ? -1 : 1) });
+  }
+  moSt = st;
+}
+/* who sits where on the bar: the top side's share fills from the left,
+   the bottom side's from the right, and the star is where they meet */
+function moWho(side) {
+  if (mode === "coach") return side === humanSide ? "you" : "coach";
+  if (mode === "lan") return side === lanSide ? "you" : "friend";
+  return side > 0 ? "white" : "black";
+}
+var MO_COLS = { you: ["#ffd166", "#f0a020"], white: ["#fbf4e6", "#cdbb9b"], black: ["#5b6475", "#2b3140"], friend: ["#9cc0ff", "#4a6fd0"] };
+function moCols(who) {
+  if (who === "coach" && typeof Cast !== "undefined" && Cast.get(skill)) { var L = Cast.get(skill).look; return [L.col, L.col2 || L.col]; }
+  return MO_COLS[who] || MO_COLS.white;
+}
+function moCap(el, side) {
+  var who = moWho(side), key = who + ":" + (who === "coach" ? skill : side);
+  if (el.dataset.k === key) return;
+  el.dataset.k = key;
+  el.className = "moCap" + (who === "you" ? " you" : "");
+  el.innerHTML = "";
+  if (who === "coach" && typeof Avatar !== "undefined" && Avatar.portrait) {
+    var url = null;
+    try { url = Avatar.portrait(skill, 64); } catch (e) { url = null; }
+    if (url) { var im = document.createElement("img"); im.alt = ""; im.src = url; el.appendChild(im); return; }
+  }
+  el.textContent = who === "coach" ? (SKILLS[skill] ? SKILLS[skill].emoji : "") : side > 0 ? "♔" : "♚";
+}
+function moSync(snap) {
+  var bar = $("mo");
+  if (!bar) return;
+  if (G && moMode() && typeof Momentum !== "undefined" && (!moSt || moSt.hist.length !== G.played.length + 1)) moRebuild();
+  var show = moOn();
+  bar.classList.toggle("hide", !show);
+  if (!show) return;
+  var top = -orientation, bot = orientation;
+  moCap($("moCapTop"), top); moCap($("moCapBot"), bot);
+  var ct = moCols(moWho(top)), cb = moCols(moWho(bot));
+  bar.style.setProperty("--moT1", ct[0]); bar.style.setProperty("--moT2", ct[1]);
+  bar.style.setProperty("--moB1", cb[0]); bar.style.setProperty("--moB2", cb[1]);
+  moAim(snap);
+}
+/* the star's place: 0.5 is even; the bottom side leading moves it left */
+function moAim(snap) {
+  if (!moSt) return;
+  var m = moSt.m * orientation;
+  moGoal = Math.max(0.04, Math.min(0.96, 0.5 - 0.5 * m));
+  var bar = $("mo");
+  bar.classList.toggle("hotB", m >= 0.6);
+  bar.classList.toggle("hotT", m <= -0.6);
+  if (snap || REDUCED) { moX = moGoal; moV = 0; moDraw(); return; }
+  if (!moRaf) { moLast = 0; moRaf = requestAnimationFrame(moTick); }
+}
+function moDraw() {
+  $("moFillT").style.transform = "scaleX(" + moX.toFixed(4) + ")";
+  $("moFillB").style.transform = "scaleX(" + (1 - moX).toFixed(4) + ")";
+  var orb = $("moOrb"), sp = Math.min(1, Math.abs(moV) * 1.4);
+  orb.style.left = (moX * 100).toFixed(3) + "%";
+  orb.style.transform = "scale(" + (1 + sp * 0.45).toFixed(3) + "," + (1 - sp * 0.25).toFixed(3) + ")";
+}
+/* a spring with a little overshoot: it arrives, goes a hair past, and settles */
+function moTick(ts) {
+  moRaf = 0;
+  var dt = moLast ? Math.min(0.05, (ts - moLast) / 1000) : 0.016;
+  moLast = ts;
+  var a = 150 * (moGoal - moX) - 13 * moV;
+  moV += a * dt; moX += moV * dt;
+  if (Math.abs(moV) > 0.35 && ts - moSparkAt > 40) { moSparkAt = ts; moSpark(moV); }
+  if (Math.abs(moGoal - moX) < 0.0008 && Math.abs(moV) < 0.002) { moX = moGoal; moV = 0; moDraw(); return; }
+  moDraw();
+  moRaf = requestAnimationFrame(moTick);
+}
+/* sparks thrown off the back of the star as it runs */
+function moSpark(v) {
+  var tr = $("moTrack");
+  if (!tr || tr.querySelectorAll(".moSpark").length > 12) return;
+  var s = document.createElement("i");
+  s.className = "moSpark";
+  s.style.left = (moX * 100) + "%";
+  s.style.setProperty("--dx", (-Math.sign(v) * (10 + Math.random() * 16)).toFixed(1) + "px");
+  s.style.setProperty("--dy", ((Math.random() - 0.5) * 22).toFixed(1) + "px");
+  s.addEventListener("animationend", function () { s.remove(); });
+  tr.appendChild(s);
+}
+function moFlash() {
+  var o = $("moOrb");
+  o.classList.remove("flash"); void o.offsetWidth; o.classList.add("flash");
+  for (var i = 0; i < 6; i++) moSpark(i % 2 ? 1 : -1);
+}
+/* the big words over the board */
+function moBanner(text, sub, cls, ms) {
+  var b = $("moBanner");
+  clearTimeout(moBannerT);
+  $("moBannerTx").textContent = text;
+  $("moBannerSub").textContent = sub || "";
+  $("moBannerSub").classList.toggle("hide", !sub);
+  b.className = "moBanner " + (cls || "");
+  void b.offsetWidth;
+  b.classList.add("go");
+  moBannerAt = Date.now();
+  if (FX) { try { Fx.sparkle($("moBannerTx"), { count: cls === "comeback" ? 30 : 18 }); } catch (e) {} }
+  moBannerT = setTimeout(function () { b.className = "moBanner hide"; }, ms || 1950);
+}
+/* a little bubble over the coach's head: ❗ 💦 ✨ ♪ 💢 */
+function castEmote(sym) {
+  var w = $("oppFaceWrap");
+  if (!sym || !w || w.classList.contains("hide")) return;
+  var old = w.querySelector(".emote"); if (old) old.remove();
+  var e = document.createElement("span");
+  e.className = "emote"; e.textContent = sym;
+  w.appendChild(e);
+  setTimeout(function () { e.remove(); }, 1800);
+}
+function moName(side) {
+  var who = moWho(side);
+  return who === "you" ? "you" : who === "coach" ? SKILLS[skill].name : who === "friend" ? (lanOpp && lanOpp.name) || "your friend" : side > 0 ? "White" : "Black";
+}
+/* after a move: the bar, and what the game turning means to everybody */
+function moAfterMove(m) {
+  if (!moOn()) { if (G && moMode() && typeof Momentum !== "undefined") moSync(true); return; }
+  var mover = m.piece > 0 ? 1 : -1;
+  var took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+  var s = Chess.status(G), ev = [];
+  /* the history is one short of the board here; if something has already
+     rebuilt it, this move is in it and must not be counted twice */
+  if (moSt.hist.length === G.played.length) {
+    ev = Momentum.step(moSt, { board: G.board, mover: mover, captured: took, check: s.reason === "check" || s.reason === "checkmate", mate: s.reason === "checkmate",
+                               piece: m.promo ? (m.piece > 0 ? m.promo : -m.promo) : m.piece, retake: !!took && Chess.attacked(G, m.to, mover > 0 ? -1 : 1) });
+  }
+  else moRebuild();
+  var t = gameTicket;
+  /* as the piece lands */
+  setTimeout(function () {
+    if (t !== gameTicket || !moSt) return;
+    moAim(false);
+    var shift = null, surge = null;
+    ev.forEach(function (e) { if (e.type === "shift") shift = e; else if (e.type === "surge") surge = e; else if (e.type === "lead") moFlash(); });
+    if (surge) moFlash();
+    /* a swing that big in one move is a turning point too, even from level */
+    if (!shift && surge && surge.by >= 0.45) shift = { type: "shift", side: surge.side };
+    var who = castWho(), coachSide = -humanSide;
+    if (shift && !over) {
+      var mine = sideIsMine(shift.side);
+      if (Date.now() - moBannerAt > 6000) {
+        moBanner("MOMENTUM!", mode === "pass" ? (shift.side > 0 ? "White" : "Black") + " takes it" :
+                 mine ? "It’s swinging your way" : moName(shift.side) + " has it now", mine || mode === "pass" ? "" : "them");
+      }
+      if (prefs.sound && typeof Stage !== "undefined") Stage.swing(mine);
+      hap(mine ? "success" : "tick");
+      if (who && castFace) {
+        if (shift.side === coachSide) { castFace.mood("gleeful", 1500); castEmote(who.emotes && who.emotes.pleased); }
+        else { castFace.mood("shocked", 1300); castEmote(who.emotes && who.emotes.worried); }
+        if (Date.now() - castLastSay > 2500) castSay(shift.side === coachSide ? "rally" : "slipping", shift.side === coachSide ? "gleeful" : "shocked");
+      }
+    } else if (who && castFace && took && !over) {
+      var v = Momentum.VAL[Math.abs(took)] || 1;
+      if (v >= 3 && mover !== coachSide) { castFace.mood("shocked", 1200); castEmote("❗"); }
+      else if (v >= 3 && mover === coachSide) { castFace.mood("gleeful", 1200); castEmote(who.emotes && who.emotes.pleased); }
+    }
+    moFeel();
+  }, REDUCED ? 60 : 380);
+}
+/* how the coach carries itself between moves: pleased with itself when
+   the game is its, nervous when it is yours */
+function moFeel() {
+  if (!castFace || !castWho() || !moSt) { if (castFace) castFace.base("calm"); return; }
+  var v = moSt.m * -humanSide;
+  castFace.base(v >= 0.35 ? "smug" : v <= -0.35 ? "nervous" : "calm");
+  if (v <= -0.35) castFace.wake(2600);
+}
+function moStart() {
+  moSt = null; moStory = null;
+  clearTimeout(moBannerT); $("moBanner").className = "moBanner hide";
+  moSync(true);
+  if (castFace) castFace.base("calm");
+}
+/* the end: the story, and whether it was a comeback */
+function moAtEnd(result) {
+  moStory = null;
+  if (!moSt || !moMode() || typeof Momentum === "undefined") return null;
+  var winner = result === "white" ? 1 : result === "black" ? -1 : 0;
+  var side = mode === "coach" ? humanSide : mode === "lan" ? lanSide : (winner || orientation);
+  moStory = Momentum.story(moSt.hist, winner, side);
+  moStory.side = side; moStory.winner = winner; moStory.hist = moSt.hist.slice();
+  if (castFace) castFace.base("calm");
+  if (moStory.comeback && prefs.momentum) {
+    var t = gameTicket;
+    setTimeout(function () {
+      if (t !== gameTicket) return;
+      moBanner("COMEBACK!", mode === "pass" ? (winner > 0 ? "White" : "Black") + " turned it around" : "You turned it around", "comeback", 2300);
+      if (prefs.sound && typeof Stage !== "undefined") Stage.swing(true, true);
+      hap("success");
+      if (FX) { try { Fx.confetti({ ms: 2600, layer: "page" }); } catch (e) {} }
+    }, REDUCED ? 100 : 700);
+  }
+  return moStory;
+}
+/* on the card: a line in the stack, and the story drawn */
+function moEndCard() {
+  var box = $("endStory");
+  box.classList.add("hide");
+  if (!moStory || !prefs.momentum) return;
+  var S = moStory, h = S.hist, n = h.length;
+  if (S.comeback) pushMile("🔥", "<b>Comeback!</b> You were behind, and turned it around.", { cls: "comeback", sting: "milestone", hap: "success", big: true });
+  else if (S.wire) pushMile("⭐", "<b>Never behind:</b> yours from the first move to the last.", { cls: "wire" });
+  if (n < 6) return;
+  var mv = function (ply) { return Math.max(1, Math.ceil(ply / 2)); };
+  var won = S.winner === S.side, lost = S.winner === -S.side;
+  $("endStoryTx").textContent = S.comeback ? "Behind at move " + mv(S.lowAt) + ", and back from it." :
+    S.wire ? "Ahead from the first blow to the last." :
+    S.slipped ? "Ahead at move " + mv(S.highAt) + ", and it got away." :
+    S.seesaw ? "It swung " + S.turns + " times." :
+    won ? "Yours, more and more." : lost ? "Theirs, in the end." : "Level, more often than not.";
+  var W = 300, H = 70, mid = 35, pts = [];
+  for (var i = 0; i < n; i++) pts.push([(i / (n - 1)) * W, mid - h[i] * S.side * 30]);
+  var line = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("");
+  var area = "M0," + mid + line.replace(/^M/, "L") + "L" + W + "," + mid + "Z";
+  var you = mode === "pass" ? (S.side > 0 ? "#f3e9d6" : "#8a96ad") : "#ffd166";
+  var them = mode === "coach" && Cast.get(skill) ? Cast.get(skill).look.col : "#7f93b8";
+  var low = S.low <= -Momentum.LEAD ? pts[S.lowAt] : null, end = pts[n - 1];
+  var svg = $("endStoryG");
+  svg.innerHTML =
+    '<defs><clipPath id="esUp"><rect x="0" y="0" width="' + W + '" height="' + mid + '"/></clipPath>' +
+    '<clipPath id="esDn"><rect x="0" y="' + mid + '" width="' + W + '" height="' + mid + '"/></clipPath>' +
+    '<clipPath id="esRev"><rect id="esRevR" x="0" y="-10" width="0" height="' + (H + 20) + '"/></clipPath></defs>' +
+    '<line class="mid" x1="0" y1="' + mid + '" x2="' + W + '" y2="' + mid + '"/>' +
+    '<g clip-path="url(#esRev)">' +
+    '<path d="' + area + '" fill="' + you + '" fill-opacity=".55" clip-path="url(#esUp)"/>' +
+    '<path d="' + area + '" fill="' + them + '" fill-opacity=".55" clip-path="url(#esDn)"/>' +
+    '<path class="line" d="' + line + '"/>' +
+    (low ? '<circle cx="' + low[0].toFixed(1) + '" cy="' + low[1].toFixed(1) + '" r="3.5" fill="#fff" stroke="#3a1c00" stroke-width="1.5"/>' : "") +
+    '<text x="' + Math.min(W - 4, Math.max(4, end[0])).toFixed(1) + '" y="' + Math.max(10, Math.min(H - 2, end[1] + 4)).toFixed(1) +
+      '" text-anchor="end" font-size="12" fill="#fff">' + (won ? "★" : "") + "</text></g>";
+  box.classList.remove("hide");
+  /* drawn left to right, as the game was played */
+  var r = $("esRevR"), t0 = 0, dur = REDUCED ? 1 : 1300;
+  var grow = function (ts) {
+    if (!t0) t0 = ts;
+    var k = Math.min(1, (ts - t0) / dur);
+    r.setAttribute("width", (W * (1 - Math.pow(1 - k, 3))).toFixed(1));
+    if (k < 1) requestAnimationFrame(grow);
+  };
+  setTimeout(function () { requestAnimationFrame(grow); }, REDUCED ? 0 : 900);
+}
+function moWire() {
+  $("setMomentum").addEventListener("click", function () {
+    prefs.momentum = !prefs.momentum; savePrefs(); moSyncSetting(); moSync(true); moFeel();
+  });
+  window.addEventListener("resize", function () { moSync(true); });
+  moSyncSetting();
+}
+function moSyncSetting() {
+  $("setMomentum").classList.toggle("sel", !!prefs.momentum);
+  $("setMomentum").textContent = prefs.momentum ? "On" : "Off";
+}
+function momentumForTest() {
+  return {
+    moState: function () {
+      return { on: moOn(), shown: !$("mo").classList.contains("hide"), m: moSt ? moSt.m : null, x: moX, goal: moGoal,
+               plies: moSt ? moSt.hist.length - 1 : -1, lead: moSt ? moSt.lead : 0, story: moStory,
+               base: castFace ? castFace.state().base : null, banner: $("moBanner").classList.contains("hide") ? "" : $("moBannerTx").textContent };
+    },
+    moBannerForTest: function () { moBannerAt = 0; }
   };
 }
 
@@ -8155,6 +8460,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
