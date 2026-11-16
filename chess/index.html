@@ -884,6 +884,9 @@
   .collectBtn.fresh::after{content:"NEW"; position:absolute; top:-7px; left:14px; padding:1px 8px; border-radius:999px; font-size:.62em; font-weight:900;
     letter-spacing:.1em; color:#fff; background:#e0245e; box-shadow:0 2px 6px rgba(224,36,94,.5); animation:newBob 1.4s ease-in-out infinite}
   @keyframes newBob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)}}
+  .collectBtn.boxes{border-color:#e0245e; box-shadow:0 0 0 2px rgba(224,36,94,.35), 0 0 18px rgba(224,36,94,.35)}
+  .collectBtn.boxes .em{animation:ulShake .9s ease-in-out infinite}
+  .collectBtn.boxes::after{content:"OPEN!"}
   .lvBadge{flex:none; display:flex; flex-direction:column; align-items:center; gap:3px; margin-left:auto}
   .lvBadge b{width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:900; color:#3a1c00;
     background:radial-gradient(circle at 35% 30%, #fff8d6, #ffd166 55%, #f08a20); box-shadow:0 0 0 2px #fff}

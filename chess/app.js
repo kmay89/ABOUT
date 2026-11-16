@@ -6209,8 +6209,6 @@ function showMenu() {
     : "Short positions, real feedback.";
   renderLobby();
   unlLobby();
-  /* anything won and not yet opened is opened here */
-  if (unlQueue.length) unlRevealSoon(700);
   /* a game nobody has moved in yet is not worth coming back to — it
      used to be offered as "0 moves in" */
   var s = loadSave();
@@ -7736,6 +7734,8 @@ function unlAtEnd(result, rs) {
                           comeback: !!(moStory && moStory.comeback), wire: !!(moStory && moStory.wire) });
   unlGameXp = { ticket: gameTicket, parts: x.parts.slice(), shown: 0 };
   unlGain(x.total, true);
+  /* anything still waiting from before opens on this card too */
+  if (unlQueue.length) unlRevealSoon(6500);
 }
 /* more experience for this game, later (a third star once the moves
    have been looked back over, a feat) */
@@ -7809,11 +7809,25 @@ function unlRevealSoon(ms) {
   unlRevealDue = due;
   unlRevealT = setTimeout(function () { unlRevealT = 0; unlReveal(); }, due - Date.now());
 }
+/* A box opens by itself only over the end card: never over a game in
+   play (a rematch started quickly must not have a box land on the board
+   and take its taps), never over the lobby or a card you went to for
+   something else. What is waiting waits: the lobby's collection button
+   says how many boxes there are to open, and opens them when tapped. */
+var unlAsked = false;
+function unlCanReveal() {
+  if (unlAsked) return true;
+  var open = document.querySelector(".ov:not(.hide):not(#ovUnlock)");
+  return !!open && open.id === "ovEnd";
+}
 function unlReveal() {
   if (unlShowing || !unlQueue.length) return;
-  /* not over something else that was asked for: wait for it to go */
-  var open = document.querySelector(".ov:not(.hide)");
-  if (open && open.id !== "ovEnd" && open.id !== "ovMenu") { unlRevealSoon(1200); return; }
+  if (!unlCanReveal()) {
+    /* a card still choreographing itself: try again shortly; a game in
+       play: leave it for later */
+    if (over || !G || mode === null) unlRevealSoon(1200);
+    return;
+  }
   var it = unlQueue.shift();
   unlShowing = it;
   var ov = $("ovUnlock");
@@ -7853,7 +7867,7 @@ function unlDone(use) {
   $("ovUnlock").className = "ov ulOv hide";
   if (unl.fresh[it.id]) { delete unl.fresh[it.id]; unlSave(); }
   if (use) unlUse(it);
-  if (unlQueue.length) unlRevealSoon(450);
+  if (unlQueue.length) unlRevealSoon(450); else unlAsked = false;
   unlLobby();
 }
 /* what equipping a thing does */
@@ -7971,8 +7985,11 @@ function unlLobby() {
   var lv = unlLevel(), all = Unlocks.countOwned(unl), fresh = Object.keys(unl.fresh).length;
   $("mLv").textContent = lv.level;
   $("mLvBar").style.width = (lv.frac * 100).toFixed(1) + "%";
-  $("mCollectSub").textContent = all.n + " of " + all.of + " collected" + (fresh ? " · " + fresh + " new" : "");
-  $("mCollect").classList.toggle("fresh", fresh > 0);
+  var boxes = unlQueue.length + (unlShowing ? 1 : 0);
+  $("mCollectSub").textContent = boxes ? "\ud83c\udf81 " + boxes + (boxes > 1 ? " boxes" : " box") + " to open!" :
+    all.n + " of " + all.of + " collected" + (fresh ? " \u00b7 " + fresh + " new" : "");
+  $("mCollect").classList.toggle("fresh", fresh > 0 || boxes > 0);
+  $("mCollect").classList.toggle("boxes", boxes > 0);
 }
 
 /* ---- in play: trails, bursts, and emotes ---- */
@@ -8032,7 +8049,11 @@ function unlWire() {
   unlLoad();
   $("ulUse").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(true); });
   $("ulNext").addEventListener("click", function (ev) { ev.stopPropagation(); unlDone(false); });
-  $("mCollect").addEventListener("click", function () { openCollection(); });
+  $("mCollect").addEventListener("click", function () {
+    /* boxes waiting: open them, here and now */
+    if (unlQueue.length && !unlShowing) { unlAsked = true; unlReveal(); return; }
+    openCollection();
+  });
   $("coClose").addEventListener("click", function () { $("ovCollect").classList.add("hide"); showMenu(); });
   $("emoteBtn").addEventListener("click", function (ev) { ev.stopPropagation(); unlEmoteOpen(); });
   document.addEventListener("click", function () { if ($("emoteFan")) $("emoteFan").classList.add("hide"); });

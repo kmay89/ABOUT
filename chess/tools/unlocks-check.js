@@ -188,6 +188,17 @@ const server = http.createServer((req, res) => {
     const lob2 = await page.evaluate(() => ({ lv: +document.getElementById("mLv").textContent, sub: document.getElementById("mCollectSub").textContent }));
     ok("the lobby shows your level and what you have", lob2.lv >= 2 && /[1-9]\d* of \d+ collected/.test(lob2.sub), JSON.stringify(lob2));
 
+    /* boxes won after the card was gone wait in the lobby, and never land on a game */
+    await page.evaluate(() => { document.getElementById("ovMenu").classList.add("hide"); __cr.startGame("pass", { clockStr: "none", fresh: true }); __cr.unlGiveXpForTest(300); });
+    await page.waitForTimeout(2500);
+    ok("a box is never dropped onto a game in play", await page.evaluate(() => document.getElementById("ovUnlock").classList.contains("hide") && __cr.unlQueue().queue.length > 0));
+    await page.evaluate(() => __cr.showMenu()); await page.waitForTimeout(1500);
+    const wait = await page.evaluate(() => ({ hidden: document.getElementById("ovUnlock").classList.contains("hide"), sub: document.getElementById("mCollectSub").textContent }));
+    ok("…nor over the lobby: the collection button says there are boxes to open", wait.hidden && /to open/.test(wait.sub), JSON.stringify(wait));
+    await page.evaluate(() => document.getElementById("mCollect").click());
+    ok("…and opens them when tapped", !!(await until(() => !document.getElementById("ovUnlock").classList.contains("hide"), 2000)));
+    for (let i = 0; i < 6; i++) { await page.evaluate(() => { if (!document.getElementById("ovUnlock").classList.contains("hide")) document.getElementById("ulNext").click(); }); await page.waitForTimeout(600); }
+
     /* the collection */
     await page.evaluate(() => __cr.openCollection("pieces")); await page.waitForTimeout(300);
     const pieces = await page.evaluate(() => [...document.querySelectorAll("#coGrid .coCard")].map((c) => c.className + "|" + c.querySelector(".coHow").textContent));
