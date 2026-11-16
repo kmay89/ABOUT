@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Ink */
 (function () {
 "use strict";
 
@@ -67,6 +67,7 @@ function applySkin(s, save) {
   root.style.setProperty("--room", skin.room.bg);
   root.style.setProperty("--amber", skin.marks.select);
   root.style.setProperty("--glow", skin.marks.last);
+  root.style.setProperty("--plan", skin.marks.plan);
   var meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", skin.room.bg);
   /* the pieces' material and the board's finish are both part of how
@@ -461,7 +462,6 @@ var orientation = 1;
 var sel = -1, legalMoves = [];
 var viewPly = -1;              /* -1 = live; else index into G.played shown */
 var pendingPromo = null;       /* {from, to} awaiting picker */
-var hintArrow = null;
 var lastNarratedOpening = "";
 var tourTimer = 0, tourLine = null, tourStep = 0;
 var coachTimer = 0, thinking = false;
@@ -744,7 +744,7 @@ function takenSoFar() {
 function syncBoard() {
   if (!G || !R) return;
   if (R.setTaken) R.setTaken(takenSoFar());
-  var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1, hint: hintArrow };
+  var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1 };
   if (viewPly < 0) {
     if (prefs.helpers) legalMoves.forEach(function (m) {
       var isCapt = m.capt || (m.flags & Chess.F_EP);
@@ -759,6 +759,7 @@ function syncBoard() {
     if (rec) hi.last = [rec.m.from, rec.m.to];
     hi.selected = -1;
   }
+  syncInk();
   R.setHighlights(hi);
   needFrame();
 }
@@ -784,6 +785,7 @@ function whenLanded(fn) {
 function tapSquare(sq) {
   if (!G) return;
   if (viewPly >= 0) { exitView(); return; }
+  if (sel < 0 && !G.board[sq] && clearInkHere()) return;
   if (!canActNow(true)) { clearSel(); syncBoard(); return; }
   if (R.isAnimating && R.isAnimating() && sel >= 0) {
     /* the second tap of a move made while the last one is landing */
@@ -791,7 +793,6 @@ function tapSquare(sq) {
     whenLanded(function () { if (gameTicket === at && G.played.length === n && canActNow()) tapSquare(sq); });
     return;
   }
-  hintArrow = null;
   var p = G.board[sq];
   if (sel >= 0) {
     var mv = null;
@@ -895,7 +896,6 @@ function commitMove(m, source, animOpts) {
   }
 
   var st = Chess.status(G);
-  hintArrow = null;
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -927,6 +927,7 @@ function commitMove(m, source, animOpts) {
   fxCapture(desc, took, plan);
   feelLand(desc, took, plan);
   fxPromote(desc, plan);
+  syncInk();         /* what you drew belongs to the position just left */
   needFrame();
   syncMoveList();
   syncBars();
@@ -1050,7 +1051,8 @@ function gentleCheck(fenBefore, played, san, ply, ticket) {
   Brain.review(pre, mine, { ms: 900, mark: true, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
     if (ticket !== gameTicket || !G) return;
     if (!res) return;
-    reviewMemo[ply] = { best: res.bestScore, played: res.playedScore };
+    reviewMemo[ply] = reviewEntry(pre, mine, res);
+    saveGame();     /* the squares it named survive a reload from now, not from the next move */
     showReview(pre, san, res, mine, ply);
   });
 }
@@ -1099,7 +1101,7 @@ function showReview(pre, san, res, played, ply) {
       var brilliant = res.only >= 320;
       noteMove({
         ply: ply, side: side, mark: brilliant ? "!!" : "!", icon: brilliant ? "\u2728" : "\u2714",
-        tone: "good", cp: mineScore,
+        tone: "good", cp: mineScore, viewPly: ply > 0 ? ply - 1 : null, squares: [played.from, played.to],
         text: "<b>" + san + "</b> was the move \u2014 and the only one that really worked. " +
               "Everything else here was worth " + pawnsWorth(res.only) + " less. " +
               (brilliant ? "That is the kind of move people remember." : "Well spotted."),
@@ -1123,6 +1125,7 @@ function showReview(pre, san, res, played, ply) {
   noteMove({
     ply: ply, side: side, mark: step.mark, icon: step.tone,
     tone: loss >= 250 ? "bad" : "warn", cp: mineScore,
+    viewPly: ply > 0 ? ply - 1 : null, squares: res.best ? [res.best.from, res.best.to] : null,
     text: "<b>" + san + "</b> was " + step.word + "." + punish + instead + cost +
           " No shame \u2014 this is how everyone learns.",
     brief: step.mark + " " + (res.refute ? res.refute.san + "! \u00b7 " : "") + better +
@@ -1138,7 +1141,11 @@ function showReview(pre, san, res, played, ply) {
   if (loss >= 250 && voice() === "plain" && !over && G.played.length - ply <= 2) {
     toast(step.tone + " <b>" + san + "</b> was " + step.word + "." + punish + instead + cost,
       [{ label: "\u21a9 Take it back", fn: function () { gentleUndo(ply); } },
+       { label: "\ud83d\udc40 Show me", fn: function () { showMeReview(ply); }, ghost: true },
        { label: "Play on", fn: function () {}, ghost: true }], 11000);
+    /* the problem, drawn while the words are on the screen — but only on
+       the position it is true of: the one right after your move */
+    drawRefutation(ply, 11000);
   }
 }
 /* every remark about a move goes through here, so the mark on the move
@@ -1148,6 +1155,7 @@ function noteMove(e) { note(e); }
    played since, and whoever played it */
 function gentleUndo(ply) {
   if (!G || over || (mode !== "coach" && mode !== "pass")) return;
+  if (viewPly >= 0) exitView();
   var n = G.played.length - ply;
   if (n < 1 || n > 2) return;
   if (mode === "coach") assist.takebacks++;
@@ -1231,10 +1239,9 @@ function showHint(raw, odds, book, sans, again) {
     }
   }
   var san = Chess.toSAN(G, chosen);
-  hintArrow = null;
   /* the line *is* the hint: one curve that shows where the idea goes */
-  showLines([{ from: chosen.from, to: chosen.to, kind: "run",
-               knight: Math.abs(chosen.piece) === Chess.N }], 9000);
+  showLines([{ from: chosen.from, to: chosen.to, kind: "run", tone: "hint",
+               knight: Math.abs(chosen.piece) === Chess.N }], 9000, "main");
   syncBoard();
   snd("hint");
   var paid = again ? " <i>(the same hint — no charge twice)</i>" : odds.free ? (odds.mood === "behind" ? " <i>(free — you're behind)</i>" : "") :
@@ -1248,6 +1255,7 @@ function showHint(raw, odds, book, sans, again) {
   if (!bookPick && res.pv && res.pv.length > 2 && res.pv[0] === san) {
     ahead = " Then likely " + res.pv.slice(1, 3).join(" ") + ".";
   }
+  var pvMoves = !bookPick && res.pv && res.pv[0] === san ? pvLine(res.pv) : [];
   /* the reason a hint gives is the concrete one when there is one — what
      the move attacks, wins, forks or threatens — and a principle only
      when nothing concrete applies */
@@ -1257,7 +1265,10 @@ function showHint(raw, odds, book, sans, again) {
     try { var ex = Teach.explainMove(G, chosen); if (ex && ex.text) told = ex.text.charAt(0).toLowerCase() + ex.text.slice(1); } catch (e) {}
   }
   if (!told) told = explainMove(chosen, res);
-  toast("💡 <b>" + san + "</b> — " + told + ahead + paid, null, 9000);
+  /* the words "then likely…" can be drawn, a ply at a time, when asked */
+  toast("💡 <b>" + san + "</b> — " + told + ahead + paid,
+        pvMoves.length > 1 ? [{ label: "Show the line", fn: function () { showPV(pvMoves); } },
+                              { label: "OK", fn: function () {}, ghost: true }] : null, 9000);
 }
 
 function explainMove(m, res) {
@@ -1495,15 +1506,20 @@ function renderNotes() {
 /* a note is a way back into the game: the board goes to the position the
    remark is about and draws the squares it is about */
 function openNote(e) {
-  if (e.ply != null && G && G.played[e.ply]) viewAt(e.ply);
+  var at = e.viewPly != null ? e.viewPly : e.ply;
+  if (at != null && G && G.played[at]) viewAt(at);
+  /* a remark about how good a move was opens on the position before it,
+     and the look-back draws its lines there itself */
+  if (e.viewPly != null && viewPly === e.viewPly) return;
+  /* drawn again from nothing, so the eye is pulled the same way twice */
+  clearLines("teach");
   if (e.squares && e.squares.length >= 2) {
-    hintArrow = [e.squares[0], e.squares[1]];
-    syncBoard();
-    setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
+    showLines([{ from: e.squares[0], to: e.squares[1], kind: "run",
+                 tone: e.tone === "bad" || e.tone === "warn" ? "threat" : "hint",
+                 knight: knightHop(e.squares[0], e.squares[1]) }], 4200, "teach");
   } else if (e.squares && e.squares.length === 1) {
-    R.setHighlights({ selected: -1, mark: e.squares[0], legal: [], legalCapt: [],
-                      last: R.hi.last, check: R.hi.check, hint: null });
-    setTimeout(syncBoard, 3200);
+    /* one square is a place: circled, not lifted */
+    showLines([{ sq: e.squares[0], kind: "ring", tone: "hint" }], 3200, "teach");
   }
 }
 
@@ -1552,9 +1568,10 @@ function viewAt(ply) {
   if (!G || ply < 0 || ply >= G.played.length) return;
   viewPly = (ply === G.played.length - 1) ? -1 : ply;
   showViewBanner(viewPly >= 0);
-  clearSel(); hintArrow = null;
+  clearSel();
   R.setPosition(currentViewBoard());
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
+  syncLookBack();
 }
 function exitView() {
   viewPly = -1;
@@ -1562,6 +1579,7 @@ function exitView() {
   R.setPosition(G.board);
   fxRelay();
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
+  syncLookBack();
 }
 
 /* ===== replay the last move (again, with feeling) ===== */
@@ -1596,6 +1614,7 @@ function undoPly(n) {
   /* a move that has been taken back never happened, so neither did
      anything the room said about it */
   forgetNotesAfter(G.played.length - 1);
+  Ink.dropAfter(ink, G.played.length);
   Object.keys(reviewMemo).forEach(function (k) { if (+k >= G.played.length) delete reviewMemo[k]; });
   /* the ideas named about undone moves were never part of this game */
   taughtAt = taughtAt.filter(function (t) { return t.ply < G.played.length; });
@@ -1603,7 +1622,7 @@ function undoPly(n) {
   taughtAt.forEach(function (t) { teachSeen[t.concept] = (teachSeen[t.concept] || 0) + 1; });
   closePromo();
   hideToast(); clearLines(); hintShown = null; fxCalm();
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   showViewBanner(false);
   if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
@@ -1658,7 +1677,7 @@ var ladder = loadLadder();
 var assist = { takebacks: 0, hints: 0 };
 var ratedDone = false;          /* this game has been counted */
 var lastEval = 0;               /* the coach's last word on the position, from your side, in cp */
-var reviewMemo = {};            /* ply → {best, played}: the gentle coach's reviews, reused by the look-back */
+var reviewMemo = {};            /* ply → {best, played, bm, rf}: the gentle coach's reviews, reused by the look-back */
 
 function loadLadder() {
   var fresh = { v: 1, rungs: {}, lastSide: -1, day: "", days: 0, bestDays: 0 };
@@ -1835,7 +1854,7 @@ function analyseGame(onStep) {
       /* the accuracy table was fitted with a reviewer of this depth */
       Brain.review(pre, mine, { ms: 900, maxDepth: Rating.REVIEW_DEPTH, depth: Rating.REVIEW_DEPTH }).then(function (res) {
         if (ticket !== gameTicket) { resolve(null); return; }
-        if (res) { reviewMemo[ply] = { best: res.bestScore, played: res.playedScore }; got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
+        if (res) { reviewMemo[ply] = reviewEntry(pre, mine, res); got.push({ ply: ply, best: res.bestScore, played: res.playedScore }); }
         i++; onStep(i, plies.length); next();
       });
     }
@@ -2138,6 +2157,7 @@ function startGame(newMode, opts) {
   clearNotes(); showPanelTab("moves");
   oddsSpent = { 1: 0, "-1": 0 }; oddsNudged = 0; oddsLastNudge = -99;
   assist = { takebacks: 0, hints: 0 }; ratedDone = false; reviewMemo = {}; lastEval = 0;
+  ink = Ink.create();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
   G = Chess.create();
@@ -2146,7 +2166,7 @@ function startGame(newMode, opts) {
   clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
   hideToast(); clearLines();
   if (R && R.resetView) R.resetView();
-  clearSel(); hintArrow = null; viewPly = -1; lastNarratedOpening = ""; thinking = false;
+  clearSel(); viewPly = -1; lastNarratedOpening = ""; thinking = false;
   showViewBanner(false);
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
@@ -2335,8 +2355,10 @@ function saveGame() {
     assist: [assist.takebacks, assist.hints],
     /* and the coach's reviews so far, so a reload doesn't throw away the
        look-back's work — or the abandonment rule's sense of the position */
-    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return [+k, reviewMemo[k].best, reviewMemo[k].played]; }) : [],
-    ev: lastEval
+    rv: mode === "coach" ? Object.keys(reviewMemo).map(function (k) { return rvPack(+k); }) : [],
+    ev: lastEval,
+    /* what you drew, filed by position */
+    ink: Ink.pack(ink)
   }));
 }
 function loadSave() {
@@ -2366,7 +2388,8 @@ function saveLan() {
     v: 1, code: Net.code, host: !!Net.isHost, side: lanSide,
     sans: G.played.map(function (r) { return r.san; }),
     clockStr: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
-    my: lanMy, opp: lanOpp, title: Room.title || "", at: Date.now()
+    my: lanMy, opp: lanOpp, title: Room.title || "", at: Date.now(),
+    ink: Ink.pack(ink)
   }));
 }
 function loadLan() {
@@ -2392,11 +2415,9 @@ function resumeSaveInner(s) {
   if (clock.on) { clock.w = s.wMs; clock.b = s.bMs; clock.run = g.played.length >= 2 ? g.turn : 0; clock.lastT = performance.now(); }
   if (s.odds) { oddsSpent[1] = s.odds[0] || 0; oddsSpent[-1] = s.odds[1] || 0; oddsNudged = s.odds[2] || 0; }
   if (Array.isArray(s.assist)) assist = { takebacks: Math.max(0, s.assist[0] | 0), hints: Math.max(0, s.assist[1] | 0) };
-  if (Array.isArray(s.rv)) s.rv.forEach(function (t) {
-    if (Array.isArray(t) && typeof t[0] === "number" && t[0] < g.played.length && typeof t[1] === "number" && typeof t[2] === "number")
-      reviewMemo[t[0]] = { best: t[1], played: t[2] };
-  });
+  if (Array.isArray(s.rv)) s.rv.forEach(function (t) { rvUnpack(t, g.played.length); });
   if (typeof s.ev === "number" && isFinite(s.ev)) lastEval = s.ev;
+  ink = Ink.unpack(s.ink, g.played.length);
   R.setPosition(G.board);
   syncAll();
   narrateOpening("", "resume");   /* the card belongs to the position, not the last move */
@@ -2523,6 +2544,9 @@ function beginLan(mySide, clockStr, sans, wMs, bMs) {
       Chess.play(G, m);
     }
     R.setPosition(G.board);
+    /* a rejoin keeps the notes you drew on this board, too */
+    var kept = loadLan();
+    if (kept && kept.code && kept.code === Net.code) ink = Ink.unpack(kept.ink, G.played.length);
     if (clock.on && wMs != null) { clock.w = wMs; clock.b = bMs; }
     if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
     narrateOpening("", "resume");
@@ -2571,8 +2595,9 @@ function onNetMove(msg) {
 }
 function lanUndo(n) {
   for (var i = 0; i < n && G.played.length; i++) Chess.takeBack(G);
+  Ink.dropAfter(ink, G.played.length);
   over = null;
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   if (clock.on) { clock.run = G.played.length >= 2 ? G.turn : 0; clock.lastT = performance.now(); }
   R.setPosition(G.board);
   syncAll();
@@ -3179,6 +3204,7 @@ function quietBoard() {
   clearTimeout(coachTimer); thinking = false; hintPending = false;
   closePromo(); hideToast(); clearLines();
   clearNotes(); showPanelTab("moves");
+  ink = Ink.create();
   if (R && R.resetView) R.resetView();
 }
 function startTour(line) {
@@ -3186,7 +3212,7 @@ function startTour(line) {
   quietBoard();
   mode = "tour";
   G = Chess.create();
-  over = null; clearSel(); hintArrow = null; viewPly = -1;
+  over = null; clearSel(); viewPly = -1;
   clockConfig("none");
   orientation = 1;
   R.setOrientation(1);
@@ -3390,29 +3416,320 @@ function oddsNudge() {
   if (!pick) return;
   oddsLastNudge = G.played.length;
   oddsNudged++;
-  if (pick.squares && pick.squares.length) {
-    R.setNet(pick.concept === "backRank" ? [] : []);
-    showLines([{ from: pick.squares[0], to: pick.squares[Math.min(1, pick.squares.length - 1)],
-                 kind: pick.concept === "hanging" ? "threat" : "ghost" }], 5200);
+  /* drawn only on the live board: a nudge is about the position in play,
+     not one being looked back at */
+  if (pick.squares && pick.squares.length && viewPly < 0) {
+    /* a back rank's squares come as [landing, king, other landings…]:
+       the landings are the net, the line runs from the first to the king */
+    var net = pick.concept === "backRank" ? [pick.squares[0]].concat(pick.squares.slice(2)) : [];
+    if (R2 && R2.setNet) R2.setNet(net);
+    if (R3 && R3.setNet) R3.setNet(net);
+    var nTo = pick.squares[Math.min(1, pick.squares.length - 1)];
+    showLines([{ from: pick.squares[0], to: nTo, kind: pick.concept === "hanging" ? "threat" : "ghost",
+                 tone: pick.concept === "hanging" ? "threat" : "hint", knight: knightHop(pick.squares[0], nTo) }], 5200, "main");
   }
   toast("🫱 " + pick.text + " <i>(free — you're behind)</i>", null, 7000);
 }
 
-/* ---- the lines on the board ---- */
-var lineTimer = 0;
-function showLines(list, ms) {
-  if (R.setLines) R.setLines(list);
-  if (R2 && R2.setLines) R2.setLines(list);
-  if (R3 && R3.setLines) R3.setLines(list);
-  clearTimeout(lineTimer);
-  needFrame();
-  if (ms) lineTimer = setTimeout(clearLines, ms);
+/* ---- the lines on the board ----
+   Every line the room draws goes through here, in layers, each with its
+   own timer: a hint ("main"), a remark or a note ("teach"), a lesson's
+   answer, the look-back's lines ("review"), the line behind a hint
+   ("pv"), and room for what comes later. A free nudge arriving while a
+   hint is up no longer wipes the hint; both stay, and each goes when it
+   is done. The boards get the union, in this order, the later on top.
+   `clearLines()` with no layer is the old clean sweep (a move, a new
+   game, a take-back), and takes the mate net with it. */
+var LINE_LAYERS = ["review", "lesson", "teach", "ideas", "pv", "sight", "main"];
+var lineLayers = {}, lineTimers = {};
+function showLines(list, ms, key) {
+  key = key || "main";
+  clearTimeout(lineTimers[key]);
+  lineLayers[key] = list || [];
+  if (ms) lineTimers[key] = setTimeout(function () { clearLines(key); }, ms);
+  pushLines();
 }
-function clearLines() {
-  clearTimeout(lineTimer);
-  if (R2 && R2.setLines) { R2.setLines([]); R2.setNet([]); }
-  if (R3 && R3.setLines) { R3.setLines([]); R3.setNet([]); }
+function clearLines(key) {
+  if (key == null) {
+    for (var k in lineTimers) clearTimeout(lineTimers[k]);
+    lineLayers = {}; lineTimers = {};
+    if (R2 && R2.setNet) R2.setNet([]);
+    if (R3 && R3.setNet) R3.setNet([]);
+  } else {
+    clearTimeout(lineTimers[key]);
+    delete lineLayers[key]; delete lineTimers[key];
+  }
+  pushLines();
+}
+function pushLines() {
+  var all = [];
+  for (var i = 0; i < LINE_LAYERS.length; i++) if (lineLayers[LINE_LAYERS[i]]) all = all.concat(lineLayers[LINE_LAYERS[i]]);
+  if (R2 && R2.setLines) R2.setLines(all);
+  if (R3 && R3.setLines) R3.setLines(all);
   needFrame();
+}
+/* a knight's line arcs over the traffic, so whoever draws one says so */
+function knightHop(a, b) {
+  var df = Math.abs((a & 7) - (b & 7)), dr = Math.abs((a >> 4) - (b >> 4));
+  return (df === 1 && dr === 2) || (df === 2 && dr === 1);
+}
+
+/* ===================== the pen =====================
+   Your own arrows and rings (ink.js keeps them, the boards draw them).
+   Hold a square and drag on a phone, or right-drag with a mouse: a
+   ribbon grows under your finger and snaps to the square you reach; let
+   go where you started and it is a ring instead; draw the same shape
+   again to rub it out. The board decides what you meant — a stroke from
+   one of their men is a threat, anything else your plan — and on a desk
+   Shift and Alt say it outright.
+
+   A drawing belongs to the position it was made on: play on and the
+   live board is clean, step back and it is exactly where you left it,
+   reload and it is still there. There is no toolbar and no colour to
+   pick — the skin's plan colour is the pen. */
+var PEN_HOLD_MS = 420;
+var ink = Ink.create(), pen = null;
+/* the two pen preferences are read here rather than in the list above,
+   so the pen can be taken out in one piece: on unless switched off, and
+   whether the one-time word about it has been said */
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.pen = p.pen !== false;
+  prefs.sawPen = p.sawPen === true;
+})();
+/* which position is on the board: 0 is the start, n is after n moves */
+function posIndex() { return !G ? 0 : viewPly >= 0 ? viewPly + 1 : G.played.length; }
+function penActive() { return !!pen; }
+function penMod(e) { return e && e.shiftKey ? 1 : e && e.altKey ? 0 : null; }
+function penTone() { return (pen.mod != null ? pen.mod : pen.t) ? "threat" : "plan"; }
+function penTap() {
+  if (prefs.sound && typeof Sound !== "undefined" && Sound.tap) { try { Sound.tap(6, 0.8); } catch (e) {} }
+}
+/* the pen comes down: a man that was in the hand settles back quietly */
+function penStart(sq, mod) {
+  if (!G || sq == null || sq < 0) return false;
+  if (sel >= 0) { clearSel(); syncBoard(); }
+  pen = { from: sq, to: sq, t: Ink.toneFor(currentViewBoard(), sq, mySide()), mod: mod };
+  if (R.setSketch) R.setSketch({ from: sq, to: sq, tone: penTone() });
+  hap("select"); penTap();
+  needFrame();
+  return true;
+}
+/* …follows the finger, a detent at each square the head crosses onto… */
+function penTo(sq) {
+  if (!pen || sq === pen.to) return;
+  pen.to = sq;
+  if (R.setSketch) R.setSketch({ from: pen.from, to: sq >= 0 ? sq : pen.from, tone: penTone() });
+  if (sq >= 0) hap("hover");
+  needFrame();
+}
+/* …and is lifted: the shape is set (or rubbed out) on this position */
+function penEnd(commit) {
+  if (!pen) return;
+  var p = pen; pen = null;
+  if (R.setSketch) R.setSketch(null);
+  needFrame();
+  if (!commit || !G) return;
+  var to = p.to < 0 ? p.from : p.to;
+  var got = Ink.toggle(ink, posIndex(), { from: p.from, to: to, t: p.mod != null ? p.mod : p.t });
+  syncInk();
+  hap("tick"); penTap();
+  saveGame();
+  if (got === "full") toast("That is as much as one position holds — tap an empty square to clear it.");
+  else if (got === "added" && !prefs.sawPen) {
+    prefs.sawPen = true; savePrefs();
+    toast("✎ Your arrows stay with this position. Tap an empty square to clear them.", null, 6000);
+  }
+}
+/* the drawing of the position on the board, on both boards, and the
+   small pill that says it is there and takes it away */
+function syncInk() {
+  var list = G ? Ink.at(ink, posIndex()).map(function (sh) {
+    return { from: sh.from, to: sh.to, tone: sh.t ? "threat" : "plan" };
+  }) : [];
+  if (R2 && R2.setInk) R2.setInk(list);
+  if (R3 && R3.setInk) R3.setInk(list);
+  var pill = $("inkPill");
+  if (pill) {
+    pill.classList.toggle("hide", !list.length);
+    $("inkCount").textContent = String(list.length);
+  }
+}
+function clearInkHere() {
+  if (!G || !Ink.clear(ink, posIndex())) return false;
+  syncInk(); hap("tick"); saveGame(); needFrame();
+  return true;
+}
+function syncPenSetting() {
+  var b = $("setPen");
+  if (!b) return;
+  b.classList.toggle("sel", prefs.pen);
+  b.textContent = prefs.pen ? "On" : "Off";
+}
+function wirePen() {
+  $("inkClear").addEventListener("click", function () { clearInkHere(); });
+  $("setPen").addEventListener("click", function () { prefs.pen = !prefs.pen; savePrefs(); syncPenSetting(); });
+}
+
+/* ===================== the line behind the words =====================
+   Every sentence the coach says that names a move can be drawn: the
+   better move on the position *before* the slip (where its squares are
+   true), the problem it ran into on the position *after* (where the
+   piece that punishes it is actually standing), and the line behind a
+   hint, a ply at a time. Nothing is drawn that the room has not already
+   said in words — the notebook, the mark, the toast — and no line ever
+   starts on an empty square, because each is drawn only on the position
+   it is true of. At most three on the board at once, all in kinds the
+   grammar already has: a ghost for what you did, a run for what was
+   better, a threat for what hits you. */
+var BAD_MARK = { "??": 1, "?": 1, "?!": 1 };
+/* what a review named, as squares: the better move, and the reply that
+   punishes the one played (Brain.review only finds one when it cost a
+   pawn or more) */
+function reviewEntry(pre, mine, res) {
+  var e = { best: res.bestScore, played: res.playedScore, bm: null, rf: null };
+  if (res.best && Chess.onBoard(res.best.from) && Chess.onBoard(res.best.to)) e.bm = [res.best.from, res.best.to];
+  if (res.refute && res.refute.san) {
+    try {
+      var after = Chess.create(Chess.fen(pre));
+      Chess.play(after, mine);
+      var rm = Chess.fromSAN(after, res.refute.san);
+      if (rm) e.rf = [rm.from, rm.to];
+    } catch (err) { e.rf = null; }
+  }
+  return e;
+}
+/* the save: [ply, best, played, bmFrom, bmTo, rfFrom, rfTo], -1 for none.
+   An older save's three-long entries still read, with no squares. */
+function rvPack(k) {
+  var r = reviewMemo[k], bm = r.bm || [-1, -1], rf = r.rf || [-1, -1];
+  return [k, r.best, r.played, bm[0], bm[1], rf[0], rf[1]];
+}
+function rvUnpack(t, plies) {
+  if (!Array.isArray(t) || (t.length !== 3 && t.length !== 7)) return;
+  if (typeof t[0] !== "number" || t[0] !== (t[0] | 0) || t[0] < 0 || t[0] >= plies) return;
+  if (typeof t[1] !== "number" || typeof t[2] !== "number" || !isFinite(t[1]) || !isFinite(t[2])) return;
+  /* a pair of squares, or none (-1, -1); anything else is a save that
+     lies, and the entry goes rather than a line to nowhere */
+  var bad = false, sq = function (a, b) {
+    if (a === -1 && b === -1) return null;
+    if (typeof a === "number" && typeof b === "number" && a === (a | 0) && b === (b | 0) &&
+        a >= 0 && b >= 0 && a < 128 && b < 128 && Chess.onBoard(a) && Chess.onBoard(b)) return [a, b];
+    bad = true; return null;
+  };
+  var bm = t.length === 7 ? sq(t[3], t[4]) : null, rf = t.length === 7 ? sq(t[5], t[6]) : null;
+  if (!bad) reviewMemo[t[0]] = { best: t[1], played: t[2], bm: bm, rf: rf };
+}
+/* the mark a move carries: the coach's, or — for a game nobody reviewed
+   aloud, like a clocked one — the one the look-back's numbers give it,
+   by the same yardstick the end card counts with */
+function markAt(ply) {
+  if (voice() === "off") return null;
+  if (marks[ply]) return marks[ply];
+  var r = reviewMemo[ply];
+  if (!r || r.best < -650 || r.played > 650) return null;
+  var loss = r.best - r.played;
+  return loss >= 250 ? "??" : loss >= 110 ? "?" : null;
+}
+function markedPlies() {
+  var out = [];
+  if (!G) return out;
+  for (var p = 1; p < G.played.length; p++) if (markAt(p)) out.push(p);
+  return out;
+}
+/* the lines for one position (0 = the start, n = after n moves) */
+function reviewLinesFor(pos) {
+  var out = [];
+  if (!G) return out;
+  var here = reviewMemo[pos], mk = markAt(pos), rec = G.played[pos];
+  if (here && mk && rec) {
+    if (mk === "!" || mk === "!!") out.push({ sq: rec.m.to, kind: "ring", tone: "hint" });
+    else if (here.bm && !(here.bm[0] === rec.m.from && here.bm[1] === rec.m.to)) {
+      out.push({ from: rec.m.from, to: rec.m.to, kind: "ghost", tone: "hint", knight: knightHop(rec.m.from, rec.m.to) });
+      out.push({ from: here.bm[0], to: here.bm[1], kind: "run", tone: "hint", knight: knightHop(here.bm[0], here.bm[1]) });
+    }
+  }
+  var prev = reviewMemo[pos - 1], pm = markAt(pos - 1);
+  if (prev && prev.rf && BAD_MARK[pm]) out.push({ from: prev.rf[0], to: prev.rf[1], kind: "threat", tone: "threat", knight: knightHop(prev.rf[0], prev.rf[1]) });
+  return out;
+}
+/* the refutation, live, for as long as the toast that names it — while
+   the board still shows the position right after the move it punishes */
+function drawRefutation(ply, ms) {
+  var r = reviewMemo[ply];
+  if (!G || !r || !r.rf || viewPly >= 0 || G.played.length !== ply + 1) return;
+  showLines([{ from: r.rf[0], to: r.rf[1], kind: "threat", tone: "threat", knight: knightHop(r.rf[0], r.rf[1]) }], ms, "review");
+}
+/* "Show me": the position before the slip, your move faint and the better
+   one drawn; → steps on to the problem, → again back to the game */
+function showMeReview(ply) {
+  if (!G || !G.played[ply]) return;
+  if (ply > 0) viewAt(ply - 1);
+}
+/* Looking back: the lines that belong to this position, the remark that
+   belongs to it in the banner, and a way to walk from one marked move to
+   the next. The room's other lines (a hint, a nudge, a note's arrow) are
+   about some other position, so they go. */
+function syncLookBack() {
+  clearLines("main"); clearLines("pv"); clearLines("teach"); clearLines("review");
+  if (G && viewPly >= 0) {
+    var lines = reviewLinesFor(viewPly + 1);
+    if (lines.length) showLines(lines, 0, "review");
+  }
+  syncViewBanner();
+}
+function noteBriefFor(ply) {
+  for (var i = notes.length - 1; i >= 0; i--) if (notes[i].ply === ply && notes[i].mark) return stripTags(notes[i].brief || notes[i].text);
+  return "";
+}
+function syncViewBanner() {
+  var txt = $("vbText"), nav = $("reviewNav");
+  if (!txt || !nav) return;
+  var looking = G && viewPly >= 0;
+  var said = looking ? noteBriefFor(viewPly + 1) || noteBriefFor(viewPly) : "";
+  txt.textContent = said ? said + " \u00b7 tap to return" : "Looking back \u2014 tap to return \u00b7 hold a square to draw";
+  var marked = looking ? markedPlies() : [];
+  nav.innerHTML = "";
+  nav.classList.toggle("hide", !marked.length);
+  if (!marked.length) return;
+  var here = viewPly + 1, idx = marked.indexOf(here);
+  var prev = null, next = null, i;
+  for (i = marked.length - 1; i >= 0; i--) if (marked[i] < here) { prev = marked[i]; break; }
+  for (i = 0; i < marked.length; i++) if (marked[i] > here) { next = marked[i]; break; }
+  var chip = function (label, to, aria) {
+    var b = document.createElement("button");
+    b.className = "lchip"; b.textContent = label; b.setAttribute("aria-label", aria);
+    if (to == null) b.disabled = true;
+    else b.addEventListener("click", function (e) { e.stopPropagation(); viewAt(Math.max(0, to - 1)); });
+    return b;
+  };
+  nav.appendChild(chip("\u25c0", prev, "The previous move worth a second look"));
+  var n = document.createElement("span");
+  n.className = "rnN"; n.textContent = (idx >= 0 ? idx + 1 : "\u00b7") + " of " + marked.length;
+  nav.appendChild(n);
+  nav.appendChild(chip("\u25b6", next, "The next move worth a second look"));
+}
+/* the line a hint is counting on, as moves on a scratch board */
+function pvLine(pv) {
+  var out = [];
+  try {
+    var g = Chess.create(Chess.fen(G));
+    for (var i = 0; i < pv.length && i < 6; i++) {
+      var m = Chess.fromSAN(g, pv[i]);
+      if (!m) break;
+      out.push(m); Chess.play(g, m);
+    }
+  } catch (e) { return out; }
+  return out;
+}
+/* …drawn a ply at a time: theirs coming at you, yours as a ghost */
+function showPV(moves) {
+  if (!G || viewPly >= 0) return;
+  showLines(moves.slice(1, 4).map(function (m, i) {
+    return { from: m.from, to: m.to, kind: i % 2 ? "ghost" : "threat", tone: i % 2 ? "hint" : "threat",
+             delay: i * 260, knight: Math.abs(m.piece) === Chess.N };
+  }), 7000, "pv");
 }
 /* the mate net: every square around the king that is denied to it */
 function showMateNet(side) {
@@ -3474,10 +3791,9 @@ function teachMoment(list, mover, source, ply) {
     teachSeen[item.concept] = shown + 1;
     taughtAt.push({ concept: item.concept, ply: ply });
     teachCool = major ? 0 : 2;
-    if (item.squares && item.squares.length >= 2) {
-      hintArrow = [item.squares[0], item.squares[1]];
-      syncBoard();
-      setTimeout(function () { hintArrow = null; syncBoard(); }, 4200);
+    if (item.squares && item.squares.length >= 2 && viewPly < 0) {
+      showLines([{ from: item.squares[0], to: item.squares[1], kind: "run", tone: "hint",
+                   knight: knightHop(item.squares[0], item.squares[1]) }], 4200, "teach");
     }
     /* Named, kept, and re-readable. Naming is what turns a thing that
        happened into a pattern you can recognise again, and keeping it is
@@ -3584,7 +3900,7 @@ function startLesson(L, queue) {
   G = Chess.create(L.fen);
   lessonPrev = null;
   clockConfig("none");
-  clearSel(); hintArrow = null; viewPly = -1;
+  clearSel(); viewPly = -1;
   orientation = L.side;
   R.setOrientation(orientation);
   R.setPosition(G.board, { flourish: true });
@@ -3716,11 +4032,11 @@ function giveLessonHint() {
 function revealLesson() {
   var m = Chess.fromSAN(G, lesson.best);
   lessonRevealed = true;
-  if (m) { hintArrow = [m.from, m.to]; syncBoard(); }
+  if (m) showLines([{ from: m.from, to: m.to, kind: "run", tone: "hint", knight: Math.abs(m.piece) === Chess.N }], 0, "lesson");
   lessonUI('<div class="lkick">The answer</div><div class="lask">' + esc(lesson.best) + '</div>' +
     '<div class="lsay">' + lesson.why + '</div>');
   lessonRow([lessonChip("Let me play it", function () {
-    hintArrow = null; syncBoard(); askLesson();
+    clearLines("lesson"); askLesson();
   }, true), lessonChip("Leave", exitLesson)]);
   /* the arrow is on the board; the board is still the question, so it
      can be played straight from here */
@@ -3737,7 +4053,7 @@ function lessonAttempt(m) {
   var before = Chess.fen(G);
   var g2 = Chess.create(before);
   Chess.play(g2, m);
-  hintArrow = null;
+  clearLines("lesson");
 
   if (verdict.ok) {
     lessonDone = true;
@@ -4249,6 +4565,7 @@ function wireInput() {
   var stage = $("stage");
   var pts = new Map(), downSq = -1, downXY = null, dragging = false, pinchD = 0;
   var carry = null;      /* { from, picked } while a press began on a man of the side to move */
+  var holdT = 0;         /* a finger held still long enough becomes a pen (see penStart) */
   function local(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   function ownMan(sq) {
     if (!G || sq < 0 || !canActNow(true)) return false;
@@ -4264,7 +4581,7 @@ function wireInput() {
     /* anything you can press that happens to sit on the stage — a lesson's
        buttons, the clock, a question — is not the board. Capturing the
        pointer for those used to swallow every mouse click on them. */
-    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, button, a")) return;
+    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, #inkPill, button, a")) return;
     /* a remark lying over the board goes as soon as the board is
        touched; the notebook has kept it */
     if (!$("toast").classList.contains("acts")) hideToast();
@@ -4279,14 +4596,35 @@ function wireInput() {
       var at = local(e);
       downSq = R.screenToSquare(at.x, at.y);
       carry = null;
+      clearTimeout(holdT);
+      /* the right button is the pen, at once: it never picks a man up
+         and never turns the camera (that stays on the left button) */
+      if (e.button === 2) {
+        penStart(downSq, penMod(e));
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
       if (viewPly < 0 && ownMan(downSq)) {
         /* already in hand: the release decides (a tap puts it down) */
         var already = sel === downSq;
         if (!already) { tapSquare(downSq); }
         carry = { from: downSq, picked: !already };
       }
+      /* a finger held still becomes the pen; one that moves first is a
+         carry or a turn of the board, as it always was */
+      if (e.pointerType !== "mouse" && prefs.pen && downSq >= 0) {
+        var heldSq = downSq;
+        holdT = setTimeout(function () {
+          holdT = 0;
+          if (pts.size !== 1 || dragging) return;
+          if (carry) { dropCarry(); carry = null; }
+          penStart(heldSq, null);
+        }, PEN_HOLD_MS);
+      }
     } else if (pts.size === 2) {
-      /* a second finger means zoom, never a move */
+      /* a second finger means zoom, never a move — and never a drawing */
+      clearTimeout(holdT);
+      if (penActive()) penEnd(false);
       if (carry) { dropCarry(); carry = null; }
       var arr = Array.from(pts.values());
       pinchD = Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
@@ -4306,9 +4644,16 @@ function wireInput() {
       needFrame();
       return;
     }
+    if (penActive()) {
+      /* the head reads the wood, not the men: a tall piece leaning into
+         the pointer must not steal the square you are reaching for */
+      var pat = local(e);
+      penTo(R.screenToSquare(pat.x, pat.y, { plane: true }));
+      return;
+    }
     if (!downXY) return;
     var dx = e.clientX - downXY.x, dy = e.clientY - downXY.y;
-    if (!dragging && Math.hypot(dx, dy) > 9) dragging = true;
+    if (!dragging && Math.hypot(dx, dy) > 9) { dragging = true; clearTimeout(holdT); }
     if (!dragging) return;
     if (carry && sel === carry.from) {
       /* the piece goes with the finger; the square it is over is the
@@ -4334,6 +4679,15 @@ function wireInput() {
     var last = pts.get(e.pointerId);
     pts.delete(e.pointerId);
     if (pts.size > 0) return;
+    clearTimeout(holdT);
+    /* a stroke ends where the finger lifts — keyed off the pen itself,
+       not the button, which some trackpads report differently on the
+       way up */
+    if (penActive()) {
+      penEnd(e.type !== "pointercancel");
+      carry = null; downSq = -1; downXY = null; dragging = false; pinchD = 0;
+      return;
+    }
     if (carry) {
       var c = carry; carry = null;
       if (dragging && last && e.type !== "pointercancel") {
@@ -4356,6 +4710,8 @@ function wireInput() {
   }
   stage.addEventListener("pointerup", up);
   stage.addEventListener("pointercancel", up);
+  /* the board is a page you draw on: no menu ever opens over it */
+  stage.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   stage.addEventListener("wheel", function (e) {
     if (R.zoom) { R.zoom(e.deltaY > 0 ? 1.07 : 0.93); needFrame(); e.preventDefault(); }
   }, { passive: false });
@@ -4420,6 +4776,7 @@ function syncSettingsUI() {
   $("setHapticsNote").classList.toggle("hide", HAP && Haptics.supported() !== "none");
   $("setHelpers").classList.toggle("sel", prefs.helpers);
   $("setHelpers").textContent = prefs.helpers ? "On" : "Off";
+  syncPenSetting();
   $("ckSimple").classList.toggle("sel", prefs.clockSkin === "simple");
   $("ckClassic").classList.toggle("sel", prefs.clockSkin === "classic");
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
@@ -4532,6 +4889,7 @@ function wireUI() {
       var open = ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].filter(function (id) { return !$(id).classList.contains("hide"); });
       if (open.length) { showMenu(); return; }
       if (!$("ovMenu").classList.contains("hide") && G && mode) { hideAllOverlays(); return; }
+      if (clearInkHere()) return;
       if (viewPly >= 0) exitView();
       return;
     }
@@ -4550,9 +4908,11 @@ function wireUI() {
     $("ovEnd").classList.add("hide");
     var down = fxDown;
     fxCalm(); fxDown = down;      /* the light goes; the fallen king comes back with the final position */
-    if (G && G.played.length) viewAt(0);
+    var marked = G ? markedPlies() : [];
+    if (G && G.played.length) viewAt(marked.length ? Math.max(0, marked[0] - 1) : 0);
     syncTurnStrip();
-    toast("Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
+    toast(marked.length ? "\u25c0 \u25b6 step between the moves worth a second look \u2014 or tap any move in the list. 🏁 Result brings the card back."
+                        : "Tap moves in the list to step through (or use ← →). 🏁 Result brings the card back.");
   });
   $("endMenu").addEventListener("click", showMenu);
 
@@ -4595,6 +4955,7 @@ function wireUI() {
     hap("select");      /* switched on, it says so the only way it can */
   });
   $("setHelpers").addEventListener("click", function () { prefs.helpers = !prefs.helpers; savePrefs(); syncSettingsUI(); syncBoard(); });
+  wirePen();
   $("ckSimple").addEventListener("click", function () { prefs.clockSkin = "simple"; savePrefs(); syncSettingsUI(); });
   $("ckClassic").addEventListener("click", function () { prefs.clockSkin = "classic"; savePrefs(); syncSettingsUI(); });
   $("setBack").addEventListener("click", showMenu);
@@ -4923,5 +5284,18 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
-  rejoinLan: rejoinLan, syncNetChip: syncNetChip };
+  rejoinLan: rejoinLan, syncNetChip: syncNetChip,
+  /* the pen, for chess/tools/ink-check.js: a check that cannot hold a
+     finger down can still draw through the same door the finger does */
+  inkForTest: function (pos) { return Ink.at(ink, pos == null ? posIndex() : pos); },
+  penForTest: function (from, to, t) {
+    var got = Ink.toggle(ink, posIndex(), { from: from, to: to == null ? from : to, t: t ? 1 : 0 });
+    syncInk(); saveGame(); needFrame(); return got;
+  },
+  posIndexForTest: function () { return posIndex(); }, PEN_HOLD_MS: PEN_HOLD_MS,
+  /* the coach's reviews with the squares they name, for lookback-check.js */
+  reviewMemoForTest: function () { return reviewMemo; }, get viewPly() { return viewPly; },
+  /* a machine drawing in software can take longer than a held finger to
+     deliver a quick tap; a check that means "a tap" can say so */
+  penHoldForTest: function (ms) { PEN_HOLD_MS = ms > 0 ? ms : 420; } };
 })();

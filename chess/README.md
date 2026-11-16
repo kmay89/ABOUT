@@ -114,7 +114,15 @@ scenes.js           where the board is: a park, a café, a grand room, a
 lines.js            the racing line: pure geometry that turns a chess
                     idea into one tapered curve with a travelling spark —
                     a plan, a threat, a promotion lane — drawn identically
-                    by both renderers
+                    by both renderers. Every line the room draws comes
+                    from here: your pen (ink), a reach (sight), a circled
+                    square (ring), each drawn on from the piece, coloured
+                    by a meaning (a tone) rather than a number
+ink.js              the pen: what you draw, kept with the position — your
+                    arrows and rings filed by which position they were
+                    drawn on, rubbed out by drawing them again, capped,
+                    saved, and read back from a save one shape at a time
+                    so a bad mark never costs the game it came with
 grain.js            the surface of the board, as pixels: a hash, a value
                     noise built on it, a few octaves of that, and three
                     recipes — rings cut at a slant, veins through cloud,
@@ -273,7 +281,23 @@ tools/              dev-only, never shipped:
                     that must not stop the Academy opening
   skin-check.js     presets are complete, share codes round-trip, and
                     hostile input (markup, bad colours, junk numbers)
-                    comes back safe
+                    comes back safe — and every look has a pen colour,
+                    even one decoded from a code that never carried it
+  lines-check.js    every line the room draws, in Node: every kind a sane
+                    shape, all 64×63 square pairs a closed outline with no
+                    NaN and no longer than its bend allows, the pen a
+                    ruler, the reveal taking the line by distance on one
+                    eased 380 ms clock (and instantly for stillness), a
+                    ring round and closed, the spark never ahead of what
+                    is drawn, colour a meaning and never a number
+  ink-check.js      the pen: the paper fuzzed in Node (rubbing out,
+                    recolouring, the caps, hostile saves and links), then a
+                    real mouse and a real held finger on a laptop and a
+                    phone, carved and flat — a stroke draws and moves
+                    nothing, a quick touch still picks a man up, the
+                    drawing stays with its position through moves, a look
+                    back, a reload and a take-back, and a drawn-on board
+                    sleeps
   pieces-check.js   every set builds at both qualities, closed, facing
                     outwards, and wound consistently face by face (a
                     single backwards cap survives a volume test and looks
@@ -377,6 +401,15 @@ tools/              dev-only, never shipped:
                     lesson in the Academy, the record and the nearby door
                     — on a phone and on a laptop, failing on a single
                     page error
+  lookback-check.js the line behind the words: a real blunder in a real
+                    browser, carved and flat — the review keeps the better
+                    move and the refutation as squares, the refutation is
+                    drawn while the toast names it, Show me goes to the
+                    position before the slip with your move faint and the
+                    better one drawn, → draws the problem, the save keeps
+                    the squares and refuses ones that are not squares, the
+                    end card's look-back walks the marked moves, and a
+                    hint's line is drawn a ply at a time and goes
   grain-check.js    every pattern builds, finite, centred and in range;
                     the same seed paints the same board from the one
                     cache; no two patterns and no two squares alike; laid
@@ -420,7 +453,9 @@ tools/              dev-only, never shipped:
                     clock and thuds the camera and both stop, the taken
                     men find their row (and lose it again on a take-back),
                     the walk round a mated king stops when touched, and
-                    tilt comes to rest
+                    tilt comes to rest — and every line is drawn on, then
+                    either keeps its spark or lies still, so a board with
+                    your arrows on it sleeps like any other
   fx-check.js       the big moments in a real browser: all 64 squares
                     round-trip between squareToScreen and screenToSquare
                     on both boards, both sides, mid-push-in and after an
@@ -1659,6 +1694,74 @@ And `teach-check.js` reads every legal move at every fourth position of
 a few random games — thousands of calls — and none may throw, print
 "undefined", or point an arrow off the board.
 
+## Lines, and your own pen
+
+Every line on the board is now one line. The hint, a free nudge, the
+coach naming a fork, a note you tap an hour later, a lesson's answer,
+the look-back's better move, your own pen: all of them are the same
+ribbon from `lines.js`, drawn on from the piece to the square in a
+little over a third of a second, because the direction *is* the
+content and drawing it on shows the direction before your eye has to
+work it out. One easing, one duration, no bounce; ask for less motion
+and every line is simply there. Colour is not a number any more but a
+meaning — a hint, a threat, a lane, your plan — and each board turns the
+meaning into its own skin's colour, so a threat on the walnut board and
+a threat on the glass one are the same threat. Lines live in layers,
+each on its own timer, so a nudge arriving while a hint is up no longer
+wipes the hint. And a line only keeps the board drawing while it is
+arriving or carries a spark: a still one lets the board sleep.
+
+**Your own pen.** Hold a square and drag on a phone — or right-drag with
+a mouse — and a ribbon grows under your finger, snapping to each square
+it reaches with a small detent. Let go where you started and it is a
+ring instead. Draw the same shape again to rub it out; tap an empty
+square with nothing in your hand, press Escape, or use the little ✎
+pill at the top of the board to clear the lot. There is no toolbar and
+no colour to pick, because the board already knows what you meant: a
+stroke that starts on one of *their* men is about what that man
+threatens, drawn in the capture colour; anything else is your plan, in
+the skin's own plan colour (every look has one; a shared look that never
+carried one takes its preset's). On a desk, Shift and Alt say it
+outright. The 3D board still turns on a left-drag from an empty square,
+and on a finger that moves before it has been held.
+
+Your drawing belongs to the **position**, not the screen. Play on and
+the live board is clean; step back and it is exactly where you left it;
+reload and it is still there; take a move back and the drawing on the
+position that no longer exists goes with it. That is the difference
+between a note on move 12 and graffiti on move 20, and it is why
+looking back — the room's main way of learning — gets better rather
+than messier when you draw. It is a note, not an event, so it never
+asks for a frame: a board with your arrows on it sleeps like any other.
+If you like to rest a finger on a piece while you think, Settings has a
+switch for the held-finger pen; the right button always draws.
+
+**The line behind the words.** Every sentence the coach says that names
+a move can now be seen. "**Qxe5+** is the problem" is drawn as a threat
+while the take-back offer is on the screen — but only while the board
+still shows the position right after your move, because that is the
+only position it is true of. **👀 Show me** goes back to the position
+before the slip: your move as a faint ghost, the better one drawn as the
+hint, the coach's remark in the banner; → steps to the problem drawn on
+the position after; → again is the game. The end card's "Look back"
+lands on the first move worth a second look, with ◀ ▶ in the banner to
+walk from one to the next, and tapping a marked move or its note brings
+the same lines with it. A hint from the engine's own search offers
+**Show the line**, and the next three plies grow on a beat apart — theirs
+coming at you, yours as a ghost — then go. No line ever starts on an
+empty square, at most three are drawn at once, and nothing is drawn
+that the room has not already said in words. Two honest limits: the
+refutation exists only for a slip that cost a pawn or more, so an
+inaccuracy has no threat drawn; and a game the coach reviewed before
+this (an older save) shows its lines only once it is looked over again.
+A clocked game gets no gentle review while it is played, so its lines
+come from the end card's look-back as that works through your moves.
+
+`tools/lines-check.js` holds the grammar to account in Node;
+`tools/ink-check.js` draws with a real mouse and a real finger;
+`tools/lookback-check.js` plays a real blunder and checks every line
+lands on the square it names.
+
 ## Two ideas worth explaining
 
 **The racing line.** A racing driver's line is one curve that contains a
@@ -1779,6 +1882,8 @@ node chess/tools/book-check.js     # every opening line legal, explained, and tr
 node chess/tools/teach-check.js    # the teaching eyes see what's there, and only that
 node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk saves
 node chess/tools/skin-check.js     # presets, share codes, hostile input
+node chess/tools/lines-check.js    # every line the room draws: one grammar, drawn on, then still
+node chess/tools/ink-check.js      # the pen: drawn by mouse and finger, kept with its position
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
 node chess/tools/brain-check.js    # the coach's thread: in order, cancellable, options intact
@@ -1796,6 +1901,7 @@ node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
+node chess/tools/lookback-check.js # the line behind the words lands on the square it names
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
@@ -1803,10 +1909,10 @@ Or from the repo root, in three groups by how long they take:
 
 ```
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
-                               # pieces, engine, brain, offline, touch, play, rating,
-                               # sound, motion, haptics
+                               # lines, ink, pieces, engine, brain, offline, touch, play,
+                               # rating, sound, motion, haptics
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
-npm run check:chess:features   # features-check: the whole room, twice over
+npm run check:chess:features   # features-check: the whole room, twice over; then the look-back
 ```
 
 The ones that open a browser need `playwright-core` and a Chromium on

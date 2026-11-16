@@ -26,6 +26,22 @@
    is pulled the way the idea moves. Motion is the cheapest teaching
    there is: you cannot help but follow it.
 
+   Three more words were added when the room learned to let you draw
+   too, and when every line it draws became one language:
+
+     INK     your own pen. Straight, even, no spark — a note you made,
+             not a thing that is happening, so it sits perfectly still.
+     SIGHT   a reach rather than a move: a thin ray with no head.
+     RING    a square circled, for "look here" — a place, like the net,
+             but a place somebody meant.
+
+   And every line now *arrives*: it grows from the piece to the square
+   it is about in a little over a third of a second (reveal, revealAt),
+   because the direction is the content and drawing it on shows the
+   direction before the eye has to work it out. Colour is not a number
+   here but a meaning — a tone — which each renderer turns into its own
+   skin's colour, so a threat is the same threat on wood or on glass.
+
    Pure geometry — no DOM, no GL, no canvas. Both renderers ask for the
    same points and draw them their own way, so a line means exactly the
    same thing in 2D and in 3D. */
@@ -59,6 +75,9 @@ function curve(from, to, bend, steps) {
 
 /* how much a line should bend, by what kind of move it is */
 function bendFor(kind, knight) {
+  /* a pen is a ruler: what you drew is exactly the two squares you
+     meant, knight or no knight, and a ray is a line of sight */
+  if (kind === "ink" || kind === "sight") return 0;
   if (knight) return 0.22;          /* knights arc over the traffic */
   if (kind === "lane") return 0;    /* a promotion lane is dead straight */
   return 0.07;                      /* everything else lifts just enough */
@@ -68,7 +87,7 @@ function bendFor(kind, knight) {
    Turn a centre-line into a filled outline that starts wide and ends in
    a point. Returned as a flat polygon so canvas can fill it and GL can
    triangulate it without either knowing about the other. */
-function ribbon(pts, w0, w1, headLen, headW) {
+function ribbon(pts, w0, w1, headLen, headW, taperOver) {
   var n = pts.length, left = [], right = [], i;
   /* the last stretch is the arrowhead, so the shaft stops short */
   var shaftEnd = n - 1;
@@ -85,10 +104,13 @@ function ribbon(pts, w0, w1, headLen, headW) {
     }
     if (shaftEnd < 2) shaftEnd = Math.max(1, n - 2);
   }
+  /* a line still being drawn on tapers as the whole line will, not as
+     the stub that is showing: `taperOver` is the full length */
+  var over = taperOver > 0 ? taperOver : total;
   var run = 0;
   for (i = 0; i <= shaftEnd; i++) {
     if (i) run += seg[i - 1];
-    var t = total ? run / total : 0;
+    var t = over ? Math.min(1, run / over) : 0;
     var w = (w0 + (w1 - w0) * t) / 2;
     var p = pts[i];
     var prev = pts[Math.max(0, i - 1)], next = pts[Math.min(n - 1, i + 1)];
@@ -150,8 +172,106 @@ var KINDS = {
   run:    { w0: 0.30, w1: 0.05, head: 0.42, headW: 0.52, alpha: 0.90, period: 1500, glow: 1.0 },
   threat: { w0: 0.24, w1: 0.04, head: 0.34, headW: 0.42, alpha: 0.78, period: 1100, glow: 0.7 },
   lane:   { w0: 0.34, w1: 0.34, head: 0.40, headW: 0.60, alpha: 0.55, period: 2200, glow: 0.8 },
-  ghost:  { w0: 0.18, w1: 0.03, head: 0.26, headW: 0.30, alpha: 0.45, period: 2000, glow: 0.4 }
+  ghost:  { w0: 0.18, w1: 0.03, head: 0.26, headW: 0.30, alpha: 0.45, period: 2000, glow: 0.4 },
+  /* period 0: no spark, and so nothing that ever asks for another frame */
+  ink:    { w0: 0.24, w1: 0.24, head: 0.42, headW: 0.56, alpha: 0.85, period: 0, glow: 0.3 },
+  sight:  { w0: 0.10, w1: 0.10, head: 0,    headW: 0,    alpha: 0.55, period: 0, glow: 0.3 },
+  ring:   { w0: 0.08, w1: 0.08, head: 0,    headW: 0,    alpha: 0.85, period: 0, glow: 0.3 }
 };
+
+/* ---------- tone: colour by meaning ----------
+   A renderer never gets a colour from here, only the name of what a line
+   means. Each one turns the name into its own skin's colour — a CSS
+   string on the flat board, a vec3 on the carved one — which is why a
+   hint, a threat and your own pen look like the same family on every
+   board, and why a colour can never be written one way and read the
+   other. */
+var TONES = ["plan", "hint", "threat", "lane", "sight", "theirs"];
+var KIND_TONE = { run: "hint", ghost: "hint", threat: "threat", lane: "lane",
+                  ink: "plan", sight: "sight", ring: "hint" };
+function toneOf(spec) {
+  var t = spec && spec.tone;
+  if (t && TONES.indexOf(t) >= 0) return t;
+  return KIND_TONE[spec && spec.kind] || "hint";
+}
+/* one name per line, so a renderer handed the same picture twice knows
+   which lines it has already drawn on and does not start them again */
+function keyOf(spec) {
+  if (!spec) return "";
+  var ring = spec.kind === "ring" || spec.sq != null || spec.from === spec.to;
+  var a = spec.sq != null ? spec.sq : spec.from;
+  return ring ? "o" + a + "|" + toneOf(spec) : spec.from + "|" + spec.to + "|" + (spec.kind || "run") + "|" + toneOf(spec);
+}
+
+/* ---------- the reveal ----------
+   A line is drawn on, from where the idea starts to where it lands, in
+   REVEAL_MS with a cubic ease-out: fast off the piece, settling onto
+   the square. One easing, one duration, no bounce. Asked for stillness,
+   it is simply there. */
+var REVEAL_MS = 380;
+function revealAt(ms, dur, reduced) {
+  if (reduced) return { u: 1, live: false };
+  dur = dur > 0 ? dur : REVEAL_MS;
+  if (!(ms > 0)) return { u: 0, live: true };     /* not yet begun (or waiting its turn) */
+  if (ms >= dur) return { u: 1, live: false };
+  var t = ms / dur, e = 1 - (1 - t) * (1 - t) * (1 - t);
+  return { u: e, live: true };
+}
+/* the first `u` of a centre-line, by distance along it */
+function reveal(pts, u) {
+  var n = pts.length;
+  if (n < 2 || u >= 1) return pts.slice();
+  if (!(u > 0)) return [{ x: pts[0].x, y: pts[0].y }, { x: pts[0].x, y: pts[0].y }];
+  var seg = [], total = 0, i;
+  for (i = 1; i < n; i++) {
+    var d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    seg.push(d); total += d;
+  }
+  var want = u * total, run = 0, out = [{ x: pts[0].x, y: pts[0].y }];
+  for (i = 1; i < n; i++) {
+    if (run + seg[i - 1] >= want) {
+      var t = seg[i - 1] ? (want - run) / seg[i - 1] : 0;
+      out.push({ x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t });
+      return out;
+    }
+    run += seg[i - 1];
+    out.push({ x: pts[i].x, y: pts[i].y });
+  }
+  return out;
+}
+function arcLength(pts) {
+  var total = 0;
+  for (var i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return total;
+}
+
+/* ---------- the ring ----------
+   A circle round a square, as a closed centre-line: the same ribbon
+   makes it, so it is drawn on the same way a line is — starting at the
+   top and going round, the way a hand circles something. */
+function ring(c, r, steps) {
+  steps = steps || 48;
+  var pts = [];
+  for (var i = 0; i <= steps; i++) {
+    var a = -Math.PI / 2 + (i / steps) * Math.PI * 2;
+    pts.push({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r });
+  }
+  return pts;
+}
+function buildRing(c, opts) {
+  opts = opts || {};
+  var K = KINDS.ring, scale = opts.scale || 1;
+  var r = (opts.r || 0.40) * scale;
+  var full = ring(c, r, opts.steps);
+  var u = opts.reveal == null ? 1 : Math.max(0, Math.min(1, opts.reveal));
+  var pts = u < 1 ? reveal(full, u) : full;
+  var w = K.w0 * scale;
+  var rb = ribbon(pts, w, w, 0, 0);
+  return {
+    kind: "ring", pts: pts, poly: rb.poly, head: null, length: rb.length, r: r, c: { x: c.x, y: c.y },
+    alpha: (opts.alpha != null ? opts.alpha : K.alpha), glow: K.glow, period: 0, reveal: u
+  };
+}
 
 /* Build everything a renderer needs for one line.
    `a` and `b` are square centres in whatever units the renderer uses
@@ -163,22 +283,39 @@ function build(a, b, opts) {
   var K = KINDS[kind];
   var scale = opts.scale || 1;
   var pts = curve(a, b, opts.bend != null ? opts.bend : bendFor(kind, opts.knight), opts.steps);
-  var r = ribbon(pts, K.w0 * scale, K.w1 * scale, K.head * scale, K.headW * scale);
+  /* drawn on: the first `reveal` of the curve, its head growing in only
+     over the last stretch so a stub never wears a full-sized point */
+  var u = opts.reveal == null ? 1 : Math.max(0, Math.min(1, opts.reveal));
+  var hs = u >= 1 ? 1 : Math.max(0, (u - 0.85) / 0.15);
+  var full = u < 1 ? arcLength(pts) : 0;
+  if (u < 1) pts = reveal(pts, u);
+  var r = ribbon(pts, K.w0 * scale, K.w1 * scale, K.head * scale * hs, K.headW * scale * hs, full);
   return {
     kind: kind, pts: pts, poly: r.poly, head: r.head, length: r.length,
     alpha: (opts.alpha != null ? opts.alpha : K.alpha),
-    glow: K.glow, period: K.period
+    glow: K.glow, period: K.period, reveal: u
   };
 }
 
 /* where the spark is right now, given the clock */
 function phase(line, timeMs) {
+  if (!line.period) return 1;           /* a still line: its "spark" rests at the tip, unseen */
   return ((timeMs % line.period) / line.period);
+}
+/* whether a line, as it now stands, still wants frames: while it is
+   being drawn on, and for as long as a spark rides it */
+function lively(kind, u, reduced) {
+  if (u < 1) return !reduced;
+  var K = KINDS[kind];
+  return !!(K && K.period && !reduced);
 }
 
 var Lines = {
   curve: curve, ribbon: ribbon, sparkAt: sparkAt, build: build, phase: phase,
-  KINDS: KINDS, bendFor: bendFor
+  KINDS: KINDS, bendFor: bendFor,
+  TONES: TONES, toneOf: toneOf, keyOf: keyOf,
+  REVEAL_MS: REVEAL_MS, revealAt: revealAt, reveal: reveal, arcLength: arcLength,
+  ring: ring, buildRing: buildRing, lively: lively
 };
 if (typeof module !== "undefined" && module.exports) module.exports = Lines;
 else root.Lines = Lines;

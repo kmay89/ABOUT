@@ -29,7 +29,7 @@ for (const p of Skins.PRESETS) {
   const bad = [];
   for (const k of ["light", "dark", "rim", "edge", "coord"]) if (!HEX.test(p.board[k])) bad.push("board." + k);
   for (const k of ["white", "black"]) if (!HEX.test(p.pieces[k])) bad.push("pieces." + k);
-  for (const k of ["select", "legal", "capture", "last", "check", "hint"]) if (!HEX.test(p.marks[k])) bad.push("marks." + k);
+  for (const k of ["select", "legal", "capture", "last", "check", "hint", "plan"]) if (!HEX.test(p.marks[k])) bad.push("marks." + k);
   if (!HEX.test(p.room.bg)) bad.push("room.bg");
   if (!Skins.MATERIALS[p.pieces.material]) bad.push("material");
   if (!Skins.PATTERNS[p.board.pattern]) bad.push("pattern");
@@ -193,6 +193,28 @@ for (const id of Object.keys(Skins.MATERIALS)) {
   ok("a different skin does get added", Skins.loadMine().length === 2);
   ok("byId finds a preset", !!Skins.byId("walnut"));
   ok("byId misses politely", Skins.byId("nope") === null);
+}
+
+/* ---- the pen's colour: a seventh mark that codes do not carry ----
+   Every preset names a plan colour of its own, a hue it does not already
+   use for anything else on the board; a code (six mark colours, as ever)
+   still decodes and comes back with its preset's pen; a look with no
+   plan, or a hostile one, falls back rather than failing. */
+{
+  ok("every preset has a pen colour", Skins.PRESETS.every((p) => HEX.test(p.marks.plan)));
+  ok("…and it is not one of the six colours it already uses for something else",
+     Skins.PRESETS.every((p) => !["select", "legal", "capture", "last", "check", "hint"].some((k) => p.marks[k] === p.marks.plan)));
+  const mid = Skins.PRESETS.find((p) => p.id === "midnight");
+  const code = Skins.encode(mid);
+  const raw = Buffer.from(code.slice(6).replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("binary").split("|");
+  ok("a share code still carries exactly six mark colours", raw[12].split(",").length === 6, raw[12]);
+  const back = Skins.decode(code);
+  ok("…and decodes with its preset's pen colour", back && back.marks.plan === mid.marks.plan, back && back.marks.plan);
+  const old = JSON.parse(JSON.stringify(mid)); delete old.marks.plan;
+  ok("a saved look from before the pen gets its preset's plan", Skins.clean(old).marks.plan === mid.marks.plan);
+  ok("a stranger's look with no plan gets the house's", Skins.clean({ name: "Nobody's" }).marks.plan === Skins.PRESETS[0].marks.plan);
+  const bad = JSON.parse(JSON.stringify(mid)); bad.marks.plan = "<script>";
+  ok("a hostile pen colour is replaced, not trusted", HEX.test(Skins.clean(bad).marks.plan));
 }
 
 console.log(failed ? `\n${failed} FAILURE(S)` : "\nskins: presets sound, codes reversible, strangers' input safe");

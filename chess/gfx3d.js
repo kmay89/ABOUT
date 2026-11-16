@@ -97,6 +97,15 @@ function derive(skin, place) {
     white: vec3(p.white), black: vec3(p.black), rimVec: vec3(b.rim),
     selected: vec3(m.select), legal: vec3(m.legal), capt: vec3(m.capture),
     last: vec3(m.last), check: vec3(m.check), hint: vec3(m.hint),
+    /* every line by what it means (see lines.js and the flat board's
+       derive): the room's own lines keep the colours they always had,
+       your pen takes the skin's plan colour, a friend's is that pushed
+       back toward the room */
+    tone: {
+      hint: vec3(m.hint), threat: vec3(m.capture), lane: vec3(m.last),
+      plan: vec3(m.plan || m.hint), sight: vec3(m.hint),
+      theirs: mix3(vec3(m.plan || m.hint), room, 0.4)
+    },
     /* material: spec and power for the 2D board, rough and metal for
        the 3D one, both describing the same surface */
     spec: surf.spec, power: surf.power, rimLight: surf.rim,
@@ -982,13 +991,16 @@ function create(canvas, opts) {
   var R = {
     kind: "3d", skin: null, pal: null, orientation: 1,
     board: new Int8Array(128),
-    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1 },
     checkAt: -1,
     /* when the squares were last asked to open out, when a man was
        last touched, and when a move last landed — each a short moment
        of light that then holds still */
     hiAt: -1, selAt: -1, lastAt: -1,
     lines: [], net: [],
+    /* your pen, the stroke under your finger, a tint under a king's
+       squares — the same three as the flat board (see setInk there) */
+    ink: [], sketch: null, heat: [],
     anim: null, lost: false, dirty: true,
     /* the big moments: the men arriving at the start of a game, a king
        lying where it was mated, light under a capture, and the small
@@ -1671,7 +1683,8 @@ function create(canvas, opts) {
              swoop: feel.swoopT0 >= 0, drift: feel.drift.on, par: [feel.par.x, feel.par.y],
              sel: hand.sq, selLift: hand.lift, settling: Object.keys(settles).length,
              tray: place.ready && R.pal && R.pal.table ? { white: lists[1].slice(), black: lists[-1].slice() } : null,
-             flying: !!tray.fly, eye: cam.eye.slice() };
+             flying: !!tray.fly, eye: cam.eye.slice(),
+             sketching: !!R.sketch, inkCount: R.ink.length, heat: R.heat.length };
   };
 
   /* ---------- the camera answering things ----------
@@ -2071,8 +2084,35 @@ function create(canvas, opts) {
     applyFx(name);
   };
 
-  R.setLines = function (list) { R.lines = list || []; R.dirty = true; };
+  /* lines, born by key on this board's own clock so a repaint of the
+     same list never draws a line on twice (the flat board's setLines
+     says why); the pen, the stroke under the finger and the heat are
+     the same contract as the flat board's */
+  var lineBorn = {};
+  R.setLines = function (list) {
+    R.lines = list || [];
+    var next = {}, now = clock();
+    for (var i = 0; i < R.lines.length; i++) {
+      var k = root.Lines ? root.Lines.keyOf(R.lines[i]) : String(i);
+      next[k] = lineBorn[k] != null ? lineBorn[k] : now;
+    }
+    lineBorn = next;
+    R.dirty = true;
+  };
+  function bornOf(spec) {
+    var t = lineBorn[root.Lines.keyOf(spec)];
+    return t == null ? -Infinity : t;
+  }
   R.setNet = function (squares) { R.net = squares || []; R.dirty = true; };
+  R.setInk = function (list) { R.ink = list || []; R.dirty = true; };
+  var sketchFrom = -1, sketchAt = -Infinity;
+  R.setSketch = function (s) {
+    R.sketch = s && s.from >= 0 ? s : null;
+    var f = R.sketch ? R.sketch.from : -1;
+    if (f !== sketchFrom) { sketchFrom = f; sketchAt = clock(); }
+    R.dirty = true;
+  };
+  R.setHeat = function (list) { R.heat = list || []; R.dirty = true; };
 
   R.setSkin = function (skin) {
     R.skin = skin;
@@ -2202,7 +2242,6 @@ function create(canvas, opts) {
     R.hi.legalCapt = hi.legalCapt || [];
     R.hi.last = hi.last || null;
     R.hi.check = hi.check != null ? hi.check : -1;
-    R.hi.hint = hi.hint || null;
     R.dirty = true;
   };
   R.animateMove = function (m, after, o, done) {
@@ -2877,44 +2916,50 @@ function create(canvas, opts) {
     gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
   }
 
-  /* One racing line, flat on the board, and the spark riding it. */
+  /* One racing line, flat on the board, drawn on as it arrives, and the
+     spark riding it once it has. Its time is the board's own clock, so
+     the spark holds its breath with everything else at a capture.
+     Returns whether it wants another frame. */
   function drawLine(spec, now, th) {
-    var a = { x: sqX(spec.from), y: sqZ(spec.from) };
-    var b = { x: sqX(spec.to), y: sqZ(spec.to) };
-    var L = root.Lines.build(a, b, { kind: spec.kind, scale: 1, knight: spec.knight, alpha: spec.alpha });
-    var colour = spec.colour ||
-      (spec.kind === "threat" ? th.capt : spec.kind === "lane" ? th.last : th.hint);
+    var Ln = root.Lines;
+    var rv = Ln.revealAt(now - bornOf(spec) - (spec.delay || 0), Ln.REVEAL_MS, REDUCED);
+    if (rv.u <= 0) return rv.live;
+    var colour = th.tone[Ln.toneOf(spec)] || th.hint;
+    var ringSq = spec.kind === "ring" || spec.sq != null ? (spec.sq != null ? spec.sq : spec.from) : -1;
+    var L = ringSq >= 0
+      ? Ln.buildRing({ x: sqX(ringSq), y: sqZ(ringSq) }, { scale: 1, reveal: rv.u, alpha: spec.alpha })
+      : Ln.build({ x: sqX(spec.from), y: sqZ(spec.from) }, { x: sqX(spec.to), y: sqZ(spec.to) },
+                 { kind: spec.kind, scale: 1, knight: spec.knight, alpha: spec.alpha, reveal: rv.u });
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     drawRibbon(L, colour, L.alpha, 1.5 + 0.4 * L.glow, 0.03);
 
     /* the spark: a small bright disc riding the line. Well over white,
        on purpose — this is the one thing in the scene that is meant to
        bloom, and the tone map at the end keeps it from flaring out. */
-    var sp = root.Lines.sparkAt(L.pts, root.Lines.phase(L, now));
-    bindMesh(MESH_SOFT);
-    drawMesh(MESH_SOFT, mModel(sp.x, 0.04, sp.y, 0.34, 0), colour, 0.55 * L.alpha, true, 0, 0, 2.6);
-    bindMesh(MESH_DISC);
-    drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.15, 0), [1, 1, 1], 0.95 * L.alpha, true, 0, 0, 5.5);
+    var spark = rv.u >= 1 && L.period && !REDUCED;
+    if (spark) {
+      var sp = Ln.sparkAt(L.pts, Ln.phase(L, now));
+      bindMesh(MESH_SOFT);
+      drawMesh(MESH_SOFT, mModel(sp.x, 0.04, sp.y, 0.34, 0), colour, 0.55 * L.alpha, true, 0, 0, 2.6);
+      bindMesh(MESH_DISC);
+      drawMesh(MESH_DISC, mModel(sp.x, 0.045, sp.y, 0.15, 0), [1, 1, 1], 0.95 * L.alpha, true, 0, 0, 5.5);
+    }
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    return rv.live || !!spark;
   }
-  /* the hint: the same ribbon the racing line is drawn with, bent over
-     the traffic for a knight, standing still, with its tip lit so the
-     eye lands where the idea does */
-  function drawArrow(from, to, color) {
-    if (!root.Lines) return;
-    var df = Math.abs(fileOf(to) - fileOf(from)), dr = Math.abs(rankOf(to) - rankOf(from));
-    var knight = (df === 1 && dr === 2) || (df === 2 && dr === 1);
-    var L = root.Lines.build({ x: sqX(from), y: sqZ(from) }, { x: sqX(to), y: sqZ(to) },
-                             { kind: "run", scale: 1, knight: knight, alpha: 0.95 });
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    drawRibbon(L, color, L.alpha, 2.3, 0.02);
-    /* and once more, narrower and brighter, for a spine the eye can
-       follow across a pale board */
-    drawRibbon(root.Lines.build({ x: sqX(from), y: sqZ(from) }, { x: sqX(to), y: sqZ(to) },
-                                { kind: "ghost", scale: 1, knight: knight, alpha: 0.9 }), color, 0.9, 3.0, 0.021);
-    bindMesh(MESH_SOFT);
-    drawMesh(MESH_SOFT, mModel(sqX(to), 0.022, sqZ(to), 0.42, 0), color, 0.34, true, 0, 0, 2.2);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  /* a stroke of your pen: laid on the wood like ink rather than added
+     like light, so it reads on a pale board as well as a dark one */
+  function drawInk(st, u, th) {
+    var Ln = root.Lines;
+    var from = st.from != null ? st.from : st.sq;
+    if (from == null || from < 0 || (from & 0x88)) return;
+    var to = st.to != null && st.to >= 0 && !(st.to & 0x88) ? st.to : from;
+    var colour = th.tone[Ln.toneOf({ tone: st.tone, kind: "ink" })] || th.tone.plan;
+    var L = from === to
+      ? Ln.buildRing({ x: sqX(from), y: sqZ(from) }, { scale: 1, reveal: u, r: 0.42 })
+      : Ln.build({ x: sqX(from), y: sqZ(from) }, { x: sqX(to), y: sqZ(to) }, { kind: "ink", scale: 1, reveal: u });
+    if (L.poly.length < 4) return;
+    drawRibbon(L, colour, Math.min(1, L.alpha * 1.15), 1.2, 0.028);   /* a soft-edged stroke reads thinner than it is */
   }
 
   /* the colour of a struck square: warm lamplight, hotter at the core —
@@ -3303,6 +3348,13 @@ function create(canvas, opts) {
     var pulse = { amount: 1, live: false };
     if (R.hi.check >= 0 && R.checkAt >= 0) pulse = Move.checkPulse(nowMs - R.checkAt);
     bindMesh(MESH_QUAD);
+    /* heat first, so the last move and the touched man read over it */
+    for (var hti = 0; hti < R.heat.length; hti++) {
+      var ht = R.heat[hti];
+      if (!ht || ht.sq == null || (ht.sq & 0x88)) continue;
+      var hv = Math.max(-1, Math.min(1, +ht.v || 0));
+      drawFlatSq(ht.sq, hv >= 0 ? th.tone.threat : th.tone.plan, 0.12 + 0.30 * Math.abs(hv), null, null, 0.013);
+    }
     if (R.hi.last) {
       drawFlatSq(R.hi.last[0], th.last, 0.26);
       drawFlatSq(R.hi.last[1], th.last, 0.38 + 0.26 * ag.amount);
@@ -3364,7 +3416,6 @@ function create(canvas, opts) {
       drawMesh(MESH_SOFT, mModel(sqX(csq), 0.019, sqZ(csq), 0.40 * cr.scale, 0), th.capt, 0.12 * cr.alpha, true, 0, 0, 1.5);
     }
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);
     /* the mate net: squares the king can't use */
     if (R.net.length) {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -3373,6 +3424,17 @@ function create(canvas, opts) {
         drawMesh(MESH_SOFTRING, mModel(sqX(R.net[nn]), 0.022, sqZ(R.net[nn]), 0.36, 0), th.capt, 0.55, true, 0, 0, 1.8);
       }
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
+    /* your own drawing, and the stroke under your finger: never a reason
+       for another frame, except the stroke's own quick draw-on */
+    var inkLive = false;
+    if (root.Lines && (R.ink.length || R.sketch)) {
+      for (var ik = 0; ik < R.ink.length; ik++) drawInk(R.ink[ik], 1, th);
+      if (R.sketch) {
+        var skr = root.Lines.revealAt(nowMs - sketchAt, 160, REDUCED);
+        inkLive = skr.live;
+        drawInk(R.sketch, skr.u, th);
+      }
     }
     /* the promotion flash: a ring of light opening out of the square the
        new piece is arriving on, bright enough for the bloom to catch */
@@ -3420,9 +3482,9 @@ function create(canvas, opts) {
       }
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
+    var linesLive = false;
     if (R.lines.length && root.Lines) {
-      var lnow = performance.now();
-      for (var ll = 0; ll < R.lines.length; ll++) drawLine(R.lines[ll], lnow, th);
+      for (var ll = 0; ll < R.lines.length; ll++) if (drawLine(R.lines[ll], nowMs, th)) linesLive = true;
     }
     gl.uniform1f(U.glow, 1);
     gl.depthMask(true);
@@ -3448,7 +3510,7 @@ function create(canvas, opts) {
     if (postOk) post(th);
 
     R.dirty = animating || moving || dropping || falling || lifting || touchLive || R.impacts.length > 0 ||
-              R.lands.length > 0 || R.lines.length > 0 || pulse.live || glowLive;
+              R.lands.length > 0 || linesLive || inkLive || pulse.live || glowLive;
     /* a slow card, found out, steps down between moves rather than in
        the middle of one */
     if (!R.dirty) sampleEnd();
