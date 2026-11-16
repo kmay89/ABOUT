@@ -2763,6 +2763,7 @@ function openRecord(e) {
   for (var i = 0; i < e.sans.length; i++) { var m = Chess.fromSAN(g, e.sans[i]); if (!m) break; Chess.play(g, m); }
   if (!g.played.length) { toast("That game couldn't be read back — its moves don't add up."); return; }
   stopTour(); quietBoard(); hideAllOverlays(); closeStudio();
+  leaveSharedView();   /* a sent game being looked at gives way to this one */
   lesson = null; lessonDone = false; lessonQueue = [];
   mode = "review"; G = g; over = { result: e.result, reason: e.reason || "" };
   reviewEntry = e;
@@ -2794,8 +2795,15 @@ function reviewBar() {
            '<div class="lask">' + escHtml(head) + "</div>" +
            '<div class="lsay">' + escHtml(bits.filter(Boolean).join(" · ")) + "</div>");
   lessonRow([lessonChip("◀", function () { reviewStep(-1); }), lessonChip("▶", function () { reviewStep(1); }),
+             lessonChip("📨 Send", function () { shareGame(recordGame(e), "journal"); }),
              lessonChip("Copy PGN", function () { shareText(Games.pgn(e, Rating.LEVELS, myName()), "A chess game"); }),
              lessonChip("Done", showMenu, true)]);
+}
+/* a kept game in the shape the sender wants */
+function recordGame(e) {
+  var n = Games.names(e, Rating.LEVELS, myName());
+  return { sans: e.sans.slice(), white: n.white, black: n.black, result: e.result || null, reason: e.reason || "",
+           clock: "", day: e.at ? new Date(e.at).toISOString().slice(0, 10) : "", ply: -1, ask: "", from: prefs.name || "" };
 }
 function reviewStep(d) {
   if (!G || !G.played.length) return;
@@ -4327,6 +4335,7 @@ function openShared(g) {
   lesson = null; lessonDone = false; lessonQueue = [];
   teachSeen = {}; teachCool = 0; taughtAt = [];
   reviewMemo = {}; assist = { takebacks: 0, hints: 0 }; ratedDone = true; lastEval = 0;
+  reviewEntry = null; reviewNames = null;   /* a kept game being looked at gives way to this one */
   mode = "review";
   G = Chess.create();
   for (var i = 0; i < g.sans.length; i++) {
