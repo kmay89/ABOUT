@@ -192,8 +192,14 @@ is closed.
 - `stroganoff/` — the kitchen table's second recipe: weeknight beef
   stroganoff, steak strips and mushrooms in a sour-cream sauce over egg
   noodles. Its own `stroganoff/recipe.js`, per one pound of steak, read
-  by the same calculator as the chili (`chili/app.js`), so it gets the
-  same dial, units, cook mode and read-aloud, plus a portobello swap.
+  by the same calculator as the chili, so it gets the same dial, units,
+  cook mode and read-aloud, plus a portobello swap.
+- `recipes/` — the recipe book: a contents page at
+  [kmay89.com/recipes](https://kmay89.com/recipes/) with a card for every
+  recipe, the table of contents it's drawn from (`recipes/book.js`), and
+  the calculator and styles every recipe page shares. Each recipe page
+  links up to the book and shows the others on a shelf at the bottom.
+  New recipes go in `recipes/<name>/`; how is in `recipes/README.md`.
   Reached from the chili's card on the desk and from the footer.
 - `vantage/` — Vantage, an engine I built for people who watch one piece
   of ground change for a year. Fly the same route over a site every few
