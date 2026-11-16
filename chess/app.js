@@ -5974,7 +5974,9 @@ function renderStudio() {
   FX_LEVELS.forEach(function (lv) { if (lv.id === prefs.fx) lvHere = lv; });
   $("stFxNote").textContent = (lvHere ? lvHere.note : "") +
     (R3 && prefs.fx === "auto" ? " — running " + ({ high: "Full", medium: "Balanced", low: "Simple" }[R3.fx()] || R3.fx()) +
-      (R3.fxReason && R3.fxReason() === "frame rate" ? ", stepped down because frames were coming slowly" : "") : "");
+      (R3.fxReason && R3.fxReason() === "frame rate" ? ", stepped down because frames were coming slowly" : "") +
+      /* pixels go before effects (gfx3d.js "holding the frame rate"), and the Studio says so */
+      (R3.stats && R3.stats().scale < 1 ? ", drawn a little smaller to keep the frames smooth" : "") : "");
 
   var pats = $("stPatterns");
   pats.innerHTML = "";
