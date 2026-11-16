@@ -379,8 +379,11 @@ const PLAY = `([san, src]) => {
     /* ---- the Academy, with a mouse ---- */
     await fresh();
     await page.click("#mAcademy"); await page.waitForTimeout(300);
-    await page.click("#aNext"); await page.waitForTimeout(2600);
-    /* a first lesson opens with a demonstration; let it hand over */
+    await page.click("#aNext");
+    /* a first lesson opens with a demonstration; let it hand over. How
+       long the demonstration takes depends on the machine, so wait for
+       what it ends in (either chip) rather than for a number of seconds */
+    await page.waitForFunction(() => [...document.querySelectorAll("#lessonBar .lchip")].some((b) => /Now let me try|Nudge/.test(b.textContent)), null, { timeout: 30000 }).catch(() => {});
     const tryIt = page.locator("#lessonBar .lchip", { hasText: "Now let me try" });
     if (await tryIt.count()) { await tryIt.first().click(); await page.waitForTimeout(400); }
     const kickBefore = await page.evaluate(() => document.querySelector("#lessonBar .lkick").textContent);
