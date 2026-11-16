@@ -73,7 +73,7 @@ var PRESETS = [
              pattern: "wood", grain: 0.55, gloss: 0.22 },
     pieces: { white: "#f4ead6", black: "#2b241d", material: "ivory", set: "classic", shine: 0.55, rim: 0.30 },
     room: { bg: "#191512" },
-    marks: { select: "#f6c450", legal: "#4c8f5e", capture: "#c0503f", last: "#f4d678", check: "#dc3c32", hint: "#2b8a5c" } },
+    marks: { select: "#f6c450", legal: "#4c8f5e", capture: "#c0503f", last: "#f4d678", check: "#dc3c32", hint: "#2b8a5c", plan: "#3f8fd6" } },
 
   { id: "midnight", name: "Midnight Glass", maker: "The Chess Room",
     note: "Dark room, translucent pieces. Turn the shine up and the kings glow at the edges.",
@@ -81,7 +81,7 @@ var PRESETS = [
              pattern: "marble", grain: 0.35, gloss: 0.75 },
     pieces: { white: "#dceaf6", black: "#3d5570", material: "glass", set: "classic", shine: 0.95, rim: 0.75 },
     room: { bg: "#080b10" },
-    marks: { select: "#63c8ff", legal: "#3aa0d8", capture: "#ff6f6f", last: "#5ec6ff", check: "#ff5252", hint: "#48d6b0" } },
+    marks: { select: "#63c8ff", legal: "#3aa0d8", capture: "#ff6f6f", last: "#5ec6ff", check: "#ff5252", hint: "#48d6b0", plan: "#ffb347" } },
 
   { id: "boneink", name: "Bone and Ink", maker: "The Chess Room",
     note: "Maximum contrast, no shine at all — the easiest board to read, and kind on tired eyes.",
@@ -89,7 +89,7 @@ var PRESETS = [
              pattern: "plain", grain: 0, gloss: 0.02 },
     pieces: { white: "#ffffff", black: "#161513", material: "ink", set: "modern", shine: 0.10, rim: 0.05 },
     room: { bg: "#12110f" },
-    marks: { select: "#e8b33a", legal: "#4a7d52", capture: "#b23c30", last: "#e8cf7a", check: "#c1372c", hint: "#2f6f4a" } },
+    marks: { select: "#e8b33a", legal: "#4a7d52", capture: "#b23c30", last: "#e8cf7a", check: "#c1372c", hint: "#2f6f4a", plan: "#2f6fc4" } },
 
   { id: "seaglass", name: "Sea Glass", maker: "The Chess Room",
     note: "Sand and shallow water. Porcelain pieces so the highlights stay soft.",
@@ -97,7 +97,7 @@ var PRESETS = [
              pattern: "linen", grain: 0.45, gloss: 0.35 },
     pieces: { white: "#fbf7ea", black: "#33504c", material: "porcelain", set: "nordic", shine: 0.70, rim: 0.35 },
     room: { bg: "#131b1a" },
-    marks: { select: "#f3c969", legal: "#3f8f76", capture: "#cf6a52", last: "#ffdf9b", check: "#d9503f", hint: "#2f8f74" } },
+    marks: { select: "#f3c969", legal: "#3f8f76", capture: "#cf6a52", last: "#ffdf9b", check: "#d9503f", hint: "#2f8f74", plan: "#c7652d" } },
 
   { id: "rosewood", name: "Rosewood Parlour", maker: "The Chess Room",
     note: "A deep red board with brass-coloured markings — the club-room look.",
@@ -105,7 +105,7 @@ var PRESETS = [
              pattern: "wood", grain: 0.8, gloss: 0.40 },
     pieces: { white: "#f6e8d0", black: "#2a1a14", material: "wood", set: "staunton", shine: 0.30, rim: 0.18 },
     room: { bg: "#1a100c" },
-    marks: { select: "#e0a94a", legal: "#7d7a34", capture: "#b8452f", last: "#e8bd6a", check: "#cc3b2a", hint: "#8a7326" } },
+    marks: { select: "#e0a94a", legal: "#7d7a34", capture: "#b8452f", last: "#e8bd6a", check: "#cc3b2a", hint: "#8a7326", plan: "#3b7fb5" } },
 
   { id: "frost", name: "Frost", maker: "The Chess Room",
     note: "Cold whites and a pale blue. Metal pieces, so every edge catches the light.",
@@ -113,7 +113,7 @@ var PRESETS = [
              pattern: "marble", grain: 0.3, gloss: 0.6 },
     pieces: { white: "#ffffff", black: "#5b6b7d", material: "metal", set: "modern", shine: 0.85, rim: 0.55 },
     room: { bg: "#0f1519" },
-    marks: { select: "#5aa8ff", legal: "#3d8fbf", capture: "#e05a5a", last: "#8ec8ff", check: "#e34a4a", hint: "#2f86c4" } },
+    marks: { select: "#5aa8ff", legal: "#3d8fbf", capture: "#e05a5a", last: "#8ec8ff", check: "#e34a4a", hint: "#2f86c4", plan: "#e0782f" } },
 
   { id: "terracotta", name: "Terracotta", maker: "The Chess Room",
     note: "Clay and sunlight — matte, earthy, and completely glare-free.",
@@ -121,7 +121,7 @@ var PRESETS = [
              pattern: "plain", grain: 0.1, gloss: 0.08 },
     pieces: { white: "#f8eeda", black: "#4a2c1e", material: "wood", set: "nordic", shine: 0.22, rim: 0.12 },
     room: { bg: "#1b120d" },
-    marks: { select: "#e8a33f", legal: "#6f8a4a", capture: "#bc4f38", last: "#eec27e", check: "#c44430", hint: "#5f7f3f" } },
+    marks: { select: "#e8a33f", legal: "#6f8a4a", capture: "#bc4f38", last: "#eec27e", check: "#c44430", hint: "#5f7f3f", plan: "#3a7fc0" } },
 
   { id: "neon", name: "Neon Café", maker: "The Chess Room",
     note: "Loud on purpose. Proof that the sliders go somewhere silly if you want them to.",
@@ -129,7 +129,7 @@ var PRESETS = [
              pattern: "inlay", grain: 0.2, gloss: 0.9 },
     pieces: { white: "#ff8ae2", black: "#5de3ff", material: "glass", set: "modern", shine: 1.0, rim: 0.9 },
     room: { bg: "#07080f" },
-    marks: { select: "#ffe14d", legal: "#38f5b0", capture: "#ff4d80", last: "#ffe14d", check: "#ff3d6e", hint: "#38f5b0" } }
+    marks: { select: "#ffe14d", legal: "#38f5b0", capture: "#ff4d80", last: "#ffe14d", check: "#ff3d6e", hint: "#38f5b0", plan: "#4da6ff" } }
 ];
 
 /* ---------- guards: nothing from outside is trusted ---------- */
@@ -181,9 +181,20 @@ function clean(s, fallbackName) {
     marks: {
       select: hex(m.select, d.marks.select), legal: hex(m.legal, d.marks.legal),
       capture: hex(m.capture, d.marks.capture), last: hex(m.last, d.marks.last),
-      check: hex(m.check, d.marks.check), hint: hex(m.hint, d.marks.hint)
+      check: hex(m.check, d.marks.check), hint: hex(m.hint, d.marks.hint),
+      /* the colour of your own pen. A seventh mark that share codes do not
+         carry (six colours keep every code ever sent working), so a look
+         without one takes its preset's — found by id, or by the name a
+         code travels under — and anything else takes the house's */
+      plan: hex(m.plan, planFor(s))
     }
   };
+}
+function planFor(s) {
+  for (var i = 0; i < PRESETS.length; i++) {
+    if (PRESETS[i].id === s.id || PRESETS[i].name === s.name) return PRESETS[i].marks.plan;
+  }
+  return DEFAULT.marks.plan;
 }
 
 function clone(s) { return JSON.parse(JSON.stringify(s)); }
@@ -369,7 +380,8 @@ function random(rnd) {
     marks: {
       select: hsl(accent + 30, 0.8, 0.62), legal: hsl(accent, 0.55, 0.45),
       capture: hsl(base + 190, 0.7, 0.55), last: hsl(accent + 30, 0.75, 0.68),
-      check: hsl(2, 0.75, 0.55), hint: hsl(accent - 20, 0.6, 0.45)
+      check: hsl(2, 0.75, 0.55), hint: hsl(accent - 20, 0.6, 0.45),
+      plan: hsl(base + 200, 0.65, 0.55)
     }
   });
 }

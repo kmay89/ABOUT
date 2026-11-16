@@ -43,7 +43,13 @@
 
   /* ---------- layout ---------- */
   #app{display:flex; flex-direction:column; height:100%; padding-top:var(--safe-top)}
-  #stage{position:relative; flex:1; min-height:0; background-size:cover; background-position:center}
+  #stage{position:relative; flex:1; min-height:0; background-size:cover; background-position:center;
+    -webkit-touch-callout:none}
+  /* the board itself takes every gesture made on it — a held finger
+     drawing, a man carried, a turn of the camera — rather than letting
+     the browser claim the drag for a scroll halfway through and cancel
+     it. Only the boards: anything that sits on the stage keeps its own. */
+  #stage canvas.board{touch-action:none}
   canvas.board{position:absolute; inset:0; width:100%; height:100%; display:block}
   #wrap{display:flex; flex-direction:row; flex:1; min-height:0}
   #panel{
@@ -185,6 +191,13 @@
     text-align:center; cursor:pointer;
   }
   #viewBanner:hover{background:rgba(143,176,255,.2)}
+  /* the look-back's walk from one marked move to the next: on its own
+     line under the remark, so a long remark never squeezes it */
+  #viewBanner #vbText{display:block}
+  #reviewNav{display:flex; align-items:center; justify-content:center; gap:8px; margin-top:5px}
+  #reviewNav .lchip{margin:0; padding:3px 12px}
+  #reviewNav .lchip:disabled{opacity:.35; cursor:default}
+  #reviewNav .rnN{font-variant-numeric:tabular-nums; color:var(--soft); min-width:4.5em; text-align:center}
 
   /* the log: one line per move pair, each line its own soft slab so the
      eye can run down the column without losing its place */
@@ -490,6 +503,27 @@
   #netChip.lost .pulse{background:var(--bad); animation:blip 1s ease-in-out infinite}
   #netChip.healing, #netChip.lost{color:var(--ink); border-color:var(--amber)}
   @keyframes blip{0%,100%{opacity:.25} 50%{opacity:1}}
+
+  /* ---------- the pen ----------
+     Only there while the position on the board has something drawn on
+     it: how many marks, and the one way to take them all away. Styled
+     like the link's chip, in the pen's own colour. */
+  #inkPill{
+    position:absolute; top:40px; right:10px; z-index:4;
+    display:flex; align-items:center; gap:8px; white-space:nowrap;
+    background:rgba(20,16,12,.82); border:1px solid var(--line); border-radius:999px;
+    padding:2px 4px 2px 11px; font-size:.76em; color:var(--soft); pointer-events:auto;
+  }
+  #inkPill .pen{color:var(--plan, var(--blue))}
+  #inkPill b{color:var(--ink)}
+  #inkPill button{
+    font:inherit; color:var(--ink); background:transparent; border:1px solid var(--line);
+    border-radius:999px; padding:2px 10px; cursor:pointer;
+  }
+  @media (pointer:coarse){
+    #inkPill{padding-left:13px}
+    #inkPill button{min-height:44px; min-width:44px; padding:0 14px}
+  }
 
   /* ---------- the moment the boards join ---------- */
   .linkedCard{max-width:420px; text-align:center}
@@ -1008,19 +1042,19 @@
      them. Wide buttons give a little less, or their edges would travel
      further than a thumb expects. */
   @media (prefers-reduced-motion: no-preference){
-    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact{
+    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact, #inkPill button{
       transition:transform .2s cubic-bezier(.34,1.9,.55,1), filter .2s ease-out,
                  border-color .15s, background .15s, box-shadow .15s, color .15s;
     }
     .abtn:active, .lchip:active, .chip:active, .stPick:active, .rung:active, .tile:active,
-    #askRow button:active, #toast .tact:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
+    #askRow button:active, #toast .tact:active, #inkPill button:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
     .bigbtn:active, .preset:active, .playBtn:active{transform:scale(.975); filter:brightness(.9); transition-duration:.04s}
   }
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important; animation:none !important}
     /* still: a press is a shade darker and nothing moves */
     .bigbtn:active, .abtn:active, .lchip:active, .chip:active, .stPick:active, .preset:active, .playBtn:active,
-    .rung:active, .tile:active, #askRow button:active, #toast .tact:active{transform:none; filter:brightness(.9)}
+    .rung:active, .tile:active, #askRow button:active, #toast .tact:active, #inkPill button:active{transform:none; filter:brightness(.9)}
   }
   /* ---- help & teaching (help.js): the welcome, the lamp, the why ----
      The welcome sits where the rating card will be, the same size and
@@ -1048,6 +1082,7 @@
       </div>
       <div id="turnStrip">…</div>
       <div id="netChip" class="hide"><span class="pulse"></span><span id="netChipTx">linked</span></div>
+      <div id="inkPill" class="hide"><span><span class="pen">✎</span> <b id="inkCount">0</b></span><button id="inkClear" aria-label="Clear your drawing on this position">Clear</button></div>
       <div class="pbar bot">
         <div class="ptag"><span id="nameBot">White</span><span class="cap" id="capBot"></span></div>
         <div class="clock off" id="clockBot">5:00</div>
@@ -1058,7 +1093,7 @@
     </div>
     <div id="panel">
       <div id="pInfo">
-        <div id="viewBanner" class="hide">Looking back — tap to return to the game<button class="lchip" id="whyChip" title="What this move did, in plain words — free">❓ Why this move?</button></div>
+        <div id="viewBanner" class="hide"><span id="vbText">Looking back — tap to return to the game</span><span id="reviewNav" class="hide"></span><button class="lchip" id="whyChip" title="What this move did, in plain words — free">❓ Why this move?</button></div>
         <div id="openingCard" class="hide">
           <div class="ocTop"><span class="ocEyebrow">Opening</span><span id="ocEco"></span></div>
           <div id="ocName"></div>
@@ -1448,6 +1483,8 @@
       <button class="chip sel" id="setHelpers">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
       <button class="chip" id="setWheels">Off</button></div>
+    <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
+      <button class="chip sel" id="setPen">On</button></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -1589,6 +1626,7 @@
 <script src="pieces-classic.js"></script>
 <script src="skins.js"></script>
 <script src="lines.js"></script>
+<script src="ink.js"></script>
 <script src="grain.js"></script>
 <script src="motion.js"></script>
 <script src="sound.js"></script>

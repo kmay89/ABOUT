@@ -159,7 +159,7 @@ const CORNER = probeAt(0.06, 0.94);
     const marked = await page.evaluate(`(() => {
       const r = __cr.renderer;
       r.setHighlights({ selected: 0x34, legal: [0x44, 0x54], legalCapt: [0x64],
-                        last: [0x14, 0x34], check: 0x03, hint: [0x01, 0x22] });
+                        last: [0x14, 0x34], check: 0x03 });
       r.setNet([0x60, 0x61, 0x62]);
       r.setLines([{ from: 0x14, to: 0x64, kind: "lane" },
                   { from: 0x01, to: 0x22, kind: "threat", knight: true }]);
@@ -171,8 +171,15 @@ const CORNER = probeAt(0.06, 0.94);
        withMarks.err === 0 && withMarks.hash !== bare.hash, JSON.stringify(withMarks));
     await page.evaluate(() => {
       __cr.renderer.setLines([]); __cr.renderer.setNet([]);
-      __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null });
+      __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1 });
     });
+    /* your own pen: an even ribbon and a ring, laid on the wood rather
+       than added as light — its own path through the line buffer */
+    const unInked = await page.evaluate(PROBE);
+    await page.evaluate(() => __cr.renderer.setInk([{ from: 0x01, to: 0x22, tone: "threat" }, { from: 0x33, to: 0x33, tone: "plan" }]));
+    const inked = await page.evaluate(PROBE);
+    ok("your own arrows and rings draw, cleanly", inked.err === 0 && inked.hash !== unInked.hash, JSON.stringify(inked));
+    await page.evaluate(() => __cr.renderer.setInk([]));
 
     /* The big moments, in the real room rather than the preview: light
        on a struck square, a king going over, the camera leaning in. Each
@@ -235,11 +242,11 @@ const CORNER = probeAt(0.06, 0.94);
     await page.evaluate(() => __cr.renderer.setFx("low"));
     await rest();
     const unlit = await page.evaluate(PROBE);
-    await page.evaluate(() => __cr.renderer.setHighlights({ selected: 0x33, legal: [], legalCapt: [], last: null, check: -1, hint: null }));
+    await page.evaluate(() => __cr.renderer.setHighlights({ selected: 0x33, legal: [], legalCapt: [], last: null, check: -1 }));
     const litNow = await page.evaluate(PROBE);
     const heldStill = await rest();
     const lit = await page.evaluate(PROBE);
-    await page.evaluate(() => __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null }));
+    await page.evaluate(() => __cr.renderer.setHighlights({ selected: -1, legal: [], legalCapt: [], last: null, check: -1 }));
     await rest();
     const unlitAgain = await page.evaluate(PROBE);
     ok("a touched man is lit, settles to a glow, and the board rests",

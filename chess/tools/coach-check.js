@@ -164,6 +164,33 @@ const READ = `(() => ({
     await page.waitForTimeout(400);
     const viewing = await page.evaluate("!document.getElementById('viewBanner').classList.contains('hide')");
     ok("tapping a note goes back to the move it is about", viewing);
+    /* …and a note that names squares draws them, in the one grammar
+       every line on the board now shares: a ribbon drawn on from the
+       piece, coloured by meaning, on its own timer — never the old
+       straight hint arrow, which is gone */
+    const tactic = await page.evaluate(() => {
+      const ns = __cr.notesForTest();
+      for (let i = ns.length - 1; i >= 0; i--) if (ns[i].squares && ns[i].squares.length >= 2 && ns[i].viewPly == null && !ns[i].mark) return { i, ply: ns[i].ply, sq: ns[i].squares.slice(0, 2), text: ns[i].text };
+      return null;
+    });
+    ok("a note about a tactic names its squares", !!tactic);
+    if (tactic) {
+      await page.evaluate((t) => {
+        const rows = [...document.querySelectorAll('#noteList .note')];
+        const want = rows.find((r) => r.textContent.indexOf(t.text.replace(/<[^>]*>/g, "").slice(0, 30)) >= 0);
+        (want || rows[0]).click();
+      }, tactic);
+      await page.waitForTimeout(300);
+      const drawn = await page.evaluate(() => ({ lines: __cr.renderer.lines.map((l) => ({ from: l.from, to: l.to, kind: l.kind, tone: l.tone })),
+                                                  hint: "hint" in __cr.renderer.hi }));
+      ok("tapping it draws its line as a ribbon, in the hint's tone",
+         drawn.lines.some((l) => l.kind === "run" && l.from === tactic.sq[0] && l.to === tactic.sq[1] && (l.tone === "hint" || l.tone === "threat")),
+         JSON.stringify(drawn) + " " + JSON.stringify(tactic));
+      ok("…and the old straight hint arrow is nowhere", drawn.hint === false);
+      await page.waitForTimeout(4500);
+      const gone = await page.evaluate((t) => !__cr.renderer.lines.some((l) => l.kind === "run" && l.from === t.sq[0] && l.to === t.sq[1]), tactic);
+      ok("…and goes on its own after four seconds", gone);
+    }
     await page.evaluate("document.getElementById('viewBanner').click()");
     await page.waitForTimeout(300);
     ok("and the game is still all there",

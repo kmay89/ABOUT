@@ -48,7 +48,7 @@ const VERSION = '2026.11.16.1';
 const CACHE = 'chessroom-' + VERSION;
 const SHELL = [
   './', './index.html',
-  './engine.js', './brain.js', './brain-worker.js', './book.js', './eco.js', './help.js', './teach.js', './learn.js', './rating.js', './skins.js', './scenes.js', './lines.js', './grain.js', './motion.js', './sound.js',
+  './engine.js', './brain.js', './brain-worker.js', './book.js', './eco.js', './help.js', './teach.js', './learn.js', './rating.js', './skins.js', './scenes.js', './lines.js', './ink.js', './grain.js', './motion.js', './sound.js',
   './gfx2d.js', './gfx3d.js', './fx.js', './haptics.js', './pieces3d.js', './pieces-classic.js', './room.js', './net.js', './share.js', './friends.js', './app.js',
   './games.js', './feats.js', './goals.js',
   './manifest.webmanifest',

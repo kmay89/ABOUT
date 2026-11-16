@@ -231,6 +231,48 @@ const FS = `__cr.renderer.feelState()`;
         for (let i = 0; i < 30; i++) f = await page.evaluate(STEP(100));
         ok(dim + ": …and back", f.par[0] === 0);
       }
+      /* lines: each one is drawn on and then either keeps a spark
+         moving or lies still. Your own drawing never keeps the board
+         awake: a still board with ink on it sleeps like any other. */
+      const SLEEPS = `(() => { window.__t += 16; const r = __cr.renderer; r.dirty = true; r.frame(); return r.frame(); })()`;
+      const asleep = (v) => v === false || v === 0;
+      await page.evaluate(() => { const r = __cr.renderer; r.setHighlights({}); r.setLines([]); r.setNet([]); r.setInk([]); r.setSketch(null); });
+      for (let i = 0; i < 4; i++) await page.evaluate(STEP(1500));
+      const still = await page.evaluate(SLEEPS);
+      ok(dim + ": a bare board sleeps (the control for what follows)", asleep(still), String(still));
+      await page.evaluate(() => __cr.renderer.setInk([{ from: 0x14, to: 0x34, tone: "plan" }, { from: 0x63, to: 0x63, tone: "threat" }]));
+      f = await page.evaluate(STEP(16));
+      const inked = await page.evaluate(SLEEPS);
+      ok(dim + ": a board with your arrows and rings on it sleeps too", asleep(inked) && f.inkCount === 2,
+         String(inked) + " " + JSON.stringify(f));
+      await page.evaluate(() => __cr.renderer.setSketch({ from: 0x06, to: 0x25, tone: "plan" }));
+      const sk0 = await page.evaluate(`(() => { window.__t += 40; const r = __cr.renderer; r.dirty = true; return [r.frame(), r.feelState().sketching]; })()`);
+      ok(dim + ": the stroke under your finger is drawn on", sk0[0] === true && sk0[1] === true, JSON.stringify(sk0));
+      await page.evaluate(STEP(400));
+      const sk1 = await page.evaluate(SLEEPS);
+      ok(dim + ": …and once it has arrived, it is still", asleep(sk1), String(sk1));
+      await page.evaluate(() => { __cr.renderer.setSketch(null); __cr.renderer.setLines([{ from: 0x01, to: 0x22, kind: "run", knight: true }]); });
+      const ln0 = await page.evaluate(`(() => { window.__t += 100; const r = __cr.renderer; r.dirty = true; return r.frame(); })()`);
+      ok(dim + ": a hint's line is drawn on as it arrives", ln0 === true);
+      await page.evaluate(STEP(1000));
+      const ln1 = await page.evaluate(SLEEPS);
+      ok(dim + ": …and keeps its spark moving while it shows", ln1 === true);
+      await page.evaluate(() => __cr.renderer.setLines([{ from: 0x01, to: 0x22, kind: "run", knight: true }, { sq: 0x44, kind: "ring" }]));
+      const ln2 = await page.evaluate(SLEEPS);
+      ok(dim + ": a repaint of the same lines does not start them again (the spark simply carries on)", ln2 === true);
+      await page.evaluate(() => __cr.renderer.setLines([{ sq: 0x44, kind: "ring" }]));
+      await page.evaluate(STEP(600));
+      const ln3 = await page.evaluate(SLEEPS);
+      ok(dim + ": a still line (a ring) lets the board sleep once it is drawn", asleep(ln3), String(ln3));
+      await page.evaluate(() => __cr.renderer.setLines([]));
+      await page.evaluate(STEP(16));
+      const ln4 = await page.evaluate(SLEEPS);
+      ok(dim + ": …and so does a board whose lines have gone", asleep(ln4), String(ln4));
+      await page.evaluate(() => __cr.renderer.setHeat([{ sq: 0x04, v: 0.8 }, { sq: 0x05, v: -0.5 }]));
+      f = await page.evaluate(STEP(16));
+      const ht = await page.evaluate(SLEEPS);
+      ok(dim + ": heat under a king's squares is a tint, not a motion", f.heat === 2 && asleep(ht), String(ht));
+      await page.evaluate(() => { __cr.renderer.setHeat([]); __cr.renderer.setInk([]); });
       await ctx.close();
     }
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
