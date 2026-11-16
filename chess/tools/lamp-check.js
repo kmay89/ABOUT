@@ -150,7 +150,8 @@ const PLAY = `([san, src]) => {
 
     await page.click("#btnHint"); await page.waitForTimeout(150);
     await chip(/A move/);
-    await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText) && !document.getElementById("toast").classList.contains("acts"), null, { timeout: 12000 }).catch(() => {});
+    /* the hint may carry a "Show the line" chip, so the lamp's chips going is the sign, not the chips themselves */
+    await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText) && /—/.test(document.getElementById("toast").innerText) && !document.getElementById("toast").classList.contains("lamp"), null, { timeout: 12000 }).catch(() => {});
     const mv = await toastText();
     ok("A move is the old hint: a move and a reason", /💡/.test(mv) && /—/.test(mv), mv);
     ok("…at the old price, counted as help", (await spent()) === before + 1 && (await page.evaluate(() => __cr.assistForTest().hints)) === 1,

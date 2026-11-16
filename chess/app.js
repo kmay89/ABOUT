@@ -2517,11 +2517,11 @@ function showProfile() {
 var lowEval = 0;                    /* the coach's worst word on the position this game, from your side */
 var featPly = {};                   /* ply → what the teaching eyes saw in that move of yours */
 var currentGameId = null;           /* the journal's id for the game just finished */
-var reviewEntry = null, reviewNames = null;   /* a kept game, open on the board */
+var keptGame = null, reviewNames = null;   /* a kept game, open on the board */
 var profileTab = "record", gamesShown = 10, featsAll = false, FEATS_AHEAD = 6;
 var miles = { ticket: -1, next: 0, n: 0, reserved: false, stung: false };
 
-function progressNewGame() { lowEval = 0; featPly = {}; currentGameId = null; reviewEntry = null; reviewNames = null; }
+function progressNewGame() { lowEval = 0; featPly = {}; currentGameId = null; keptGame = null; reviewNames = null; }
 function trackLow() { if (lastEval < lowEval) lowEval = lastEval; }
 /* your own move, looked at while the position is still the one before
    it: the teacher may be quiet (the coach's voice off), but its eyes
@@ -2785,7 +2785,7 @@ function openRecord(e) {
   leaveSharedView();   /* a sent game being looked at gives way to this one */
   lesson = null; lessonDone = false; lessonQueue = [];
   mode = "review"; G = g; over = { result: e.result, reason: e.reason || "" };
-  reviewEntry = e;
+  keptGame = e;
   var nm = Games.names(e, Rating.LEVELS, myName());
   reviewNames = [nm.white, nm.black];
   thinking = false; clockConfig("none"); clearSel(); clearLines(); viewPly = -1;
@@ -2805,7 +2805,7 @@ function openRecord(e) {
   needFrame();
 }
 function reviewBar() {
-  var e = reviewEntry, n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
+  var e = keptGame, n = Games.names(e, Rating.LEVELS, myName()), o = Games.outcome(e);
   var head = e.mode === "pass" ? "Two players · " + o : "Against " + n.them + " — you " + o;
   var bits = [cap(e.reason || "")];
   if (e.eco) bits.push(e.eco.name.split(":")[0]);
@@ -2850,7 +2850,7 @@ function progressionForTest() {
     gamesForTest: function () { return Games.load(lsGet); },
     featsForTest: function () { return Feats.load(lsGet); },
     lowEvalForTest: function (v) { if (typeof v === "number") lowEval = v; return lowEval; },
-    reviewForTest: function () { return reviewEntry; },
+    reviewForTest: function () { return keptGame; },
     openRecord: openRecord, showProfileTab: showProfileTab, renderLobby: renderLobby };
 }
 
@@ -4360,7 +4360,7 @@ function openShared(g) {
   lesson = null; lessonDone = false; lessonQueue = [];
   teachSeen = {}; teachCool = 0; taughtAt = [];
   reviewMemo = {}; assist = { takebacks: 0, hints: 0 }; ratedDone = true; lastEval = 0;
-  reviewEntry = null; reviewNames = null;   /* a kept game being looked at gives way to this one */
+  keptGame = null; reviewNames = null;   /* a kept game being looked at gives way to this one */
   mode = "review";
   G = Chess.create();
   for (var i = 0; i < g.sans.length; i++) {
@@ -5753,7 +5753,7 @@ function showMenu() {
   closeStudio();
   if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
-  if (mode === "review") { reviewEntry = null; reviewNames = null; }
+  if (mode === "review") { keptGame = null; reviewNames = null; }
   leaveSharedView();
   if (mode === "review") mode = null;
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();

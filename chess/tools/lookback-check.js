@@ -121,8 +121,9 @@ const LINES = `__cr.renderer.lines.map((l) => ({ from: l.from, to: l.to, sq: l.s
       ok(tag + "…and the refutation as two squares: the queen from h5 to e5",
          memo && onBoard(memo.rf) && memo.rf[0] === SQ("h5") && memo.rf[1] === SQ("e5"), JSON.stringify(memo && memo.rf));
       const acts = await page.evaluate(() => [...document.querySelectorAll("#toast .tact")].map((b) => b.textContent));
+      /* (the help package may add a fourth, "Warn me first", after these) */
       ok(tag + "the toast offers three things: take it back, show me, play on",
-         acts.length === 3 && /Take it back/.test(acts[0]) && /Show me/.test(acts[1]) && /Play on/.test(acts[2]), JSON.stringify(acts));
+         acts.length >= 3 && /Take it back/.test(acts[0]) && /Show me/.test(acts[1]) && /Play on/.test(acts[2]), JSON.stringify(acts));
       let ls = await lines();
       ok(tag + "while the board still shows the slip, the problem is drawn as a threat",
          ls.some((l) => l.kind === "threat" && l.from === SQ("h5") && l.to === SQ("e5")), JSON.stringify(ls));
@@ -234,8 +235,11 @@ const LINES = `__cr.renderer.lines.map((l) => ({ from: l.from, to: l.to, sq: l.s
       await fresh("pass");
       for (const s of ["a4", "h5", "Ra3", "Rh6"]) { await play(s); await page.waitForTimeout(250); }
       await page.evaluate(() => document.getElementById("toast").classList.remove("show", "acts"));
+      /* the lamp opens first; "A move" is the engine's hint */
       await page.click("#btnHint");
-      await page.waitForFunction(() => document.querySelectorAll("#toast.show .tact").length > 0 || (document.getElementById("toast").classList.contains("show") && /💡/.test(document.getElementById("toast").textContent)),
+      await page.waitForSelector("#toast.show .tact >> text=A move", { timeout: 10000 }).catch(() => {});
+      await page.click("#toast .tact >> text=A move").catch(() => {});
+      await page.waitForFunction(() => document.getElementById("toast").classList.contains("show") && /💡/.test(document.getElementById("toast").textContent) && /—/.test(document.getElementById("toast").textContent),
         null, { timeout: 45000 }).catch(() => {});
       const hintActs = await page.evaluate(() => [...document.querySelectorAll("#toast .tact")].map((b) => b.textContent));
       ok(tag + "a hint from the engine offers the line behind it", hintActs.some((t) => /Show the line/.test(t)),
