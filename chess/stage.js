@@ -559,7 +559,7 @@ var DUCK = { start: 0.45, check: 0.5, "capture-big": 0.5, promote: 0.6, "mate-wi
              levelup: 0.7, "rating-up": 0.5, "rating-down": 0.5, milestone: 0.75, link: 0.4 };
 
 /* ================= the audio side ================= */
-var S = null, cache = {}, cacheKeys = [], CACHE_MAX = 48;
+var S = null, cache = {}, cacheKeys = [], CACHE_MAX = 64;
 var bus = null;              /* { ctx, pieceIn, musicIn, duck, tone, musicGain, verb, place } */
 var place = "studio", musicLevel = 0, mood = "calm", lively = true, enabled = true;
 var mus = null, seed = (Date.now() / 1000) | 0, watched = false;

@@ -346,6 +346,13 @@ const RENDER = `async (spec) => {
       ok("the Studio names the tune that is playing", /Morning in the park|Corner café|Waltz by the fire|Reading room|The studio/.test(note), note);
       await pg.evaluate(() => document.getElementById("stMusic").click());
       ok("…and its Music switch stops it", !!(await until(() => !Stage.musicLive(), 3000)) && (await prefs()).music === false);
+      /* and off stays off across a reload */
+      await pg.reload();
+      await pg.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 120000 });
+      await pg.mouse.click(195, 300); await pg.waitForTimeout(1200);
+      ok("…and off stays off after a reload", await pg.evaluate(() => !Stage.musicLive()));
+      await pg.evaluate(() => { document.getElementById("ovMenu").classList.add("hide"); __cr.openStudio(); });
+      await pg.waitForTimeout(300);
       await pg.evaluate(() => document.getElementById("stMusic").click());
       ok("…and starts it again", !!(await until(() => Stage.musicLive(), 3000)) && (await prefs()).music === true);
       const salon = await pg.evaluate(() => { const b = [...document.querySelectorAll("#stScenes .stPick")].find((x) => /grand/i.test(x.textContent)); if (b) b.click(); return !!b; });
@@ -354,10 +361,15 @@ const RENDER = `async (spec) => {
       await pg.evaluate(() => document.getElementById("stClose").click());
       await pg.evaluate(() => document.getElementById("pvNatural").click());
       ok("Piece sounds: Natural turns the game voices off, and is remembered", await pg.evaluate(() => !Stage.lively()) && (await prefs()).pieceVoice === "natural");
+      await pg.reload();
+      await pg.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 120000 });
+      ok("…across a reload too", await pg.evaluate(() => !Stage.lively() && document.getElementById("pvNatural").classList.contains("sel")));
+      await pg.mouse.click(195, 300);
+      ok("(the music is back with the first touch)", !!(await until(() => Stage.musicLive(), 4000)));
       await pg.evaluate(() => document.getElementById("pvLively").click());
       ok("…and Lively brings them back", await pg.evaluate(() => Stage.lively()) && (await prefs()).pieceVoice === "lively");
       await pg.evaluate(() => __cr.startGame("pass", { clockStr: "none", fresh: true }));
-      ok("a new game starts calm", await pg.evaluate(() => Stage.busy().mood === "calm"));
+      ok("a new game starts calm, with its music", await pg.evaluate(() => Stage.busy().mood === "calm" && Stage.musicLive()));
       const PLAY = (san) => pg.evaluate((x) => { const g = __cr.game; const mv = Chess.moves(g).find((m) => Chess.toSAN(g, m).replace(/[+#]$/, "") === x); __cr.commitMove(mv, "local"); }, san);
       for (const s of ["f3", "e5", "g4"]) { await PLAY(s); await pg.waitForTimeout(150); }
       await PLAY("Qh4");

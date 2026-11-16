@@ -49,7 +49,7 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
 
 /* ===== preferences ===== */
-var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", tilt: true, roomTone: true };
+var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, helpers: true, clockSkin: "simple", name: "", fx: "auto", coachVoice: "plain", lastClock: {}, autoFlip: false, scene: "park", tilt: true, roomTone: true, music: true, pieceVoice: "lively" };
 (function () {
   try {
     var p = JSON.parse(lsGet(PREF_KEY) || "{}");
