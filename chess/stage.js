@@ -111,6 +111,19 @@ function normalise(out, to) {
   if (p > 0) { var k = to / p; for (var j = 0; j < out.length; j++) out[j] *= k; }
   return out;
 }
+/* one decaying sine added into `out`, without a sin() per sample: a
+   rotation (the two-term recurrence) and a per-sample decay. Ten times
+   cheaper, which matters on a phone computing a note mid-game. */
+function addPartial(out, sr, f, amp, dec, phase) {
+  var w = 2 * Math.PI * f / sr, k = 2 * Math.cos(w), d = Math.exp(-1 / (dec * sr));
+  var y1 = Math.sin(phase - w), y0 = Math.sin(phase), a = amp, n = out.length;
+  for (var i = 0; i < n; i++) {
+    out[i] += a * y0;
+    var y2 = k * y0 - y1; y1 = y0; y0 = y2;
+    a *= d;
+    if (a < 1e-5) break;
+  }
+}
 /* a struck bar or tine: a few modes, each with its own ring, a touch of
    pitch falling into place as it is struck, and a tiny contact click */
 function modal(f, sr, len, parts, o) {
@@ -120,10 +133,11 @@ function modal(f, sr, len, parts, o) {
     var fr = f * parts[p][0];
     if (fr >= nyq) continue;
     var amp = parts[p][1], dec = parts[p][2], ph = 0, glide = o.glide || 0, gt = o.glideT || 0.02;
-    for (var i = 0; i < n; i++) {
-      var t = i / sr;
-      ph += 2 * Math.PI * fr * (1 + glide * Math.exp(-t / gt)) / sr;
-      out[i] += amp * Math.exp(-t / dec) * Math.sin(ph);
+    if (!glide || p > 0) { addPartial(out, sr, fr, amp, dec, 0); continue; }
+    var w0 = 2 * Math.PI * fr / sr, gl = glide, gd = Math.exp(-1 / (gt * sr)), a = amp, ad = Math.exp(-1 / (dec * sr));
+    for (var i = 0; i < n && a > 1e-5; i++) {
+      ph += w0 * (1 + gl); gl *= gd;
+      out[i] += a * Math.sin(ph); a *= ad;
     }
   }
   if (o.click) {
@@ -198,13 +212,7 @@ function feltPiano(f, sr, len) {
     var fh = h * f * Math.sqrt(1 + B * h * h);
     if (fh >= nyq) break;
     var amp = Math.pow(h, -1.1) * Math.exp(-(h - 1) * 0.42), dec = base / (1 + 0.5 * (h - 1));
-    for (var s = -1; s <= 1; s += 2) {
-      var fs = fh * (1 + s * 0.0006), ph = h * 0.7;
-      for (var i = 0; i < n; i++) {
-        ph += 2 * Math.PI * fs / sr;
-        out[i] += 0.5 * amp * Math.exp(-i / sr / dec) * Math.sin(ph);
-      }
-    }
+    for (var s = -1; s <= 1; s += 2) addPartial(out, sr, fh * (1 + s * 0.0006), 0.5 * amp, dec, h * 0.7);
   }
   /* the hammer: a soft low knock under the first moment */
   for (var k = 0; k < Math.min(n, Math.round(sr * 0.05)); k++) {
@@ -551,21 +559,26 @@ var DUCK = { start: 0.45, check: 0.5, "capture-big": 0.5, promote: 0.6, "mate-wi
              levelup: 0.7, "rating-up": 0.5, "rating-down": 0.5, milestone: 0.75, link: 0.4 };
 
 /* ================= the audio side ================= */
-var S = null, cache = {}, cacheKeys = [], CACHE_MAX = 72;
+var S = null, cache = {}, cacheKeys = [], CACHE_MAX = 48;
 var bus = null;              /* { ctx, pieceIn, musicIn, duck, tone, musicGain, verb, place } */
 var place = "studio", musicLevel = 0, mood = "calm", lively = true, enabled = true;
 var mus = null, seed = (Date.now() / 1000) | 0, watched = false;
 var chains = { 1: 0, "-1": 0 }, MUSIC_GAIN = 0.20;
 
 function kit() { S = S || soundKit(); return S && S.kit ? S.kit() : null; }
+/* the notes are computed at 32 kHz: everything these instruments say is
+   below 16 kHz, and a third fewer samples is a third less to compute and
+   to keep (the browser plays it at its own rate) */
+var NOTE_SR = 32000;
 function bufferFor(c, id, midi) {
   var I = INSTRUMENTS[id], z = I && I.pitched ? zoneOf(midi) : 0;
-  var key = id + ":" + z + ":" + c.sampleRate;
-  if (cache[key]) return { buf: cache[key], rate: I.pitched ? Math.pow(2, (midi - z) / 12) : 1 };
-  var data = renderNote(id, I.pitched ? z : 60, c.sampleRate);
-  var b = c.createBuffer(1, data.length, c.sampleRate);
+  var key = id + ":" + z;
+  if (cache[key] && cache[key].ctx === c) return { buf: cache[key].buf, rate: I.pitched ? Math.pow(2, (midi - z) / 12) : 1 };
+  var data = renderNote(id, I.pitched ? z : 60, NOTE_SR);
+  var b = c.createBuffer(1, data.length, NOTE_SR);
   b.getChannelData(0).set(data);
-  cache[key] = b; cacheKeys.push(key);
+  if (!cache[key]) cacheKeys.push(key);
+  cache[key] = { buf: b, ctx: c };
   if (cacheKeys.length > CACHE_MAX) delete cache[cacheKeys.shift()];
   return { buf: b, rate: I.pitched ? Math.pow(2, (midi - z) / 12) : 1 };
 }
@@ -689,8 +702,28 @@ function musicStart(c) {
   };
   mus = m;
   fill();
-  if (!K.borrowed() && typeof root.setInterval === "function") m.timer = root.setInterval(fill, 400);
+  if (!K.borrowed() && typeof root.setInterval === "function") {
+    m.timer = root.setInterval(fill, 400);
+    prewarm(c, m);
+  }
   return m;
+}
+/* the notes the next phrase will need, computed at idle moments a few at
+   a time, so a new note is never computed in the middle of a frame */
+function prewarm(c, m) {
+  if (typeof root.setTimeout !== "function") return;
+  var later = typeof root.requestIdleCallback === "function"
+    ? function (f) { root.requestIdleCallback(f, { timeout: 2000 }); } : function (f) { root.setTimeout(f, 300); };
+  var want = {};
+  compose(m.place, seed, m.bar, PHRASE).forEach(function (e) { if (e.inst) want[e.inst + ":" + zoneOf(e.midi)] = [e.inst, e.midi]; });
+  var todo = Object.keys(want).map(function (k) { return want[k]; });
+  var step = function (dl) {
+    if (mus !== m || !todo.length) { if (mus === m) root.setTimeout(function () { prewarm(c, m); }, barSecs(m.spec) * PHRASE * 500); return; }
+    do { var x = todo.shift(); bufferFor(c, x[0], x[1]); }
+    while (todo.length && dl && dl.timeRemaining && dl.timeRemaining() > 12);
+    later(step);
+  };
+  later(step);
 }
 function musicStop(fade) {
   if (!mus) return;
@@ -769,7 +802,27 @@ var Stage = {
   room: function () {
     var K = kit(); if (!K || !K.enabled()) return false;
     var c = K.ctx(); if (!c || !K.running(c)) return false;
-    return !!busFor(c);
+    var b = busFor(c);
+    /* and the pieces' own notes, computed at idle moments now rather than
+       on the first move */
+    if (b && !b.warmed && !K.borrowed() && typeof root.setTimeout === "function") {
+      b.warmed = true;
+      var todo = [];
+      Object.keys(PIECE_VOICE).forEach(function (k) {
+        var V = PIECE_VOICE[k];
+        for (var r = 0; r < 8; r += 2) { todo.push([V.inst, penta(V.base, Math.round(r * V.span))]); todo.push([V.inst, penta(V.base - 12, Math.round(r * V.span))]); }
+      });
+      todo.push(["pop", 60], ["celesta", 74], ["celesta", 81], ["celesta", 86], ["kalimba", 74], ["kalimba", 81], ["harp", 81], ["celesta", 86]);
+      var later = typeof root.requestIdleCallback === "function"
+        ? function (f) { root.requestIdleCallback(f, { timeout: 2500 }); } : function (f) { root.setTimeout(f, 200); };
+      var step = function (dl) {
+        do { var x = todo.shift(); if (x) bufferFor(c, x[0], x[1]); }
+        while (todo.length && dl && dl.timeRemaining && dl.timeRemaining() > 12);
+        if (todo.length && bus === b) later(step);
+      };
+      later(step);
+    }
+    return !!b;
   },
   /* the music, 0 (off) to 1; no argument says what it is set to */
   music: function (level) {
@@ -828,6 +881,7 @@ var Stage = {
 
   /* for the checker: point at a context sound.js has been lent */
   reset: function () { musicStop(0); bus = null; cache = {}; cacheKeys = []; mus = null; mood = "calm"; chains = { 1: 0, "-1": 0 }; },
+  NOTE_SR: NOTE_SR,
   setSeed: function (s) { seed = s >>> 0; },
   busy: function () { return { cached: cacheKeys.length, music: !!mus, mood: mood, place: place }; }
 };
