@@ -238,7 +238,7 @@
   var promptWas = false;
   function promptTick() {
     var on = $("prompt").classList.contains("on");
-    if (on && !promptWas) { var pr = $("prompt"); pr.classList.remove("pop"); void pr.offsetWidth; pr.classList.add("pop"); A.sfx("twinkle"); }
+    if (on && !promptWas) { var pr = $("prompt"); pr.classList.remove("pop"); void pr.offsetWidth; pr.classList.add("pop"); if (BS.feel) BS.feel.cue("notice"); else A.sfx("twinkle"); }
     promptWas = on;
   }
 

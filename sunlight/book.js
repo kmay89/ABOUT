@@ -44,7 +44,7 @@
           '<div class="hface hback"><canvas class="hend"></canvas></div></div>' +
       "</div></div>" +
       '<div class="hflash"></div>' +
-      '<button class="hskip" type="button">Skip</button>';
+      '<button class="hskip ghost small" type="button">Skip<svg class="t" aria-hidden="true"><use href="#t-skip"/></svg></button>';
     document.body.appendChild(el);
     dustC = el.querySelector(".hdust"); sparkC = el.querySelector(".hspark");
     /* only the Skip button skips; a tap anywhere else answers whatever the book is waiting for */

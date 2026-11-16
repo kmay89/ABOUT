@@ -22,11 +22,11 @@
     if (G.mode === "book" || G.mode === "menu") ui.closeAll();
     prevMode = G.mode;
     G.mode = which;
-    A.sfx(which === "book" ? "page" : "ui");
+    if (which === "book") A.sfx("page"); else if (BS.feel) BS.feel.cue("open"); else A.sfx("ui");
     var el = $(which === "book" ? "book" : "menu");
     el.classList.add("on");
     el.setAttribute("aria-hidden", "false");
-    if (which === "book") showTab(tab || ui.lastTab || "pages");
+    if (which === "book") { showTab(tab || ui.lastTab || "pages"); if (G.s) G.s.bookNew = 0; pip(); }
     if (which === "menu") { syncMenu(); duck(true); }
     setTimeout(function () { var f = el.querySelector("[data-focus]") || el.querySelector("button"); f && f.focus({ preventScroll: true }); }, 30);
   };
@@ -35,7 +35,7 @@
   ui.closeAll = function () {
     if ($("menu").classList.contains("on")) duck(false);
     ["book", "menu"].forEach(function (id) { $(id).classList.remove("on"); $(id).setAttribute("aria-hidden", "true"); });
-    if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; A.sfx("back"); }
+    if (G.mode === "book" || G.mode === "menu") { G.mode = prevMode === "book" || prevMode === "menu" ? "walk" : prevMode; if (BS.feel) BS.feel.cue("close"); else A.sfx("back"); }
     $("stage").focus({ preventScroll: true });
   };
   document.querySelectorAll("[data-close]").forEach(function (b) { b.addEventListener("click", ui.closeAll); });
@@ -196,7 +196,7 @@
   $("m-help").addEventListener("click", function () { $("help").hidden = !$("help").hidden; $("pzopts").hidden = true; $("m-opts").setAttribute("aria-expanded", "false"); if (!$("help").hidden) $("help").scrollIntoView({ block: "nearest", behavior: G.prefs.reduced ? "auto" : "smooth" }); });
   $("m-ver").addEventListener("click", function () { A.sfx("ui"); ui.checkUpdate(true); });
   $("m-restart").addEventListener("click", function () {
-    ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going" }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
+    ask({ title: "Start again?", text: "From Monday noon. Your saved game on this device will be replaced.", yes: "Start again", no: "Keep going", danger: true }).then(function (yes) { if (yes) { G.wipe(); location.reload(); } });
   });
 
   /* ---------------- the portrait in the dialogue box ---------------- */
@@ -214,12 +214,22 @@
   /* ---------------- the title ---------------- */
   var saved = G.load();
   $("t-continue").hidden = !saved;
-  /* with a save, Continue is the one gold lid on the screen; beginning again is glass, down with the others */
-  if (saved) { $("t-new").className = "ghost"; $("t-new").textContent = "Begin again"; $("tmore").insertBefore($("t-new"), $("tmore").firstChild); }
+  /* with a save, Continue is the one honey slab on the screen; beginning again is a paper label, down with the others */
+  if (saved) { $("t-new").className = "ghost"; $("t-new").innerHTML = '<svg class="t" aria-hidden="true"><use href="#t-again"/></svg>Begin again'; $("tmore").insertBefore($("t-new"), $("tmore").firstChild); $("tmore").classList.add("three"); }
   /* a question on a card of the game's own (hands.js), or the browser's if that's missing */
   function ask(o) { return BS.hands && BS.hands.ask ? BS.hands.ask(o) : Promise.resolve(confirm(o.title + " " + o.text)); }
   if (saved) { if (BS.prog && BS.prog.titleCard) BS.prog.titleCard(saved); else $("t-continue").querySelector("small").textContent = saved.day + " · " + (saved.objective || "").slice(0, 60); }
   function begin(load, afterHow, opening) {
+    /* the most important press in the game gets the most: the button rings, the
+       sun over the house flares, and only then does the picture go. (It used
+       to cut to black on the frame you pressed.) A second press while it
+       rings is not a second beginning. */
+    if (begin.ringing) return;
+    if (BS.feel && !afterHow && !begin.rung) {
+      begin.rung = true;
+      BS.feel.begin(!!(load && saved));
+      if (!G.prefs.reduced && !G.skipWaits) { begin.ringing = true; setTimeout(function () { begin.ringing = false; begin(load, afterHow, opening); }, load && saved ? 380 : 560); return; }
+    }
     /* no cards before the game: New game starts the game. What you need is
        taught where you need it (story.js coachMove, the prompts, the cues);
        "How to play" is still on the title and the pause screen. */
@@ -259,7 +269,7 @@
   }
   $("t-new").addEventListener("click", function () {
     if (!saved) { begin(false); return; }
-    ask({ title: "Begin again?", text: "From Monday noon. This replaces your saved game.", yes: "Begin again", no: "Keep my place" }).then(function (yes) { if (yes) begin(false); });
+    ask({ title: "Begin again?", text: "From Monday noon. This replaces your saved game.", yes: "Begin again", no: "Keep my place", danger: true }).then(function (yes) { if (yes) begin(false); });
   });
   $("t-continue").addEventListener("click", function () { begin(true); });
   $("t-sound").addEventListener("click", function () { A.init(); A.theme(); });
@@ -270,7 +280,7 @@
     var h = $("howto"), slides = h.querySelectorAll(".hs"), dots = h.querySelectorAll(".hdots i"), i = 0;
     h.hidden = false; requestAnimationFrame(function () { h.classList.add("on"); });
     drawHowArt();
-    function show(k) { i = k; slides.forEach(function (s, j) { s.classList.toggle("on", j === i); }); dots.forEach(function (d, j) { d.classList.toggle("on", j === i); }); $("h-next").textContent = i === slides.length - 1 ? "Let's go" : "Next"; A.sfx("page"); }
+    function show(k) { i = k; slides.forEach(function (s, j) { s.classList.toggle("on", j === i); }); dots.forEach(function (d, j) { d.classList.toggle("on", j === i); }); $("h-next").firstChild.textContent = i === slides.length - 1 ? "Let's go" : "Next"; A.sfx("page"); }
     function close() { h.classList.remove("on"); setTimeout(function () { h.hidden = true; }, 400); document.removeEventListener("keydown", key); done(); }
     function key(e) { if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE" || e.code === "ArrowRight") { e.preventDefault(); next(); } if (e.code === "Escape") close(); }
     function next() { if (i < slides.length - 1) show(i + 1); else close(); }
@@ -367,11 +377,12 @@
     return new Promise(function (res) {
       var e = $("end");
       e.hidden = false; requestAnimationFrame(function () { e.classList.add("on"); });
+      document.body.classList.add("ended");            /* (nothing of the hill's furniture shows through the last page: look.css) */
       A.music("none"); A.ambience("silence");
       setTimeout(function () { A.theme(); }, 1200);
       $("endseen").textContent = Object.keys(G.s.seen).length + " of " + BS.lens.LOOKS.length + " small things seen through the drop · " + Object.keys(G.s.items).length + " keys · " + Math.round(G.s.playMs / 60000) + " minutes";
       if (G.s.marginalia) { $("endyours").hidden = false; $("endyours").querySelector("p").textContent = G.s.marginalia; }
-      $("endok").onclick = function () { e.classList.remove("on"); setTimeout(function () { e.hidden = true; }, 900); G.setAmbience(); res(); };
+      $("endok").onclick = function () { e.classList.remove("on"); document.body.classList.remove("ended"); setTimeout(function () { e.hidden = true; }, 900); G.setAmbience(); res(); };
       setTimeout(function () { $("endok").focus({ preventScroll: true }); }, 4000);
     });
   };
@@ -389,62 +400,156 @@
   document.addEventListener("visibilitychange", function () { A.suspend(document.hidden); if (document.hidden && G.mode !== "title") G.save(); });
   window.addEventListener("pagehide", function () { if (G.mode !== "title") G.save(); });
 
-  /* ---------------- staying fresh ----------------
-     The worker fetches network-first, so a new release is what the next
-     visit gets. This is for the visit that's already open: a phone that
-     kept the game in the background for three days. It asks for a new
-     worker when the game opens, whenever you come back to it, and every
-     twenty minutes. When one takes over, the page is out of date:
-       · on the title screen it simply reloads, quietly;
-       · in the middle of play it saves, and a small card offers Refresh
-         (you land back where you were, through Continue);
-       · and if you leave it be, it updates itself the next time you are
-         back on the title screen or away from the tab for a while. */
-  var stale = false, upd = null, hadCtl = false, swReg = null, hiddenAt = 0;
-  function refreshNow() { try { if (G.mode !== "title" && G.s) G.save(); } catch (e) { } location.reload(); }
-  function safeToReload() { return G.mode === "title" && !(BS.cine && BS.cine.running && BS.cine.running()); }
-  function announce() {
-    if (stale) return; stale = true;
-    if (safeToReload()) { refreshNow(); return; }
-    try { if (G.s) G.save(); } catch (e) { }
-    upd = document.createElement("div"); upd.className = "updcard"; upd.setAttribute("role", "status");
-    upd.innerHTML = '<span><b>A fresh version of the hill is ready.</b><small>Your place is saved.</small></span><button type="button">Refresh</button><button type="button" class="x" aria-label="Later">×</button>';
-    upd.querySelector("button").addEventListener("click", refreshNow);
-    upd.querySelector(".x").addEventListener("click", function () { upd.classList.remove("on"); });
-    document.body.appendChild(upd);
-    requestAnimationFrame(function () { upd.classList.add("on"); });
+  /* ---------------- versions, and staying fresh ----------------
+     The release is named in one place (version.js) and shown in three: the
+     loading screen, the title and the pause card.
+
+     An update is never a question. The worker fetches network-first, so a
+     new release is what the next visit loads, and taking it is part of the
+     loading screen (boot.js), under a line that says the saved game is
+     safe. That is true by construction: a save is in this browser's
+     storage, which an update never touches (engine.js, "saves").
+
+       · When the game opens it looks for a newer release, behind the names
+         on the loading screen. If one is on its way in, the screen stays
+         until it has arrived, and the game comes up as that release.
+       · The first time a new release runs here, the save as it stood is
+         copied aside, and the loading screen says which version this is
+         and that the saved game is just as it was.
+       · A page left open hears about a release too (it asks every twenty
+         minutes, and whenever you come back to it). On the title it takes
+         it at once, through the loading screen. In the middle of play it
+         saves and says nothing: the update waits for the next time the
+         game is opened, for you to come back after a while away, or for
+         the button on the pause card. Taken from inside the game, it puts
+         you back where you were, without a stop at the title. */
+  var VER = G.VERSION, SEENVER = "borrowed-sunlight-game-version", NEWVER = "borrowed-sunlight-new-version", RESUME = "borrowed-sunlight-resume", TAKEN = "borrowed-sunlight-updated-at";
+  var SAFE = "Your saved game is safe. It stays on this device.";
+  var boot = window.BSboot || { ready: function () { }, hold: function () { return function () { }; }, say: function () { }, note: function () { }, progress: function () { }, cover: function () { }, names: function (f) { f(); }, then: function (f) { f(); }, up: function () { return false; }, changed: false, ctl0: null };
+  var stale = false, newVer = "", hadCtl = false, swReg = null, hiddenAt = 0, shown = false, letGo = null;
+  var canWork = "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost");
+  ui.version = VER;
+  function verLine(t) { var b = $("m-ver"); if (b) b.textContent = t || ("Version " + VER + " · Check for updates"); }
+  verLine(); if ($("tver")) $("tver").textContent = "Version " + VER;
+  boot.then(function () { shown = true; });
+  function store(kind, k, v) { try { var s = kind === "s" ? sessionStorage : localStorage; if (v === undefined) return s.getItem(k); if (v === null) s.removeItem(k); else s.setItem(k, v); } catch (e) { } return null; }
+
+  /* the first run of this release on this device: before anything else, the save as the last one left it is kept aside */
+  (function () {
+    var last = store("l", SEENVER);
+    if (last === VER) return;
+    store("l", SEENVER, VER);
+    if (saved) G.keepBackup(last || saved.ver || "");
+    if (last || saved) store("s", NEWVER, last || "an earlier one");      /* ...and the loading screen will say so (below) */
+  })();
+  function sayNew() {
+    if (store("s", NEWVER) == null) return;
+    store("s", NEWVER, null);
+    boot.note("Now on version " + VER, saved ? "Your saved game is just as you left it." : "", 2200);
+  }
+  /* an update taken from inside the game: straight back to where you were */
+  var resume = store("s", RESUME) === "1"; store("s", RESUME, null);
+  if (resume && saved && !/[?&]beat=/.test(location.search)) begin(true, true);
+
+  function atTitle() { return G.mode === "title" && !begin.rung && !(BS.cine && BS.cine.running && BS.cine.running()); }
+  function quiet() { return atTitle() || G.mode === "menu" || (G.mode === "walk" && !G.cut && !G.modal && !G.choosing); }
+  /* never a loop: the game reloads itself for an update at most twice a minute in one sitting, whatever it hears */
+  function mayReload() {
+    var now = Date.now(), log = [];
+    try { log = JSON.parse(store("s", TAKEN) || "[]").filter(function (t) { return now - t < 60000; }); } catch (e) { log = []; }
+    if (log.length >= 2) return false;
+    log.push(now); store("s", TAKEN, JSON.stringify(log)); return true;
+  }
+  /* take it: always through the loading screen, never a bare reload. (asked: you pressed something for it) */
+  function takeUpdate(asked) {
+    if (takeUpdate.going) return;
+    if (!mayReload() && !asked) { offer(); if (letGo) letGo(); return; }
+    takeUpdate.going = true;
+    boot.names(function () {
+      var playing = G.mode !== "title";
+      try { if (playing && G.s) G.save(); } catch (e) { }
+      if (playing) store("s", RESUME, "1");
+      boot.cover(newVer ? "Getting version " + newVer : "Getting the newest version", playing || saved ? SAFE : "");
+      setTimeout(function () { location.reload(); }, 700);
+    });
+  }
+  function offer() {
+    var b = $("m-update"); if (!b) return;
+    b.hidden = false; b.lastChild.textContent = (newVer ? "Update to version " + newVer : "Update the game") + " · keeps your place";
+    verLine("Version " + VER + (newVer ? " · " + newVer + " is ready" : " · a newer one is ready"));
+  }
+  function outOfDate() {
+    stale = true;
+    if (!shown || atTitle()) { takeUpdate(); return; }        /* loading, or on the title: it is part of loading */
+    try { if (G.s && G.mode !== "title") G.save(); } catch (e) { }
+    offer();                                                  /* in play: say nothing, and wait */
+  }
+  if ($("m-update")) $("m-update").addEventListener("click", takeUpdate);
+  /* is there a newer release? Ask for the one file that says (version.js), fresh from the server. If there is,
+     the worker is registered under its name, which makes it a new worker in any browser; if not, the browser
+     is still asked to compare the worker itself. Answers the newer version, or null. */
+  function look() {
+    return fetch("version.js", { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error("no answer"); return r.text(); }).then(function (t) {
+      var m = /SUNLIGHT_VERSION\s*=\s*"([^"]+)"/.exec(t), v = m && m[1];
+      if (v && v !== VER) {
+        newVer = v;
+        if (!canWork) { outOfDate(); return v; }
+        return navigator.serviceWorker.register("sw.js?v=" + encodeURIComponent(v), { updateViaCache: "none" }).then(function (reg) { swReg = reg; return v; });
+      }
+      return swReg ? swReg.update().then(function () { return null; }) : null;
+    });
   }
   ui.checkUpdate = function (manual) {
-    if (!swReg) { if (manual) location.reload(); return; }
-    var b = $("m-ver"); if (manual && b) b.textContent = "Checking…";
-    swReg.update().then(function () {
-      setTimeout(function () { if (manual && !stale && b) { b.textContent = "Up to date · " + (ui.version || ""); } }, 1500);
-    }).catch(function () { if (manual && b) b.textContent = "Offline · " + (ui.version || ""); });
+    if (stale) { if (manual) takeUpdate(true); return; }
+    if (manual) verLine("Checking…");
+    look().then(function (v) {
+      setTimeout(function () { if (manual && !stale) verLine(v || (swReg && (swReg.installing || swReg.waiting)) ? "Getting a newer version…" : "Up to date · version " + VER); }, 1200);
+    }).catch(function () { if (manual) verLine("No signal · version " + VER); });
   };
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-    hadCtl = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.addEventListener("controllerchange", function () { if (hadCtl) announce(); hadCtl = true; ask(); });
-    navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.sunlightVersion) { ui.version = e.data.sunlightVersion.replace("sunlight-", ""); var b = $("m-ver"); if (b && !/Checking/.test(b.textContent)) b.textContent = "Version " + ui.version + " · Check for updates"; } });
-    function ask() { var c = navigator.serviceWorker.controller; if (c) c.postMessage("version"); }
-    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
-      swReg = reg; ask();
-      reg.update().catch(function () { });
-      setInterval(function () { reg.update().catch(function () { }); }, 20 * 60 * 1000);
-    }).catch(function () { });
+  if (canWork) {
+    var sw = navigator.serviceWorker, release = boot.hold(), freed = false;
+    letGo = function () { if (freed) return; freed = true; sayNew(); release(); };
+    hadCtl = boot.ctl0 == null ? !!sw.controller : !!boot.ctl0;
+    var returning = hadCtl;                                /* there was a worker here when the page opened: this is not a first visit */
+    var changed = function () { if (hadCtl) outOfDate(); hadCtl = true; };
+    if (window.BSboot) { boot.onchange = changed; if (boot.changed) changed(); }      /* boot.js has been listening since the first moment */
+    else sw.addEventListener("controllerchange", changed);
+    sw.addEventListener("message", function (e) {
+      var d = (e.data && e.data.sunlightInstall) || null;
+      if (!d || !returning) return;                          /* (a first visit installs too, and that is not an update) */
+      newVer = d.version || newVer;
+      if (boot.up()) { boot.say("Getting version " + newVer, saved ? SAFE : ""); boot.progress(d.done / d.total * 0.98); }
+    });
+    /* the worker's address carries the release, so a new release is a new worker even to a browser that only compares addresses */
+    sw.register("sw.js?v=" + encodeURIComponent(VER), { updateViaCache: "none" }).then(function (reg) {
+      swReg = reg;
+      setInterval(function () { look().catch(function () { }); }, 20 * 60 * 1000);
+      if (!hadCtl) { letGo(); return; }                      /* a first visit: there is nothing older here to replace */
+      var arriving = function () { return reg.installing || reg.waiting; };
+      /* one is on its way in: the loading screen stays until it has the page, and then the page reloads as it */
+      var wait = function () {
+        if (boot.up() && !newVer) boot.say("Getting the newest version", saved ? SAFE : "");
+        setTimeout(letGo, 25000);                            /* on a very slow line: go on, and take it later */
+      };
+      if (arriving()) { wait(); return; }
+      var patience = setTimeout(letGo, 4000);                /* looking does not get to hold the game up */
+      look().then(function () { clearTimeout(patience); if (freed) return; if (swReg.installing || swReg.waiting) wait(); else letGo(); }, function () { clearTimeout(patience); letGo(); });
+    }, letGo);
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) { hiddenAt = Date.now(); return; }
-      if (swReg) swReg.update().catch(function () { });
-      /* back after a long while with an update waiting: take it now */
-      if (stale && (safeToReload() || Date.now() - hiddenAt > 10 * 60 * 1000)) refreshNow();
+      look().catch(function () { });
+      /* back after a long while with an update waiting, and nothing going on: take it now */
+      if (stale && (atTitle() || (Date.now() - hiddenAt > 10 * 60 * 1000 && quiet()))) takeUpdate();
     });
-    setInterval(function () { if (stale && safeToReload()) refreshNow(); }, 2000);
-  }
+    setInterval(function () { if (stale && atTitle()) takeUpdate(); }, 2000);
+  } else sayNew();
 
   /* ---------------- the goal card, the book pinging, finds flying home ---------------- */
   setInterval(function () {
     /* the transient line goes in whichever half of the screen you aren't in */
     if (G.cam && G.view && G.p) { var v = G.view(), sy = (G.p.y - 12 - G.cam.y) / v.h; document.body.classList.toggle("lanelow", sy < 0.5); }
     var gc = $("goalcard");
+    pip();
     if (G.mode === "title" || !document.body.classList.contains("playing")) { gc.hidden = true; return; }
     var gs = S.goals(), C = S.CHAPTERS[S.chapterIndex()], next = gs.filter(function (g) { return !g.done; })[0];
     if (!gs.length || S.ORDER.indexOf(G.s.beat) >= S.ORDER.indexOf("after")) { gc.hidden = true; return; }
@@ -457,13 +562,25 @@
   /* the goal card: tap it and the gold thread shows you the way (or, if there's nowhere to go, opens the book) */
   $("goalcard").addEventListener("click", function () { if (G.cut) return; if (!(BS.guide && BS.guide.summon("ask"))) ui.open("book", "pages"); });
   ui.bookPing = function () { var b = $("hudbook"); b.classList.remove("ping"); void b.offsetWidth; b.classList.add("ping"); };
+  /* a small red count on the book's button: what has been written into it since you last had it
+     open (a thing seen through the drop, a field note). Opening the book clears it. */
+  var pipN = -1;
+  function pip() {
+    var n = G.s && G.s.items && G.s.items.book ? (G.s.bookNew || 0) : 0;
+    if (n === pipN) return;
+    var el = $("bookpip"), more = pipN >= 0 && n > pipN; pipN = n;
+    el.hidden = !n; el.textContent = n > 9 ? "9+" : String(n);
+    $("hudbook").setAttribute("aria-label", "Gran's book (B)" + (n ? ", " + n + " new" : ""));
+    if (n && more) { el.classList.remove("in"); void el.offsetWidth; el.classList.add("in"); }
+  }
+  ui.bookNew = function () { if (!G.s || G.mode === "book") return; G.s.bookNew = (G.s.bookNew || 0) + 1; pip(); };
   ui.flyToBook = function () {
     var f = document.createElement("div"); f.className = "fly"; document.body.appendChild(f);
     var r = $("hudbook").getBoundingClientRect();
     f.style.left = (window.innerWidth / 2 - 22) + "px"; f.style.top = (window.innerHeight / 2 - 22) + "px";
     requestAnimationFrame(function () { requestAnimationFrame(function () { f.style.transform = "translate(" + (r.left + r.width / 2 - window.innerWidth / 2) + "px," + (r.top + r.height / 2 - window.innerHeight / 2) + "px) scale(.3)"; f.style.opacity = ".2"; }); });
     setTimeout(function () {
-      f.remove(); ui.bookPing(); A.sfx("seen");
+      f.remove(); ui.bookPing(); ui.bookNew(); A.sfx("seen");
       var n = Object.keys(G.s.seen).length;
       G.toast("Seen through the drop: " + n + " of " + BS.lens.LOOKS.length, 2400);
       G.s.badges = G.s.badges || {};

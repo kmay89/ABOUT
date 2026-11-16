@@ -143,7 +143,11 @@
       var el = document.createElement("div"); el.className = "objdone"; el.innerHTML = '<i><svg class="i" aria-hidden="true"><use href="#i-check"/></svg></i><span>' + G.fmt(lastObj) + "</span>";
       document.body.appendChild(el); requestAnimationFrame(function () { el.classList.add("on"); });
       setTimeout(function () { el.classList.add("out"); setTimeout(function () { el.remove(); }, 700); }, 1500);
-      if (A) A.sfx("tick");
+      /* the pen-tick it always was, and now the further through the chapter
+         you are, the higher it is (feel.js): the first thing done is an A,
+         the fourth the E this tick used to be every time */
+      var doneN = BS.story && BS.story.goals ? BS.story.goals().filter(function (g) { return g.done; }).length : 3;
+      if (BS.feel) BS.feel.rung(Math.min(8, doneN), { base: 2, voice: "pen" }); else if (A) A.sfx("tick");
       pctPop();
     }
     lastObj = o;

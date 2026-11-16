@@ -13,19 +13,38 @@
    the page, its stylesheet and its scripts (icons and typefaces are
    optional: the page is whole without them, in its fallback faces), so the
    offline copy can never be half one release and half another. The game
-   saves to localStorage, so a new worker takes over at once; the page
-   hears about it (controllerchange) and refreshes itself at a safe moment.
-   Bump VERSION on every release. Only this room's old caches are deleted on
-   activate: the cache store belongs to the whole site. */
-var VERSION = "sunlight-v32";
-var SHELL = ["./", "./index.html", "./look.css", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
-  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./gold.js", "./cellar.js", "./atmos.js", "./slope.js", "./toys.js", "./stage.js", "./phone.js", "./book.js", "./cover.jpg", "./prologue.js", "./progress.js", "./ui.js", "./gbook.js", "./hands.js", "./manifest.webmanifest"];
-var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
-var FONTS = ["./fonts/eb-garamond.woff2", "./fonts/eb-garamond-italic.woff2", "./fonts/eb-garamond-caps.woff2", "./fonts/quintessential.woff2", "./fonts/shadows-into-light-two.woff2", "./fonts/permanent-marker.woff2"];
+   saves to localStorage, which no worker and no cache ever touches, so a
+   new worker takes over at once; the page hears about it
+   (controllerchange) and takes the update as part of its loading screen,
+   or at the next quiet moment (ui.js).
 
+   The release is named in version.js, the one place it is written: change
+   it there for every release, and this worker is a new worker (a browser
+   compares what a worker imports as well as the worker). While it
+   installs it tells any open page how far along it is, so the loading
+   screen can show it. Only this room's old caches are deleted on activate:
+   the cache store belongs to the whole site. */
+importScripts("./version.js");
+var VERSION = "sunlight-" + self.SUNLIGHT_VERSION;
+var SHELL = ["./", "./index.html", "./look.css", "./version.js", "./boot.js", "./world.js", "./art.js", "./audio.js", "./lens.js", "./icons.js",
+  "./engine.js", "./minis.js", "./story.js", "./juice.js", "./inspect.js", "./life.js", "./guide.js", "./gold.js", "./cellar.js", "./atmos.js", "./slope.js", "./toys.js", "./stage.js", "./phone.js", "./book.js", "./cover.jpg", "./prologue.js", "./progress.js", "./ui.js", "./gbook.js", "./feel.js", "./hands.js", "./manifest.webmanifest"];
+var ICONS = ["./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"];
+var FONTS = ["./fonts/eb-garamond.woff2", "./fonts/eb-garamond-italic.woff2", "./fonts/eb-garamond-caps.woff2", "./fonts/quintessential.woff2", "./fonts/shadows-into-light-two.woff2", "./fonts/permanent-marker.woff2", "./fonts/fraunces-toy.woff2"];
+
+/* say something to every page of this game that is open, whoever controls it */
+function tell(m) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (cs) { cs.forEach(function (c) { try { c.postMessage(m); } catch (e) { } }); }).catch(function () { });
+}
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) {
-    return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: "reload" }); })).then(function () {
+    var done = 0, total = SHELL.length;
+    /* one at a time into the cache, counted, and all of them or the install fails */
+    return Promise.all(SHELL.map(function (u) {
+      return fetch(new Request(u, { cache: "reload" })).then(function (res) {
+        if (!res || !res.ok) throw new Error("could not fetch " + u);
+        return c.put(u, res);
+      }).then(function () { done++; tell({ sunlightInstall: { version: self.SUNLIGHT_VERSION, done: done, total: total } }); });
+    })).then(function () {
       return Promise.all(ICONS.concat(FONTS).map(function (u) { return c.add(new Request(u, { cache: "reload" })).catch(function () { return null; }); }));
     });
   }).then(function () { return self.skipWaiting(); }));
@@ -62,7 +81,7 @@ self.addEventListener("fetch", function (e) {
     });
   }));
 });
-/* the page asks which release this is, for the menu */
+/* the page asks which release this worker is */
 self.addEventListener("message", function (e) {
   if (e.data === "version" && e.source) e.source.postMessage({ sunlightVersion: VERSION });
   if (e.data === "skipWaiting") self.skipWaiting();

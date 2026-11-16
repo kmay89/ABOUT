@@ -170,7 +170,7 @@
     if (has(id)) return Promise.resolve();
     G.s.items[id] = Date.now(); G.s.notes[id] = 1;
     var it = ITEMS[id];
-    return G.item({ key: id, name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { G.hud(); G.save(); });
+    return G.item({ key: id, name: it.name, icon: it.icon, kind: it.kind, sci: it.sci, text: it.text, opens: it.opens }).then(function () { if (id !== "book" && BS.ui && BS.ui.bookNew) BS.ui.bookNew(); G.hud(); G.save(); });
   }
 
   /* ---------------- Gran's pages (unlocked as the book is read) ---------------- */
@@ -568,7 +568,7 @@
     if (lock === "house" && G.mapId === "hill" && is("woods", "hollow")) msg = "Beck's waiting. Four days on the clock — three, really.";
     if (lock === "house" && G.mapId === "hill" && is("revive")) msg = "Not now. The woods.";
     if (msg === null) return false;
-    if (G.time() - lockAt > 1.6 && msg) { lockAt = G.time(); note(msg); }
+    if (G.time() - lockAt > 1.6 && msg) { lockAt = G.time(); note(msg); if (BS.feel) BS.feel.cue("deny"); }
     /* step back off the threshold */
     if (!BS.SOLID[G.map.get(ex.x, ex.y)]) G.p.y += ex.dir === "up" ? 7 : -7;
     return true;
@@ -1372,6 +1372,7 @@
       if (G.tap("act") || G.tap("crank") || G.tap("lens")) {
         c.prog = Math.min(1, c.prog + 0.105); c.kick = 1; c.hint = 0;
         A.sfx(c.prog > 0.5 ? "plink" : "dig"); G.shake = Math.max(G.shake || 0, 1.4);
+        if (BS.feel) BS.feel.rung(Math.round(c.prog * 10) - 2, { voice: "tick", quiet: true });        /* the jar fills up the scale */
         if (G.burst) G.burst(19.4 * T + (Math.random() - 0.5) * 10, 11.2 * T, 5, "255,206,90", 10);
         if (G.prefs.haptics && navigator.vibrate) navigator.vibrate(8);
       } else c.hint += dt;

@@ -161,7 +161,8 @@
       /* motes circling it */
       for (var m = 0; m < 3; m++) { var a = time * (1.2 + m * 0.4) + m * 2.1 + s.x, rr = r * 2.6 + m; ctx.fillStyle = "rgba(" + col + "," + (br * 0.7) + ")"; BS.ell(ctx, sx + Math.cos(a) * rr, sy + Math.sin(a) * rr * 0.6, 0.35, 0.35); ctx.fill(); }
       /* in reach: it opens into a ring */
-      if (act) { var k = (time * 1.4) % 1; ctx.strokeStyle = "rgba(" + col + "," + (0.6 * (1 - k)) + ")"; ctx.lineWidth = 0.5; BS.ell(ctx, sx, sy, 3 + k * 7, (3 + k * 7) * 0.7); ctx.stroke(); }
+      /* (on the same beat as the key on the prompt and the bead under your thumb: feel.js) */
+      if (act) { var k = BS.feel && BS.feel.phase ? BS.feel.phase(2) : (time * 1.4) % 1; ctx.strokeStyle = "rgba(" + col + "," + (0.6 * (1 - k)) + ")"; ctx.lineWidth = 0.5; BS.ell(ctx, sx, sy, 3 + k * 7, (3 + k * 7) * 0.7); ctx.stroke(); }
     });
     /* green motes on the ground where something small waits for the lens */
     if (G.s.items && G.s.items.lens) (G.looks || []).forEach(function (l) {
