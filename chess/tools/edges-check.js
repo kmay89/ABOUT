@@ -202,12 +202,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const wNow = () => page.evaluate(() => __cr.clockForTest().w);
     ok("the coach game's clock is running for White", await page.evaluate(() => __cr.clockForTest().run === 1));
 
+    /* the coach's reply has landed and nothing is moving before the clock is read */
+    await page.waitForFunction(() => !__cr.renderer.isAnimating() && __cr.clockForTest().run === 1, null, { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(200);
     let w0 = await wNow();
     await stall(4000);
     await page.waitForTimeout(300);
+    const diag = await page.evaluate(() => ({ run: __cr.clockForTest().run, paused: __cr.clockPausedForTest(),
+      open: [...document.querySelectorAll(".ov:not(.hide)")].map((o) => o.id) }));
     let lost = w0 - await wNow();
     ok("a page that stops drawing for 4 s (still in sight) is charged the 4 s", lost >= 3900 && lost <= 5500,
-      "charged " + Math.round(lost) + " ms");
+      "charged " + Math.round(lost) + " ms " + JSON.stringify(diag));
 
     /* out of sight in a game on this device: a pause, and said */
     await page.evaluate(() => { document.getElementById("toast").classList.remove("show"); });
