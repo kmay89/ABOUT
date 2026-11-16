@@ -582,6 +582,14 @@ tools/              dev-only, never shipped:
                     it ships this worker over a copy of the old
                     network-first one and checks the old worker's last
                     mixed visit heals itself, without a tap
+  edges-check.js    the rough edges stay filed down, in a real browser: a
+                    phone on its side keeps its labels and its near ranks;
+                    a stalled page is charged the time, a hidden one pauses
+                    on this device and pays on return between two, a flag
+                    that fell while away falls at once; the custom clock
+                    and its bounds; always a queen, and the picker that
+                    still asks with a reason; each recovery choice and what
+                    survives it
   pieces-preview.html
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
@@ -909,7 +917,8 @@ and, if it draws itself, one entry in `PROFILE_TABS` in app.js.
 Each store is `localStorage` under `chessroom_` — `chessroom_games`,
 `chessroom_feats`, `chessroom_goal` — rebuilt field by field by a pure
 module with a `clean()` that node checks against junk, and wiped by the
-recovery card's fresh start with everything else. `games-check.js`,
+recovery card's *Erase everything* with everything else (its *clear the
+game in progress* keeps them). `games-check.js`,
 `feats-check.js` and `goals-check.js` hold the rules to account in node;
 `progress-check.js` walks it all in a real browser, on a phone and on a
 laptop.
@@ -1232,7 +1241,7 @@ the greeting that already carried your name, so two people both called
 Sam stay two people and a Sam who renames herself is still Sam. The id
 crosses the direct link and nothing else; the list never leaves the
 phone, *Forget* on a row forgets that person, and the recovery card's
-fresh start forgets everyone.
+*Erase everything* forgets everyone.
 
 It shows where it matters. When the boards link: "Sam again! You lead
 3–2." On the end card, the rematch button carries the score — and at one
@@ -2200,6 +2209,91 @@ never does, because they don't need them. The end card shows the ledger
 ("odds given"), names what the game was actually about, and offers the
 matching lesson, so a loss turns into the next thing you learn.
 
+## Your clock, your rules
+
+**Any time control.** The new-game card's clock chips are the six usual
+presets and *Other…*: whole minutes, 1 to 180, and whole seconds added
+back after every move, 0 to 60. The card says what it will start in
+words ("12 minutes each, plus 4 seconds back after every move"), a number
+past the bounds is held to them as it is typed, and the clock you chose
+is remembered for that kind of game, custom or not. The presets are
+written once (`CLK_PRESETS` in app.js; the chips are drawn from it), and
+every clock that arrives from anywhere — a chip, the two fields, a save,
+a remembered preference, the other device's handshake — passes one rule,
+`clkOk`, before it is used. Time odds are not offered yet.
+
+**Time that really passed.** The clock is charged by the wall clock:
+whatever time went by since it was last read. It used to add up the gaps
+between frames and drop any gap over three seconds, so a page the
+browser stopped drawing stopped costing time. Pauses are now said rather
+than guessed:
+
+- Any card over a game on this device stops its clock — the lobby,
+  settings, your record, and now *A friend nearby* too (it used to tick
+  on behind it). One list, `CARDS`, says which cards pause.
+- Out of sight in a game on this device (the coach, or two people on one
+  screen) is a pause, like the menu: the time up to the moment the tab
+  went is charged, the time it was gone is not, and the room says "The
+  clock waited while you were away."
+- Between two devices it is thinking time — the other person waited
+  through it — so it is charged in full the moment you come back, and a
+  flag that fell meanwhile falls then, before you can move. The charge
+  runs from the last time the clock was read, not from when the tab was
+  hidden: a move that arrived while you were away resynced both clocks
+  and restarted yours from that moment, and only the time since is yours
+  to pay.
+
+`node chess/tools/edges-check.js` holds the page's main thread for four
+seconds and checks the four seconds were charged, hides the page in a
+coach game and in a two-device game, and runs a flag down while away.
+
+## Always a queen
+
+Settings → *Promotion*: *Ask* (the default) or *Always a queen*. Asking
+is the default on purpose — the picker is there for the rare
+underpromotion, and a convenience should not take that away unasked.
+With *Always a queen*, a pawn reaching the last rank becomes a queen in
+the same gesture, with the usual sound and flash. The room still asks
+when the board can prove the queen is the wrong answer — when a knight,
+rook or bishop would mate and the queen wouldn't ("A knight here is
+checkmate — the queen isn't."), or when the queen would stalemate and
+another piece wouldn't. Lessons always ask, because an Academy answer
+can be an underpromotion. In a game between two devices it is your
+device's setting; the move travels as it always did.
+`node chess/tools/edges-check.js`
+
+## When something breaks
+
+Three errors inside eight seconds bring up the recovery card instead of
+a white screen. A promise that fails with nobody listening counts too —
+when it is the kind of failure a bug makes (a `TypeError`, a
+`ReferenceError`…); a network that is down, a permission refused or a
+share sheet dismissed is not the room breaking, and never raises it.
+
+The card says what happened in plain words, and where when it can tell
+("…while drawing the 3D board"). *The technical line* opens the message,
+file and line, 2D or 3D, the kind of game and how many moves in, with a
+button that copies it for a bug report; the last five errors are kept
+for this tab only, so nothing about a crash outlives the tab unless you
+copy it. Then the choices, each saying what it costs:
+
+- **Try again** — reloads the room. Almost always enough.
+- **Try again in 2D** — if the 3D board is the trouble.
+- **Keep my record, clear the game in progress** — forgets only the
+  unfinished game (on this device or between two, and the four letters
+  it was reached by). Your rating, stars, lessons, journal, friends,
+  skins and settings stay.
+- **Erase everything on this device…** — asks first, naming what goes
+  (your rating and its history — "a rating of 1043 from 7 games" — your
+  ladder stars, Academy lessons, the journal, feats, friends, saved
+  skins, settings and any game in progress), and only then erases it.
+
+The old card's single *Fresh start* did that last thing under a label
+that said "Clears the saved game and settings". And a browser that will
+not keep what the room saves — a private window, a full disk — is told
+so once, rather than discovered after a reload.
+`node chess/tools/edges-check.js`
+
 ## Why it's honest
 
 - The rules engine is **perft-verified**: its move counts match the
@@ -2273,9 +2367,10 @@ matching lesson, so a loss turns into the next thing you learn.
   parses but lies; if the 3D context is lost the same game continues in
   2D on the spot, and *try 3D again* builds a fresh renderer on a fresh
   canvas rather than asking the dead one; repeated errors offer a
-  recovery card instead of a white screen, and its *Fresh start* forgets
-  everything the room ever wrote — the Academy and the score included,
-  either of which, damaged, could otherwise strand it again.
+  recovery card instead of a white screen, which says what happened and
+  offers, in order, to try again, to try again in 2D, to clear only the
+  game in progress (keeping your record), and — after naming everything
+  it would take — to erase everything the room ever wrote.
 
 ## Run it locally
 
@@ -2325,6 +2420,7 @@ node chess/tools/features-check.js # every button in the room, on a phone and a 
 node chess/tools/share-check.js    # a game you send arrives whole, and a bad link is refused
 node chess/tools/friends-check.js  # two phones, a challenge that waits, and the score between them
 node chess/tools/lookback-check.js # the line behind the words lands on the square it names
+node chess/tools/edges-check.js    # the rough edges stay filed down: clocks, auto-queen, recovery
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
@@ -2334,10 +2430,12 @@ Or from the repo root, in three groups by how long they take:
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # lines, ink, pieces, engine, brain, offline, touch, play, rating,
                                # sound, motion, haptics, the journal, feats, the
-                               # next step, share, friends (and progress-check,
-                               # share-check, friends-check and lookback-check in a browser)
+                               # next step, share, friends, the rough edges (and progress-check,
+                               # share-check, friends-check, edges-check and lookback-check
+                               # in a browser)
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over; then the look-back
+npm run check:chess:all        # all three of the above, one after another
 ```
 
 The ones that open a browser need `playwright-core` and a Chromium on
