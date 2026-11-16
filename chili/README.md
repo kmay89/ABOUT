@@ -6,7 +6,7 @@ this desk:
 | file | what it is |
 | --- | --- |
 | `recipe.js` | **the recipe.** Every amount, written once, per one pound of ground beef. This is the only file to edit when the pot changes. |
-| `app.js` | the calculator: the unit engine, the whole-can arithmetic, and cook mode. It knows nothing about chili. |
+| `app.js` | the calculator: the unit engine, the whole-can arithmetic, and cook mode. It knows nothing about chili, and the stroganoff page (`/stroganoff/`) runs on it too. |
 | `index.html` | the page and its styles. |
 
 Live at [kmay89.com/chili](https://kmay89.com/chili/).
@@ -108,6 +108,23 @@ and the browning step is rewritten. Every other amount, the whole-can
 arithmetic and the taste card are untouched, so both pots scale the
 same way and a fix to the spice bowl fixes both. The choice rides in the
 address bar (`&veg=1`), so a link carries it.
+
+## Another recipe on the same calculator
+
+`app.js` reads `window.RECIPE` (or `window.CHILI`), so a new dish is a
+new folder with its own `recipe.js` and a copy of this `index.html`
+that loads `../chili/app.js`. The stroganoff is the worked example. The
+few things that were the chili's alone are now recipe fields, with the
+chili's values as the defaults so this page never has to name them:
+
+| field | meaning |
+| --- | --- |
+| `dial` | `{ protein, title, of, us: [{ lb, tag }], metric: [{ g, tag }], maxLb }` — what the dial weighs and its presets |
+| `yield` | either `{ mlPerLb, bowlMl, kidBowlMl }` (ladled) or `{ serves, kids, word, over }` (counted per base) |
+| `pans` | optional `[{ upToLb, us, metric }]` — name the pan by size instead of working out quarts |
+| `url`, `storageKey`, `timesUp` | the line under a copied list, where the page remembers you, and what the timer says aloud |
+
+A recipe with no `can` items hides the whole-cans switch by itself.
 
 ## Whole cans, shared out honestly
 

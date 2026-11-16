@@ -1,7 +1,11 @@
 /* app.js — the calculator. It knows nothing about chili.
 
    Everything it does is driven by recipe.js: scale one number (how much
-   beef), then render. The three pieces worth reading are:
+   beef), then render. The same file runs the stroganoff page too —
+   that page loads its own recipe.js and then this one, and everything
+   that differs between the two (the dial's words, the presets, the pan,
+   how servings are counted) is read from the recipe, with the chili's
+   values as the defaults. The three pieces worth reading are:
 
      1. the unit engine, which picks the unit a cook would actually say
         out loud — "1⅓ cups", not "315.3 ml", and "1 medium onion",
@@ -18,7 +22,18 @@
 (function () {
 "use strict";
 
-var BASE = window.CHILI, R = BASE;
+var BASE = window.RECIPE || window.CHILI, R = BASE;
+
+/* What the dial is weighing, and its presets. A recipe can override any
+   of it with `dial`; leave it out and you get the chili's dial. */
+var DIAL = Object.assign({
+  protein: "beef",
+  title: "How much beef have you got?",
+  of: "of 80/20 ground beef",
+  us: [{ lb: 1 }, { lb: 2 }, { lb: 3, tag: "the original" }, { lb: 5 }],
+  metric: [{ g: 500 }, { g: 1000 }, { g: 1500, tag: "the original" }, { g: 2500 }],
+  maxLb: 12
+}, BASE.dial || {});
 
 /* The recipe as it stands right now: the base pot, or the base pot with a
    swap laid over it (see `swaps` in recipe.js). Items and steps are
@@ -39,7 +54,7 @@ function buildRecipe() {
   R = Object.assign({}, BASE, { items: items, steps: steps });
 }
 function swapNow() { return state.veg && BASE.swaps ? BASE.swaps.veg : null; }
-function proteinWord() { var sw = swapNow(); return sw ? sw.protein : "beef"; }
+function proteinWord() { var sw = swapNow(); return sw ? sw.protein : DIAL.protein; }
 var $ = function (id) { return document.getElementById(id); };
 
 /* ---------------------------------------------------------------- *
@@ -132,7 +147,9 @@ function volume(ml, sys) {
     return frac(cs, [4, 3, 2]) + " " + plural("cup", cs);
   }
   if (ml >= ML_TBSP * 0.75) return tbsp(ml / ML_TSP);
-  return frac(ml / ML_TSP, [2, 4, 8]) + " tsp";
+  /* under a tablespoon, it's measured with spoons — and only the spoons
+     in the drawer, so never "1⅝ tsp" */
+  return spice(ml / ML_TSP);
 }
 
 /* Spoons stay spoons in both systems — nobody weighs cumin. A spice
@@ -297,14 +314,15 @@ function phrase(it, plan) {
  * ---------------------------------------------------------------- */
 
 var PRESETS = {
-  us: [{ g: G_LB, label: "1 lb" }, { g: G_LB * 2, label: "2 lb" },
-       { g: G_LB * 3, label: "3 lb", tag: "the original" }, { g: G_LB * 5, label: "5 lb" }],
-  metric: [{ g: 500, label: "500 g" }, { g: 1000, label: "1 kg" },
-           { g: 1500, label: "1.5 kg", tag: "the original" }, { g: 2500, label: "2.5 kg" }]
+  us: DIAL.us.map(function (p) { return { g: p.lb * G_LB, label: frac(p.lb, [2, 4]) + " lb", tag: p.tag }; }),
+  metric: DIAL.metric.map(function (p) {
+    return { g: p.g, label: p.g >= 1000 ? trim(p.g / 1000) + " kg" : p.g + " g", tag: p.tag };
+  })
 };
 function stepSize() { return state.sys === "us" ? G_LB / 2 : 250; }
 function clampBeef(g) {
-  var lo = state.sys === "us" ? G_LB / 2 : 250, hi = state.sys === "us" ? G_LB * 12 : 5500;
+  var lo = state.sys === "us" ? G_LB / 2 : 250,
+      hi = state.sys === "us" ? G_LB * DIAL.maxLb : Math.ceil(G_LB * DIAL.maxLb / 250) * 250;
   return Math.min(hi, Math.max(lo, g));
 }
 function nudge(dir) {
@@ -315,11 +333,31 @@ function nudge(dir) {
 }
 
 function beefLabel() { return mass(state.grams, state.sys); }
+/* Servings come one of two ways: from the finished volume (the chili,
+   ladled into bowls), or counted straight off the recipe (`serves` and
+   `kids` per base) when it goes onto plates over something else. */
 function servings() {
-  var ml = R.yield.mlPerLb * mult();
-  return { ml: ml, bowls: Math.max(1, Math.round(ml / R.yield.bowlMl)), kids: Math.max(1, Math.round(ml / R.yield.kidBowlMl)) };
+  var y = R.yield, m = mult();
+  if (y.serves) return { ml: 0, bowls: Math.max(1, Math.round(y.serves * m)), kids: Math.max(1, Math.round(y.kids * m)) };
+  var ml = y.mlPerLb * m;
+  return { ml: ml, bowls: Math.max(1, Math.round(ml / y.bowlMl)), kids: Math.max(1, Math.round(ml / y.kidBowlMl)) };
+}
+function servingWord() { return R.yield.word || "bowl"; }
+function yieldText() {
+  var s = servings(), y = R.yield, w = servingWord();
+  var head = y.serves
+    ? "Feeds about " + s.bowls + (y.over ? " " + y.over : "") + ", or " + s.kids + " kid " + plural(w, s.kids)
+    : "≈ " + volume(s.ml, state.sys) + " — about " + s.bowls + " big " + plural(w, s.bowls) +
+      " or " + s.kids + " kid " + plural(w, s.kids);
+  return head + ". Use " + potLine() + ".";
 }
 function potLine() {
+  /* a recipe can name its pans by size instead: the first one big enough */
+  if (R.pans) {
+    var lb = state.grams / G_LB, pan = R.pans[R.pans.length - 1];
+    for (var i = 0; i < R.pans.length; i++) if (lb <= R.pans[i].upToLb + 1e-6) { pan = R.pans[i]; break; }
+    return pan[state.sys];
+  }
   var need = R.yield.mlPerLb * mult() * R.pot.headroom;
   return state.sys === "us"
     ? "a pot of at least " + Math.ceil(need / ML_QT) + " quarts"
@@ -345,17 +383,14 @@ var EFFORT = {
 
 function renderDial() {
   var sw = swapNow();
-  $("dialTitle").textContent = sw ? sw.dialTitle : "How much beef have you got?";
-  $("beefOf").textContent = sw ? sw.dialOf : "of 80/20 ground beef";
+  $("dialTitle").textContent = sw ? sw.dialTitle : DIAL.title;
+  $("beefOf").textContent = sw ? sw.dialOf : DIAL.of;
   $("less").setAttribute("aria-label", "Less " + proteinWord());
   $("more").setAttribute("aria-label", "More " + proteinWord());
   setToggle("potBeef", !state.veg);
   setToggle("potVeg", state.veg);
   $("beefAmount").textContent = beefLabel();
-  var s = servings();
-  $("yieldLine").textContent =
-    "≈ " + volume(s.ml, state.sys) + " — about " + s.bowls + " big " + plural("bowl", s.bowls) +
-    " or " + s.kids + " kid " + plural("bowl", s.kids) + ". Use " + potLine() + ".";
+  $("yieldLine").textContent = yieldText();
 
   var pre = PRESETS[state.sys].map(function (p) {
     var on = Math.abs(p.g - state.grams) < 1;
@@ -367,6 +402,8 @@ function renderDial() {
   setToggle("unitUS", state.sys === "us");
   setToggle("unitMetric", state.sys === "metric");
   setToggle("canToggle", state.wholeCans);
+  /* no cans in the recipe, no whole-cans switch */
+  if ($("canToggle")) $("canToggle").hidden = !R.items.some(function (it) { return it.measure === "can"; });
   setToggle("bigToggle", state.big);
   setToggle("voiceToggle", state.voice);
 }
@@ -497,7 +534,7 @@ function renderCook() {
   $("cookBack").disabled = i === 0;
   $("cookNext").disabled = i === R.steps.length - 1;
   var sv = servings();
-  $("cookScale").textContent = "Making " + beefLabel() + " of " + proteinWord() + " — about " + sv.bowls + " " + plural("bowl", sv.bowls);
+  $("cookScale").textContent = "Making " + beefLabel() + " of " + proteinWord() + " — about " + sv.bowls + " " + plural(servingWord(), sv.bowls);
   if (state.voice) speakStep(s);
 }
 
@@ -602,7 +639,7 @@ function chime() {
     });
     setTimeout(function () { ctx.close(); }, 2000);
   } catch (e) { /* silence is an acceptable timer */ }
-  if (state.voice) speak("Time's up. Taste it.");
+  if (state.voice) speak(BASE.timesUp || "Time's up. Taste it.");
 }
 
 /* ---------------------------------------------------------------- *
@@ -620,7 +657,7 @@ function listText() {
     });
     lines.push("");
   });
-  lines.push("kmay89.com/chili");
+  lines.push(BASE.url || "kmay89.com/chili");
   return lines.join("\n");
 }
 
@@ -628,7 +665,7 @@ function listText() {
  *  state: saved locally, and mirrored into the address bar          *
  * ---------------------------------------------------------------- */
 
-var KEY = "chili.v1";
+var KEY = BASE.storageKey || "chili.v1";
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
   var q = "#beef=" + Math.round(state.grams) + "&u=" + state.sys + (state.wholeCans ? "" : "&cans=part") + (state.veg ? "&veg=1" : "");
@@ -717,7 +754,7 @@ function init() {
   $("potBeef").addEventListener("click", function () { if (state.veg) { state.veg = false; save(); render(); } });
   $("potVeg").addEventListener("click", function () { if (!state.veg) { state.veg = true; save(); render(); } });
 
-  $("canToggle").addEventListener("click", function () { state.wholeCans = !state.wholeCans; save(); render(); });
+  if ($("canToggle")) $("canToggle").addEventListener("click", function () { state.wholeCans = !state.wholeCans; save(); render(); });
   $("bigToggle").addEventListener("click", function () { state.big = !state.big; save(); render(); });
   $("voiceToggle").addEventListener("click", function () {
     state.voice = !state.voice;
