@@ -247,6 +247,13 @@ fx.js               the big moments, as light: a layer over the board for
                     per step, a shake, a buzz. Procedural sprites, 400
                     particles at most, asleep and a pixel big when idle,
                     nothing at all under reduced motion
+press.js            what a finger does to a button: when a key goes down, how
+                    long it stays down (long enough to be seen, however
+                    quick the tap), where on it the light falls, and that
+                    a finger starting a scroll presses nothing; and the
+                    on/off chips told to a screen reader as switches. The
+                    look is CSS ("the keys" in index.html); this is only
+                    the moments
 haptics.js          what the game feels like in the hand: a vocabulary of
                     named moments (a pick-up, a detent, a landing weighted
                     by the man, a capture weighted by what it took, a
@@ -401,6 +408,14 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  press-check.js    a key goes down when it is pressed: in node, press.js
+                    against a pretend page and a clock stepped by hand (a
+                    mouse press at once, a quick tap still seen, a scroll
+                    pressing nothing, a disabled key silent); in a browser,
+                    phone and laptop, every kind of key has an edge and
+                    travels onto it, comes back, still lands when pressed
+                    on its top edge, the switches are switches, each kind
+                    has its pitch, and reduced motion moves nothing
   haptics-check.js  every moment the game asks for is written down and
                     sane (whole positive milliseconds, pulse to pulse, no
                     gap a tick could smear across, all over in under a
@@ -1666,6 +1681,50 @@ motor and a fake clock: every pattern sane, the throttle dropping and
 holding as it should, off really off, and one tick per beat on the
 iPhone path.
 
+## The keys
+
+Every button in the room is a key cut from the same block. Its face is
+lit from above and stands a few pixels proud of a darker edge; press it
+and the face travels down onto the edge, a little light falls where it
+was touched, and on release it comes back up on a spring, a hair past
+where it started. Nothing around a key moves when it does: only
+transform, shadow and brightness change.
+
+There are three depths, so the eye can rank a card without reading it.
+Small keys (the chips, the action bar) stand three pixels up; the rows
+and tiles you choose between stand four; and the one hero on a card,
+*Play the computer*, or the rematch when a game ends, stands six, in
+gold, with a slow light crossing it now and then. Gold always means the
+same thing: this is the way forward, or this is what is chosen. A key
+that cannot be pressed sits down in its bed, dim. The quiet way out of a
+toast stays flat, because it is the way out.
+
+The on/off settings are drawn as what they are, switches, with a thumb
+that slides and stretches a little under the finger. The word "On" or
+"Off" stays in the page for a screen reader, with `role="switch"` and
+its state kept true by `press.js`.
+
+A press is made of moments too short to style, so `press.js` keeps them:
+
+- **A quick tap is still seen.** A pressed key stays down at least 110 ms,
+  so the fastest tap shows the whole journey down and back.
+- **A scroll is not a press.** On glass a key waits 70 ms before going
+  down; if the browser takes the touch to scroll, or the finger drifts,
+  it never does. A tap shorter than the wait presses as it ends.
+- **The key knows where it was touched**, so the light is under the
+  finger and not in the middle.
+- **Enter and Space** press a key with the same travel.
+
+Each press has a small dry sound whose pitch says what kind of key it
+was (a plain key, a gold one, the hero, a tab, a quiet link), a switch
+has one voice for on and a lower one for off, and the thumb gets a tick
+where the device can give one. A card's keys arrive a beat apart, top to
+bottom. With reduced motion a press is still marked, by the edge going
+and the face darkening, and nothing moves or arrives.
+
+Without `press.js` every key still presses on `:active`.
+`press-check.js` checks the moments in node and the look in a browser.
+
 ## The room's music
 
 The pieces were modelled; everything else was a sine beep. A beep can
@@ -2311,6 +2370,7 @@ node chess/tools/fx-check.js       # every big moment lands on its square, then 
 node chess/tools/feel-check.js     # the board has weight, and comes to rest
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
+node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger

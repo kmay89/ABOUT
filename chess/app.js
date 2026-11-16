@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Help, Games, Feats, Goals, Share, Friends, Ink */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink */
 (function () {
 "use strict";
 
@@ -139,14 +139,29 @@ function hapMove(desc, plan, took, withCapture) {
   if (took) { if (withCapture) hapAt("capture", landAt, { power: FX ? Fx.powerOf(took) : 0.5, soft: soft }); return; }
   if (!desc.promo) hapAt("land", landAt, { piece: desc.piece, soft: soft });
 }
-/* Buttons answer a press with a tick, the way a real one clicks under
-   the thumb — once, on the way down, for the presses that do something.
+/* Buttons answer a press the way a real key does: it goes down, it
+   clicks under the thumb, and it makes a small dry sound whose pitch
+   says what kind of key it was. press.js decides the moment (so a
+   finger starting a scroll presses nothing, and the quickest tap still
+   shows the whole press); the look is the stylesheet's ("the keys").
    Anything that already has its own feel says so with data-feel="own". */
-var TAP_FEEL = ".bigbtn, .abtn, .lchip, .playBtn, .chip, .stPick, .preset, .rung, .tile, .tact, #askRow button, #promoRow button";
-document.addEventListener("pointerdown", function (e) {
-  var b = e.target && e.target.closest ? e.target.closest(TAP_FEEL) : null;
-  if (b && !b.disabled && b.getAttribute("data-feel") !== "own") hap("tick");
-}, { passive: true });
+var PRESS_KEYS = ".bigbtn, .tile, .rung, .rungRow, .lrow2, .gameRow, .preset, .abtn, .chip, .lchip, .stPick, .askRow button, .tact, " +
+  "#inkPill button, #promoRow button, .playBtn, .ptab, .pftab, .linkish, .ghostbtn";
+var PRESS_HZ = { key: 1320, bright: 1568, play: 1175, tab: 1480, quiet: 988 };
+function wirePress() {
+  if (typeof Press === "undefined") return;
+  Press.attach(document, { selector: PRESS_KEYS, onDown: function (el, kind) {
+    if (el.getAttribute("data-feel") !== "own") hap("tick");
+    /* a switch speaks once it has flipped, and says which way */
+    if (kind !== "switch") snd("tap", { hz: PRESS_HZ[kind] || PRESS_HZ.key });
+  } });
+  Press.switches(document);
+  document.addEventListener("click", function (e) {
+    var s = e.target && e.target.closest ? e.target.closest(".sw") : null;
+    if (s) setTimeout(function () { snd("tap", { hz: s.classList.contains("sel") ? 1760 : 1047 }); }, 0);
+  });
+}
+wirePress();
 
 /* ===== the big moments (fx.js) =====
    The board's half (a struck square, a king laid down, a camera that

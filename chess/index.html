@@ -1033,28 +1033,423 @@
   .pgRow .chip{padding:4px 10px; font-size:.85em}
   .lessonBar .lread{display:block; color:var(--soft); font-size:.86em; margin-top:2px}
 
-  /* ---------- the press ----------
-     A button you can feel: it goes down the instant a finger lands, a
-     touch smaller and a shade darker, and comes back up with a small
-     spring past where it started — the way a real key does. Only on
-     :active, never on hover, so a mouse resting on a button does
-     nothing; and only scale and brightness, which move nothing around
-     them. Wide buttons give a little less, or their edges would travel
-     further than a thumb expects. */
+  /* ---------- the keys ----------
+     Every button in the room is a key cut from the same block: a face
+     lit from above, standing a few pixels proud of a darker edge. Press
+     it and the face travels down onto the edge at once (the room never
+     makes a finger wait), a little light falls where it was touched,
+     and on release it comes back up on a spring, a hair past where it
+     started. That journey is the whole trick. press.js sees that even
+     the quickest tap gets all of it (the .dn class), and that a finger
+     starting a scroll does not; without it :active still works.
+
+     Depth is --d, the colour of the edge --edge, the face --fa over
+     --fb. A gold key is the one that takes you forward; there is at
+     most one hero on a card. Only transform, shadow and brightness
+     change, so nothing around a key moves when it does. */
+  :root{
+    --key-top:#3d332a; --key-bot:#2a231d; --key-line:#5b4b3d; --key-edge:#0f0b08;
+    --gold-top:#ffd070; --gold-bot:#f0a020; --gold-line:#ffe3a8; --gold-edge:#9c5c08; --gold-ink:#241a08;
+    --spring:cubic-bezier(.3,1.7,.5,1);
+  }
+  .bigbtn,
+  .tile,
+  .rung,
+  .rungRow, .lrow2, .gameRow,
+  .preset,
+  .abtn,
+  .chip,
+  .lchip,
+  .stPick,
+  .askRow button,
+  #toast .tact,
+  #inkPill button,
+  #promoRow button,
+  .playBtn{
+    --d:3px; --edge:var(--key-edge); --fa:var(--key-top); --fb:var(--key-bot); --ring:0 0 0 0 rgba(0,0,0,0);
+    position:relative;
+    background:linear-gradient(180deg, var(--fa), var(--fb));
+    border:1px solid var(--key-line);
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), 0 calc(var(--d) + 4px) 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.1);
+  }
+  /* the strip a key leaves behind when it goes down still belongs to it,
+     so a press that began on its top edge still ends on the key */
+  .bigbtn::before,
+  .tile::before,
+  .rung::before,
+  .rungRow::before, .lrow2::before, .gameRow::before,
+  .preset::before,
+  .abtn::before,
+  .chip::before,
+  .lchip::before,
+  .stPick::before,
+  .askRow button::before,
+  #toast .tact::before,
+  #inkPill button::before,
+  #promoRow button::before,
+  .playBtn::before{
+    content:""; position:absolute; left:0; right:0; top:calc(-1 * var(--d)); height:var(--d);
+  }
+  /* the light under the finger */
+  .bigbtn::after,
+  .tile::after,
+  .rung::after,
+  .rungRow::after, .lrow2::after, .gameRow::after,
+  .preset::after,
+  .abtn::after,
+  .chip::after,
+  .lchip::after,
+  .stPick::after,
+  .askRow button::after,
+  #toast .tact::after,
+  #inkPill button::after,
+  #promoRow button::after,
+  .playBtn::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0;
+    background:radial-gradient(circle 5.5em at var(--px, 50%) var(--py, 50%), rgba(255,255,255,.22), rgba(255,255,255,0) 70%);
+    transition:opacity .5s ease-out;
+  }
+  .bigbtn.dn::after,
+  .bigbtn:active::after,
+  .tile.dn::after,
+  .tile:active::after,
+  .rung.dn::after,
+  .rung:active::after,
+  .rungRow.dn::after, .lrow2.dn::after, .gameRow.dn::after,
+  .rungRow:active::after, .lrow2:active::after, .gameRow:active::after,
+  .preset.dn::after,
+  .preset:active::after,
+  .abtn.dn::after,
+  .abtn:active::after,
+  .chip.dn::after,
+  .chip:active::after,
+  .lchip.dn::after,
+  .lchip:active::after,
+  .stPick.dn::after,
+  .stPick:active::after,
+  .askRow button.dn::after,
+  .askRow button:active::after,
+  #toast .tact.dn::after,
+  #toast .tact:active::after,
+  #inkPill button.dn::after,
+  #inkPill button:active::after,
+  #promoRow button.dn::after,
+  #promoRow button:active::after,
+  .playBtn.dn::after,
+  .playBtn:active::after{opacity:1; transition-duration:.04s}
+  /* down */
+  .bigbtn.dn,
+  .bigbtn:active,
+  .tile.dn,
+  .tile:active,
+  .rung.dn,
+  .rung:active,
+  .rungRow.dn, .lrow2.dn, .gameRow.dn,
+  .rungRow:active, .lrow2:active, .gameRow:active,
+  .preset.dn,
+  .preset:active,
+  .abtn.dn,
+  .abtn:active,
+  .chip.dn,
+  .chip:active,
+  .lchip.dn,
+  .lchip:active,
+  .stPick.dn,
+  .stPick:active,
+  .askRow button.dn,
+  .askRow button:active,
+  #toast .tact.dn,
+  #toast .tact:active,
+  #inkPill button.dn,
+  #inkPill button:active,
+  #promoRow button.dn,
+  #promoRow button:active,
+  .playBtn.dn,
+  .playBtn:active{
+    transform:translateY(calc(var(--d) - 1px));
+    box-shadow:var(--ring), 0 1px 0 var(--edge), 0 2px 4px rgba(0,0,0,.3), inset 0 2px 6px rgba(0,0,0,.32);
+    filter:brightness(.93);
+  }
+  /* a key that cannot be pressed sits down in its bed, out of the light */
+  .bigbtn:disabled,
+  .bigbtn[aria-disabled="true"],
+  .tile:disabled,
+  .tile[aria-disabled="true"],
+  .rung:disabled,
+  .rung[aria-disabled="true"],
+  .rungRow:disabled, .lrow2:disabled, .gameRow:disabled,
+  .rungRow[aria-disabled="true"], .lrow2[aria-disabled="true"], .gameRow[aria-disabled="true"],
+  .preset:disabled,
+  .preset[aria-disabled="true"],
+  .abtn:disabled,
+  .abtn[aria-disabled="true"],
+  .chip:disabled,
+  .chip[aria-disabled="true"],
+  .lchip:disabled,
+  .lchip[aria-disabled="true"],
+  .stPick:disabled,
+  .stPick[aria-disabled="true"],
+  .askRow button:disabled,
+  .askRow button[aria-disabled="true"],
+  #toast .tact:disabled,
+  #toast .tact[aria-disabled="true"],
+  #inkPill button:disabled,
+  #inkPill button[aria-disabled="true"],
+  #promoRow button:disabled,
+  #promoRow button[aria-disabled="true"],
+  .playBtn:disabled,
+  .playBtn[aria-disabled="true"]{
+    transform:translateY(calc(var(--d) - 1px)); filter:none;
+    box-shadow:0 1px 0 var(--edge); opacity:.4; cursor:default;
+  }
+  .abtn[disabled]{opacity:.34}
+  .bigbtn, .tile, .rung, .rungRow, .lrow2, .gameRow, .preset, #promoRow button{--d:4px}
+  .playBtn{--d:6px}
+
+  /* gold: the key that takes you forward, and whatever is chosen */
+  .chip.sel, .stPick.sel, .lchip.go, .abtn.primary, #toast .tact, .playBtn, .askRow button.go,
+  #endNext, #endNext.hide + #endRematch{
+    --fa:var(--gold-top); --fb:var(--gold-bot); --edge:var(--gold-edge);
+    background:linear-gradient(180deg, var(--fa), var(--fb));
+    border-color:var(--gold-line); color:var(--gold-ink);
+    text-shadow:0 1px 0 rgba(255,255,255,.2);
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), 0 calc(var(--d) + 5px) 14px rgba(240,160,32,.2), inset 0 1px 0 rgba(255,255,255,.55);
+  }
+  .chip.sel.dn, .chip.sel:active, .stPick.sel.dn, .stPick.sel:active, .lchip.go.dn, .lchip.go:active,
+  .abtn.primary.dn, .abtn.primary:active, #toast .tact.dn, #toast .tact:active, .playBtn.dn, .playBtn:active,
+  .askRow button.go.dn, .askRow button.go:active,
+  #endNext.dn, #endNext:active, #endNext.hide + #endRematch.dn, #endNext.hide + #endRematch:active{
+    box-shadow:var(--ring), 0 1px 0 var(--edge), 0 2px 5px rgba(240,160,32,.2), inset 0 2px 6px rgba(120,66,0,.4);
+  }
+  .chip.sel, .stPick.sel, .lchip.go, #toast .tact{font-weight:700}
+  .abtn.primary .ic{color:var(--gold-ink)}
+  #endNext small, #endNext.hide + #endRematch small{color:rgba(36,26,8,.74); text-shadow:none}
+  .playBtn small{text-shadow:none}
+  /* the quiet second choice in a toast stays flat: it is the way out, not the way on */
+  #toast .tact.ghost{
+    --d:0px; background:transparent; border:1px solid var(--line); color:var(--soft); font-weight:600;
+    text-shadow:none; box-shadow:none;
+  }
+  #toast .tact.ghost.dn, #toast .tact.ghost:active{transform:scale(.96); box-shadow:none; background:rgba(255,255,255,.06)}
+  /* tinted faces: a game waiting for you is green; the next rung is warm */
+  .resumeBtn{--fa:#31473b; --fb:#22302a; --edge:#0b1811; border-color:rgba(62,207,142,.55)}
+  .primaryBtn, #mKnow{--fa:#4d3c22; --fb:#33291c; --edge:#160f05; border-color:var(--amber)}
+  .rung.next, .preset.sel, .rungRow.sel{
+    --ring:0 0 0 2px rgba(240,160,32,.3); border-color:var(--amber);
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), 0 calc(var(--d) + 4px) 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.1);
+  }
+  .rungRow.sel{--fa:#4a3a22; --fb:#31271b}
+  .rung.next.dn, .rung.next:active, .preset.sel.dn, .preset.sel:active, .rungRow.sel.dn, .rungRow.sel:active{
+    box-shadow:var(--ring), 0 1px 0 var(--edge), 0 2px 4px rgba(0,0,0,.3), inset 0 2px 6px rgba(0,0,0,.32);
+  }
+  .rung.done{border-color:rgba(255,209,102,.5)}
+  #promoRow button:first-child{--ring:0 0 0 2px rgba(240,160,32,.38); border-color:var(--amber)}
+
+  /* room for the edge: a key's depth hangs below its box */
+  .bigbtn{margin:8px 0 12px}
+  .rowbtns{gap:11px 8px}
+  .tileRow{gap:12px 8px}
+  .rungList{gap:10px}
+  .preset{margin:5px 0 9px}
+  .lrow2{margin:5px 0 9px}
+  .gameRow{margin-bottom:5px}
+  .ladder{padding-bottom:14px}
+  .pgRow{row-gap:9px}
+
+  /* the hero: one on the lobby. Deeper than the rest, a slow light
+     crossing it now and then so the eye knows where the game begins */
+  .playBtn{
+    background:
+      linear-gradient(105deg, rgba(255,255,255,0) 40%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 60%) -170% 0 / 60% 100% no-repeat,
+      linear-gradient(180deg, #ffd67e, #f5a927 80%, #e9981b);
+    margin:6px 0 10px; border-radius:18px;
+    box-shadow:0 var(--d) 0 var(--edge), 0 calc(var(--d) + 12px) 26px rgba(240,160,32,.3),
+               inset 0 1px 0 rgba(255,255,255,.65), inset 0 -3px 0 rgba(156,92,8,.2);
+  }
+  .playBtn.dn, .playBtn:active{
+    box-shadow:0 1px 0 var(--edge), 0 3px 8px rgba(240,160,32,.25), inset 0 3px 8px rgba(120,66,0,.4);
+  }
+  .pbGo{
+    background:radial-gradient(circle at 50% 30%, #3a2b10, #1d1405 70%);
+    box-shadow:0 0 0 0 rgba(36,26,8,.35), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -2px 4px rgba(0,0,0,.5);
+    text-shadow:0 0 10px rgba(255,209,102,.6);
+  }
+  @keyframes pbPulse{
+    0%{box-shadow:0 0 0 0 rgba(36,26,8,.35), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -2px 4px rgba(0,0,0,.5)}
+    70%{box-shadow:0 0 0 12px rgba(36,26,8,0), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -2px 4px rgba(0,0,0,.5)}
+    100%{box-shadow:0 0 0 0 rgba(36,26,8,0), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -2px 4px rgba(0,0,0,.5)}
+  }
+  @keyframes keySheen{0%, 64%{background-position:-170% 0, 0 0} 82%, 100%{background-position:270% 0, 0 0}}
+
+  /* a switch: the on/off chips, as the thing they are. The word stays in
+     the page for a screen reader (press.js adds role and state); the eye
+     gets a thumb that slides and stretches under the finger */
+  .chip.sw{
+    --d:0px; flex:none; width:56px; height:32px; min-height:0; padding:0; border-radius:999px;
+    font-size:0; color:transparent; text-shadow:none; overflow:visible;
+    background:#16110d; border:1px solid var(--key-line);
+    box-shadow:inset 0 2px 5px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.06);
+  }
+  .chip.sw::before{
+    content:""; position:absolute; top:3px; left:3px; right:auto; width:24px; height:24px; border-radius:999px;
+    background:linear-gradient(180deg, #f6eede, #cdbfa8);
+    box-shadow:0 2px 4px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .chip.sw::after{inset:-7px -4px; background:none; opacity:0; pointer-events:auto}   /* a thumb-sized target round a small switch */
+  .chip.sw.sel{
+    background:linear-gradient(180deg, #e2921a, var(--gold-top)); border-color:var(--gold-edge);
+    box-shadow:inset 0 2px 5px rgba(120,66,0,.55), 0 0 12px rgba(240,160,32,.25);
+  }
+  .chip.sw.sel::before{transform:translateX(24px)}
+  .chip.sw.dn, .chip.sw:active{transform:none; filter:none}
+  .chip.sw.dn::before, .chip.sw:active::before{width:30px}
+  .chip.sw.sel.dn::before, .chip.sw.sel:active::before{transform:translateX(18px)}
+
+  /* tabs and plain links are not keys, but they still answer */
+  .ptab.dn, .pftab.dn{filter:brightness(.85)}
+  .linkish.dn, .ghostbtn.dn{opacity:.55}
+
   @media (prefers-reduced-motion: no-preference){
-    .bigbtn, .abtn, .lchip, .chip, .stPick, .preset, .playBtn, .rung, .tile, #askRow button, #toast .tact, #inkPill button{
-      transition:transform .2s cubic-bezier(.34,1.9,.55,1), filter .2s ease-out,
-                 border-color .15s, background .15s, box-shadow .15s, color .15s;
+    .bigbtn,
+  .tile,
+  .rung,
+  .rungRow, .lrow2, .gameRow,
+  .preset,
+  .abtn,
+  .chip,
+  .lchip,
+  .stPick,
+  .askRow button,
+  #toast .tact,
+  #inkPill button,
+  #promoRow button,
+  .playBtn{
+      transition:transform .26s var(--spring), box-shadow .18s ease-out, filter .2s ease-out,
+                 border-color .15s, color .15s, opacity .15s;
     }
-    .abtn:active, .lchip:active, .chip:active, .stPick:active, .rung:active, .tile:active,
-    #askRow button:active, #toast .tact:active, #inkPill button:active{transform:scale(.96); filter:brightness(.9); transition-duration:.04s}
-    .bigbtn:active, .preset:active, .playBtn:active{transform:scale(.975); filter:brightness(.9); transition-duration:.04s}
+    .bigbtn.dn,
+  .bigbtn:active,
+  .tile.dn,
+  .tile:active,
+  .rung.dn,
+  .rung:active,
+  .rungRow.dn, .lrow2.dn, .gameRow.dn,
+  .rungRow:active, .lrow2:active, .gameRow:active,
+  .preset.dn,
+  .preset:active,
+  .abtn.dn,
+  .abtn:active,
+  .chip.dn,
+  .chip:active,
+  .lchip.dn,
+  .lchip:active,
+  .stPick.dn,
+  .stPick:active,
+  .askRow button.dn,
+  .askRow button:active,
+  #toast .tact.dn,
+  #toast .tact:active,
+  #inkPill button.dn,
+  #inkPill button:active,
+  #promoRow button.dn,
+  #promoRow button:active,
+  .playBtn.dn,
+  .playBtn:active{transition-duration:.05s}
+    .chip.sw::before{transition:transform .3s var(--spring), width .14s ease-out}
+    .playBtn{animation:keySheen 6.5s ease-in-out 1.4s infinite}
+    .playBtn.dn .pbGo, .playBtn:active .pbGo{transform:translateX(2px) scale(.96)}
+    .pbGo{transition:transform .26s var(--spring)}
+    .ptab, .pftab, .linkish, .ghostbtn{transition:filter .2s, opacity .2s, color .15s, background .15s}
+    /* a card's keys arrive a beat apart, top to bottom, so a menu reads
+       as a hand being dealt rather than a page appearing; a key shown
+       later (the next opponent, once the look-back is in) arrives alone */
+    .card .playBtn, .card .bigbtn, .card .tile, .card .rung, .card .rungRow, .card .lrow2, .card .gameRow{animation:keyIn .34s cubic-bezier(.2,.9,.3,1.15) backwards}
+    .card .playBtn{animation:keyIn .34s cubic-bezier(.2,.9,.3,1.15) backwards, keySheen 6.5s ease-in-out 1.4s infinite}
+    .card .bigbtn:nth-of-type(2), .card .tile:nth-of-type(2), .card .rung:nth-of-type(2), .card .rungRow:nth-of-type(2), .card .lrow2:nth-of-type(2), .card .gameRow:nth-of-type(2){animation-delay:.04s}
+    .card .bigbtn:nth-of-type(3), .card .tile:nth-of-type(3), .card .rung:nth-of-type(3), .card .rungRow:nth-of-type(3), .card .lrow2:nth-of-type(3), .card .gameRow:nth-of-type(3){animation-delay:.08s}
+    .card .bigbtn:nth-of-type(4), .card .tile:nth-of-type(4), .card .rung:nth-of-type(4), .card .rungRow:nth-of-type(4), .card .lrow2:nth-of-type(4), .card .gameRow:nth-of-type(4){animation-delay:.12s}
+    .card .bigbtn:nth-of-type(5), .card .tile:nth-of-type(5), .card .rung:nth-of-type(5), .card .rungRow:nth-of-type(5), .card .lrow2:nth-of-type(5), .card .gameRow:nth-of-type(5){animation-delay:.16s}
+    .card .bigbtn:nth-of-type(n+6), .card .tile:nth-of-type(n+6), .card .rung:nth-of-type(n+6), .card .rungRow:nth-of-type(n+6), .card .lrow2:nth-of-type(n+6), .card .gameRow:nth-of-type(n+6){animation-delay:.2s}
+  }
+  @keyframes keyIn{from{opacity:0; transform:translateY(10px) scale(.97)} to{opacity:1; transform:none}}
+  /* a mouse resting on a key lifts it a hair toward the hand */
+  @media (hover:hover) and (prefers-reduced-motion: no-preference){
+    .bigbtn:hover:not(.dn):not(:active):not(:disabled),
+    .tile:hover:not(.dn):not(:active):not(:disabled),
+    .rung:hover:not(.dn):not(:active):not(:disabled),
+    .rungRow:hover:not(.dn):not(:active):not(:disabled), .lrow2:hover:not(.dn):not(:active):not(:disabled), .gameRow:hover:not(.dn):not(:active):not(:disabled),
+    .preset:hover:not(.dn):not(:active):not(:disabled),
+    .playBtn:hover:not(.dn):not(:active):not(:disabled),
+    #promoRow button:hover:not(.dn):not(:active):not(:disabled){
+      transform:translateY(-1px); filter:brightness(1.06);
+      box-shadow:var(--ring), 0 calc(var(--d) + 1px) 0 var(--edge), 0 calc(var(--d) + 7px) 14px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.14);
+    }
+    .playBtn:hover:not(.dn):not(:active){
+      box-shadow:0 calc(var(--d) + 1px) 0 var(--edge), 0 calc(var(--d) + 14px) 30px rgba(240,160,32,.38),
+                 inset 0 1px 0 rgba(255,255,255,.7), inset 0 -3px 0 rgba(156,92,8,.2);
+    }
+    .abtn:hover:not(.dn):not(:active):not([disabled]), .chip:hover:not(.dn):not(:active):not(.sw), .lchip:hover:not(.dn):not(:active),
+    .stPick:hover:not(.dn):not(:active), #toast .tact:hover:not(.dn):not(:active){filter:brightness(1.1)}
   }
   @media (prefers-reduced-motion: reduce){
     *{transition:none !important; animation:none !important}
-    /* still: a press is a shade darker and nothing moves */
-    .bigbtn:active, .abtn:active, .lchip:active, .chip:active, .stPick:active, .preset:active, .playBtn:active,
-    .rung:active, .tile:active, #askRow button:active, #toast .tact:active, #inkPill button:active{transform:none; filter:brightness(.9)}
+    /* still: a pressed key loses its edge and its light and nothing moves */
+    .bigbtn.dn,
+  .bigbtn:active,
+  .tile.dn,
+  .tile:active,
+  .rung.dn,
+  .rung:active,
+  .rungRow.dn, .lrow2.dn, .gameRow.dn,
+  .rungRow:active, .lrow2:active, .gameRow:active,
+  .preset.dn,
+  .preset:active,
+  .abtn.dn,
+  .abtn:active,
+  .chip.dn,
+  .chip:active,
+  .lchip.dn,
+  .lchip:active,
+  .stPick.dn,
+  .stPick:active,
+  .askRow button.dn,
+  .askRow button:active,
+  #toast .tact.dn,
+  #toast .tact:active,
+  #inkPill button.dn,
+  #inkPill button:active,
+  #promoRow button.dn,
+  #promoRow button:active,
+  .playBtn.dn,
+  .playBtn:active{transform:none}
+    .bigbtn:disabled,
+  .bigbtn[aria-disabled="true"],
+  .tile:disabled,
+  .tile[aria-disabled="true"],
+  .rung:disabled,
+  .rung[aria-disabled="true"],
+  .rungRow:disabled, .lrow2:disabled, .gameRow:disabled,
+  .rungRow[aria-disabled="true"], .lrow2[aria-disabled="true"], .gameRow[aria-disabled="true"],
+  .preset:disabled,
+  .preset[aria-disabled="true"],
+  .abtn:disabled,
+  .abtn[aria-disabled="true"],
+  .chip:disabled,
+  .chip[aria-disabled="true"],
+  .lchip:disabled,
+  .lchip[aria-disabled="true"],
+  .stPick:disabled,
+  .stPick[aria-disabled="true"],
+  .askRow button:disabled,
+  .askRow button[aria-disabled="true"],
+  #toast .tact:disabled,
+  #toast .tact[aria-disabled="true"],
+  #inkPill button:disabled,
+  #inkPill button[aria-disabled="true"],
+  #promoRow button:disabled,
+  #promoRow button[aria-disabled="true"],
+  .playBtn:disabled,
+  .playBtn[aria-disabled="true"]{transform:none}
   }
   /* ---- help & teaching (help.js): the welcome, the lamp, the why ----
      The welcome sits where the rating card will be, the same size and
@@ -1472,19 +1867,19 @@
         <button class="chip" id="vcOff">Off</button>
       </div></div>
     <div class="settingRow"><span class="lbl"><b>Sound</b><small>Every piece has its own voice: the material decides how it rings, the weight decides how low, and a piece that slides is heard sliding. All synthesized here — nothing to download.</small></span>
-      <button class="chip sel" id="setSound">On</button></div>
+      <button class="chip sw sel" id="setSound">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Haptics</b><small>Feel the board: a light tick as you pick a piece up, a knock as it lands, a real hit for a capture. Your own moves in full, the other side's softly.</small><small id="setHapticsNote" class="hide" style="display:block">This device doesn't do haptics — everything else still works.</small></span>
-      <button class="chip sel" id="setHaptics" data-feel="own">On</button></div>
+      <button class="chip sw sel" id="setHaptics" data-feel="own">On</button></div>
     <div class="settingRow" id="tiltRow"><span class="lbl"><b>Tilt to look round</b><small>Tip the phone and the 3D board answers, a degree or two, as if you had moved your head over a real one.</small><small id="setTiltNote" class="hide" style="display:block">Your phone asks first — tap to allow motion.</small></span>
-      <button class="chip sel" id="setTilt">On</button></div>
+      <button class="chip sw sel" id="setTilt">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Clock skin</b><small>Simple digits, or the classic tournament look.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
-      <button class="chip sel" id="setHelpers">On</button></div>
+      <button class="chip sw sel" id="setHelpers">On</button></div>
     <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
-      <button class="chip" id="setWheels">Off</button></div>
+      <button class="chip sw" id="setWheels">Off</button></div>
     <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
-      <button class="chip sel" id="setPen">On</button></div>
+      <button class="chip sw sel" id="setPen">On</button></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -1638,6 +2033,7 @@
 <script src="gfx3d.js"></script>
 <script src="fx.js"></script>
 <script src="haptics.js"></script>
+<script src="press.js"></script>
 <script src="room.js"></script>
 <script src="net.js"></script>
 <script src="games.js"></script>

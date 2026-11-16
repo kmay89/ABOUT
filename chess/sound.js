@@ -853,8 +853,10 @@ var STINGS = {
 
   /* a button: barely there, and dry — a room echo on every tap would
      be the room talking over you */
-  tap: { len: 0.15, send: 0, gain: 0.7, score: function (s) {
-    N(s, 0, "tick", 0, 0.55, { hz: 1320, ring: 0.8, cut: 2400 });
+  tap: { len: 0.15, send: 0, gain: 0.7, score: function (s, o) {
+    /* the pitch says what kind of key it was (app.js PRESS_HZ) */
+    var hz = +(o && o.hz);
+    N(s, 0, "tick", 0, 0.55, { hz: hz >= 400 && hz <= 3000 ? hz : 1320, ring: 0.8, cut: 2400 });
   } },
   /* a card arriving is air moving, rising into one quiet note */
   open: { len: 3.4, send: 0.2, gain: 0.9, score: function (s, o) {
