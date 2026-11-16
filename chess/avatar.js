@@ -222,7 +222,7 @@ function create(canvas, opts) {
 
   var A = { canvas: canvas, gl: gl, look: null, id: null };
   var st = {
-    t0: 0, mood: "idle", moodAt: 0, moodMs: 0, talkUntil: 0, talkRate: 10,
+    t0: 0, mood: "idle", moodAt: 0, moodMs: 0, talkUntil: 0, talkRate: 10, base: "calm",
     gx: 0, gy: 0, lx: 0, ly: 0, blinkAt: 0, awakeUntil: 0, raf: 0, timer: 0
   };
 
@@ -241,13 +241,22 @@ function create(canvas, opts) {
     var breathe = REDUCED ? 0 : Math.sin(t * 2.1) * 0.012;
     var sway = REDUCED ? 0 : Math.sin(t * 0.9) * 0.035;
     var hop = 0, squash = 1, tiltZ = sway, tiltX = 0;
+    var shake = 0, bs = st.base, awake = now() < st.awakeUntil;
     if (!REDUCED) {
       if (m === "happy" || m === "win") { var hp = Math.abs(Math.sin(t * (m === "win" ? 9 : 11))); hop = hp * 0.12 * ma; squash = 1 - (1 - hp) * 0.08 * ma; }
+      if (m === "gleeful") { var hg = Math.abs(Math.sin(t * 13)); hop = hg * 0.15 * ma; squash = 1 - (1 - hg) * 0.1 * ma; tiltZ += Math.sin(t * 6.5) * 0.12 * ma; }
+      if (m === "shocked") { hop = 0.09 * ma * ma; squash = 1 + 0.16 * ma; }
       if (m === "think") tiltZ += 0.16 * ma;
       if (m === "surprised") squash = 1 + 0.07 * ma;
+      /* the standing mood, when nothing else is going on: a nervous plant
+         trembles while it is awake; a smug one leans back and sways wide */
+      if (m === "idle" || m === "think") {
+        if (bs === "nervous" && awake) shake = Math.sin(t * 43) * 0.009 + Math.sin(t * 29) * 0.005;
+        if (bs === "smug") { tiltZ += sway * 0.6; tiltX -= 0.07; }
+      }
     }
     if (m === "sad" || m === "lose") tiltX = 0.22 * ma;
-    var root2 = chain(T(0, hop, 0), RZ(tiltZ * 0.6));
+    var root2 = chain(T(shake, hop, 0), RZ(tiltZ * 0.6));
     /* the pot, which does not breathe */
     put(POT, chain(T(0, hop * 0.3, 0)), pot, 0.5);
     put(SPH, chain(T(0, -0.49 + hop * 0.3, 0), S(0.36, 0.035, 0.36)), mix3(hex3("#3b2a1e"), pot, 0.15), 0);
@@ -347,16 +356,31 @@ function create(canvas, opts) {
     var m = st.mood, e = L.eyes || { gap: 0.2, size: 1 };
     var fy = body.fy, fr = body.fr, gap = e.gap, er = 0.085 * (e.size || 1);
     if (m === "surprised") er *= 1 + 0.18 * ma;
+    if (m === "shocked") er *= 1 + 0.38 * ma;
+    var bs = (m === "idle" || m === "think") ? st.base : "calm", awake = now() < st.awakeUntil;
     /* blink: a hundred and twenty milliseconds, every few seconds */
     var bl = st.blinkAt && t * 1000 - st.blinkAt < 130 ? 0.12 : 1;
     if (m === "sad" || m === "lose") bl = Math.min(bl, 1 - 0.45 * ma);
     if (m === "happy" || m === "win") bl = Math.min(bl, 1 - 0.25 * ma);
+    if (m === "gleeful") bl = Math.min(bl, 1 - 0.68 * ma);
+    if (bs === "smug") bl = Math.min(bl, 0.6);
     var lx = st.lx, ly = st.ly;
     if (m === "think") { lx = -0.5; ly = 0.7; }
+    /* nervous eyes go to one side and the other, and back */
+    if (bs === "nervous" && awake && !REDUCED) { lx = Math.floor(t * 1.8) % 2 ? 0.65 : -0.65; ly = -0.15; }
     var white = [0.98, 0.97, 0.95], dark = [0.1, 0.08, 0.07];
     for (var s = -1; s <= 1; s += 2) {
       var ex = s * gap, ez = Math.sqrt(Math.max(0, fr * fr - ex * ex)) - 0.01;
       var E = chain(P, T(ex, fy + 0.08, ez), RY(Math.atan2(ex, ez)));
+      if (m === "gleeful" && ma > 0.4) {
+        /* happy eyes: closed, curved up, the way they are drawn */
+        for (var a2 = -3; a2 <= 3; a2++) {
+          var ax = a2 * er * 0.3, ay = er * 0.25 - (ax * ax) / (er * 0.9);
+          put(SPH, chain(E, T(ax, ay, er * 0.35), S(er * 0.16)), dark, 0);
+        }
+        if (L.specs) put(RING, chain(E, T(0, 0, er * 0.35), RX(Math.PI / 2), S(er * 1.45)), [0.78, 0.66, 0.38], 1.0);
+        continue;
+      }
       put(SPH, chain(E, S(er, er * 1.12 * bl, er * 0.55)), white, 0.9);
       if (bl > 0.3) {
         put(SPH, chain(E, T(lx * er * 0.32, ly * er * 0.3, er * 0.42), S(er * 0.55, er * 0.62 * bl, er * 0.3)), dark, 0.9);
@@ -364,7 +388,8 @@ function create(canvas, opts) {
       }
       if (L.brow) {
         var bz = ez + 0.02;
-        put(SPH, chain(P, T(ex, fy + 0.08 + er * 1.25, bz), RZ(s * (m === "sad" || m === "lose" ? -0.35 : 0.35)), S(er * 1.1, er * 0.22, er * 0.3)), dark, 0);
+        var worried = m === "sad" || m === "lose" || bs === "nervous" || m === "shocked";
+        put(SPH, chain(P, T(ex, fy + 0.08 + er * (worried && m === "shocked" ? 1.45 : 1.25), bz), RZ(s * (worried ? -0.35 : bs === "smug" ? 0.12 : 0.35)), S(er * 1.1, er * 0.22, er * 0.3)), dark, 0);
       }
       if (L.specs) {
         put(RING, chain(E, T(0, 0, er * 0.35), RX(Math.PI / 2), S(er * 1.45)), [0.78, 0.66, 0.38], 1.0);
@@ -380,17 +405,32 @@ function create(canvas, opts) {
     var my = fy - 0.11, open = 0;
     if (st.talkUntil && t * 1000 < st.talkUntil) open = Math.max(0, Math.sin(t * Math.PI * st.talkRate)) * 0.8 + 0.2;
     if (m === "surprised") open = Math.max(open, 0.9 * ma);
+    if (m === "shocked") open = Math.max(open, 1.0 * ma);
     if (m === "think") open = Math.max(open, 0.25);
-    var curve = (m === "happy" || m === "win") ? 0.05 : (m === "sad" || m === "lose") ? -0.045 : 0.025;
+    var curve = (m === "happy" || m === "win" || m === "gleeful") ? 0.055 : (m === "sad" || m === "lose") ? -0.045 :
+                bs === "smug" ? 0.05 : bs === "nervous" ? -0.012 : 0.025;
     var mz = Math.sqrt(Math.max(0, fr * fr - 0.01)) + 0.005;
     if (open > 0.15) {
       put(SPH, chain(P, T(0, my - 0.005, mz - 0.01), S(0.055 + (m === "think" ? -0.02 : 0), 0.025 + 0.045 * open, 0.03)), [0.35, 0.08, 0.1], 0);
     } else {
       for (var b = -3; b <= 3; b++) {
         var bx = b * 0.022, by = my + curve * (bx * bx) / (0.066 * 0.066) - curve;
+        /* a nervous mouth wobbles; a smug one goes up at one corner */
+        if (bs === "nervous") by += Math.sin(b * 2.1 + (awake && !REDUCED ? t * 18 : 0)) * 0.007;
+        if (bs === "smug") by += b * 0.0035;
         var bz2 = Math.sqrt(Math.max(0, fr * fr - bx * bx)) + 0.003;
         put(SPH, chain(P, T(bx, by, bz2), S(0.013)), dark, 0);
       }
+    }
+    /* a bead of sweat: on the brow while it worries, sliding down while
+       it is awake to feel it */
+    if (bs === "nervous" || m === "shocked") {
+      var slide = awake && !REDUCED ? ((t * 0.55) % 1) * 0.22 : 0.06;
+      var sx = fr * 0.72, sy = fy + 0.27 - slide, sz = Math.sqrt(Math.max(0, fr * fr - sx * sx)) + 0.04;
+      var drop = [0.62, 0.86, 1];
+      put(SPH, chain(P, T(sx, sy, sz), S(0.062, 0.076, 0.04)), drop, 0.9, 0.9, 0.4);
+      put(CONE, chain(P, T(sx, sy + 0.072, sz), S(0.046, 0.075, 0.032)), drop, 0.9, 0.9, 0.4);
+      put(SPH, chain(P, T(sx - 0.018, sy + 0.012, sz + 0.03), S(0.014)), [1, 1, 1], 0, 0.9, 1);
     }
   }
 
@@ -507,12 +547,20 @@ function create(canvas, opts) {
     kick();
   };
   /* stay lively for a while (breathing, swaying) */
+  /* the standing mood: "calm", "nervous" or "smug". It shows whenever no
+     reaction is playing, and holds still (sweat and all) while asleep */
+  A.base = function (kind) {
+    var next = kind === "nervous" || kind === "smug" ? kind : "calm";
+    if (next === st.base) return st.base;
+    st.base = next; A.dirty = true; A.wake(1800);
+    return st.base;
+  };
   A.wake = function (ms) { st.awakeUntil = Math.max(st.awakeUntil, now() + (ms || 2500)); kick(); };
   /* and settle: whatever wake asked for is over (a mood or a line still runs out) */
   A.sleep = function () { st.awakeUntil = 0; A.dirty = true; kick(); };
   A.state = function () {
     return { id: A.id, mood: st.mood, talking: now() - st.t0 < st.talkUntil, drawn: A.drawn || 0,
-             sleeping: !st.raf, look: [st.gx, st.gy] };
+             sleeping: !st.raf, look: [st.gx, st.gy], base: st.base };
   };
   A.destroy = function () {
     A.dead = true; clearTimeout(st.timer);

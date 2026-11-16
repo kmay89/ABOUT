@@ -879,6 +879,25 @@ var Stage = {
     play(c, b.pieceIn, "kalimba", penta(V.base, 3), c.currentTime + 0.004, 0.09, 0, 0.12);
   },
 
+  /* the game turning: a harp running up when it turns your way (and a
+     bell on top for a comeback), three soft notes down when it turns
+     against you. Never a buzzer: losing the thread is not a punishment. */
+  swing: function (up, big) {
+    var K = kit(); if (!K || !enabled || !K.enabled()) return false;
+    var c = K.ctx(); if (!c || !K.running(c)) return false;
+    var b = busFor(c); if (!b) return false;
+    var t = c.currentTime + 0.01, notes = up ? [0, 1, 2, 3, 4, 5, 7] : [4, 2, 0];
+    notes.forEach(function (k, i) {
+      play(c, b.pieceIn, up ? "harp" : "celesta", penta(up ? 69 : 74, k), t + i * (up ? 0.034 : 0.1),
+           up ? 0.2 + i * 0.012 : 0.12, (i - notes.length / 2) * 0.07, 0);
+    });
+    if (up && big) {
+      play(c, b.pieceIn, "bell", 74, t + notes.length * 0.034 + 0.04, 0.22, 0, 0);
+      play(c, b.pieceIn, "celesta", 86, t + notes.length * 0.034 + 0.1, 0.18, 0.2, 0);
+    }
+    duck(up ? 0.45 : 0.25, up ? 1.2 : 0.8);
+    return true;
+  },
   /* for the checker: point at a context sound.js has been lent */
   reset: function () { musicStop(0); bus = null; cache = {}; cacheKeys = []; mus = null; mood = "calm"; chains = { 1: 0, "-1": 0 }; },
   NOTE_SR: NOTE_SR,

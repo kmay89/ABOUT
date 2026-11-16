@@ -26,6 +26,7 @@ var CAST = {
     look: { body: "acorn", top: "cap", col: "#b9773f", col2: "#6e4628", pot: "#c8663d",
             eyes: { gap: 0.20, size: 1.15 }, blush: 0.55 },
     voice: { hz: 520, rate: 13 },
+    emotes: { worried: "💦", pleased: "✨" },
     lines: {
       hello: ["Oh! Hello! I'm Acorn. I only just learned how the horsey one moves.",
               "Hi, I'm Acorn! I'm small, but I'm going to try really hard."],
@@ -41,6 +42,9 @@ var CAST = {
       win:   ["I won?! I won! Can I tell everyone?", "Wow! That was the best game ever!"],
       lose:  ["Aw. You're really good! Teach me that one day?", "Good game! I'll grow, you'll see."],
       gift:  ["You won! Oh, that means you get my stump now. Look after it, okay?"],
+      slipping: ["Uh oh. Uh oh uh oh.", "Wait, wait, I was doing so well!"],
+      rally: ["I'm back! I think I'm back!"],
+      comeback: ["You were behind and then you weren't! How did you DO that?"],
       draw:  ["Nobody won? That's okay! That's nice, actually."]
     }
   },
@@ -49,6 +53,7 @@ var CAST = {
     look: { body: "seed", top: "sprout", col: "#8bc34a", col2: "#4f8f2c", pot: "#c8663d",
             eyes: { gap: 0.22, size: 1.05 }, blush: 0.5 },
     voice: { hz: 470, rate: 12 },
+    emotes: { worried: "💦", pleased: "✨" },
     lines: {
       hello: ["Hi there! I'm Sprout. We're both still growing, so let's learn something together!",
               "Hello! Sprout here. I take what you leave lying about, so watch your pieces!"],
@@ -64,6 +69,9 @@ var CAST = {
       win:   ["I won! We both learned something, though, right?", "Hooray! Good game!"],
       lose:  ["You got me! Nicely played.", "Good game! I'm going to grow back stronger."],
       gift:  ["You beat me! Take my seed tray. Things grow well on it. You did."],
+      slipping: ["Hmm, it's getting away from me.", "Okay. Deep breaths, Sprout."],
+      rally: ["There we go! Growing back."],
+      comeback: ["You came all the way back! That was amazing to watch."],
       draw:  ["A draw! We both get a sticker."]
     }
   },
@@ -72,6 +80,7 @@ var CAST = {
     look: { body: "round", top: "clover", col: "#4caf6a", col2: "#2f8a4e", pot: "#e6dccb",
             eyes: { gap: 0.24, size: 1.0 }, blush: 0.45 },
     voice: { hz: 430, rate: 12 },
+    emotes: { worried: "💦", pleased: "🍀" },
     lines: {
       hello: ["Hiya! I'm Clover. I know a few tricks, and I've got luck on my side!",
               "Hello, hello! Clover's the name. Four leaves, zero fear."],
@@ -87,6 +96,9 @@ var CAST = {
       win:   ["Lucky clover strikes again!", "Won it! Good game, though!"],
       lose:  ["You made your own luck there. Well played!", "Not my day! Great game."],
       gift:  ["Guess my luck ran out. The meadow's yours now. Maybe it'll bring you some."],
+      slipping: ["My luck's turning. I don't like it.", "Come on, fourth leaf, don't fail me now."],
+      rally: ["Ha! Luck remembers me!"],
+      comeback: ["You made your own luck there. Wow."],
       draw:  ["Half a lucky day each!"]
     }
   },
@@ -95,6 +107,7 @@ var CAST = {
     look: { body: "tall", top: "fronds", col: "#5d9c59", col2: "#3b7039", pot: "#9aa4ad",
             eyes: { gap: 0.20, size: 0.95 }, blush: 0.3 },
     voice: { hz: 360, rate: 10 },
+    emotes: { worried: "💦", pleased: "♪" },
     lines: {
       hello: ["Oh — hello. I'm Fern. I don't give much away, but I do notice things.",
               "Hello. Fern. I'll try to give you a fair game."],
@@ -110,6 +123,9 @@ var CAST = {
       win:   ["Thank you for the game. That was a good one.", "Mine, this time. Well played."],
       lose:  ["Well played. I didn't see it until too late.", "You were better today. Thank you."],
       gift:  ["Well played. Take the shade with you. It's a good place to think."],
+      slipping: ["Hm. The tide is going out.", "I notice I'm worried."],
+      rally: ["Back in the shade. Better."],
+      comeback: ["You didn't give up. I noticed."],
       draw:  ["Even. That feels right."]
     }
   },
@@ -118,6 +134,7 @@ var CAST = {
     look: { body: "segments", top: "leaves", col: "#9ccc65", col2: "#5f8f2f", pot: "#2f3a33",
             eyes: { gap: 0.18, size: 0.9 }, band: "#c0392b", blush: 0.2 },
     voice: { hz: 300, rate: 9 },
+    emotes: { worried: "💦", pleased: "✨" },
     lines: {
       hello: ["Greetings. I am Bamboo. I bend with the wind, and I do not break. Let us train.",
               "I am Bamboo. Strong roots, flexible stem. Show me your form."],
@@ -133,6 +150,9 @@ var CAST = {
       win:   ["A good bout. Train well.", "The stem stands. Bow, and again?"],
       lose:  ["You have trained well. I bow.", "Excellent form. I am honoured."],
       gift:  ["I bent too far that time. The lacquer board is yours. Keep it polished."],
+      slipping: ["I bend. I bend.", "The wind is strong today."],
+      rally: ["And now, I spring back."],
+      comeback: ["You bent and did not break. A true lesson."],
       draw:  ["Balance. As it should be."]
     }
   },
@@ -141,6 +161,7 @@ var CAST = {
     look: { body: "cactus", top: "flower", col: "#4e9a5c", col2: "#2e6a3a", pot: "#c8663d",
             eyes: { gap: 0.20, size: 0.85 }, brow: true, blush: 0.15 },
     voice: { hz: 250, rate: 9 },
+    emotes: { worried: "💢", pleased: "😏" },
     lines: {
       hello: ["Well, well. Name's Cactus. Folks who get careless round me get pricked. Sit down.",
               "Cactus. I've seen a lot of players come through this desert. Let's see you."],
@@ -156,6 +177,9 @@ var CAST = {
       win:   ["The desert takes another one. Come back when you've grown some thorns.", "Good game. Mostly mine."],
       lose:  ["Well, I'll be. You beat me fair and square.", "Tip of the hat to you, partner."],
       gift:  ["Fine. Take the desert. Mind the sand, it gets everywhere."],
+      slipping: ["Now hold on just a minute.", "Don't you get comfortable."],
+      rally: ["That's more like it, partner."],
+      comeback: ["Had you on the ropes and you crawled out. Respect."],
       draw:  ["Standoff. Respect."]
     }
   },
@@ -164,6 +188,7 @@ var CAST = {
     look: { body: "cone", top: "tip", col: "#2e7d5b", col2: "#1d5a40", pot: "#7a8a96",
             eyes: { gap: 0.19, size: 0.85 }, blush: 0.1 },
     voice: { hz: 280, rate: 10 },
+    emotes: { worried: "❗", pleased: "✨" },
     lines: {
       hello: ["Good evening. I am Pine. I calculate, and I rarely let an advantage go. Bring a plan.",
               "Pine. Precise, patient, evergreen. Shall we begin?"],
@@ -179,6 +204,9 @@ var CAST = {
       win:   ["A clean game. Thank you.", "The plan held. Well fought."],
       lose:  ["Precise. I could not find a defence.", "Very well played. I concede the point."],
       gift:  ["Correct. The frost board goes with you. It suits a clear head."],
+      slipping: ["That was not in my calculations.", "Recalculating."],
+      rally: ["Order restored."],
+      comeback: ["Statistically unlikely. Well played."],
       draw:  ["Equal. Correctly so."]
     }
   },
@@ -187,6 +215,7 @@ var CAST = {
     look: { body: "trunk", top: "crown", col: "#8d6e4f", col2: "#4f8f3a", pot: "#5a3d2b",
             eyes: { gap: 0.22, size: 0.9 }, specs: true, blush: 0.2 },
     voice: { hz: 200, rate: 8 },
+    emotes: { worried: "💦", pleased: "♪" },
     lines: {
       hello: ["Ah, welcome, welcome. I'm Oak. I've stood here a long while. Play your best, and keep the notebook open.",
               "Hello, friend. Oak. I've watched a great many games from this spot. Let's make this a good one."],
@@ -202,12 +231,15 @@ var CAST = {
       win:   ["A fine game. You'll beat me soon enough.", "Well fought. Look back over it, there's a lesson in there."],
       lose:  ["Ah, wonderful! You've beaten the old tree. Well done.", "Splendid play. I'm proud of you."],
       gift:  ["There it is. The library table is yours now. I kept it a long time for someone like you."],
+      slipping: ["Oh my. You're pushing me now.", "Well, well. Look at you go."],
+      rally: ["Not quite yet, my friend."],
+      comeback: ["That is how it's done: you kept going when it looked lost. Splendid."],
       draw:  ["A draw. Honour on both sides."]
     }
   }
 };
 
-var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift"];
+var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback"];
 
 function get(id) { return CAST[id] || null; }
 function ids() { return Object.keys(CAST); }

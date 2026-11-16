@@ -234,6 +234,12 @@ sound.js            what the room sounds like. The pieces by modal
                     a rating — a short score in D major, written down as
                     data and played by a tiny synth into a reverb grown
                     from noise. All synthesized — no samples
+momentum.js         who has the game, from what anybody can see: material,
+                    pieces in play, a king tucked away, and a surge for
+                    whoever just landed a blow (a trade half made is not a
+                    swing), squashed into -1..1; the lead changing hands;
+                    and the story of a game (a comeback, never behind, the
+                    one that got away, a seesaw). Pure
 stage.js            the soundstage on top of that: every piece's game
                     voice (a pawn's pip, a knight's clip-clop, a rook's
                     drum, a king's bell, a pop and a run of notes for a
@@ -568,6 +574,15 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  momentum-check.js the momentum bar: in node, level at the start, a piece a
+                    clear lean, a half-made trade no lurch, never a loss the
+                    coach has not shown, a surge that fades, the lead and
+                    the turn, and every kind of story; in a browser on a
+                    phone and a laptop, the bar there (never over the
+                    board), swinging with a queen won and a queen given,
+                    the banner, the coach nervous or smug with a bubble,
+                    Légal's mate as a COMEBACK! with its story drawn on the
+                    card, take-backs, a turned board, and the switch
   stage-check.js    the soundstage: in node, every instrument in tune and
                     dying away, every place's music in D major, sparse,
                     resting every few minutes and never repeating a tune,
@@ -1833,6 +1848,56 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## Momentum: who has the game
+
+A game of chess has a shape: you are pressing, then you lose a piece,
+then you hang on, then it turns. The room shows that shape as it
+happens, and tells it back at the end.
+
+**The bar.** Under the board, above your name, is a bar with the coach's
+face at one end and yours at the other, and a glowing star where the two
+sides meet. After every move the star springs to its new place (a little
+past it, and back), throwing sparks if it moved far, and the side that
+is well ahead glows. On a laptop it rides in your own row.
+
+**It is never a hint.** An engine's evaluation would tell you your move
+was a mistake before the coach had shown it. The bar reads only what
+anybody can see by looking: material, pieces out of bed and in the
+middle, a king tucked away by castling, and a surge for whoever just
+landed a capture or a check that fades over the next few moves. A trade
+half made is not a swing: a piece that can be taken straight back only
+counts what it gains over its own value until the reply. It never shows a
+loss the coach has not punished yet. A mate is the whole game, whatever
+the material.
+
+**When the game turns,** it says so: a big outlined **MOMENTUM!** bounces
+in over the board ("It's swinging your way", or "Cactus has it now"), a
+harp runs up (or three soft notes go down), and the coach feels it.
+
+**The coaches feel it.** Each has a standing mood that follows the game:
+- When the game is theirs, they are pleased with themselves: half-lidded
+  eyes, a smile up at one corner, a lean back.
+- When it is yours, they are nervous: a bead of sweat sliding down,
+  eyes darting side to side, a wobbly mouth, a tremble.
+- They react to the big moments: shocked (a jump, huge eyes, a "❗"
+  bubble) when you take something big, gleeful (bouncing, with happy
+  "^ ^" eyes) when they do.
+- Little speech bubbles pop up over their heads, each coach its own:
+  Cactus's 💢 and 😏, Clover's 🍀, Fern's ♪, Pine's ❗.
+- They say so too: "Now hold on just a minute." when it slips away,
+  "That's more like it, partner." when they take it back.
+
+**The end tells the story.** A win from behind is a **COMEBACK!**: confetti,
+a bell on top of the harp, a line on the card, and the coach's own words
+("Had you on the ropes and you crawled out. Respect."). A win that was
+never behind is said too. And the card draws the story of the game: the
+line of the bar from the first move to the last, your gold above, their
+colour below, the low point marked, a star at the end of a win, with a
+caption ("Behind at move 6, and back from it.").
+
+Settings > *Momentum bar* turns the bar off (the coaches still feel the
+game). `momentum-check.js` checks all of it.
+
 ## The soundstage
 
 The pieces' real sounds (wood, ivory, glass, a king heavier than a
@@ -2889,6 +2954,7 @@ node chess/tools/welcome-check.js  # one question for a newcomer, four pointers 
 node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
+node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
