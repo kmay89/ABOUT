@@ -99,6 +99,13 @@ teach.js            the teaching eyes: forks, pins, skewers, hanging
                     "hanging" piece has to stay lost once the capture is
                     played out. Also explainMove(), which tells a hint
                     what the move really does, or says nothing
+help.js             the help lamp's words and the training wheels' eyes:
+                    Think (the questions a coach asks, with the rules'
+                    own counts), Their idea (what a move did, told from
+                    your chair, with a threat you haven't paid for turned
+                    into a question and a mate threat always named), and
+                    what of yours can really be won before you move.
+                    Says nothing teach.js has not proved. Pure functions
 learn.js            the Academy: an 18-lesson course built on retrieval
                     practice, worked-example fading, interleaving and
                     SM-2 spacing, with mastery tracked per idea — and
@@ -397,6 +404,34 @@ tools/              dev-only, never shipped:
                     busy room keeps the end of a fanfare, a muted room is
                     silent echo and all, and nothing asked for before the
                     first tap is saved up for it
+  help-check.js     the lamp against the teacher's bar, no browser: Think's
+                    counts equal the rules' over two hundred positions and
+                    never locate a piece of theirs for free; Their idea
+                    turns a threat into a question when you are level,
+                    names it when you are behind, always names a mate,
+                    speaks from your chair, and reads 1,500 random moves
+                    in plain words without disturbing the game; the
+                    wheels' danger and hot squares on positions a person
+                    can check by eye, timed; a game with the wheels
+                    counted as three quarters, and recorded as such
+  lamp-check.js     the lamp in a real browser: three chips, two free and
+                    kept in the notebook, the third the old hint at the
+                    old price; the coach's line kept only for the move it
+                    played, and not told until you have answered; the
+                    move list and the view banner asking why; a threat
+                    against you asked about, not handed over; the
+                    notation voice buying the move in one tap
+  welcome-check.js  a first visit on a phone: one question, two doors
+                    that both lead to a game, four pointers each said
+                    once and remembered across a reload, the welcome
+                    retired by the first finished game, and the take-back
+                    pointer and the wheels offer inside the blunder toast
+  wheels-check.js   the training wheels on both boards: the queen a
+                    knight chases breathes with the attacker's line drawn,
+                    a lifted piece's hot squares are exactly where the
+                    exchange loses it, a hot square still takes the move,
+                    a mate threat drawn, nothing with a clock, and a
+                    rated game with them recorded and shown at 75%
   coach-check.js    plays a real game in a real browser and reads what the
                     room wrote down: the notebook fills, names the opening
                     and the tactic, marks the mistake on the move list,
@@ -1500,6 +1535,133 @@ The board is only interrupted for one thing now: a blunder you can still
 take back, said while the position is still in front of you. Everything
 quieter is in the notebook, where it can be read twice.
 
+## The help lamp
+
+💡 used to sell one thing: a move. A coach across a real table asks
+*"what does that threaten?"* far more often than they name a move, and
+strong players differ from weak ones mostly in that habit — the rules
+pages teach it (checks, captures, threats) and then nothing helped you
+practise it. So the button now says **Help**, and tapping it offers
+three things at once rather than selling one:
+
+- **🧭 Think** — the questions, built from the position on the board:
+  *"You have two checks and one capture to look at."* · *"Their last move
+  was Nc3 — what does it attack?"* · one question about the position
+  (your quietest piece, a king still in the middle, a piece that hasn't
+  moved, a king that should be working in an ending). The counts are the
+  rules' own. Loose pieces are counted, not located — *"one piece of
+  yours is loose. Which?"* — unless you are behind, when the room was
+  already giving that word away for free. Free; kept in Notes.
+- **👁 Their idea** — what their last move did, in true words, with its
+  line on the board: the book's own reason when the move is in a curated
+  line, otherwise the teacher's sentence turned round to your side of
+  the table (*"unless you stop it"*, not *"unless they stop it"*). Free;
+  kept in Notes.
+- **💡 A move** — the hint that was always there, at the price it always
+  had (the chip shows it). This is the only chip that costs anything,
+  and the only help that makes a rated game count for less.
+
+**Fair about threats.** Naming a threat against you is a hint in all but
+name, and hints are priced by the odds. So when you are level or ahead,
+a sentence that would name one of your pieces that can really be won is
+held back, and the explanation ends with a question instead — *"Is
+everything of yours still guarded?"* — with the price of the move chip
+beside it. Nobody is charged for anything they didn't press. **A mate
+threat is the one exception: always named, never charged.** The room
+already draws the mate net for nothing on every check, and a coach who
+answered "is everything guarded?" while you walked into mate would be
+being cute, not kind.
+
+**A why for every coach move.** The search that chose the coach's move
+also knew what it expected next; that used to be thrown away. Now, when
+the coach's move has something true to say about it — a capture, a
+threat, a developing move, the book's reason — one quiet line goes into
+the notebook, and tapping the last move in the move list asks the same
+question out loud. Looking back at any earlier move, the banner offers
+**❓ Why this move?**, for your moves as well as theirs (and **?** does it
+from the keyboard). Once you have answered a move, its why can also say
+what the coach was counting on — *"The coach was counting on …Nf6 d3"* —
+but not before: that line contains the engine's guess at *your* best
+reply, which is a hint nobody paid for. The line is kept in memory for
+the game only; after a reload the why simply leaves that clause out.
+When the teacher has nothing it can prove about a move, the why says so
+and asks what it might prepare. The old rule-of-thumb reasons a hint
+used to fall back on (*"rooks love open files"*) are gone for the same
+reason.
+
+The notation voice wants the move, not a menu: there, 💡 goes straight
+to it. `node chess/tools/help-check.js` holds the words to the teacher's
+bar without a browser; `lamp-check.js` checks the till in a real one.
+
+## The first five minutes
+
+A newcomer used to meet a rating card that said *Not rated yet* and
+twelve tiles, with *New to chess?* on the third row. Now a first visit
+— no games, no lessons solved, no game waiting — finds one question
+where the rating card will be: **do you know how the pieces move?**
+
+- **🐣 I'm new to chess** opens the twelve rules pages, whose last
+  button already starts a game against the gentlest coach — with the
+  training wheels on, said once when they first show.
+- **▶ I know how the pieces move** goes straight into a game against
+  the coach the ladder suggests.
+
+Under them, one line on why playing alone here is worth it: every game
+against the computer moves a number that's yours, the coach says what
+it sees, and the Academy makes it stick. There is no tour, no arrows
+pointing at buttons and no mascot. During the first two games against
+the computer the room says four things, each once, at the moment it
+helps: that the coach keeps what it notices in **Notes** (the first time
+it writes one), that **help is free when you're behind** (the first
+time you're ahead), that **a take-back makes the game count for a
+little less** (inside the first blunder toast, which is the moment it
+is offered), and that **you can tap the coach's move to ask why** (its
+first move). Four is the ceiling; a fifth would be a tutorial. They are
+remembered in your preferences, so a reload does not repeat them.
+
+The welcome is retired by the thing it asked for — a finished game
+against the computer — never by a timer, and the lobby shows your first
+number instead. `node chess/tools/welcome-check.js` plays that on a
+phone and counts what was said.
+
+## Training wheels
+
+Hanging pieces decide most games under a thousand, and the first twenty
+games are mostly a sequence of dropped pieces — which is where most new
+players quit. **Training wheels** (Settings; on for the *I'm new* door;
+offered once from the first blunder toast as *🛟 Warn me first*) put a
+hand on the saddle:
+
+- At the start of your turn, your pieces that **can really be won**
+  breathe in the warning colour — at most three, worth a minor piece or
+  more — and the attacker's line is drawn to the most valuable one. A
+  mate threat against you is drawn from the piece that would deliver it.
+  One line goes in the notebook; nothing is said aloud.
+- Lift a piece and the squares where it **would be lost** ring in the
+  warning colour instead of showing a dot: a capture that loses the
+  exchange, or a quiet move to a square where the piece can be won. It
+  is a wheel, not a wall — a hot square still takes the move, and the
+  gentle review then does its job.
+
+Every mark rests on the teacher's own standard: a piece "can be won"
+only when the exchange count wins it *and* the win survives the capture
+being played out, the same test that stops the coach crying wolf. The
+breath lasts a few seconds and then holds still, so the board (and the
+phone) can rest. The hot squares are bounded — a lifted piece looks at
+no more than thirty destinations, and on a phone too slow to do it
+quickly they drop for the session rather than slowing every tap.
+
+Against the computer the wheels are help, and counted as such: a rated
+game in which they warned you counts as **75% of a game** — once, not
+per warning — and cannot earn the clean star. The end card says so,
+and the record keeps it. Two people sharing a board pay nothing for a
+shared lesson. They never show with a clock running (a warning that
+costs time is unfair) or against a friend on another device. And after
+a full game in which nothing of yours was ever in danger, the room asks
+once whether to try the next one without them.
+`node chess/tools/wheels-check.js` checks the marks against the
+exchange count on both boards.
+
 ## The coach
 
 A teaching engine has a different job from a strong one. It still has to
@@ -1702,6 +1864,11 @@ matching lesson, so a loss turns into the next thing you learn.
   test time; a typo cannot ship — and every reason given for a move that
   claims something on the board is checked on the board.
   `node chess/tools/book-check.js`
+- **The help lamp never names a move you did not pay for, and a mate
+  threat is always named and never charged.** Its other words are the
+  rules' counts or something the teacher has proved; a threat against
+  you that would change the game is asked about, not handed over,
+  unless you are behind. `node chess/tools/help-check.js`
 - **The ladder is measured, not named.** Every coach's rating comes out
   of matches against its neighbours, played with the clock frozen and
   the dice seeded so any game can be replayed. The one assumption — how
@@ -1791,6 +1958,10 @@ node chess/tools/motion-check.js   # every piece arrives, and no two the same wa
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
+node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger
+node chess/tools/lamp-check.js     # three chips, two free, one priced — and a why for the coach's moves
+node chess/tools/welcome-check.js  # one question for a newcomer, four pointers once, then out of the way
+node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees

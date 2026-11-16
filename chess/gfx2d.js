@@ -154,6 +154,10 @@ function derive(skin) {
     hint: m.hint,
     /* the marks themselves, for the soft light drawn in them */
     legalHex: m.legal, captHex: m.capture, selectHex: m.select, lastHex: m.last, checkHex: m.check,
+    /* the training wheels' warning: a skin may name its own, and
+       otherwise it is the colour the board already uses for a king in
+       danger */
+    dangerHex: m.danger || m.check,
     wFill: p.white, wLine: shade(p.white, luma(p.white) > 0.5 ? -0.68 : -0.35),
     bFill: p.black, bLine: shade(p.black, luma(p.black) > 0.5 ? -0.7 : -0.55),
     wEdge: shade(p.white, 0.55), bEdge: shade(p.black, 0.5),
@@ -420,7 +424,7 @@ function create(canvas) {
     skin: null, pal: null,
     orientation: 1,             /* 1 = white at the bottom */
     board: new Int8Array(128),
-    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null, danger: [], hot: [], hotCapt: [] },
     /* when the squares were last asked to open out, when a man was
        last touched, when a king was last put in check and when a move
        last landed — each a short moment of light that then holds */
@@ -854,8 +858,25 @@ function create(canvas) {
     R.hi.last = hi.last || null;
     R.hi.check = hi.check != null ? hi.check : -1;
     R.hi.hint = hi.hint || null;
+    /* the training wheels (help.js): pieces of yours that can be won,
+       and where the man in your hand would be lost. A new set of
+       pieces in danger starts its breath again; the same set redrawn
+       keeps its clock. */
+    var nextDanger = hi.danger || [];
+    if (nextDanger.join() !== R.hi.danger.join()) R.dangerAt = nextDanger.length ? now : -1;
+    R.hi.danger = nextDanger;
+    R.hi.hot = hi.hot || [];
+    R.hi.hotCapt = hi.hotCapt || [];
     R.dirty = true;
   };
+  /* a slow breath for a few seconds, then held: a warning that keeps
+     blinking is an alarm, and an alarm keeps the board (and the phone)
+     awake for nothing */
+  R.dangerAt = -1;
+  function dangerBreath(t) {
+    if (REDUCED || t < 0 || t > 6400) return { amount: 0.55, live: false };
+    return { amount: 0.55 + 0.45 * Math.sin(t / 6400 * Math.PI * 4 - Math.PI / 2), live: true };
+  }
 
   /* animate a move: board must still hold the *before* position;
      `after` is the position once the move lands. done() fires at the end. */
@@ -1123,6 +1144,15 @@ function create(canvas) {
       ctx.fillRect(c.x - R.cell / 2, c.y - R.cell / 2, R.cell, R.cell);
       if (pulse.amount > 0.5) softRing(c, th.checkHex, R.cell * (0.30 + 0.18 * pulse.amount), R.cell * 0.08, 0.5 * pulse.amount);
     }
+    /* the training wheels: your pieces that can be won, breathing */
+    if (R.hi.danger.length) {
+      var db = dangerBreath(now - R.dangerAt);
+      if (db.live) animating = true;
+      for (var di = 0; di < R.hi.danger.length; di++) {
+        fillSq(R.hi.danger[di], rgba(th.dangerHex, 0.16 + 0.22 * db.amount), th);
+        pool(sqXY(R.hi.danger[di]), th.dangerHex, R.cell * 0.62, 0.12 + 0.16 * db.amount);
+      }
+    }
     /* light under a capture, under the men so the one who took stands
        in it rather than in front of it */
     for (var ii = R.impacts.length - 1; ii >= 0; ii--) {
@@ -1346,6 +1376,19 @@ function create(canvas) {
       softRing(cp, th.captHex, R.cell * 0.40 * cr.scale, R.cell * 0.09, 0.75 * cr.alpha);
       ctx.strokeStyle = rgba(th.captHex, 0.5 * cr.alpha); ctx.lineWidth = Math.max(1, R.cell * 0.03);
       ctx.beginPath(); ctx.arc(cp.x, cp.y, R.cell * 0.40 * cr.scale, 0, Math.PI * 2); ctx.stroke();
+    }
+    /* hot squares: where the man in your hand would be lost — a ring in
+       the warning colour where the dot would be, a heavier one round a
+       capture that loses the exchange */
+    for (var hti = 0; hti < R.hi.hot.length + R.hi.hotCapt.length; hti++) {
+      var hc = hti < R.hi.hot.length, hsq = hc ? R.hi.hot[hti] : R.hi.hotCapt[hti - R.hi.hot.length];
+      var hp = sqXY(hsq), hr = revealOf(hsq);
+      if (hr.live) animating = true;
+      if (hr.scale < 0.01) continue;
+      var rad = R.cell * (hc ? 0.2 : 0.4) * hr.scale;
+      softRing(hp, th.dangerHex, rad, R.cell * 0.07, 0.6 * hr.alpha);
+      ctx.strokeStyle = rgba(th.dangerHex, 0.85 * hr.alpha); ctx.lineWidth = Math.max(1.5, R.cell * (hc ? 0.04 : 0.06));
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, rad, 0, Math.PI * 2); ctx.stroke();
     }
 
     /* the mate net: squares the king cannot use, marked rather than drawn

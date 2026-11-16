@@ -951,6 +951,18 @@
     .bigbtn:active, .abtn:active, .lchip:active, .chip:active, .stPick:active, .preset:active, .playBtn:active,
     .rung:active, .tile:active, #askRow button:active, #toast .tact:active{transform:none; filter:brightness(.9)}
   }
+  /* ---- help & teaching (help.js): the welcome, the lamp, the why ----
+     The welcome sits where the rating card will be, the same size and
+     never amber — the one amber thing in the lobby stays "Play". */
+  .welcome{margin:4px 0 10px; padding:12px 14px; border-radius:16px;
+    background:linear-gradient(135deg, rgba(143,176,255,.12), rgba(143,176,255,.02) 60%), var(--card2);
+    border:1px solid rgba(143,176,255,.35)}
+  .welcome .wlTitle{display:block; font-size:1.08em; margin-bottom:6px}
+  .welcome .bigbtn{margin:6px 0; padding:10px 12px}
+  .welcome .wlWhy{display:block; color:var(--soft); font-size:.8em; line-height:1.4; margin-top:6px}
+  #whyChip{margin-left:8px; font-size:.95em; padding:2px 10px; vertical-align:middle}
+  #toast.lamp{text-align:center}
+  #toast .lampLine{display:block; font-size:.92em; color:var(--soft)}
 </style>
 </head>
 <body>
@@ -975,7 +987,7 @@
     </div>
     <div id="panel">
       <div id="pInfo">
-        <div id="viewBanner" class="hide">Looking back — tap to return to the game</div>
+        <div id="viewBanner" class="hide">Looking back — tap to return to the game<button class="lchip" id="whyChip" title="What this move did, in plain words — free">❓ Why this move?</button></div>
         <div id="openingCard" class="hide">
           <div class="ocTop"><span class="ocEyebrow">Opening</span><span id="ocEco"></span></div>
           <div id="ocName"></div>
@@ -1007,7 +1019,7 @@
     <button class="abtn" id="btnMenu"><span class="ic">☰</span>Menu</button>
     <button class="abtn" id="btnNew"><span class="ic">✚</span><span class="lbl-long">New game</span><span class="lbl-short">New</span></button>
     <button class="abtn" id="btnUndo"><span class="ic">↩</span><span id="undoLbl">Undo</span></button>
-    <button class="abtn" id="btnHint"><span class="ic">💡</span>Hint<span class="hintCost" id="hintCost"></span></button>
+    <button class="abtn" id="btnHint"><span class="ic">💡</span>Help<span class="hintCost" id="hintCost"></span></button>
     <button class="abtn" id="btnReplay"><span class="ic">🔁</span><span class="lbl-long">Last move</span><span class="lbl-short">Replay</span></button>
     <button class="abtn" id="btnFlip"><span class="ic">⇅</span>Flip</button>
     <button class="abtn" id="btnDim"><span class="ic" id="dimIc">③</span><span id="dimLbl">3D</span></button>
@@ -1037,6 +1049,13 @@
       <span class="rcMid"><b id="mRateTitle">Not rated yet</b><small id="mRateSub">Play the computer and the room works out how strong you are.</small></span>
       <svg class="rcSpark" id="mRateSpark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true"></svg>
     </button>
+
+    <div class="welcome hide" id="mWelcome" role="group" aria-labelledby="mWelcomeTitle">
+      <b class="wlTitle" id="mWelcomeTitle">Welcome. Do you know how the pieces move?</b>
+      <button class="bigbtn" id="mNew"><span class="em">🐣</span><span><b>I'm new to chess</b><small>The rules in five gentle minutes, then a first game.</small></span></button>
+      <button class="bigbtn" id="mKnow"><span class="em">▶</span><span><b>I know how the pieces move</b><small>Straight into a gentle first game.</small></span></button>
+      <small class="wlWhy">Every game against the computer moves a number that's yours. The coach says what it sees. The Academy makes it stick.</small>
+    </div>
 
     <button class="bigbtn resumeBtn hide" id="mResume"><span class="em">🕯️</span><span><b>Continue your game</b><small id="mResumeSub">Your game is right where you left it.</small></span></button>
 
@@ -1297,6 +1316,8 @@
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
       <button class="chip sel" id="setHelpers">On</button></div>
+    <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
+      <button class="chip" id="setWheels">Off</button></div>
     <button class="ghostbtn" id="setBack">Done</button>
   </div>
 </div>
@@ -1443,6 +1464,7 @@
 <script src="sound.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>
+<script src="help.js"></script>
 <script src="scenes.js"></script>
 <script src="gfx2d.js"></script>
 <script src="gfx3d.js"></script>

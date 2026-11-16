@@ -1290,6 +1290,10 @@ var Teach = {
   attacksFrom: attacksFrom, attackersOf: attackersOf,
   see: see, seeMove: seeMove, bestCapture: bestCapture,
   isLoose: isLoose, looseFor: looseFor,
+  /* the honesty guards themselves, for help.js: a lamp that says "your
+     knight is in danger" has to have asked the same questions the
+     teacher asks before it says so */
+  looseInfo: looseInfo, reallyLost: reallyLost, reallyLostIfTheyMoved: reallyLostIfTheyMoved, matesNow: matesNow,
   forks: forks, lines: lines, backRank: backRank, mateInOne: mateInOne, mateThreat: mateThreat,
   scan: scan, afterMove: afterMove, opportunities: opportunities, warnings: warnings,
   explainMove: explainMove,

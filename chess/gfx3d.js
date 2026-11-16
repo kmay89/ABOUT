@@ -97,6 +97,9 @@ function derive(skin, place) {
     white: vec3(p.white), black: vec3(p.black), rimVec: vec3(b.rim),
     selected: vec3(m.select), legal: vec3(m.legal), capt: vec3(m.capture),
     last: vec3(m.last), check: vec3(m.check), hint: vec3(m.hint),
+    /* the training wheels' warning: the skin's own, else the colour of
+       a king in danger */
+    danger: vec3(m.danger || m.check),
     /* material: spec and power for the 2D board, rough and metal for
        the 3D one, both describing the same surface */
     spec: surf.spec, power: surf.power, rimLight: surf.rim,
@@ -982,7 +985,7 @@ function create(canvas, opts) {
   var R = {
     kind: "3d", skin: null, pal: null, orientation: 1,
     board: new Int8Array(128),
-    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null },
+    hi: { selected: -1, mark: -1, legal: [], legalCapt: [], last: null, check: -1, hint: null, danger: [], hot: [], hotCapt: [] },
     checkAt: -1,
     /* when the squares were last asked to open out, when a man was
        last touched, and when a move last landed — each a short moment
@@ -2203,8 +2206,21 @@ function create(canvas, opts) {
     R.hi.last = hi.last || null;
     R.hi.check = hi.check != null ? hi.check : -1;
     R.hi.hint = hi.hint || null;
+    /* the training wheels (help.js), as the flat board has them: a new
+       set of pieces in danger starts its breath again */
+    var nextDanger = hi.danger || [];
+    if (nextDanger.join() !== R.hi.danger.join()) R.dangerAt = nextDanger.length ? now : -1;
+    R.hi.danger = nextDanger;
+    R.hi.hot = hi.hot || [];
+    R.hi.hotCapt = hi.hotCapt || [];
     R.dirty = true;
   };
+  /* a slow breath for a few seconds, then held — see gfx2d.js */
+  R.dangerAt = -1;
+  function dangerBreath(t) {
+    if (REDUCED || t < 0 || t > 6400) return { amount: 0.55, live: false };
+    return { amount: 0.55 + 0.45 * Math.sin(t / 6400 * Math.PI * 4 - Math.PI / 2), live: true };
+  }
   R.animateMove = function (m, after, o, done) {
     o = o || {};
     /* A move played by letting go of a carried man starts where he is —
@@ -3310,6 +3326,11 @@ function create(canvas, opts) {
     if (sel >= 0) drawFlatSq(sel, th.selected, 0.34);
     if (hover >= 0) drawFlatSq(hover, th.selected, 0.16, null, 0.96, 0.017);
     if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.26 + 0.30 * pulse.amount);
+    if (R.hi.danger.length) {
+      var db = dangerBreath(nowMs - R.dangerAt);
+      glowLive = glowLive || db.live;
+      for (var dz = 0; dz < R.hi.danger.length; dz++) drawFlatSq(R.hi.danger[dz], th.danger, 0.18 + 0.24 * db.amount);
+    }
     /* and under each of them a pool of light, added rather than laid
        over, because it is light arriving on the wood */
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -3362,6 +3383,15 @@ function create(canvas, opts) {
       drawMesh(MESH_SOFTRING, mModel(sqX(csq), 0.02, sqZ(csq), 0.47 * cr.scale, 0), th.capt, 0.72 * cr.alpha, true, 0, 0, 2.2);
       bindMesh(MESH_SOFT);
       drawMesh(MESH_SOFT, mModel(sqX(csq), 0.019, sqZ(csq), 0.40 * cr.scale, 0), th.capt, 0.12 * cr.alpha, true, 0, 0, 1.5);
+    }
+    /* hot squares: where the man in your hand would be lost — a ring in
+       the warning colour where the dot would be */
+    for (var hz = 0; hz < R.hi.hot.length + R.hi.hotCapt.length; hz++) {
+      var hq = hz < R.hi.hot.length, hsq = hq ? R.hi.hot[hz] : R.hi.hotCapt[hz - R.hi.hot.length], hrv = revealOf(hsq);
+      glowLive = glowLive || hrv.live;
+      if (hrv.scale < 0.01) continue;
+      bindMesh(MESH_SOFTRING);
+      drawMesh(MESH_SOFTRING, mModel(sqX(hsq), 0.021, sqZ(hsq), (hq ? 0.26 : 0.47) * hrv.scale, 0), th.danger, 0.85 * hrv.alpha, true, 0, 0, 2.2);
     }
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     if (R.hi.hint && !R.lines.length) drawArrow(R.hi.hint[0], R.hi.hint[1], th.hint);

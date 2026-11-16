@@ -135,7 +135,10 @@ const SIZES = [
       await press("#btnUndo"); await settle();
       ok(T("Undo takes a move back"), (await page.evaluate(() => __cr.game.played.length)) === 2);
       await press("#btnHint");
-      await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText), null, { timeout: 12000 }).catch(() => {});
+      await page.waitForTimeout(150);
+      ok(T("Help opens the lamp: Think, Their idea, A move"), (await page.locator("#toast .tact").count()) === 3);
+      await press("#toast .tact >> text=A move");
+      await page.waitForFunction(() => /💡/.test(document.getElementById("toast").innerText) && !document.getElementById("toast").classList.contains("acts"), null, { timeout: 12000 }).catch(() => {});
       ok(T("Hint gives a move and a reason"), /💡/.test(await page.evaluate(() => document.getElementById("toast").innerText)));
       const was = await page.evaluate(() => __cr.renderer.kind);
       await press("#btnDim");

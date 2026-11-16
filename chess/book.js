@@ -235,8 +235,17 @@ function suggest(sans) {
 
 function principle(n) { return PRINCIPLES[n % PRINCIPLES.length]; }
 
+/* The book's own reason for the last move of `sans`, when the curated
+   lines have one — the help lamp asks this about a move already on the
+   board, so it is a lookup and never a guess: no reason, null. */
+function reason(sans) {
+  if (!sans || !sans.length) return null;
+  var key = sans.map(function (s) { return String(s).replace(/[+#]$/, ""); }).join(" ");
+  return Object.prototype.hasOwnProperty.call(REASONS, key) ? REASONS[key] : null;
+}
+
 var Book = { LINES: LINES, REASONS: REASONS, PRINCIPLES: PRINCIPLES,
-             match: match, suggest: suggest, principle: principle };
+             match: match, suggest: suggest, principle: principle, reason: reason };
 if (typeof module !== "undefined" && module.exports) module.exports = Book;
 else root.Book = Book;
 })(typeof self !== "undefined" ? self : this);
