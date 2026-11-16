@@ -152,8 +152,29 @@ const SIG = `(() => {
   }
   let hash = 0;
   for (let i = 0; i < px.length; i += 4 * 5) hash = (hash * 31 + ((px[i] * 77 + px[i + 1] * 151 + px[i + 2] * 28) >> 8)) | 0;
+  /* the whole picture is kept as well, for SAME below */
+  window.__lastPx = px;
   return hash;
 })()`;
+/* "exactly the picture that was there", allowing for the browser's own
+   rasterising: drawn twice, the same picture can come back with a few
+   pixels a level or two apart (gradients dithered, images filtered, on
+   the GPU one frame and in software the next). That is noise, not a man
+   left behind: a stray mark or a ghost of him is hundreds of pixels tens
+   of levels out. Run SIG first; KEEP(name) holds its picture, and
+   SAME(name) draws again and says whether the two agree within that. */
+const KEEP = `(name) => { (window.__kept = window.__kept || {})[name] = window.__lastPx.slice(0); return true; }`;
+const SAME = `(name) => {
+  const a = window.__kept[name], b = window.__lastPx;
+  if (!a || !b || a.length !== b.length) return { same: false, why: "size" };
+  let n = 0, max = 0;
+  for (let i = 0; i < a.length; i += 4) {
+    const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]), Math.abs(a[i + 3] - b[i + 3]));
+    if (d > 0) { n++; if (d > max) max = d; }
+  }
+  const pixels = a.length / 4;
+  return { same: max <= 4 && n <= pixels * 0.0005, n, max };
+}`;
 
 async function openGame(browser, w, h, dim) {
   /* a phone at its own pixel density; a laptop at one, which is all a
@@ -389,6 +410,7 @@ let base = "";
    back exactly the picture that was there. */
 async function dragCheck(page, dim) {
   const before = await page.evaluate(SIG);
+  await page.evaluate(([f]) => eval(f)("before"), [KEEP]);
   const r = await page.evaluate(() => {
     const R = __cr.renderer, e4 = R.squareToScreen(0x34), e2 = R.squareToScreen(0x14);
     const over = R.setDrag(0x14, e4.x, e4.y);
@@ -425,9 +447,10 @@ async function dragCheck(page, dim) {
   ok(dim + ": while he is carried his own square is empty to a tap", pick === 0x14, NAME(pick));
   await page.evaluate(() => __cr.renderer.setDrag(null));
   const putBack = await settle(page);
-  const after = await page.evaluate(SIG);
-  ok(dim + ": letting go puts back exactly the picture that was there", putBack && after === before,
-     JSON.stringify({ after, before }));
+  await page.evaluate(SIG);
+  const putBackSame = await page.evaluate(([f]) => eval(f)("before"), [SAME]);
+  ok(dim + ": letting go puts back exactly the picture that was there", putBack && putBackSame.same,
+     JSON.stringify(putBackSame));
   /* and a move played from the hand animates from the square as usual */
   const played = await page.evaluate(async () => {
     const R = __cr.renderer, e4 = R.squareToScreen(0x34);
@@ -458,9 +481,11 @@ async function dragCheck(page, dim) {
     return R.frame();
   });
   const home = await settle(page);
+  await page.evaluate(SIG);
+  const homeSame = await page.evaluate(([f]) => eval(f)("before"), [SAME]);
   ok(dim + ": a man let go of without a move glides home, then the board idles",
      (glide === true || (await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches))) && home &&
-     (await page.evaluate(SIG)) === before, JSON.stringify({ glide, home }));
+     homeSame.same, JSON.stringify({ glide, home, homeSame }));
   await settle(page);
 }
 
