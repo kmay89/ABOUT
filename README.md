@@ -189,6 +189,12 @@ is closed.
   who tires as much as for a teenager who has never made chili. Reached
   from the desk by the bowl beside Lupita's box. Format documented in
   `chili/README.md`.
+- `stroganoff/` — the kitchen table's second recipe: weeknight beef
+  stroganoff, steak strips and mushrooms in a sour-cream sauce over egg
+  noodles. Its own `stroganoff/recipe.js`, per one pound of steak, read
+  by the same calculator as the chili (`chili/app.js`), so it gets the
+  same dial, units, cook mode and read-aloud, plus a portobello swap.
+  Reached from the chili's card on the desk and from the footer.
 - `vantage/` — Vantage, an engine I built for people who watch one piece
   of ground change for a year. Fly the same route over a site every few
   weeks and it finds the same view in every flight, locks them all to one
