@@ -234,7 +234,9 @@ async function board(browser, base, flat) {
   await page.waitForFunction(() => __cr.game.played.length >= 1, null, { timeout: 5000 }).catch(() => {});
   ok(tag + "typing e4 and Enter plays it", await page.evaluate(() => __cr.game.played.length >= 1 && __cr.game.played[0].san === "e4"));
   ok(tag + "…and the entry goes away", await page.evaluate(() => document.getElementById("kbType").classList.contains("hide")));
-  await page.waitForTimeout(300);
+  /* the region is written through two short timers; on a busy machine
+     they can run late, so wait for the words rather than a fixed beat */
+  await page.waitForFunction(() => /White: pawn to e4/.test(document.getElementById("accSay").textContent), null, { timeout: 3000 }).catch(() => {});
   ok(tag + "the live region says the move in words", /White: pawn to e4/.test(await region()), await region());
   await page.waitForFunction(() => __cr.game.played.length >= 2, null, { timeout: 20000 }).catch(() => {});
   await settle();
