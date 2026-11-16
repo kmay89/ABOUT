@@ -5,7 +5,7 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access, Cast, Avatar, Stage */
 (function () {
 "use strict";
 
@@ -76,7 +76,7 @@ function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
   var stored = {};
   try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
   [["use3d", true], ["sound", true], ["coach", true], ["helpers", true], ["autoFlip", false],
-   ["tilt", true], ["roomTone", true]].forEach(function (b) {
+   ["tilt", true], ["roomTone", true], ["music", true]].forEach(function (b) {
     var v = prefs[b[0]];
     prefs[b[0]] = v === true || v === "true" ? true : v === false || v === "false" ? false : b[1];
   });
@@ -84,6 +84,8 @@ function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
   /* auto-queen: off unless asked for — the picker exists for the rare
      underpromotion, and a convenience must not take that away unasked */
   prefs.autoQueen = stored.autoQueen === true;
+  /* the pieces' game voices (stage.js): lively unless asked for natural */
+  prefs.pieceVoice = stored.pieceVoice === "natural" ? "natural" : "lively";
 })();
 
 /* ===== the look =====
@@ -141,6 +143,7 @@ function sndPickUp(piece) {
   hap("select");
   if (!prefs.sound || typeof Sound === "undefined") return;
   Sound.pickUp(piece);
+  if (typeof Stage !== "undefined") Stage.pickUp(piece);
 }
 /* The whole gesture: the drag for as long as it is on the board, the
    knock of whatever it takes, the rook of a castle in its own weight,
@@ -149,6 +152,16 @@ function sndPickUp(piece) {
 function sndMove(desc, plan, captured) {
   if (!prefs.sound || typeof Sound === "undefined" || !plan) return;
   Sound.move(desc, plan, { captured: captured || 0 });
+  /* and its game voice: bright for yours, lower and softer for theirs */
+  if (typeof Stage !== "undefined") Stage.move(desc, plan, { captured: captured || 0, mine: sideIsMine(desc.piece > 0 ? 1 : -1) });
+}
+/* whose a move is, for how it sounds: on one screen every move is yours */
+function sideIsMine(side) {
+  if (mode === "coach") return side === humanSide;
+  if (mode === "lan") return side === lanSide;
+  if (mode === "lesson" && lesson) return side === lesson.side;
+  if (mode === "pass") return true;
+  return side === orientation;
 }
 
 /* ===== touch (haptics.js) =====
@@ -437,8 +450,15 @@ function syncRoomTone() {
   /* not before the first tap: a browser will not start the audio clock
      until somebody has touched the page, and asking for a room tone
      before then would only open a clock that cannot run yet */
+  if (typeof Stage !== "undefined") {
+    Stage.setPlace(prefs.scene);
+    Stage.setLively(prefs.pieceVoice !== "natural");
+  }
   if (!audioWoken) return;
-  Sound.ambience(prefs.sound && prefs.roomTone ? 0.55 : 0);
+  Sound.ambience(prefs.sound && prefs.roomTone ? 0.7 : 0);
+  /* the place's own music, under everything, and its echo on every
+     piece (stage.js) */
+  if (typeof Stage !== "undefined") { Stage.room(); Stage.music(prefs.sound && prefs.music ? 1 : 0); }
 }
 function syncStageBackdrop() {
   var st = $("stage");
@@ -998,6 +1018,8 @@ function commitMove(m, source, animOpts) {
   var st = Chess.status(G);
   accAfterMove(m, san, st);
   castAfterMove(m, st);
+  /* the music closes in a little while a king is in check */
+  if (typeof Stage !== "undefined" && !st.over) Stage.mood(st.reason === "check" ? "tense" : "calm");
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -3000,6 +3022,7 @@ function startGame(newMode, opts) {
   saveGame();
   watchNetChip(mode === "lan" && Net.everLinked);
   castStart();
+  if (typeof Stage !== "undefined") Stage.newGame();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   needFrame();
 }
@@ -3018,6 +3041,8 @@ function endGame(result, reason, taught) {
   if (taught && taught.concept) teachSeen[taught.concept] = (teachSeen[taught.concept] || 0) + 1;
   over = { result: result, reason: reason };
   castAtEnd(result);
+  /* the tune steps out so the ending can be heard; the next game brings it back */
+  if (typeof Stage !== "undefined") Stage.mood("end");
   clock.run = 0;
   clearSel();
   note({ ply: G && G.played.length ? G.played.length - 1 : null,
@@ -5917,8 +5942,19 @@ function renderStudio() {
   }
   var toneNote = $("stToneNote");
   if (toneNote) toneNote.textContent = prefs.roomTone
-    ? "The place, quietly, under the game: birds and a breeze, a café\u2019s murmur, a fire, a page turned."
+    ? "The place, quietly, under the game: birds, a breeze and a fountain; a café\u2019s talk, a cup, the door; a fire and a clock; rain on the library windows."
     : "The place is seen and not heard.";
+  /* and its own music */
+  var mu = $("stMusic");
+  if (mu) {
+    mu.classList.toggle("sel", !!prefs.music);
+    mu.textContent = prefs.music ? "\ud83c\udfb5 Music on" : "\ud83c\udfb5 Music off";
+    mu.onclick = function () { prefs.music = !prefs.music; savePrefs(); syncRoomTone(); renderStudio(); };
+  }
+  var muNote = $("stMusicNote");
+  if (muNote) muNote.textContent = prefs.music && typeof Stage !== "undefined"
+    ? "\u266b " + Stage.PLACE_MUSIC[Stage.PLACES.indexOf(prefs.scene) >= 0 ? prefs.scene : "studio"].name + ": written as it plays, so it never repeats. It rests now and then, and steps aside for the game\u2019s big moments."
+    : "No music: just the place and the pieces.";
 
   /* the coaches' boards: won, not chosen */
   homeStudio();
@@ -6512,6 +6548,8 @@ function syncSettingsUI() {
   syncRoomTone();
   $("setSound").classList.toggle("sel", prefs.sound);
   $("setSound").textContent = prefs.sound ? "On" : "Off";
+  $("pvLively").classList.toggle("sel", prefs.pieceVoice !== "natural");
+  $("pvNatural").classList.toggle("sel", prefs.pieceVoice === "natural");
   if (HAP) Haptics.setEnabled(prefs.haptics);
   /* tilt is a phone thing: no row at all on a desk */
   var tiltable = typeof window.DeviceOrientationEvent !== "undefined" && (navigator.maxTouchPoints || 0) > 0;
@@ -6690,6 +6728,17 @@ function wireUI() {
     /* the switch is a click, which is the gesture a browser wants
        before it will start an audio clock at all */
     if (prefs.sound) { Sound.wake(); Sound.tap(6, 0.8); }
+    syncRoomTone();
+  });
+  ["pvLively", "pvNatural"].forEach(function (id) {
+    $(id).addEventListener("click", function () {
+      prefs.pieceVoice = id === "pvNatural" ? "natural" : "lively"; savePrefs(); syncSettingsUI(); syncRoomTone();
+      /* a pawn set down, so you hear what you chose */
+      if (prefs.sound && typeof Sound !== "undefined") {
+        Sound.wake(); Sound.tap(1, 0.8);
+        if (typeof Stage !== "undefined" && prefs.pieceVoice === "lively") Stage.move({ piece: 1, to: 0x34, from: 0x14 }, { dur: 120, travel: 1 }, { mine: true });
+      }
+    });
   });
   /* tilt: on iOS the phone only sends it after a tap has asked, so the
      switch is that tap; elsewhere it simply turns it on and off */

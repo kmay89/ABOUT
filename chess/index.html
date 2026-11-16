@@ -2032,6 +2032,8 @@
       </div></div>
     <div class="settingRow"><span class="lbl"><b>Sound</b><small>Every piece has its own voice: the material decides how it rings, the weight decides how low, and a piece that slides is heard sliding. All synthesized here — nothing to download.</small></span>
       <button class="chip sw sel" id="setSound">On</button></div>
+    <div class="settingRow" id="pvRow"><span class="lbl"><b>Piece sounds</b><small>Lively gives every piece a game voice on top of its real one: a pawn's pip, a knight's clip-clop, a rook's drum, a bell for the king, a pop and a run of notes for every capture (higher for each in a row). Natural is just wood, ivory and glass.</small></span>
+      <div class="rowbtns" style="margin:0"><button class="chip sel" id="pvLively">Lively</button><button class="chip" id="pvNatural">Natural</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Haptics</b><small>Feel the board: a light tick as you pick a piece up, a knock as it lands, a real hit for a capture. Your own moves in full, the other side's softly.</small><small id="setHapticsNote" class="hide" style="display:block">This device doesn't do haptics — everything else still works.</small></span>
       <button class="chip sw sel" id="setHaptics" data-feel="own">On</button></div>
     <div class="settingRow" id="tiltRow"><span class="lbl"><b>Tilt to look round</b><small>Tip the phone and the 3D board answers, a degree or two, as if you had moved your head over a real one.</small><small id="setTiltNote" class="hide" style="display:block">Your phone asks first — tap to allow motion.</small></span>
@@ -2142,8 +2144,9 @@
     <div class="stSec">Where you play</div>
     <div class="stGrid" id="stScenes"></div>
     <div id="stSceneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
-    <div class="stGrid"><button class="stPick" id="stTone">🔊 Room tone on</button></div>
-    <div id="stToneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
+    <div class="stGrid"><button class="stPick" id="stTone">🔊 Room tone on</button><button class="stPick" id="stMusic">🎵 Music on</button></div>
+    <div id="stToneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 2px"></div>
+    <div id="stMusicNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
 
     <div class="stSec">Coaches' boards</div>
     <div id="stHomesNote" style="font-size:.76em;color:var(--soft);margin:2px 0 4px"></div>
@@ -2210,6 +2213,7 @@
 <script src="grain.js"></script>
 <script src="motion.js"></script>
 <script src="sound.js"></script>
+<script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>
 <script src="help.js"></script>

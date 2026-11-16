@@ -234,6 +234,13 @@ sound.js            what the room sounds like. The pieces by modal
                     a rating — a short score in D major, written down as
                     data and played by a tiny synth into a reverb grown
                     from noise. All synthesized — no samples
+stage.js            the soundstage on top of that: every piece's game
+                    voice (a pawn's pip, a knight's clip-clop, a rook's
+                    drum, a king's bell, a pop and a run of notes for a
+                    capture), each place's own music written as it plays,
+                    and the room every sound is heard in. Instruments are
+                    computed once into buffers (struck bars and tines,
+                    Karplus-Strong strings, an FM electric piano)
 motion.js           how a piece moves, as data: a character per man
                     (duration, lift, easing, lean, landing), plus the
                     curves for a capture being pushed over, a castle's
@@ -561,6 +568,17 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  stage-check.js    the soundstage: in node, every instrument in tune and
+                    dying away, every place's music in D major, sparse,
+                    resting every few minutes and never repeating a tune,
+                    every piece its own voice (a pawn's walk climbs, a
+                    capture pays more for more, each in a row higher);
+                    in a browser, every place's music sounds at one level
+                    well under the room's fanfares, ducks for them (and
+                    not for a card), goes quiet at a game's end, a lively
+                    move is fuller than a natural one, the grand room
+                    rings longer than the park; and in the room, the first
+                    touch starts the tune and every switch is obeyed
   sound-check.js    checks the model in node, then renders the actual
                     audio in a browser and measures the samples: each
                     material rings longer than the last, metal is a bell
@@ -1815,6 +1833,65 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## The soundstage
+
+The pieces' real sounds (wood, ivory, glass, a king heavier than a
+pawn) were true but quiet, and true is not the same as fun. The games
+people play for years answer every touch with something you want to hear
+again. `stage.js` is that layer, and it is built around one rule: it has
+to still be lovely the hundredth time.
+
+**Every piece has a game voice** on top of its real one. A pawn is a
+kalimba pip; a knight leaves the board with a little hop and lands
+clip-clop on wood; a bishop is a glass ting; a rook a warm drum; a queen
+a chime and its fifth with a sparkle; the king a soft bell. The note is
+where the piece lands, counted from your side, on the D major
+pentatonic, so a pawn walking up the board climbs a scale. Your moves
+are bright; the other side's are an octave lower and softer, so you
+can hear whose move it was. A capture pops, then pays out a major chord
+spelled upwards, one note for a pawn and four for a queen, and each
+capture in a row starts higher up the key (I, IV, V, then the octave).
+Settings > *Piece sounds* has *Lively* (the default) and *Natural*
+(just the materials).
+
+**Every place has its own music**, written as it plays from a
+progression, a feel and its own instruments. The park has a kalimba and
+a nylon guitar ("Morning in the park"). The café has an electric piano
+with a walking bass and brushes, swung ("Corner café"). The grand room
+has a harp waltz over strings ("Waltz by the fire"), the library a felt
+piano, slow and sparse ("Reading room"), and the studio a pad with a
+celesta. Everything is in D major, the key of every other sound here, so
+nothing ever clashes.
+
+**It never wears thin:**
+- every note is a hair different from the last in pitch, weight and
+  timing;
+- the music rests for a while every few minutes and never plays the
+  same tune twice running;
+- it is trimmed to the same loudness in every place, well under the
+  room's own fanfares;
+- it steps aside for the game's big moments (a check, a mate, a star)
+  and not for a card opening;
+- it closes in a little while a king is in check, and goes quiet when a
+  game ends, so the ending can be heard (the next game brings it back).
+
+The Studio has *Music* beside *Room tone*, and names the tune.
+
+**Every place sounds like a place.** The room tone has more in it: in the
+park, chirrups, a songbird's phrase sung twice, a far-off wood pigeon,
+wind through the leaves and a fountain. In the café, the murmur of
+voices, cups, a spoon stirring, the espresso machine's steam and the
+door's bell. In the grand room, the fire, a log settling and a clock.
+In the library, rain on the windows, a slower clock, pages and an old
+chair. Every piece and every note is heard in the place's own echo: dry
+in the park, a small bright room in the café, long and warm in the
+grand room.
+
+All of it is synthesized, like everything else here. The instruments are
+computed once per note into buffers (struck bars and tines from their
+modes, plucked strings by Karplus-Strong, the electric piano by FM) and
+played by reading a buffer. `stage-check.js` checks all of it.
+
 ## The feel
 
 Polished phone games are felt as much as seen, and almost none of that
@@ -2811,6 +2888,7 @@ node chess/tools/lamp-check.js     # three chips, two free, one priced — and a
 node chess/tools/welcome-check.js  # one question for a newcomer, four pointers once, then out of the way
 node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
+node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
