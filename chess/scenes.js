@@ -63,11 +63,11 @@ var LIST = [
   {
     id: "park", label: "Park", note: "a picnic table in the sun, under the trees",
     seed: 1931,
-    key:  { dir: norm3([-0.46, 1.08, 0.42]), col: [1.00, 0.95, 0.84], power: 2.05 },
+    key:  { dir: norm3([-0.46, 1.08, 0.42]), col: [1.00, 0.90, 0.72], power: 2.30 },
     fill: { dir: norm3([0.42, 0.85, -0.52]), col: [0.62, 0.74, 1.00], power: 0.52 },
     cookie: { kind: "leaves", amount: 0.40, scale: 0.13 },
     table: { shape: "square", half: 6.2, thick: 0.55, edge: "#8a7558", gloss: 0.08, bump: 0.9 },
-    exposure: 0.94, hot: 2.4, bgGain: 1.0, lift: 0.13
+    exposure: 0.80, amb: 0.50, hot: 2.4, bgGain: 1.0, lift: 0.13
   },
   {
     id: "cafe", label: "Café", note: "a marble bistro table by the window",
