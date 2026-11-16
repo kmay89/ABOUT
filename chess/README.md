@@ -124,7 +124,8 @@ learn.js            the Academy: an 18-lesson course built on retrieval
                     saved progress that no amount of junk can break
 skins.js            the look, as data: board colours + pattern, piece
                     colour + material, markings, plus share codes so a
-                    skin can travel to a friend
+                    skin can travel to a friend; and each coach's own
+                    board (HOMES), won by beating that coach
 scenes.js           where the board is: a park, a café, a grand room, a
                     library (or the plain studio). Each is a table, a
                     light rig and a panorama painted on a canvas from a
@@ -440,6 +441,15 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  homes-check.js    the coaches' boards: in node, each coach has one, clean,
+                    named for it, unlike the others and the house set, and
+                    as readable as the house boards; in a browser, a coach
+                    game is on the coach's board and nothing else is, your
+                    own look is untouched, the Studio shows them locked
+                    and a choice there holds for the game, Settings turns
+                    it off, and the first win against a coach wins its
+                    board (end card, the coach's words, ladder, Studio),
+                    once
   cast-check.js     the coach across the board is somebody: in node, every
                     coach has a face that can be built and every kind of
                     line, and no line tells you about the position; in a
@@ -2237,6 +2247,35 @@ the tag shows the coach's emoji instead.
 
 `cast-check.js` checks all of it.
 
+## Their boards
+
+Each coach plays you on its own board. Acorn's is a fresh-cut stump with
+wooden pieces; Sprout's a seed tray in a terracotta rim; Clover's a
+meadow with clover-pink pieces; Fern's moss and stone; Bamboo's pale
+cane in black lacquer; Cactus's sand and terracotta; Pine's frost on
+dark pine with metal pieces; Oak's an old library table with a gilt
+inlay, ivory and ebony on top. The first meeting says whose board it is
+and that it can be won.
+
+**Beat a coach once, in a rated game, and its board is yours** (the
+first star on the ladder, made into something you can see). The end
+card says so, with a *Use it* that makes it your board for every game;
+the coach hands it over in its own words; the ladder shows each board
+under its coach's stars, dimmed behind a lock until it is won; and the
+Studio has a shelf of the eight, the locked ones saying who to beat.
+
+**Your own look is never changed by it.** The coach's board is worn
+only while you play that coach; two on one screen, a friend, a lesson
+and a replay are all on your own board. Choosing anything in the Studio
+during a coach game plays on your choice for the rest of that game.
+Settings can turn the whole thing off (*Coaches' boards*). The boards
+are data in `skins.js` (`HOMES`, keyed by ladder level), held to the
+same guard as every other look and to the house boards' own contrast
+between squares and between armies; one sent in a share code still
+knows whose it was.
+
+`homes-check.js` checks all of it.
+
 ## The coach
 
 A teaching engine has a different job from a strong one. It still has to
@@ -2764,6 +2803,7 @@ node chess/tools/motion-check.js   # every piece arrives, and no two the same wa
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back
 node chess/tools/cast-check.js     # the coach across the board is somebody, and minds its manners
+node chess/tools/homes-check.js    # each coach plays on its own board, and gives it up to whoever beats it
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger

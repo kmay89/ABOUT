@@ -766,6 +766,30 @@
   .rung.next{border-color:var(--amber); box-shadow:0 0 0 2px rgba(240,160,32,.2)}
   .rung.done{border-color:rgba(255,209,102,.45)}
   .rung.done .rgTag{background:var(--good)}
+  /* the coaches' boards: a tiny board (four squares, two pieces) */
+  .swatch b, .rbSw b, .mbSw b{position:absolute; width:30%; aspect-ratio:1; border-radius:50%;
+    border:1px solid; bottom:12%; box-shadow:0 1px 2px rgba(0,0,0,.45)}
+  .swatch b:first-of-type, .rbSw b:first-of-type, .mbSw b:first-of-type{left:9%}
+  .swatch b:last-of-type, .rbSw b:last-of-type, .mbSw b:last-of-type{right:9%}
+  .preset.home .swatch, .rbSw, .mbSw{position:relative}
+  .rbSw, .mbSw{display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; overflow:hidden; flex:none;
+    border-radius:4px; border:1px solid rgba(0,0,0,.45)}
+  .rbSw i, .mbSw i{display:block}
+  .preset.home{position:relative}
+  .preset.home.locked{border-style:dashed}
+  .preset.home.locked .pt b{color:var(--soft)}
+  .preset.home.locked .swatch{filter:saturate(.6) brightness(.75)}
+  .preset.home .lock{flex:none; font-size:1em}
+  .rung .rgBoard{position:relative; margin-top:4px; display:block; line-height:0}
+  .rung .rbSw{width:26px; height:18px}
+  .rung .rgBoard em{position:absolute; inset:0; display:grid; place-items:center; font-style:normal; font-size:10px; line-height:1}
+  .rung .rgBoard:not(.got) .rbSw{filter:saturate(.5) brightness(.55)}
+  .rung .rgBoard.got .rbSw{box-shadow:0 0 0 1px var(--glow), 0 0 8px rgba(255,209,102,.4)}
+  .meetBoard{display:flex; align-items:center; justify-content:center; gap:7px; margin-top:7px;
+    color:var(--ink); font-size:.78em; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.8)}
+  .meetBoard.hide{display:none}
+  .mbSw{width:30px; height:21px}
+  .erMile.unlock .erUse{margin-left:6px; vertical-align:middle}
   .tileRow{display:grid; grid-template-columns:1fr 1fr; gap:8px}
   .tileRow.three{grid-template-columns:1fr 1fr 1fr}
   .tile{
@@ -1596,6 +1620,7 @@
         <div class="meetTitle" id="meetTitle"></div>
         <div class="meetSay" id="meetSay"></div>
         <div class="meetHint" id="meetHint"></div>
+        <div class="meetBoard hide" id="meetBoard"></div>
       </div>
       <div id="toast"></div>
       <button id="resultChip" class="hide">🏁 Result</button>
@@ -2021,6 +2046,8 @@
       <button class="chip sw sel" id="setPen">On</button></div>
     <div class="settingRow" id="castRow"><span class="lbl"><b>Opponents talk</b><small>The coaches introduce themselves and say a word now and then: when they take something, when they lose something, at check and at the end. Never about what is on the board.</small></span>
       <button class="chip sw sel" id="setChatter">On</button></div>
+    <div class="settingRow" id="homeRow"><span class="lbl"><b>Coaches' boards</b><small>Play each coach on its own board. Beat a coach once in a rated game and its board is yours, in The look, to use anywhere. Off keeps your own board for every game.</small></span>
+      <button class="chip sw sel" id="setHomes">On</button></div>
     <div class="settingRow" id="accRow"><span class="lbl"><b>Spoken board</b><small>For a screen reader: each move, the result, and anything you ask with a key are read out. Everything adds the coach's remarks. Nothing is ever spoken aloud otherwise.</small></span>
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="accMoves">Moves</button><button class="chip" id="accAll">Everything</button><button class="chip" id="accOff">Off</button><button class="chip" id="accKeys">The keys ›</button></div></div>
     <div class="settingRow" id="aqRow"><span class="lbl"><b>Promotion</b><small>Ask which piece every time, or make it a queen at once. Even then the room still asks when another piece would mate and the queen wouldn't, or when the queen would stalemate. Lessons always ask.</small></span>
@@ -2117,6 +2144,10 @@
     <div id="stSceneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
     <div class="stGrid"><button class="stPick" id="stTone">🔊 Room tone on</button></div>
     <div id="stToneNote" style="font-size:.76em;color:var(--soft);margin:2px 0 6px"></div>
+
+    <div class="stSec">Coaches' boards</div>
+    <div id="stHomesNote" style="font-size:.76em;color:var(--soft);margin:2px 0 4px"></div>
+    <div id="stHomes"></div>
 
     <div class="stSec">Gallery</div>
     <div id="stPresets"></div>

@@ -132,6 +132,78 @@ var PRESETS = [
     marks: { select: "#ffe14d", legal: "#38f5b0", capture: "#ff4d80", last: "#ffe14d", check: "#ff3d6e", hint: "#38f5b0", plan: "#4da6ff" } }
 ];
 
+/* ---------- each coach's own board ----------
+   You play a coach on its board, and beating it once is how the board
+   becomes yours to use anywhere. Keyed by the ladder's level ids, which
+   is all this file knows of the coaches: the faces and the voices live
+   in cast.js, the unlocking in app.js. Apostrophes are the curly kind,
+   because the text guard strips the straight one from names. */
+var HOME_LIST = [
+  { id: "home-acorn", coach: "acorn", name: "Acorn’s Stump", maker: "Acorn",
+    note: "A fresh-cut stump in the leaf litter, rings and all. Wooden pieces, a little rough.",
+    board: { light: "#ecd4a4", dark: "#9c6a3e", rim: "#3e2716", edge: "#7a5232", coord: "#4a2f1b",
+             pattern: "wood", grain: 0.9, gloss: 0.10 },
+    pieces: { white: "#f3e2bf", black: "#5a3a22", material: "wood", set: "classic", shine: 0.25, rim: 0.15 },
+    room: { bg: "#1a120c" },
+    marks: { select: "#f0b84a", legal: "#6f8f3a", capture: "#c0503f", last: "#f2cf7a", check: "#d43c2e", hint: "#5f8f3a", plan: "#3f86c8" } },
+
+  { id: "home-sprout", coach: "sprout", name: "Sprout’s Seed Tray", maker: "Sprout",
+    note: "The potting bench: new-leaf greens in a terracotta rim, soft porcelain pieces.",
+    board: { light: "#eef3d8", dark: "#93bd6b", rim: "#86452a", edge: "#c87a52", coord: "#3f5a26",
+             pattern: "linen", grain: 0.40, gloss: 0.18 },
+    pieces: { white: "#fdfaee", black: "#3c6a2a", material: "porcelain", set: "nordic", shine: 0.55, rim: 0.30 },
+    room: { bg: "#131a10" },
+    marks: { select: "#f2c14e", legal: "#4f9a3c", capture: "#cf5a40", last: "#f6dc8a", check: "#d9452f", hint: "#3f8f3a", plan: "#c05a8f" } },
+
+  { id: "home-clover", coach: "clover", name: "Clover’s Meadow", maker: "Clover",
+    note: "Four-leaf green and clover-flower pink, with a little shine for luck.",
+    board: { light: "#f1f3e4", dark: "#5f9f70", rim: "#24503a", edge: "#a9cfa8", coord: "#2d5a3d",
+             pattern: "plain", grain: 0.15, gloss: 0.45 },
+    pieces: { white: "#ffffff", black: "#6a3a5c", material: "porcelain", set: "classic", shine: 0.75, rim: 0.45 },
+    room: { bg: "#0f1912" },
+    marks: { select: "#ffd166", legal: "#3c9a5e", capture: "#e0607e", last: "#ffe08f", check: "#e0443a", hint: "#2f8f5a", plan: "#c05aa0" } },
+
+  { id: "home-club", coach: "club", name: "Fern’s Shade", maker: "Fern",
+    note: "Under the ferns: quiet moss and stone greys, and nothing that glares.",
+    board: { light: "#dfe7dc", dark: "#6f8c78", rim: "#2c3c33", edge: "#9fb2a3", coord: "#2f4237",
+             pattern: "linen", grain: 0.50, gloss: 0.12 },
+    pieces: { white: "#f2f4ec", black: "#26352c", material: "porcelain", set: "staunton", shine: 0.35, rim: 0.20 },
+    room: { bg: "#0f1512" },
+    marks: { select: "#e8c35a", legal: "#4f8a62", capture: "#c45a48", last: "#e9d58a", check: "#cf4636", hint: "#3f7f58", plan: "#4f86c0" } },
+
+  { id: "home-bamboo", coach: "bamboo", name: "Bamboo’s Lacquer", maker: "Bamboo",
+    note: "Pale split cane in a black lacquer frame, with lacquered pieces to match.",
+    board: { light: "#f1e5bd", dark: "#bc9d58", rim: "#100e0d", edge: "#2a2321", coord: "#4a3a1c",
+             pattern: "inlay", grain: 0.35, gloss: 0.55 },
+    pieces: { white: "#f7f0de", black: "#1a1614", material: "metal", set: "modern", shine: 0.80, rim: 0.50 },
+    room: { bg: "#0d0c0b" },
+    marks: { select: "#e8b84a", legal: "#7a8f3a", capture: "#c8402e", last: "#efcf78", check: "#d2382a", hint: "#6a8a2f", plan: "#c0302a" } },
+
+  { id: "home-cactus", coach: "cactus", name: "Cactus’s Desert", maker: "Cactus",
+    note: "Sun-baked sand and terracotta. Bone-white pieces against cactus green. Hot.",
+    board: { light: "#f2dbb2", dark: "#c46a3c", rim: "#55291a", edge: "#dcb27e", coord: "#5a2f1c",
+             pattern: "plain", grain: 0.25, gloss: 0.08 },
+    pieces: { white: "#f8ecd4", black: "#2f5a3a", material: "wood", set: "nordic", shine: 0.25, rim: 0.15 },
+    room: { bg: "#1e120b" },
+    marks: { select: "#f2a83a", legal: "#4f8a4a", capture: "#b8402c", last: "#f4c87a", check: "#c8382a", hint: "#3f7f3a", plan: "#3a7fc4" } },
+
+  { id: "home-pine", coach: "pine", name: "Pine’s Frost", maker: "Pine",
+    note: "Frost on dark pine. Cold metal pieces, every edge clear as a winter morning.",
+    board: { light: "#eef4f5", dark: "#4f7868", rim: "#18302a", edge: "#c6d6d8", coord: "#21392f",
+             pattern: "marble", grain: 0.30, gloss: 0.65 },
+    pieces: { white: "#ffffff", black: "#2a4a40", material: "metal", set: "modern", shine: 0.90, rim: 0.60 },
+    room: { bg: "#0b1311" },
+    marks: { select: "#7cc4ff", legal: "#3f8f86", capture: "#e05a5a", last: "#a8dcff", check: "#e34a4a", hint: "#2f8f80", plan: "#e0902f" } },
+
+  { id: "home-mentor", coach: "mentor", name: "Oak’s Library Table", maker: "Oak",
+    note: "Old oak with a gilt inlay, ivory and ebony on top. The board the whole ladder leads to.",
+    board: { light: "#e8cf9c", dark: "#7a4d28", rim: "#2a170c", edge: "#b08a4a", coord: "#3a2412",
+             pattern: "inlay", grain: 0.70, gloss: 0.50 },
+    pieces: { white: "#f6ead2", black: "#1c1410", material: "ivory", set: "staunton", shine: 0.60, rim: 0.35 },
+    room: { bg: "#140d08" },
+    marks: { select: "#e6b94a", legal: "#7d7a34", capture: "#b8452f", last: "#ecc670", check: "#cc3b2a", hint: "#8a7326", plan: "#3b7fb5" } }
+];
+
 /* ---------- guards: nothing from outside is trusted ---------- */
 var HEX = /^#[0-9a-fA-F]{6}$/;
 function hex(v, fallback) { return (typeof v === "string" && HEX.test(v)) ? v.toLowerCase() : fallback; }
@@ -191,8 +263,9 @@ function clean(s, fallbackName) {
   };
 }
 function planFor(s) {
-  for (var i = 0; i < PRESETS.length; i++) {
-    if (PRESETS[i].id === s.id || PRESETS[i].name === s.name) return PRESETS[i].marks.plan;
+  var all = PRESETS.concat(HOME_LIST);
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].id === s.id || all[i].name === s.name) return all[i].marks.plan;
   }
   return DEFAULT.marks.plan;
 }
@@ -390,6 +463,24 @@ var Skins = {
   MATERIALS: MATERIALS, PATTERNS: PATTERNS, PIECE_SETS: PIECE_SETS,
   PRESETS: PRESETS.map(function (p) { return clean(p, p.name); }),
   DEFAULT_ID: "walnut",
+  /* the coaches' boards, by level id, in ladder order */
+  HOMES: (function () {
+    var out = {};
+    HOME_LIST.forEach(function (p) { out[p.coach] = clean(p, p.name); });
+    return out;
+  })(),
+  homeOf: function (coachId) {
+    return Object.prototype.hasOwnProperty.call(Skins.HOMES, coachId) ? Skins.HOMES[coachId] : null;
+  },
+  /* which coach a look came from, if it came from one: by id, or by the
+     name a share code travels under */
+  coachOf: function (s) {
+    if (!s) return null;
+    for (var i = 0; i < HOME_LIST.length; i++) {
+      if (HOME_LIST[i].id === s.id || HOME_LIST[i].name === s.name) return HOME_LIST[i].coach;
+    }
+    return null;
+  },
   clean: clean, clone: clone, surface: surface,
   encode: encode, decode: decode,
   loadMine: loadMine, saveMine: saveMine, addMine: addMine,
