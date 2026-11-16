@@ -40,6 +40,7 @@ var CAST = {
       behind: ["This is getting a bit scary.", "I might be in trouble…"],
       win:   ["I won?! I won! Can I tell everyone?", "Wow! That was the best game ever!"],
       lose:  ["Aw. You're really good! Teach me that one day?", "Good game! I'll grow, you'll see."],
+      gift:  ["You won! Oh, that means you get my stump now. Look after it, okay?"],
       draw:  ["Nobody won? That's okay! That's nice, actually."]
     }
   },
@@ -62,6 +63,7 @@ var CAST = {
       behind: ["Hmm, I'm wilting a bit here.", "I might need more water."],
       win:   ["I won! We both learned something, though, right?", "Hooray! Good game!"],
       lose:  ["You got me! Nicely played.", "Good game! I'm going to grow back stronger."],
+      gift:  ["You beat me! Take my seed tray. Things grow well on it. You did."],
       draw:  ["A draw! We both get a sticker."]
     }
   },
@@ -84,6 +86,7 @@ var CAST = {
       behind: ["Come on, luck, come on…"],
       win:   ["Lucky clover strikes again!", "Won it! Good game, though!"],
       lose:  ["You made your own luck there. Well played!", "Not my day! Great game."],
+      gift:  ["Guess my luck ran out. The meadow's yours now. Maybe it'll bring you some."],
       draw:  ["Half a lucky day each!"]
     }
   },
@@ -106,6 +109,7 @@ var CAST = {
       behind: ["You're playing well. I need to be careful."],
       win:   ["Thank you for the game. That was a good one.", "Mine, this time. Well played."],
       lose:  ["Well played. I didn't see it until too late.", "You were better today. Thank you."],
+      gift:  ["Well played. Take the shade with you. It's a good place to think."],
       draw:  ["Even. That feels right."]
     }
   },
@@ -128,6 +132,7 @@ var CAST = {
       behind: ["Your technique is sharp today."],
       win:   ["A good bout. Train well.", "The stem stands. Bow, and again?"],
       lose:  ["You have trained well. I bow.", "Excellent form. I am honoured."],
+      gift:  ["I bent too far that time. The lacquer board is yours. Keep it polished."],
       draw:  ["Balance. As it should be."]
     }
   },
@@ -150,6 +155,7 @@ var CAST = {
       behind: ["You're tougher than you look."],
       win:   ["The desert takes another one. Come back when you've grown some thorns.", "Good game. Mostly mine."],
       lose:  ["Well, I'll be. You beat me fair and square.", "Tip of the hat to you, partner."],
+      gift:  ["Fine. Take the desert. Mind the sand, it gets everywhere."],
       draw:  ["Standoff. Respect."]
     }
   },
@@ -172,6 +178,7 @@ var CAST = {
       behind: ["Your calculation is better than mine today."],
       win:   ["A clean game. Thank you.", "The plan held. Well fought."],
       lose:  ["Precise. I could not find a defence.", "Very well played. I concede the point."],
+      gift:  ["Correct. The frost board goes with you. It suits a clear head."],
       draw:  ["Equal. Correctly so."]
     }
   },
@@ -194,12 +201,13 @@ var CAST = {
       behind: ["You're playing beautifully. I may be in trouble."],
       win:   ["A fine game. You'll beat me soon enough.", "Well fought. Look back over it, there's a lesson in there."],
       lose:  ["Ah, wonderful! You've beaten the old tree. Well done.", "Splendid play. I'm proud of you."],
+      gift:  ["There it is. The library table is yours now. I kept it a long time for someone like you."],
       draw:  ["A draw. Honour on both sides."]
     }
   }
 };
 
-var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw"];
+var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift"];
 
 function get(id) { return CAST[id] || null; }
 function ids() { return Object.keys(CAST); }

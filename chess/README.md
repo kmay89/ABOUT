@@ -124,7 +124,8 @@ learn.js            the Academy: an 18-lesson course built on retrieval
                     saved progress that no amount of junk can break
 skins.js            the look, as data: board colours + pattern, piece
                     colour + material, markings, plus share codes so a
-                    skin can travel to a friend
+                    skin can travel to a friend; and each coach's own
+                    board (HOMES), won by beating that coach
 scenes.js           where the board is: a park, a café, a grand room, a
                     library (or the plain studio). Each is a table, a
                     light rig and a panorama painted on a canvas from a
@@ -233,6 +234,13 @@ sound.js            what the room sounds like. The pieces by modal
                     a rating — a short score in D major, written down as
                     data and played by a tiny synth into a reverb grown
                     from noise. All synthesized — no samples
+stage.js            the soundstage on top of that: every piece's game
+                    voice (a pawn's pip, a knight's clip-clop, a rook's
+                    drum, a king's bell, a pop and a run of notes for a
+                    capture), each place's own music written as it plays,
+                    and the room every sound is heard in. Instruments are
+                    computed once into buffers (struck bars and tines,
+                    Karplus-Strong strings, an FM electric piano)
 motion.js           how a piece moves, as data: a character per man
                     (duration, lift, easing, lean, landing), plus the
                     curves for a capture being pushed over, a castle's
@@ -440,6 +448,15 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  homes-check.js    the coaches' boards: in node, each coach has one, clean,
+                    named for it, unlike the others and the house set, and
+                    as readable as the house boards; in a browser, a coach
+                    game is on the coach's board and nothing else is, your
+                    own look is untouched, the Studio shows them locked
+                    and a choice there holds for the game, Settings turns
+                    it off, and the first win against a coach wins its
+                    board (end card, the coach's words, ladder, Studio),
+                    once
   cast-check.js     the coach across the board is somebody: in node, every
                     coach has a face that can be built and every kind of
                     line, and no line tells you about the position; in a
@@ -551,6 +568,17 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  stage-check.js    the soundstage: in node, every instrument in tune and
+                    dying away, every place's music in D major, sparse,
+                    resting every few minutes and never repeating a tune,
+                    every piece its own voice (a pawn's walk climbs, a
+                    capture pays more for more, each in a row higher);
+                    in a browser, every place's music sounds at one level
+                    well under the room's fanfares, ducks for them (and
+                    not for a card), goes quiet at a game's end, a lively
+                    move is fuller than a natural one, the grand room
+                    rings longer than the park; and in the room, the first
+                    touch starts the tune and every switch is obeyed
   sound-check.js    checks the model in node, then renders the actual
                     audio in a browser and measures the samples: each
                     material rings longer than the last, metal is a bell
@@ -1805,6 +1833,65 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## The soundstage
+
+The pieces' real sounds (wood, ivory, glass, a king heavier than a
+pawn) were true but quiet, and true is not the same as fun. The games
+people play for years answer every touch with something you want to hear
+again. `stage.js` is that layer, and it is built around one rule: it has
+to still be lovely the hundredth time.
+
+**Every piece has a game voice** on top of its real one. A pawn is a
+kalimba pip; a knight leaves the board with a little hop and lands
+clip-clop on wood; a bishop is a glass ting; a rook a warm drum; a queen
+a chime and its fifth with a sparkle; the king a soft bell. The note is
+where the piece lands, counted from your side, on the D major
+pentatonic, so a pawn walking up the board climbs a scale. Your moves
+are bright; the other side's are an octave lower and softer, so you
+can hear whose move it was. A capture pops, then pays out a major chord
+spelled upwards, one note for a pawn and four for a queen, and each
+capture in a row starts higher up the key (I, IV, V, then the octave).
+Settings > *Piece sounds* has *Lively* (the default) and *Natural*
+(just the materials).
+
+**Every place has its own music**, written as it plays from a
+progression, a feel and its own instruments. The park has a kalimba and
+a nylon guitar ("Morning in the park"). The café has an electric piano
+with a walking bass and brushes, swung ("Corner café"). The grand room
+has a harp waltz over strings ("Waltz by the fire"), the library a felt
+piano, slow and sparse ("Reading room"), and the studio a pad with a
+celesta. Everything is in D major, the key of every other sound here, so
+nothing ever clashes.
+
+**It never wears thin:**
+- every note is a hair different from the last in pitch, weight and
+  timing;
+- the music rests for a while every few minutes and never plays the
+  same tune twice running;
+- it is trimmed to the same loudness in every place, well under the
+  room's own fanfares;
+- it steps aside for the game's big moments (a check, a mate, a star)
+  and not for a card opening;
+- it closes in a little while a king is in check, and goes quiet when a
+  game ends, so the ending can be heard (the next game brings it back).
+
+The Studio has *Music* beside *Room tone*, and names the tune.
+
+**Every place sounds like a place.** The room tone has more in it: in the
+park, chirrups, a songbird's phrase sung twice, a far-off wood pigeon,
+wind through the leaves and a fountain. In the café, the murmur of
+voices, cups, a spoon stirring, the espresso machine's steam and the
+door's bell. In the grand room, the fire, a log settling and a clock.
+In the library, rain on the windows, a slower clock, pages and an old
+chair. Every piece and every note is heard in the place's own echo: dry
+in the park, a small bright room in the café, long and warm in the
+grand room.
+
+All of it is synthesized, like everything else here. The instruments are
+computed once per note into buffers (struck bars and tines from their
+modes, plucked strings by Karplus-Strong, the electric piano by FM) and
+played by reading a buffer. `stage-check.js` checks all of it.
+
 ## The feel
 
 Polished phone games are felt as much as seen, and almost none of that
@@ -2236,6 +2323,35 @@ because eight live faces would be eight WebGL contexts. Without WebGL
 the tag shows the coach's emoji instead.
 
 `cast-check.js` checks all of it.
+
+## Their boards
+
+Each coach plays you on its own board. Acorn's is a fresh-cut stump with
+wooden pieces; Sprout's a seed tray in a terracotta rim; Clover's a
+meadow with clover-pink pieces; Fern's moss and stone; Bamboo's pale
+cane in black lacquer; Cactus's sand and terracotta; Pine's frost on
+dark pine with metal pieces; Oak's an old library table with a gilt
+inlay, ivory and ebony on top. The first meeting says whose board it is
+and that it can be won.
+
+**Beat a coach once, in a rated game, and its board is yours** (the
+first star on the ladder, made into something you can see). The end
+card says so, with a *Use it* that makes it your board for every game;
+the coach hands it over in its own words; the ladder shows each board
+under its coach's stars, dimmed behind a lock until it is won; and the
+Studio has a shelf of the eight, the locked ones saying who to beat.
+
+**Your own look is never changed by it.** The coach's board is worn
+only while you play that coach; two on one screen, a friend, a lesson
+and a replay are all on your own board. Choosing anything in the Studio
+during a coach game plays on your choice for the rest of that game.
+Settings can turn the whole thing off (*Coaches' boards*). The boards
+are data in `skins.js` (`HOMES`, keyed by ladder level), held to the
+same guard as every other look and to the house boards' own contrast
+between squares and between armies; one sent in a share code still
+knows whose it was.
+
+`homes-check.js` checks all of it.
 
 ## The coach
 
@@ -2764,6 +2880,7 @@ node chess/tools/motion-check.js   # every piece arrives, and no two the same wa
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
 node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back
 node chess/tools/cast-check.js     # the coach across the board is somebody, and minds its manners
+node chess/tools/homes-check.js    # each coach plays on its own board, and gives it up to whoever beats it
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger
@@ -2771,6 +2888,7 @@ node chess/tools/lamp-check.js     # three chips, two free, one priced — and a
 node chess/tools/welcome-check.js  # one question for a newcomer, four pointers once, then out of the way
 node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
+node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed
