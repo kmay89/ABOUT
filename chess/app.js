@@ -12,22 +12,38 @@
 function $(id) { return document.getElementById(id); }
 var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/* ===== self-healing: catch trouble before it strands anyone ===== */
+/* ===== self-healing: catch trouble before it strands anyone =====
+   Three errors inside eight seconds bring up the recovery card. A
+   promise that fails with nobody listening counts too, when it is the
+   kind of failure a bug makes (see recRejectionCounts in the recovery
+   block near the end); a network hiccup or a refused permission is not
+   one, and never strands anybody. */
 var errTimes = [];
 function panic() {
   var ov = $("ovRecover");
-  if (ov) ov.classList.remove("hide");
+  if (!ov) return;
+  try { recFill(); } catch (e) {}
+  ov.classList.remove("hide");
 }
-window.addEventListener("error", function () {
+function recCount(info) {
+  recNote(info);
   var now = Date.now();
   errTimes.push(now);
   errTimes = errTimes.filter(function (t) { return now - t < 8000; });
   if (errTimes.length >= 3) panic();
+}
+window.addEventListener("error", function (e) {
+  recCount({ msg: e && e.message, src: e && e.filename, line: e && e.lineno, col: e && e.colno });
 });
-window.addEventListener("unhandledrejection", function () { /* logged errors only; never strand */ });
+window.addEventListener("unhandledrejection", function (e) {
+  var r = e && e.reason;
+  if (!recRejectionCounts(r)) return;
+  recCount({ msg: "a promise failed: " + (r && r.message ? r.name + ": " + r.message : String(r)),
+             src: r && r.stack ? String(r.stack).split("\n").slice(1, 2).join("").trim() : "" });
+});
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { recStoreFailed(); return false; } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
@@ -48,10 +64,27 @@ var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, 
   if (typeof Scenes === "undefined" || !Scenes.has(prefs.scene)) prefs.scene = "park";
   if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
   Object.keys(prefs.lastClock).forEach(function (k) {
-    if (["none", "3+2", "5+0", "10+5", "15+10", "30+0"].indexOf(String(prefs.lastClock[k])) < 0) delete prefs.lastClock[k];
+    if (!clkOk(prefs.lastClock[k])) delete prefs.lastClock[k];
   });
 })();
 function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
+/* ===== edge: preferences read here, not in the literal above =====
+   A switch kept as a word in a hand-edited store ("false") is truthy, so
+   every on/off preference is made a real boolean, falling back to its
+   default when it is anything else. New switches are read here too. */
+(function () {
+  var stored = {};
+  try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
+  [["use3d", true], ["sound", true], ["coach", true], ["helpers", true], ["autoFlip", false],
+   ["tilt", true], ["roomTone", true]].forEach(function (b) {
+    var v = prefs[b[0]];
+    prefs[b[0]] = v === true || v === "true" ? true : v === false || v === "false" ? false : b[1];
+  });
+  if (location.hash === "#force2d") prefs.use3d = false;
+  /* auto-queen: off unless asked for — the picker exists for the rare
+     underpromotion, and a convenience must not take that away unasked */
+  prefs.autoQueen = stored.autoQueen === true;
+})();
 
 /* ===== the look =====
    One skin object drives both renderers and the page chrome. Changing
@@ -500,8 +533,25 @@ function skillOk(id) { return SKILLS[id] ? id : "sprout"; }
 
 /* ===== clock ===== */
 var clock = { on: false, base: 0, inc: 0, w: 0, b: 0, run: 0 /* 0 none, 1 white, -1 black */, lastT: 0, lowTicked: -1 };
+/* ----- clk: one list of presets, one rule for what a clock may be -----
+   The chips on the new-game card are drawn from CLK_PRESETS, and every
+   clock that arrives from anywhere — a chip, the two custom fields, a
+   save, a remembered preference, the other device — passes clkOk before
+   it is used: "none", or whole minutes (1–180) plus whole seconds a move
+   (0–60). */
+var CLK_PRESETS = [
+  { v: "none", label: "No clock" }, { v: "3+2", label: "3+2 blitz" }, { v: "5+0", label: "5 min" },
+  { v: "10+5", label: "10+5 rapid" }, { v: "15+10", label: "15+10" }, { v: "30+0", label: "30 min" }
+];
+var CLK_MAX_MIN = 180, CLK_MAX_INC = 60;     /* the same bounds clkOk holds to */
+function clkOk(str) {
+  if (str === "none") return true;
+  var m = /^(\d{1,3})\+(\d{1,2})$/.exec(String(str));
+  /* literal bounds: the preferences are read with this before CLK_MAX_* are set */
+  return !!m && +m[1] >= 1 && +m[1] <= 180 && +m[2] <= 60;
+}
 function clockConfig(str) {
-  if (!str || str === "none") { clock.on = false; return; }
+  if (!str || str === "none" || !clkOk(str)) { clock.on = false; return; }
   var m = str.split("+");
   clock.on = true;
   clock.base = (+m[0]) * 60000;
@@ -524,18 +574,26 @@ function fmtClock(ms) {
    them for choosing a board colour. The Studio is a drawer beside a game
    that goes on, so it does not stop anything. A game between two devices
    keeps running: the other person is still sitting there. */
-var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk", "ovShare", "ovPeople"];
 function clockPaused() {
   if (mode === "lan") return false;
-  for (var i = 0; i < PAUSING.length; i++) if (!$(PAUSING[i]).classList.contains("hide")) return true;
+  if (clkHiddenAt) return true;      /* out of sight: see clkAway */
+  var ids = cardIds("pause");
+  for (var i = 0; i < ids.length; i++) if (!$(ids[i]).classList.contains("hide")) return true;
   return false;
 }
+/* The clock is charged by the wall clock: whatever time really passed
+   since it was last read. It used to add up frame gaps and drop any gap
+   over three seconds, so a tab the browser stopped drawing — hidden, or
+   just stalled — stopped costing time. Pauses are now said, not
+   guessed: a card that pauses (above) and, in a game on this device,
+   the tab being out of sight (clkAway near the end) move lastT on
+   instead. */
 function clockTick(now) {
   if (!clock.on || !clock.run || over || !G) return;
   var dt = now - clock.lastT;
   clock.lastT = now;
   if (clockPaused()) return;
-  if (dt <= 0 || dt > 3000) return;
+  if (dt <= 0) return;
   if (clock.run === 1) clock.w -= dt; else clock.b -= dt;
   var ms = clock.run === 1 ? clock.w : clock.b;
   if (ms <= 10500 && ms > 0) {
@@ -808,7 +866,7 @@ function tapSquare(sq) {
       }
     }
     if (mv) {
-      if (mv.promo) { askPromotion(sel, sq); return; }
+      if (mv.promo && !(mv = aqChoose(sel, sq))) return;   /* the picker, or a queen at once */
       clearSel();
       if (mode === "lesson") { lessonAttempt(mv); return; }
       commitMove(mv, "local");
@@ -831,8 +889,10 @@ function tapSquare(sq) {
   syncBoard();
 }
 
-function askPromotion(from, to) {
+function askPromotion(from, to, why) {
   pendingPromo = { from: from, to: to };
+  $("aqWhy").textContent = why || "";
+  $("aqWhy").classList.toggle("hide", !why);
   var row = $("promoRow");
   row.innerHTML = "";
   var glyphs = G.turn === 1 ? GLYPH : GLYPHB;
@@ -2376,7 +2436,7 @@ function renderEndRating(rs, cardAt) {
         setTimeout(function () { popStar(2, live); }, 700);
       }
       progressAfterLook(rs, acc, c);
-    }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
+    }, REDUCED ? 0 : startAt + 1700);
   });
 }
 function countChips(c) {
@@ -5360,11 +5420,9 @@ function chapterName(id) {
   for (var i = 0; i < Learn.CHAPTERS.length; i++) if (Learn.CHAPTERS[i].id === id) return Learn.CHAPTERS[i].name;
   return "Lesson";
 }
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, function (c) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-  });
-}
+/* the same escaping as escHtml, by its shorter name — one rule, two names,
+   because both are called from all over the file */
+function esc(s) { return escHtml(s); }
 
 /* hints fade in three steps: a question, then where to look, then the move */
 function giveLessonHint() {
@@ -5740,9 +5798,34 @@ function adoptSkin(s) {
   toast("🎨 <b>" + esc(saved.name) + "</b> by " + esc(saved.maker) + " is now in your gallery.");
 }
 
-/* ===== overlays & menus ===== */
+/* ===== overlays & menus =====
+   CARDS is the one list of the room's cards. `hide`: hideAllOverlays
+   closes it. `pause`: a game on this device stops its clock while it is
+   open (clockPaused). `back`: Escape and a tap on the dim room around
+   it go back to the lobby. The question (ovAsk) pauses but has its own
+   way out; the picker, the recovery card and the Studio are not cards
+   here on purpose. Adding a card is one line. */
+var CARDS = [
+  { id: "ovMenu", hide: 1, pause: 1 },
+  { id: "ovNew", hide: 1, pause: 1, back: 1 },
+  { id: "ovLink", hide: 1, pause: 1 },
+  { id: "ovLinked", hide: 1, pause: 1 },
+  { id: "ovEnd", hide: 1 },
+  { id: "ovSettings", hide: 1, pause: 1, back: 1 },
+  { id: "ovLearn", hide: 1, pause: 1, back: 1 },
+  { id: "ovOpenings", hide: 1, pause: 1, back: 1 },
+  { id: "ovAbout", hide: 1, pause: 1, back: 1 },
+  { id: "ovAcademy", hide: 1, pause: 1, back: 1 },
+  { id: "ovProfile", hide: 1, pause: 1, back: 1 },
+  { id: "ovShare", hide: 1, pause: 1 },
+  { id: "ovPeople", hide: 1, pause: 1 },
+  { id: "ovAsk", pause: 1 }
+];
+function cardIds(flag) {
+  return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
+}
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile", "ovShare", "ovPeople"].forEach(function (id) {
+  cardIds("hide").forEach(function (id) {
     $(id).classList.add("hide");
   });
   /* the picker is not just hidden but closed: a picker that is hidden
@@ -5834,9 +5917,7 @@ function openNewCard(kind, cb) {
      clock you chose last time for this kind of game is chosen again */
   var lastClock = (prefs.lastClock && prefs.lastClock[kind]) || "none";
   newCardCtx = { kind: kind, cb: cb, side: kind === "coach" ? "a" : "w", skill: nextLevel(), clockStr: lastClock };
-  Array.prototype.forEach.call($("clockChips").children, function (c) {
-    c.classList.toggle("sel", c.getAttribute("data-clock") === newCardCtx.clockStr);
-  });
+  clkShowCard(newCardCtx.clockStr);
   $("newTitle").textContent = kind === "pass" ? "Two players, one device" : kind === "coach" ? "Play the computer" : "Host a board";
   /* the colour chips: taking turns only means something against the computer */
   Array.prototype.forEach.call($("sideChips").children, function (c) {
@@ -6108,6 +6189,7 @@ function syncOddsUI() {
 
 /* ===== settings ===== */
 function syncSettingsUI() {
+  aqSync();
   $("setSkinName").textContent = "Currently: " + skin.name + " · " +
     Skins.MATERIALS[skin.pieces.material].label.toLowerCase() + " pieces.";
   var v = voice();
@@ -6211,7 +6293,8 @@ function wireUI() {
   /* new game card */
   wireChips("sideChips", "side", function (v) { if (newCardCtx) newCardCtx.side = v; });
   wireChips("skillChips", "skill", function (v) { if (newCardCtx) newCardCtx.skill = v; });
-  wireChips("clockChips", "clock", function (v) { if (newCardCtx) newCardCtx.clockStr = v; });
+  clkWire();
+  aqWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -6227,7 +6310,7 @@ function wireUI() {
   /* a tap on the dimmed room around a card closes it, the way Escape does:
      the side cards go back to the lobby, and the lobby itself goes back
      to a game that is waiting */
-  ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].forEach(function (id) {
+  cardIds("back").forEach(function (id) {
     $(id).addEventListener("click", function (e) { if (e.target === this) showMenu(); });
   });
   $("ovMenu").addEventListener("click", function (e) {
@@ -6248,7 +6331,7 @@ function wireUI() {
       if (pendingPromo) { cancelPromo(); return; }
       if (!$("ovEnd").classList.contains("hide")) { $("ovEnd").classList.add("hide"); syncTurnStrip(); return; }
       if (studioOpen) { closeStudio(); return; }
-      var open = ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].filter(function (id) { return !$(id).classList.contains("hide"); });
+      var open = cardIds("back").filter(function (id) { return !$(id).classList.contains("hide"); });
       if (open.length) { showMenu(); return; }
       if (!$("ovMenu").classList.contains("hide") && G && mode) { hideAllOverlays(); return; }
       if (clearInkHere()) return;
@@ -6397,39 +6480,289 @@ function wireUI() {
   /* recovery */
   $("recReload").addEventListener("click", function () { location.reload(); });
   $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
-  /* a fresh start forgets everything the room ever wrote — the game, the
-     settings, the Academy, the score — because any one of them, damaged,
-     is enough to strand it, and a recovery card that cannot recover is
-     worse than none */
-  $("recFresh").addEventListener("click", function () {
-    try { Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k)) lsDel(k); }); } catch (e) {}
-    lsDel(SAVE_KEY); lsDel(PREF_KEY);
-    location.hash = ""; location.reload();
-  });
+  recWire();
 
   window.addEventListener("resize", function () {
     if (R2) R2.resize();
     if (R3) R3.resize();
     needFrame();
   });
-  /* a tab coming back from the background repaints and re-arms the clock */
-  /* Away from the tab: in a game on this device that is a pause, like the
-     menu. In a game between two devices it is time spent thinking — the
-     other person waited through it — so it is charged when you return. */
-  var hiddenAt = 0;
+  /* a tab coming back from the background repaints and settles the clock */
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") { hiddenAt = performance.now(); return; }
+    clkAway(document.visibilityState === "hidden", performance.now());
     if (document.visibilityState === "visible") {
-      if (mode === "lan" && clock.on && clock.run && !over && hiddenAt) {
-        var away = performance.now() - hiddenAt;
-        if (clock.run === 1) clock.w -= away; else clock.b -= away;
-      }
-      hiddenAt = 0;
-      clock.lastT = performance.now();
       if (R) { R.dirty = true; }
       needFrame();
     }
   });
+}
+/* ----- clk: time away from the tab -----
+   In a game on this device, out of sight is a pause, like the menu: the
+   time up to the moment the tab went is charged, the time it was gone is
+   not, and the room says so when you are back. In a game between two
+   devices it is time spent thinking — the other person waited through
+   it — so it is charged in full the moment you return, by the same
+   wall-clock arithmetic as every other second, and a flag that fell
+   while you were gone falls then, before anything else can happen. The
+   charge runs from the last time the clock was read, not from when the
+   tab was hidden: a move that arrived while you were away resynced both
+   clocks and restarted yours from that moment, and only the time since
+   is yours to pay. */
+var clkHiddenAt = 0;
+function clkAway(hidden, now) {
+  if (!clock.on || !clock.run || over || !G) { clkHiddenAt = hidden ? now : 0; return; }
+  if (hidden) { clockTick(now); clkHiddenAt = now; return; }
+  var gone = clkHiddenAt ? now - clkHiddenAt : 0;
+  clkHiddenAt = 0;
+  if (mode === "lan") {
+    clockTick(now);
+    if (!over && gone >= 3000) toast("You were away " + Math.round(gone / 1000) + " s — the clocks kept running.");
+    return;
+  }
+  clock.lastT = now;
+  if (gone >= 3000 && !clockPaused()) toast("The clock waited while you were away.");
+}
+
+/* ===================== clk: the custom clock on the new-game card =====================
+   Six presets and "Other…": whole minutes (1–180) and whole seconds a
+   move (0–60). The chips are drawn here from CLK_PRESETS, so the list
+   exists once; whatever is typed is held to clkOk's bounds as it is
+   typed, and the card says in words what it will start. A custom clock
+   is remembered per kind of game like a preset, and opens the card with
+   "Other…" chosen and the fields filled in. */
+function clkRender() {
+  var row = $("clockChips");
+  row.innerHTML = "";
+  CLK_PRESETS.concat([{ v: "custom", label: "Other…" }]).forEach(function (p) {
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("data-clock", p.v);
+    b.textContent = p.label;
+    row.appendChild(b);
+  });
+}
+function clkIsPreset(str) {
+  for (var i = 0; i < CLK_PRESETS.length; i++) if (CLK_PRESETS[i].v === str) return true;
+  return false;
+}
+function clkClamp(v, lo, hi, dflt) {
+  v = Math.round(+v);
+  if (!isFinite(v)) return dflt;
+  return Math.max(lo, Math.min(hi, v));
+}
+/* the two fields, read as a clock that always passes clkOk */
+function clkFromFields() {
+  var mn = clkClamp($("clkMin").value, 1, CLK_MAX_MIN, 10), inc = clkClamp($("clkInc").value, 0, CLK_MAX_INC, 0);
+  return mn + "+" + inc;
+}
+function clkSay(str) {
+  var p = String(str).split("+"), mn = +p[0], inc = +p[1];
+  return mn + (mn === 1 ? " minute" : " minutes") + " each" +
+    (inc ? ", plus " + inc + (inc === 1 ? " second" : " seconds") + " back after every move." : ", no time added back.");
+}
+function clkShowCard(str) {
+  var custom = str !== "none" && clkOk(str) && !clkIsPreset(str);
+  Array.prototype.forEach.call($("clockChips").children, function (c) {
+    var v = c.getAttribute("data-clock");
+    c.classList.toggle("sel", custom ? v === "custom" : v === str);
+  });
+  if (custom) { var p = str.split("+"); $("clkMin").value = p[0]; $("clkInc").value = p[1]; }
+  $("clkCustom").classList.toggle("hide", !custom);
+  if (custom) $("clkSay").textContent = clkSay(str);
+}
+function clkWire() {
+  clkRender();
+  wireChips("clockChips", "clock", function (v) {
+    var custom = v === "custom";
+    $("clkCustom").classList.toggle("hide", !custom);
+    if (custom) { $("clkSay").textContent = clkSay(clkFromFields()); if (!$("clkMin").value) $("clkMin").value = 10; }
+    if (newCardCtx) newCardCtx.clockStr = custom ? clkFromFields() : v;
+  });
+  ["clkMin", "clkInc"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      var str = clkFromFields();
+      $("clkSay").textContent = clkSay(str);
+      if (newCardCtx) newCardCtx.clockStr = str;
+    });
+    /* leaving a field shows the number that will really be used */
+    $(id).addEventListener("change", function () {
+      var p = clkFromFields().split("+");
+      $("clkMin").value = p[0]; $("clkInc").value = p[1];
+    });
+  });
+}
+
+/* ===================== aq: always a queen =====================
+   Off by default: the picker is there for the rare underpromotion, and a
+   convenience should not quietly take that away. Switched on, a pawn
+   reaching the last rank becomes a queen in the same gesture — except
+   when the queen would be the wrong answer the board can prove: another
+   piece mates and the queen doesn't, or the queen stalemates and another
+   piece doesn't. Then the picker opens anyway, with one line saying why.
+   Lessons always ask (an Academy answer can be an underpromotion). */
+var AQ_NAMES = { 2: "knight", 3: "bishop", 4: "rook", 5: "queen" };
+/* what each promotion on from→to would do: "mate", "stalemate" or "" */
+function aqOutcomes(g, from, to) {
+  var out = {}, copy = Chess.create(Chess.fen(g));
+  Chess.movesFrom(copy, from).forEach(function (m) {
+    if (m.to !== to || !m.promo) return;
+    Chess.make(copy, m);
+    var none = !Chess.moves(copy).length;
+    out[Math.abs(m.promo)] = none ? (Chess.inCheck(copy) ? "mate" : "stalemate") : "";
+    Chess.unmake(copy);
+  });
+  return out;
+}
+/* the sentence that says why the room is asking after all, or null */
+function aqWhyFor(g, from, to) {
+  var o = aqOutcomes(g, from, to), k, order = [2, 4, 3];
+  if (o[5] !== "mate") {
+    for (k = 0; k < order.length; k++) if (o[order[k]] === "mate")
+      return "A " + AQ_NAMES[order[k]] + " here is checkmate — the queen isn't.";
+  }
+  if (o[5] === "stalemate") {
+    for (k = 0; k < 3; k++) if (o[[4, 3, 2][k]] === "")
+      return "A queen here is stalemate — a draw. A " + AQ_NAMES[[4, 3, 2][k]] + " keeps the game going.";
+  }
+  return null;
+}
+/* tapSquare's promotion: the queen's move to play now, or null when the
+   picker has been opened instead */
+function aqChoose(from, to) {
+  var why = prefs.autoQueen && mode !== "lesson" ? aqWhyFor(G, from, to) : null;
+  if (!prefs.autoQueen || mode === "lesson" || why) { askPromotion(from, to, why); return null; }
+  for (var i = 0; i < legalMoves.length; i++) {
+    if (legalMoves[i].to === to && legalMoves[i].promo === Chess.Q * G.turn) return legalMoves[i];
+  }
+  askPromotion(from, to);
+  return null;
+}
+function aqSync() {
+  $("aqAsk").classList.toggle("sel", !prefs.autoQueen);
+  $("aqQueen").classList.toggle("sel", !!prefs.autoQueen);
+}
+function aqWire() {
+  $("aqAsk").addEventListener("click", function () { prefs.autoQueen = false; savePrefs(); aqSync(); });
+  $("aqQueen").addEventListener("click", function () { prefs.autoQueen = true; savePrefs(); aqSync(); });
+  aqSync();
+}
+
+/* ===================== rec: a recovery card that tells the truth =====================
+   It says what happened in plain words, keeps the technical line one tap
+   away (and copyable, for a bug report), and its choices say what they
+   cost: try again, try again in 2D, clear only the unfinished game, and —
+   behind a second tap that names everything it erases — erase it all.
+   The last few errors are kept for this tab only (sessionStorage), so
+   nothing about a crash outlives the tab unless the player copies it. */
+var REC_LOG = "chess.errors";
+function recNote(info) {
+  try {
+    var log = JSON.parse(sessionStorage.getItem(REC_LOG) || "[]");
+    if (!Array.isArray(log)) log = [];
+    log.push({ at: Date.now(), msg: String((info && info.msg) || "unknown error").slice(0, 300),
+               src: String((info && info.src) || "").slice(0, 200), line: (info && info.line) || 0, col: (info && info.col) || 0 });
+    sessionStorage.setItem(REC_LOG, JSON.stringify(log.slice(-5)));
+  } catch (e) {}
+}
+function recLog() {
+  try { var l = JSON.parse(sessionStorage.getItem(REC_LOG) || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+/* A rejected promise counts when it is the kind of failure a bug makes
+   (a TypeError, a ReferenceError…). A network that is down, a permission
+   refused, a share sheet dismissed, a fetch aborted: none of those is
+   the room breaking, and three of them must never raise the card. */
+function recRejectionCounts(r) {
+  if (!r || typeof r !== "object" || !r.name) return false;
+  if (["TypeError", "ReferenceError", "RangeError", "SyntaxError", "URIError", "EvalError"].indexOf(r.name) < 0) return false;
+  return !/fetch|network|load failed|abort/i.test(String(r.message || ""));
+}
+function recWhere(src) {
+  src = String(src || "");
+  if (/gfx3d|pieces3d|scenes/.test(src)) return " while drawing the 3D board";
+  if (/gfx2d|grain/.test(src)) return " while drawing the board";
+  if (/net\.js|room\.js/.test(src)) return " in the link between devices";
+  if (/brain|engine/.test(src)) return " while the coach was thinking";
+  if (/sound/.test(src)) return " while making a sound";
+  return "";
+}
+function recDetails() {
+  var last = recLog().slice(-1)[0] || {};
+  var file = String(last.src || "").replace(/^.*\//, "");
+  return (last.msg || "no message") + (file ? " @ " + file + (last.line ? ":" + last.line + (last.col ? ":" + last.col : "") : "") : "") +
+    " · " + (prefs.use3d ? "3D" : "2D") + " · mode " + (mode || "lobby") + " · ply " + (G && G.played ? G.played.length : 0) +
+    " · " + recLog().length + " in this tab · " + navigator.userAgent;
+}
+function recFill() {
+  var last = recLog().slice(-1)[0] || {};
+  $("recWhy").textContent = "The room ran into trouble three times in a few seconds" + recWhere(last.src) +
+    ", so it stopped here rather than carry on wrong. Your game is saved after every move, so nothing is lost. Pick a way back in:";
+  $("recTechTx").textContent = recDetails();
+  $("recWipeAsk").classList.add("hide");
+  $("recWipe").classList.remove("hide");
+}
+/* what "erase everything" would take, said with numbers where there are some */
+function recWipeWords() {
+  var bits = [];
+  try {
+    var r = Rating.load(lsGet);
+    if (r && r.games) bits.push("a rating of " + Math.round(r.r) + " from " + r.games + (r.games === 1 ? " game" : " games"));
+  } catch (e) {}
+  try { var ls = Learn.stats(Learn.load()); if (ls && ls.solved) bits.push(ls.solved + (ls.solved === 1 ? " lesson" : " lessons") + " learned"); } catch (e) {}
+  return (bits.length ? "This device holds " + bits.join(" and ") + ". " : "") +
+    "Erasing removes your rating and its history, your ladder stars, Academy lessons, the journal of your games, feats, friends, saved skins and settings, and any game in progress. It can't be undone.";
+}
+/* only the unfinished game: the one on this device, the one between two
+   devices, and the four letters that game was reached by */
+function recClearGame() {
+  lsDel(SAVE_KEY); lsDel(LAN_KEY);
+  try { localStorage.removeItem("room:chess"); } catch (e) {}
+}
+function recEraseAll() {
+  try {
+    Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k) || k === "room:chess") lsDel(k); });
+  } catch (e) {}
+  try { sessionStorage.removeItem("chess.fx.stepped"); sessionStorage.removeItem(REC_LOG); } catch (e) {}
+}
+var recStoreWarned = false;
+/* a browser that will not keep what the room writes (a private window,
+   a full disk) is said once, not discovered after a reload */
+function recStoreFailed() {
+  if (recStoreWarned) return;
+  recStoreWarned = true;
+  setTimeout(function () {
+    try { toast("This browser isn't keeping what the room saves — a private window, or no space left? A reload would lose this game."); } catch (e) {}
+  }, 0);
+}
+function recWire() {
+  $("recReload").addEventListener("click", function () { location.reload(); });
+  $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
+  $("recGame").addEventListener("click", function () { recClearGame(); location.hash = ""; location.reload(); });
+  $("recWipe").addEventListener("click", function () {
+    $("recWipeTx").textContent = recWipeWords();
+    $("recWipeAsk").classList.remove("hide");
+    $("recWipe").classList.add("hide");
+  });
+  $("recWipeNo").addEventListener("click", function () { $("recWipeAsk").classList.add("hide"); $("recWipe").classList.remove("hide"); });
+  $("recWipeGo").addEventListener("click", function () { recEraseAll(); location.hash = ""; location.reload(); });
+  $("recCopy").addEventListener("click", function () {
+    var text = $("recTechTx").textContent, btn = this;
+    var done = function (ok) { btn.textContent = ok ? "Copied" : "Select the line to copy it"; };
+    try { navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); }); } catch (e) { done(false); }
+  });
+}
+
+/* the edges' handles for chess/tools/edges-check.js */
+function edgeTestHooks() {
+  return {
+    clockForTest: function () { return clock; },
+    clkOk: clkOk, CLK_PRESETS: CLK_PRESETS,
+    clkAwayForTest: clkAway,
+    aqWhyForTest: function (fen, from, to) { return aqWhyFor(Chess.create(fen), Chess.sqIndex(from), Chess.sqIndex(to)); },
+    get prefsForTest() { return prefs; },
+    recLogForTest: recLog, recDetailsForTest: recDetails, recWipeWordsForTest: recWipeWords,
+    cardIdsForTest: cardIds, clockPausedForTest: clockPaused,
+    overForTest: function () { return over; }
+  };
 }
 
 /* a skin link can arrive on first load, or be pasted into a tab that's
@@ -6619,7 +6952,7 @@ function boot() {
     } else {
       showMenu();
     }
-  }, REDUCED ? 150 : 900);
+  }, REDUCED ? 150 : Math.max(150, 900 - performance.now()));   /* the splash is a moment, not a wait on top of the load */
 }
 
 try { boot(); } catch (e) { panic(); throw e; }
@@ -6650,7 +6983,6 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   marksForTest: function () { return marks; },
   notesForTest: function () { return notes; },
   get mode() { return mode; }, startGame: startGame, get renderer() { return R; },
-  feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
   rejoinLan: rejoinLan, syncNetChip: syncNetChip,
@@ -6674,4 +7006,5 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   penHoldForTest: function (ms) { PEN_HOLD_MS = ms > 0 ? ms : 420; } };
 helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
+Object.assign(window.__cr, edgeTestHooks());
 })();
