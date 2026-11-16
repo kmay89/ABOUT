@@ -208,38 +208,24 @@ function text(g, extra) {
 /* PGN, the format every chess program on earth reads — so a game from
    here can go on to a club's database or a stronger engine. Seven-tag
    roster, then the moves wrapped at 79 columns, then the result. */
-function pgnTag(k, v) { return "[" + k + ' "' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"]'; }
 function pgn(g, extra) {
   extra = extra || {};
   var res = g.result === "white" ? "1-0" : (g.result === "black" ? "0-1" : (g.result === "draw" ? "1/2-1/2" : "*"));
   var tags = [
-    pgnTag("Event", "The Chess Room"),
-    pgnTag("Site", extra.site || "kmay89.com/chess"),
-    pgnTag("Date", (g.day || dayStr(Date.now())).replace(/-/g, ".")),
-    pgnTag("Round", "-"),
-    pgnTag("White", g.white),
-    pgnTag("Black", g.black),
-    pgnTag("Result", res)
+    ["Event", "The Chess Room"],
+    ["Site", extra.site || "kmay89.com/chess"],
+    ["Date", (g.day || dayStr(Date.now())).replace(/-/g, ".")],
+    ["Round", "-"], ["White", g.white], ["Black", g.black]
   ];
-  if (extra.opening) tags.push(pgnTag("Opening", extra.opening));
+  if (extra.opening) tags.push(["Opening", extra.opening]);
   if (g.clock && g.clock !== "none") {
     var p = g.clock.split("+");
-    tags.push(pgnTag("TimeControl", (+p[0] * 60) + "+" + (+p[1])));
+    tags.push(["TimeControl", (+p[0] * 60) + "+" + (+p[1])]);
   }
-  if (g.reason) tags.push(pgnTag("Termination", g.reason));
-  var words = [];
-  for (var i = 0; i < g.sans.length; i++) {
-    if (i % 2 === 0) words.push((i / 2 + 1) + ".");
-    words.push(g.sans[i]);
-  }
-  words.push(res);
-  var lines = [], cur = "";
-  for (var j = 0; j < words.length; j++) {
-    if (cur && cur.length + 1 + words[j].length > 79) { lines.push(cur); cur = words[j]; }
-    else cur = cur ? cur + " " + words[j] : words[j];
-  }
-  if (cur) lines.push(cur);
-  return tags.join("\n") + "\n\n" + lines.join("\n") + "\n";
+  if (g.reason) tags.push(["Termination", g.reason]);
+  /* written by the one writer (pgn.js), so the format lives in one place */
+  var P = root.Pgn || require("./pgn.js");
+  return P.write({ headers: tags, sans: g.sans, result: res, fen: g.fen || null });
 }
 
 var Share = {

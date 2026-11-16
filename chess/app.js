@@ -5,29 +5,45 @@
    engine.js; the boards live in gfx2d.js / gfx3d.js; the nearby link
    lives in net.js; the openings live in book.js. This file only
    conducts. */
-/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Help, Games, Feats, Goals, Share, Friends, Ink */
+/* global Chess, Book, Eco, Teach, Learn, Rating, Skins, Pieces3D, Gfx2D, Gfx3D, Net, Room, Brain, Sound, Fx, Motion, Scenes, Haptics, Press, Help, Games, Feats, Goals, Share, Friends, Ink, Pgn, Access */
 (function () {
 "use strict";
 
 function $(id) { return document.getElementById(id); }
 var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/* ===== self-healing: catch trouble before it strands anyone ===== */
+/* ===== self-healing: catch trouble before it strands anyone =====
+   Three errors inside eight seconds bring up the recovery card. A
+   promise that fails with nobody listening counts too, when it is the
+   kind of failure a bug makes (see recRejectionCounts in the recovery
+   block near the end); a network hiccup or a refused permission is not
+   one, and never strands anybody. */
 var errTimes = [];
 function panic() {
   var ov = $("ovRecover");
-  if (ov) ov.classList.remove("hide");
+  if (!ov) return;
+  try { recFill(); } catch (e) {}
+  ov.classList.remove("hide");
 }
-window.addEventListener("error", function () {
+function recCount(info) {
+  recNote(info);
   var now = Date.now();
   errTimes.push(now);
   errTimes = errTimes.filter(function (t) { return now - t < 8000; });
   if (errTimes.length >= 3) panic();
+}
+window.addEventListener("error", function (e) {
+  recCount({ msg: e && e.message, src: e && e.filename, line: e && e.lineno, col: e && e.colno });
 });
-window.addEventListener("unhandledrejection", function () { /* logged errors only; never strand */ });
+window.addEventListener("unhandledrejection", function (e) {
+  var r = e && e.reason;
+  if (!recRejectionCounts(r)) return;
+  recCount({ msg: "a promise failed: " + (r && r.message ? r.name + ": " + r.message : String(r)),
+             src: r && r.stack ? String(r.stack).split("\n").slice(1, 2).join("").trim() : "" });
+});
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { recStoreFailed(); return false; } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
 
 var PREF_KEY = "chessroom_prefs", SAVE_KEY = "chessroom_save", LAN_KEY = "chessroom_lan";
@@ -48,10 +64,27 @@ var prefs = { skin: null, use3d: true, sound: true, haptics: true, coach: true, 
   if (typeof Scenes === "undefined" || !Scenes.has(prefs.scene)) prefs.scene = "park";
   if (!prefs.lastClock || typeof prefs.lastClock !== "object") prefs.lastClock = {};
   Object.keys(prefs.lastClock).forEach(function (k) {
-    if (["none", "3+2", "5+0", "10+5", "15+10", "30+0"].indexOf(String(prefs.lastClock[k])) < 0) delete prefs.lastClock[k];
+    if (!clkOk(prefs.lastClock[k])) delete prefs.lastClock[k];
   });
 })();
 function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
+/* ===== edge: preferences read here, not in the literal above =====
+   A switch kept as a word in a hand-edited store ("false") is truthy, so
+   every on/off preference is made a real boolean, falling back to its
+   default when it is anything else. New switches are read here too. */
+(function () {
+  var stored = {};
+  try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
+  [["use3d", true], ["sound", true], ["coach", true], ["helpers", true], ["autoFlip", false],
+   ["tilt", true], ["roomTone", true]].forEach(function (b) {
+    var v = prefs[b[0]];
+    prefs[b[0]] = v === true || v === "true" ? true : v === false || v === "false" ? false : b[1];
+  });
+  if (location.hash === "#force2d") prefs.use3d = false;
+  /* auto-queen: off unless asked for — the picker exists for the rare
+     underpromotion, and a convenience must not take that away unasked */
+  prefs.autoQueen = stored.autoQueen === true;
+})();
 
 /* ===== the look =====
    One skin object drives both renderers and the page chrome. Changing
@@ -139,14 +172,29 @@ function hapMove(desc, plan, took, withCapture) {
   if (took) { if (withCapture) hapAt("capture", landAt, { power: FX ? Fx.powerOf(took) : 0.5, soft: soft }); return; }
   if (!desc.promo) hapAt("land", landAt, { piece: desc.piece, soft: soft });
 }
-/* Buttons answer a press with a tick, the way a real one clicks under
-   the thumb — once, on the way down, for the presses that do something.
+/* Buttons answer a press the way a real key does: it goes down, it
+   clicks under the thumb, and it makes a small dry sound whose pitch
+   says what kind of key it was. press.js decides the moment (so a
+   finger starting a scroll presses nothing, and the quickest tap still
+   shows the whole press); the look is the stylesheet's ("the keys").
    Anything that already has its own feel says so with data-feel="own". */
-var TAP_FEEL = ".bigbtn, .abtn, .lchip, .playBtn, .chip, .stPick, .preset, .rung, .tile, .tact, #askRow button, #promoRow button";
-document.addEventListener("pointerdown", function (e) {
-  var b = e.target && e.target.closest ? e.target.closest(TAP_FEEL) : null;
-  if (b && !b.disabled && b.getAttribute("data-feel") !== "own") hap("tick");
-}, { passive: true });
+var PRESS_KEYS = ".bigbtn, .tile, .rung, .rungRow, .lrow2, .gameRow, .preset, .abtn, .chip, .lchip, .stPick, .askRow button, .tact, " +
+  "#inkPill button, #promoRow button, .playBtn, .ptab, .pftab, .linkish, .ghostbtn";
+var PRESS_HZ = { key: 1320, bright: 1568, play: 1175, tab: 1480, quiet: 988 };
+function wirePress() {
+  if (typeof Press === "undefined") return;
+  Press.attach(document, { selector: PRESS_KEYS, onDown: function (el, kind) {
+    if (el.getAttribute("data-feel") !== "own") hap("tick");
+    /* a switch speaks once it has flipped, and says which way */
+    if (kind !== "switch") snd("tap", { hz: PRESS_HZ[kind] || PRESS_HZ.key });
+  } });
+  Press.switches(document);
+  document.addEventListener("click", function (e) {
+    var s = e.target && e.target.closest ? e.target.closest(".sw") : null;
+    if (s) setTimeout(function () { snd("tap", { hz: s.classList.contains("sel") ? 1760 : 1047 }); }, 0);
+  });
+}
+wirePress();
 
 /* ===== the big moments (fx.js) =====
    The board's half (a struck square, a king laid down, a camera that
@@ -282,6 +330,7 @@ function toast(html, actions, ms) {
   /* a remark never replaces a question that is still waiting for an
      answer — the notebook has kept the remark */
   if (!actions && el.classList.contains("show") && el.classList.contains("acts")) return;
+  accToast(html, actions);
   el.classList.remove("lamp");
   el.innerHTML = html;
   el.classList.toggle("acts", !!actions);
@@ -500,8 +549,25 @@ function skillOk(id) { return SKILLS[id] ? id : "sprout"; }
 
 /* ===== clock ===== */
 var clock = { on: false, base: 0, inc: 0, w: 0, b: 0, run: 0 /* 0 none, 1 white, -1 black */, lastT: 0, lowTicked: -1 };
+/* ----- clk: one list of presets, one rule for what a clock may be -----
+   The chips on the new-game card are drawn from CLK_PRESETS, and every
+   clock that arrives from anywhere — a chip, the two custom fields, a
+   save, a remembered preference, the other device — passes clkOk before
+   it is used: "none", or whole minutes (1–180) plus whole seconds a move
+   (0–60). */
+var CLK_PRESETS = [
+  { v: "none", label: "No clock" }, { v: "3+2", label: "3+2 blitz" }, { v: "5+0", label: "5 min" },
+  { v: "10+5", label: "10+5 rapid" }, { v: "15+10", label: "15+10" }, { v: "30+0", label: "30 min" }
+];
+var CLK_MAX_MIN = 180, CLK_MAX_INC = 60;     /* the same bounds clkOk holds to */
+function clkOk(str) {
+  if (str === "none") return true;
+  var m = /^(\d{1,3})\+(\d{1,2})$/.exec(String(str));
+  /* literal bounds: the preferences are read with this before CLK_MAX_* are set */
+  return !!m && +m[1] >= 1 && +m[1] <= 180 && +m[2] <= 60;
+}
 function clockConfig(str) {
-  if (!str || str === "none") { clock.on = false; return; }
+  if (!str || str === "none" || !clkOk(str)) { clock.on = false; return; }
   var m = str.split("+");
   clock.on = true;
   clock.base = (+m[0]) * 60000;
@@ -524,18 +590,26 @@ function fmtClock(ms) {
    them for choosing a board colour. The Studio is a drawer beside a game
    that goes on, so it does not stop anything. A game between two devices
    keeps running: the other person is still sitting there. */
-var PAUSING = ["ovMenu", "ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings", "ovAsk", "ovShare", "ovPeople"];
 function clockPaused() {
   if (mode === "lan") return false;
-  for (var i = 0; i < PAUSING.length; i++) if (!$(PAUSING[i]).classList.contains("hide")) return true;
+  if (clkHiddenAt) return true;      /* out of sight: see clkAway */
+  var ids = cardIds("pause");
+  for (var i = 0; i < ids.length; i++) if (!$(ids[i]).classList.contains("hide")) return true;
   return false;
 }
+/* The clock is charged by the wall clock: whatever time really passed
+   since it was last read. It used to add up frame gaps and drop any gap
+   over three seconds, so a tab the browser stopped drawing — hidden, or
+   just stalled — stopped costing time. Pauses are now said, not
+   guessed: a card that pauses (above) and, in a game on this device,
+   the tab being out of sight (clkAway near the end) move lastT on
+   instead. */
 function clockTick(now) {
   if (!clock.on || !clock.run || over || !G) return;
   var dt = now - clock.lastT;
   clock.lastT = now;
   if (clockPaused()) return;
-  if (dt <= 0 || dt > 3000) return;
+  if (dt <= 0) return;
   if (clock.run === 1) clock.w -= dt; else clock.b -= dt;
   var ms = clock.run === 1 ? clock.w : clock.b;
   if (ms <= 10500 && ms > 0) {
@@ -708,7 +782,7 @@ function syncTurnStrip() {
     $("ovEnd").classList.contains("hide")));
   if (!G) { el.textContent = "…"; return; }
   syncTagState();
-  if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + Math.floor(viewPly / 2 + 1); return; }
+  if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + notationMoveNo(viewPly); return; }
   if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
   if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
@@ -727,7 +801,7 @@ function endShort() {
 function currentViewBoard() {
   if (!G) return new Int8Array(128);
   if (viewPly < 0) return G.board;
-  var t = Chess.create();
+  var t = Chess.create(G.startFen);
   for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
   return t.board;
 }
@@ -808,7 +882,7 @@ function tapSquare(sq) {
       }
     }
     if (mv) {
-      if (mv.promo) { askPromotion(sel, sq); return; }
+      if (mv.promo && !(mv = aqChoose(sel, sq))) return;   /* the picker, or a queen at once */
       clearSel();
       if (mode === "lesson") { lessonAttempt(mv); return; }
       commitMove(mv, "local");
@@ -831,8 +905,10 @@ function tapSquare(sq) {
   syncBoard();
 }
 
-function askPromotion(from, to) {
+function askPromotion(from, to, why) {
   pendingPromo = { from: from, to: to };
+  $("aqWhy").textContent = why || "";
+  $("aqWhy").classList.toggle("hide", !why);
   var row = $("promoRow");
   row.innerHTML = "";
   var glyphs = G.turn === 1 ? GLYPH : GLYPHB;
@@ -900,6 +976,7 @@ function commitMove(m, source, animOpts) {
   }
 
   var st = Chess.status(G);
+  accAfterMove(m, san, st);
 
   /* what was taken, so it can be heard being knocked over in its own
      voice rather than as a generic thump */
@@ -1092,7 +1169,7 @@ function showReview(pre, san, res, played, ply) {
      three pieces up does not need to hear about a rounding error. */
   if (bestScore < -650 || mineScore > 650) return;
 
-  var side = ply % 2 === 0 ? 1 : -1;
+  var side = notationSideOf(ply);
   var better = res.bestSAN;
 
   var step = null;
@@ -1193,7 +1270,7 @@ function giveMoveHint() {
   }
   hintPending = true; syncButtons();
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
-  var book = Book.suggest(sans);
+  var book = G.startFen ? [] : Book.suggest(sans);
   /* rank: the book-agreement test below compares real scores, so the
      ranked list has to be real too. It used to be a one-ply glance,
      which meant "the engine doesn't mind this book move" was a coin
@@ -1232,7 +1309,7 @@ function showHint(raw, odds, book, sans, again) {
   }
   if (bookPick) { chosen = bookPick.m; why = bookPick.entry.why || ("a main road of the " + bookPick.entry.name + "."); }
   /* no curated line? the full ECO table may still know a named path */
-  if (!bookPick && typeof Eco !== "undefined") {
+  if (!bookPick && typeof Eco !== "undefined" && !G.startFen) {
     var ecoNext = Eco.next(sans);
     for (var e1 = 0; e1 < ecoNext.length && !bookPick; e1++) {
       var em = Chess.fromSAN(G, ecoNext[e1].san);
@@ -1456,7 +1533,7 @@ function lampReveal(side) {
 function thinkPrompt() {
   if (!G || over || !canActNow()) return;
   var side = lampSide(), last = G.played[G.played.length - 1];
-  var lastMine = last && ((G.played.length - 1) % 2 === 0 ? 1 : -1) === side;
+  var lastMine = last && notationSideOf(G.played.length - 1) === side;
   var t;
   try { t = Help.think(G, side, { reveal: lampReveal(side), last: last && !lastMine ? { san: last.san } : null }); }
   catch (e) { return; }
@@ -1472,8 +1549,8 @@ function theirIdea() {
   var side = lampSide(), ply = G.played.length - 1;
   /* in pass and play the last move may be your own: then ask about the
      one before it, which is theirs */
-  if (((ply % 2 === 0) ? 1 : -1) === side && ply > 0) ply--;
-  if (((ply % 2 === 0) ? 1 : -1) === side) { toast("Nothing of theirs has been played yet — the first idea is yours."); return; }
+  if (notationSideOf(ply) === side && ply > 0) ply--;
+  if (notationSideOf(ply) === side) { toast("Nothing of theirs has been played yet — the first idea is yours."); return; }
   showWhy(ply);
 }
 /* The words for one move of this game, from the chair of the person
@@ -1481,7 +1558,7 @@ function theirIdea() {
    so a recapture is still known to be one. */
 function explainPly(ply) {
   if (!G || ply < 0 || ply >= G.played.length) return null;
-  var pre = Chess.create(), i;
+  var pre = Chess.create(G.startFen), i;
   for (i = 0; i < ply; i++) Chess.make(pre, G.played[i].m);
   var want = G.played[ply].m, list = Chess.moves(pre), m = null;
   for (i = 0; i < list.length; i++) {
@@ -1495,10 +1572,10 @@ function explainPly(ply) {
      reply — which, while that reply is still yours to find, is a hint
      nobody paid for. It is told once the move has been answered. */
   var plan = memo && (reveal || ply !== G.played.length - 1) ? memo.pv : null;
-  var r = Help.theirs(pre, m, side, { reveal: reveal, reason: Book.reason ? Book.reason(sans) : null, plan: plan,
+  var r = Help.theirs(pre, m, side, { reveal: reveal, reason: Book.reason && !G.startFen ? Book.reason(sans) : null, plan: plan,
                                        hush: reveal ? {} : Help.hushFor(G, side) });
   r.ply = ply;
-  r.mover = ply % 2 === 0 ? 1 : -1;
+  r.mover = notationSideOf(ply);
   r.side = side;
   return r;
 }
@@ -1670,7 +1747,7 @@ function helpTestHooks(cr) {
    table, CC0 — carries precise names for the other ~3,800 lines the
    players may wander into. */
 function narrateOpening(san, source) {
-  if (!G || G.played.length > 36 || mode === "tour") return;
+  if (!G || G.played.length > 36 || mode === "tour" || G.startFen) return;
   var sans = G.played.map(function (r) { return r.san.replace(/[+#]$/, ""); });
   var entry = Book.match(sans);
   var eco = (typeof Eco !== "undefined") ? Eco.match(sans) : null;
@@ -1723,11 +1800,11 @@ function syncMoveList() {
     return;
   }
   /* one slab per move pair: the number, white's move, black's reply */
-  for (var i = 0; i < G.played.length; i += 2) {
+  for (var i = -notationOff(); i < G.played.length; i += 2) {
     var row = document.createElement("div"); row.className = "mrow";
-    var n = document.createElement("span"); n.className = "n"; n.textContent = (i / 2 + 1) + ".";
+    var n = document.createElement("span"); n.className = "n"; n.textContent = notationMoveNo(Math.max(0, i)) + ".";
     row.appendChild(n);
-    row.appendChild(moveCell(i));
+    row.appendChild(i < 0 ? document.createElement("span") : moveCell(i));
     if (i + 1 < G.played.length) row.appendChild(moveCell(i + 1));
     else row.appendChild(document.createElement("span"));
     ml.appendChild(row);
@@ -1813,7 +1890,7 @@ function cpText(cp, side) {
 }
 function moveLabel(ply) {
   if (!G || !G.played[ply]) return "";
-  return (Math.floor(ply / 2) + 1) + (ply % 2 ? "\u2026" : ".") + " " + G.played[ply].san;
+  return notationMoveNo(ply) + (notationSideOf(ply) === -1 ? "\u2026" : ".") + " " + G.played[ply].san;
 }
 function renderNotes() {
   var box = $("noteList");
@@ -1907,7 +1984,7 @@ function moveCell(ply) {
   var s = document.createElement("span");
   s.className = "m" + ((viewPly === ply || (viewPly < 0 && ply === G.played.length - 1)) ? " cur" : "");
   var san = G.played[ply].san;
-  s.appendChild(figurine(san, ply % 2 === 0 ? 1 : -1));
+  s.appendChild(figurine(san, notationSideOf(ply)));
   s.title = san;                        /* the plain letters, for anyone who wants them */
   var mk = voice() === "off" ? null : marks[ply];
   if (mk) {
@@ -1922,6 +1999,7 @@ function moveCell(ply) {
   }
   if (ply === G.played.length - 1 && (mode === "coach" || mode === "pass" || mode === "lan")) s.title += " \u00b7 tap to ask why";
   s.addEventListener("click", function () { tapMoveCell(ply); });
+  accCell(s, ply, san);
   return s;
 }
 function stripTags(html) { return String(html).replace(/<[^>]*>/g, ""); }
@@ -1950,7 +2028,7 @@ function replayLast() {
   var rec = G.played[G.played.length - 1];
   /* rebuild the position just before it, hand it to the renderer, then
      run the same animation slowly with a glow */
-  var t = Chess.create();
+  var t = Chess.create(G.startFen);
   for (var i = 0; i < G.played.length - 1; i++) Chess.make(t, G.played[i].m);
   R.setPosition(t.board);
   clearSel();
@@ -2100,7 +2178,7 @@ function levelIndex(id) {
 function humanMovesMade() {
   if (!G || mode !== "coach") return 0;
   var n = 0;
-  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) n++;
+  for (var i = 0; i < G.played.length; i++) if (notationSideOf(i) === humanSide) n++;
   return n;
 }
 /* Walking away from a rated game you are losing is the oldest way to
@@ -2117,7 +2195,7 @@ function ratedAtStake() {
     return humanMovesMade() >= 3 && (G.played.length >= ABANDON_PLIES || lastEval <= ABANDON_EVAL);
   /* a rated game left on the shelf while you did a lesson is still a game */
   var sv = mode !== "coach" ? loadSave() : null;
-  return !!(sv && sv.mode === "coach" && savedHumanMoves(sv) >= 3 && sv.sans.length >= ABANDON_PLIES);
+  return !!(sv && sv.mode === "coach" && sv.fr !== 1 && !sv.fen && savedHumanMoves(sv) >= 3 && sv.sans.length >= ABANDON_PLIES);
 }
 function savedHumanMoves(sv) { var n = sv.sans.length; return sv.humanSide === 1 ? Math.ceil(n / 2) : Math.floor(n / 2); }
 /* resigning the shelved game: counted against the coach it was against */
@@ -2168,7 +2246,7 @@ function quickPlay(level) {
 
 /* ---- counting a game ---- */
 function settleRating(result) {
-  if (mode !== "coach" || ratedDone || !G) return null;
+  if (mode !== "coach" || ratedDone || !G || G.startFen) return null;
   ratedDone = true;
   var s = result === "draw" ? 0.5 : result === "resign" ? 0 :
           ((result === "white") === (humanSide === 1) ? 1 : 0);
@@ -2196,7 +2274,7 @@ function settleRating(result) {
    coach already looked at is reused rather than thought about twice. */
 function humanPlies() {
   var out = [];
-  for (var i = 0; i < G.played.length; i++) if ((i % 2 === 0 ? 1 : -1) === humanSide) out.push(i);
+  for (var i = 0; i < G.played.length; i++) if (notationSideOf(i) === humanSide) out.push(i);
   return out;
 }
 function analyseGame(onStep) {
@@ -2207,7 +2285,7 @@ function analyseGame(onStep) {
       if (i >= plies.length) { resolve(got); return; }
       var ply = plies[i];
       if (reviewMemo[ply]) { got.push({ ply: ply, best: reviewMemo[ply].best, played: reviewMemo[ply].played }); i++; onStep(i, plies.length); setTimeout(next, 0); return; }
-      var pre = Chess.create();
+      var pre = Chess.create(G.startFen);
       for (var k = 0; k < ply; k++) Chess.play(pre, G.played[k].m);
       var want = G.played[ply].m, mine = null, list = Chess.moves(pre);
       for (var j = 0; j < list.length; j++) {
@@ -2234,7 +2312,7 @@ function qualityCounts(moves) {
   });
   var good = 0, brilliant = 0;
   Object.keys(marks).forEach(function (k) {
-    if (((+k) % 2 === 0 ? 1 : -1) !== humanSide) return;
+    if (notationSideOf(+k) !== humanSide) return;
     if (marks[k] === "!!") brilliant++; else if (marks[k] === "!") good++;
   });
   c.brilliant = brilliant; c.good = good;
@@ -2376,7 +2454,7 @@ function renderEndRating(rs, cardAt) {
         setTimeout(function () { popStar(2, live); }, 700);
       }
       progressAfterLook(rs, acc, c);
-    }, REDUCED ? 0 : Math.max(0, startAt + 1700 - 0));
+    }, REDUCED ? 0 : startAt + 1700);
   });
 }
 function countChips(c) {
@@ -2677,6 +2755,7 @@ function goalOnEndCard() {
 
 /* ---- the moment a game ends ---- */
 function progressAtEnd(result, reason, rs) {
+  if (G && G.startFen) { notationAtEnd(); return; }
   if (!G || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
   var plies = G.played.length;
   try {
@@ -2817,7 +2896,7 @@ function reviewBar() {
            '<div class="lsay">' + escHtml(bits.filter(Boolean).join(" · ")) + "</div>");
   lessonRow([lessonChip("◀", function () { reviewStep(-1); }), lessonChip("▶", function () { reviewStep(1); }),
              lessonChip("📨 Send", function () { shareGame(recordToSend(e), "journal"); }),
-             lessonChip("Copy PGN", function () { shareText(Games.pgn(e, Rating.LEVELS, myName()), "A chess game"); }),
+             notationChip(),
              lessonChip("Done", showMenu, true)]);
 }
 /* a kept game in the shape the sender wants */
@@ -2871,7 +2950,7 @@ function startGame(newMode, opts) {
   ink = Ink.create();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
-  G = Chess.create();
+  G = notationGame(opts.fen); if (G.startFen) ratedDone = true;    /* a set-up position is never rated */
   over = null;
   closePromo();
   clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
@@ -2939,6 +3018,7 @@ function endGame(result, reason, taught) {
   $("endEmoji").textContent = em;
   $("endTitle").textContent = title;
   $("endSub").textContent = sub;
+  accAtEnd(result, reason, title);
   /* the final move is the best teaching moment there is — say the thing */
   var lessonLine = $("endLesson");
   if (lessonLine) {
@@ -3065,7 +3145,7 @@ function saveGame() {
   lsSet(SAVE_KEY, JSON.stringify({
     v: 1, mode: mode, sans: G.played.map(function (r) { return r.san; }),
     clockStr: clockStrOf(), wMs: Math.round(clock.w), bMs: Math.round(clock.b),
-    humanSide: humanSide, skill: skill,
+    humanSide: humanSide, skill: skill, fen: G.startFen || undefined,
     /* the odds ledger is part of the game's story, so it survives a reload */
     odds: [oddsSpent[1], oddsSpent[-1], oddsNudged],
     /* and so is the help taken, or a reload would wash a rated game clean */
@@ -3091,6 +3171,7 @@ function loadSave() {
     if (!Array.isArray(s.sans) || s.sans.length > 1200 || !s.sans.every(function (x) { return typeof x === "string" && x.length < 12; }) ||
         !okClock || (timed && !(typeof s.wMs === "number" && typeof s.bMs === "number" && isFinite(s.wMs) && isFinite(s.bMs) && s.wMs >= 0 && s.bMs >= 0)) ||
         (s.mode === "coach" && (s.humanSide !== 1 && s.humanSide !== -1))) { lsDel(SAVE_KEY); return null; }
+    if (s.fen != null && (typeof s.fen !== "string" || !Pgn.validFen(s.fen, Chess).ok)) { lsDel(SAVE_KEY); return null; }
     s.skill = skillOk(s.skill);
     return s;
   } catch (e) { lsDel(SAVE_KEY); return null; }
@@ -3124,7 +3205,7 @@ function resumeSave(s) {
   catch (e) { lsDel(SAVE_KEY); startGame(s.mode === "coach" ? "coach" : "pass", {}); toast("That saved game couldn't be read back, so here is a fresh board."); }
 }
 function resumeSaveInner(s) {
-  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr });
+  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr, fen: s.fen });
   var g = G;
   for (var i = 0; i < s.sans.length; i++) {
     var m = Chess.fromSAN(g, s.sans[i]);
@@ -4270,7 +4351,7 @@ function liveGame(ply) {
   if (!G) return null;
   return { sans: G.played.map(function (r) { return r.san; }), white: shareName(1), black: shareName(-1),
            result: over ? over.result : null, reason: over ? over.reason : "", clock: clockStrOf(),
-           day: mode === "review" && sharedView ? sharedView.day : "", ply: ply == null ? -1 : ply, ask: "", from: prefs.name || "" };
+           day: mode === "review" && sharedView ? sharedView.day : "", ply: ply == null ? -1 : ply, ask: "", from: prefs.name || "", fen: G.startFen || null };
 }
 function openingOf(sans) {
   var s = sans.slice(0, 36).map(function (x) { return x.replace(/[+#]$/, ""); });
@@ -4280,6 +4361,7 @@ function openingOf(sans) {
 }
 var lastShare = null;      /* the last sheet's words, for the check */
 function shareGame(game, from) {
+  if (game && game.fen) { notationSendFen(game); return; }
   if (!game || !game.sans || (!game.sans.length && game.ply < 0)) { toast("Nothing to send yet — play a move first."); return; }
   var at = game.day ? Date.parse(game.day + "T12:00:00") : Date.now();
   var payload = Share.gamePayload({ sans: game.sans, white: game.white, black: game.black, result: game.result,
@@ -4364,7 +4446,7 @@ function openShared(g) {
   reviewMemo = {}; assist = { takebacks: 0, hints: 0 }; ratedDone = true; lastEval = 0;
   keptGame = null; reviewNames = null;   /* a kept game being looked at gives way to this one */
   mode = "review";
-  G = Chess.create();
+  G = notationGame(g.fen);
   for (var i = 0; i < g.sans.length; i++) {
     var m = Chess.fromSAN(G, g.sans[i]);
     if (!m) break;
@@ -4397,17 +4479,18 @@ function sharedBar() {
   var said;
   if (v.ply >= 0) said = "<b>" + esc(v.ask || (v.ply % 2 === 0 ? "Black" : "White") + " to play. What would you do?") + "</b>" +
     (v.from ? " — from " + esc(v.from) + "." : "");
-  else said = "Step through with ◀ ▶, or tap any move in the list.";
+  else said = v.say || "Step through with ◀ ▶, or tap any move in the list.";
   var reading = voice() === "off" ? " The coach is off, so nothing is marked."
     : (v.done ? " The coach has read it" + (Object.keys(marks).length ? " — the marked moves have a note." : ": nothing it needed to say.")
               : " The coach is reading it… " + v.read + " of " + v.total + ".");
-  lessonUI('<div class="lkick">📨 ' + esc(v.white) + " vs " + esc(v.black) + " · " + res + day + "</div>" +
+  lessonUI('<div class="lkick">' + (v.kick || "📨 " + esc(v.white) + " vs " + esc(v.black) + " · " + res + day) + "</div>" +
            '<div class="lsay">' + said + (v.total ? '<small class="lread">' + reading + "</small>" : "") + "</div>");
   lessonRow([
     lessonChip("◀", function () { sharedStep(-1); }),
     lessonChip("▶", function () { sharedStep(1); }),
     lessonChip("▶ Play from here", playFromShared, true),
     lessonChip("📨 Send", function () { shareGame(liveGame(viewPly >= 0 && v.ply >= 0 ? viewPly : v.ply), null); }),
+    notationChip(),
     lessonChip("Done", showMenu)
   ]);
 }
@@ -4422,7 +4505,7 @@ function sharedStep(d) {
     viewAt(at);
     viewPly = to === G.played.length - 1 ? -1 : to;
     showViewBanner(viewPly >= 0);
-    var t = Chess.create();
+    var t = Chess.create(G.startFen);
     for (var i = 0; i <= to; i++) Chess.make(t, G.played[i].m);
     var desc = animDescriptor(rec.m);
     sndMove(desc, R.animateMove(desc, t.board, { scale: 1.3 }, function () { syncBoard(); }), rec.m.capt);
@@ -4441,7 +4524,7 @@ function readSharedGame(ticket) {
   function next() {
     if (ticket !== gameTicket || mode !== "review" || sharedView !== v) return;
     if (ply >= G.played.length) { v.done = true; sharedBar(); return; }
-    var p = ply, pre = Chess.create();
+    var p = ply, pre = Chess.create(G.startFen);
     for (var k = 0; k < p; k++) Chess.play(pre, G.played[k].m);
     var want = G.played[p].m, mine = null, list = Chess.moves(pre);
     for (var j = 0; j < list.length; j++) {
@@ -4469,18 +4552,18 @@ function playFromShared() {
   if (mode !== "review" || !G) return;
   var upto = viewPly >= 0 ? viewPly : G.played.length - 1;
   var sans = G.played.slice(0, upto + 1).map(function (r) { return r.san; });
-  var probe = Chess.create();
+  var fen0 = G.startFen, probe = Chess.create(fen0);
   sans.forEach(function (s) { var m = Chess.fromSAN(probe, s); if (m) Chess.play(probe, m); });
   if (Chess.status(probe).over) { toast("That position is already over — step back a move or two and play on from there."); return; }
   var side = probe.turn;
-  ask("Play on from move " + (Math.floor(sans.length / 2) + 1) + ", as " + (side === 1 ? "White" : "Black") + "?",
-    [{ label: "🤖 Against the coach", fn: function () { playOnFrom("coach", sans, side); } },
-     { label: "🤝 Two players, one device", fn: function () { playOnFrom("pass", sans, side); } },
+  ask("Play on from move " + notationMoveNo(sans.length) + ", as " + (side === 1 ? "White" : "Black") + "?",
+    [{ label: "🤖 Against the coach", fn: function () { playOnFrom("coach", sans, side, fen0); } },
+     { label: "🤝 Two players, one device", fn: function () { playOnFrom("pass", sans, side, fen0); } },
      { label: "Not now", fn: function () {}, ghost: true }]);
 }
-function playOnFrom(kind, sans, side) {
+function playOnFrom(kind, sans, side, fen) {
   sharedView = null;
-  startGame(kind, { humanSide: side, skill: nextLevel(), clockStr: "none" });
+  startGame(kind, { humanSide: side, skill: nextLevel(), clockStr: "none", fen: fen });
   for (var i = 0; i < sans.length; i++) {
     var m = Chess.fromSAN(G, sans[i]);
     if (!m) break;
@@ -4529,6 +4612,251 @@ function wireFriends() {
     if (!$("ovShare").classList.contains("hide")) { closeShare(); e.stopImmediatePropagation(); }
     else if (!$("ovPeople").classList.contains("hide")) { peopleBack(); e.stopImmediatePropagation(); }
   }, true);
+}
+
+/* ===== notation: PGN and FEN, out and in (pgn.js) =====
+   The room's games used to leave it only as a link to another room. A
+   player who already plays keeps their games somewhere else too — a
+   club's database, lichess's analysis board, a notebook — and brings
+   positions back from books and puzzles. So any game on the board copies
+   out as PGN and any position as FEN, and any PGN or FEN comes back in:
+   a game opens in the same read-only viewer a sent game does (the coach
+   reads it on arrival, ◀ ▶ to step, Play from here), and a position opens
+   on the same board, ready to be played on against the coach or by two
+   people on this screen.
+
+   A game that did not begin from the usual position carries that
+   position with it (G.startFen) wherever the room rebuilds a board from
+   the moves — the look-back, the save, a reload, a take-back. Such a
+   game is never rated: a position from somewhere else is not a fair
+   start, and a set-up position can make any result easy. Nor is it kept
+   in the journal, whose games, feats and next steps are all about whole
+   games of your own; the end card says so, and its Send copies the PGN
+   instead, because a game link carries only moves from the start. */
+var notationTimer = 0, notationLast = null;
+
+/* a board for a game that starts here: the usual one, or a set-up one
+   that remembers where it began */
+function notationGame(fen) {
+  var g = Chess.create(fen || undefined);
+  if (fen && !Pgn.isStart(fen)) g.startFen = Chess.fen(g);
+  return g;
+}
+/* which side made a ply, and the number it is written with — from a
+   set-up position Black may have moved first, at move 30 */
+function notationOff() { return G && G.startFen && G.startFen.split(" ")[1] === "b" ? 1 : 0; }
+function notationMoveNo(ply) { return Pgn.moveNo(ply, G && G.startFen); }
+function notationSideOf(ply) {
+  var r = G && G.played[ply];
+  return r ? (r.m.piece > 0 ? 1 : -1) : ((ply + notationOff()) % 2 === 0 ? 1 : -1);
+}
+
+/* ---- out ---- */
+function notationDay() {
+  var d = new Date();
+  return d.getFullYear() + "." + ("0" + (d.getMonth() + 1)).slice(-2) + "." + ("0" + d.getDate()).slice(-2);
+}
+function notationPgnText() {
+  if (!G) return "";
+  /* a kept game has the journal's own fuller PGN: the coach's rating, the opening */
+  if (mode === "review" && keptGame) return Games.pgn(keptGame, Rating.LEVELS, myName());
+  var res = over ? (over.result === "white" ? "1-0" : over.result === "black" ? "0-1" : "1/2-1/2") : "*";
+  var v = mode === "review" ? sharedView : null, tags = v && v.tags ? v.tags : {};
+  var headers = [["Event", tags.Event || "The Chess Room"], ["Site", tags.Site || "kmay89.com/chess"],
+    ["Date", tags.Date || (v && v.day ? v.day.replace(/-/g, ".") : notationDay())], ["Round", tags.Round || "-"],
+    ["White", shareName(1)], ["Black", shareName(-1)]];
+  Object.keys(tags).forEach(function (k) {
+    if (Pgn.ROSTER.indexOf(k) < 0 && k !== "SetUp" && k !== "FEN") headers.push([k, tags[k]]);
+  });
+  if (clock.on && mode !== "review") headers.push(["TimeControl", (clock.base / 1000) + "+" + (clock.inc / 1000)]);
+  if (over && over.reason && !tags.Termination) headers.push(["Termination", over.reason]);
+  return Pgn.write({ headers: headers, sans: G.played.map(function (r) { return r.san; }), result: res,
+                     fen: G.startFen || null, marks: voice() === "off" ? {} : marks });
+}
+/* the position on the board: when looking back, the one being looked at */
+function notationFenText() {
+  if (!G) return "";
+  if (viewPly < 0) return Chess.fen(G);
+  var rec = G.played[viewPly];
+  if (rec && rec.fen) return rec.fen;
+  var t = Chess.create(G.startFen);
+  for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
+  return Chess.fen(t);
+}
+var notationCopied = null;      /* the last thing copied out, for the check */
+function notationCopy(text, what, from) {
+  if (!text) return;
+  notationCopied = text;
+  /* where the clipboard is out of reach, the share card shows the text to copy by hand */
+  var fallback = function () {
+    openShareCard({ title: "Copy " + what, sub: "Select it and copy — every chess program reads it.", text: text, url: "", pgn: "" }, from || null);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { toast("📋 Copied " + what + "."); }, fallback);
+  } else fallback();
+}
+/* the one chip, wherever the moves are: Copy PGN or FEN */
+function notationOffer(from) {
+  if (!G) return;
+  var n = G.played.length, mv = Math.ceil(n / 2), at = viewPly >= 0 ? viewPly : n - 1;
+  var where = at < 0 ? "as it stands now" : "after " + Pgn.label(at, G.startFen, G.played[at].san);
+  ask("<b>This game as text</b><br>" + (n ? "PGN is the whole game — " + mv + (mv === 1 ? " move" : " moves") +
+      " — and every chess program reads it. FEN is the position on the board, " + esc(where) + "."
+      : "FEN is the position on the board; PGN is the same position as a game with no moves yet. Every chess program reads both."),
+    [{ label: "📋 Copy PGN", fn: function () { notationCopy(notationPgnText(), "the game as PGN", from); } },
+     { label: "📋 Copy FEN", fn: function () { notationCopy(notationFenText(), "the position as FEN", from); } },
+     { label: "Not now", fn: function () {} }]);
+}
+function notationChip() { return lessonChip("📋 PGN · FEN", function () { notationOffer(null); }); }
+/* in the lobby, beside "Send this game so far" */
+function notationOps(ops, hasLive) {
+  if (!hasLive || !G || (!G.played.length && !G.startFen) || (mode !== "coach" && mode !== "pass" && mode !== "lan")) return;
+  var row = ops.lastElementChild;
+  if (!row || !row.classList.contains("rowbtns")) { row = document.createElement("div"); row.className = "rowbtns"; ops.appendChild(row); }
+  row.appendChild(chipBtn("📋 PGN · FEN", function () { notationOffer("menu"); }));
+}
+/* a game link carries moves from the usual start only, so a game from a
+   set-up position goes out as PGN */
+function notationSendFen(game) {
+  notationCopy(Share.pgn(game, {}), "this game as PGN (a game from a set-up position travels as PGN, not as a link)");
+}
+/* the end of a game from a set-up position: said plainly on the card */
+function notationAtEnd() {
+  var sub = $("endSub");
+  if (sub) sub.textContent = (sub.textContent ? sub.textContent + " " : "") +
+    "A game from a set-up position isn't rated or kept in your journal — Send copies its PGN.";
+  /* and the rematch is a whole game again, from the usual start */
+  var rs = $("endRematchSub");
+  if (rs) rs.textContent = "A fresh game from the usual start" + (mode === "coach" ? ", against the same coach." : ".");
+}
+
+/* ---- in ---- */
+function openNotation(text) {
+  hideAllOverlays();
+  $("notationIn").value = text || "";
+  notationReadNow();
+  $("ovNotation").classList.remove("hide");
+  snd("open");
+}
+function closeNotation() {
+  $("ovNotation").classList.add("hide");
+  showMenu();
+}
+function notationReadNow() {
+  clearTimeout(notationTimer);
+  var text = $("notationIn").value, says = $("notationSays"), go = $("notationGo");
+  var p = text.trim() ? Pgn.read(text, Chess) : null;
+  notationLast = p;
+  says.textContent = p ? Pgn.summary(p) : "";
+  says.classList.toggle("bad", !!(p && !p.ok));
+  go.disabled = !(p && p.ok);
+  $("notationGoTx").textContent = p && p.ok && p.kind === "position" ? "Look at it" : "Step through it";
+  $("notationGoSub").textContent = !p ? "Paste something first." : !p.ok ? "Nothing to open yet." :
+    p.kind === "position" ? "Then play from here — against the coach, or two players on this screen."
+                          : "On the board, read-only — then play on from any move.";
+}
+function notationFile(file) {
+  if (!file) return;
+  if (file.size > 2000000) { toast("That file is too big to be a game."); return; }
+  var r = new FileReader();
+  r.onload = function () { $("notationIn").value = String(r.result || ""); notationReadNow(); };
+  r.onerror = function () { toast("That file couldn't be read."); };
+  r.readAsText(file);
+}
+function notationPaste() {
+  var box = $("notationIn");
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    navigator.clipboard.readText().then(function (t) {
+      if (t && t.trim()) { box.value = t; notationReadNow(); } else { box.focus(); toast("Nothing on the clipboard — paste into the box."); }
+    }, function () { box.focus(); toast("Paste into the box (long-press, then Paste)."); });
+  } else { box.focus(); toast("Paste into the box (long-press, then Paste)."); }
+}
+/* what was read → the viewer a sent game uses: one viewer, not a third */
+function notationOpen(p) {
+  if (!p || !p.ok) return;
+  var res = p.result === "1-0" ? "white" : p.result === "0-1" ? "black" : p.result === "1/2-1/2" ? "draw" : null;
+  var date = p.headers.Date || "", day = /^\d{4}\.\d{2}\.\d{2}$/.test(date) ? date.replace(/\./g, "-") : "";
+  var white = p.white.slice(0, 40), black = p.black.slice(0, 40);
+  $("ovNotation").classList.add("hide");
+  openShared({ sans: p.sans, white: white, black: black, result: res, reason: p.reason, day: day,
+               ply: -1, ask: "", from: "", fen: p.fen });
+  if (mode !== "review" || !sharedView) return;
+  var v = sharedView;
+  v.tags = p.headers;
+  if (p.kind === "position") {
+    var side = p.turn === -1 ? "Black" : "White";
+    v.kick = "📋 A position · " + side + " to move";
+    v.say = "<b>" + side + " to move.</b> Look it over, then <b>▶ Play from here</b> — against the coach, or two players on this screen." +
+            (p.notes.length ? " <small>" + esc(p.notes.join(" ")) + "</small>" : "");
+    orientation = p.turn === -1 ? -1 : 1;
+    R.setOrientation(orientation);
+    syncAll();
+  } else {
+    v.kick = "📋 " + esc(white) + " vs " + esc(black) + " · " +
+      (res ? Share.scoreText(res) + (p.reason ? " (" + esc(p.reason) + ")" : "") : "no result") + (p.fen ? " · from a set-up position" : "");
+    v.say = (p.error ? "It stops at <b>" + esc(p.error.at) + "</b>: " + esc(p.error.why) + ". " : "") +
+            "Step through with ◀ ▶, or tap any move in the list." + (p.notes.length ? " <small>" + esc(p.notes.join(" ")) + "</small>" : "");
+  }
+  sharedBar();
+  needFrame();
+}
+
+/* ---- links: #fen=… and #pgn=… are offered, never opened behind your back ---- */
+var NOTATION_HASH = /#(fen|pgn)=([^&]*)/;
+function notationOfferHash(delay) {
+  var m = (location.hash || "").match(NOTATION_HASH);
+  if (!m) return false;
+  history.replaceState(null, "", location.pathname);
+  var text = "";
+  try { text = decodeURIComponent(m[2]); } catch (e) { text = ""; }
+  if (m[1] === "fen") text = text.replace(/_/g, " ");
+  if (text.length > 20000) text = "";
+  var p = text ? Pgn.read(text, Chess) : null;
+  setTimeout(function () {
+    if (!p || !p.ok) {
+      toast("That " + (m[1] === "fen" ? "position" : "game") + " link doesn't read" + (p && p.error ? " — " + esc(p.error.why) : ".")); return;
+    }
+    var mv = Math.ceil(p.plies / 2);
+    var what = p.kind === "position" ? "a position, " + (p.turn === -1 ? "Black" : "White") + " to move"
+                                     : "a game, " + mv + (mv === 1 ? " move" : " moves");
+    toast("📋 A link with " + what + ". Open it?",
+      [{ label: "Open", fn: function () { openNotation(text); } },
+       { label: "Not now", fn: function () {}, ghost: true }], 20000);
+  }, delay || 0);
+  return true;
+}
+
+function wireNotation() {
+  $("mNotation").addEventListener("click", function () { openNotation(""); });
+  $("notationIn").addEventListener("input", function () { clearTimeout(notationTimer); notationTimer = setTimeout(notationReadNow, 160); });
+  $("notationIn").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); notationReadNow(); notationOpen(notationLast); }
+  });
+  $("notationPaste").addEventListener("click", notationPaste);
+  $("notationFile").addEventListener("click", function () { $("notationFileIn").click(); });
+  $("notationFileIn").addEventListener("change", function () { notationFile(this.files && this.files[0]); this.value = ""; });
+  $("notationGo").addEventListener("click", function () { notationReadNow(); notationOpen(notationLast); });
+  $("notationBack").addEventListener("click", closeNotation);
+  var ov = $("ovNotation");
+  ov.addEventListener("click", function (e) { if (e.target === this) closeNotation(); });
+  ov.addEventListener("dragover", function (e) { e.preventDefault(); });
+  ov.addEventListener("drop", function (e) {
+    e.preventDefault();
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) notationFile(f);
+  });
+  /* Escape backs out to the lobby, even from inside the box */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || askCancel || ov.classList.contains("hide")) return;
+    closeNotation(); e.stopImmediatePropagation();
+  }, true);
+}
+function notationForTest() {
+  return { Pgn: Pgn, openNotation: openNotation, notationOpen: notationOpen,
+    notationPgnText: notationPgnText, notationFenText: notationFenText,
+    notationCopiedForTest: function () { return notationCopied; },
+    startFenForTest: function () { return G ? G.startFen || null : null; },
+    ratedDoneForTest: function () { return ratedDone; } };
 }
 
 /* ===== opening stories (the tour) ===== */
@@ -5360,11 +5688,9 @@ function chapterName(id) {
   for (var i = 0; i < Learn.CHAPTERS.length; i++) if (Learn.CHAPTERS[i].id === id) return Learn.CHAPTERS[i].name;
   return "Lesson";
 }
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, function (c) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-  });
-}
+/* the same escaping as escHtml, by its shorter name — one rule, two names,
+   because both are called from all over the file */
+function esc(s) { return escHtml(s); }
 
 /* hints fade in three steps: a question, then where to look, then the move */
 function giveLessonHint() {
@@ -5740,9 +6066,35 @@ function adoptSkin(s) {
   toast("🎨 <b>" + esc(saved.name) + "</b> by " + esc(saved.maker) + " is now in your gallery.");
 }
 
-/* ===== overlays & menus ===== */
+/* ===== overlays & menus =====
+   CARDS is the one list of the room's cards. `hide`: hideAllOverlays
+   closes it. `pause`: a game on this device stops its clock while it is
+   open (clockPaused). `back`: Escape and a tap on the dim room around
+   it go back to the lobby. The question (ovAsk) pauses but has its own
+   way out; the picker, the recovery card and the Studio are not cards
+   here on purpose. Adding a card is one line. */
+var CARDS = [
+  { id: "ovMenu", hide: 1, pause: 1 },
+  { id: "ovNew", hide: 1, pause: 1, back: 1 },
+  { id: "ovLink", hide: 1, pause: 1 },
+  { id: "ovLinked", hide: 1, pause: 1 },
+  { id: "ovEnd", hide: 1 },
+  { id: "ovSettings", hide: 1, pause: 1, back: 1 },
+  { id: "ovLearn", hide: 1, pause: 1, back: 1 },
+  { id: "ovOpenings", hide: 1, pause: 1, back: 1 },
+  { id: "ovAbout", hide: 1, pause: 1, back: 1 },
+  { id: "ovAcademy", hide: 1, pause: 1, back: 1 },
+  { id: "ovProfile", hide: 1, pause: 1, back: 1 },
+  { id: "ovShare", hide: 1, pause: 1 },
+  { id: "ovPeople", hide: 1, pause: 1 },
+  { id: "ovNotation", hide: 1, pause: 1 },   /* it has its own Escape and backdrop, as the friends cards do */
+  { id: "ovAsk", pause: 1 }
+];
+function cardIds(flag) {
+  return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
+}
 function hideAllOverlays() {
-  ["ovMenu", "ovNew", "ovLink", "ovLinked", "ovEnd", "ovSettings", "ovLearn", "ovOpenings", "ovAbout", "ovAcademy", "ovProfile", "ovShare", "ovPeople"].forEach(function (id) {
+  cardIds("hide").forEach(function (id) {
     $(id).classList.add("hide");
   });
   /* the picker is not just hidden but closed: a picker that is hidden
@@ -5812,6 +6164,7 @@ function showMenu() {
     ops.appendChild(row);
   }
   gameOpsSend(ops, hasLive);
+  notationOps(ops, hasLive);
   $("ovMenu").classList.remove("hide");
   snd("open");
 }
@@ -5834,9 +6187,7 @@ function openNewCard(kind, cb) {
      clock you chose last time for this kind of game is chosen again */
   var lastClock = (prefs.lastClock && prefs.lastClock[kind]) || "none";
   newCardCtx = { kind: kind, cb: cb, side: kind === "coach" ? "a" : "w", skill: nextLevel(), clockStr: lastClock };
-  Array.prototype.forEach.call($("clockChips").children, function (c) {
-    c.classList.toggle("sel", c.getAttribute("data-clock") === newCardCtx.clockStr);
-  });
+  clkShowCard(newCardCtx.clockStr);
   $("newTitle").textContent = kind === "pass" ? "Two players, one device" : kind === "coach" ? "Play the computer" : "Host a board";
   /* the colour chips: taking turns only means something against the computer */
   Array.prototype.forEach.call($("sideChips").children, function (c) {
@@ -6108,6 +6459,7 @@ function syncOddsUI() {
 
 /* ===== settings ===== */
 function syncSettingsUI() {
+  aqSync();
   $("setSkinName").textContent = "Currently: " + skin.name + " · " +
     Skins.MATERIALS[skin.pieces.material].label.toLowerCase() + " pieces.";
   var v = voice();
@@ -6211,7 +6563,8 @@ function wireUI() {
   /* new game card */
   wireChips("sideChips", "side", function (v) { if (newCardCtx) newCardCtx.side = v; });
   wireChips("skillChips", "skill", function (v) { if (newCardCtx) newCardCtx.skill = v; });
-  wireChips("clockChips", "clock", function (v) { if (newCardCtx) newCardCtx.clockStr = v; });
+  clkWire();
+  aqWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -6227,7 +6580,7 @@ function wireUI() {
   /* a tap on the dimmed room around a card closes it, the way Escape does:
      the side cards go back to the lobby, and the lobby itself goes back
      to a game that is waiting */
-  ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].forEach(function (id) {
+  cardIds("back").forEach(function (id) {
     $(id).addEventListener("click", function (e) { if (e.target === this) showMenu(); });
   });
   $("ovMenu").addEventListener("click", function (e) {
@@ -6248,7 +6601,7 @@ function wireUI() {
       if (pendingPromo) { cancelPromo(); return; }
       if (!$("ovEnd").classList.contains("hide")) { $("ovEnd").classList.add("hide"); syncTurnStrip(); return; }
       if (studioOpen) { closeStudio(); return; }
-      var open = ["ovNew", "ovSettings", "ovAbout", "ovProfile", "ovAcademy", "ovLearn", "ovOpenings"].filter(function (id) { return !$(id).classList.contains("hide"); });
+      var open = cardIds("back").filter(function (id) { return !$(id).classList.contains("hide"); });
       if (open.length) { showMenu(); return; }
       if (!$("ovMenu").classList.contains("hide") && G && mode) { hideAllOverlays(); return; }
       if (clearInkHere()) return;
@@ -6397,39 +6750,289 @@ function wireUI() {
   /* recovery */
   $("recReload").addEventListener("click", function () { location.reload(); });
   $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
-  /* a fresh start forgets everything the room ever wrote — the game, the
-     settings, the Academy, the score — because any one of them, damaged,
-     is enough to strand it, and a recovery card that cannot recover is
-     worse than none */
-  $("recFresh").addEventListener("click", function () {
-    try { Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k)) lsDel(k); }); } catch (e) {}
-    lsDel(SAVE_KEY); lsDel(PREF_KEY);
-    location.hash = ""; location.reload();
-  });
+  recWire();
 
   window.addEventListener("resize", function () {
     if (R2) R2.resize();
     if (R3) R3.resize();
     needFrame();
   });
-  /* a tab coming back from the background repaints and re-arms the clock */
-  /* Away from the tab: in a game on this device that is a pause, like the
-     menu. In a game between two devices it is time spent thinking — the
-     other person waited through it — so it is charged when you return. */
-  var hiddenAt = 0;
+  /* a tab coming back from the background repaints and settles the clock */
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") { hiddenAt = performance.now(); return; }
+    clkAway(document.visibilityState === "hidden", performance.now());
     if (document.visibilityState === "visible") {
-      if (mode === "lan" && clock.on && clock.run && !over && hiddenAt) {
-        var away = performance.now() - hiddenAt;
-        if (clock.run === 1) clock.w -= away; else clock.b -= away;
-      }
-      hiddenAt = 0;
-      clock.lastT = performance.now();
       if (R) { R.dirty = true; }
       needFrame();
     }
   });
+}
+/* ----- clk: time away from the tab -----
+   In a game on this device, out of sight is a pause, like the menu: the
+   time up to the moment the tab went is charged, the time it was gone is
+   not, and the room says so when you are back. In a game between two
+   devices it is time spent thinking — the other person waited through
+   it — so it is charged in full the moment you return, by the same
+   wall-clock arithmetic as every other second, and a flag that fell
+   while you were gone falls then, before anything else can happen. The
+   charge runs from the last time the clock was read, not from when the
+   tab was hidden: a move that arrived while you were away resynced both
+   clocks and restarted yours from that moment, and only the time since
+   is yours to pay. */
+var clkHiddenAt = 0;
+function clkAway(hidden, now) {
+  if (!clock.on || !clock.run || over || !G) { clkHiddenAt = hidden ? now : 0; return; }
+  if (hidden) { clockTick(now); clkHiddenAt = now; return; }
+  var gone = clkHiddenAt ? now - clkHiddenAt : 0;
+  clkHiddenAt = 0;
+  if (mode === "lan") {
+    clockTick(now);
+    if (!over && gone >= 3000) toast("You were away " + Math.round(gone / 1000) + " s — the clocks kept running.");
+    return;
+  }
+  clock.lastT = now;
+  if (gone >= 3000 && !clockPaused()) toast("The clock waited while you were away.");
+}
+
+/* ===================== clk: the custom clock on the new-game card =====================
+   Six presets and "Other…": whole minutes (1–180) and whole seconds a
+   move (0–60). The chips are drawn here from CLK_PRESETS, so the list
+   exists once; whatever is typed is held to clkOk's bounds as it is
+   typed, and the card says in words what it will start. A custom clock
+   is remembered per kind of game like a preset, and opens the card with
+   "Other…" chosen and the fields filled in. */
+function clkRender() {
+  var row = $("clockChips");
+  row.innerHTML = "";
+  CLK_PRESETS.concat([{ v: "custom", label: "Other…" }]).forEach(function (p) {
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("data-clock", p.v);
+    b.textContent = p.label;
+    row.appendChild(b);
+  });
+}
+function clkIsPreset(str) {
+  for (var i = 0; i < CLK_PRESETS.length; i++) if (CLK_PRESETS[i].v === str) return true;
+  return false;
+}
+function clkClamp(v, lo, hi, dflt) {
+  v = Math.round(+v);
+  if (!isFinite(v)) return dflt;
+  return Math.max(lo, Math.min(hi, v));
+}
+/* the two fields, read as a clock that always passes clkOk */
+function clkFromFields() {
+  var mn = clkClamp($("clkMin").value, 1, CLK_MAX_MIN, 10), inc = clkClamp($("clkInc").value, 0, CLK_MAX_INC, 0);
+  return mn + "+" + inc;
+}
+function clkSay(str) {
+  var p = String(str).split("+"), mn = +p[0], inc = +p[1];
+  return mn + (mn === 1 ? " minute" : " minutes") + " each" +
+    (inc ? ", plus " + inc + (inc === 1 ? " second" : " seconds") + " back after every move." : ", no time added back.");
+}
+function clkShowCard(str) {
+  var custom = str !== "none" && clkOk(str) && !clkIsPreset(str);
+  Array.prototype.forEach.call($("clockChips").children, function (c) {
+    var v = c.getAttribute("data-clock");
+    c.classList.toggle("sel", custom ? v === "custom" : v === str);
+  });
+  if (custom) { var p = str.split("+"); $("clkMin").value = p[0]; $("clkInc").value = p[1]; }
+  $("clkCustom").classList.toggle("hide", !custom);
+  if (custom) $("clkSay").textContent = clkSay(str);
+}
+function clkWire() {
+  clkRender();
+  wireChips("clockChips", "clock", function (v) {
+    var custom = v === "custom";
+    $("clkCustom").classList.toggle("hide", !custom);
+    if (custom) { $("clkSay").textContent = clkSay(clkFromFields()); if (!$("clkMin").value) $("clkMin").value = 10; }
+    if (newCardCtx) newCardCtx.clockStr = custom ? clkFromFields() : v;
+  });
+  ["clkMin", "clkInc"].forEach(function (id) {
+    $(id).addEventListener("input", function () {
+      var str = clkFromFields();
+      $("clkSay").textContent = clkSay(str);
+      if (newCardCtx) newCardCtx.clockStr = str;
+    });
+    /* leaving a field shows the number that will really be used */
+    $(id).addEventListener("change", function () {
+      var p = clkFromFields().split("+");
+      $("clkMin").value = p[0]; $("clkInc").value = p[1];
+    });
+  });
+}
+
+/* ===================== aq: always a queen =====================
+   Off by default: the picker is there for the rare underpromotion, and a
+   convenience should not quietly take that away. Switched on, a pawn
+   reaching the last rank becomes a queen in the same gesture — except
+   when the queen would be the wrong answer the board can prove: another
+   piece mates and the queen doesn't, or the queen stalemates and another
+   piece doesn't. Then the picker opens anyway, with one line saying why.
+   Lessons always ask (an Academy answer can be an underpromotion). */
+var AQ_NAMES = { 2: "knight", 3: "bishop", 4: "rook", 5: "queen" };
+/* what each promotion on from→to would do: "mate", "stalemate" or "" */
+function aqOutcomes(g, from, to) {
+  var out = {}, copy = Chess.create(Chess.fen(g));
+  Chess.movesFrom(copy, from).forEach(function (m) {
+    if (m.to !== to || !m.promo) return;
+    Chess.make(copy, m);
+    var none = !Chess.moves(copy).length;
+    out[Math.abs(m.promo)] = none ? (Chess.inCheck(copy) ? "mate" : "stalemate") : "";
+    Chess.unmake(copy);
+  });
+  return out;
+}
+/* the sentence that says why the room is asking after all, or null */
+function aqWhyFor(g, from, to) {
+  var o = aqOutcomes(g, from, to), k, order = [2, 4, 3];
+  if (o[5] !== "mate") {
+    for (k = 0; k < order.length; k++) if (o[order[k]] === "mate")
+      return "A " + AQ_NAMES[order[k]] + " here is checkmate — the queen isn't.";
+  }
+  if (o[5] === "stalemate") {
+    for (k = 0; k < 3; k++) if (o[[4, 3, 2][k]] === "")
+      return "A queen here is stalemate — a draw. A " + AQ_NAMES[[4, 3, 2][k]] + " keeps the game going.";
+  }
+  return null;
+}
+/* tapSquare's promotion: the queen's move to play now, or null when the
+   picker has been opened instead */
+function aqChoose(from, to) {
+  var why = prefs.autoQueen && mode !== "lesson" ? aqWhyFor(G, from, to) : null;
+  if (!prefs.autoQueen || mode === "lesson" || why) { askPromotion(from, to, why); return null; }
+  for (var i = 0; i < legalMoves.length; i++) {
+    if (legalMoves[i].to === to && legalMoves[i].promo === Chess.Q * G.turn) return legalMoves[i];
+  }
+  askPromotion(from, to);
+  return null;
+}
+function aqSync() {
+  $("aqAsk").classList.toggle("sel", !prefs.autoQueen);
+  $("aqQueen").classList.toggle("sel", !!prefs.autoQueen);
+}
+function aqWire() {
+  $("aqAsk").addEventListener("click", function () { prefs.autoQueen = false; savePrefs(); aqSync(); });
+  $("aqQueen").addEventListener("click", function () { prefs.autoQueen = true; savePrefs(); aqSync(); });
+  aqSync();
+}
+
+/* ===================== rec: a recovery card that tells the truth =====================
+   It says what happened in plain words, keeps the technical line one tap
+   away (and copyable, for a bug report), and its choices say what they
+   cost: try again, try again in 2D, clear only the unfinished game, and —
+   behind a second tap that names everything it erases — erase it all.
+   The last few errors are kept for this tab only (sessionStorage), so
+   nothing about a crash outlives the tab unless the player copies it. */
+var REC_LOG = "chess.errors";
+function recNote(info) {
+  try {
+    var log = JSON.parse(sessionStorage.getItem(REC_LOG) || "[]");
+    if (!Array.isArray(log)) log = [];
+    log.push({ at: Date.now(), msg: String((info && info.msg) || "unknown error").slice(0, 300),
+               src: String((info && info.src) || "").slice(0, 200), line: (info && info.line) || 0, col: (info && info.col) || 0 });
+    sessionStorage.setItem(REC_LOG, JSON.stringify(log.slice(-5)));
+  } catch (e) {}
+}
+function recLog() {
+  try { var l = JSON.parse(sessionStorage.getItem(REC_LOG) || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+/* A rejected promise counts when it is the kind of failure a bug makes
+   (a TypeError, a ReferenceError…). A network that is down, a permission
+   refused, a share sheet dismissed, a fetch aborted: none of those is
+   the room breaking, and three of them must never raise the card. */
+function recRejectionCounts(r) {
+  if (!r || typeof r !== "object" || !r.name) return false;
+  if (["TypeError", "ReferenceError", "RangeError", "SyntaxError", "URIError", "EvalError"].indexOf(r.name) < 0) return false;
+  return !/fetch|network|load failed|abort/i.test(String(r.message || ""));
+}
+function recWhere(src) {
+  src = String(src || "");
+  if (/gfx3d|pieces3d|scenes/.test(src)) return " while drawing the 3D board";
+  if (/gfx2d|grain/.test(src)) return " while drawing the board";
+  if (/net\.js|room\.js/.test(src)) return " in the link between devices";
+  if (/brain|engine/.test(src)) return " while the coach was thinking";
+  if (/sound/.test(src)) return " while making a sound";
+  return "";
+}
+function recDetails() {
+  var last = recLog().slice(-1)[0] || {};
+  var file = String(last.src || "").replace(/^.*\//, "");
+  return (last.msg || "no message") + (file ? " @ " + file + (last.line ? ":" + last.line + (last.col ? ":" + last.col : "") : "") : "") +
+    " · " + (prefs.use3d ? "3D" : "2D") + " · mode " + (mode || "lobby") + " · ply " + (G && G.played ? G.played.length : 0) +
+    " · " + recLog().length + " in this tab · " + navigator.userAgent;
+}
+function recFill() {
+  var last = recLog().slice(-1)[0] || {};
+  $("recWhy").textContent = "The room ran into trouble three times in a few seconds" + recWhere(last.src) +
+    ", so it stopped here rather than carry on wrong. Your game is saved after every move, so nothing is lost. Pick a way back in:";
+  $("recTechTx").textContent = recDetails();
+  $("recWipeAsk").classList.add("hide");
+  $("recWipe").classList.remove("hide");
+}
+/* what "erase everything" would take, said with numbers where there are some */
+function recWipeWords() {
+  var bits = [];
+  try {
+    var r = Rating.load(lsGet);
+    if (r && r.games) bits.push("a rating of " + Math.round(r.r) + " from " + r.games + (r.games === 1 ? " game" : " games"));
+  } catch (e) {}
+  try { var ls = Learn.stats(Learn.load()); if (ls && ls.solved) bits.push(ls.solved + (ls.solved === 1 ? " lesson" : " lessons") + " learned"); } catch (e) {}
+  return (bits.length ? "This device holds " + bits.join(" and ") + ". " : "") +
+    "Erasing removes your rating and its history, your ladder stars, Academy lessons, the journal of your games, feats, friends, saved skins and settings, and any game in progress. It can't be undone.";
+}
+/* only the unfinished game: the one on this device, the one between two
+   devices, and the four letters that game was reached by */
+function recClearGame() {
+  lsDel(SAVE_KEY); lsDel(LAN_KEY);
+  try { localStorage.removeItem("room:chess"); } catch (e) {}
+}
+function recEraseAll() {
+  try {
+    Object.keys(localStorage).forEach(function (k) { if (/^chessroom_/.test(k) || k === "room:chess") lsDel(k); });
+  } catch (e) {}
+  try { sessionStorage.removeItem("chess.fx.stepped"); sessionStorage.removeItem(REC_LOG); } catch (e) {}
+}
+var recStoreWarned = false;
+/* a browser that will not keep what the room writes (a private window,
+   a full disk) is said once, not discovered after a reload */
+function recStoreFailed() {
+  if (recStoreWarned) return;
+  recStoreWarned = true;
+  setTimeout(function () {
+    try { toast("This browser isn't keeping what the room saves — a private window, or no space left? A reload would lose this game."); } catch (e) {}
+  }, 0);
+}
+function recWire() {
+  $("recReload").addEventListener("click", function () { location.reload(); });
+  $("rec2D").addEventListener("click", function () { prefs.use3d = false; savePrefs(); location.hash = "#force2d"; location.reload(); });
+  $("recGame").addEventListener("click", function () { recClearGame(); location.hash = ""; location.reload(); });
+  $("recWipe").addEventListener("click", function () {
+    $("recWipeTx").textContent = recWipeWords();
+    $("recWipeAsk").classList.remove("hide");
+    $("recWipe").classList.add("hide");
+  });
+  $("recWipeNo").addEventListener("click", function () { $("recWipeAsk").classList.add("hide"); $("recWipe").classList.remove("hide"); });
+  $("recWipeGo").addEventListener("click", function () { recEraseAll(); location.hash = ""; location.reload(); });
+  $("recCopy").addEventListener("click", function () {
+    var text = $("recTechTx").textContent, btn = this;
+    var done = function (ok) { btn.textContent = ok ? "Copied" : "Select the line to copy it"; };
+    try { navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); }); } catch (e) { done(false); }
+  });
+}
+
+/* the edges' handles for chess/tools/edges-check.js */
+function edgeTestHooks() {
+  return {
+    clockForTest: function () { return clock; },
+    clkOk: clkOk, CLK_PRESETS: CLK_PRESETS,
+    clkAwayForTest: clkAway,
+    aqWhyForTest: function (fen, from, to) { return aqWhyFor(Chess.create(fen), Chess.sqIndex(from), Chess.sqIndex(to)); },
+    get prefsForTest() { return prefs; },
+    recLogForTest: recLog, recDetailsForTest: recDetails, recWipeWordsForTest: recWipeWords,
+    cardIdsForTest: cardIds, clockPausedForTest: clockPaused,
+    overForTest: function () { return over; }
+  };
 }
 
 /* a skin link can arrive on first load, or be pasted into a tab that's
@@ -6455,6 +7058,7 @@ function wireHashLinks() {
   window.addEventListener("hashchange", function () {
     if (offerSharedSkin(0)) return;
     if (offerSharedGame(0)) return;
+    if (notationOfferHash(0)) return;
     var j = location.hash.match(JOIN_HASH);
     if (j) {
       takeJoinExtras(location.hash);
@@ -6574,6 +7178,416 @@ function wireParallax() {
   document.addEventListener("visibilitychange", syncTilt);
   document.addEventListener("pointerdown", tiltRetry, { once: true, passive: true });
 }
+/* ===== keys and words: focus that behaves, a spoken board, keyboard play =====
+   Everything a keyboard or a screen reader needs, in one place, so the
+   rest of the room only has to call in at five doors: toast(),
+   commitMove(), endGame(), moveCell() and the dev handle. The pure half
+   — words for moves and squares, the reader for typed moves — is
+   access.js.
+
+   Focus. Every card is a body-level .ov, shown and hidden by its class
+   from two dozen places; rather than change each of them, one observer
+   watches the cards' classes. While any card is up, everything else on
+   the page is inert (Tab cannot reach the game beneath, a screen reader
+   cannot wander into it), focus goes into the card — its first button
+   for a question or the promotion picker, its heading otherwise — and
+   when the last card goes, focus goes back to where it was. The closed
+   Studio is inert too: it is aria-hidden, and its twenty inputs used to
+   be in the tab order anyway.
+
+   Words. One polite live region, #accSay, outside everything that can
+   be made inert. It reads each move ("White: knight to f3, check"), the
+   result, a toast that asks something, and anything said in answer to
+   a key. prefs.speak: "moves" (the default — a screen-reader user hears
+   the game without hunting for a setting, and nobody else hears
+   anything), "all" (every remark too), "off".
+
+   Keys. Tab reaches the board: the arrows walk a square cursor (drawn
+   by both boards, R.setCursor), Enter or Space picks up and sets down,
+   Escape puts back. Typing a move anywhere outside a text box opens a
+   small entry over the board. Shift + a letter that is not a piece does
+   what a button does; "/" shows the keys. Plain letters belong to
+   notation, "?" to the help lamp's "why", Escape to the cards and the
+   pen. */
+var accSaid = [], accQueue = [], accSayTimer = 0;
+var accKeyAt = 0, accPointerAt = 0;
+var accTop = null, accBack = null;
+var accCur = -1;                 /* the keyboard's square, 0x88; -1 until the board is first focused */
+var kbTypeBack = null, kbBusy = false;
+/* read straight from the store: prefs only keeps the keys its own
+   literal names, and this one is ours */
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.speak = ["moves", "all", "off"].indexOf(p.speak) >= 0 ? p.speak : "moves";
+})();
+
+function accText(html) {
+  try { return new DOMParser().parseFromString(String(html), "text/html").body.textContent.replace(/\s+/g, " ").trim(); }
+  catch (e) { return stripTags(html); }
+}
+/* one sentence at a time, joined if several land together; cleared and
+   set a beat later so the same words said twice are heard twice */
+function accSay(text) {
+  if (!text || prefs.speak === "off") return;
+  accSaid.push(text);
+  if (accSaid.length > 30) accSaid.shift();
+  accQueue.push(text);
+  clearTimeout(accSayTimer);
+  accSayTimer = setTimeout(function () {
+    var el = $("accSay");
+    if (!el) return;
+    var words = accQueue.join(" ");
+    accQueue = [];
+    el.textContent = "";
+    setTimeout(function () { el.textContent = words; }, 40);
+  }, 80);
+}
+/* from toast(): a question always, every remark if asked for, and
+   whatever answers a key just pressed (a piece with nowhere to go, the
+   lamp's chips) */
+function accToast(html, actions) {
+  if (prefs.speak === "off") return;
+  if (!(actions || prefs.speak === "all" || Date.now() - accKeyAt < 900)) return;
+  accSay(accText(html) + (actions ? " " + actions.map(function (a) { return a.label; }).join(", ") + "." : ""));
+}
+/* from commitMove(), with the position already after the move */
+function accAfterMove(m, san, st) {
+  var mine = mode === "coach" ? humanSide : mode === "lan" ? lanSide : 0;
+  accSay(Access.sayMove(m, san) + "." + (mine && !st.over && G.turn === mine ? " Your move." : ""));
+}
+/* from endGame() */
+function accAtEnd(result, reason, title) {
+  accSay("Game over. " + title + " " + Access.resultWords(result, reason));
+}
+/* from moveCell(): the cell gets a name a screen reader can say, and the
+   current move is the one stop the move list has in the tab order */
+function accCell(s, ply, san) {
+  var rec = G.played[ply];
+  var cur = s.classList.contains("cur");
+  s.setAttribute("role", "button");
+  s.tabIndex = cur ? 0 : -1;
+  if (cur) s.setAttribute("aria-current", "true");
+  s.setAttribute("aria-label", (Math.floor(ply / 2) + 1) + ". " + Access.sayMove(rec.m, san) +
+    (s.title && s.title.indexOf(" — ") > 0 ? ". " + s.title.slice(s.title.indexOf(" — ") + 3) : ""));
+  s.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.click(); }
+  });
+}
+
+/* ---- focus: the one door every card goes through ---- */
+function accVisible(el) { return !!el && el.getClientRects().length > 0; }
+function accOverlayTop() {
+  var first = ["ovRecover", "ovAsk", "ovPromo"];
+  for (var i = 0; i < first.length; i++) { var o = $(first[i]); if (o && !o.classList.contains("hide")) return o; }
+  var open = document.querySelectorAll("body > .ov:not(.hide)");
+  return open.length ? open[open.length - 1] : null;
+}
+function accFocusInto(ov) {
+  var t = null;
+  if (ov.id === "ovAsk" || ov.id === "ovPromo") {
+    t = [].filter.call(ov.querySelectorAll("button"), accVisible)[0] || null;
+  }
+  if (!t) {
+    t = [].filter.call(ov.querySelectorAll("h1, h2"), accVisible)[0] || null;
+    if (t && !t.hasAttribute("tabindex")) t.setAttribute("tabindex", "-1");
+  }
+  if (!t) t = [].filter.call(ov.querySelectorAll("button, [tabindex], input"), accVisible)[0] || null;
+  if (t) try { t.focus({ preventScroll: true }); } catch (e) {}
+}
+function accSyncFocus() {
+  var top = accOverlayTop();
+  var kids = document.body.children;
+  for (var i = 0; i < kids.length; i++) {
+    var k = kids[i];
+    /* the room and the other cards; never a bar that asks to be tapped
+       over everything (the update bar), nor the live region */
+    if (!(k.id === "app" || k.id === "studio" || k.id === "splash" || k.classList.contains("ov"))) continue;
+    var want = !!top && k !== top;
+    if (k.id === "studio" && k.getAttribute("aria-hidden") === "true") want = true;
+    if (k.inert !== want) k.inert = want;
+  }
+  if (top) {
+    if (!accTop) accBack = document.activeElement;
+    var fresh = top !== accTop;
+    accTop = top;
+    if (fresh && !top.contains(document.activeElement)) accFocusInto(top);
+    return;
+  }
+  if (!accTop) return;
+  accTop = null;
+  var back = accBack; accBack = null;
+  var now = document.activeElement;
+  if (now && now !== document.body && accVisible(now)) return;   /* something already took it */
+  if (back && back !== document.body && document.contains(back) && accVisible(back)) {
+    try { back.focus({ preventScroll: true }); } catch (e) {}
+  }
+}
+
+/* ---- the board under the keyboard ---- */
+function accBoardFocused() { var a = document.activeElement; return !!a && (a === $("cv2") || a === $("cv3")); }
+function accShowCursor() {
+  if (!R || !R.setCursor) return;
+  R.setCursor(accBoardFocused() && G ? accCur : -1);
+  needFrame();
+}
+function accSquareSay(sq) {
+  var board = viewPly >= 0 ? currentViewBoard() : G.board;
+  var w = Access.squareWords(board, sq);
+  if (viewPly < 0 && sel >= 0) {
+    if (sq === sel) w += ", in your hand";
+    else if (legalMoves.some(function (m) { return m.to === sq; })) w += ", you can go here";
+  }
+  accSay(w + ".");
+}
+function accBoardKey(e) {
+  if (!G) return false;
+  var k = e.key;
+  if (/^Arrow/.test(k)) {
+    if (accCur < 0) accCur = G.kings[G.turn === 1 ? 0 : 1];
+    accCur = Access.step(accCur, k, orientation);
+    accShowCursor();
+    accSquareSay(accCur);
+    return true;
+  }
+  if (k === "Enter" || k === " ") {
+    if (accCur < 0) return true;
+    if (viewPly >= 0) { exitView(); accSay("Back to the game."); return true; }
+    if (!canActNow(true)) { accSay(accWhyNot()); return true; }
+    var before = sel, n = G.played.length;
+    tapSquare(accCur);
+    if (G.played.length !== n || pendingPromo) return true;     /* the move speaks for itself */
+    if (sel >= 0 && sel !== before) {
+      var to = legalMoves.map(function (m) { return Chess.sqName(m.to); })
+        .filter(function (v, i, a) { return a.indexOf(v) === i; });
+      accSay("Picked up the " + Access.NAME[Math.abs(G.board[sel])] + " on " + Chess.sqName(sel) + "." +
+        (to.length ? " It can go to " + (to.length > 6 ? to.slice(0, 6).join(", ") + " and " + (to.length - 6) + " more" : to.join(", ")) + "." : ""));
+    } else if (sel < 0 && before >= 0) accSay("Put back.");
+    else if (sel < 0) accSquareSay(accCur);
+    return true;
+  }
+  if (k === "Escape" && sel >= 0 && viewPly < 0) {
+    tapSquare(sel);
+    accSay("Put back.");
+    return true;
+  }
+  if (k === "[" || k === "]") {
+    if (!G.played.length) return true;
+    var at = viewPly >= 0 ? viewPly : G.played.length - 1;
+    if (k === "[") viewAt(Math.max(0, at - 1));
+    else if (viewPly >= 0) { if (at + 1 >= G.played.length - 1) exitView(); else viewAt(at + 1); }
+    var rec = G.played[viewPly >= 0 ? viewPly : G.played.length - 1];
+    accSay((viewPly >= 0 ? "Looking back. " : "The game now. ") + "After " + Access.sayMove(rec.m, rec.san) + ".");
+    return true;
+  }
+  return false;
+}
+function accWhyNot() {
+  if (!G || over) return "The game is over.";
+  if (pendingPromo) return "Choose a piece for the pawn first.";
+  if (mode === "coach" && thinking) return SKILLS[skill].label + " is thinking.";
+  if (mode === "lan" && !Net.linked()) return "Your friend isn't connected.";
+  if (mode === "coach" || mode === "lan") return "It isn't your move.";
+  return "There's nothing to move just now.";
+}
+
+/* ---- typing a move ---- */
+function kbTypeOpen(first) {
+  var box = $("kbType"), inp = $("kbIn");
+  if (!box || !inp) return;
+  kbTypeBack = document.activeElement;
+  box.classList.remove("hide");
+  $("kbMsg").textContent = "";
+  inp.value = first || "";
+  inp.focus({ preventScroll: true });
+  try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+}
+function kbTypeClose(refocus) {
+  var box = $("kbType");
+  if (!box || box.classList.contains("hide")) return;
+  box.classList.add("hide");
+  var back = kbTypeBack; kbTypeBack = null;
+  if (refocus && back && back !== document.body && document.contains(back) && accVisible(back)) {
+    try { back.focus({ preventScroll: true }); } catch (e) {}
+  } else if (document.activeElement === $("kbIn")) $("kbIn").blur();
+}
+function kbTypeFail(msg) {
+  $("kbMsg").textContent = msg;
+  accSay(msg);
+  hap("nope");
+  try { $("kbIn").select(); } catch (e) {}
+}
+/* the typed move goes in through the same door as two taps, so a lesson,
+   a promotion, a friend's board and the whole move pipeline see nothing
+   new — and it sounds and feels exactly like a tap */
+function kbPlay(from, to, promoKind) {
+  whenLanded(function () {
+    if (!G || !canActNow()) return;
+    clearSel();
+    tapSquare(from);
+    if (sel !== from) return;
+    if (promoKind) {
+      askPromotion(from, to);
+      var b = $("promoRow").children[[Chess.Q, Chess.N, Chess.R, Chess.B].indexOf(promoKind)];
+      if (b) b.click();
+      return;
+    }
+    tapSquare(to);
+  });
+}
+function kbSubmit(text) {
+  if (!G || over) { kbTypeClose(true); return false; }
+  if (viewPly >= 0) exitView();
+  if (!canActNow(true)) { kbTypeFail(accWhyNot()); return false; }
+  var r = Access.parse(G, text);
+  if (r.error) { kbTypeFail(r.error); return false; }
+  kbTypeClose(true);
+  if (r.promote) kbPlay(r.promote.from, r.promote.to, 0);
+  else kbPlay(r.move.from, r.move.to, r.move.promo ? Math.abs(r.move.promo) : 0);
+  return true;
+}
+
+/* ---- the key card ---- */
+function kbShowKeys() {
+  var html = "<b>The keys</b>";
+  Access.KEYS.forEach(function (grp) {
+    html += '<span class="kbGroup">' + grp[0] + "</span>";
+    grp[1].forEach(function (row) {
+      html += '<span class="kbRow"><kbd>' + escHtml(row[0]) + "</kbd><span>" + escHtml(row[1]) + "</span></span>";
+    });
+  });
+  ask(html, [{ label: "Done", fn: function () {} }]);
+}
+function accWhere() {
+  if (!G) return;
+  var last = G.played[G.played.length - 1];
+  accSay(Access.position(G) + (last ? " The last move: " + Access.sayMove(last.m, last.san) + "." : ""));
+}
+var KB_SHORT = { U: "btnUndo", H: "btnHint", F: "btnFlip", L: "btnReplay", M: "btnMenu" };
+
+function accSyncSettings() {
+  [["accMoves", "moves"], ["accAll", "all"], ["accOff", "off"]].forEach(function (p) {
+    var b = $(p[0]);
+    if (b) { b.classList.toggle("sel", prefs.speak === p[1]); b.setAttribute("aria-pressed", prefs.speak === p[1] ? "true" : "false"); }
+  });
+}
+
+function accWire() {
+  /* every card a dialog, named by its heading */
+  [].forEach.call(document.querySelectorAll("body > .ov"), function (ov) {
+    if (!ov.hasAttribute("role")) ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-modal", "true");
+    if (!ov.hasAttribute("aria-labelledby")) {
+      var h = ov.querySelector("h1, h2");
+      if (h) { if (!h.id) h.id = "accH_" + ov.id; ov.setAttribute("aria-labelledby", h.id); }
+      else ov.setAttribute("aria-label", ov.id === "ovProfile" ? "Your record" : "A card");
+    }
+    new MutationObserver(accSyncFocus).observe(ov, { attributes: true, attributeFilter: ["class"] });
+  });
+  if ($("studio")) new MutationObserver(accSyncFocus).observe($("studio"), { attributes: true, attributeFilter: ["aria-hidden"] });
+  accSyncFocus();
+
+  /* the boards: something a screen reader can name and a keyboard can
+     reach. A click is not an invitation: the board only keeps focus that
+     came from the keyboard, so ← → still step through the game for a
+     mouse (and a finger) exactly as before. */
+  ["cv2", "cv3"].forEach(function (id) {
+    var cv = $(id);
+    if (!cv) return;
+    cv.tabIndex = 0;
+    cv.setAttribute("role", "application");
+    cv.setAttribute("aria-roledescription", "chess board");
+    cv.setAttribute("aria-label", "Chess board. Arrow keys move around it, Enter picks up and sets down, " +
+      "or type a move such as Nf3. Shift W reads the position; slash lists the keys.");
+    cv.addEventListener("focus", function () {
+      if (Date.now() - accPointerAt < 400) { cv.blur(); return; }
+      if (!G) return;
+      if (accCur < 0) accCur = sel >= 0 ? sel : G.kings[(mode === "coach" ? humanSide : G.turn) === 1 ? 0 : 1];
+      accShowCursor();
+      accSquareSay(accCur);
+    });
+    cv.addEventListener("blur", function () { if (R && R.setCursor) { R.setCursor(-1); needFrame(); } });
+  });
+  document.addEventListener("pointerdown", function () { accPointerAt = Date.now(); }, true);
+
+  /* the move list keeps its place under the keyboard while it is redrawn */
+  var listHadFocus = false;
+  document.addEventListener("focusin", function (e) { listHadFocus = !!(e.target.closest && e.target.closest("#moveList")); });
+  document.addEventListener("pointerdown", function (e) { if (!(e.target.closest && e.target.closest("#moveList"))) listHadFocus = false; }, true);
+  if ($("moveList")) new MutationObserver(function () {
+    var a = document.activeElement;
+    if (!listHadFocus || (a && a !== document.body && document.contains(a))) return;
+    var c = $("moveList").querySelector(".m.cur") || $("moveList").querySelector(".m:last-of-type");
+    if (c) c.focus({ preventScroll: true });
+  }).observe($("moveList"), { childList: true });
+
+  /* the entry for a typed move */
+  var inp = $("kbIn");
+  if (inp) {
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); kbBusy = true; kbSubmit(inp.value); kbBusy = false; }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); kbTypeClose(true); }
+      else if (e.key === "Backspace" && !inp.value) { e.preventDefault(); kbTypeClose(true); }
+    });
+    inp.addEventListener("input", function () { $("kbMsg").textContent = ""; });
+    inp.addEventListener("blur", function () { if (!kbBusy) setTimeout(function () { if (document.activeElement !== inp) kbTypeClose(false); }, 0); });
+  }
+
+  /* settings: the spoken board, and the way to the key card */
+  [["accMoves", "moves"], ["accAll", "all"], ["accOff", "off"]].forEach(function (p) {
+    var b = $(p[0]);
+    if (b) b.addEventListener("click", function () {
+      prefs.speak = p[1]; savePrefs(); accSyncSettings();
+      if (p[1] !== "off") accSay(p[1] === "all" ? "Moves and every remark will be read." : "Moves will be read.");
+    });
+  });
+  if ($("accKeys")) $("accKeys").addEventListener("click", kbShowKeys);
+  accSyncSettings();
+
+  /* the keys — ahead of the room's own handler, which still has Escape,
+     the arrows, Home, End and "?" for everything not taken here */
+  document.addEventListener("keydown", function (e) {
+    if (!/^(Shift|Control|Alt|Meta|CapsLock|Tab)$/.test(e.key)) accKeyAt = Date.now();
+    var t = e.target;
+    if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var card = accOverlayTop();
+    /* the promotion picker answers to the pieces' letters */
+    if (card && card.id === "ovPromo") {
+      var pi = "qnrb".indexOf(e.key.toLowerCase());
+      if (pi >= 0 && $("promoRow").children[pi]) { e.preventDefault(); e.stopImmediatePropagation(); $("promoRow").children[pi].click(); }
+      return;
+    }
+    if (card) return;
+    if (t && t.closest && t.closest("#studio")) return;
+    if (accBoardFocused() && accBoardKey(e)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (e.key === "/") { e.preventDefault(); kbShowKeys(); return; }
+    if (e.shiftKey && !e.repeat && KB_SHORT[e.key]) {
+      var b = $(KB_SHORT[e.key]);
+      if (b && !b.disabled && accVisible(b)) { e.preventDefault(); b.click(); }
+      return;
+    }
+    if (e.shiftKey && e.key === "W") { e.preventDefault(); accWhere(); return; }
+    if (e.key.length === 1 && /[a-hKQRBNOnrqko0]/.test(e.key) && G && !over &&
+        (mode === "coach" || mode === "pass" || mode === "lan" || mode === "lesson")) {
+      e.preventDefault();
+      if (viewPly < 0 && !canActNow(true)) { accSay(accWhyNot()); return; }
+      kbTypeOpen(e.key);
+    }
+  }, true);
+}
+accWire();
+
+/* for chess/tools/access-check.js */
+function accForTest() {
+  return {
+    saidForTest: function () { return accSaid.slice(); },
+    typeForTest: function (text) { return kbSubmit(text); },
+    cursorForTest: function () { return accCur; },
+    Access: Access
+  };
+}
+
 function boot() {
   /* the first tap anywhere — not only on the board — is the gesture a
      browser wants before it will start an audio clock, and lets the
@@ -6587,6 +7601,7 @@ function boot() {
   wireUI();
   lanHandlers();
   wireFriends();
+  wireNotation();
   initRenderers();
   fxInit();
   applySkin(skin, false);
@@ -6606,6 +7621,8 @@ function boot() {
   offerSharedSkin(1200);
   /* …or a game, or one moment of one */
   offerSharedGame(1400);
+  /* …or a game or position in notation */
+  notationOfferHash(1400);
 
   /* arriving by invite link? straight into the join flow */
   var joinM = location.hash.match(JOIN_HASH);
@@ -6619,7 +7636,7 @@ function boot() {
     } else {
       showMenu();
     }
-  }, REDUCED ? 150 : 900);
+  }, REDUCED ? 150 : Math.max(150, 900 - performance.now()));   /* the splash is a moment, not a wait on top of the load */
 }
 
 try { boot(); } catch (e) { panic(); throw e; }
@@ -6650,7 +7667,6 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   marksForTest: function () { return marks; },
   notesForTest: function () { return notes; },
   get mode() { return mode; }, startGame: startGame, get renderer() { return R; },
-  feedCode: feedCode, openLink: openLink,   /* the join flow's one door, for tests */
   Room: Room, joinByCode: joinByCode, hostFlow: hostFlow, joinFlow: joinFlow,
   get health() { return Net.health(); }, get lanSave() { return loadLan(); },
   rejoinLan: rejoinLan, syncNetChip: syncNetChip,
@@ -6674,4 +7690,7 @@ window.__cr = { get game() { return G; }, Chess: Chess, Book: Book, Net: Net,
   penHoldForTest: function (ms) { PEN_HOLD_MS = ms > 0 ? ms : 420; } };
 helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
+Object.assign(window.__cr, notationForTest());
+Object.assign(window.__cr, accForTest());
+Object.assign(window.__cr, edgeTestHooks());
 })();

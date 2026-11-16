@@ -44,13 +44,14 @@
    fetches everything straight from the network as usual; this worker
    installs behind it, and claims the page so the room works offline
    from then on. */
-const VERSION = '2026.11.16.1';
+const VERSION = '2026.11.16.3';
 const CACHE = 'chessroom-' + VERSION;
 const SHELL = [
   './', './index.html',
   './engine.js', './brain.js', './brain-worker.js', './book.js', './eco.js', './help.js', './teach.js', './learn.js', './rating.js', './skins.js', './scenes.js', './lines.js', './ink.js', './grain.js', './motion.js', './sound.js',
-  './gfx2d.js', './gfx3d.js', './fx.js', './haptics.js', './pieces3d.js', './pieces-classic.js', './room.js', './net.js', './share.js', './friends.js', './app.js',
+  './gfx2d.js', './gfx3d.js', './fx.js', './haptics.js', './press.js', './pieces3d.js', './pieces-classic.js', './room.js', './net.js', './share.js', './friends.js', './pgn.js', './app.js',
   './games.js', './feats.js', './goals.js',
+  './access.js',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png'

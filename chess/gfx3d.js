@@ -2479,7 +2479,7 @@ function create(canvas, opts) {
      along the same ray. Clamped to the board: dragged off the edge, it
      waits at the edge. */
   var DRAG_LIFT = 0.6;
-  var drag = null, hover = -1;
+  var drag = null, hover = -1, cursor = -1;
 
   /* ---------- a man in the hand, and a man set down ----------
      sel: the man you have picked up by tapping. He rises off his square
@@ -2639,6 +2639,12 @@ function create(canvas, opts) {
   R.dragHover = function (sq) {
     var next = sq != null && sq >= 0 && onSq(sq) ? sq : -1;
     if (next !== hover) { hover = next; R.dirty = true; }
+  };
+  /* the keyboard's square (app.js, keys and words), or -1: drawn only
+     when it moves, so a still cursor costs no frames */
+  R.setCursor = function (sq) {
+    var next = sq != null && sq >= 0 && onSq(sq) ? sq : -1;
+    if (next !== cursor) { cursor = next; R.dirty = true; }
   };
 
   var STRIDE = 28;                       /* pos(3) + normal(3) + shade(1) */
@@ -3377,6 +3383,7 @@ function create(canvas, opts) {
     }
     if (sel >= 0) drawFlatSq(sel, th.selected, 0.34);
     if (hover >= 0) drawFlatSq(hover, th.selected, 0.16, null, 0.96, 0.017);
+    if (cursor >= 0) drawFlatSq(cursor, th.selected, 0.14, null, 0.96, 0.017);
     if (R.hi.check >= 0) drawFlatSq(R.hi.check, th.check, 0.26 + 0.30 * pulse.amount);
     if (R.hi.danger.length) {
       var db = dangerBreath(nowMs - R.dangerAt);
@@ -3407,6 +3414,7 @@ function create(canvas, opts) {
        the square's own colour */
     if (sel >= 0) drawEdge(sel, th.selected, 0.72, 1.6);
     if (hover >= 0) drawEdge(hover, th.selected, 0.85, 1.7);
+    if (cursor >= 0) drawEdge(cursor, th.selected, 1, 2.4);   /* the keyboard's square */
     /* the squares a touched man can go to, opening out from under him:
        the nearest first, a few milliseconds a square, each a pool of
        light with a bright heart — and a ring of light round whatever

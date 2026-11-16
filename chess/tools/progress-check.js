@@ -231,7 +231,8 @@ const SIZES = [
       ok(T("…the steps walk through it"), /c4/.test(at) && !/e5/.test(at), at);
       const refused = await page.evaluate(() => { const g = __cr.game, n = g.played.length; return { n, act: document.getElementById("btnHint").disabled && document.getElementById("btnUndo").disabled }; });
       ok(T("…it is a replay: no hint, no take-back"), refused.act);
-      await step("Copy PGN");
+      await step("PGN · FEN");
+      await page.locator("#askRow button", { hasText: "Copy PGN" }).click(); await page.waitForTimeout(120);
       const one = await page.evaluate(() => window.__copied.slice(-1)[0] || "");
       ok(T("…Copy PGN gives the game, marks and all"), /\[White "You"\]/.test(one) && /\[Black "Acorn"\]/.test(one) && /Qxf7#/.test(one) && /1-0\s*$/.test(one), one.slice(0, 160));
       await step("Done");

@@ -142,6 +142,13 @@ ink.js              the pen: what you draw, kept with the position — your
                     drawn on, rubbed out by drawing them again, capped,
                     saved, and read back from a save one shape at a time
                     so a bad mark never costs the game it came with
+access.js           the board in words, and moves typed in: a move as a
+                    sentence ("White: knight to f3, check"), a square,
+                    the whole position, a result; a reader for what
+                    people type (Nf3, nf3, exd5, ed5, O-O, 0-0, e8=Q,
+                    e8Q, e2e4, e7e8q) matched against the legal moves,
+                    which says why when it cannot pick one; and which
+                    way an arrow key walks a turned board
 grain.js            the surface of the board, as pixels: a hash, a value
                     noise built on it, a few octaves of that, and three
                     recipes — rings cut at a slant, veins through cloud,
@@ -247,6 +254,13 @@ fx.js               the big moments, as light: a layer over the board for
                     per step, a shake, a buzz. Procedural sprites, 400
                     particles at most, asleep and a pixel big when idle,
                     nothing at all under reduced motion
+press.js            what a finger does to a button: when a key goes down, how
+                    long it stays down (long enough to be seen, however
+                    quick the tap), where on it the light falls, and that
+                    a finger starting a scroll presses nothing; and the
+                    on/off chips told to a screen reader as switches. The
+                    look is CSS ("the keys" in index.html); this is only
+                    the moments
 haptics.js          what the game feels like in the hand: a vocabulary of
                     named moments (a pick-up, a detent, a landing weighted
                     by the man, a capture weighted by what it took, a
@@ -268,6 +282,14 @@ share.js            a game you can send: the moves, the names and the
                     rebuilds every field and replays every move before
                     believing any of it, the share sentence, and PGN.
                     Pure: no DOM, no storage
+pgn.js              notation, both ways: a strict PGN writer (the
+                    seven-tag roster, [SetUp]/[FEN] for a set-up start,
+                    lines under 80 columns) that the journal and game
+                    links write through; a forgiving reader (comments,
+                    side lines, NAGs, 0-0, e8Q, several games at once)
+                    that replays every move and stops, saying which and
+                    why, at the first that is not legal; and a FEN check
+                    stricter than the engine's own loader. Pure
 friends.js          your people: everyone you have played on another
                     device, by a quiet random id, with the score between
                     you and your last few games together. Kept on this
@@ -327,6 +349,13 @@ tools/              dev-only, never shipped:
                     drawing stays with its position through moves, a look
                     back, a reload and a take-back, and a drawn-on board
                     sleeps
+  access-check.js   keys and words: every legal move in a few hundred
+                    positions reached by its SAN, its two squares and in
+                    lower case; the ways people mistype; the words for
+                    moves, squares and positions; then a real browser on
+                    both boards — Tab kept inside an open card, focus in
+                    and back out, the live region after a move, a move
+                    made with the arrows, a game typed to mate
   pieces-check.js   every set builds at both qualities, closed, facing
                     outwards, and wound consistently face by face (a
                     single backwards cap survives a volume test and looks
@@ -401,6 +430,14 @@ tools/              dev-only, never shipped:
                     (crown on the wood whichever way he fell, never under
                     it), the men arriving in order from the player's side,
                     and a camera spring that arrives without overshooting
+  press-check.js    a key goes down when it is pressed: in node, press.js
+                    against a pretend page and a clock stepped by hand (a
+                    mouse press at once, a quick tap still seen, a scroll
+                    pressing nothing, a disabled key silent); in a browser,
+                    phone and laptop, every kind of key has an edge and
+                    travels onto it, comes back, still lands when pressed
+                    on its top edge, the switches are switches, each kind
+                    has its pitch, and reduced motion moves nothing
   haptics-check.js  every moment the game asks for is written down and
                     sane (whole positive milliseconds, pulse to pulse, no
                     gap a tick could smear across, all over in under a
@@ -459,6 +496,17 @@ tools/              dev-only, never shipped:
                     stepping through, the receiver's coach marking the
                     blunder, playing on (friendly against the coach), a
                     link to one moment with a question, a damaged link
+  pgn-check.js      notation goes out and comes back the same game: in
+                    node, real and 300 seeded games round-trip from the
+                    usual start and from set-up positions, sloppy and
+                    hostile pastes, the first illegal move named, noise
+                    that never throws, the FEN check on good and bad
+                    positions, one writer for the journal and links; in a
+                    browser, on a phone and a laptop, a PGN pasted and
+                    stepped through, PGN and FEN copied out and read back,
+                    a FEN played on against the coach and reloaded still
+                    unrated, a take-back, a mate the end card won't rate,
+                    and #fen= / #pgn= links offered
   friends-check.js  the room remembers who you play: in node, the store
                     against junk, renames, a game recorded twice, an old
                     board with no id, two Sams, the decider and a friend's
@@ -582,6 +630,14 @@ tools/              dev-only, never shipped:
                     it ships this worker over a copy of the old
                     network-first one and checks the old worker's last
                     mixed visit heals itself, without a tap
+  edges-check.js    the rough edges stay filed down, in a real browser: a
+                    phone on its side keeps its labels and its near ranks;
+                    a stalled page is charged the time, a hidden one pauses
+                    on this device and pays on return between two, a flag
+                    that fell while away falls at once; the custom clock
+                    and its bounds; always a queen, and the picker that
+                    still asks with a reason; each recovery choice and what
+                    survives it
   pieces-preview.html
                     every set lined up under the board's own shader, with
                     wireframe and baked-occlusion views. Open it from a
@@ -909,7 +965,8 @@ and, if it draws itself, one entry in `PROFILE_TABS` in app.js.
 Each store is `localStorage` under `chessroom_` — `chessroom_games`,
 `chessroom_feats`, `chessroom_goal` — rebuilt field by field by a pure
 module with a `clean()` that node checks against junk, and wiped by the
-recovery card's fresh start with everything else. `games-check.js`,
+recovery card's *Erase everything* with everything else (its *clear the
+game in progress* keeps them). `games-check.js`,
 `feats-check.js` and `goals-check.js` hold the rules to account in node;
 `progress-check.js` walks it all in a real browser, on a phone and on a
 laptop.
@@ -1232,7 +1289,7 @@ the greeting that already carried your name, so two people both called
 Sam stay two people and a Sam who renames herself is still Sam. The id
 crosses the direct link and nothing else; the list never leaves the
 phone, *Forget* on a row forgets that person, and the recovery card's
-fresh start forgets everyone.
+*Erase everything* forgets everyone.
 
 It shows where it matters. When the boards link: "Sam again! You lead
 3–2." On the end card, the rematch button carries the score — and at one
@@ -1246,6 +1303,61 @@ your people, or opened for you. Nothing ranks anybody, and friend games
 never touch your rating.
 
 `node chess/tools/share-check.js` · `node chess/tools/friends-check.js`
+
+## Notation: PGN and FEN
+
+Every chess program speaks two plain-text languages: PGN for a game and
+FEN for a position. The room now speaks both, out and in (`pgn.js`).
+
+**Out.** Wherever the moves are, one chip — *📋 PGN · FEN* — copies the
+game as PGN or the position as FEN: in the lobby beside *Send this game
+so far* for the game in progress, and in the bar of the journal's viewer
+and the sent-game viewer. When you are looking back at an earlier move,
+the FEN is the position you are looking at. The PGN is the strict kind:
+the seven-tag roster in its order, `[SetUp "1"]` and `[FEN]` when the
+game began from a set-up position, the coach's marks on the moves, lines
+under eighty columns, the result at the end. The journal's *Copy* and a
+sent game's PGN are written by the same writer, so the format lives in
+one place.
+
+**In.** *Open a game or position* (the third tile under *More ways to
+play*) takes a paste, a `.pgn` file chosen or dropped on the card, and
+says what it read before anything opens — "21 moves · White: anna_k ·
+Black: Sam1987 · 0–1", or "A position, Black to move · 7 men". The
+reader is forgiving the way a person is (tags or none, `{}` and `;`
+comments, side lines however deep, `$1` and `!?`, `12...`, `0-0`, `e8Q`,
+`exd6 e.p.`, a paste of several games — the first, and a note) but it
+trusts nothing: every move is played on the room's own rules, and at the
+first one that is not legal it stops, keeps what came before, and names
+the move and the reason ("It stops at 4. Qxf7: no White queen can play
+that here"). A position is checked harder than the engine's loader does:
+exactly one king each, no pawn on the first or last rank, the side not to
+move not in check, at most thirty-two men; castling rights and an
+en-passant square the board can't have are dropped, with a note.
+
+A game opens in the sent-game viewer — one viewer, not a third — where
+the coach reads it as it reads a game sent by a friend, and *Play from
+here* takes over from any move. A position opens on the same board, seen
+from the side to move, with the same *Play from here*: against the coach
+or two players on this screen.
+
+**Set-up positions are honest.** A game that did not begin from the
+usual position carries it everywhere the room rebuilds a board from the
+moves — the save and a reload, a take-back, looking back, the move list
+(which numbers from the position's own move, Black first if it is
+Black's turn). It is never rated, against any coach, and it stays so
+after a reload. It is not kept in the journal either: the journal, its
+feats and the next step are about whole games of your own, and the end
+card says so; its *Send* copies the PGN, because a game link carries
+moves from the usual start only. No opening is named and no book move
+hinted from a set-up position.
+
+**Links.** `#fen=<FEN>` (spaces or lichess's underscores) and
+`#pgn=<URL-encoded PGN>` open the same card, filled in — always offered
+first ("📋 A link with a position, Black to move. Open it?"), never
+opened behind your back, and refused politely when they don't read.
+
+`node chess/tools/pgn-check.js`
 
 ## Where you play
 
@@ -1665,6 +1777,50 @@ desktop) says so under the switch, and everything else still works.
 motor and a fake clock: every pattern sane, the throttle dropping and
 holding as it should, off really off, and one tick per beat on the
 iPhone path.
+
+## The keys
+
+Every button in the room is a key cut from the same block. Its face is
+lit from above and stands a few pixels proud of a darker edge; press it
+and the face travels down onto the edge, a little light falls where it
+was touched, and on release it comes back up on a spring, a hair past
+where it started. Nothing around a key moves when it does: only
+transform, shadow and brightness change.
+
+There are three depths, so the eye can rank a card without reading it.
+Small keys (the chips, the action bar) stand three pixels up; the rows
+and tiles you choose between stand four; and the one hero on a card,
+*Play the computer*, or the rematch when a game ends, stands six, in
+gold, with a slow light crossing it now and then. Gold always means the
+same thing: this is the way forward, or this is what is chosen. A key
+that cannot be pressed sits down in its bed, dim. The quiet way out of a
+toast stays flat, because it is the way out.
+
+The on/off settings are drawn as what they are, switches, with a thumb
+that slides and stretches a little under the finger. The word "On" or
+"Off" stays in the page for a screen reader, with `role="switch"` and
+its state kept true by `press.js`.
+
+A press is made of moments too short to style, so `press.js` keeps them:
+
+- **A quick tap is still seen.** A pressed key stays down at least 110 ms,
+  so the fastest tap shows the whole journey down and back.
+- **A scroll is not a press.** On glass a key waits 70 ms before going
+  down; if the browser takes the touch to scroll, or the finger drifts,
+  it never does. A tap shorter than the wait presses as it ends.
+- **The key knows where it was touched**, so the light is under the
+  finger and not in the middle.
+- **Enter and Space** press a key with the same travel.
+
+Each press has a small dry sound whose pitch says what kind of key it
+was (a plain key, a gold one, the hero, a tab, a quiet link), a switch
+has one voice for on and a lower one for off, and the thumb gets a tick
+where the device can give one. A card's keys arrive a beat apart, top to
+bottom. With reduced motion a press is still marked, by the edge going
+and the face darkening, and nothing moves or arrives.
+
+Without `press.js` every key still presses on `:active`.
+`press-check.js` checks the moments in node and the look in a browser.
 
 ## The room's music
 
@@ -2167,6 +2323,72 @@ come from the end card's look-back as that works through your moves.
 `tools/lookback-check.js` plays a real blunder and checks every line
 lands on the square it names.
 
+## Keys, and a board that speaks
+
+The room can now be played without a mouse, and without seeing it.
+
+**Focus that behaves.** While a card is open, the room behind it is
+inert: Tab stays in the card, and a screen reader cannot wander into
+the game underneath. Opening a card puts focus in it — on its first
+button when it asks a question or offers the promotion picker, on its
+heading otherwise — and closing the last one puts focus back where it
+was. It is one door for every card, an observer on the cards' own
+`hide` class, so none of the two dozen places that open a card had to
+change. The Studio, closed, is out of reach too (it used to leave its
+twenty inputs in the tab order). An amber ring marks focus, for a
+keyboard only: a tap or a click never shows it.
+
+**The board speaks.** Each board is a named control ("Chess board.
+Arrow keys move around it…"), and one polite live region reads the game:
+each move as a sentence — "White: knight to f3, check", "Black: pawn
+from e5 takes knight on d4", "castles kingside", "becomes a queen" —
+with "Your move" when it is; the result; a toast that asks something;
+and whatever answers a key you just pressed. Settings → *Spoken board*:
+**Moves** (the default — a screen-reader user hears the game without
+hunting for a switch, and nobody else hears anything, because the
+region is invisible), **Everything** (every remark of the coach's too),
+or **Off**. Every move in the list carries its sentence as its name,
+and the current move is the list's one stop in the tab order. Shift W
+reads where everything is: whose move, then each side's pieces,
+strongest first, and the last move.
+
+**The board under the keys.** Tab to the board and a cursor appears on
+your king, drawn by both the carved and the flat board, and the square
+is read out ("e1, white king"). The arrows walk it, turned the right way
+when the board is; Enter or Space picks up and sets down, with the same
+sound and feel as a tap and a word on where the piece can go; Escape
+puts it back; `[` and `]` step back and forward through the game. A
+click on the board never takes focus, so for a mouse ← → still look
+back through the game exactly as before. A still cursor costs no
+frames.
+
+**Type a move.** Start typing anywhere outside a text box and a small
+entry opens over the board with your first letter in it: `Nf3`, `e4`,
+`exd5`, `O-O`, `e8=Q`, also `nf3`, `ed5`, `0-0`, `e8Q`, or the two
+squares, `e2e4` / `e7e8q`. Enter plays it through the same door as two
+taps, so lessons, the promotion picker and a friend's board see nothing
+new. When it cannot be played the entry stays and says why — "Nbd2 or
+Nfd2 — which one?", "No knight of yours can go to f3.", "You can't
+castle kingside right now." — and Escape closes it. A pawn sent to the
+last rank with no piece named opens the picker, which answers to Q, N,
+R and B.
+
+**One key for a button.** Shift and a letter that is not a piece:
+**U** take back, **H** help, **F** flip, **L** the last move again,
+**M** the menu, **W** where everything is. Plain letters belong to
+notation (N and R are pieces, a to h are files), `?` to the lamp's "why
+that move", Escape to the cards and the pen, so none of these collides.
+**/** shows the keys; so does Settings → *Spoken board* → *The keys*.
+
+Two honest limits. Nothing is ever spoken through the speakers — the
+words go to your own screen reader, at your own rate; and a typed move
+is read only when you press Enter, so there is no guessing ahead as you
+type.
+
+`tools/access-check.js` holds the reader to every legal move in a few
+hundred positions in Node, then plays on both boards in a real browser
+with the keyboard alone.
+
 ## Two ideas worth explaining
 
 **The racing line.** A racing driver's line is one curve that contains a
@@ -2199,6 +2421,91 @@ gets occasional *free* nudges, unasked — and the player who's ahead
 never does, because they don't need them. The end card shows the ledger
 ("odds given"), names what the game was actually about, and offers the
 matching lesson, so a loss turns into the next thing you learn.
+
+## Your clock, your rules
+
+**Any time control.** The new-game card's clock chips are the six usual
+presets and *Other…*: whole minutes, 1 to 180, and whole seconds added
+back after every move, 0 to 60. The card says what it will start in
+words ("12 minutes each, plus 4 seconds back after every move"), a number
+past the bounds is held to them as it is typed, and the clock you chose
+is remembered for that kind of game, custom or not. The presets are
+written once (`CLK_PRESETS` in app.js; the chips are drawn from it), and
+every clock that arrives from anywhere — a chip, the two fields, a save,
+a remembered preference, the other device's handshake — passes one rule,
+`clkOk`, before it is used. Time odds are not offered yet.
+
+**Time that really passed.** The clock is charged by the wall clock:
+whatever time went by since it was last read. It used to add up the gaps
+between frames and drop any gap over three seconds, so a page the
+browser stopped drawing stopped costing time. Pauses are now said rather
+than guessed:
+
+- Any card over a game on this device stops its clock — the lobby,
+  settings, your record, and now *A friend nearby* too (it used to tick
+  on behind it). One list, `CARDS`, says which cards pause.
+- Out of sight in a game on this device (the coach, or two people on one
+  screen) is a pause, like the menu: the time up to the moment the tab
+  went is charged, the time it was gone is not, and the room says "The
+  clock waited while you were away."
+- Between two devices it is thinking time — the other person waited
+  through it — so it is charged in full the moment you come back, and a
+  flag that fell meanwhile falls then, before you can move. The charge
+  runs from the last time the clock was read, not from when the tab was
+  hidden: a move that arrived while you were away resynced both clocks
+  and restarted yours from that moment, and only the time since is yours
+  to pay.
+
+`node chess/tools/edges-check.js` holds the page's main thread for four
+seconds and checks the four seconds were charged, hides the page in a
+coach game and in a two-device game, and runs a flag down while away.
+
+## Always a queen
+
+Settings → *Promotion*: *Ask* (the default) or *Always a queen*. Asking
+is the default on purpose — the picker is there for the rare
+underpromotion, and a convenience should not take that away unasked.
+With *Always a queen*, a pawn reaching the last rank becomes a queen in
+the same gesture, with the usual sound and flash. The room still asks
+when the board can prove the queen is the wrong answer — when a knight,
+rook or bishop would mate and the queen wouldn't ("A knight here is
+checkmate — the queen isn't."), or when the queen would stalemate and
+another piece wouldn't. Lessons always ask, because an Academy answer
+can be an underpromotion. In a game between two devices it is your
+device's setting; the move travels as it always did.
+`node chess/tools/edges-check.js`
+
+## When something breaks
+
+Three errors inside eight seconds bring up the recovery card instead of
+a white screen. A promise that fails with nobody listening counts too —
+when it is the kind of failure a bug makes (a `TypeError`, a
+`ReferenceError`…); a network that is down, a permission refused or a
+share sheet dismissed is not the room breaking, and never raises it.
+
+The card says what happened in plain words, and where when it can tell
+("…while drawing the 3D board"). *The technical line* opens the message,
+file and line, 2D or 3D, the kind of game and how many moves in, with a
+button that copies it for a bug report; the last five errors are kept
+for this tab only, so nothing about a crash outlives the tab unless you
+copy it. Then the choices, each saying what it costs:
+
+- **Try again** — reloads the room. Almost always enough.
+- **Try again in 2D** — if the 3D board is the trouble.
+- **Keep my record, clear the game in progress** — forgets only the
+  unfinished game (on this device or between two, and the four letters
+  it was reached by). Your rating, stars, lessons, journal, friends,
+  skins and settings stay.
+- **Erase everything on this device…** — asks first, naming what goes
+  (your rating and its history — "a rating of 1043 from 7 games" — your
+  ladder stars, Academy lessons, the journal, feats, friends, saved
+  skins, settings and any game in progress), and only then erases it.
+
+The old card's single *Fresh start* did that last thing under a label
+that said "Clears the saved game and settings". And a browser that will
+not keep what the room saves — a private window, a full disk — is told
+so once, rather than discovered after a reload.
+`node chess/tools/edges-check.js`
 
 ## Why it's honest
 
@@ -2273,9 +2580,10 @@ matching lesson, so a loss turns into the next thing you learn.
   parses but lies; if the 3D context is lost the same game continues in
   2D on the spot, and *try 3D again* builds a fresh renderer on a fresh
   canvas rather than asking the dead one; repeated errors offer a
-  recovery card instead of a white screen, and its *Fresh start* forgets
-  everything the room ever wrote — the Academy and the score included,
-  either of which, damaged, could otherwise strand it again.
+  recovery card instead of a white screen, which says what happened and
+  offers, in order, to try again, to try again in 2D, to clear only the
+  game in progress (keeping your record), and — after naming everything
+  it would take — to erase everything the room ever wrote.
 
 ## Run it locally
 
@@ -2297,6 +2605,7 @@ node chess/tools/lesson-check.js   # every lesson sound; spacing maths; junk sav
 node chess/tools/skin-check.js     # presets, share codes, hostile input
 node chess/tools/lines-check.js    # every line the room draws: one grammar, drawn on, then still
 node chess/tools/ink-check.js      # the pen: drawn by mouse and finger, kept with its position
+node chess/tools/access-check.js   # keys and words: typed moves, the board by arrows, focus kept in a card
 node chess/tools/engine-check.js   # the coach is right (--slow adds a ladder match)
 node chess/tools/rating-check.js   # the score is honest, and every rung plays its recipe
 node chess/tools/games-check.js    # the journal keeps what happened, and gives it back as PGN
@@ -2311,6 +2620,7 @@ node chess/tools/fx-check.js       # every big moment lands on its square, then 
 node chess/tools/feel-check.js     # the board has weight, and comes to rest
 node chess/tools/motion-check.js   # every piece arrives, and no two the same way
 node chess/tools/haptics-check.js  # every moment is felt, on time, and never smeared
+node chess/tools/press-check.js    # every key goes down under a finger, shows it, and comes back
 node chess/tools/grain-check.js    # the wood is wood, and the same board twice is the same board
 node chess/tools/coach-check.js    # the room notices, says it, and keeps it
 node chess/tools/help-check.js     # the lamp tells the truth, asks when it should; the wheels see real danger
@@ -2324,7 +2634,9 @@ node chess/tools/play-check.js     # sit down, play, come back — and the playt
 node chess/tools/features-check.js # every button in the room, on a phone and a laptop
 node chess/tools/share-check.js    # a game you send arrives whole, and a bad link is refused
 node chess/tools/friends-check.js  # two phones, a challenge that waits, and the score between them
+node chess/tools/pgn-check.js      # a game goes out as PGN and comes back the same game; a FEN only if it can stand
 node chess/tools/lookback-check.js # the line behind the words lands on the square it names
+node chess/tools/edges-check.js    # the rough edges stay filed down: clocks, auto-queen, recovery
 node chess/tools/crosscheck.js     # (dev dep) agreement with chess.js
 ```
 
@@ -2334,10 +2646,12 @@ Or from the repo root, in three groups by how long they take:
 npm run check:chess            # the everyday set: rules, book, teacher, lessons, skins,
                                # lines, ink, pieces, engine, brain, offline, touch, play, rating,
                                # sound, motion, haptics, the journal, feats, the
-                               # next step, share, friends (and progress-check,
-                               # share-check, friends-check and lookback-check in a browser)
+                               # next step, share, friends, notation, the rough edges
+                               # (and progress-check, share-check, friends-check,
+                               # pgn-check, edges-check and lookback-check in a browser)
 npm run check:chess:fx         # fx-check and gfx-check: slow under software 3D
 npm run check:chess:features   # features-check: the whole room, twice over; then the look-back
+npm run check:chess:all        # all three of the above, one after another
 ```
 
 The ones that open a browser need `playwright-core` and a Chromium on
