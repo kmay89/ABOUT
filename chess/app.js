@@ -91,23 +91,36 @@ function savePrefs() { lsSet(PREF_KEY, JSON.stringify(prefs)); }
    it is instant and allowed at any time — including mid-game, which is
    the whole point of the Studio. */
 var skin = Skins.clean(prefs.skin || Skins.PRESETS[0], "Walnut Study");
-function applySkin(s, save) {
-  skin = Skins.clean(s);
-  if (R2) R2.setSkin(skin);
-  if (R3) R3.setSkin(skin);
+/* `skin` is always your own choice. What is on the table can be someone
+   else's: a coach plays you on its own board (see "the coaches' boards"),
+   and wornHome names that coach while it does. */
+var wornHome = null, homeOff = null;
+function look() { return (wornHome && Skins.homeOf(wornHome)) || skin; }
+function paintSkin(s) {
+  if (R2) R2.setSkin(s);
+  if (R3) R3.setSkin(s);
   /* the room around the board follows the board */
   var root = document.documentElement;
-  root.style.setProperty("--room", skin.room.bg);
-  root.style.setProperty("--amber", skin.marks.select);
-  root.style.setProperty("--glow", skin.marks.last);
-  root.style.setProperty("--plan", skin.marks.plan);
+  root.style.setProperty("--room", s.room.bg);
+  root.style.setProperty("--amber", s.marks.select);
+  root.style.setProperty("--glow", s.marks.last);
+  root.style.setProperty("--plan", s.marks.plan);
   var meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", skin.room.bg);
+  if (meta) meta.setAttribute("content", s.room.bg);
   /* the pieces' material and the board's finish are both part of how
      they sound, so the synth hears about a skin change too */
-  if (typeof Sound !== "undefined") Sound.setSkin(skin);
-  if (save !== false) { prefs.skin = skin; savePrefs(); }
+  if (typeof Sound !== "undefined") Sound.setSkin(s);
   needFrame();
+}
+function applySkin(s, save) {
+  skin = Skins.clean(s);
+  /* choosing a look is choosing it now: the coach's board steps aside
+     for the rest of this game */
+  wornHome = null;
+  /* (the game itself, not a ticket: a take-back must not bring it back) */
+  if (G && mode === "coach") homeOff = G;
+  paintSkin(skin);
+  if (save !== false) { prefs.skin = skin; savePrefs(); }
 }
 
 /* ===== sound =====
@@ -229,7 +242,7 @@ function fxCapture(desc, took, plan) {
     if (R.hitStop) R.hitStop(45 + 50 * power);
     if (R.kick) R.kick(0.35 + 0.65 * power, sq);
     if (!FX) return;
-    Fx.capture(sq, { piece: took, power: power, color: took > 0 ? skin.pieces.white : skin.pieces.black });
+    Fx.capture(sq, { piece: took, power: power, color: took > 0 ? look().pieces.white : look().pieces.black });
     hap("capture", { power: power, soft: hapTheirs(desc.piece) });
   }, plan ? plan.dur * plan.travel : 0);
 }
@@ -255,7 +268,7 @@ function fxPromote(desc, plan) {
 function fxCheck(kingSq) {
   if (kingSq != null && kingSq >= 0 && R && R.kick) { R.kick(0.24, kingSq); needFrame(); }
   if (!FX || kingSq == null || kingSq < 0) return;
-  Fx.check(kingSq, { color: skin.marks.check });
+  Fx.check(kingSq, { color: look().marks.check });
   hap("check");
 }
 /* win: true (you delivered it), false (it was delivered to you), null
@@ -470,7 +483,7 @@ function useRenderer(r) {
   $("cv3").classList.toggle("hide", R !== R3);
   $("cv2").classList.toggle("hide", R !== R2);
   if (typeof syncTilt === "function") syncTilt();
-  R.setSkin(skin);
+  R.setSkin(look());
   R.setOrientation(orientation);
   R.resize();
   if (G) { R.setPosition(currentViewBoard()); syncBoard(); fxRelay(); }
@@ -722,6 +735,7 @@ function tagHTML(side) {
 function syncTagState() {
   var topSide = -orientation, botSide = orientation;
   castPlace();                 /* the coach's face follows its tag when the board turns */
+  homeSync();                  /* and a coach game is played on the coach's board */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
   var live = G && !over && viewPly < 0 && mode && mode !== "tour";
@@ -2369,6 +2383,7 @@ function renderEndRating(rs, cardAt) {
   box.classList.toggle("hide", !rs);
   $("endNext").classList.add("hide");
   milesReset(cardAt, rs);
+  homeOnEnd(rs);
   if (!rs) return;
   var out = rs.out, before = Math.round(out.before), after = Math.round(out.after);
   $("endRateNum").textContent = before;
@@ -2536,7 +2551,7 @@ function renderLobby() {
     b.setAttribute("role", "listitem");
     b.setAttribute("aria-label", "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
     b.innerHTML = '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
-      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" +
+      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" + homeLadderChip(Lv.id) +
       (Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
     b.addEventListener("click", function () { quickPlay(Lv.id); });
     lad.appendChild(b);
@@ -5905,6 +5920,9 @@ function renderStudio() {
     ? "The place, quietly, under the game: birds and a breeze, a café\u2019s murmur, a fire, a page turned."
     : "The place is seen and not heard.";
 
+  /* the coaches' boards: won, not chosen */
+  homeStudio();
+
   /* gallery: the house set, then anything you saved or a friend sent */
   var box = $("stPresets");
   box.innerHTML = "";
@@ -6586,6 +6604,7 @@ function wireUI() {
   clkWire();
   aqWire();
   castWire();
+  homeWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
@@ -7051,6 +7070,8 @@ function castMeet() {
   $("meetName").textContent = (lv ? lv.emoji + " " : "") + who.name;
   $("meetTitle").textContent = who.title.charAt(0).toUpperCase() + who.title.slice(1) + (lv ? " · rated " + lv.elo : "");
   $("meetHint").textContent = humanSide === 1 ? "You have White: your move." : "You have Black: " + who.name + " opens.";
+  homeSync();
+  homeMeetLine();
   var text = Cast.line(skill, "hello", 0), box = $("meetSay"), card = $("castMeet");
   box.textContent = "";
   card.classList.remove("leave");
@@ -7124,8 +7145,13 @@ function castAtEnd(result) {
   if (!who) return;
   castHush();
   var coachWon = (result === "white" && humanSide === -1) || (result === "black" && humanSide === 1);
-  var kind = result === "draw" ? "draw" : coachWon ? "win" : "lose";
-  setTimeout(function () { if (castWho() === who) castSay(kind, kind === "win" ? "win" : kind === "lose" ? "lose" : "happy"); }, REDUCED ? 100 : 900);
+  var kind = result === "draw" ? "draw" : coachWon ? "win" : "lose", lvl = skill;
+  setTimeout(function () {
+    if (castWho() !== who) return;
+    /* beaten for the first time, it hands over its board instead */
+    if (kind === "lose" && homeJust === lvl) castSay("gift", "lose");
+    else castSay(kind, kind === "win" ? "win" : kind === "lose" ? "lose" : "happy");
+  }, REDUCED ? 100 : 900);
   if (castFace) castFace.wake(3000);
 }
 /* the ladder shows who you would be playing: each coach's face, as a
@@ -7160,6 +7186,136 @@ function castWire() {
   });
   castSync();
 }
+/* ===== the coaches' boards =====
+   Every coach plays you on its own board: Acorn on a cut stump, Cactus
+   on sand and terracotta, Pine on frost, Oak at the library table. The
+   first time you beat one in a rated game, its board is yours to use
+   anywhere (the first star on the ladder, made into something you can
+   see). Your own look is never changed by this: `skin` stays yours, and
+   the coach's board is only worn (`wornHome`) while you play that coach.
+   Settings can turn it off, and choosing anything in the Studio during
+   a game keeps your choice for the rest of that game. */
+var homeJust = null;            /* the coach whose board this game has just won */
+(function () {
+  var stored = {};
+  try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
+  prefs.homeBoards = !(stored.homeBoards === false || stored.homeBoards === "false");
+})();
+function homeUnlocked(id) { var r = ladder.rungs[id]; return !!(r && r.stars[0]); }
+function homesWon() { return Rating.LEVELS.filter(function (Lv) { return homeUnlocked(Lv.id); }).length; }
+function homeWanted() {
+  if (mode !== "coach" || !G || !prefs.homeBoards || homeOff === G) return null;
+  return Skins.homeOf(skill) ? skill : null;
+}
+function homeSync() {
+  var want = homeWanted();
+  if (want === wornHome) return;
+  wornHome = want;
+  paintSkin(look());
+}
+function homeSwatch(h, cls) {
+  return '<span class="' + (cls || "swatch") + '" aria-hidden="true">' +
+    '<i style="background:' + h.board.light + '"></i><i style="background:' + h.board.dark + '"></i>' +
+    '<i style="background:' + h.board.dark + '"></i><i style="background:' + h.board.light + '"></i>' +
+    '<b style="background:' + h.pieces.white + ';border-color:' + h.board.rim + '"></b>' +
+    '<b style="background:' + h.pieces.black + ';border-color:' + h.board.rim + '"></b></span>';
+}
+/* what the meeting says about the board you are sitting at */
+function homeMeetLine() {
+  var el = $("meetBoard"), h = wornHome && Skins.homeOf(wornHome);
+  if (!el) return;
+  el.classList.toggle("hide", !h);
+  if (!h) return;
+  el.innerHTML = homeSwatch(h, "mbSw") + "<span></span>";
+  el.querySelector("span:last-child").textContent = homeUnlocked(wornHome)
+    ? "On " + h.name + " — already yours."
+    : "On " + h.name + " — win and it’s yours.";
+}
+/* the end card: called once the game has been counted */
+function homeOnEnd(rs) {
+  homeJust = null;
+  if (!rs || rs.s !== 1 || rs.newStars.indexOf(0) < 0) return;
+  var h = Skins.homeOf(rs.level);
+  if (!h) return;
+  homeJust = rs.level;
+  var mine = skin.name === h.name;
+  pushMile("🎨", "<b>Board won:</b> " + escHtml(h.name) + " — yours to play on anywhere. " +
+           (mine ? "" : '<button class="chip erUse" data-home="' + escHtml(rs.level) + '">Use it</button>'),
+           { cls: "unlock", sting: "milestone", hap: "success", big: true });
+}
+/* the ladder: each coach's board, small, under its stars — in colour
+   once it is yours, behind a lock until then */
+function homeLadderChip(id) {
+  var h = Skins.homeOf(id);
+  if (!h) return "";
+  var got = homeUnlocked(id);
+  return '<span class="rgBoard' + (got ? " got" : "") + '" title="' + escHtml(h.name + (got ? " — yours" : " — win to take it home")) + '">' +
+         homeSwatch(h, "rbSw") + (got ? "" : '<em aria-hidden="true">🔒</em>') + "</span>";
+}
+/* the Studio: the coaches' boards as a shelf of their own */
+function homeStudio() {
+  var box = $("stHomes");
+  if (!box) return;
+  box.innerHTML = "";
+  var n = homesWon();
+  $("stHomesNote").textContent = (wornHome && Skins.homeOf(wornHome)
+    ? "You're on " + Skins.homeOf(wornHome).name + " for this game. Choose anything here to play on it instead. "
+    : "") + (n ? n + " of " + Rating.LEVELS.length + " won." : "Beat a coach in a rated game to take its board home.");
+  Rating.LEVELS.forEach(function (Lv) {
+    var h = Skins.homeOf(Lv.id);
+    if (!h) return;
+    var got = homeUnlocked(Lv.id), b = document.createElement("button");
+    b.className = "preset home" + (got ? "" : " locked") + (got && h.name === skin.name ? " sel" : "");
+    b.innerHTML = homeSwatch(h) + '<span class="pt"><b></b><small></small></span>' + (got ? "" : '<span class="lock" aria-hidden="true">🔒</span>');
+    b.querySelector(".pt b").textContent = h.name;
+    b.querySelector(".pt small").textContent = got ? h.note : "Beat " + Lv.emoji + " " + Lv.name + " (" + Lv.elo + ") to take this board home.";
+    b.setAttribute("aria-label", h.name + (got ? "" : ", locked: beat " + Lv.name + " to unlock it"));
+    b.addEventListener("click", function () {
+      if (!homeUnlocked(Lv.id)) {
+        hap("nope");
+        toast(Lv.emoji + " " + escHtml(Lv.name) + "’s board is won, not chosen. You play on it every time you play " +
+              escHtml(Lv.name) + " — beat " + escHtml(Lv.name) + " once and it’s yours.", null, 3600);
+        return;
+      }
+      applySkin(Skins.homeOf(Lv.id)); renderStudio();
+    });
+    box.appendChild(b);
+  });
+}
+function homeSyncSetting() {
+  var b = $("setHomes");
+  if (!b) return;
+  b.classList.toggle("sel", !!prefs.homeBoards);
+  b.textContent = prefs.homeBoards ? "On" : "Off";
+}
+function homeWire() {
+  $("setHomes").addEventListener("click", function () {
+    prefs.homeBoards = !prefs.homeBoards; savePrefs(); homeSyncSetting();
+    homeOff = null;
+    homeSync();
+  });
+  /* "Use it" on the end card makes the board just won your own look */
+  $("endMiles").addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-home]");
+    if (!b) return;
+    var id = b.getAttribute("data-home"), h = Skins.homeOf(id);
+    if (!h || !homeUnlocked(id)) return;
+    applySkin(h);
+    b.textContent = "✓ Yours"; b.disabled = true;
+    toast("🎨 " + escHtml(h.name) + " is your board now, for every game. Change it any time in 🎨 The look.", null, 3200);
+  });
+  homeSyncSetting();
+}
+function homeForTest() {
+  return {
+    homeState: function () {
+      return { worn: wornHome, wornName: look().name, own: skin.name, on: !!prefs.homeBoards,
+               unlocked: Rating.LEVELS.filter(function (Lv) { return homeUnlocked(Lv.id); }).map(function (Lv) { return Lv.id; }),
+               just: homeJust };
+    }
+  };
+}
+
 function castForTest() {
   return {
     castState: function () {
@@ -7950,6 +8106,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest());
+Object.assign(window.__cr, castForTest(), homeForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
