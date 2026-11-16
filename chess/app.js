@@ -2580,7 +2580,7 @@ function renderLobby() {
     b.setAttribute("role", "listitem");
     b.setAttribute("aria-label", "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
     b.innerHTML = '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
-      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" + homeLadderChip(Lv.id) +
+      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" + homeLadderChip(Lv.id) + unlRungPeek(Lv.id) +
       (Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
     b.addEventListener("click", function () { quickPlay(Lv.id); });
     lad.appendChild(b);
@@ -7896,6 +7896,14 @@ function unlIcon(it, big) {
   return '<span class="ulGlyph">' + it.emoji + "</span>";
 }
 
+/* on the ladder: what this coach still has to give you, the next one */
+function unlRungPeek(id) {
+  if (!unl || !unlOk()) return "";
+  var it = Unlocks.ITEMS.filter(function (x) { return x.from.coach === id && !unl.owned[x.id] && x.kind !== "skill" && x.kind !== "board"; })
+    .sort(function (a, b) { return a.from.star - b.from.star; })[0];
+  if (!it) return '<span class="rgGift done" title="Everything this coach has to give is yours">\u2713</span>';
+  return '<span class="rgGift" title="' + escHtml("Next from this coach: " + it.name + " \u2014 " + Unlocks.howTo(it)) + '">\ud83c\udf81<i>' + it.emoji + "</i></span>";
+}
 /* ---- the collection ---- */
 var unlTab = "board";
 function openCollection(tab) {
