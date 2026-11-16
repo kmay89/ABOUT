@@ -144,9 +144,12 @@ const FS = `__cr.renderer.feelState()`;
       f = await page.evaluate(STEP(400));
       ok(dim + ": the man you pick up rises off his square", f.sel === 0x14 && f.selLift > 0.1,
          JSON.stringify(f));
-      await page.evaluate(STEP(900));
+      /* the lift is over in a beat; the selection's halo (main's
+         selectPulse) breathes for a little over two seconds; after both,
+         nothing on a board with a man in hand should need a frame */
+      await page.evaluate(STEP(2100));
       const quiet = await page.evaluate(`(() => { window.__t += 16; const r = __cr.renderer; r.dirty = true; r.frame(); return r.frame(); })()`);
-      ok(dim + ": …and within a second holds still, so the board can sleep", quiet === false || quiet === 0);
+      ok(dim + ": …and once the halo has breathed out, holds still, so the board can sleep", quiet === false || quiet === 0);
       /* a note's "look here" marks the square without lifting the man */
       await page.evaluate(() => __cr.renderer.setHighlights({ selected: -1, mark: 0x74 }));
       f = await page.evaluate(STEP(400));

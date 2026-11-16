@@ -985,7 +985,7 @@ function scheduleCoach() {
   syncTurnStrip(); syncButtons();
   clearTimeout(coachTimer);
   coachTimer = setTimeout(function () {
-    if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
+    if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
     var ticket = ++brainTicket;
     var answer = function (res) {
       /* the board may have moved on while it was thinking — a take-back,
@@ -994,7 +994,9 @@ function scheduleCoach() {
          says nothing at all, not even "I've stopped thinking", because a
          newer question may be being thought about right now. */
       if (ticket !== brainTicket) return;
-      if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); return; }
+      /* a thought nobody needs any more: the board is yours again, and
+         what waits on "not thinking" (the training wheels) gets its turn */
+      if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
       thinking = false;
