@@ -1197,11 +1197,12 @@ which is most of the board, finds that out in five lookups, not twenty.
 **Holding the frame rate.** When frames come slowly the first thing to
 go is something nobody can point at: the board is drawn with fewer
 pixels and stretched to fit, a rung at a time (86%, 74%, 64% of the
-width), stopping as soon as the frames are smooth. Only when the
-bottom rung is spent and frames are still coming slower than thirty a
-second does a tier of effects go. One frame rate cannot be told from
-another by its gaps alone, though: a phone in low-power mode draws
-thirty frames a second however little it is asked to do. So the pixels
+width), stopping as soon as the frames are smooth. A device that is
+really struggling (under twenty-five frames a second, where a slide
+judders) is not asked to wait for the ladder: it loses a tier of
+effects at once as well, as it always did. One frame rate cannot be
+told from another by its gaps alone, though: a phone in low-power mode
+draws thirty frames a second however little it is asked to do. So the pixels
 are a trial. If drawing fewer of them all the way down the ladder did
 not make the frames come at least an eighth faster, they were never the
 problem; they are all given back and that door is closed for the

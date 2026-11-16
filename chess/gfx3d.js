@@ -140,7 +140,7 @@ function derive(skin, place) {
     /* the lens's depth (how far the room either side of the board goes
        soft, 0 for none) and the print: see the composite shader */
     focus: REDUCED ? 0.7 : 0.9,
-    punch: 0.34, sat: 1.07, tone: 0.022,
+    punch: 0.34, sat: 1.07, split: 0.022,
     /* the lens's grain, not the board's: the two shared a name once,
        and the lens's few thousandths won — which is why the carved
        board never showed the wood its skin asked for */
@@ -3811,7 +3811,7 @@ function create(canvas, opts) {
     gl.uniform1f(UC.focusTop, band ? band[1] : 1);
     gl.uniform1f(UC.punch, th.punch);
     gl.uniform1f(UC.sat, th.sat);
-    gl.uniform1f(UC.tone, th.tone);
+    gl.uniform1f(UC.tone, th.split);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, scene.tex);
     gl.uniform1i(UC.scene, 0);
@@ -3849,14 +3849,16 @@ function create(canvas, opts) {
    first thing to go is something nobody can point at: the board is
    drawn with a few fewer pixels and stretched to fit (most of a frame
    on a phone is spent filling pixels, so this is also what buys the
-   most). Only when that is spent, and frames are still coming slower
-   than thirty a second, does a tier of effects go.
+   most), a rung at a time, stopping the moment the frames are smooth.
+   A device that is really struggling — under twenty-five frames a
+   second, where a slide judders — is not asked to wait for the ladder:
+   it loses a tier of effects at once as well, as it always did.
 
    One frame rate cannot be told from another by its gaps alone: a
    phone in low-power mode draws thirty frames a second however little
-   it is asked to do, and looks exactly like a phone that is
-   struggling. So the pixels are a trial. If drawing fewer of them all
-   the way down the ladder did not make the frames come at least an
+   it is asked to do, and looks exactly like a phone that is a little
+   short of breath. So the pixels are a trial. If drawing fewer of them
+   all the way down the ladder did not make the frames come at least an
    eighth faster, they were never the problem: they are all given back,
    and that door is closed for the session.
 
@@ -3872,13 +3874,14 @@ function pace(st, p75) {
   if (!(p75 > PACE.TARGET)) { o.watch = false; return o; }       /* smooth: leave it alone */
   if (!o.locked) {
     if (o.origin == null) o.origin = p75;
-    if (o.res < PACE.RES.length - 1) { o.res++; return o; }       /* one rung fewer pixels, and look again */
-    if (p75 > o.origin * PACE.GAIN) o.res = 0;                    /* it never helped: give them back */
-    o.locked = true;
+    if (o.res < PACE.RES.length - 1) o.res++;                     /* one rung fewer pixels, and look again */
+    else {
+      if (p75 > o.origin * PACE.GAIN) o.res = 0;                  /* it never helped: give them back */
+      o.locked = true;
+    }
   }
-  if (p75 <= PACE.SLOW || o.tier <= 0) { o.watch = false; return o; }
-  o.tier--;
-  o.watch = o.tier > 0;
+  if (p75 > PACE.SLOW && o.tier > 0) o.tier--;
+  o.watch = !o.locked || (p75 > PACE.SLOW && o.tier > 0);
   return o;
 }
 

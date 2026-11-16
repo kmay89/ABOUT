@@ -9,8 +9,8 @@
    fewer of them, a rung at a time, and stops as soon as it is smooth; a
    device that is capped at thirty frames a second whatever it draws (a
    phone saving its battery) is given every pixel back, because taking
-   them never helped; and only a device that is slow even at the bottom
-   rung loses a tier of effects.
+   them never helped; and a device that is really struggling loses a
+   tier of effects at once as well.
 
    In a real browser, the carved board: the shadow map is drawn once and
    then kept while nothing that casts has moved (a still board, a camera
@@ -60,14 +60,20 @@ const fresh = () => ({ res: 0, origin: null, locked: false, tier: 2 });
   ok("…with its effects untouched and nothing more to watch", end.tier === 2 && end.watch === false);
 }
 {
-  const s = run(fresh(), [60, 52, 46, 42, 45]);
-  ok("a device that is slow even at the bottom rung keeps the bottom rung (it helped)", s[3].res === FLOOR && s[3].locked);
-  ok("…and only then loses a tier of effects, one at a time", s[3].tier === 1 && s[3].watch === true && s[4].tier === 0 && s[4].watch === false);
+  const s = run(fresh(), [60, 52, 46, 42]);
+  ok("a device that is really struggling loses a tier at once, and a rung of pixels with it", s[0].tier === 1 && s[0].res === 1 && s[1].tier === 0 && s[1].res === 2);
+  ok("…keeps the bottom rung when it gets there (fewer pixels did help), and has nothing left to watch",
+     s[3].res === FLOOR && s[3].locked && s[3].tier === 0 && s[3].watch === false, JSON.stringify(s[3]));
 }
 {
-  const s = run(fresh(), [60, 60, 60, 60, 60]);
-  ok("slow, and fewer pixels made no difference: the pixels come back and the effects go instead",
-     s[3].res === 0 && s[3].locked && s[3].tier === 1 && s[4].tier === 0);
+  const s = run(fresh(), [60, 60, 60, 60]);
+  ok("slow, and fewer pixels made no difference: the pixels come back, the effects stay gone",
+     s[3].res === 0 && s[3].locked && s[3].tier === 0 && s[3].watch === false, JSON.stringify(s[3]));
+}
+{
+  const s = run({ res: 0, origin: null, locked: true, tier: 2 }, [45, 45, 30]);
+  ok("with the ladder closed, a slow device still steps down a tier at a time, and stops when it is no longer slow",
+     s[0].tier === 1 && s[0].watch === true && s[1].tier === 0 && s[1].watch === false);
 }
 {
   const [a] = run({ res: 0, origin: null, locked: true, tier: 2 }, [33.3]);
