@@ -1172,6 +1172,18 @@ function create(canvas) {
       ctx.stroke();
       ctx.restore();
     }
+    /* the square under a carried man: a tint and an edge, as the carved
+       board gives it, so the hand knows where he will be set down */
+    if (hover >= 0 && onBoard(hover)) {
+      fillSq(hover, th.hoverFill, th);
+      var hc = sqXY(hover), hl = Math.max(2, R.cell * 0.05);
+      ctx.save();
+      ctx.strokeStyle = th.hoverEdge;
+      ctx.lineWidth = hl;
+      rr(ctx, hc.x - R.cell / 2 + hl / 2, hc.y - R.cell / 2 + hl / 2, R.cell - hl, R.cell - hl, R.cell * 0.08);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (R.hi.check >= 0) {
       var c = sqXY(R.hi.check);
       var gr = ctx.createRadialGradient(c.x, c.y, R.cell * 0.1, c.x, c.y, R.cell * 0.62);
