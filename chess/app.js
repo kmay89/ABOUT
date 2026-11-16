@@ -4018,6 +4018,8 @@ function showWorkedExample() {
     var g2 = Chess.create(lesson.fen);
     Chess.play(g2, m);
     var wPlan = R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
+      /* Leave was tapped while the man was still moving: nothing to show */
+      if (mode !== "lesson" || lesson !== L0) return;
       lessonUI('<div class="lkick">Watch first</div>' +
         '<div class="lask">' + esc(lesson.best) + '</div>' +
         '<div class="lsay">' + lesson.why + '</div>');
