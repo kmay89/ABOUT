@@ -763,7 +763,7 @@ function syncTagState() {
   unlEmoteSync();              /* and you can send the coach a face, if you have won some */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
-  var live = G && !over && viewPly < 0 && mode && mode !== "tour";
+  var live = G && !over && viewPly < 0 && mode && mode !== "tour" && mode !== "setup";
   $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
   $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
   /* at the table each bar says it to its own player, check and all */
@@ -834,6 +834,7 @@ function syncTurnStrip() {
   if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + notationMoveNo(viewPly); return; }
   if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
   if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
+  if (mode === "setup") { el.innerHTML = "<b>🧩 Setting up the board</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
   var who = sideName(G.turn);
@@ -849,6 +850,7 @@ function endShort() {
 /* ===== board sync & input ===== */
 function currentViewBoard() {
   if (!G) return new Int8Array(128);
+  if (mode === "setup" && setupSt) return Setup.board(setupSt, setupSt.mirrored);
   if (viewPly < 0) return G.board;
   var t = Chess.create(G.startFen);
   for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
@@ -868,6 +870,7 @@ function takenSoFar() {
 }
 function syncBoard() {
   if (!G || !R) return;
+  if (mode === "setup") { setupGlow(); return; }
   if (R.setTaken) R.setTaken(takenSoFar());
   var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1 };
   if (viewPly < 0) {
@@ -910,6 +913,7 @@ function whenLanded(fn) {
 }
 function tapSquare(sq) {
   if (!G) return;
+  if (mode === "setup") { setupTap(sq); return; }
   if (viewPly >= 0) { exitView(); return; }
   if (sel < 0 && !G.board[sq] && clearInkHere()) return;
   if (!canActNow(true)) { clearSel(); syncBoard(); return; }
@@ -1551,7 +1555,8 @@ function welcomeNew() {
   if (!prefs.wheels && !prefs.wheelsOffered) { prefs.wheels = true; prefs.wheelsOffered = true; savePrefs(); }
   /* and a gentle pace, until the room has seen how you play */
   if (pace && !pace.newDoor) { pace.newDoor = 1; paceSave(); }
-  showLearn(0);
+  /* the very first lesson: which piece is which, and where it lives */
+  startSetup({ then: "rules" });
 }
 function welcomeKnow() { quickPlay(nextLevel()); }
 
@@ -1579,6 +1584,7 @@ function lampLabel() {
   return "💡 A move " + (l === "free" ? "· free" : l);
 }
 function giveHint() {
+  if (mode === "setup") { setupHint(); return; }
   if (mode === "lesson" || !G || over || !canActNow() || hintPending) { giveMoveHint(); return; }
   /* notation voice: the person who asked for one line per remark wants
      the move, not a menu */
@@ -3106,6 +3112,7 @@ function startGame(newMode, opts) {
   ink = Ink.create();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
+  setupSt = null;
   G = notationGame(opts.fen); if (G.startFen) ratedDone = true;    /* a set-up position is never rated */
   over = null;
   closePromo();
@@ -5705,6 +5712,7 @@ function openAcademy() {
   hideAllOverlays();
   closeStudio();
   renderAcademy();
+  setupAcademySync();
   $("ovAcademy").classList.remove("hide");
 }
 function renderAcademy() {
@@ -6741,7 +6749,7 @@ function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.s
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review" || mode === "setup") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -6788,8 +6796,9 @@ function wireUI() {
   $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
-  $("mLearn").addEventListener("click", function () { showLearn(0); });
+  $("mLearn").addEventListener("click", function () { startSetup({ then: "rules" }); });
   $("mAcademy").addEventListener("click", openAcademy);
+  $("aSetup").addEventListener("click", function () { startSetup({ memory: !!(setupRec && (setupRec.learned || setupRec.tries)), then: "academy" }); });
   $("academyBack").addEventListener("click", showMenu);
   $("aPractise").addEventListener("click", startPractice);
   $("aNext").addEventListener("click", startNextLesson);
@@ -8571,6 +8580,215 @@ function journeyForTest() {
    it remembers you: how many games you have played it, and what the
    other coaches have been saying. */
 var persSigAt = 0, persStole = -1, persIdleT = 0;
+/* ===== setting up the board (setup.js) =====
+   The first lesson there is: which piece is which, and where it starts.
+   Your pieces are handed to you one kind at a time, each named with a
+   line on how it moves; you put them down, each flies from your hand to
+   its square and lands with a sparkle, and Black then sets up across the
+   board by itself. From memory (the Academy) it is the same with no
+   words, no glow, a clock and a best time. */
+var setupSt = null, setupT0 = 0, setupThen = null, setupBusy = false, setupClockT = 0;
+var setupRec = typeof Setup !== "undefined" ? Setup.load(lsGet) : null;
+function startSetup(o) {
+  o = o || {};
+  stopTour();
+  quietBoard();
+  hideAllOverlays();
+  closeStudio();
+  lesson = null; lessonQueue = []; over = null; thinking = false;
+  mode = "setup";
+  G = Chess.create();
+  clockConfig("none");
+  clearSel(); viewPly = -1;
+  setupSt = Setup.begin({ memory: !!o.memory });
+  setupThen = o.then || null; setupBusy = false;
+  orientation = 1;
+  R.setOrientation(1);
+  tableSync();
+  R.setPosition(Setup.board(setupSt, false));
+  hideOpeningCard();
+  showViewBanner(false);
+  syncAll();
+  setupT0 = Date.now();
+  setupShow();
+  clearInterval(setupClockT);
+  if (setupSt.memory) setupClockT = setInterval(function () {
+    var c = $("suClock");
+    if (!setupSt || mode !== "setup" || setupSt.done || !c) { clearInterval(setupClockT); return; }
+    c.textContent = Setup.fmt(Date.now() - setupT0);
+  }, 100);
+  needFrame();
+}
+function setupGentle() { return paceRead().pace === "gentle"; }
+function setupDots() {
+  return '<span class="suDots" aria-hidden="true">' + Setup.STEPS.map(function (s, i) {
+    return '<i class="' + (i < setupSt.at ? "on" : i === setupSt.at ? "now" : "") + '">' + GLYPH[s.kind] + "</i>";
+  }).join("") + "</span>";
+}
+function setupShow(say) {
+  var s = Setup.step(setupSt);
+  if (!s) return;
+  var left = Setup.targets(setupSt).length, mem = setupSt.memory;
+  var title = s.squares.length > 1 && !s.group ? "Your " + s.plural.toLowerCase() : s.group ? "Your pawns" : "Your " + s.name.toLowerCase();
+  lessonUI('<div class="suCard"><span class="suPiece" id="suPiece">' + GLYPH[s.kind] + "</span>" +
+    '<div class="suTx"><b>' + (mem ? escHtml(s.plural) : s.emoji + " " + escHtml(title)) + "</b>" +
+    (mem ? '<small>Where do they go? <span class="suClock">⏱ <span id="suClock">' + Setup.fmt(Date.now() - setupT0) + "</span></span></small>"
+         : "<small>" + escHtml(s.is) + "</small>") +
+    (mem && !say ? "" : '<em id="suSay">' + escHtml(say || s.where) + (left > 1 && !s.group && !say ? " (" + left + " to place)" : "") + "</em>") +
+    "</div>" + (mem ? "" : '<button class="suSkip" id="suSkip">Skip ›</button>') + "</div>" + setupDots(), "setup");
+  var sk = $("suSkip");
+  if (sk) sk.addEventListener("click", setupSkip);
+  setupGlow();
+}
+/* not everyone wants the walk-through: on to wherever it was leading */
+function setupSkip() {
+  var then = setupThen;
+  setupEnd();
+  if (then === "rules") showLearn(0);
+  else if (then === "academy") openAcademy();
+  else showMenu();
+}
+function setupGlow(force) {
+  if (!R || !setupSt) return;
+  var on = force || Setup.glow(setupSt, setupGentle());
+  R.setHighlights({ selected: -1, legal: on && !setupSt.done ? Setup.targets(setupSt) : [], legalCapt: [], last: null, check: -1 });
+  needFrame();
+}
+/* Help, in a set-up: where this piece goes. From memory it costs what a
+   miss costs */
+function setupHint() {
+  if (!setupSt || setupSt.done) return;
+  var s = Setup.step(setupSt);
+  if (setupSt.memory) setupSt.misses++;
+  setupShow(s.where + (setupSt.memory ? " (+3 s)" : ""));
+  setupGlow(true);
+}
+function setupTap(sq) {
+  if (!setupSt || setupSt.done || setupBusy) return;
+  var res = Setup.place(setupSt, sq);
+  if (!res.ok) {
+    hap("nope");
+    var bar = $("lessonBar");
+    bar.classList.remove("suNope"); void bar.offsetWidth; bar.classList.add("suNope");
+    setupShow(res.why);
+    return;
+  }
+  setupBusy = true;
+  hap("select");
+  var mine = setupSt;
+  setupFly(res.sq, res.piece, function () {
+    if (setupSt !== mine || mode !== "setup") return;
+    var b = Setup.board(setupSt, false);
+    res.rest.forEach(function (q) { b[q] = 0; });
+    R.setPosition(b.slice ? b.slice() : b);
+    hap("land");
+    snd("tap", { hz: 520 + res.piece * 60 });
+    if (FX) { try { Fx.flair(res.sq, { style: "stars" }); } catch (e) {} }
+    needFrame();
+    /* the rest of a group marches in, one after another */
+    var i = 0;
+    (function march() {
+      if (setupSt !== mine || mode !== "setup") return;
+      if (i < res.rest.length) {
+        b[res.rest[i]] = res.piece; i++;
+        R.setPosition(b.slice ? b.slice() : b);
+        snd("tap", { hz: 600 + i * 40 });
+        needFrame();
+        setTimeout(march, REDUCED ? 0 : 90);
+        return;
+      }
+      setupBusy = false;
+      if (res.finished) setupBlack();
+      else if (res.stepDone) { sting("lesson-right"); setupShow(); }
+      else setupShow();
+    })();
+  });
+}
+/* the piece leaves your hand (the card) and lands on its square */
+function setupFly(sq, piece, done) {
+  var from = $("suPiece"), stage = $("stage"), to = R.squareToScreen ? R.squareToScreen(sq, 0.3) : null;
+  if (!from || !to || REDUCED || typeof Element === "undefined" || !Element.prototype.animate) { done(); return; }
+  var sr = stage.getBoundingClientRect(), fr = from.getBoundingClientRect(), cr = $(R === R3 ? "cv3" : "cv2").getBoundingClientRect();
+  var fx = fr.left + fr.width / 2 - sr.left, fy = fr.top + fr.height / 2 - sr.top;
+  var tx = to.x + cr.left - sr.left, ty = to.y + cr.top - sr.top;
+  var el = document.createElement("div");
+  el.className = "suFly";
+  el.textContent = GLYPH[piece];
+  el.style.left = fx + "px"; el.style.top = fy + "px";
+  el.style.fontSize = Math.max(28, Math.round((to.s || 40) * 0.95)) + "px";
+  stage.appendChild(el);
+  from.classList.add("gone");
+  var dx = tx - fx, dy = ty - fy;
+  var a = el.animate([
+    { transform: "translate(-50%,-50%) translate(0px,0px) scale(1.35) rotate(-8deg)", opacity: 1 },
+    { transform: "translate(-50%,-50%) translate(" + dx * 0.55 + "px," + (dy * 0.55 - 70) + "px) scale(1.2) rotate(6deg)", opacity: 1, offset: 0.55 },
+    { transform: "translate(-50%,-50%) translate(" + dx + "px," + dy + "px) scale(1) rotate(0deg)", opacity: 1 }
+  ], { duration: 560, easing: "cubic-bezier(.3,.7,.35,1)" });
+  var fin = false, end = function () { if (fin) return; fin = true; el.remove(); done(); };
+  a.onfinish = end;
+  setTimeout(end, 900);
+}
+/* Black sets up across the board, the same way, by itself */
+function setupBlack() {
+  setupSt.mirrored = true;
+  lessonUI('<div class="suCard"><span class="suPiece">' + GLYPHB[6] + '</span><div class="suTx"><b>Black sets up the same way</b>' +
+    "<small>Every piece straight across the board from yours, and the black queen on her own colour: the dark square.</small></div></div>" + setupDots(), "setup");
+  var list = Setup.mirror(), b = Setup.board(setupSt, false), i = 0, mine = setupSt;
+  setupGlow();
+  (function next() {
+    if (setupSt !== mine || mode !== "setup") return;
+    if (i >= list.length) { setTimeout(function () { if (setupSt === mine && mode === "setup") setupDone(); }, REDUCED ? 0 : 350); return; }
+    b[list[i][0]] = list[i][1]; i++;
+    R.setPosition(b.slice ? b.slice() : b);
+    if (i % 2) snd("tap", { hz: 420 + i * 14 });
+    needFrame();
+    setTimeout(next, REDUCED ? 0 : 60);
+  })();
+}
+function setupDone() {
+  var st = setupSt, ms = Date.now() - setupT0, out = Setup.finish(setupRec, st, ms);
+  Setup.save(setupRec, lsSet);
+  clearInterval(setupClockT);
+  sting(st.memory && out.best ? "levelup" : "lesson-done");
+  hap("success");
+  if (FX) { try { Fx.confetti({ ms: 2400, layer: "page" }); } catch (e) {} }
+  var html;
+  if (st.memory) {
+    html = '<div class="suCard done"><span class="suPiece">⏱</span><div class="suTx"><b>' + Setup.fmt(out.score) + (out.best ? " — a new best!" : "") + "</b>" +
+      "<small>" + (st.misses ? st.misses + (st.misses > 1 ? " misses" : " miss") + " (3 s each)" : "Not a single miss") + " · your best " + Setup.fmt(out.record) + "</small></div></div>" +
+      '<div class="suBtns"><button class="chip sel" id="suAgain">⏱ Again</button><button class="chip" id="suPlay">▶ Play a game</button><button class="chip" id="suBack">Back</button></div>';
+  } else {
+    html = '<div class="suCard done"><span class="suPiece">' + GLYPH[6] + "</span><div class=\"suTx\"><b>That's how every game of chess begins!</b>" +
+      "<small>Rooks in the corners, then knights, bishops, the queen on her own colour, the king, and a wall of pawns. Now you know who's who.</small></div></div>" +
+      '<div class="suBtns">' + (setupThen === "rules" ? '<button class="chip sel" id="suRules">🐣 How they move →</button>' : "") +
+      '<button class="chip' + (setupThen === "rules" ? "" : " sel") + '" id="suPlay">▶ Play a game</button><button class="chip" id="suAgain">⏱ From memory</button></div>';
+  }
+  lessonUI(html, "setup done");
+  var on = function (id, fn) { var b = $(id); if (b) b.addEventListener("click", fn); };
+  on("suRules", function () { setupEnd(); showLearn(0); });
+  on("suPlay", function () { setupEnd(); quickPlay(nextLevel()); });
+  on("suAgain", function () { startSetup({ memory: true, then: setupThen }); });
+  on("suBack", function () { setupEnd(); openAcademy(); });
+}
+function setupEnd() {
+  clearInterval(setupClockT);
+  setupSt = null;
+  $("lessonBar").classList.add("hide");
+  document.body.classList.remove("lesson-on");
+  reflow();
+}
+function setupAcademySync() {
+  var b = $("aSetupSub");
+  if (!b || !setupRec) return;
+  b.textContent = !setupRec.learned && !setupRec.tries ? "Which piece is which, and where it lives. Then race the clock."
+    : "From memory, against the clock." + (setupRec.best ? " Your best: " + Setup.fmt(setupRec.best) + "." : "");
+}
+function setupForTest() {
+  return { setupState: function () { return setupSt ? JSON.parse(JSON.stringify(setupSt)) : null; },
+           setupRecord: function () { return JSON.parse(JSON.stringify(setupRec)); },
+           startSetup: startSetup, setupTap: setupTap, setupBusy: function () { return setupBusy; } };
+}
+
 /* ===== the table: two people, one device =====
    A phone or a tablet flat on the table between two people. Neither of
    them is "the player" the rest of the room is built round, so here:
@@ -9692,6 +9910,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest(), setupForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();

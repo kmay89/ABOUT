@@ -104,8 +104,12 @@ const LISTEN = `(() => {
     ok("…and Play is still the one amber thing", await page.isVisible("#mPlay"));
 
     await page.click("#mNew");
-    await page.waitForTimeout(250);
-    ok("“I'm new” opens the rules", await shown("ovLearn"));
+    await page.waitForTimeout(400);
+    /* the very first lesson is setting up the board (setup-check.js);
+       Skip goes on to the rules, where it was leading */
+    ok("“I'm new” starts by setting up the board", await page.evaluate(() => __cr.mode === "setup" && /Your rooks/.test(document.getElementById("lessonBar").textContent)));
+    await page.click("#suSkip"); await page.waitForTimeout(250);
+    ok("…and goes on to the rules", await shown("ovLearn"));
     ok("…and puts the training wheels on for the first games", (await prefs()).wheels === true);
     for (let i = 0; i < 20 && /Next/.test(await page.evaluate(() => document.getElementById("learnNext").textContent)); i++) {
       await page.click("#learnNext"); await page.waitForTimeout(80);

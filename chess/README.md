@@ -1959,6 +1959,42 @@ Nothing on the road can be skipped. The room opens one coach at a time.
 `chess/tools/earn-check.js` checks the rules in node and walks the
 whole of it, from a new player's first visit, in a browser.
 
+## Setting up the board
+
+Before anyone can play chess they need to know which piece is which and
+where it starts. People learn that by doing it, so that is the first
+lesson: *I'm new* at the door and *New to chess?* in the lobby both
+start here (with a **Skip ›** to the rules for anyone who'd rather not).
+
+**Learning** (`setup.js`):
+- **One kind at a time,** in the order people set a board up: rooks,
+  knights, bishops, the queen, the king, the pawns.
+- **Each piece is introduced** with what it is and how it moves ("The
+  knight is the horse. It jumps in an L shape…") and where it goes ("The
+  queen goes on her own colour: the white queen on the light square in
+  the middle.").
+- **Putting one down:** tap its square. The piece leaves the card in your
+  hand, arcs across to the square, and lands with a sparkle and a note.
+  One pawn is put down by hand and the other seven march in.
+- **A miss is never a buzzer.** The card shakes and says where that piece
+  really lives, and its squares glow. At a gentle pace (*I'm new*) they
+  glow from the start.
+- **Black sets up by itself** across the board, piece by piece,
+  "the black queen on her own colour: the dark square". The board ends
+  on exactly the position every game begins from.
+- **The card then offers** *How they move →* (the rules), *Play a game*
+  and *From memory*.
+
+**From memory** (the Academy's *Set up the board*, once learned):
+- No words and no glow, just a clock.
+- A miss costs three seconds, and so does 💡 Help, which shows where.
+- Your best time is kept, and beaten with a fanfare.
+
+`chess/tools/setup-check.js` checks the rules in node (the steps end on
+the real starting position, a miss says where it lives, the timing) and
+walks it on a phone: the door, a miss, a real tap, Black's set-up, the
+rules after, and from memory with Help and a best time.
+
 ## Two people, one device: the table
 
 A phone or a tablet flat on the table between two people. Neither of
@@ -3281,6 +3317,7 @@ node chess/tools/stage-check.js    # every place has its music, every piece its 
 node chess/tools/earn-check.js     # every coach and every place is earned, never picked
 node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/table-check.js    # two people, one device: fair to both
+node chess/tools/setup-check.js    # every piece has a name and a home
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment

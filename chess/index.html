@@ -1075,6 +1075,34 @@
     box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
   #endCup small{color:rgba(255,255,255,.88)}
 
+
+  /* ===== setting up the board ===== */
+  .lessonBar.setup{display:flex; flex-direction:column; gap:8px}
+  .suCard{display:flex; align-items:center; gap:12px; position:relative}
+  .suSkip{position:absolute; top:-4px; right:-2px; background:none; border:0; color:var(--soft); font:inherit; font-size:.82em; padding:4px 6px; cursor:pointer}
+  .suPiece{flex:none; width:64px; height:64px; display:grid; place-items:center; font-size:46px; line-height:1; border-radius:18px;
+    background:radial-gradient(circle at 50% 35%, #fff8e6, #e9d3a6); color:#2a1d10; box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.12);
+    animation:suBob 2.4s ease-in-out infinite}
+  .suPiece.gone{opacity:.25; animation:none}
+  .suCard.done .suPiece{animation:suWin .7s ease-out both}
+  .suTx{min-width:0; display:flex; flex-direction:column; gap:2px}
+  .suTx b{font-size:1.05em}
+  .suTx small{color:var(--soft); line-height:1.35}
+  .suTx em{font-style:normal; color:var(--glow); font-weight:700}
+  .suClock{font-variant-numeric:tabular-nums; color:var(--glow); font-weight:800}
+  .suDots{display:flex; gap:6px; justify-content:center}
+  .suDots i{font-style:normal; width:26px; height:26px; display:grid; place-items:center; border-radius:50%; font-size:16px;
+    background:rgba(255,255,255,.06); color:rgba(255,255,255,.35)}
+  .suDots i.on{background:rgba(255,209,102,.25); color:var(--glow)}
+  .suDots i.now{background:var(--amber); color:#241a08; transform:scale(1.15)}
+  .suBtns{display:flex; flex-wrap:wrap; gap:8px; justify-content:center}
+  .suFly{position:absolute; z-index:35; pointer-events:none; line-height:1; color:#fffaf0;
+    text-shadow:0 0 2px #000, 0 6px 14px rgba(0,0,0,.55), 0 0 22px rgba(255,209,102,.7)}
+  .lessonBar.suNope{animation:suNope .36s}
+  @keyframes suBob{0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-5px) rotate(3deg)}}
+  @keyframes suWin{0%{transform:scale(.6)} 60%{transform:scale(1.18)} 100%{transform:scale(1)}}
+  @keyframes suNope{0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 50%{transform:translateX(7px)} 75%{transform:translateX(-3px)}}
+  @media (prefers-reduced-motion: reduce){ .suPiece, .suCard.done .suPiece, .lessonBar.suNope{animation:none} }
   /* ===== the table: two people, one device, face to face =====
      The board takes the room; the far bar turns to face its player; the
      bar whose turn it is says so, the right way up for its owner. */
@@ -2140,7 +2168,7 @@
     <div class="secHead"><b>Learn</b></div>
     <div class="tileRow three">
       <button class="tile" id="mAcademy"><span class="em">🎓</span><span><b>The Academy</b><small id="mAcademySub">Short positions, real feedback.</small></span></button>
-      <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>The rules in five gentle minutes.</small></span></button>
+      <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>Set up the board, then the rules, gently.</small></span></button>
       <button class="tile" id="mOpenings"><span class="em">📖</span><span><b>Opening stories</b><small>Famous openings, told plainly.</small></span></button>
     </div>
 
@@ -2620,6 +2648,7 @@
     </div>
     <button class="bigbtn" id="aPractise"><span class="em">🔁</span><span><b>Practise what's due</b><small id="aPractiseSub">Spaced review — the bit that makes it stick.</small></span></button>
     <button class="bigbtn" id="aNext"><span class="em">▶️</span><span><b>Next lesson</b><small id="aNextSub">Continue the path.</small></span></button>
+    <button class="bigbtn" id="aSetup"><span class="em">🧩</span><span><b>Set up the board</b><small id="aSetupSub">Which piece is which, and where it lives. Then race the clock.</small></span></button>
     <div class="howBox">
       <b>Why it's built this way.</b> You always play the move yourself (retrieval beats recognition), a new idea is shown once then handed straight back to you, wrong answers are answered with what your move actually allows, and everything returns days later at growing gaps so it's rebuilt from memory rather than re-read.
     </div>
@@ -2712,6 +2741,7 @@
 <script src="unlocks.js"></script>
 <script src="journey.js"></script>
 <script src="pace.js"></script>
+<script src="setup.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

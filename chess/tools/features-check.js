@@ -216,6 +216,9 @@ const SIZES = [
       /* ---- every page of the rules, and where they lead ---- */
       await fresh();
       await press("#mLearn");
+      /* "New to chess?" sets up the board first (setup-check.js); Skip goes on to the rules */
+      ok(T("New to chess? starts by setting up the board"), await page.evaluate(() => __cr.mode === "setup"));
+      await press("#suSkip");
       let pages = 1;
       while (pages < 40 && !/first game/i.test(await page.evaluate(() => document.getElementById("learnNext").textContent))) {
         await press("#learnNext"); pages++;
