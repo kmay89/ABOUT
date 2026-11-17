@@ -296,7 +296,8 @@ const PLAY = `([san, src]) => {
 
     /* ---- the review lands on the move it is about ---- */
     await fresh();
-    await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
+    /* passed back and forth: across a table the quiet coach keeps to the notebook (table-check.js) */
+    await page.evaluate(() => { __cr.prefsForTest.autoFlip = true; __cr.startGame("pass", { clockStr: "none" }); });
     for (const san of ["e4", "e5", "Nf3", "Qg5"]) { await play(san); await page.waitForTimeout(80); }
     await page.waitForTimeout(150);
     await play("Nxg5");
