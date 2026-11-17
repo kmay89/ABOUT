@@ -120,7 +120,9 @@ const SIZES = [
       await press("#aboutBack");
 
       /* ---- a game and its buttons ---- */
-      await press("#mPass"); await press("#newStart");
+      /* the passed-back-and-forth seating: the moves and notes are beside
+         the board there (across the table they step aside, table-check.js) */
+      await press("#mPassOpts"); await press('#flipChips [data-flip="1"]'); await press("#newStart");
       await page.waitForTimeout(800);
       for (const s of ["e4", "e5", "Nf3"]) { await play(s); await page.waitForTimeout(60); }
       await settle();
@@ -216,6 +218,9 @@ const SIZES = [
       /* ---- every page of the rules, and where they lead ---- */
       await fresh();
       await press("#mLearn");
+      /* "New to chess?" sets up the board first (setup-check.js); Skip goes on to the rules */
+      ok(T("New to chess? starts by setting up the board"), await page.evaluate(() => __cr.mode === "setup"));
+      await press("#suSkip");
       let pages = 1;
       while (pages < 40 && !/first game/i.test(await page.evaluate(() => document.getElementById("learnNext").textContent))) {
         await press("#learnNext"); pages++;

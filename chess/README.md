@@ -1959,6 +1959,154 @@ Nothing on the road can be skipped. The room opens one coach at a time.
 `chess/tools/earn-check.js` checks the rules in node and walks the
 whole of it, from a new player's first visit, in a browser.
 
+## Setting up the board
+
+Before anyone can play chess they need to know which piece is which and
+where it starts. People learn that by doing it, so that is the first
+lesson: *I'm new* at the door and *New to chess?* in the lobby both
+start here (with a **Skip ›** to the rules for anyone who'd rather not).
+
+**Learning** (`setup.js`):
+- **One kind at a time,** in the order people set a board up: rooks,
+  knights, bishops, the queen, the king, the pawns.
+- **Each piece is introduced** with what it is and how it moves ("The
+  knight is the horse. It jumps in an L shape…") and where it goes ("The
+  queen goes on her own colour: the white queen on the light square in
+  the middle.").
+- **Putting one down:** tap its square. The piece leaves the card in your
+  hand, arcs across to the square, and lands with a sparkle and a note.
+  One pawn is put down by hand and the other seven march in.
+- **A miss is never a buzzer.** The card shakes and says where that piece
+  really lives, and its squares glow. At a gentle pace (*I'm new*) they
+  glow from the start.
+- **Black sets up by itself** across the board, piece by piece,
+  "the black queen on her own colour: the dark square". The board ends
+  on exactly the position every game begins from.
+- **The card then offers** *How they move →* (the rules), *Play a game*
+  and *From memory*.
+
+**From memory** (the Academy's *Set up the board*, once learned):
+- No words and no glow, just a clock.
+- A miss costs three seconds, and so does 💡 Help, which shows where.
+- Your best time is kept, and beaten with a fanfare.
+
+`chess/tools/setup-check.js` checks the rules in node (the steps end on
+the real starting position, a miss says where it lives, the timing) and
+walks it on a phone: the door, a miss, a real tap, Black's set-up, the
+rules after, and from memory with Help and a best time.
+
+## Two people, one device: the table
+
+A phone or a tablet flat on the table between two people. Neither of
+them is "the player" the rest of the room is built round, so a game for
+two is laid out for both.
+
+**One tap.** *Two players, one device* in the lobby starts the game, with
+the clock you chose last time. There is no card in the way. *Two players:
+clock & seating* under the tiles opens the card, for a clock or the other
+seating.
+
+**Across the table** (the default seating):
+- **The board.** It stays put and takes the room: the moves and notes
+  panel steps aside.
+- **Your own bar.** The far bar is turned to face its player: name,
+  clock, and what they have taken.
+- **Whose turn.** Whichever bar is to move glows and says **Your move**,
+  or **Check! Your move**, the right way up for its owner.
+- **Upright pieces in 2D.** The far player's men are drawn the right way
+  up for them.
+- **The same view in 3D.** The camera stands right over the middle of the
+  board, so it is the same picture from both chairs. Neither of them gets
+  the near side.
+- **A greeting.** As the game begins, each is told where they sit, the
+  right way up ("Black, you're on this side.").
+- **The coach's remarks.** Its remarks and opening names go into the
+  notebook, not a toast that would face one of them. A free word for the
+  player who's behind is said to that player, on their side.
+- **The end.** Each seat is told, the right way up ("🎉 You won!" /
+  "🌱 Good game"), with **Play again** on both sides. The seats stay, the
+  colours swap, and the board turns to the new White. *The game* opens
+  the full end card.
+
+**Passed back and forth** (the other seating): one person looks at a time.
+The board turns to whoever moves, the moves and notes are beside it, and
+the room talks as it always has.
+
+`chess/tools/table-check.js` sits two people down on a phone, in 2D and
+3D, and plays it through: one tap, the turned bar, "Your move" and
+check, the upright men, the overhead camera, the quiet notebook, the
+two-seat ending, Play again with the colours swapped, and the other
+seating. It also checks that one tap from the middle of a computer game
+still gets two people playing.
+
+## At your pace
+
+A seven-year-old who has never played and a club player on a lunch
+break want different rooms. The child wants a moment to see what the
+coach did, words that stay up long enough to read, and a kind word
+rather than a clock when they have been staring at the board for a
+minute. The club player wants the coach to answer at once, the card to
+get out of the way, and the next coach without five wins against one
+they have already outgrown. Nobody is asked which they are.
+
+**What the room watches** (`pace.js`), all of it things it can see
+honestly:
+- how long you look at the board before you move: the median of your
+  last forty moves, never counting a turn the page was hidden for;
+- your last eight games against the computer: won, lost, helped;
+- whether you let the end card's celebration play, or tap past it;
+- and *I'm new to chess* at the door, for your first games.
+
+From those it reads a pace, and says why in Settings ("Auto: reading
+you as Gentle, because you like to take your time"). Settings can also
+pin it to Gentle, Steady or Brisk.
+
+| | gentle | steady | brisk |
+|---|---|---|---|
+| the coach answers after at least | 1.3 s | 0.65 s | 0.15 s |
+| words stay up | ×1.5 | ×1 | ×0.8 |
+| the end card's celebration | ×1.25 | ×1 | ×0.5 |
+| a clue offered after a long think | yes, twice | yes, once | never |
+| friendly game after losses in a row | 2 | 3 | 3 |
+| a third-star win opens two coaches | no | yes | yes |
+
+**Never rushed.**
+- When you have been thinking a good while, the coach says something
+  kind ("Take your time! I'm just watching a ladybird.") and the room
+  offers 🧭 a clue: the help lamp's Think, which is free.
+- When it comes depends on you: about two and a half times your usual
+  think when you are gentle, three times when steady, with a floor and a
+  ceiling (45 s–2 min; 90 s–4 min).
+- It never comes with a clock running, since a hand on the shoulder
+  while time runs is pressure, and never for a brisk player.
+- It waits for any card or question on screen to go first.
+
+**Never bored.**
+- A brisk player's coach answers at once, and the end card comes up in
+  half the time.
+- A tap anywhere on the card brings all its lines at once. The room
+  remembers you did, as one more sign of the pace you like.
+- A win good enough for the third star (no help at all, 80%+) opens the
+  road two coaches ahead: "⚡ Fast track! You played so well that Clover
+  is open too."
+
+**Stuck on one coach?**
+- After a run of losses to one coach (two at a gentle pace, three
+  otherwise), the end card offers a 🤝 friendly game.
+- The same coach goes easy: a good deal looser, and a ply shallower. It
+  says so, in character ("Friendly round? I'll keep my prickles in.").
+- Nothing in it is rated, so nobody's number becomes a number against
+  some other opponent.
+- A friendly win opens the next coach (and its place) and says so.
+- The chapter, its star and the Cup still need the real win. Open is not
+  cleared: the fast track and the friendly game open the road ahead
+  without clearing anything, so the stars and the map stay true.
+
+`chess/tools/pace-check.js` checks every rule in node and plays it on a
+phone: the coach's answer at each pace, the clue after a long think (and
+not with a clock, or for a brisk player), the end card's timing and the
+tap that hurries it, the friendly game, and the fast track.
+
 ## The journey: a game you can finish
 
 The ladder is also a road. **The Journey** (the bright sign at the top of
@@ -3167,6 +3315,9 @@ node chess/tools/wheels-check.js   # what can be lost is marked on both boards, 
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/earn-check.js     # every coach and every place is earned, never picked
+node chess/tools/pace-check.js     # the room goes at the player's pace
+node chess/tools/table-check.js    # two people, one device: fair to both
+node chess/tools/setup-check.js    # every piece has a name and a home
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment

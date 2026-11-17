@@ -544,7 +544,7 @@ async function handoverCheck(browser, base) {
     ok("the openings and the Academy are there offline", boot.openings && boot.lessons);
 
     /* and a game actually plays */
-    await page.click("#mPass");
+    await page.click("#mPassOpts");
     await page.waitForTimeout(400);
     const start = await page.$("#newStart");
     if (start) await start.click();

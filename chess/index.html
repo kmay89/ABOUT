@@ -1074,6 +1074,71 @@
   #endCup{--fa:#57c784; --fb:#23845a; --edge:#0f4a31; background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#bff0d3; color:#fff;
     box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
   #endCup small{color:rgba(255,255,255,.88)}
+
+
+  /* ===== setting up the board ===== */
+  .lessonBar.setup{display:flex; flex-direction:column; gap:8px}
+  .suCard{display:flex; align-items:center; gap:12px; position:relative}
+  .suSkip{position:absolute; top:-4px; right:-2px; background:none; border:0; color:var(--soft); font:inherit; font-size:.82em; padding:4px 6px; cursor:pointer}
+  .suPiece{flex:none; width:64px; height:64px; display:grid; place-items:center; font-size:46px; line-height:1; border-radius:18px;
+    background:radial-gradient(circle at 50% 35%, #fff8e6, #e9d3a6); color:#2a1d10; box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.12);
+    animation:suBob 2.4s ease-in-out infinite}
+  .suPiece.gone{opacity:.25; animation:none}
+  .suCard.done .suPiece{animation:suWin .7s ease-out both}
+  .suTx{min-width:0; display:flex; flex-direction:column; gap:2px}
+  .suTx b{font-size:1.05em}
+  .suTx small{color:var(--soft); line-height:1.35}
+  .suTx em{font-style:normal; color:var(--glow); font-weight:700}
+  .suClock{font-variant-numeric:tabular-nums; color:var(--glow); font-weight:800}
+  .suDots{display:flex; gap:6px; justify-content:center}
+  .suDots i{font-style:normal; width:26px; height:26px; display:grid; place-items:center; border-radius:50%; font-size:16px;
+    background:rgba(255,255,255,.06); color:rgba(255,255,255,.35)}
+  .suDots i.on{background:rgba(255,209,102,.25); color:var(--glow)}
+  .suDots i.now{background:var(--amber); color:#241a08; transform:scale(1.15)}
+  .suBtns{display:flex; flex-wrap:wrap; gap:8px; justify-content:center}
+  .suFly{position:absolute; z-index:35; pointer-events:none; line-height:1; color:#fffaf0;
+    text-shadow:0 0 2px #000, 0 6px 14px rgba(0,0,0,.55), 0 0 22px rgba(255,209,102,.7)}
+  .lessonBar.suNope{animation:suNope .36s}
+  @keyframes suBob{0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-5px) rotate(3deg)}}
+  @keyframes suWin{0%{transform:scale(.6)} 60%{transform:scale(1.18)} 100%{transform:scale(1)}}
+  @keyframes suNope{0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 50%{transform:translateX(7px)} 75%{transform:translateX(-3px)}}
+  @media (prefers-reduced-motion: reduce){ .suPiece, .suCard.done .suPiece, .lessonBar.suNope{animation:none} }
+  /* ===== the table: two people, one device, face to face =====
+     The board takes the room; the far bar turns to face its player; the
+     bar whose turn it is says so, the right way up for its owner. */
+  body.facing #panel{display:none}
+  body.facing .pbar.top{transform:rotate(180deg)}
+  body.facing #turnStrip{display:none}
+  body.facing.looking #turnStrip{display:block}
+  body.table .ptag.toMove{box-shadow:0 0 0 2px var(--amber), 0 0 18px rgba(240,160,32,.45)}
+  body.table .ptag.toMove::after{content:"Your move"; margin-left:8px; padding:1px 8px; border-radius:999px; background:var(--amber); color:#241a08;
+    font-size:.72em; font-weight:800; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap}
+  body.table .ptag.toMove.inCheck::after{content:"Check! Your move"; background:var(--bad); color:#fff}
+  .passOpts{display:block; margin:2px 0 12px auto; font-size:.85em}
+  .tableSay{position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; justify-content:space-between; pointer-events:none;
+    padding:clamp(56px, 12%, 120px) 16px; animation:tsIn .35s ease-out both}
+  .tableSay .tsHalf{display:flex; justify-content:center}
+  .tableSay .tsHalf.top{transform:rotate(180deg)}
+  .tableSay .tsHalf.bot{margin-top:auto}
+  .tableSay b{pointer-events:auto}
+  .tableSay b{background:rgba(20,14,8,.86); color:#fff4dc; border:1px solid rgba(255,209,102,.5); border-radius:16px; padding:10px 16px;
+    font-size:1.05em; box-shadow:0 8px 30px rgba(0,0,0,.45); text-align:center}
+  .tableEnd{position:absolute; inset:0; z-index:40; display:flex; flex-direction:column; justify-content:space-between; align-items:center;
+    padding:14px 16px; background:rgba(10,7,4,.55); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); animation:tsIn .4s ease-out both}
+  .tableEnd .teHalf{display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; max-width:420px; width:100%;
+    background:rgba(30,22,14,.92); border:1px solid rgba(255,209,102,.4); border-radius:20px; padding:14px 16px; box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .tableEnd .teHalf.top{transform:rotate(180deg)}
+  .tableEnd .teTitle{font-size:1.5em; color:#fff4dc}
+  .tableEnd small{color:var(--soft)}
+  .tableEnd .teAgain{width:100%; margin-top:4px}
+  .tableEnd .teMid{display:flex; gap:10px}
+  @keyframes tsIn{from{opacity:0} to{opacity:1}}
+  @media (prefers-reduced-motion: reduce){ .tableSay, .tableEnd{animation:none} }
+  /* a friendly game, offered after a run of losses: warm, never a consolation prize */
+  #endFriendly{--fa:#ff9fb8; --fb:#e0607f; --edge:#8a2c45; background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#ffd3de; color:#fff;
+    text-shadow:0 1px 0 rgba(0,0,0,.18); box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
+  #endFriendly small{color:rgba(255,255,255,.9)}
+  .paceRow .rowbtns{flex-wrap:wrap; justify-content:flex-end}
   #endCup.won{--fa:var(--gold-top); --fb:var(--gold-bot); --edge:var(--gold-edge); border-color:var(--gold-line); color:var(--gold-ink); text-shadow:0 1px 0 rgba(255,255,255,.2)}
   #endCup.won small{color:rgba(36,26,8,.74)}
   .erMile.chapter, .erMile.cup{border-color:#57c784}
@@ -1991,6 +2056,13 @@
         <div class="meetBoard hide" id="meetBoard"></div>
       </div>
       <div id="toast"></div>
+      <!-- the table: a word for each seat, the right way up for each -->
+      <div class="tableSay hide" id="tableSay" role="status" aria-live="polite"><div class="tsHalf top"><b id="tsTop"></b></div><div class="tsHalf bot"><b id="tsBot"></b></div></div>
+      <div class="tableEnd hide" id="tableEnd" role="dialog" aria-label="The result">
+        <div class="teHalf top"><b class="teTitle" id="teTopTx"></b><small id="teTopSub"></small><button class="bigbtn teAgain"><span class="em">↻</span><span><b>Play again</b><small>Colours swap</small></span></button></div>
+        <div class="teMid"><button class="chip" id="teLook">🏁 The game</button><button class="chip" id="teMenu">☰ Menu</button></div>
+        <div class="teHalf bot"><b class="teTitle" id="teBotTx"></b><small id="teBotSub"></small><button class="bigbtn teAgain"><span class="em">↻</span><span><b>Play again</b><small>Colours swap</small></span></button></div>
+      </div>
       <button id="resultChip" class="hide">🏁 Result</button>
       <div class="lessonBar hide" id="lessonBar"></div>
       <div id="kbType" class="hide"><input id="kbIn" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type a move, then Enter" aria-describedby="kbMsg" maxlength="12"><span id="kbMsg"></span></div>
@@ -2088,15 +2160,16 @@
 
     <div class="secHead"><b>More ways to play</b></div>
     <div class="tileRow three">
-      <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Take turns on this screen.</small></span></button>
+      <button class="tile" id="mPass"><span class="em">🤝</span><span><b>Two players, one device</b><small>Lay it flat between you and play. One tap.</small></span></button>
       <button class="tile" id="mLan"><span class="em">📡</span><span><b>Play a friend</b><small>Nearby or anywhere — a link, a QR or four letters.</small></span></button>
       <button class="tile" id="mNotation"><span class="em">📋</span><span><b>Open a game or position</b><small>Paste a PGN or a FEN, or choose a file.</small></span></button>
     </div>
+    <button class="linkish passOpts" id="mPassOpts">Two players: clock &amp; seating ›</button>
 
     <div class="secHead"><b>Learn</b></div>
     <div class="tileRow three">
       <button class="tile" id="mAcademy"><span class="em">🎓</span><span><b>The Academy</b><small id="mAcademySub">Short positions, real feedback.</small></span></button>
-      <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>The rules in five gentle minutes.</small></span></button>
+      <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>Set up the board, then the rules, gently.</small></span></button>
       <button class="tile" id="mOpenings"><span class="em">📖</span><span><b>Opening stories</b><small>Famous openings, told plainly.</small></span></button>
     </div>
 
@@ -2167,8 +2240,8 @@
     <div id="flipRow" class="hide">
       <p><b>The board</b> <small>— two people passing one device usually want their own pieces nearest them.</small></p>
       <div class="rowbtns" id="flipChips">
-        <button class="chip sel" data-flip="0">Stays put</button>
-        <button class="chip" data-flip="1">Turns to whoever moves</button>
+        <button class="chip sel" data-flip="0">Across the table</button>
+        <button class="chip" data-flip="1">Passed back and forth</button>
       </div>
     </div>
     <p><b>Clock</b> <small id="clockHint">— optional. Fischer increment adds seconds back after every move.</small></p>
@@ -2444,6 +2517,7 @@
       <div class="xpMid"><div class="xpTop"><b>Experience</b><em class="xpUp hide" id="endXpUp">LEVEL UP!</em><span id="endXpNum">+0 XP</span></div><div class="xpBar"><i id="endXpBar"></i></div><small id="endXpWhy"></small></div>
     </div>
     <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
+    <button class="bigbtn friendlyBtn hide" id="endFriendly"><span class="em">🤝</span><span><b id="endFriendlyTx">A friendly game</b><small id="endFriendlySub"></small></span></button>
     <button class="bigbtn cupBtn hide" id="endCup"><span class="em">🗺️</span><span><b id="endCupTx">On to the next chapter</b><small id="endCupSub"></small></span></button>
     <div class="endStory hide" id="endStory">
       <div class="esHead"><b>The story of the game</b><small id="endStoryTx"></small></div>
@@ -2488,6 +2562,8 @@
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
       <button class="chip sw sel" id="setHelpers">On</button></div>
+    <div class="settingRow paceRow"><span class="lbl"><b>Pace</b><small id="setPaceNote">How fast the room goes: the coach's replies, how long words stay up, and the celebrations.</small></span>
+      <div class="rowbtns" style="margin:0"><button class="chip sel" id="paAuto">Auto</button><button class="chip" id="paGentle">Gentle</button><button class="chip" id="paSteady">Steady</button><button class="chip" id="paBrisk">Brisk</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
       <button class="chip sw" id="setWheels">Off</button></div>
     <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
@@ -2573,6 +2649,7 @@
     </div>
     <button class="bigbtn" id="aPractise"><span class="em">🔁</span><span><b>Practise what's due</b><small id="aPractiseSub">Spaced review — the bit that makes it stick.</small></span></button>
     <button class="bigbtn" id="aNext"><span class="em">▶️</span><span><b>Next lesson</b><small id="aNextSub">Continue the path.</small></span></button>
+    <button class="bigbtn" id="aSetup"><span class="em">🧩</span><span><b>Set up the board</b><small id="aSetupSub">Which piece is which, and where it lives. Then race the clock.</small></span></button>
     <div class="howBox">
       <b>Why it's built this way.</b> You always play the move yourself (retrieval beats recognition), a new idea is shown once then handed straight back to you, wrong answers are answered with what your move actually allows, and everything returns days later at growing gaps so it's rebuilt from memory rather than re-read.
     </div>
@@ -2664,6 +2741,8 @@
 <script src="momentum.js"></script>
 <script src="unlocks.js"></script>
 <script src="journey.js"></script>
+<script src="pace.js"></script>
+<script src="setup.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

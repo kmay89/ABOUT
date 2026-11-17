@@ -285,17 +285,19 @@ const PLAY = `([san, src]) => {
     ok("the promotion picker opens", await page.isVisible("#ovPromo"));
     /* run White's clock out while the picker is up */
     await page.evaluate(() => __cr.flagForTest(1));
-    await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
-    ok("the flag falls with the picker open and the game ends", await page.isVisible("#ovEnd"));
+    /* two people on one device: each seat is told, at the table (table-check.js) */
+    await page.waitForFunction(() => !document.getElementById("tableEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
+    ok("the flag falls with the picker open and the game ends", await page.isVisible("#tableEnd"));
     ok("…and the picker is gone with it", !(await page.isVisible("#ovPromo")));
-    await page.click("#endRematch");
+    await page.click("#tableEnd .teHalf.bot .teAgain");
     await page.waitForTimeout(900);
     await click("e2"); await click("e4"); await settle();
     ok("the next game's board still takes taps", (await state()).sans.join(" ") === "e4", (await state()).sans.join(" "));
 
     /* ---- the review lands on the move it is about ---- */
     await fresh();
-    await page.evaluate(() => { __cr.startGame("pass", { clockStr: "none" }); });
+    /* passed back and forth: across a table the quiet coach keeps to the notebook (table-check.js) */
+    await page.evaluate(() => { __cr.prefsForTest.autoFlip = true; __cr.startGame("pass", { clockStr: "none" }); });
     for (const san of ["e4", "e5", "Nf3", "Qg5"]) { await play(san); await page.waitForTimeout(80); }
     await page.waitForTimeout(150);
     await play("Nxg5");
@@ -350,11 +352,11 @@ const PLAY = `([san, src]) => {
 
     /* ---- the new-game card starts what it shows ---- */
     await fresh();
-    await page.click("#mPass"); await page.waitForTimeout(200);
+    await page.click("#mPassOpts"); await page.waitForTimeout(200);
     await page.click('#clockChips [data-clock="5+0"]');
     await page.click("#newStart"); await page.waitForTimeout(600);
     await page.click("#btnMenu"); await page.waitForTimeout(300);
-    await page.click("#mPass"); await page.waitForTimeout(200);
+    await page.click("#mPassOpts"); await page.waitForTimeout(200);
     const shown = await page.evaluate(() => document.querySelector("#clockChips .sel").getAttribute("data-clock"));
     await page.click("#newStart"); await page.waitForTimeout(600);
     const clockOn = await page.evaluate(() => !document.getElementById("clockBot").classList.contains("off"));

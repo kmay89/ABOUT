@@ -377,7 +377,7 @@ function toast(html, actions, ms, extras) {
   }
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, ms || (actions ? 9000 : 4200));
+  toastTimer = setTimeout(hideToast, ms || paceWords(actions ? 9000 : 4200));
 }
 function hideToast() { $("toast").classList.remove("show"); }
 var toastExtras = false;   /* the toast on show has buttons, but waits for no answer */
@@ -529,6 +529,7 @@ function switchDim(to3d, becauseLost) {
   }
   prefs.use3d = !!(to3d && R3); savePrefs();
   useRenderer(prefs.use3d ? R3 : R2);
+  tableSync();
   syncDimButton();
   if (becauseLost) toast("The 3D view stumbled, so the game moved to the 2D board — nothing was lost. You can try 3D again from the button below.");
 }
@@ -762,9 +763,13 @@ function syncTagState() {
   unlEmoteSync();              /* and you can send the coach a face, if you have won some */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
-  var live = G && !over && viewPly < 0 && mode && mode !== "tour";
+  var live = G && !over && viewPly < 0 && mode && mode !== "tour" && mode !== "setup";
   $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
   $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
+  /* at the table each bar says it to its own player, check and all */
+  var chk = !!live && Chess.inCheck(G, G.turn);
+  $("nameTop").parentNode.classList.toggle("inCheck", chk && G.turn === topSide);
+  $("nameBot").parentNode.classList.toggle("inCheck", chk && G.turn === botSide);
 }
 function syncBars() {
   var topSide = -orientation, botSide = orientation;
@@ -818,6 +823,8 @@ function syncPanelInfo() {
 }
 function showViewBanner(on) {
   $("viewBanner").classList.toggle("hide", !on);
+  /* across a table the panel is away: the strip over the board says it */
+  document.body.classList.toggle("looking", !!on);
   syncPanelInfo();
 }
 function syncTurnStrip() {
@@ -829,6 +836,7 @@ function syncTurnStrip() {
   if (viewPly >= 0) { el.innerHTML = "<b>Looking back</b> — move " + notationMoveNo(viewPly); return; }
   if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
   if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
+  if (mode === "setup") { el.innerHTML = "<b>🧩 Setting up the board</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
   var who = sideName(G.turn);
@@ -844,6 +852,7 @@ function endShort() {
 /* ===== board sync & input ===== */
 function currentViewBoard() {
   if (!G) return new Int8Array(128);
+  if (mode === "setup" && setupSt) return Setup.board(setupSt, setupSt.mirrored);
   if (viewPly < 0) return G.board;
   var t = Chess.create(G.startFen);
   for (var i = 0; i <= viewPly && i < G.played.length; i++) Chess.make(t, G.played[i].m);
@@ -863,6 +872,7 @@ function takenSoFar() {
 }
 function syncBoard() {
   if (!G || !R) return;
+  if (mode === "setup") { setupGlow(); return; }
   if (R.setTaken) R.setTaken(takenSoFar());
   var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1 };
   if (viewPly < 0) {
@@ -905,6 +915,7 @@ function whenLanded(fn) {
 }
 function tapSquare(sq) {
   if (!G) return;
+  if (mode === "setup") { setupTap(sq); return; }
   if (viewPly >= 0) { exitView(); return; }
   if (sel < 0 && !G.board[sq] && clearInkHere()) return;
   if (!canActNow(true)) { clearSel(); syncBoard(); return; }
@@ -997,6 +1008,7 @@ function animDescriptor(m) {
 
 function commitMove(m, source, animOpts) {
   if (!G || over) return;
+  if (source === "local") paceTurnEnd(true);
   brainTicket++;   /* any search still running is now answering the wrong question */
   var mover = G.turn;
   /* the position as it stood before the move: the review happens on a
@@ -1099,17 +1111,20 @@ function commitMove(m, source, animOpts) {
   }, 700);
 
   /* the gentle coach looks over the human's shoulder */
-  if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || mode === "pass")) {
+  if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || (mode === "pass" && !tableFacing()))) {
     setTimeout(function () { gentleCheck(fenBefore, m, san, ply, myTicket); }, 1400);
   }
   /* the coach takes its turn */
   if (mode === "coach" && !over && G.turn !== humanSide) {
     scheduleCoach();
   }
+  /* and when it has, yours begins */
+  if (mode === "coach" && !over && G.turn === humanSide && source !== "local") paceTurnStart();
 }
 
 /* ===== the practice opponent ===== */
 function scheduleCoach() {
+  var askedAt = Date.now(), dial = paceDial();
   thinking = true;
   castThinking(true);
   syncTurnStrip(); syncButtons();
@@ -1129,6 +1144,10 @@ function scheduleCoach() {
       if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
+      /* and at your pace: someone taking their time sees the coach take a
+         breath before it answers; someone quick is not kept waiting */
+      var hold = REDUCED ? 0 : dial.reply - (Date.now() - askedAt);
+      if (hold > 30) { setTimeout(function () { answer(res); }, hold); return; }
       thinking = false;
       castThinking(false);
       /* what the coach thinks of the position, from your side: the
@@ -1148,7 +1167,7 @@ function scheduleCoach() {
     /* exactly the settings the rung was measured with — node budget and
        all — or its rating would be a rating of some other opponent */
     Brain.search(G, persSearchOpts()).then(answer, function () { answer(null); });
-  }, REDUCED ? 60 : 420);
+  }, REDUCED ? 60 : dial.reply <= 200 ? 100 : 420);
 }
 
 /* ===== the gentle coach (the quiet word) =====
@@ -1536,7 +1555,10 @@ function welcomeNew() {
   /* the gentlest start: the rules, then the gentlest coach — with the
      wheels on, said once when they first show */
   if (!prefs.wheels && !prefs.wheelsOffered) { prefs.wheels = true; prefs.wheelsOffered = true; savePrefs(); }
-  showLearn(0);
+  /* and a gentle pace, until the room has seen how you play */
+  if (pace && !pace.newDoor) { pace.newDoor = 1; paceSave(); }
+  /* the very first lesson: which piece is which, and where it lives */
+  startSetup({ then: "rules" });
 }
 function welcomeKnow() { quickPlay(nextLevel()); }
 
@@ -1564,6 +1586,7 @@ function lampLabel() {
   return "💡 A move " + (l === "free" ? "· free" : l);
 }
 function giveHint() {
+  if (mode === "setup") { setupHint(); return; }
   if (mode === "lesson" || !G || over || !canActNow() || hintPending) { giveMoveHint(); return; }
   /* notation voice: the person who asked for one line per remark wants
      the move, not a menu */
@@ -1819,7 +1842,8 @@ function narrateOpening(san, source) {
     /* a move played elsewhere, or a game picked back up, fills the card
        without also announcing an opening you were already in */
     if (source !== "net" && source !== "resume") {
-      toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
+      /* across a table a toast faces one of the two: the notebook keeps it */
+      if (!tableFacing()) toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
       note({ ply: G.played.length - 1, icon: "\ud83d\udcd6", tone: "note", key: "opening:" + entry.name,
              text: "<b>" + entry.name + "</b> — " + entry.idea,
              brief: (code ? code + " \u00b7 " : "") + entry.name });
@@ -2229,10 +2253,10 @@ function ratingText() {
 /* who you may play. The road decides (journey.js): the first coach, any
    you have beaten, and the next one along. The fair fight the rating
    suggests is offered only if it is open; otherwise the coach to beat. */
-function coachOpen(id) { return !!SKILLS[id] && (typeof Journey === "undefined" || Journey.coachOpen(ladder, id)); }
+function coachOpen(id) { return !!SKILLS[id] && (typeof Journey === "undefined" || Journey.coachOpen(ladder, id, jrn)); }
 function nextLevel() {
   var s = skillOk(Rating.suggestLevel(rating));
-  return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s);
+  return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s, jrn);
 }
 /* why a coach is still a shadow, without giving away who the shadows
    are: the one to beat is named only if you can already play them */
@@ -2248,7 +2272,7 @@ function rungNew(id) {
 }
 /* and where you may sit: the park from the start, every other place
    once the road has reached it */
-function placeOpen(id) { return typeof Journey === "undefined" || Journey.placeOpen(ladder, id); }
+function placeOpen(id) { return typeof Journey === "undefined" || Journey.placeOpen(ladder, id, jrn); }
 function placeGuard() { if (!placeOpen(prefs.scene)) setScene("park"); }
 /* a locked coach, asked for: a shadow behind a padlock, who to beat to
    meet them, and a button straight to that game */
@@ -2329,14 +2353,20 @@ function fmtDelta(d) { d = Math.round(d); return (d > 0 ? "+" : d < 0 ? "−" : 
 
 /* start a game against the computer. "a" takes turns: the colour you did
    not have last time */
-function startCoachGame(level, sideChoice, clockStr) {
+function startCoachGame(level, sideChoice, clockStr, o) {
   /* the last gate: every way into a coach game comes through here */
   if (!coachOpen(skillOk(level))) { showMenu(); coachLocked(skillOk(level)); return; }
   var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
              sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
   ladder.lastSide = side; saveLadder();
-  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true });
+  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true, friendly: !!(o && o.friendly) });
   var L = SKILLS[skill];
+  if (friendly) {
+    toast("🤝 <b>A friendly game</b> with " + L.emoji + " " + escHtml(L.name) + ": they go easy, and nothing is rated. " +
+          (side === 1 ? "You have White." : "You have Black."), null, paceWords(4200));
+    setTimeout(function () { if (friendly && !over) castSay("friendly", "happy"); }, 900);
+    return;
+  }
   toast(L.emoji + " <b>" + escHtml(L.name) + "</b> · " + L.elo + " — " +
         (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
 }
@@ -2485,7 +2515,7 @@ function renderEndRating(rs, cardAt) {
   var me = after;
   if (rs.s === 1 && up) {
     $("endNextTx").textContent = "Next: " + up.emoji + " " + up.name + " · " + up.elo;
-    $("endNextSub").textContent = rs.newStars.indexOf(0) >= 0 && Journey.openedBy(up.id) === rs.level
+    $("endNextSub").textContent = rs.newStars.indexOf(0) >= 0 && Journey.openedBy(up.id) === rs.level && !(jrn && jrn.open && jrn.open[up.id])
       ? "🔓 Just unlocked! You beat " + SKILLS[rs.level].name + " — come and meet them."
       : "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
     $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(up.id, "a", clockStrOf()); };
@@ -2498,7 +2528,7 @@ function renderEndRating(rs, cardAt) {
   } else goalOnEndCard();
 
   /* the choreography, once the card is up */
-  var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
+  var startAt = REDUCED ? 120 : (cardAt || 1100) + paceCardMs(450);
   setTimeout(function () {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
@@ -2559,8 +2589,10 @@ function renderEndRating(rs, cardAt) {
         unlBonus("A third star", 40);
         setTimeout(function () { popStar(2, live); }, 700);
       }
+      /* and a win that good, at a quick player's pace, opens the road ahead */
+      if (rs.s === 1 && rs.clean && acc >= 80) paceFastTrack(rs.level, acc);
       progressAfterLook(rs, acc, c);
-    }, REDUCED ? 0 : startAt + 1700);
+    }, REDUCED ? 0 : startAt + paceCardMs(1700));
   });
 }
 function countChips(c) {
@@ -2737,11 +2769,12 @@ function milesReset(cardAt, rs) {
   if (em) em.textContent = "⬆️";
   /* a rated game reveals its number and stars first; what else the game
      did waits until they have landed */
-  var after = REDUCED ? 150 : (cardAt || 1100) + (rs ? 3000 + rs.newStars.length * 420 : 700);
+  var after = REDUCED ? 150 : (cardAt || 1100) + paceCardMs(rs ? 3000 + rs.newStars.length * 420 : 700);
   /* and the number's own milestone, when there is one, keeps its place
      at the top of the stack whatever arrives before it */
   var reserved = !!(rs && rs.out && (rs.out.milestone || (rs.out.levelUp && rs.out.next)));
-  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false };
+  milesFlush(true);
+  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false, q: [] };
 }
 function pushMile(icon, html, o) {
   o = o || {};
@@ -2749,8 +2782,8 @@ function pushMile(icon, html, o) {
   if (o.first && miles.reserved) miles.reserved = false;
   else { if (miles.n >= 3) return false; miles.n++; }
   var now = Date.now(), at = o.first ? now : Math.max(now, miles.next), my = miles.ticket;
-  if (!o.first) miles.next = at + 500;
-  setTimeout(function () {
+  if (!o.first) miles.next = at + paceCardMs(500);
+  var job = { fn: function () {
     if (my !== gameTicket || !over) return;
     var box = $("endMiles"), line = document.createElement("div");
     line.className = "erMile" + (o.cls ? " " + o.cls : "");
@@ -2765,8 +2798,20 @@ function pushMile(icon, html, o) {
       Fx.sparkle(line, { count: 14 });
       if (o.big) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
     }
-  }, Math.max(0, at - now));
+  } };
+  var q = miles.q || (miles.q = []);
+  job.t = setTimeout(function () { var i = q.indexOf(job); if (i >= 0) q.splice(i, 1); job.fn(); }, Math.max(0, at - now));
+  q.push(job);
   return true;
+}
+/* the end card's lines, all at once: a tap on the card hurries the
+   celebration along (and says something about the player's pace) */
+function milesPending() { return !!(miles && miles.q && miles.q.length); }
+function milesFlush(drop) {
+  if (!miles || !miles.q) return;
+  var q = miles.q.splice(0);
+  q.forEach(function (j) { clearTimeout(j.t); if (!drop) j.fn(); });
+  if (!drop) miles.next = Date.now();
 }
 
 /* ---- the journal ---- */
@@ -3069,20 +3114,27 @@ function startGame(newMode, opts) {
   ink = Ink.create();
   $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow();
   mode = newMode;
+  setupSt = null;
   G = notationGame(opts.fen); if (G.startFen) ratedDone = true;    /* a set-up position is never rated */
   over = null;
   closePromo();
   clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
   hideToast(); clearLines();
+  $("tableEnd").classList.add("hide");
   if (R && R.resetView) R.resetView();
   clearSel(); viewPly = -1; lastNarratedOpening = ""; thinking = false;
   showViewBanner(false);
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
   skill = skillOk(opts.skill || skill);
+  /* a friendly game: the coach goes easy and nothing is rated (pace.js) */
+  friendly = mode === "coach" && !!opts.friendly;
+  if (friendly) ratedDone = true;
+  paceTurnEnd(false); paceNudged = 0;
   clockConfig(opts.clockStr || "none");
-  orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
+  orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : (opts.orientation === -1 ? -1 : 1));
   R.setOrientation(orientation);
+  tableSync();
   if (FX) Fx.clear();
   fxDown = null;
   R.setPosition(G.board, { flourish: true });
@@ -3095,6 +3147,7 @@ function startGame(newMode, opts) {
   if (typeof Stage !== "undefined") Stage.newGame();
   moStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
+  else if (mode === "coach") paceTurnStart();
   needFrame();
 }
 /* the engine names an ending in a word; a person deserves a sentence */
@@ -3159,11 +3212,13 @@ function endGame(result, reason, taught) {
   }
   /* a mate gets a moment on the board — the king laid down, the camera
      leaning in — before the card comes up over it */
-  var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
+  var cardAt = REDUCED ? 100 : paceCardMs(reason === "checkmate" ? 1700 : 1100);
+  paceTurnEnd(false);
   var rs = mode === "coach" ? settleRating(result) : null;
   renderEndRating(rs, cardAt);
   moEndCard();
   jrnAtEnd(result, rs);
+  paceAtEnd(result, rs);
   unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
   renderOddsReview();
@@ -3174,6 +3229,8 @@ function endGame(result, reason, taught) {
   setTimeout(function () {
     if (!over) return;
     if (document.querySelector(".ov:not(.hide)") || studioOpen) { syncTurnStrip(); return; }
+    /* two people across a table: each seat is told, the right way up */
+    if (tableFacing()) { tableEnd(result, reason); return; }
     $("ovEnd").classList.remove("hide");
     syncTurnStrip();
     /* the room celebrates with you — and for two people on one board, a
@@ -3285,6 +3342,7 @@ function saveGame() {
     ev: lastEval, lo: lowEval,
     /* a game played on from a sent position is friendly, and stays so */
     fr: mode === "coach" && ratedDone ? 1 : 0,
+    ez: friendly ? 1 : 0,
     /* what you drew, filed by position */
     ink: Ink.pack(ink)
   }));
@@ -3334,7 +3392,7 @@ function resumeSave(s) {
   catch (e) { lsDel(SAVE_KEY); startGame(s.mode === "coach" ? "coach" : "pass", {}); toast("That saved game couldn't be read back, so here is a fresh board."); }
 }
 function resumeSaveInner(s) {
-  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr, fen: s.fen });
+  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr, fen: s.fen, friendly: s.ez === 1 });
   var g = G;
   for (var i = 0; i < s.sans.length; i++) {
     var m = Chess.fromSAN(g, s.sans[i]);
@@ -3356,6 +3414,7 @@ function resumeSaveInner(s) {
   var st = Chess.status(G);
   if (st.over) { endGame(st.result, st.reason); return; }
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
+  else if (mode === "coach") paceTurnStart();
   toast("🕯️ Welcome back — the board is exactly as you left it.");
 }
 
@@ -5240,7 +5299,10 @@ function oddsNudge() {
     showLines([{ from: pick.squares[0], to: nTo, kind: pick.concept === "hanging" ? "threat" : "ghost",
                  tone: pick.concept === "hanging" ? "threat" : "hint", knight: knightHop(pick.squares[0], nTo) }], 5200, "main");
   }
-  toast("🫱 " + pick.text + " <i>(free — you're behind)</i>", null, 7000);
+  var say = "🫱 " + pick.text + " <i>(free — you're behind)</i>";
+  /* across a table, said to the one it is for, the right way up for them */
+  if (tableFacing()) { tableSay(side === -orientation ? say : "", side === orientation ? say : "", 7000, true); return; }
+  toast(say, null, 7000);
 }
 
 /* ---- the lines on the board ----
@@ -5616,7 +5678,9 @@ function teachMoment(list, mover, source, ply) {
                   ? " \u00b7 " + item.squares.map(Chess.sqName).join("\u2013") : "") });
     /* the board only gets interrupted for something that changes what
        you should do right now */
-    if (major && voice() === "plain") toast("\ud83d\udc41 " + item.text, null, 7000);
+    /* across a table a toast faces one of the two; the notebook and the
+       lines on the board are for both */
+    if (major && voice() === "plain" && !tableFacing()) toast("\ud83d\udc41 " + item.text, null, 7000);
     return;
   }
 }
@@ -5650,6 +5714,7 @@ function openAcademy() {
   hideAllOverlays();
   closeStudio();
   renderAcademy();
+  setupAcademySync();
   $("ovAcademy").classList.remove("hide");
 }
 function renderAcademy() {
@@ -6675,17 +6740,18 @@ function syncSettingsUI() {
   $("ckClassic").classList.toggle("sel", prefs.clockSkin === "classic");
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
   syncHelpSettings();
+  paceSync();
 }
 
 /* the two ways a configured game begins, shared by the menu and the
    New game button */
-function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); }); }
+function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); tableHello(); }); }
 function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.side, o.clockStr); }); }
 /* New game, from the board. Starting over is one tap; it only asks first
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review" || mode === "setup") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -6709,6 +6775,7 @@ function wireUI() {
   $("btnFlip").addEventListener("click", function () {
     orientation = -orientation;
     R.setOrientation(orientation);
+    tableSync();
     syncBars(); syncClocks(); syncBoard();
     needFrame();
   });
@@ -6721,7 +6788,8 @@ function wireUI() {
     var s = loadSave();
     if (s) resumeSave(s);
   });
-  $("mPass").addEventListener("click", function () { openNewCard("pass", passBegin); });
+  $("mPass").addEventListener("click", tableBegin);
+  $("mPassOpts").addEventListener("click", function () { openNewCard("pass", passBegin); });
   $("mCoach").addEventListener("click", function () { openNewCard("coach", coachBegin); });
   $("mPlay").addEventListener("click", function () { quickPlay(); });
   $("mRating").addEventListener("click", showProfile);
@@ -6730,8 +6798,9 @@ function wireUI() {
   $("btnNew").addEventListener("click", newGameButton);
   $("mLan").addEventListener("click", openLink);
   $("mOpenings").addEventListener("click", showOpenings);
-  $("mLearn").addEventListener("click", function () { showLearn(0); });
+  $("mLearn").addEventListener("click", function () { startSetup({ then: "rules" }); });
   $("mAcademy").addEventListener("click", openAcademy);
+  $("aSetup").addEventListener("click", function () { startSetup({ memory: !!(setupRec && (setupRec.learned || setupRec.tries)), then: "academy" }); });
   $("academyBack").addEventListener("click", showMenu);
   $("aPractise").addEventListener("click", startPractice);
   $("aNext").addEventListener("click", startNextLesson);
@@ -6752,8 +6821,10 @@ function wireUI() {
   homeWire();
   moWire();
   jrnWire();
+  paceWire();
+  tableWire();
   unlWire();
-  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
+  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); tableSync(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
     var ctx = newCardCtx; newCardCtx = null;
@@ -7175,7 +7246,7 @@ function castSay(kind, mood, vars) {
   say.innerHTML = '<span class="who">' + escHtml(who.name) + "</span>" + escHtml(text);
   say.classList.remove("hide");
   clearTimeout(castSayT);
-  var ms = Cast.readMs(text), syl = Cast.syllables(text);
+  var ms = paceWords(Cast.readMs(text)), syl = Cast.syllables(text);
   castSayT = setTimeout(castHush, ms);
   castLastSay = Date.now();
   if (castFace) { castFace.talk(Math.min(ms - 300, 250 + syl * 1000 / who.voice.rate), who.voice.rate); if (mood) castFace.mood(mood, ms); }
@@ -8424,7 +8495,7 @@ function jrnAtEnd(result, rs) {
     var hb = homeJust === skill && Skins.homeOf(skill);
     /* what the win opened: the next coach on the road, and the place
        its chapter is set in, if the road has never been there before */
-    var opened = next && Journey.openedBy(next.id) === skill ? next : null;
+    var opened = next && Journey.openedBy(next.id) === skill && !(jrn.open && jrn.open[next.id]) ? next : null;
     var newPlace = opened && Journey.PLACE_FROM[opened.place] === opened.id ? opened.place : null;
     var placeName = newPlace && Scenes.get(newPlace) ? Scenes.get(newPlace).label : "";
     pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (hb ? escHtml(hb.name) + " is yours. " : "") +
@@ -8511,8 +8582,461 @@ function journeyForTest() {
    it remembers you: how many games you have played it, and what the
    other coaches have been saying. */
 var persSigAt = 0, persStole = -1, persIdleT = 0;
+/* ===== setting up the board (setup.js) =====
+   The first lesson there is: which piece is which, and where it starts.
+   Your pieces are handed to you one kind at a time, each named with a
+   line on how it moves; you put them down, each flies from your hand to
+   its square and lands with a sparkle, and Black then sets up across the
+   board by itself. From memory (the Academy) it is the same with no
+   words, no glow, a clock and a best time. */
+var setupSt = null, setupT0 = 0, setupThen = null, setupBusy = false, setupClockT = 0;
+var setupRec = typeof Setup !== "undefined" ? Setup.load(lsGet) : null;
+function startSetup(o) {
+  o = o || {};
+  stopTour();
+  quietBoard();
+  hideAllOverlays();
+  closeStudio();
+  lesson = null; lessonQueue = []; over = null; thinking = false;
+  mode = "setup";
+  G = Chess.create();
+  clockConfig("none");
+  clearSel(); viewPly = -1;
+  setupSt = Setup.begin({ memory: !!o.memory });
+  setupThen = o.then || null; setupBusy = false;
+  orientation = 1;
+  R.setOrientation(1);
+  tableSync();
+  R.setPosition(Setup.board(setupSt, false));
+  hideOpeningCard();
+  showViewBanner(false);
+  syncAll();
+  setupT0 = Date.now();
+  setupShow();
+  clearInterval(setupClockT);
+  if (setupSt.memory) setupClockT = setInterval(function () {
+    var c = $("suClock");
+    if (!setupSt || mode !== "setup" || setupSt.done || !c) { clearInterval(setupClockT); return; }
+    c.textContent = Setup.fmt(Date.now() - setupT0);
+  }, 100);
+  needFrame();
+}
+function setupGentle() { return paceRead().pace === "gentle"; }
+function setupDots() {
+  return '<span class="suDots" aria-hidden="true">' + Setup.STEPS.map(function (s, i) {
+    return '<i class="' + (i < setupSt.at ? "on" : i === setupSt.at ? "now" : "") + '">' + GLYPH[s.kind] + "</i>";
+  }).join("") + "</span>";
+}
+function setupShow(say) {
+  var s = Setup.step(setupSt);
+  if (!s) return;
+  var left = Setup.targets(setupSt).length, mem = setupSt.memory;
+  var title = s.squares.length > 1 && !s.group ? "Your " + s.plural.toLowerCase() : s.group ? "Your pawns" : "Your " + s.name.toLowerCase();
+  lessonUI('<div class="suCard"><span class="suPiece" id="suPiece">' + GLYPH[s.kind] + "</span>" +
+    '<div class="suTx"><b>' + (mem ? escHtml(s.plural) : s.emoji + " " + escHtml(title)) + "</b>" +
+    (mem ? '<small>Where do they go? <span class="suClock">⏱ <span id="suClock">' + Setup.fmt(Date.now() - setupT0) + "</span></span></small>"
+         : "<small>" + escHtml(s.is) + "</small>") +
+    (mem && !say ? "" : '<em id="suSay">' + escHtml(say || s.where) + (left > 1 && !s.group && !say ? " (" + left + " to place)" : "") + "</em>") +
+    "</div>" + (mem ? "" : '<button class="suSkip" id="suSkip">Skip ›</button>') + "</div>" + setupDots(), "setup");
+  var sk = $("suSkip");
+  if (sk) sk.addEventListener("click", setupSkip);
+  setupGlow();
+}
+/* not everyone wants the walk-through: on to wherever it was leading */
+function setupSkip() {
+  var then = setupThen;
+  setupEnd();
+  if (then === "rules") showLearn(0);
+  else if (then === "academy") openAcademy();
+  else showMenu();
+}
+function setupGlow(force) {
+  if (!R || !setupSt) return;
+  var on = force || Setup.glow(setupSt, setupGentle());
+  R.setHighlights({ selected: -1, legal: on && !setupSt.done ? Setup.targets(setupSt) : [], legalCapt: [], last: null, check: -1 });
+  needFrame();
+}
+/* Help, in a set-up: where this piece goes. From memory it costs what a
+   miss costs */
+function setupHint() {
+  if (!setupSt || setupSt.done) return;
+  var s = Setup.step(setupSt);
+  if (setupSt.memory) setupSt.misses++;
+  setupShow(s.where + (setupSt.memory ? " (+3 s)" : ""));
+  setupGlow(true);
+}
+function setupTap(sq) {
+  if (!setupSt || setupSt.done || setupBusy) return;
+  var res = Setup.place(setupSt, sq);
+  if (!res.ok) {
+    hap("nope");
+    var bar = $("lessonBar");
+    bar.classList.remove("suNope"); void bar.offsetWidth; bar.classList.add("suNope");
+    setupShow(res.why);
+    return;
+  }
+  setupBusy = true;
+  hap("select");
+  var mine = setupSt;
+  setupFly(res.sq, res.piece, function () {
+    if (setupSt !== mine || mode !== "setup") return;
+    var b = Setup.board(setupSt, false);
+    res.rest.forEach(function (q) { b[q] = 0; });
+    R.setPosition(b.slice ? b.slice() : b);
+    hap("land");
+    snd("tap", { hz: 520 + res.piece * 60 });
+    if (FX) { try { Fx.flair(res.sq, { style: "stars" }); } catch (e) {} }
+    needFrame();
+    /* the rest of a group marches in, one after another */
+    var i = 0;
+    (function march() {
+      if (setupSt !== mine || mode !== "setup") return;
+      if (i < res.rest.length) {
+        b[res.rest[i]] = res.piece; i++;
+        R.setPosition(b.slice ? b.slice() : b);
+        snd("tap", { hz: 600 + i * 40 });
+        needFrame();
+        setTimeout(march, REDUCED ? 0 : 90);
+        return;
+      }
+      setupBusy = false;
+      if (res.finished) setupBlack();
+      else if (res.stepDone) { sting("lesson-right"); setupShow(); }
+      else setupShow();
+    })();
+  });
+}
+/* the piece leaves your hand (the card) and lands on its square */
+function setupFly(sq, piece, done) {
+  var from = $("suPiece"), stage = $("stage"), to = R.squareToScreen ? R.squareToScreen(sq, 0.3) : null;
+  if (!from || !to || REDUCED || typeof Element === "undefined" || !Element.prototype.animate) { done(); return; }
+  var sr = stage.getBoundingClientRect(), fr = from.getBoundingClientRect(), cr = $(R === R3 ? "cv3" : "cv2").getBoundingClientRect();
+  var fx = fr.left + fr.width / 2 - sr.left, fy = fr.top + fr.height / 2 - sr.top;
+  var tx = to.x + cr.left - sr.left, ty = to.y + cr.top - sr.top;
+  var el = document.createElement("div");
+  el.className = "suFly";
+  el.textContent = GLYPH[piece];
+  el.style.left = fx + "px"; el.style.top = fy + "px";
+  el.style.fontSize = Math.max(28, Math.round((to.s || 40) * 0.95)) + "px";
+  stage.appendChild(el);
+  from.classList.add("gone");
+  var dx = tx - fx, dy = ty - fy;
+  var a = el.animate([
+    { transform: "translate(-50%,-50%) translate(0px,0px) scale(1.35) rotate(-8deg)", opacity: 1 },
+    { transform: "translate(-50%,-50%) translate(" + dx * 0.55 + "px," + (dy * 0.55 - 70) + "px) scale(1.2) rotate(6deg)", opacity: 1, offset: 0.55 },
+    { transform: "translate(-50%,-50%) translate(" + dx + "px," + dy + "px) scale(1) rotate(0deg)", opacity: 1 }
+  ], { duration: 560, easing: "cubic-bezier(.3,.7,.35,1)" });
+  var fin = false, end = function () { if (fin) return; fin = true; el.remove(); done(); };
+  a.onfinish = end;
+  setTimeout(end, 900);
+}
+/* Black sets up across the board, the same way, by itself */
+function setupBlack() {
+  setupSt.mirrored = true;
+  lessonUI('<div class="suCard"><span class="suPiece">' + GLYPHB[6] + '</span><div class="suTx"><b>Black sets up the same way</b>' +
+    "<small>Every piece straight across the board from yours, and the black queen on her own colour: the dark square.</small></div></div>" + setupDots(), "setup");
+  var list = Setup.mirror(), b = Setup.board(setupSt, false), i = 0, mine = setupSt;
+  setupGlow();
+  (function next() {
+    if (setupSt !== mine || mode !== "setup") return;
+    if (i >= list.length) { setTimeout(function () { if (setupSt === mine && mode === "setup") setupDone(); }, REDUCED ? 0 : 350); return; }
+    b[list[i][0]] = list[i][1]; i++;
+    R.setPosition(b.slice ? b.slice() : b);
+    if (i % 2) snd("tap", { hz: 420 + i * 14 });
+    needFrame();
+    setTimeout(next, REDUCED ? 0 : 60);
+  })();
+}
+function setupDone() {
+  var st = setupSt, ms = Date.now() - setupT0, out = Setup.finish(setupRec, st, ms);
+  Setup.save(setupRec, lsSet);
+  clearInterval(setupClockT);
+  sting(st.memory && out.best ? "levelup" : "lesson-done");
+  hap("success");
+  if (FX) { try { Fx.confetti({ ms: 2400, layer: "page" }); } catch (e) {} }
+  var html;
+  if (st.memory) {
+    html = '<div class="suCard done"><span class="suPiece">⏱</span><div class="suTx"><b>' + Setup.fmt(out.score) + (out.best ? " — a new best!" : "") + "</b>" +
+      "<small>" + (st.misses ? st.misses + (st.misses > 1 ? " misses" : " miss") + " (3 s each)" : "Not a single miss") + " · your best " + Setup.fmt(out.record) + "</small></div></div>" +
+      '<div class="suBtns"><button class="chip sel" id="suAgain">⏱ Again</button><button class="chip" id="suPlay">▶ Play a game</button><button class="chip" id="suBack">Back</button></div>';
+  } else {
+    html = '<div class="suCard done"><span class="suPiece">' + GLYPH[6] + "</span><div class=\"suTx\"><b>That's how every game of chess begins!</b>" +
+      "<small>Rooks in the corners, then knights, bishops, the queen on her own colour, the king, and a wall of pawns. Now you know who's who.</small></div></div>" +
+      '<div class="suBtns">' + (setupThen === "rules" ? '<button class="chip sel" id="suRules">🐣 How they move →</button>' : "") +
+      '<button class="chip' + (setupThen === "rules" ? "" : " sel") + '" id="suPlay">▶ Play a game</button><button class="chip" id="suAgain">⏱ From memory</button></div>';
+  }
+  lessonUI(html, "setup done");
+  var on = function (id, fn) { var b = $(id); if (b) b.addEventListener("click", fn); };
+  on("suRules", function () { setupEnd(); showLearn(0); });
+  on("suPlay", function () { setupEnd(); quickPlay(nextLevel()); });
+  on("suAgain", function () { startSetup({ memory: true, then: setupThen }); });
+  on("suBack", function () { setupEnd(); openAcademy(); });
+}
+function setupEnd() {
+  clearInterval(setupClockT);
+  setupSt = null;
+  $("lessonBar").classList.add("hide");
+  document.body.classList.remove("lesson-on");
+  reflow();
+}
+function setupAcademySync() {
+  var b = $("aSetupSub");
+  if (!b || !setupRec) return;
+  b.textContent = !setupRec.learned && !setupRec.tries ? "Which piece is which, and where it lives. Then race the clock."
+    : "From memory, against the clock." + (setupRec.best ? " Your best: " + Setup.fmt(setupRec.best) + "." : "");
+}
+function setupForTest() {
+  return { setupState: function () { return setupSt ? JSON.parse(JSON.stringify(setupSt)) : null; },
+           setupRecord: function () { return JSON.parse(JSON.stringify(setupRec)); },
+           startSetup: startSetup, setupTap: setupTap, setupBusy: function () { return setupBusy; } };
+}
+
+/* ===== the table: two people, one device =====
+   A phone or a tablet flat on the table between two people. Neither of
+   them is "the player" the rest of the room is built round, so here:
+   - one tap from the lobby sits you down (the clock you chose last time,
+     and the seating you chose: clock and seating are a link underneath);
+   - across the table (the default), the board stays put and the far bar
+     is turned to face its player: name, clock, what they have taken, and
+     "Your move" on whichever bar is to move. On the flat board their
+     men are drawn the right way up for them; the 3D camera stands right
+     over the middle, so it is the same picture from both sides;
+   - the moves and notes panel steps aside for the board, and the quiet
+     coach keeps its remarks in the notebook rather than in a toast that
+     would face one of them;
+   - and at the end each seat is told, the right way up, with a button
+     on each side to play again (seats stay, colours swap).
+   Passing the device back and forth (the other seating) is the old way:
+   the board turns to whoever moves, and the room talks as usual. */
+function tableFacing() { return mode === "pass" && !prefs.autoFlip; }
+function tableSync() {
+  var on = mode === "pass", face = tableFacing();
+  document.body.classList.toggle("table", on);
+  document.body.classList.toggle("facing", face);
+  if (R2 && R2.setFaceToFace) R2.setFaceToFace(face ? -orientation : 0);
+  if (R3 && R3.setOverhead) R3.setOverhead(face);
+  if (!face) $("tableSay").classList.add("hide");
+  reflow();
+}
+function tableBegin() {
+  var clk = (prefs.lastClock && prefs.lastClock.pass) || "none";
+  leaveGameThen(function () { startGame("pass", { clockStr: clkOk(clk) ? clk : "none", fresh: true }); tableHello(); });
+}
+/* who sits where, said to both, the right way up, as the game begins */
+var tableSayT = 0;
+function tableHello() {
+  if (!tableFacing()) return;
+  var top = -orientation, bot = orientation;
+  tableSay(sideName(top) + ", you're on this side" + (top === 1 ? ": you start." : "."),
+           sideName(bot) + ", you're on this side" + (bot === 1 ? ": you start." : "."), 3600);
+}
+function tableSay(topTx, botTx, ms, html) {
+  var el = $("tableSay");
+  $("tsTop")[html ? "innerHTML" : "textContent"] = topTx; $("tsBot")[html ? "innerHTML" : "textContent"] = botTx;
+  $("tsTop").parentNode.classList.toggle("hide", !topTx);
+  $("tsBot").parentNode.classList.toggle("hide", !botTx);
+  el.classList.remove("hide");
+  clearTimeout(tableSayT);
+  tableSayT = setTimeout(function () { el.classList.add("hide"); }, ms || 3000);
+}
+function tableEnd(result, reason) {
+  var top = -orientation, bot = orientation;
+  function says(side) {
+    if (result === "draw") return ["🤝 A draw!", cap(reason) + "."];
+    var won = (result === "white") === (side === 1);
+    return won ? ["🎉 You won!", cap(reason) + "."] : ["🌱 Good game", sideName(-side) + " won — " + reason + "."];
+  }
+  var t = says(top), b = says(bot);
+  $("teTopTx").textContent = t[0]; $("teTopSub").textContent = t[1];
+  $("teBotTx").textContent = b[0]; $("teBotSub").textContent = b[1];
+  $("tableEnd").classList.remove("hide");
+  $("tableSay").classList.add("hide");
+  /* and it takes focus, as the end card does: a keyboard or a screen
+     reader lands on the near seat's Play again */
+  var again = document.querySelector("#tableEnd .teHalf.bot .teAgain");
+  if (again) { try { again.focus({ preventScroll: true }); } catch (e) { again.focus(); } }
+  syncTurnStrip();
+  if (FX && result !== "draw") { Fx.confetti({ ms: 2400, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+}
+function tableAgain() {
+  $("tableEnd").classList.add("hide");
+  /* the same seats, the colours swapped: the board turns to the new White */
+  var turn = -orientation, clk = clockStrOf();
+  startGame("pass", { clockStr: clk, fresh: true, orientation: turn });
+  tableHello();
+}
+function tableWire() {
+  Array.prototype.forEach.call(document.querySelectorAll("#tableEnd .teAgain"), function (b) { b.addEventListener("click", tableAgain); });
+  $("teLook").addEventListener("click", function () { $("tableEnd").classList.add("hide"); $("ovEnd").classList.remove("hide"); syncTurnStrip(); });
+  $("teMenu").addEventListener("click", function () { $("tableEnd").classList.add("hide"); showMenu(); });
+  $("tableSay").addEventListener("click", function () { this.classList.add("hide"); });
+}
+function tableForTest() {
+  return { tableFacing: tableFacing, tableBegin: tableBegin, tableAgain: tableAgain,
+           face2d: function () { return R2 ? R2.face : null; }, get orientation() { return orientation; } };
+}
+
+/* ===== the room's pace: gentle, steady or brisk (pace.js) =====
+   How long the coach waits before it answers, how long words stay up,
+   how long the end card takes, whether to offer a hand to someone who
+   has been thinking a while, when to offer a friendly game, and whether
+   a superb win opens the road ahead. Read from how you play; pinned in
+   Settings if you prefer. */
+var pace = typeof Pace !== "undefined" ? Pace.load(lsGet) : null;
+var paceTurn = null;          /* { at, hid, ticket } while it is your move against the computer */
+var paceNudgeT = 0, paceNudged = 0, paceNudgeMs = 0;    /* paceNudgeMs: a test's shortcut */
+var friendly = false;         /* this coach game is a friendly one: easy, and never rated */
+var paceCardT = -1;           /* the game whose end card has been tapped past already */
+var PACE_STILL = { pace: "steady", auto: "steady", mode: "auto", think: null, tempo: null, why: [] };
+function paceSave() { if (pace) Pace.save(pace, lsSet); }
+function paceRead() { return pace ? Pace.read(pace) : PACE_STILL; }
+function paceDial() { return typeof Pace !== "undefined" ? Pace.dials(paceRead().pace) : { reply: 500, words: 1, card: 1, nudge: null, friendlyAfter: 3, fastTrack: true }; }
+function paceWords(ms) { return Math.round(ms * paceDial().words); }
+function paceCardMs(ms) { return Math.round(ms * paceDial().card); }
+
+/* your turn against the computer: how long you look before you move is
+   the one honest measure of the pace you like. Time the page spends
+   hidden is not thinking, so that turn is not counted at all */
+function paceTurnStart() {
+  paceTurnEnd(false);
+  if (!pace || mode !== "coach" || over || !G || G.turn !== humanSide) return;
+  paceTurn = { at: Date.now(), hid: !!document.hidden, ticket: gameTicket };
+  paceArmNudge();
+}
+function paceTurnEnd(played) {
+  clearTimeout(paceNudgeT);
+  var t = paceTurn;
+  paceTurn = null;
+  if (!played || !t || !pace || t.ticket !== gameTicket || t.hid) return;
+  if (Pace.think(pace, Date.now() - t.at)) paceSave();
+}
+function paceNudgesAllowed() { return paceRead().pace === "gentle" ? 2 : 1; }
+function paceArmNudge() {
+  clearTimeout(paceNudgeT);
+  var natural = Pace.nudgeAfter(paceRead()), wait = paceNudgeMs || natural;
+  /* never with a clock (a hand on the shoulder while time runs is
+     pressure), and never for a brisk player, who has not asked for one */
+  if (!natural || clock.on || paceNudged >= paceNudgesAllowed()) return;
+  paceNudgeT = setTimeout(paceNudge, paceNudged ? wait * 2 : wait);
+}
+/* someone has been looking at the board for a good while: no hurry,
+   says the coach, and here is a clue if you'd like one */
+function paceNudge() {
+  var t = paceTurn;
+  if (!t || t.ticket !== gameTicket || over || mode !== "coach" || !G || G.turn !== humanSide || thinking) return;
+  /* not over anything: a card, a question, a page that is away */
+  if (document.hidden || document.querySelector(".ov:not(.hide)") || studioOpen ||
+      ($("toast").classList.contains("show") && $("toast").classList.contains("acts"))) { paceNudgeT = setTimeout(paceNudge, 8000); return; }
+  paceNudged++;
+  castSay("patient", "happy");
+  toast("🌱 <b>Take your time.</b> There's no clock, and thinking is how it's learned. Would a clue help?",
+    [{ label: "🧭 A clue", fn: function () { thinkPrompt(); } },
+     { label: "I'm fine", ghost: true, fn: function () {} }], paceWords(14000));
+  paceArmNudge();
+}
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", function () { if (document.hidden && paceTurn) paceTurn.hid = true; });
+
+/* the end of a coach game: what it says about the pace, a friendly game
+   for someone who keeps losing to one coach, and the road a friendly win
+   opens */
+function paceAtEnd(result, rs) {
+  var fb = $("endFriendly");
+  if (fb) fb.classList.add("hide");
+  if (!pace || mode !== "coach" || !G) return;
+  var won = result !== "draw" && (result === "white") === (humanSide === 1), lost = result !== "draw" && !won;
+  var helped = !!(assist.takebacks || assist.hints || assist.wheels);
+  Pace.game(pace, { coach: skill, won: won, lost: lost, helped: helped, plies: G.played.length, friendly: friendly });
+  Pace.card(pace, false);
+  paceSave();
+  if (friendly) {
+    $("endRematchTx").textContent = "Play for real";
+    $("endRematchSub").textContent = "The same coach, at full strength, rated — you'll have " + (humanSide === 1 ? "Black" : "White") + ".";
+    if (won) {
+      var nx = Journey.after(skill, 1), opened = nx ? Journey.openAhead(ladder, jrn, nx) : null;
+      if (opened) {
+        jrnSave();
+        var place = Object.keys(Journey.PLACE_FROM).filter(function (k) { return Journey.PLACE_FROM[k] === opened; })[0];
+        pushMile("🤝", "<b>A friendly win!</b> 🔓 " + escHtml(jrnName(opened)) + " is open now." +
+                 (place ? " A new place too: the " + escHtml(Scenes.get(place).label.toLowerCase()) + "." : "") +
+                 " Beat " + escHtml(SKILLS[skill].name) + " in a real game to clear the chapter.",
+                 { cls: "unlock", sting: "levelup", hap: "success" });
+      } else pushMile("🤝", "<b>A friendly win!</b> Ready for a real one?", { cls: "unlock" });
+    }
+    return;
+  }
+  /* a run of losses to one coach: a friendly game, offered, never forced */
+  if (lost && fb && coachOpen(skill) && Pace.friendlyDue(pace, paceRead(), skill)) {
+    var L = SKILLS[skill];
+    $("endFriendlyTx").textContent = "A friendly game with " + L.name;
+    $("endFriendlySub").textContent = L.name + " goes easy and nothing's rated. Win it and the road opens ▶";
+    fb.onclick = function () { $("ovEnd").classList.add("hide"); paceFriendly(skill); };
+    fb.classList.remove("hide");
+  }
+}
+function paceFriendly(id) {
+  if (!coachOpen(id)) { coachLocked(id); return; }
+  leaveGameThen(function () { startCoachGame(id, "a", "none", { friendly: true }); }, "a friendly game");
+}
+/* a win good enough for the third star: for anyone not taking it
+   gently, the road two coaches ahead opens too */
+function paceFastTrack(level, acc) {
+  if (!pace || friendly || !Pace.fastTrack(paceRead(), { won: true, helped: false, acc: acc })) return;
+  var two = Journey.after(level, 2);
+  if (!two || !coachOpen(Journey.after(level, 1))) return;
+  var opened = Journey.openAhead(ladder, jrn, two);
+  if (!opened) return;
+  jrnSave();
+  var line = "<b>Fast track!</b> You played so well that " + escHtml(jrnName(opened)) + " is open too.";
+  if (!pushMile("⚡", line, { cls: "unlock", sting: "levelup", hap: "success" })) toast("⚡ " + line, null, paceWords(5000));
+}
+/* a tap on the end card while it is still celebrating: hurry it along */
+function paceCardTap(e) {
+  if (!over || !milesPending()) return;
+  if (e && e.target && e.target.closest && e.target.closest("button, a, input")) return;
+  milesFlush(false);
+  if (pace && paceCardT !== gameTicket && mode === "coach") { paceCardT = gameTicket; Pace.skip(pace); paceSave(); }
+}
+
+/* Settings: Auto, or pinned */
+var PACE_SAYS = {
+  gentle: "The coach pauses before it answers, words stay up longer, and if you've been thinking a while it offers a clue. Never a clock.",
+  steady: "The room's usual pace. A win good enough for the third star also opens the road two coaches ahead.",
+  brisk: "The coach answers at once, the end card gets out of the way, and a third-star win opens the road two coaches ahead."
+};
+function paceSync() {
+  var r = paceRead();
+  ["auto", "gentle", "steady", "brisk"].forEach(function (m) {
+    var b = $("pa" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (b) b.classList.toggle("sel", r.mode === m);
+  });
+  var note = $("setPaceNote");
+  if (note) note.innerHTML = (r.mode === "auto"
+    ? "Auto: reading you as <b>" + cap(r.pace) + "</b>" + (r.why.length ? ", because " + escHtml(r.why.join(" and ")) : " until it has seen you play") + ". "
+    : "") + escHtml(PACE_SAYS[r.pace]);
+}
+function paceWire() {
+  ["auto", "gentle", "steady", "brisk"].forEach(function (m) {
+    var b = $("pa" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (b) b.addEventListener("click", function () { if (!pace) return; Pace.setMode(pace, m); paceSave(); paceSync(); });
+  });
+  $("ovEnd").addEventListener("click", paceCardTap);
+  paceSync();
+}
+function paceForTest() {
+  return {
+    paceState: function () { return JSON.parse(JSON.stringify(pace)); },
+    paceRead: paceRead, paceDial: paceDial,
+    paceSet: function (st) { pace = Pace.clean(st); paceSave(); paceSync(); },
+    setNudgeMs: function (ms) { paceNudgeMs = ms; if (paceTurn) paceArmNudge(); },
+    friendly: function () { return friendly; }, paceFriendly: paceFriendly,
+    coachSearchOpts: function () { return persSearchOpts(); },
+    paceFastTrackForTest: paceFastTrack, syncSettingsUI: syncSettingsUI
+  };
+}
+
 function persSearchOpts() {
   var o = Rating.searchOpts(skill), who = castWho();
+  if (friendly && typeof Pace !== "undefined") o = Pace.easy(o);
   if (who && who.style && who.style.w) {
     var c = {}, k;
     for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) c[k] = o[k];
@@ -9392,6 +9916,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest(), setupForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();

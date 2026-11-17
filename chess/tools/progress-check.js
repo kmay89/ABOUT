@@ -137,6 +137,9 @@ const SIZES = [
       await page.click("#btnMenu");
       await page.waitForTimeout(300);
       await page.locator("#gameOps button", { hasText: "White resigns" }).click();
+      /* at the table each seat is told first; "The game" opens the card (table-check.js) */
+      await page.waitForFunction(() => !document.getElementById("tableEnd").classList.contains("hide"), null, { timeout: 9000 }).catch(() => {});
+      await page.click("#teLook");
       await endCard();
       let games = await page.evaluate(() => __cr.gamesForTest());
       const pg = games.list[0] || {};

@@ -1767,6 +1767,7 @@ function create(canvas, opts) {
     focus: { amt: 0, vel: 0, target: 0, x: 0, z: 0, vx: 0, vz: 0, tx: 0, tz: 0, last: 0 }
   };
   var camPlaced = false, vp = mIdent(), invVP = mIdent();
+  var camLastT = 0;           /* when the camera last eased (see R.frame) */
 
   /* ---------- the board's own clock ----------
      Every animation on the board — a move, the men arriving, a king
@@ -2077,11 +2078,26 @@ function create(canvas, opts) {
     feel.drift.on = false; feel.drift.yaw = 0; feel.drift.vel = 0;
     R.orientation = color;
     cam.tYaw = homeYaw(color);
-    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
+    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
+    R.dirty = true;
+  };
+/* two people across a table: neither gets the near side. The camera
+     stands over the middle of the board, as high as it goes, so the
+     view is the same picture for both of them */
+  var overhead = false;
+  function homePitch() { return overhead ? PITCH_MAX : PITCH_HOME; }
+  R.isOverhead = function () { return overhead; };
+  R.setOverhead = function (on) {
+    if (overhead === !!on) return;
+    overhead = !!on;
+    /* straight there: a game's opening shot already gives the arrival
+       its motion, and a long tilt after it would keep the board awake */
+    cam.tPitch = cam.pitch = homePitch(); cam.tDist = DIST_HOME;
+    camPlaced = false;
     R.dirty = true;
   };
   R.resetView = function () {
-    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
+    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
     cam.tYaw = homeYaw(R.orientation);
     R.focus(null);
     R.dirty = true;
@@ -3170,9 +3186,16 @@ function create(canvas, opts) {
     if (R.lost) return false;
     var th = R.pal;
     if (!th) return false;
-    /* camera springs */
+    /* camera springs: the same share of the way per sixtieth of a second
+       at any frame rate, so a phone drawing fifteen frames a second turns
+       the board round in the same time as one drawing sixty (a slow frame
+       counts for at most a quarter of a second). A first frame after a
+       rest of a second or more counts as one sixtieth, so nothing jumps */
     var moving = false;
-    var k = REDUCED ? 1 : 0.14;
+    var camNow = clock(), camGap = camLastT ? (camNow - camLastT) / 1000 : 0;
+    camLastT = camNow;
+    var camDt = camGap > 0 && camGap <= 1 ? Math.min(camGap, 0.25) : 1 / 60;
+    var k = REDUCED ? 1 : 1 - Math.exp(-9.05 * camDt);
     var dy = cam.tYaw - cam.yaw, dp = cam.tPitch - cam.pitch, dd = cam.tDist - cam.dist;
     if (Math.abs(dy) + Math.abs(dp) + Math.abs(dd) > 0.0008) {
       cam.yaw += dy * k; cam.pitch += dp * k; cam.dist += dd * k;
