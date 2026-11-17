@@ -2226,7 +2226,49 @@ function ratingText() {
 }
 /* who to play next: a fair fight — and while the room is still finding
    your level, a slightly gentle one */
-function nextLevel() { return skillOk(Rating.suggestLevel(rating)); }
+/* who you may play. The road decides (journey.js): the first coach, any
+   you have beaten, and the next one along. The fair fight the rating
+   suggests is offered only if it is open; otherwise the coach to beat. */
+function coachOpen(id) { return !!SKILLS[id] && (typeof Journey === "undefined" || Journey.coachOpen(ladder, id)); }
+function nextLevel() {
+  var s = skillOk(Rating.suggestLevel(rating));
+  return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s);
+}
+/* why a coach is still a shadow, without giving away who the shadows
+   are: the one to beat is named only if you can already play them */
+function lockWhy(id) {
+  var by = Journey.openedBy(id), ch = Journey.chapterOf(id);
+  return by && coachOpen(by) ? { short: "Beat " + SKILLS[by].name + " to unlock", html: "🔒 Beat " + SKILLS[by].emoji + " <b>" + escHtml(SKILLS[by].name) + "</b> to unlock the next coach." }
+                             : { short: "Chapter " + ch.n + " · further up the road", html: "🔒 Further up the road. Beat <b>" + escHtml(SKILLS[Journey.frontier(ladder)].name) + "</b> first." };
+}
+/* a coach just unlocked and never played yet: it says NEW! until you do */
+function rungNew(id) {
+  var r = ladder.rungs[id];
+  return levelIndex(id) > 0 && coachOpen(id) && !(r && r.w + r.d + r.l) && !Journey.cleared(ladder, id);
+}
+/* and where you may sit: the park from the start, every other place
+   once the road has reached it */
+function placeOpen(id) { return typeof Journey === "undefined" || Journey.placeOpen(ladder, id); }
+function placeGuard() { if (!placeOpen(prefs.scene)) setScene("park"); }
+/* a locked coach, asked for: a shadow behind a padlock, who to beat to
+   meet them, and a button straight to that game */
+function coachLocked(id) {
+  var by = Journey.openedBy(id) || Journey.frontier(ladder), B = SKILLS[by], ch = Journey.chapterOf(id);
+  var play = coachOpen(by) ? by : Journey.frontier(ladder), P = SKILLS[play];
+  var url = typeof Avatar !== "undefined" && Avatar.portrait ? Avatar.portrait(id, 160) : "";
+  hap("nope");
+  var away = levelIndex(id) - levelIndex(play);
+  ask('<div class="lockCard"><span class="lkPic">' + (url ? '<img alt="" src="' + url + '">' : "<em>?</em>") +
+      '<i class="lkPad" aria-hidden="true">🔒</i></span>' +
+      "<b>Chapter " + ch.n + " is still locked</b>" +
+      (coachOpen(by)
+        ? "<p>Someone is waiting further up the road. Beat " + B.emoji + " <b>" + escHtml(B.name) + "</b> to unlock " + escHtml(ch.title) + " and meet them.</p>"
+        : "<p>Someone is waiting " + away + " chapters up the road. Beat " + P.emoji + " <b>" + escHtml(P.name) + "</b> first, and keep going.</p>") +
+      "</div>",
+    [{ label: "▶ Play " + P.name, fn: function () { quickPlay(play); } },
+     { label: "🗺️ See the road", ghost: true, fn: function () { openJourney(); } },
+     { label: "Not now", ghost: true, fn: function () {} }]);
+}
 function levelIndex(id) {
   for (var i = 0; i < Rating.LEVELS.length; i++) if (Rating.LEVELS[i].id === id) return i;
   return -1;
@@ -2288,6 +2330,8 @@ function fmtDelta(d) { d = Math.round(d); return (d > 0 ? "+" : d < 0 ? "−" : 
 /* start a game against the computer. "a" takes turns: the colour you did
    not have last time */
 function startCoachGame(level, sideChoice, clockStr) {
+  /* the last gate: every way into a coach game comes through here */
+  if (!coachOpen(skillOk(level))) { showMenu(); coachLocked(skillOk(level)); return; }
   var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
              sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
   ladder.lastSide = side; saveLadder();
@@ -2297,7 +2341,9 @@ function startCoachGame(level, sideChoice, clockStr) {
         (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
 }
 function quickPlay(level) {
-  leaveGameThen(function () { startCoachGame(level || nextLevel(), "a", "none"); }, "a new game");
+  level = level || nextLevel();
+  if (!coachOpen(level)) { coachLocked(level); return; }
+  leaveGameThen(function () { startCoachGame(level, "a", "none"); }, "a new game");
 }
 
 /* ---- counting a game ---- */
@@ -2439,7 +2485,9 @@ function renderEndRating(rs, cardAt) {
   var me = after;
   if (rs.s === 1 && up) {
     $("endNextTx").textContent = "Next: " + up.emoji + " " + up.name + " · " + up.elo;
-    $("endNextSub").textContent = "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
+    $("endNextSub").textContent = rs.newStars.indexOf(0) >= 0 && Journey.openedBy(up.id) === rs.level
+      ? "🔓 Just unlocked! You beat " + SKILLS[rs.level].name + " — come and meet them."
+      : "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
     $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(up.id, "a", clockStrOf()); };
     $("endNext").classList.remove("hide");
   } else if (rs.s === 0 && down && SKILLS[rs.level].elo - me > 220) {
@@ -2571,7 +2619,9 @@ function renderLobby() {
   }
   var nl = nextLevel(), L = SKILLS[nl];
   $("mPlaySub").textContent = !sm.games ? "A gentle first game against " + L.emoji + " " + L.name + "."
-    : "Next up: " + L.emoji + " " + L.name + " · " + L.elo + " — a fair fight for you.";
+    : skillOk(Rating.suggestLevel(rating)) !== nl
+      ? "Next on the road: " + L.emoji + " " + L.name + " · " + L.elo + " — beat them to unlock the next coach."
+      : "Next up: " + L.emoji + " " + L.name + " · " + L.elo + " — a fair fight for you.";
   /* the ladder strip */
   var lad = $("mLadder");
   lad.innerHTML = "";
@@ -2579,18 +2629,24 @@ function renderLobby() {
   Rating.LEVELS.forEach(function (Lv) {
     var b = document.createElement("button"), r = ladder.rungs[Lv.id], n = starCount(Lv.id);
     total += n;
-    b.className = "rung" + (Lv.id === nl ? " next" : "") + (r && r.stars[0] ? " done" : "");
+    var shut = !coachOpen(Lv.id), fresh = !shut && rungNew(Lv.id);
+    b.className = "rung" + (Lv.id === nl ? " next" : "") + (r && r.stars[0] ? " done" : "") + (shut ? " locked" : "") + (fresh ? " fresh" : "");
     b.setAttribute("role", "listitem");
-    b.setAttribute("aria-label", "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
-    b.innerHTML = '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
-      '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" + homeLadderChip(Lv.id) + unlRungPeek(Lv.id) +
-      (Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
+    b.setAttribute("aria-label", shut ? "Locked coach: " + lockWhy(Lv.id).short
+                                      : "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
+    b.innerHTML = shut
+      ? '<span class="rgE">' + Lv.emoji + '</span><b>???</b><span class="rgElo">🔒</span><span class="rgStars"></span>'
+      : '<span class="rgE">' + Lv.emoji + "</span><b>" + escHtml(Lv.name) + '</b><span class="rgElo">' + Lv.elo +
+        '</span><span class="rgStars">' + starsHTML(Lv.id) + "</span>" + homeLadderChip(Lv.id) + unlRungPeek(Lv.id) +
+        (fresh ? '<span class="rgTag new">NEW!</span>' : Lv.id === nl ? '<span class="rgTag">next</span>' : (n === 3 ? '<span class="rgTag">mastered</span>' : ""));
     b.addEventListener("click", function () { quickPlay(Lv.id); });
     lad.appendChild(b);
   });
   castLadderFaces(lad);
-  $("mLadderNote").textContent = total ? total + " of " + Rating.LEVELS.length * 3 + " stars — tap a coach to play it"
-                                       : "Beat each coach to earn its stars — tap one to play it";
+  var opened = Rating.LEVELS.filter(function (Lv) { return coachOpen(Lv.id); }).length;
+  $("mLadderNote").textContent = (total ? total + " of " + Rating.LEVELS.length * 3 + " stars" : "Beat each coach to earn its stars") +
+    (opened < Rating.LEVELS.length ? " · " + opened + " of " + Rating.LEVELS.length + " coaches unlocked — beat one to meet the next"
+                                   : " — tap a coach to play it");
   /* bring the coach you're up against next into view */
   var nx = lad.querySelector(".rung.next");
   if (nx) lad.scrollLeft = Math.max(0, nx.offsetLeft - 8 - (lad.clientWidth - nx.offsetWidth) / 3);
@@ -2633,9 +2689,11 @@ function showProfile() {
   list.innerHTML = "";
   Rating.LEVELS.forEach(function (L) {
     var r = ladder.rungs[L.id] || { w: 0, d: 0, l: 0 };
-    var b = document.createElement("button");
-    b.className = "rungRow";
-    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
+    var b = document.createElement("button"), shut = !coachOpen(L.id);
+    b.className = "rungRow" + (shut ? " locked" : "");
+    b.innerHTML = shut
+      ? '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>' + escHtml(lockWhy(L.id).short) + '</small></span><span class="rgElo"></span><span class="rgStars"></span>'
+      : '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
       (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(SKILLS[L.id].short)) + '</small></span><span class="rgElo">' + L.elo +
       '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
     b.addEventListener("click", function () { quickPlay(L.id); });
@@ -2774,7 +2832,8 @@ function goalGo(a) {
   if (!a) return;
   if (a.type === "practise") { startPractice(); return; }
   if (a.type === "lesson") { var L = Learn.byId(a.id); if (L) startLesson(L, []); return; }
-  leaveGameThen(function () { startCoachGame(a.level || nextLevel(), a.side || "a", "none"); }, "a new game");
+  var lv = a.level && coachOpen(a.level) ? a.level : nextLevel();
+  leaveGameThen(function () { startCoachGame(lv, a.side || "a", "none"); }, "a new game");
 }
 function renderGoal() {
   var btn = $("mGoal");
@@ -5942,10 +6001,21 @@ function renderStudio() {
   var scBox = $("stScenes");
   scBox.innerHTML = "";
   Scenes.LIST.forEach(function (sc) {
-    var b = document.createElement("button");
-    b.className = "stPick" + (prefs.scene === sc.id ? " sel" : "");
-    b.textContent = sc.label;
-    b.addEventListener("click", function () { setScene(sc.id); renderStudio(); });
+    var b = document.createElement("button"), shut = !placeOpen(sc.id);
+    b.className = "stPick" + (prefs.scene === sc.id ? " sel" : "") + (shut ? " locked" : "");
+    b.textContent = (shut ? "🔒 " : "") + sc.label;
+    b.addEventListener("click", function () {
+      /* a place is travelled to, not picked: the road gets you there */
+      if (!placeOpen(sc.id)) {
+        var ch = Journey.chapterOf(Journey.PLACE_FROM[sc.id]), byId = Journey.openedBy(ch.id), by = SKILLS[byId];
+        hap("nope");
+        toast("🔒 The " + escHtml(sc.label.toLowerCase()) + " is further up the road, at chapter " + ch.n + ". " +
+              (coachOpen(byId) ? "Beat " + by.emoji + " <b>" + escHtml(by.name) + "</b> to get there."
+                               : "Keep beating coaches to get there: <b>" + escHtml(SKILLS[Journey.frontier(ladder)].name) + "</b> is next."), null, 3800);
+        return;
+      }
+      setScene(sc.id); renderStudio();
+    });
     scBox.appendChild(b);
   });
   $("stSceneNote").textContent = Scenes.get(prefs.scene).note;
@@ -6311,11 +6381,22 @@ function renderRungChoices(selId) {
   row.innerHTML = "";
   Rating.LEVELS.forEach(function (L) {
     var b = document.createElement("button"), r = ladder.rungs[L.id];
-    b.className = "rungRow" + (L.id === selId ? " sel" : "");
     b.setAttribute("data-skill", L.id);
     b.setAttribute("role", "radio");
+    if (!coachOpen(L.id)) {
+      /* a shadow on the road: who it is, you find out by getting there */
+      var why = lockWhy(L.id);
+      b.className = "rungRow locked";
+      b.setAttribute("aria-disabled", "true");
+      b.setAttribute("aria-checked", "false");
+      b.setAttribute("data-why", why.html);
+      b.innerHTML = '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>' + escHtml(why.short) + '</small></span><span class="rgElo"></span><span class="rgStars"></span>';
+      row.appendChild(b);
+      return;
+    }
+    b.className = "rungRow" + (L.id === selId ? " sel" : "");
     b.setAttribute("aria-checked", L.id === selId ? "true" : "false");
-    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b>" +
+    b.innerHTML = '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b>" + (rungNew(L.id) ? '<span class="fair new">NEW!</span>' : "") +
       (L.id === fair ? '<span class="fair">fair fight</span>' : "") + "<small>" + escHtml(SKILLS[L.id].short) +
       (r && r.w + r.d + r.l ? " · " + r.w + "–" + r.d + "–" + r.l : "") + '</small></span><span class="rgElo">' + L.elo +
       '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
@@ -6326,6 +6407,7 @@ function wireChips(rowId, attr, set) {
   $(rowId).addEventListener("click", function (e) {
     var b = e.target.closest("button[data-" + attr + "]");
     if (!b) return;
+    if (b.classList.contains("locked")) { hap("nope"); toast(b.getAttribute("data-why") || "🔒 Not yet.", null, 2600); return; }
     Array.prototype.forEach.call($(rowId).children, function (c) { c.classList.remove("sel"); });
     b.classList.add("sel");
     set(b.getAttribute("data-" + attr));
@@ -7395,6 +7477,16 @@ function homeWire() {
   });
   /* "Use it" on the end card makes the board just won your own look */
   $("endMiles").addEventListener("click", function (ev) {
+    /* "Sit there": a place the road just reached */
+    var pl = ev.target.closest && ev.target.closest("[data-place]");
+    if (pl) {
+      var where = pl.getAttribute("data-place");
+      if (!placeOpen(where)) return;
+      setScene(where);
+      pl.textContent = "✓ You're there"; pl.disabled = true;
+      toast("🗺️ Welcome to the " + escHtml(Scenes.get(where).label.toLowerCase()) + ". Change places any time in 🎨 The look.", null, 3000);
+      return;
+    }
     var b = ev.target.closest && ev.target.closest("[data-home]");
     if (!b) return;
     var id = b.getAttribute("data-home"), h = Skins.homeOf(id);
@@ -8281,6 +8373,7 @@ function openCup() {
 }
 function jrnPlay(id, cup) {
   $("ovChapter").classList.add("hide");
+  if (!coachOpen(id)) { coachLocked(id); return; }
   leaveGameThen(function () {
     startCoachGame(id, "a", "none");
     jrnCupTicket = cup ? gameTicket : -1;
@@ -8329,11 +8422,20 @@ function jrnAtEnd(result, rs) {
   if (ch && rs && rs.s === 1 && rs.newStars.indexOf(0) >= 0) {
     var r = Journey.road(ladder, jrn), next = r.next && Journey.chapterOf(r.next);
     var hb = homeJust === skill && Skins.homeOf(skill);
+    /* what the win opened: the next coach on the road, and the place
+       its chapter is set in, if the road has never been there before */
+    var opened = next && Journey.openedBy(next.id) === skill ? next : null;
+    var newPlace = opened && Journey.PLACE_FROM[opened.place] === opened.id ? opened.place : null;
+    var placeName = newPlace && Scenes.get(newPlace) ? Scenes.get(newPlace).label : "";
     pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (hb ? escHtml(hb.name) + " is yours. " : "") +
-             (next ? "Next on the road: " + escHtml(next.title) + "." : "The Grove Cup is open!") +
-             (hb && skin.name !== hb.name ? ' <button class="chip erUse" data-home="' + escHtml(skill) + '">Use it</button>' : ""),
+             (opened ? "🔓 <b>" + escHtml(jrnName(opened.id)) + " unlocked</b> in " + escHtml(opened.title) + "." +
+                       (newPlace ? " A new place too: the " + escHtml(placeName.toLowerCase()) + "." : "")
+                     : next ? "Next on the road: " + escHtml(next.title) + "." : "The Grove Cup is open!") +
+             (hb && skin.name !== hb.name ? ' <button class="chip erUse" data-home="' + escHtml(skill) + '">Use it</button>' : "") +
+             (newPlace ? ' <button class="chip erUse" data-place="' + escHtml(newPlace) + '">Sit there</button>' : ""),
              { cls: "chapter unlock", sting: "levelup", hap: "success", big: !next });
-    $("endCupTx").textContent = next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
+    $("endCupTx").textContent = opened ? "🔓 Meet " + jrnName(opened.id) + ": chapter " + opened.n
+                              : next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
     $("endCupSub").textContent = "See it on the map ▶";
     btn.onclick = function () { $("ovEnd").classList.add("hide"); openJourney(); };
     btn.classList.remove("hide");
@@ -8394,7 +8496,7 @@ function journeyForTest() {
   return {
     jrnState: function () { return { st: JSON.parse(JSON.stringify(jrn)), road: Journey.road(ladder, jrn), completion: jrnCompletion() }; },
     openJourney: openJourney, openChapter: openChapter, openCup: openCup, jrnPlay: jrnPlay, showCredits: showCredits,
-    reloadLadderForTest: function () { ladder = loadLadder(); jrnLobby(); }
+    reloadLadderForTest: function () { ladder = loadLadder(); placeGuard(); jrnLobby(); }
   };
 }
 
@@ -9192,6 +9294,8 @@ function boot() {
   if (typeof Sound !== "undefined" && Sound.setReduced) Sound.setReduced(REDUCED);
   /* who this room is, as far as the shared front door is concerned */
   Room.configure({ game: "chess", seats: 2, label: "board" });
+  /* a place the road has not reached yet is not where you sit down */
+  if (!placeOpen(prefs.scene)) { prefs.scene = "park"; savePrefs(); }
   wireUI();
   lanHandlers();
   wireFriends();

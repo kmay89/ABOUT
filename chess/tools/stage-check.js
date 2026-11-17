@@ -328,6 +328,10 @@ const RENDER = `async (spec) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     await ctx.addInitScript(() => {
       try { const p = JSON.parse(localStorage.getItem("chessroom_prefs") || "{}"); p.welcomed = true; p.tips = { notes: 1, price: 1, undo: 1, why: 1, wheels: 1 }; localStorage.setItem("chessroom_prefs", JSON.stringify(p)); } catch (e) {}
+      /* places are earned on the road (earn-check.js): this player has
+         got as far as the grand room, so the board can be moved there */
+      if (!localStorage.getItem("chessroom_ladder")) localStorage.setItem("chessroom_ladder", JSON.stringify({ v: 1, lastSide: -1,
+        rungs: { acorn: { w: 1, d: 0, l: 0, stars: [1, 0, 0] }, sprout: { w: 1, d: 0, l: 0, stars: [1, 0, 0] }, clover: { w: 1, d: 0, l: 0, stars: [1, 0, 0] }, club: { w: 1, d: 0, l: 0, stars: [1, 0, 0] } } }));
     });
     const pg = await ctx.newPage(), aerrs = [];
     pg.on("pageerror", (e) => aerrs.push(e.message));

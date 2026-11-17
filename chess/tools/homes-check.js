@@ -154,10 +154,14 @@ const SCHOLAR = ["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"];
     await page.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 120000 });
     await page.waitForTimeout(400);
 
-    /* the ladder: every coach's board, small and locked */
-    let lad = await page.evaluate(() => ({ all: document.querySelectorAll("#mLadder .rung .rgBoard").length,
-                                          got: document.querySelectorAll("#mLadder .rung .rgBoard.got").length }));
-    ok("the ladder shows each coach's board, locked until won", lad.all === 8 && lad.got === 0, JSON.stringify(lad));
+    /* the ladder: every coach you can reach shows its board, small and
+       locked until won; the coaches further up are shadows, and a shadow
+       gives nothing away, its board included (earn-check.js) */
+    let lad = await page.evaluate(() => ({ all: document.querySelectorAll("#mLadder .rung:not(.locked) .rgBoard").length,
+                                          open: document.querySelectorAll("#mLadder .rung:not(.locked)").length,
+                                          got: document.querySelectorAll("#mLadder .rung .rgBoard.got").length,
+                                          shadows: document.querySelectorAll("#mLadder .rung.locked .rgBoard").length }));
+    ok("the ladder shows each reachable coach's board, locked until won", lad.open >= 1 && lad.all === lad.open && lad.got === 0 && lad.shadows === 0, JSON.stringify(lad));
 
     /* a coach game, on the coach's board */
     await coach("cactus");

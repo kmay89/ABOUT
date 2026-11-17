@@ -1923,6 +1923,42 @@ beat one coach and the next has heard ("Acorn says you're really good!
 Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
 your record against each.
 
+## Earned, not chosen: coaches and places
+
+Nothing on the road can be skipped. The room opens one coach at a time.
+
+**Coaches** (`Journey.coachOpen`):
+- A new player can play 🌰 Acorn and nobody else.
+- Every other coach opens when you beat the one before it, and stays
+  open once you have beaten it.
+- In the lobby, the chooser on the new-game card and your record, the
+  coaches further up are shadows: a dark silhouette, a 🔒 and "???".
+- Tap a shadow and you get the padlock card: which chapter it is, who to
+  beat to get there, and a button that plays them. No game starts.
+- The "fair fight" the rating suggests is only offered if it is open.
+  Otherwise the lobby offers the coach to beat: "Next on the road:
+  Clover — beat them to unlock the next coach."
+- Every way into a coach game goes through the same gate: the ladder,
+  the chooser, goals, chapter cards, a rematch, *Play*.
+- The moment it opens is a moment: "🔓 Sprout unlocked in The Seed Tray"
+  on the end card, "Just unlocked!" on the next button, and NEW! on the
+  ladder until you play them.
+
+**Places** (`Journey.placeOpen`):
+- The park and the plain studio are yours from the start.
+- The café opens when the road reaches the Fern Shade (beat Clover), the
+  grand room at the Bamboo Dojo, and the library at the Frost Ridge.
+  Each is the first chapter set there, so you travel to a place before
+  you can sit down in it.
+- The win that gets you there says so ("A new place too: the café"),
+  with a *Sit there* button.
+- In the Studio a locked place says how to reach it.
+- A saved preference for a place you have not reached falls back to the
+  park.
+
+`chess/tools/earn-check.js` checks the rules in node and walks the
+whole of it, from a new player's first visit, in a browser.
+
 ## The journey: a game you can finish
 
 The ladder is also a road. **The Journey** (the bright sign at the top of
@@ -2077,12 +2113,32 @@ Settings > *Piece sounds* has *Lively* (the default) and *Natural*
 
 **Every place has its own music**, written as it plays from a
 progression, a feel and its own instruments. The park has a kalimba and
-a nylon guitar ("Morning in the park"). The café has an electric piano
-with a walking bass and brushes, swung ("Corner café"). The grand room
-has a harp waltz over strings ("Waltz by the fire"), the library a felt
-piano, slow and sparse ("Reading room"), and the studio a pad with a
-celesta. Everything is in D major, the key of every other sound here, so
-nothing ever clashes.
+a nylon guitar ("Morning in the park", 60 bpm). The café has an
+electric piano over a soft bass and one brush a bar, swung ("Corner
+café", 66). The grand room has a slow harp waltz over a breathing pad
+("Waltz by the fire", 54), the library a felt piano, slow and sparse
+("Reading room", 46), and the studio a pad with a celesta (50).
+Everything is in D major, the key of every other sound here, so nothing
+ever clashes.
+
+**It is calm on purpose.** It is meant to be thought under for an hour,
+so it leaves room:
+
+| | before | now |
+|---|---|---|
+| notes a minute (park, café) | 206, 223 | 90, 94 |
+| notes a minute (grand room, library, studio) | 135, 58, 51 | 50, 36, 19 |
+| bars resting | 18% | 25% |
+| tune notes that leap rather than step | 17–19% | 5–9% |
+
+- The pad is a soft triangle and two sines a few cents apart, so it
+  shimmers rather than buzzes. It swells in, opens a little as it does,
+  and lets go slowly into the next chord.
+- The top end is rolled off (5.6 kHz), and every place's music sits a
+  little further back in its room's echo. While a king is in check it
+  closes in further, to 800 Hz.
+- A tune walks home a step at a time rather than jumping to its last
+  note.
 
 **It never wears thin:**
 - every note is a hair different from the last in pitch, weight and
@@ -3110,6 +3166,7 @@ node chess/tools/welcome-check.js  # one question for a newcomer, four pointers 
 node chess/tools/wheels-check.js   # what can be lost is marked on both boards, and counted honestly
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
+node chess/tools/earn-check.js     # every coach and every place is earned, never picked
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment
