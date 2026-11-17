@@ -8851,6 +8851,10 @@ function tableEnd(result, reason) {
   $("teBotTx").textContent = b[0]; $("teBotSub").textContent = b[1];
   $("tableEnd").classList.remove("hide");
   $("tableSay").classList.add("hide");
+  /* and it takes focus, as the end card does: a keyboard or a screen
+     reader lands on the near seat's Play again */
+  var again = document.querySelector("#tableEnd .teHalf.bot .teAgain");
+  if (again) { try { again.focus({ preventScroll: true }); } catch (e) { again.focus(); } }
   syncTurnStrip();
   if (FX && result !== "draw") { Fx.confetti({ ms: 2400, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
 }

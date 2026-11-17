@@ -349,8 +349,9 @@ async function board(browser, base, flat) {
   const end = await page.evaluate(() => ({ n: __cr.game.played.length, sans: __cr.game.played.map((p) => p.san).join(" ") }));
   ok(tag + "a whole game typed: f3 e5 g4 Qh4#", end.n === 4 && /Qh4#/.test(end.sans), JSON.stringify(end));
   ok(tag + "…the mate and the result are said in words", /Black: queen to h4, checkmate/.test(await said()) && /Game over\. .*Checkmate\. Black wins, 0–1\./.test(await said()), (await said()).slice(-200));
-  await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
-  ok(tag + "the end card takes focus when it comes up", (await active()).ov === "ovEnd");
+  /* two people on one device: the result comes up at the table (table-check.js) */
+  await page.waitForFunction(() => !document.getElementById("tableEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
+  ok(tag + "the end comes up with the focus on Play again", await page.evaluate(() => !!(document.activeElement && document.activeElement.closest && document.activeElement.closest("#tableEnd .teHalf.bot .teAgain"))));
 
   ok(tag + "the console stayed quiet", !errs.length, errs.slice(0, 3).join(" | "));
   await ctx.close();
