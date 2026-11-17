@@ -2089,7 +2089,10 @@ function create(canvas, opts) {
   R.setOverhead = function (on) {
     if (overhead === !!on) return;
     overhead = !!on;
-    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
+    /* straight there: a game's opening shot already gives the arrival
+       its motion, and a long tilt after it would keep the board awake */
+    cam.tPitch = cam.pitch = homePitch(); cam.tDist = DIST_HOME;
+    camPlaced = false;
     R.dirty = true;
   };
   R.resetView = function () {
