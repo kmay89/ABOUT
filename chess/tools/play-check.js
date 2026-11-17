@@ -285,10 +285,11 @@ const PLAY = `([san, src]) => {
     ok("the promotion picker opens", await page.isVisible("#ovPromo"));
     /* run White's clock out while the picker is up */
     await page.evaluate(() => __cr.flagForTest(1));
-    await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
-    ok("the flag falls with the picker open and the game ends", await page.isVisible("#ovEnd"));
+    /* two people on one device: each seat is told, at the table (table-check.js) */
+    await page.waitForFunction(() => !document.getElementById("tableEnd").classList.contains("hide"), null, { timeout: 6000 }).catch(() => {});
+    ok("the flag falls with the picker open and the game ends", await page.isVisible("#tableEnd"));
     ok("…and the picker is gone with it", !(await page.isVisible("#ovPromo")));
-    await page.click("#endRematch");
+    await page.click("#tableEnd .teHalf.bot .teAgain");
     await page.waitForTimeout(900);
     await click("e2"); await click("e4"); await settle();
     ok("the next game's board still takes taps", (await state()).sans.join(" ") === "e4", (await state()).sans.join(" "));
