@@ -992,6 +992,119 @@
   .emote.mine{left:6px; right:auto; top:-34px}
   @media (prefers-reduced-motion: reduce){ .ulOv.drop .ulBox, .ulOv.burst .ulBox, .ulOv.burst .ulRays, .ulOv.burst .ulItem, .ulOv.burst .ulKick{animation:none; opacity:1}
     .ulOv.burst .ulBox{opacity:0} .collectBtn.fresh::after, .coNew{animation:none} }
+
+  /* ---------- the journey: the sign, the map, the chapters, the end ---------- */
+  .journeyBtn{position:relative; display:flex; align-items:center; gap:12px; width:100%; margin:14px 0 4px; padding:12px 14px; text-align:left;
+    border-radius:18px; color:#fff; border:2px solid rgba(255,255,255,.75);
+    background:radial-gradient(circle at 85% 20%, rgba(255,255,255,.25), transparent 40%), linear-gradient(160deg, #3fa66a, #1f6e8c 60%, #2a3f8c);
+    box-shadow:0 5px 0 #173a5c, 0 10px 22px rgba(0,0,0,.35); overflow:hidden}
+  .journeyBtn:active{transform:translateY(3px); box-shadow:0 2px 0 #173a5c, 0 6px 14px rgba(0,0,0,.35)}
+  .journeyBtn.cup{background:radial-gradient(circle at 85% 20%, rgba(255,255,255,.35), transparent 40%), linear-gradient(160deg, #ffcc4d, #e58a1c 60%, #b5491c); box-shadow:0 5px 0 #7a3510, 0 10px 22px rgba(0,0,0,.35)}
+  .journeyBtn.done{background:radial-gradient(circle at 85% 20%, rgba(255,255,255,.3), transparent 40%), linear-gradient(160deg, #8c6bff, #4a2fb0 60%, #24165e)}
+  .jbMap{font-size:2.2em; flex:none; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); animation:newBob 2.4s ease-in-out infinite}
+  .jbTx{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+  .jbTx small{font-size:.66em; font-weight:900; letter-spacing:.18em; text-transform:uppercase; opacity:.85}
+  .jbTx b{font-size:1.08em; text-shadow:0 2px 0 rgba(0,0,0,.25)}
+  .jbTx > span:not(.jbBar){font-size:.76em; opacity:.92}
+  .jbBar{display:block; height:7px; margin-top:5px; border-radius:999px; background:rgba(0,0,0,.3); overflow:hidden}
+  .jbBar i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg, #fff6c8, #ffd166); transition:width .8s cubic-bezier(.2,.8,.3,1)}
+  .jbPct{flex:none; font-weight:900; font-size:1.1em; padding:6px 9px; border-radius:12px; background:rgba(0,0,0,.25)}
+  .jrCard{max-width:520px}
+  .jrHead{display:flex; align-items:center; justify-content:space-between; gap:12px} .jrHead h2{margin:0} .jrHead small{color:var(--soft)}
+  .jrRing{flex:none; width:58px; height:58px; border-radius:50%; display:grid; place-items:center;
+    background:conic-gradient(#ffd166 calc(var(--p) * 1%), rgba(255,255,255,.12) 0); box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+  .jrRing b{width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-size:.85em; background:var(--card)}
+  .jrScroll{margin:10px -6px 8px; max-height:58dvh; overflow-y:auto; border-radius:18px;
+    background:linear-gradient(180deg, #2f6b46 0%, #3d7a3f 25%, #6b6a3a 50%, #8a6a3e 62%, #4a5f7a 80%, #2d2a52 100%)}
+  .jrMap{position:relative; margin:0 6px}
+  .jrRoad{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+  .jrRoad path{fill:none; vector-effect:non-scaling-stroke; stroke-linecap:round}
+  .jrRoad .walked{stroke:#ffd166; stroke-width:7; filter:drop-shadow(0 0 4px rgba(255,209,102,.6))}
+  .jrRoad .ahead{stroke:rgba(255,255,255,.45); stroke-width:4; stroke-dasharray:2 10}
+  .jrRoad .draw{stroke-dasharray:600; stroke-dashoffset:600; animation:jrDraw 1.4s ease-out .6s forwards}
+  @keyframes jrDraw{to{stroke-dashoffset:0}}
+  .jrNode{position:absolute; transform:translate(-50%,-50%); width:110px; display:flex; flex-direction:column; align-items:center; gap:3px; color:#fff; text-align:center}
+  .jrPic{width:74px; height:74px; border-radius:50%; overflow:hidden; display:grid; place-items:center; background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 55%, #ffc35a);
+    box-shadow:0 0 0 4px #fff, 0 6px 14px rgba(0,0,0,.45)}
+  .jrPic img{width:125%; height:125%; object-fit:cover; object-position:50% 25%} .jrPic em{font-style:normal; font-size:34px}
+  .jrLbl{display:flex; flex-direction:column; line-height:1.15; text-shadow:0 2px 3px rgba(0,0,0,.6)}
+  .jrLbl small{font-size:.62em; font-weight:800; letter-spacing:.12em; text-transform:uppercase; opacity:.9} .jrLbl b{font-size:.82em}
+  .jrStars{font-size:.8em; letter-spacing:.06em; color:rgba(255,255,255,.4)} .jrStars i{font-style:normal} .jrStars i.on{color:#ffd166; text-shadow:0 0 6px rgba(255,209,102,.8)}
+  .jrNode.locked .jrPic{background:#3a3a46; filter:grayscale(1) brightness(.6)} .jrNode.locked .jrLbl{opacity:.6}
+  .jrNode.done .jrPic{box-shadow:0 0 0 4px #ffd166, 0 0 18px rgba(255,209,102,.6), 0 6px 14px rgba(0,0,0,.45)}
+  .jrNode.here .jrPic{animation:jrPulse 1.6s ease-in-out infinite}
+  @keyframes jrPulse{0%,100%{box-shadow:0 0 0 4px #fff, 0 0 0 8px rgba(255,255,255,.25), 0 6px 14px rgba(0,0,0,.45)} 50%{box-shadow:0 0 0 4px #fff, 0 0 0 16px rgba(255,255,255,0), 0 6px 14px rgba(0,0,0,.45)}}
+  .jrHere{position:absolute; top:-26px; font-size:18px; color:#fff; text-shadow:0 2px 0 #e0245e, 0 0 6px rgba(0,0,0,.4); animation:newBob 1s ease-in-out infinite}
+  .jrStamp{position:absolute; top:22px; padding:2px 8px; border-radius:6px; font-size:.7em; font-weight:900; letter-spacing:.06em; color:#fff; background:#e0245e;
+    border:2px solid #fff; transform:rotate(-12deg); box-shadow:0 3px 6px rgba(0,0,0,.4)}
+  .jrNode.stamp .jrStamp{animation:jrStamp .6s cubic-bezier(.2,1.6,.4,1) 1.6s backwards}
+  @keyframes jrStamp{from{transform:rotate(-12deg) scale(3); opacity:0} to{transform:rotate(-12deg) scale(1); opacity:1}}
+  .jrNode.cup .jrPic{background:radial-gradient(circle at 40% 30%, #fff8d6, #ffd166 55%, #f08a20)}
+  .jrNode.end .jrPic{background:radial-gradient(circle at 40% 30%, #f3e8ff, #b89cff 55%, #6a48d8)}
+  .jrDots{display:flex; gap:4px} .jrDots i{width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.35); border:2px solid #fff} .jrDots i.on{background:#ffd166}
+  .jrLeft{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px}
+  .jrLeft span{position:relative; display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:12px; background:var(--card2); border:1px solid var(--line); font-size:.78em; overflow:hidden}
+  .jrLeft span i{font-style:normal} .jrLeft span small{margin-left:auto; color:var(--soft)}
+  .jrLeft span em{position:absolute; left:0; bottom:0; height:3px; width:var(--f); background:#ffd166}
+  .jrLeft span.full{border-color:#ffd166}
+  .chCard{max-width:420px; text-align:center; overflow:hidden}
+  .chPic{width:150px; height:150px; margin:4px auto 6px; border-radius:50%; overflow:hidden; display:grid; place-items:center;
+    background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 55%, #ffc35a); box-shadow:0 0 0 5px #fff, 0 0 30px rgba(255,209,102,.5), 0 10px 20px rgba(0,0,0,.4);
+    animation:ulItemIn .7s cubic-bezier(.2,1.6,.4,1)}
+  .chPic img{width:125%; height:125%; object-fit:cover; object-position:50% 25%} .chPic em{font-style:normal; font-size:72px}
+  .chKick{font-size:.72em; font-weight:900; letter-spacing:.2em; text-transform:uppercase; color:var(--amber)}
+  .chCard h2{margin:2px 0 0; font-size:1.7em; font-style:italic}
+  .chWho{color:var(--soft); font-size:.86em}
+  .chStory{font-size:.95em; line-height:1.45; margin:10px 4px 12px; font-style:italic}
+  .chPersona{display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:-4px 0 12px; text-align:left}
+  .chPersona span{display:flex; flex-direction:column; padding:7px 9px; border-radius:12px; background:var(--card2); border:1px solid var(--line); font-size:.82em; font-weight:700}
+  .chPersona b{font-size:.68em; letter-spacing:.14em; text-transform:uppercase; color:var(--amber)}
+  .chPersona small{font-weight:400; color:var(--soft); font-size:.86em; line-height:1.3}
+  .meetTip{margin-top:6px; font-style:italic; font-weight:700; color:#ffe08a; text-shadow:0 1px 3px rgba(0,0,0,.8); font-size:.86em}
+  .moBanner.sig b{background:linear-gradient(180deg, #fff 0 30%, #b6ffcf 55%, #2fbf71 100%); -webkit-background-clip:text; background-clip:text; -webkit-text-stroke-color:#0b3d22; text-shadow:0 4px 0 #0b3d22, 0 8px 18px rgba(0,0,0,.45); font-size:clamp(24px, 7vw, 40px)}
+  .moBanner.stolen b{background:linear-gradient(180deg, #fff 0 30%, #ffd0f0 55%, #e0245e 100%); -webkit-background-clip:text; background-clip:text; -webkit-text-stroke-color:#4a0b22; text-shadow:0 4px 0 #4a0b22, 0 8px 18px rgba(0,0,0,.45); font-size:clamp(24px, 7vw, 40px)}
+  .chStars{display:flex; flex-direction:column; gap:6px; margin-bottom:12px; text-align:left}
+  .chStar{display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:12px; background:var(--card2); border:1px solid var(--line); font-size:.84em}
+  .chStar > i{font-style:normal; font-size:1.2em; color:rgba(255,255,255,.3)} .chStar.on > i{color:#ffd166; text-shadow:0 0 6px rgba(255,209,102,.8)}
+  .chStar span{flex:1} .chStar b{display:flex; gap:3px} .chStar b em{font-style:normal; filter:grayscale(1) opacity(.45)} .chStar b em.own{filter:none}
+  .chStar b img{width:30px; height:30px; border-radius:50%; object-fit:cover; object-position:50% 25%; background:#ffe9b8}
+  .chStar.now{border-color:var(--amber)} .cupStep > i{font-size:.9em; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:rgba(255,255,255,.12)}
+  .cupStep.on > i{background:#ffd166; color:#3a1c00; text-shadow:none}
+  .chPlay{justify-content:center}
+  #endCup{--fa:#57c784; --fb:#23845a; --edge:#0f4a31; background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#bff0d3; color:#fff;
+    box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
+  #endCup small{color:rgba(255,255,255,.88)}
+  #endCup.won{--fa:var(--gold-top); --fb:var(--gold-bot); --edge:var(--gold-edge); border-color:var(--gold-line); color:var(--gold-ink); text-shadow:0 1px 0 rgba(255,255,255,.2)}
+  #endCup.won small{color:rgba(36,26,8,.74)}
+  .erMile.chapter, .erMile.cup{border-color:#57c784}
+  .erMile.cupwon{border-color:#ffd166; background:linear-gradient(180deg, rgba(255,209,102,.25), rgba(255,209,102,.06))}
+  /* the ending */
+  #ovCredits{background:radial-gradient(circle at 50% 30%, #3a2a7a, #120c2e 60%, #05030f); z-index:61; display:grid; place-items:center; overflow:hidden}
+  #ovCredits.hide{display:none}
+  .crStage{width:min(94vw, 560px); max-height:100dvh; overflow-y:auto; text-align:center; color:#fff; padding:24px 12px}
+  .crKick{font-size:.78em; font-weight:900; letter-spacing:.24em; text-transform:uppercase; color:#c9b8ff}
+  .crTrophy{font-size:96px; line-height:1.1; filter:drop-shadow(0 0 30px rgba(255,209,102,.7))}
+  #ovCredits.go .crTrophy{animation:ulItemIn 1s cubic-bezier(.2,1.6,.4,1) .2s backwards, newBob 2.4s ease-in-out 1.2s infinite}
+  #crTitle{margin:4px 0 12px; font-size:clamp(28px, 8vw, 46px); font-weight:900; font-style:italic; line-height:1.05; color:#fff;
+    -webkit-text-stroke:3px #3a1c00; paint-order:stroke fill; text-shadow:0 5px 0 #3a1c00, 0 0 30px rgba(255,209,102,.5);
+    background:linear-gradient(180deg, #fffbe6 0 30%, #ffe066 55%, #ff9a2e 100%); -webkit-background-clip:text; background-clip:text}
+  #ovCredits.go #crTitle{animation:ulKick 1s cubic-bezier(.2,1.6,.4,1) .5s backwards}
+  .crCast{display:flex; justify-content:center; flex-wrap:wrap; gap:6px; margin:6px 0 14px}
+  .crCast span{display:flex; flex-direction:column; align-items:center; width:58px; font-size:.7em; font-weight:800}
+  .crCast img, .crCast em{width:52px; height:52px; border-radius:50%; object-fit:cover; object-position:50% 25%; background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 55%, #ffc35a);
+    box-shadow:0 0 0 3px #fff; font-style:normal; font-size:28px; display:grid; place-items:center}
+  #ovCredits.go .crCast span{animation:ulItemIn .6s cubic-bezier(.2,1.6,.4,1) backwards, crHop 1.2s ease-in-out infinite;
+    animation-delay:calc(.9s + var(--i) * .1s), calc(1.8s + var(--i) * .15s)}
+  @keyframes crHop{0%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)}}
+  .crStats{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:12px}
+  .crStats span{display:flex; flex-direction:column; padding:8px 4px; border-radius:12px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15)}
+  .crStats i{font-style:normal} .crStats b{font-size:1.3em} .crStats small{font-size:.7em; color:#c9b8ff}
+  .crRollBox{height:150px; overflow:hidden; position:relative; margin-bottom:14px; -webkit-mask:linear-gradient(transparent, #000 20%, #000 80%, transparent); mask:linear-gradient(transparent, #000 20%, #000 80%, transparent)}
+  .crRoll{position:absolute; left:0; right:0; top:0}
+  #ovCredits.go .crRoll{animation:crRoll 24s linear 1.5s infinite}
+  @keyframes crRoll{from{transform:translateY(150px)} to{transform:translateY(-100%)}}
+  .crRoll p{margin:0 0 8px} .crRoll b{display:block} .crRoll small{color:#c9b8ff} .crRoll .crHead{margin-top:14px; font-size:.7em; font-weight:900; letter-spacing:.2em; text-transform:uppercase; color:#ffd166}
+  @media (prefers-reduced-motion: reduce){ .jbMap, .jrNode.here .jrPic, .jrHere, #ovCredits.go .crCast span, #ovCredits.go .crTrophy{animation:none} #ovCredits.go .crRoll{animation:none} .jrRoad .draw{animation:none; stroke-dashoffset:0} }
   .tileRow{display:grid; grid-template-columns:1fr 1fr; gap:8px}
   .tileRow.three{grid-template-columns:1fr 1fr 1fr}
   .tile{
@@ -1840,6 +1953,7 @@
         <div class="meetTitle" id="meetTitle"></div>
         <div class="meetSay" id="meetSay"></div>
         <div class="meetHint" id="meetHint"></div>
+        <div class="meetTip hide" id="meetTip"></div>
         <div class="meetBoard hide" id="meetBoard"></div>
       </div>
       <div id="toast"></div>
@@ -1928,6 +2042,12 @@
     </button>
     <div class="playMore"><button class="linkish goalLine hide" id="mGoal"><span class="em" id="mGoalEm" aria-hidden="true"></span><span id="mGoalTx"></span></button><button class="linkish" id="mCoach">Choose your opponent, colour &amp; clock ›</button></div>
 
+    <button class="journeyBtn" id="mJourney" aria-label="The Journey: your road through the grove">
+      <span class="jbMap" aria-hidden="true">🗺️</span>
+      <span class="jbTx"><small>The Journey</small><b id="mJourneyTx">Chapter 1: The Gate</b><span id="mJourneySub"></span>
+        <span class="jbBar"><i id="mJourneyBar"></i></span></span>
+      <span class="jbPct" id="mJourneyPct">0%</span>
+    </button>
     <div class="secHead"><b>Climb the ladder</b><small id="mLadderNote">Beat each coach to earn its stars</small></div>
     <div class="ladder" id="mLadder" role="list"></div>
     <button class="bigbtn collectBtn" id="mCollect"><span class="em">🎁</span><span><b>Your collection</b><small id="mCollectSub">Boards, pieces, colours, trails and more to win.</small></span><span class="lvBadge" aria-label="Your level"><b id="mLv">1</b><i><i id="mLvBar"></i></i></span></button>
@@ -2232,6 +2352,41 @@
     <div class="coFoot"><small id="coCount"></small><button class="ghostbtn" id="coClose">Done</button></div>
   </div>
 </div>
+<div class="ov hide" id="ovJourney" role="dialog" aria-labelledby="jrTitle">
+  <div class="card jrCard">
+    <div class="jrHead">
+      <div><h2 id="jrTitle">The Journey</h2><small id="jrSub"></small></div>
+      <span class="jrRing" id="jrPctRing" style="--p:0"><b id="jrPct">0%</b></span>
+    </div>
+    <div class="jrScroll"><div class="jrMap" id="jrMap"></div></div>
+    <div class="jrLeft" id="jrLeft"></div>
+    <button class="ghostbtn" id="jrClose">Done</button>
+  </div>
+</div>
+<div class="ov hide" id="ovChapter" role="dialog" aria-labelledby="chTitle">
+  <div class="card chCard">
+    <div class="chPic" id="chPic"></div>
+    <div class="chKick" id="chKick">Chapter 1</div>
+    <h2 id="chTitle">The Gate</h2>
+    <div class="chWho" id="chWho"></div>
+    <p class="chStory" id="chStory"></p>
+    <div class="chPersona" id="chPersona"></div>
+    <div class="chStars" id="chStars"></div>
+    <button class="bigbtn primaryBtn chPlay" id="chPlay">▶ Play</button>
+    <button class="ghostbtn" id="chBack">Back to the map</button>
+  </div>
+</div>
+<div class="ov hide" id="ovCredits" role="dialog" aria-labelledby="crTitle">
+  <div class="crStage">
+    <div class="crKick" id="crKick">The end of the road</div>
+    <div class="crTrophy" id="crTrophy" aria-hidden="true">🏆</div>
+    <h1 id="crTitle">YOU BEAT THE CHESS ROOM!</h1>
+    <div class="crCast" id="crCast"></div>
+    <div class="crStats" id="crStats"></div>
+    <div class="crRollBox"><div class="crRoll" id="crRoll"></div></div>
+    <button class="bigbtn primaryBtn" id="crDone">🗺️ Keep playing</button>
+  </div>
+</div>
 <div class="ov hide" id="ovEnd">
   <div class="card" style="text-align:center">
     <div style="font-size:3em" id="endEmoji">🏁</div>
@@ -2255,6 +2410,7 @@
       <div class="xpMid"><div class="xpTop"><b>Experience</b><em class="xpUp hide" id="endXpUp">LEVEL UP!</em><span id="endXpNum">+0 XP</span></div><div class="xpBar"><i id="endXpBar"></i></div><small id="endXpWhy"></small></div>
     </div>
     <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
+    <button class="bigbtn cupBtn hide" id="endCup"><span class="em">🗺️</span><span><b id="endCupTx">On to the next chapter</b><small id="endCupSub"></small></span></button>
     <div class="endStory hide" id="endStory">
       <div class="esHead"><b>The story of the game</b><small id="endStoryTx"></small></div>
       <svg id="endStoryG" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"></svg>
@@ -2473,6 +2629,7 @@
 <script src="sound.js"></script>
 <script src="momentum.js"></script>
 <script src="unlocks.js"></script>
+<script src="journey.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

@@ -234,6 +234,11 @@ sound.js            what the room sounds like. The pieces by modal
                     a rating — a short score in D major, written down as
                     data and played by a tiny synth into a reverb grown
                     from noise. All synthesized — no samples
+journey.js          the room as a game you can finish: eight chapters (one
+                    per coach) with a story in and out, the road opening
+                    one at a time, the Grove Cup (Bamboo, Pine, Oak in a
+                    row, a loss starts it again), and completion out of a
+                    hundred (a hundred only when everything is done). Pure
 unlocks.js          the collection: every reward there is (each coach's
                     board, secret, colours and special; trails, bursts,
                     emotes, colours and titles by level), how each is won,
@@ -579,6 +584,22 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  persona-check.js  the personas: in node, every coach with a style, a habit
+                    and a signature trick of its own, a trick the room can
+                    see on the board; a knight lover plays more knights,
+                    an aggressive one more checks, and no style ever plays
+                    below the coach's strength; in a browser, the coach
+                    thinking with its style, its tell at the first
+                    meeting, a rival's greeting, the gossip, its habit, its
+                    trick named both ways, and the chapter card
+  journey-check.js  the journey: in node, eight chapters in the ladder's
+                    order with their stories, the road opening one at a
+                    time, the cup (win on, lose back to the start, three
+                    wins it, only the next match counts), completion to a
+                    hundred and the rewards that wait for it; in a
+                    browser, the road sign, the map, a chapter played and
+                    cleared (stamped, the next opened), the cup opened,
+                    lost, restarted and won, the ending, and a reload
   unlocks-check.js  the collection: in node, every item whole and winnable,
                     three rewards per coach (its real board and a real
                     lesson first), real colours and sets, something at
@@ -1863,6 +1884,78 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## Every coach a player: style, habit, signature
+
+The eight coaches don't just look different; they play differently, and
+each one teaches you its trick by using it on you.
+
+**A style you can feel.** Every coach plays below full strength on purpose,
+choosing among the moves it thinks good enough. A style is its taste
+among those moves, never a weaker one, so a coach's strength is still
+exactly what the ladder says (the check proves it). Acorn loves its
+knights. Sprout pushes pawns. Clover plays whatever feels lucky. Fern
+castles early and defends. Bamboo is patient, with bishops on the long
+diagonals. Cactus checks, captures and charges. Pine trades when it is
+ahead and counts. Oak plays the centre, castles, and loves a pawn that
+walks home.
+
+**A habit it can't help.** Between moves, every so often, and as each game
+begins, the coach does its own little thing. Acorn bounces and Sprout
+waves a leaf. Clover twirls for luck and Fern sways. Bamboo bows and
+Cactus taps, impatient. Pine's eyes flick back and forth, counting (it
+does that while it thinks, too), and Oak nods slowly. When it wins, it
+celebrates its own way; when it loses, Cactus sulks with a tap, Pine
+recalculates, and Bamboo and Oak bow.
+
+**A signature trick, taught by facing it.** Each coach has the trick its
+skill card teaches: Acorn's knight hop, Sprout's free snack, Clover's
+lucky fork, Fern's safe-and-sound castle, Bamboo's still pin, Cactus's
+sting, Pine's back rank, Oak's quiet promotion. Meeting it, the coach
+tells you what to watch for. When it plays the trick on you, the room
+names it in a green banner and the coach is delighted with itself. When
+you play the trick back at the coach, the room makes a fuss of you (a
+pink banner, the coach can't believe it, a harp) and it is worth 25
+experience. The chapter card shows each coach's style and trick.
+
+**It remembers you.** After a few games a coach greets you as a rival and
+counts them ("Round 4, partner. Still prickly."). And the road talks:
+beat one coach and the next has heard ("Acorn says you're really good!
+Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
+your record against each.
+
+## The journey: a game you can finish
+
+The ladder is also a road. **The Journey** (the bright sign at the top of
+the lobby) is the same eight coaches as chapters of a trip through the
+grove: The Gate, The Seed Tray, The Meadow, The Fern Shade, The Bamboo
+Dojo, The Desert Edge, The Frost Ridge, The Old Library.
+
+**The map** is a winding road with a stop for each. The stops ahead are
+locked; the one you are at pulses under a ▼; the road behind you is gold.
+Each stop opens a **chapter card**: the coach large, a line of story going
+in (another coming out, once cleared), its three stars and what each one
+gives. Beat the coach and the card says **Chapter cleared!** with a
+button to the map, where the stop gets a CLEARED! stamp and the road
+draws itself on to the next one. (A coach beaten on the ladder counts:
+the road and the ladder are the same games.)
+
+**The Grove Cup.** With all eight cleared the finale opens: Bamboo, Pine
+and Oak, one after another. A loss or a draw starts the Cup again from the
+first match; the card says how far you got and offers to try again. Win
+all three and you have beaten the room: the Grove Champion title, Champion
+Gold pieces and a Victory lap trail are yours.
+
+**The ending** plays on a night sky: a trophy, YOU BEAT THE CHESS ROOM!,
+every coach hopping in a row, your story in numbers (games, wins, stars,
+rating, collection, level), and the credits rolling, with fireworks.
+It can be watched again from the end of the road.
+
+**After the ending** there is still all of it: every star, every Academy
+lesson, everything in the collection. That is your **completion**, out of
+a hundred (stars 40, collection 30, lessons 20, the Cup 10), shown on the
+map with what is left of each. It is a hundred only when everything is
+done, and a hundred has its own ending, and the Golden Acorn.
+
 ## The collection: something to win
 
 Playing well should leave you with something, and the next thing should
@@ -3019,6 +3112,8 @@ node chess/tools/sound-check.js    # every material, every weight and every mome
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
+node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment
+node chess/tools/persona-check.js  # every coach plays like itself, and you can tell them apart with your eyes shut
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed

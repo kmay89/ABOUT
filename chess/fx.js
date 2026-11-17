@@ -632,6 +632,10 @@ var TRAILS = {
   rainbow: function (L, x, y, s, t, d) {
     glow(L, null, x, y - s * 0.1, s * 0.45, s * 0.9, 650, 0.8, RAINBOW[Math.floor(t * 6.99)], 1, d);
   },
+  victory: function (L, x, y, s, t, d) {
+    star(L, null, x + rnd(-0.2, 0.2) * s, y - s * 0.15, rnd(-30, 30), rnd(-60, -20), 40, 1.4, rnd(500, 750), s * rnd(0.45, 0.7), pick(["#ffe08a", "#ffd166", "#fff6d6"]), d);
+    if (Math.random() < 0.5) glyph(L, x, y - s * 0.2, pick(["\ud83c\udfc6", "\u2b50", "\ud83c\udf89"]), s * rnd(0.45, 0.6), rnd(800, 1100), { vy: -s * 0.8, g: s * 1.2, vrot: rnd(-3, 3), delay: d });
+  },
   comet: function (L, x, y, s, t, d, dx, dy) {
     ember(L, null, x, y - s * 0.15, rnd(-15, 15), rnd(-15, 15), 0, 2, rnd(480, 760), s * rnd(0.55, 0.85), pick(["#ff8a3a", "#ffd166", "#ff5a3a"]), d);
     if (Math.random() < 0.5) spark(L, null, x, y - s * 0.15, -dx * 2, -dy * 2, 0, 2, 300, s * 0.05, "#ffffff", 0.06, d);

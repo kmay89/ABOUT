@@ -27,6 +27,9 @@ var CAST = {
             eyes: { gap: 0.20, size: 1.15 }, blush: 0.55 },
     voice: { hz: 520, rate: 13 },
     emotes: { worried: "💦", pleased: "✨" },
+    style: {"name": "Knight lover", "desc": "Can't resist a knight move, and loves to hop into the middle.", "w": {"knight": 4, "centre": 1.4}},
+    quirk: "bounce",
+    signature: {"id": "knighthop", "name": "The Knight Hop", "emoji": "🐴", "concepts": ["fork"], "piece": 2, "capture": true},
     lines: {
       hello: ["Oh! Hello! I'm Acorn. I only just learned how the horsey one moves.",
               "Hi, I'm Acorn! I'm small, but I'm going to try really hard."],
@@ -45,6 +48,11 @@ var CAST = {
       slipping: ["Uh oh. Uh oh uh oh.", "Wait, wait, I was doing so well!"],
       rally: ["I'm back! I think I'm back!"],
       comeback: ["You were behind and then you weren't! How did you DO that?"],
+      sig: ["Hop! Did you see that? That's my favourite!", "Boing! The knight jumps right over!"],
+      stolen: ["Hey! That's MY move! You hopped like me!"],
+      heard: ["Hi! I'm the first one, so nobody's told me about you yet!"],
+      rival: ["You again! Yay! Game number {n}!", "We've played {n} times! You're my best friend."],
+      tip: ["Watch my knights. They jump!"],
       draw:  ["Nobody won? That's okay! That's nice, actually."]
     }
   },
@@ -54,6 +62,9 @@ var CAST = {
             eyes: { gap: 0.22, size: 1.05 }, blush: 0.5 },
     voice: { hz: 470, rate: 12 },
     emotes: { worried: "💦", pleased: "✨" },
+    style: {"name": "Pawn pusher", "desc": "Marches its pawns forward, one brave step at a time.", "w": {"pawnPush": 2.6, "advance": 1.3}},
+    quirk: "wave",
+    signature: {"id": "loose", "name": "The Free Snack", "emoji": "🍃", "free": true},
     lines: {
       hello: ["Hi there! I'm Sprout. We're both still growing, so let's learn something together!",
               "Hello! Sprout here. I take what you leave lying about, so watch your pieces!"],
@@ -72,6 +83,11 @@ var CAST = {
       slipping: ["Hmm, it's getting away from me.", "Okay. Deep breaths, Sprout."],
       rally: ["There we go! Growing back."],
       comeback: ["You came all the way back! That was amazing to watch."],
+      sig: ["Ooh, that one wasn't guarded! Snack!", "Free piece! Thank you!"],
+      stolen: ["Aw, you saw my loose piece. Just like I would!"],
+      heard: ["Acorn says you're really good! Be gentle?", "Acorn told me all about you!"],
+      rival: ["Round {n}! I've been growing since last time.", "You and me again! Game {n}!"],
+      tip: ["Leave something loose and I'll take it!"],
       draw:  ["A draw! We both get a sticker."]
     }
   },
@@ -81,6 +97,9 @@ var CAST = {
             eyes: { gap: 0.24, size: 1.0 }, blush: 0.45 },
     voice: { hz: 430, rate: 12 },
     emotes: { worried: "💦", pleased: "🍀" },
+    style: {"name": "Lucky", "desc": "Plays whatever feels lucky. You never know what's coming.", "w": {"flat": true, "knight": 1.3}},
+    quirk: "spin",
+    signature: {"id": "fork", "name": "The Lucky Fork", "emoji": "🍀", "concepts": ["fork"]},
     lines: {
       hello: ["Hiya! I'm Clover. I know a few tricks, and I've got luck on my side!",
               "Hello, hello! Clover's the name. Four leaves, zero fear."],
@@ -99,6 +118,11 @@ var CAST = {
       slipping: ["My luck's turning. I don't like it.", "Come on, fourth leaf, don't fail me now."],
       rally: ["Ha! Luck remembers me!"],
       comeback: ["You made your own luck there. Wow."],
+      sig: ["Two at once! Luck? Maybe. Skill? Also maybe.", "A fork! Pick one, I'll take the other!"],
+      stolen: ["You forked ME? Where did you get luck like that?"],
+      heard: ["Sprout says you've got a green thumb for this.", "Word in the meadow is, you're lucky too."],
+      rival: ["Game {n}! My clover says this one's mine.", "Back again? That's {n} games. Lucky number?"],
+      tip: ["Watch for my forks: one piece, two targets."],
       draw:  ["Half a lucky day each!"]
     }
   },
@@ -108,6 +132,9 @@ var CAST = {
             eyes: { gap: 0.20, size: 0.95 }, blush: 0.3 },
     voice: { hz: 360, rate: 10 },
     emotes: { worried: "💦", pleased: "♪" },
+    style: {"name": "Careful", "desc": "Castles early, defends everything, and waits for you to slip.", "w": {"castle": 4, "retreat": 1.6, "capture": 0.8}},
+    quirk: "sway",
+    signature: {"id": "castle", "name": "Safe and Sound", "emoji": "🛡️", "castle": true},
     lines: {
       hello: ["Oh — hello. I'm Fern. I don't give much away, but I do notice things.",
               "Hello. Fern. I'll try to give you a fair game."],
@@ -126,6 +153,11 @@ var CAST = {
       slipping: ["Hm. The tide is going out.", "I notice I'm worried."],
       rally: ["Back in the shade. Better."],
       comeback: ["You didn't give up. I noticed."],
+      sig: ["Tucked in. Safe and sound.", "There. Now my king can rest."],
+      stolen: ["You castled to safety. Good. I noticed."],
+      heard: ["Clover was grumbling about you. That's a compliment.", "The meadow is quiet. Clover lost, didn't it?"],
+      rival: ["Game {n}. I remember how you played last time.", "{n} games now. I'm still noticing things."],
+      tip: ["I keep my king safe. Can you keep yours?"],
       draw:  ["Even. That feels right."]
     }
   },
@@ -135,6 +167,9 @@ var CAST = {
             eyes: { gap: 0.18, size: 0.9 }, band: "#c0392b", blush: 0.2 },
     voice: { hz: 300, rate: 9 },
     emotes: { worried: "💦", pleased: "✨" },
+    style: {"name": "Patient", "desc": "Quiet, solid moves. Bishops on long diagonals, pins that hold you still.", "w": {"bishop": 2.2, "castle": 2.5, "capture": 0.85, "advance": 0.9}},
+    quirk: "bow",
+    signature: {"id": "pin", "name": "The Still Pin", "emoji": "📌", "concepts": ["pin"]},
     lines: {
       hello: ["Greetings. I am Bamboo. I bend with the wind, and I do not break. Let us train.",
               "I am Bamboo. Strong roots, flexible stem. Show me your form."],
@@ -153,6 +188,11 @@ var CAST = {
       slipping: ["I bend. I bend.", "The wind is strong today."],
       rally: ["And now, I spring back."],
       comeback: ["You bent and did not break. A true lesson."],
+      sig: ["Be still. That piece is not going anywhere.", "A pin. Stillness is strength."],
+      stolen: ["You pinned me. The student becomes the teacher."],
+      heard: ["Fern speaks well of you. Fern rarely speaks.", "The ferns whisper your name. Let us see why."],
+      rival: ["Bout number {n}. I bow, as always.", "{n} games. Each one, a lesson for both of us."],
+      tip: ["My bishops pin. Watch the long diagonals."],
       draw:  ["Balance. As it should be."]
     }
   },
@@ -162,6 +202,9 @@ var CAST = {
             eyes: { gap: 0.20, size: 0.85 }, brow: true, blush: 0.15 },
     voice: { hz: 250, rate: 9 },
     emotes: { worried: "💢", pleased: "😏" },
+    style: {"name": "Aggressive", "desc": "Checks, captures, and charges forward. Never backs down.", "w": {"check": 3, "capture": 2, "advance": 1.4, "retreat": 0.6}},
+    quirk: "tap",
+    signature: {"id": "skewer", "name": "The Sting", "emoji": "🌵", "concepts": ["skewer"], "check": true},
     lines: {
       hello: ["Well, well. Name's Cactus. Folks who get careless round me get pricked. Sit down.",
               "Cactus. I've seen a lot of players come through this desert. Let's see you."],
@@ -180,6 +223,11 @@ var CAST = {
       slipping: ["Now hold on just a minute.", "Don't you get comfortable."],
       rally: ["That's more like it, partner."],
       comeback: ["Had you on the ropes and you crawled out. Respect."],
+      sig: ["Ha! Felt that one, didn't ya?", "Sting! That's how we do it out here."],
+      stolen: ["Now hold on. That's MY move, partner!"],
+      heard: ["Heard you got past Bamboo. Bamboo's soft.", "So you're the one beating everybody. Sit down."],
+      rival: ["Round {n}, partner. Still prickly.", "{n} games and you keep coming back. Respect."],
+      tip: ["I check. I capture. I don't back down."],
       draw:  ["Standoff. Respect."]
     }
   },
@@ -189,6 +237,9 @@ var CAST = {
             eyes: { gap: 0.19, size: 0.85 }, blush: 0.1 },
     voice: { hz: 280, rate: 10 },
     emotes: { worried: "❗", pleased: "✨" },
+    style: {"name": "Calculating", "desc": "Precise. Trades when ahead, and counts every escape square.", "w": {"capture": 1.5, "centre": 1.4, "rook": 1.4}},
+    quirk: "tick",
+    signature: {"id": "backrank", "name": "The Back Rank", "emoji": "🧱", "concepts": ["backRank", "mateThreat"]},
     lines: {
       hello: ["Good evening. I am Pine. I calculate, and I rarely let an advantage go. Bring a plan.",
               "Pine. Precise, patient, evergreen. Shall we begin?"],
@@ -207,6 +258,11 @@ var CAST = {
       slipping: ["That was not in my calculations.", "Recalculating."],
       rally: ["Order restored."],
       comeback: ["Statistically unlikely. Well played."],
+      sig: ["Escape squares: zero. As calculated.", "Your back rank. I counted."],
+      stolen: ["You found the back rank. Recalculating my opinion of you."],
+      heard: ["Cactus reports you are 'not bad'. From Cactus, that is high praise.", "Data received: you beat Cactus."],
+      rival: ["Game {n}. I have updated my model of you.", "Encounter number {n}. Probability of victory: uncertain."],
+      tip: ["Count your king's escape squares. I always do."],
       draw:  ["Equal. Correctly so."]
     }
   },
@@ -216,6 +272,9 @@ var CAST = {
             eyes: { gap: 0.22, size: 0.9 }, specs: true, blush: 0.2 },
     voice: { hz: 200, rate: 8 },
     emotes: { worried: "💦", pleased: "♪" },
+    style: {"name": "Classical", "desc": "Centre, castling, and patient endgames. Every move a lesson.", "w": {"centre": 1.6, "castle": 2.5, "promo": 3}},
+    quirk: "nod",
+    signature: {"id": "promote", "name": "The Quiet Promotion", "emoji": "👑", "promo": true},
     lines: {
       hello: ["Ah, welcome, welcome. I'm Oak. I've stood here a long while. Play your best, and keep the notebook open.",
               "Hello, friend. Oak. I've watched a great many games from this spot. Let's make this a good one."],
@@ -234,12 +293,17 @@ var CAST = {
       slipping: ["Oh my. You're pushing me now.", "Well, well. Look at you go."],
       rally: ["Not quite yet, my friend."],
       comeback: ["That is how it's done: you kept going when it looked lost. Splendid."],
+      sig: ["A pawn walked all the way home. Patience, you see.", "And now, a queen. Every pawn dreams of this."],
+      stolen: ["Your pawn made it home. Wonderful. Truly."],
+      heard: ["Pine tells me you counted better than it did. I'm glad.", "Everyone on the road speaks of you. Sit, my friend."],
+      rival: ["Game {n} together. I treasure every one.", "{n} games together now. Look how far you've come."],
+      tip: ["Every pawn could be a queen. Never forget it."],
       draw:  ["A draw. Honour on both sides."]
     }
   }
 };
 
-var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback"];
+var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback", "sig", "stolen", "heard", "rival", "tip"];
 
 function get(id) { return CAST[id] || null; }
 function ids() { return Object.keys(CAST); }
