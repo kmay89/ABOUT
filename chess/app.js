@@ -3148,6 +3148,7 @@ function startGame(newMode, opts) {
   moStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   else if (mode === "coach") paceTurnStart();
+  uimGameStarted(!!opts.fresh);
   needFrame();
 }
 /* the engine names an ending in a word; a person deserves a sentence */
@@ -8791,6 +8792,95 @@ function setupForTest() {
            startSetup: startSetup, setupTap: setupTap, setupBusy: function () { return setupBusy; } };
 }
 
+/* ===== the room's motion: how cards, words and games arrive =====
+   The board already moves like a thing with weight (motion.js, the
+   renderers); this is the same care for everything around it. One rule,
+   kept in one place, so every card in the room arrives the same way:
+   - the room dims in, and the card springs up into place with a little
+     overshoot, the way a real card is put down on a table;
+   - its contents follow one after another on a beat, so the eye reads
+     them in order rather than all at once (the beat follows the pace:
+     slower for a gentle player, quicker for a brisk one);
+   - the lobby's ladder deals its coaches in one by one;
+   - a game started with a tap opens from that tap, an iris out of the
+     lobby onto the new board, while the game itself is already there
+     underneath (nothing waits on the animation; a tap goes through it).
+   All of it is Web Animations on top of the styles, so nothing here can
+   leave a card stuck half-shown, and none of it runs with reduced motion. */
+var uimTap = null;
+var UIM_SKIP = { ovCredits: 1, ovUnlock: 1, ovPromo: 1 };   /* these have entrances of their own */
+function uimOn() { return !REDUCED && typeof Element !== "undefined" && !!Element.prototype.animate; }
+function uimRun(el, frames, o) { if (!el || !uimOn()) return null; try { return el.animate(frames, o); } catch (e) { return null; } }
+function uimBeat() { return Math.round(46 * Math.max(0.55, Math.min(1.3, paceDial().card))); }
+function uimShown(el) { return el && el.offsetParent !== null && getComputedStyle(el).display !== "none"; }
+function uimCardIn(ov) {
+  if (!uimOn() || UIM_SKIP[ov.id]) return;
+  var card = ov.firstElementChild;
+  if (!card) return;
+  var beat = uimBeat();
+  uimRun(ov, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+  uimRun(card, [
+    { transform: "translateY(22px) scale(.93)", opacity: 0 },
+    { transform: "translateY(-4px) scale(1.015)", opacity: 1, offset: 0.6 },
+    { transform: "translateY(1px) scale(.998)", offset: 0.82 },
+    { transform: "none", opacity: 1 }
+  ], { duration: 460, easing: "cubic-bezier(.25,.8,.3,1)" });
+  var kids = Array.prototype.filter.call(card.children, uimShown).slice(0, 16);
+  kids.forEach(function (k, i) {
+    uimRun(k, [{ transform: "translateY(12px)", opacity: 0 }, { transform: "none", opacity: 1 }],
+           { duration: 340, delay: 90 + i * beat, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" });
+  });
+  /* the lobby deals its coaches */
+  if (ov.id === "ovMenu") {
+    Array.prototype.forEach.call(document.querySelectorAll("#mLadder .rung"), function (r, i) {
+      uimRun(r, [{ transform: "translateY(16px) rotate(-3deg) scale(.86)", opacity: 0 },
+                 { transform: "translateY(-3px) rotate(1deg) scale(1.03)", opacity: 1, offset: 0.65 },
+                 { transform: "none", opacity: 1 }],
+             { duration: 420, delay: 160 + i * Math.round(beat * 0.8), easing: "cubic-bezier(.25,.8,.3,1)", fill: "backwards" });
+    });
+  }
+}
+/* a game, opening out of the tap that started it */
+function uimIris(x, y) {
+  if (!uimOn()) return;
+  var w = window.innerWidth, h = window.innerHeight;
+  var far = Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
+  var el = document.createElement("div");
+  el.className = "uimIris";
+  el.style.left = x + "px"; el.style.top = y + "px";
+  document.body.appendChild(el);
+  var gone = false, done = function () { if (!gone) { gone = true; el.remove(); } };
+  var a = uimRun(el, [{ width: "36px", height: "36px", opacity: 1 }, { width: far * 2 + 60 + "px", height: far * 2 + 60 + "px", opacity: 1, offset: 0.86 },
+                      { width: far * 2 + 120 + "px", height: far * 2 + 120 + "px", opacity: 0 }],
+                 { duration: 640, easing: "cubic-bezier(.6,.04,.3,1)" });
+  if (a) a.onfinish = done; else done();
+  setTimeout(done, 1200);
+}
+function uimGameStarted(fresh) {
+  var t = uimTap;
+  uimTap = null;
+  /* the tap that started it: the first tap of a visit also wakes the
+     sound, which can hold the page a moment, so the window is generous */
+  if (fresh && t && Date.now() - t.t < 5000) uimIris(t.x, t.y);
+}
+function uimWire() {
+  document.addEventListener("pointerdown", function (e) { uimTap = { x: e.clientX, y: e.clientY, t: Date.now() }; }, true);
+  if (typeof MutationObserver === "undefined") return;
+  var mo = new MutationObserver(function (list) {
+    list.forEach(function (m) {
+      var el = m.target;
+      if (!el.classList.contains("hide") && /(^|\s)hide(\s|$)/.test(m.oldValue || "")) uimCardIn(el);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".ov"), function (ov) {
+    mo.observe(ov, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+  });
+}
+function uimForTest() {
+  return { uimOn: uimOn, uimBeat: uimBeat, uimIris: uimIris,
+           running: function (sel) { var el = document.querySelector(sel); return el && el.getAnimations ? el.getAnimations().length : 0; } };
+}
+
 /* ===== the table: two people, one device =====
    A phone or a tablet flat on the table between two people. Neither of
    them is "the player" the rest of the room is built round, so here:
@@ -9820,6 +9910,7 @@ function boot() {
   Room.configure({ game: "chess", seats: 2, label: "board" });
   /* a place the road has not reached yet is not where you sit down */
   if (!placeOpen(prefs.scene)) { prefs.scene = "park"; savePrefs(); }
+  uimWire();
   wireUI();
   lanHandlers();
   wireFriends();
@@ -9916,6 +10007,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest(), setupForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
