@@ -57,18 +57,28 @@ const CONCEPTS = ["fork", "pin", "skewer", "backRank", "mateThreat", "hanging", 
 }
 /* how a style changes the play, and how it does not */
 {
+  /* paired and repeatable: both sides of a comparison draw the same
+     seeded rolls, and the clock is long enough never to cut a search
+     short, so the only difference between them is the style */
   const runs = (fen, style, n, noise) => {
-    const out = []; for (let i = 0; i < n; i++) { const g = Chess.create(fen); const r = Chess.search(g, { ms: 140, maxDepth: 2, noise: noise || 300, nodes: 15000, style, rank: true }); out.push(r); }
+    const real = Math.random; let seed = 0x2f6b9a1;
+    Math.random = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return ((seed >>> 0) % 1e6) / 1e6; };
+    const out = [];
+    try { for (let i = 0; i < n; i++) { const g = Chess.create(fen); out.push(Chess.search(g, { ms: 5000, maxDepth: 2, noise: noise || 300, nodes: 15000, style, rank: true })); } }
+    finally { Math.random = real; }
     return out;
   };
   const MID = "r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R w KQkq - 4 4";
   const kn = (rs) => rs.filter((r) => Math.abs(r.move.piece) === 2).length;
-  const plain = runs(MID, null, 24), knights = runs(MID, { knight: 4 }, 24);
-  ok("a knight lover plays more knights", kn(knights) > kn(plain) + 3, kn(plain) + " → " + kn(knights) + " of 24");
+  /* 200 each: a knight lover four times as fond of knights should go
+     from about a quarter of its moves to more than half */
+  const N = 200, pc = (x) => Math.round(100 * x / N) + "%";
+  const plain = runs(MID, null, N), knights = runs(MID, { knight: 4 }, N);
+  ok("a knight lover plays more knights", kn(knights) - kn(plain) > 0.2 * N, pc(kn(plain)) + " → " + pc(kn(knights)) + " of moves");
   const CHK = "4k3/8/8/8/8/8/3Q4/4K2R w K - 0 1";
   const checks = (rs) => rs.filter((r) => { const g = Chess.create(CHK); Chess.play(g, r.move); return Chess.inCheck(g); }).length;
-  const p2 = runs(CHK, null, 20), c2 = runs(CHK, { check: 3, capture: 2 }, 20);
-  ok("an aggressive one gives more checks", checks(c2) > checks(p2) + 2, checks(p2) + " → " + checks(c2) + " of 20");
+  const p2 = runs(CHK, null, N), c2 = runs(CHK, { check: 3, capture: 2 }, N);
+  ok("an aggressive one gives more checks", checks(c2) > 2 * checks(p2) && checks(c2) - checks(p2) > 0.1 * N, pc(checks(p2)) + " → " + pc(checks(c2)) + " of moves");
   /* the slack holds: the move chosen is never worse than the best by more than the noise */
   let worst = 0;
   knights.concat(c2).forEach((r) => {
