@@ -223,7 +223,8 @@ const SCHOLAR = ["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"];
     }
     await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 9000 }).catch(() => {});
     const mile = await until(() => { const el = document.querySelector("#endMiles .erMile.unlock"); return el ? el.textContent : ""; }, 12000);
-    ok("beating a coach wins its board: the end card says so", mile && mile.indexOf(acorn.name) >= 0 && /Board won/.test(mile), mile);
+    /* on its own line, or (on the journey) as part of the chapter it clears */
+    ok("beating a coach wins its board: the end card says so", mile && mile.indexOf(acorn.name) >= 0 && /Board won|is yours/.test(mile), mile);
     h = await H();
     ok("…and it is kept as won", h.unlocked.join() === "acorn" && h.just === "acorn", JSON.stringify(h));
     const gift = await until(() => { const s = __cr.castState(); return /stump/i.test(s.saying) ? s.saying : ""; }, 4000);
