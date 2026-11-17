@@ -3188,12 +3188,13 @@ function create(canvas, opts) {
     if (!th) return false;
     /* camera springs: the same share of the way per sixtieth of a second
        at any frame rate, so a phone drawing fifteen frames a second turns
-       the board round in the same time as one drawing sixty. A first frame
-       after a rest counts as one sixtieth, so nothing jumps */
+       the board round in the same time as one drawing sixty (a slow frame
+       counts for at most a quarter of a second). A first frame after a
+       rest of a second or more counts as one sixtieth, so nothing jumps */
     var moving = false;
     var camNow = clock(), camGap = camLastT ? (camNow - camLastT) / 1000 : 0;
     camLastT = camNow;
-    var camDt = camGap > 0 && camGap <= 0.25 ? camGap : 1 / 60;
+    var camDt = camGap > 0 && camGap <= 1 ? Math.min(camGap, 0.25) : 1 / 60;
     var k = REDUCED ? 1 : 1 - Math.exp(-9.05 * camDt);
     var dy = cam.tYaw - cam.yaw, dp = cam.tPitch - cam.pitch, dd = cam.tDist - cam.dist;
     if (Math.abs(dy) + Math.abs(dp) + Math.abs(dd) > 0.0008) {
