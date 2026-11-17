@@ -202,6 +202,9 @@ async function browserHalf() {
       await page.evaluate(() => __cr.startGame("pass", { clockStr: "none" }));
       for (const s of SCHOLAR) { await play(s); await page.waitForTimeout(40); }
       await settle();
+      /* at the table each seat is told first; "The game" opens the card (table-check.js) */
+      await page.waitForSelector("#tableEnd:not(.hide)", { timeout: 8000 }).catch(() => {});
+      await page.click("#teLook");
       await page.waitForSelector("#ovEnd:not(.hide)", { timeout: 8000 }).catch(() => {});
       ok(T("the game ends and the card comes up"), await page.isVisible("#ovEnd"));
       ok(T("…offering to send the game"), await page.isVisible("#endSend"));

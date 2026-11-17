@@ -86,7 +86,7 @@ const LINES = `__cr.renderer.lines.map((l) => ({ from: l.from, to: l.to, sq: l.s
       };
       await boot();
       await page.evaluate((d) => { localStorage.clear(); localStorage.setItem("chessroom_prefs",
-        JSON.stringify({ use3d: d === "3d", scene: "park", fx: "low", sawPen: true, coachVoice: "plain", coach: true })); }, dim);
+        JSON.stringify({ use3d: d === "3d", scene: "park", fx: "low", sawPen: true, coachVoice: "plain", coach: true, autoFlip: true })); }, dim);
       await boot(dim === "2d" ? "#force2d" : "");
       const tag = dim + ": ";
       const play = async (san) => {
@@ -95,6 +95,8 @@ const LINES = `__cr.renderer.lines.map((l) => ({ from: l.from, to: l.to, sq: l.s
         await page.waitForFunction(() => !__cr.renderer.isAnimating(), null, { timeout: 5000 }).catch(() => {});
       };
       const lines = () => page.evaluate(LINES);
+      /* the two-player games here are passed back and forth: across a table
+         the quiet coach keeps to the notebook (table-check.js) */
       const fresh = async (mode) => {
         await page.evaluate((m) => { document.querySelectorAll(".ov").forEach((o) => o.classList.add("hide"));
           __cr.startGame(m, { humanSide: 1, skill: "sprout", clockStr: "none" }); __cr.setVoiceForTest("plain"); }, mode);
