@@ -350,11 +350,11 @@ const PLAY = `([san, src]) => {
 
     /* ---- the new-game card starts what it shows ---- */
     await fresh();
-    await page.click("#mPass"); await page.waitForTimeout(200);
+    await page.click("#mPassOpts"); await page.waitForTimeout(200);
     await page.click('#clockChips [data-clock="5+0"]');
     await page.click("#newStart"); await page.waitForTimeout(600);
     await page.click("#btnMenu"); await page.waitForTimeout(300);
-    await page.click("#mPass"); await page.waitForTimeout(200);
+    await page.click("#mPassOpts"); await page.waitForTimeout(200);
     const shown = await page.evaluate(() => document.querySelector("#clockChips .sel").getAttribute("data-clock"));
     await page.click("#newStart"); await page.waitForTimeout(600);
     const clockOn = await page.evaluate(() => !document.getElementById("clockBot").classList.contains("off"));

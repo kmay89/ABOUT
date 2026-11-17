@@ -529,6 +529,7 @@ function switchDim(to3d, becauseLost) {
   }
   prefs.use3d = !!(to3d && R3); savePrefs();
   useRenderer(prefs.use3d ? R3 : R2);
+  tableSync();
   syncDimButton();
   if (becauseLost) toast("The 3D view stumbled, so the game moved to the 2D board — nothing was lost. You can try 3D again from the button below.");
 }
@@ -765,6 +766,10 @@ function syncTagState() {
   var live = G && !over && viewPly < 0 && mode && mode !== "tour";
   $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
   $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
+  /* at the table each bar says it to its own player, check and all */
+  var chk = !!live && Chess.inCheck(G, G.turn);
+  $("nameTop").parentNode.classList.toggle("inCheck", chk && G.turn === topSide);
+  $("nameBot").parentNode.classList.toggle("inCheck", chk && G.turn === botSide);
 }
 function syncBars() {
   var topSide = -orientation, botSide = orientation;
@@ -1100,7 +1105,7 @@ function commitMove(m, source, animOpts) {
   }, 700);
 
   /* the gentle coach looks over the human's shoulder */
-  if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || mode === "pass")) {
+  if (source === "local" && prefs.coach && !clock.on && (mode === "coach" || (mode === "pass" && !tableFacing()))) {
     setTimeout(function () { gentleCheck(fenBefore, m, san, ply, myTicket); }, 1400);
   }
   /* the coach takes its turn */
@@ -1829,7 +1834,8 @@ function narrateOpening(san, source) {
     /* a move played elsewhere, or a game picked back up, fills the card
        without also announcing an opening you were already in */
     if (source !== "net" && source !== "resume") {
-      toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
+      /* across a table a toast faces one of the two: the notebook keeps it */
+      if (!tableFacing()) toast("📖 <b>" + entry.name + "</b> — " + entry.idea, null, 6000);
       note({ ply: G.played.length - 1, icon: "\ud83d\udcd6", tone: "note", key: "opening:" + entry.name,
              text: "<b>" + entry.name + "</b> — " + entry.idea,
              brief: (code ? code + " \u00b7 " : "") + entry.name });
@@ -3105,6 +3111,7 @@ function startGame(newMode, opts) {
   closePromo();
   clearTimeout(coachTimer); thinking = false; hintPending = false; hintShown = null;
   hideToast(); clearLines();
+  $("tableEnd").classList.add("hide");
   if (R && R.resetView) R.resetView();
   clearSel(); viewPly = -1; lastNarratedOpening = ""; thinking = false;
   showViewBanner(false);
@@ -3116,8 +3123,9 @@ function startGame(newMode, opts) {
   if (friendly) ratedDone = true;
   paceTurnEnd(false); paceNudged = 0;
   clockConfig(opts.clockStr || "none");
-  orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
+  orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : (opts.orientation === -1 ? -1 : 1));
   R.setOrientation(orientation);
+  tableSync();
   if (FX) Fx.clear();
   fxDown = null;
   R.setPosition(G.board, { flourish: true });
@@ -3212,6 +3220,8 @@ function endGame(result, reason, taught) {
   setTimeout(function () {
     if (!over) return;
     if (document.querySelector(".ov:not(.hide)") || studioOpen) { syncTurnStrip(); return; }
+    /* two people across a table: each seat is told, the right way up */
+    if (tableFacing()) { tableEnd(result, reason); return; }
     $("ovEnd").classList.remove("hide");
     syncTurnStrip();
     /* the room celebrates with you — and for two people on one board, a
@@ -5280,7 +5290,10 @@ function oddsNudge() {
     showLines([{ from: pick.squares[0], to: nTo, kind: pick.concept === "hanging" ? "threat" : "ghost",
                  tone: pick.concept === "hanging" ? "threat" : "hint", knight: knightHop(pick.squares[0], nTo) }], 5200, "main");
   }
-  toast("🫱 " + pick.text + " <i>(free — you're behind)</i>", null, 7000);
+  var say = "🫱 " + pick.text + " <i>(free — you're behind)</i>";
+  /* across a table, said to the one it is for, the right way up for them */
+  if (tableFacing()) { tableSay(side === -orientation ? say : "", side === orientation ? say : "", 7000, true); return; }
+  toast(say, null, 7000);
 }
 
 /* ---- the lines on the board ----
@@ -5656,7 +5669,9 @@ function teachMoment(list, mover, source, ply) {
                   ? " \u00b7 " + item.squares.map(Chess.sqName).join("\u2013") : "") });
     /* the board only gets interrupted for something that changes what
        you should do right now */
-    if (major && voice() === "plain") toast("\ud83d\udc41 " + item.text, null, 7000);
+    /* across a table a toast faces one of the two; the notebook and the
+       lines on the board are for both */
+    if (major && voice() === "plain" && !tableFacing()) toast("\ud83d\udc41 " + item.text, null, 7000);
     return;
   }
 }
@@ -6720,7 +6735,7 @@ function syncSettingsUI() {
 
 /* the two ways a configured game begins, shared by the menu and the
    New game button */
-function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); }); }
+function passBegin(o) { leaveGameThen(function () { startGame("pass", { clockStr: o.clockStr, fresh: true }); tableHello(); }); }
 function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.side, o.clockStr); }); }
 /* New game, from the board. Starting over is one tap; it only asks first
    when there is something to lose — moves on the board, or a rated game
@@ -6750,6 +6765,7 @@ function wireUI() {
   $("btnFlip").addEventListener("click", function () {
     orientation = -orientation;
     R.setOrientation(orientation);
+    tableSync();
     syncBars(); syncClocks(); syncBoard();
     needFrame();
   });
@@ -6762,7 +6778,8 @@ function wireUI() {
     var s = loadSave();
     if (s) resumeSave(s);
   });
-  $("mPass").addEventListener("click", function () { openNewCard("pass", passBegin); });
+  $("mPass").addEventListener("click", tableBegin);
+  $("mPassOpts").addEventListener("click", function () { openNewCard("pass", passBegin); });
   $("mCoach").addEventListener("click", function () { openNewCard("coach", coachBegin); });
   $("mPlay").addEventListener("click", function () { quickPlay(); });
   $("mRating").addEventListener("click", showProfile);
@@ -6794,8 +6811,9 @@ function wireUI() {
   moWire();
   jrnWire();
   paceWire();
+  tableWire();
   unlWire();
-  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
+  wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); tableSync(); });
   $("newStart").addEventListener("click", function () {
     if (!newCardCtx) return;
     var ctx = newCardCtx; newCardCtx = null;
@@ -8553,6 +8571,87 @@ function journeyForTest() {
    it remembers you: how many games you have played it, and what the
    other coaches have been saying. */
 var persSigAt = 0, persStole = -1, persIdleT = 0;
+/* ===== the table: two people, one device =====
+   A phone or a tablet flat on the table between two people. Neither of
+   them is "the player" the rest of the room is built round, so here:
+   - one tap from the lobby sits you down (the clock you chose last time,
+     and the seating you chose: clock and seating are a link underneath);
+   - across the table (the default), the board stays put and the far bar
+     is turned to face its player: name, clock, what they have taken, and
+     "Your move" on whichever bar is to move. On the flat board their
+     men are drawn the right way up for them; the 3D camera stands right
+     over the middle, so it is the same picture from both sides;
+   - the moves and notes panel steps aside for the board, and the quiet
+     coach keeps its remarks in the notebook rather than in a toast that
+     would face one of them;
+   - and at the end each seat is told, the right way up, with a button
+     on each side to play again (seats stay, colours swap).
+   Passing the device back and forth (the other seating) is the old way:
+   the board turns to whoever moves, and the room talks as usual. */
+function tableFacing() { return mode === "pass" && !prefs.autoFlip; }
+function tableSync() {
+  var on = mode === "pass", face = tableFacing();
+  document.body.classList.toggle("table", on);
+  document.body.classList.toggle("facing", face);
+  if (R2 && R2.setFaceToFace) R2.setFaceToFace(face ? -orientation : 0);
+  if (R3 && R3.setOverhead) R3.setOverhead(face);
+  if (!face) $("tableSay").classList.add("hide");
+  reflow();
+}
+function tableBegin() {
+  var clk = (prefs.lastClock && prefs.lastClock.pass) || "none";
+  leaveGameThen(function () { startGame("pass", { clockStr: clkOk(clk) ? clk : "none", fresh: true }); tableHello(); });
+}
+/* who sits where, said to both, the right way up, as the game begins */
+var tableSayT = 0;
+function tableHello() {
+  if (!tableFacing()) return;
+  var top = -orientation, bot = orientation;
+  tableSay(sideName(top) + ", you're on this side" + (top === 1 ? ": you start." : "."),
+           sideName(bot) + ", you're on this side" + (bot === 1 ? ": you start." : "."), 3600);
+}
+function tableSay(topTx, botTx, ms, html) {
+  var el = $("tableSay");
+  $("tsTop")[html ? "innerHTML" : "textContent"] = topTx; $("tsBot")[html ? "innerHTML" : "textContent"] = botTx;
+  $("tsTop").parentNode.classList.toggle("hide", !topTx);
+  $("tsBot").parentNode.classList.toggle("hide", !botTx);
+  el.classList.remove("hide");
+  clearTimeout(tableSayT);
+  tableSayT = setTimeout(function () { el.classList.add("hide"); }, ms || 3000);
+}
+function tableEnd(result, reason) {
+  var top = -orientation, bot = orientation;
+  function says(side) {
+    if (result === "draw") return ["🤝 A draw!", cap(reason) + "."];
+    var won = (result === "white") === (side === 1);
+    return won ? ["🎉 You won!", cap(reason) + "."] : ["🌱 Good game", sideName(-side) + " won — " + reason + "."];
+  }
+  var t = says(top), b = says(bot);
+  $("teTopTx").textContent = t[0]; $("teTopSub").textContent = t[1];
+  $("teBotTx").textContent = b[0]; $("teBotSub").textContent = b[1];
+  $("tableEnd").classList.remove("hide");
+  $("tableSay").classList.add("hide");
+  syncTurnStrip();
+  if (FX && result !== "draw") { Fx.confetti({ ms: 2400, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
+}
+function tableAgain() {
+  $("tableEnd").classList.add("hide");
+  /* the same seats, the colours swapped: the board turns to the new White */
+  var turn = -orientation, clk = clockStrOf();
+  startGame("pass", { clockStr: clk, fresh: true, orientation: turn });
+  tableHello();
+}
+function tableWire() {
+  Array.prototype.forEach.call(document.querySelectorAll("#tableEnd .teAgain"), function (b) { b.addEventListener("click", tableAgain); });
+  $("teLook").addEventListener("click", function () { $("tableEnd").classList.add("hide"); $("ovEnd").classList.remove("hide"); syncTurnStrip(); });
+  $("teMenu").addEventListener("click", function () { $("tableEnd").classList.add("hide"); showMenu(); });
+  $("tableSay").addEventListener("click", function () { this.classList.add("hide"); });
+}
+function tableForTest() {
+  return { tableFacing: tableFacing, tableBegin: tableBegin, tableAgain: tableAgain,
+           face2d: function () { return R2 ? R2.face : null; }, get orientation() { return orientation; } };
+}
+
 /* ===== the room's pace: gentle, steady or brisk (pace.js) =====
    How long the coach waits before it answers, how long words stay up,
    how long the end card takes, whether to offer a hand to someone who
@@ -9593,6 +9692,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();

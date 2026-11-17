@@ -107,7 +107,7 @@ const CORNER = probeAt(0.06, 0.94);
   try {
     await page.goto(base + "/chess/", { waitUntil: "networkidle" });
     await page.waitForTimeout(500);
-    await page.click("#mPass");
+    await page.click("#mPassOpts");
     await page.waitForTimeout(300);
     const start = await page.$("#newStart");
     if (start) await start.click();

@@ -1959,6 +1959,50 @@ Nothing on the road can be skipped. The room opens one coach at a time.
 `chess/tools/earn-check.js` checks the rules in node and walks the
 whole of it, from a new player's first visit, in a browser.
 
+## Two people, one device: the table
+
+A phone or a tablet flat on the table between two people. Neither of
+them is "the player" the rest of the room is built round, so a game for
+two is laid out for both.
+
+**One tap.** *Two players, one device* in the lobby starts the game, with
+the clock you chose last time. There is no card in the way. *Two players:
+clock & seating* under the tiles opens the card, for a clock or the other
+seating.
+
+**Across the table** (the default seating):
+- **The board.** It stays put and takes the room: the moves and notes
+  panel steps aside.
+- **Your own bar.** The far bar is turned to face its player: name,
+  clock, and what they have taken.
+- **Whose turn.** Whichever bar is to move glows and says **Your move**,
+  or **Check! Your move**, the right way up for its owner.
+- **Upright pieces in 2D.** The far player's men are drawn the right way
+  up for them.
+- **The same view in 3D.** The camera stands right over the middle of the
+  board, so it is the same picture from both chairs. Neither of them gets
+  the near side.
+- **A greeting.** As the game begins, each is told where they sit, the
+  right way up ("Black, you're on this side.").
+- **The coach's remarks.** Its remarks and opening names go into the
+  notebook, not a toast that would face one of them. A free word for the
+  player who's behind is said to that player, on their side.
+- **The end.** Each seat is told, the right way up ("🎉 You won!" /
+  "🌱 Good game"), with **Play again** on both sides. The seats stay, the
+  colours swap, and the board turns to the new White. *The game* opens
+  the full end card.
+
+**Passed back and forth** (the other seating): one person looks at a time.
+The board turns to whoever moves, the moves and notes are beside it, and
+the room talks as it always has.
+
+`chess/tools/table-check.js` sits two people down on a phone, in 2D and
+3D, and plays it through: one tap, the turned bar, "Your move" and
+check, the upright men, the overhead camera, the quiet notebook, the
+two-seat ending, Play again with the colours swapped, and the other
+seating. It also checks that one tap from the middle of a computer game
+still gets two people playing.
+
 ## At your pace
 
 A seven-year-old who has never played and a club player on a lunch
@@ -3236,6 +3280,7 @@ node chess/tools/sound-check.js    # every material, every weight and every mome
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/earn-check.js     # every coach and every place is earned, never picked
 node chess/tools/pace-check.js     # the room goes at the player's pace
+node chess/tools/table-check.js    # two people, one device: fair to both
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment

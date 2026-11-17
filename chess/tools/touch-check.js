@@ -84,10 +84,9 @@ const SQ = (name) => (name.charCodeAt(1) - 49) * 16 + (name.charCodeAt(0) - 97);
       page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
       await page.goto(base + "/chess/" + (dim === "2d" ? "#force2d" : ""), { waitUntil: "networkidle" });
       await page.waitForTimeout(1400);
+      /* one tap sits two people down at the table (table-check.js) */
       await page.tap("#mPass");
-      await page.waitForTimeout(300);
-      await page.tap("#newStart");
-      await page.waitForTimeout(1600);
+      await page.waitForTimeout(1900);
 
       const box = await page.locator("#stage").boundingBox();
       const tap = async (name) => {
@@ -124,9 +123,11 @@ const SQ = (name) => (name.charCodeAt(1) - 49) * 16 + (name.charCodeAt(0) - 97);
       ok(dim + ": a whole game can be played by tapping",
          sans.join(" ") === "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7#", sans.join(" "));
       await page.waitForTimeout(1500);
-      ok(dim + ": the mate ends the game", await page.isVisible("#ovEnd"));
+      /* two people at a table are each told, the right way up (table-check.js) */
+      ok(dim + ": the mate ends the game, with a word for each seat", await page.isVisible("#tableEnd"));
 
       /* a burst of taps on a finished board does nothing alarming */
+      await page.tap("#teLook"); await page.waitForTimeout(300);
       await page.tap("#endReview");
       await page.waitForTimeout(300);
       for (let i = 0; i < 6; i++) { await tap(["a1", "h8", "d4", "e5", "b2", "g7"][i]); }

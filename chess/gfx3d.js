@@ -2077,11 +2077,23 @@ function create(canvas, opts) {
     feel.drift.on = false; feel.drift.yaw = 0; feel.drift.vel = 0;
     R.orientation = color;
     cam.tYaw = homeYaw(color);
-    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
+    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
+    R.dirty = true;
+  };
+/* two people across a table: neither gets the near side. The camera
+     stands over the middle of the board, as high as it goes, so the
+     view is the same picture for both of them */
+  var overhead = false;
+  function homePitch() { return overhead ? PITCH_MAX : PITCH_HOME; }
+  R.isOverhead = function () { return overhead; };
+  R.setOverhead = function (on) {
+    if (overhead === !!on) return;
+    overhead = !!on;
+    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
     R.dirty = true;
   };
   R.resetView = function () {
-    cam.tPitch = PITCH_HOME; cam.tDist = DIST_HOME;
+    cam.tPitch = homePitch(); cam.tDist = DIST_HOME;
     cam.tYaw = homeYaw(R.orientation);
     R.focus(null);
     R.dirty = true;

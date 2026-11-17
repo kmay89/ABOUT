@@ -437,9 +437,16 @@ function sprites(ctx, kind, white, pal) {
   return hit;
 }
 
+/* face to face: two people across a table, each reading their own men
+   the right way up. While a renderer that has been told so is drawing,
+   the side across the board (`faceSide`) is painted turned half round
+   about its square. Set only for the length of that renderer's frame,
+   so nothing else that paints a piece (a share card, a still) is turned */
+var faceSide = 0;
 function paintPiece(ctx, piece, x, y, size, pal, alpha, scale, lean, squash, extra) {
   var kind = Math.abs(piece), white = piece > 0;
   ctx.save();
+  if (faceSide && (white ? 1 : -1) === faceSide) { ctx.translate(x, y); ctx.rotate(Math.PI); ctx.translate(-x, -y); }
   /* the origin is the point the piece stands on, which is what lets a
      captured piece tip over on its own edge rather than spin about its
      middle, and a landing one compress into the board rather than
@@ -1294,10 +1301,15 @@ function create(canvas) {
   }
 
   /* one full paint; returns true if another frame is wanted */
+  R.face = 0;
+  R.setFaceToFace = function (side) { R.face = side === 1 || side === -1 ? side : 0; R.dirty = true; };
   R.frame = function () {
+    if (!R.pal || (!R.dirty && !R.anim)) return false;
+    faceSide = R.face;
+    try { return frameInner(); } finally { faceSide = 0; }
+  };
+  function frameInner() {
     var th = R.pal, animating = false;
-    if (!th) return false;
-    if (!R.dirty && !R.anim) return false;
     refit();
     var now = clock();
     var w = canvas.clientWidth, h = canvas.clientHeight;

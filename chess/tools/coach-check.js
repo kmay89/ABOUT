@@ -86,6 +86,9 @@ const READ = `(() => ({
   const browser = await pw.chromium.launch({ executablePath: CHROME,
     args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  /* the coach's notebook in a two-player game is the passed-back-and-forth
+     seating's: across a table the panel steps aside (table-check.js) */
+  await ctx.addInitScript(() => { if (!localStorage.getItem("chessroom_prefs")) localStorage.setItem("chessroom_prefs", JSON.stringify({ autoFlip: true })); });
   const page = await ctx.newPage();
   const errs = [];
   page.on("pageerror", (e) => errs.push("" + e.message));
@@ -108,7 +111,7 @@ const READ = `(() => ({
   try {
     await page.goto(base + "/chess/", { waitUntil: "networkidle" });
     await page.waitForTimeout(500);
-    await page.click("#mPass");
+    await page.click("#mPassOpts");
     await page.waitForTimeout(300);
     const start = await page.$("#newStart");
     if (start) await start.click();

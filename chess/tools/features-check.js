@@ -120,7 +120,7 @@ const SIZES = [
       await press("#aboutBack");
 
       /* ---- a game and its buttons ---- */
-      await press("#mPass"); await press("#newStart");
+      await press("#mPassOpts"); await press("#newStart");
       await page.waitForTimeout(800);
       for (const s of ["e4", "e5", "Nf3"]) { await play(s); await page.waitForTimeout(60); }
       await settle();

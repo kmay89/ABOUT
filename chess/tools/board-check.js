@@ -188,7 +188,7 @@ async function openGame(browser, w, h, dim) {
   page.on("console", (m) => { if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text()); });
   await page.goto(base + "/chess/" + (dim === "2d" ? "#force2d" : ""), { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
-  await page.click("#mPass");
+  await page.click("#mPassOpts");
   await page.waitForTimeout(250);
   await page.click("#newStart");
   await page.waitForTimeout(400);
@@ -582,7 +582,7 @@ async function pickTruth(browser) {
   page.on("pageerror", (e) => errs.push("" + e.message));
   await page.goto(base + "/chess/", { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
-  await page.click("#mPass"); await page.waitForTimeout(250);
+  await page.click("#mPassOpts"); await page.waitForTimeout(250);
   await page.click("#newStart"); await page.waitForTimeout(400);
   await settle(page);
   const start = {}, forest = {}, back = [4, 2, 3, 5, 6, 3, 2, 4], tall = [6, 5, 3, 6, 5, 3, 6, 5];
