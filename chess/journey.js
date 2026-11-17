@@ -94,6 +94,45 @@ function road(ladder, st) {
   };
 }
 
+/* who you may play. The road is the only way in: the first coach is
+   always there, and every other one opens when you beat the one before
+   it. A coach you have already beaten stays open whatever else is true. */
+function indexOf(id) { for (var i = 0; i < CHAPTERS.length; i++) if (CHAPTERS[i].id === id) return i; return -1; }
+function coachOpen(ladder, id) {
+  var i = indexOf(id);
+  if (i < 0) return false;
+  return i === 0 || cleared(ladder, id) || cleared(ladder, CHAPTERS[i - 1].id);
+}
+/* the one to beat next: the first coach on the road you have not beaten
+   (or the last, once you have beaten them all) */
+function frontier(ladder) {
+  for (var i = 0; i < CHAPTERS.length; i++) if (!cleared(ladder, CHAPTERS[i].id)) return CHAPTERS[i].id;
+  return CHAPTERS[CHAPTERS.length - 1].id;
+}
+/* whoever has to be beaten to open `id` (null for the first) */
+function openedBy(id) { var i = indexOf(id); return i > 0 ? CHAPTERS[i - 1].id : null; }
+/* a coach you may play: `id` if it is open, the frontier if not */
+function clampCoach(ladder, id) { return coachOpen(ladder, id) ? id : frontier(ladder); }
+
+/* and where you may play. The park (and the plain studio) are yours from
+   the start; every other place opens with the first chapter set there,
+   so you travel to a place before you can sit down in it. */
+var PLACE_FROM = (function () {
+  var out = { park: null, studio: null };
+  CHAPTERS.forEach(function (c) { if (!(c.place in out)) out[c.place] = c.id; });
+  return out;
+})();
+function placeOpen(ladder, place) {
+  if (!(place in PLACE_FROM)) return true;
+  var c = PLACE_FROM[place];
+  return !c || coachOpen(ladder, c);
+}
+/* the places a win just opened: what was shut before the ladder changed
+   and is open after it */
+function placesOpened(before, after) {
+  return Object.keys(PLACE_FROM).filter(function (p) { return !placeOpen(before, p) && placeOpen(after, p); });
+}
+
 /* the cup: who is next, and what a result does to the run */
 function cupNext(st) { return CUP[st.cup.run] || CUP[0]; }
 function cupResult(st, coach, won, at) {
@@ -132,7 +171,9 @@ function completion(x) {
 
 var Journey = { KEY: KEY, CHAPTERS: CHAPTERS, CUP: CUP, WEIGHTS: WEIGHTS,
                 chapterOf: chapterOf, fresh: fresh, clean: clean, load: load, save: save,
-                cleared: cleared, road: road, cupNext: cupNext, cupResult: cupResult, completion: completion };
+                cleared: cleared, road: road, cupNext: cupNext, cupResult: cupResult, completion: completion,
+                coachOpen: coachOpen, frontier: frontier, openedBy: openedBy, clampCoach: clampCoach,
+                PLACE_FROM: PLACE_FROM, placeOpen: placeOpen, placesOpened: placesOpened };
 if (typeof module !== "undefined" && module.exports) module.exports = Journey;
 else root.Journey = Journey;
 })(typeof window !== "undefined" ? window : this);

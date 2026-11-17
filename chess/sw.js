@@ -44,7 +44,7 @@
    fetches everything straight from the network as usual; this worker
    installs behind it, and claims the page so the room works offline
    from then on. */
-const VERSION = '2026.11.16.13';
+const VERSION = '2026.11.17.1';
 const CACHE = 'chessroom-' + VERSION;
 const SHELL = [
   './', './index.html',

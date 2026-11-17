@@ -300,60 +300,64 @@ function zoneOf(midi) { return Math.round(midi / 3) * 3; }
    so it never runs out and never repeats itself exactly, and every bar
    of it can be read in node. */
 var PLACE_MUSIC = {
+  /* Written to be lived with: slow, with room between the notes, so a
+     game can be thought through under it for an hour. A bed that
+     breathes, a few notes that ring out, a tune now and then that walks
+     rather than leaps, and long rests. Nothing hurries. */
   park: {
-    name: "Morning in the park", bpm: 76, meter: 4, swing: 0, gain: 0.86,
-    progs: [[1, 5, 6, 4], [4, 1, 2, 5], [6, 4, 1, 5]], size: 3,
+    name: "Morning in the park", bpm: 60, meter: 4, swing: 0, gain: 1.5,
+    progs: [[1, 4, 6, 4], [4, 1, 4, 5], [6, 4, 1, 1]], size: 3,
     parts: [
-      { inst: "guitar", role: "bass", low: 38, vel: 0.62, beats: [0, 2], fifthOn: [2] },
-      { inst: "guitar", role: "strum", low: 55, vel: 0.26, beats: [1, 3], notes: 3, roll: 0.03 },
-      { inst: "kalimba", role: "arp", low: 66, high: 86, vel: 0.36, step: 0.5, chance: 0.5 },
-      { inst: "kalimba", role: "tune", low: 74, high: 88, vel: 0.42, every: 2 }
+      { inst: "guitar", role: "bass", low: 38, vel: 0.46, beats: [0] },
+      { inst: "guitar", role: "strum", low: 55, vel: 0.17, beats: [0, 2], notes: 3, roll: 0.09, chance: 0.85 },
+      { inst: "kalimba", role: "arp", low: 66, high: 83, vel: 0.24, step: 1, chance: 0.4 },
+      { inst: "kalimba", role: "tune", low: 74, high: 86, vel: 0.30, every: 2, sparse: true }
     ] },
   cafe: {
-    name: "Corner café", bpm: 84, meter: 4, swing: 0.62, gain: 0.58,
-    progs: [[1, 6, 2, 5], [3, 6, 2, 5], [4, 3, 2, 5]], size: 4,
+    name: "Corner café", bpm: 66, meter: 4, swing: 0.62, gain: 1.0,
+    progs: [[1, 6, 2, 5], [4, 3, 2, 1], [6, 2, 4, 1]], size: 4,
     parts: [
-      { inst: "bass", role: "walk", low: 38, vel: 0.62 },
-      { inst: "epiano", role: "comp", low: 57, vel: 0.36, patterns: [[0, 1.5], [1.5, 3.5], [0.5, 2.5]], notes: 4 },
-      { inst: "epiano", role: "tune", low: 69, high: 84, vel: 0.36, every: 2 },
-      { role: "brush", vel: 0.5, beats: [1, 3] }
+      { inst: "bass", role: "bass", low: 38, vel: 0.46, beats: [0, 2.5] },
+      { inst: "epiano", role: "comp", low: 57, vel: 0.22, patterns: [[0], [0, 2.5], [1.5]], notes: 4 },
+      { inst: "epiano", role: "tune", low: 69, high: 81, vel: 0.26, every: 2, sparse: true },
+      { role: "brush", vel: 0.26, beats: [2] }
     ] },
   salon: {
-    name: "Waltz by the fire", bpm: 66, meter: 3, swing: 0, gain: 2.0,
-    progs: [[1, 6, 4, 5], [1, 3, 4, 5], [4, 5, 3, 6]], size: 3,
+    name: "Waltz by the fire", bpm: 54, meter: 3, swing: 0, gain: 2.4,
+    progs: [[1, 6, 4, 1], [4, 1, 6, 5], [1, 3, 4, 4]], size: 3,
     parts: [
-      { inst: "harp", role: "bass", low: 38, vel: 0.5, beats: [0] },
-      { inst: "harp", role: "arp", low: 55, high: 84, vel: 0.3, step: 0.5, chance: 1, rising: true },
+      { inst: "harp", role: "bass", low: 38, vel: 0.42, beats: [0] },
+      { inst: "harp", role: "arp", low: 57, high: 81, vel: 0.2, step: 1, chance: 0.8, rising: true },
       { role: "pad", low: 50, vel: 0.5 },
-      { inst: "celesta", role: "tune", low: 74, high: 88, vel: 0.24, every: 3 }
+      { inst: "celesta", role: "tune", low: 74, high: 86, vel: 0.18, every: 3, sparse: true }
     ] },
   library: {
-    name: "Reading room", bpm: 56, meter: 3, swing: 0, gain: 0.6,
-    progs: [[4, 1, 4, 1], [6, 3, 4, 5], [4, 1, 2, 5]], size: 4,
+    name: "Reading room", bpm: 46, meter: 3, swing: 0, gain: 0.65,
+    progs: [[4, 1, 4, 1], [6, 4, 1, 1], [4, 1, 2, 5]], size: 4,
     parts: [
-      { inst: "piano", role: "bass", low: 38, vel: 0.5, beats: [0] },
-      { inst: "piano", role: "chord", low: 55, vel: 0.28, beats: [1], notes: 3, chance: 0.75 },
-      { inst: "piano", role: "tune", low: 69, high: 86, vel: 0.36, every: 2, sparse: true }
+      { inst: "piano", role: "bass", low: 38, vel: 0.42, beats: [0] },
+      { inst: "piano", role: "chord", low: 55, vel: 0.2, beats: [1], notes: 3, chance: 0.55, roll: 0.05 },
+      { inst: "piano", role: "tune", low: 69, high: 84, vel: 0.28, every: 2, sparse: true }
     ] },
   studio: {
-    name: "The studio", bpm: 70, meter: 4, swing: 0, gain: 1.8,
-    progs: [[1, 6, 4, 5], [1, 4, 6, 5]], size: 4,
+    name: "The studio", bpm: 50, meter: 4, swing: 0, gain: 2.0,
+    progs: [[1, 6, 4, 4], [1, 4, 1, 5]], size: 4,
     parts: [
-      { role: "pad", low: 50, vel: 0.55 },
-      { inst: "bass", role: "bass", low: 38, vel: 0.42, beats: [0] },
-      { inst: "celesta", role: "arp", low: 74, high: 93, vel: 0.22, step: 0.5, chance: 0.32 }
+      { role: "pad", low: 50, vel: 0.6 },
+      { inst: "bass", role: "bass", low: 38, vel: 0.34, beats: [0] },
+      { inst: "celesta", role: "arp", low: 74, high: 90, vel: 0.17, step: 1, chance: 0.28 }
     ] }
 };
 var MUSIC_PLACES = Object.keys(PLACE_MUSIC);
 var PHRASE = 8;          /* bars in a phrase */
-var REST_EVERY = 3;      /* phrases between rests */
+var REST_EVERY = 2;      /* phrases between rests */
 var REST_BARS = 6;       /* bars the music rests for, to let the room breathe */
 
 /* the tune of one phrase: a walk on the pentatonic that leans on the
    chord, with a shape (up, then home) and a rhythm from a small book */
 var RHYTHMS = {
-  4: [[0, 1, 2], [0, 1.5, 3], [0.5, 1, 2, 3], [0, 2, 2.5], [0, 3]],
-  3: [[0, 1], [0, 2], [0, 1, 1.5], [0]]
+  4: [[0, 2], [0, 1.5, 3], [0, 3], [1, 2], [0]],
+  3: [[0, 2], [0], [0, 1], [1]]
 };
 function tunePhrase(spec, part, rnd) {
   var bars = [], range = Math.max(5, Math.round((part.high - part.low) / 2.4));
@@ -364,9 +368,12 @@ function tunePhrase(spec, part, rnd) {
     if (part.sparse) r = r.slice(0, 1 + Math.floor(rnd() * 2));
     for (var i = 0; i < r.length; i++) {
       var stepIs = rnd();
-      k += stepIs < 0.35 ? 1 : stepIs < 0.6 ? -1 : stepIs < 0.75 ? 2 : stepIs < 0.9 ? -2 : 0;
-      /* a phrase climbs in its first half and comes home in its second */
-      if (b >= PHRASE / 2 && k > range * 0.5 && rnd() < 0.5) k--;
+      /* mostly a step, sometimes the same note again, a leap only now and then */
+      k += stepIs < 0.4 ? 1 : stepIs < 0.8 ? -1 : stepIs < 0.85 ? 2 : stepIs < 0.88 ? -2 : 0;
+      /* a phrase climbs in its first half and walks home in its second,
+         a step at a time, so the last note is never a jump */
+      if (b >= PHRASE / 2 && k > 0 && rnd() < 0.55) k--;
+      if (b >= PHRASE - 3 && k > 2) k--;
       k = clamp(k, 0, range);
       notes.push({ beat: r[i], k: k, len: (r[i + 1] != null ? r[i + 1] - r[i] : spec.meter - r[i]) });
     }
@@ -546,11 +553,11 @@ function voicing(m, o) {
    a park is nearly dry, a grand room long and warm. Read by sound.js's
    impulseResponse, so it is the same reverb maths as the music's. */
 var ROOMS = {
-  park:    { seconds: 0.9, rt60: 0.55, predelay: 0.03, bright: 6500, dark: 1.4, pieces: 0.10, music: 0.20, seed: 31 },
-  cafe:    { seconds: 1.1, rt60: 0.75, predelay: 0.008, bright: 7500, dark: 1.2, pieces: 0.20, music: 0.22, seed: 37 },
-  salon:   { seconds: 2.8, rt60: 2.2, predelay: 0.02, bright: 5000, dark: 1.9, pieces: 0.30, music: 0.36, seed: 41 },
-  library: { seconds: 1.8, rt60: 1.3, predelay: 0.012, bright: 4200, dark: 2.2, pieces: 0.22, music: 0.30, seed: 43 },
-  studio:  { seconds: 1.2, rt60: 0.8, predelay: 0.01, bright: 7000, dark: 1.3, pieces: 0.12, music: 0.30, seed: 47 }
+  park:    { seconds: 0.9, rt60: 0.55, predelay: 0.03, bright: 6500, dark: 1.4, pieces: 0.10, music: 0.28, seed: 31 },
+  cafe:    { seconds: 1.1, rt60: 0.75, predelay: 0.008, bright: 7500, dark: 1.2, pieces: 0.20, music: 0.28, seed: 37 },
+  salon:   { seconds: 2.8, rt60: 2.2, predelay: 0.02, bright: 5000, dark: 1.9, pieces: 0.30, music: 0.42, seed: 41 },
+  library: { seconds: 1.8, rt60: 1.3, predelay: 0.012, bright: 4200, dark: 2.2, pieces: 0.22, music: 0.38, seed: 43 },
+  studio:  { seconds: 1.2, rt60: 0.8, predelay: 0.01, bright: 7000, dark: 1.3, pieces: 0.12, music: 0.38, seed: 47 }
 };
 
 /* how far the music steps aside for each of the room's own moments */
@@ -564,6 +571,9 @@ var bus = null;              /* { ctx, pieceIn, musicIn, duck, tone, musicGain, 
 var place = "studio", musicLevel = 0, mood = "calm", lively = true, enabled = true;
 var mus = null, seed = (Date.now() / 1000) | 0, watched = false;
 var chains = { 1: 0, "-1": 0 }, MUSIC_GAIN = 0.20;
+/* the music's top end: soft, so it sits behind the pieces and never
+   glitters for attention */
+var MUSIC_TONE = 5600;
 
 function kit() { S = S || soundKit(); return S && S.kit ? S.kit() : null; }
 /* the notes are computed at 32 kHz: everything these instruments say is
@@ -629,7 +639,7 @@ function busFor(c) {
   b.pieceSend = c.createGain(); b.pieceIn.connect(b.pieceSend); b.pieceSend.connect(b.verb);
   b.musicIn = c.createGain();
   b.duck = c.createGain(); b.duck.gain.setValueAtTime(1, 0);
-  b.tone = c.createBiquadFilter(); b.tone.type = "lowpass"; b.tone.frequency.setValueAtTime(9000, 0); b.tone.Q.setValueAtTime(0.4, 0);
+  b.tone = c.createBiquadFilter(); b.tone.type = "lowpass"; b.tone.frequency.setValueAtTime(MUSIC_TONE, 0); b.tone.Q.setValueAtTime(0.4, 0);
   b.musicGain = c.createGain(); b.musicGain.gain.setValueAtTime(0, 0);
   b.musicIn.connect(b.duck); b.duck.connect(b.tone); b.tone.connect(b.musicGain); b.musicGain.connect(master);
   b.musicSend = c.createGain(); b.musicGain.connect(b.musicSend); b.musicSend.connect(b.verb);
@@ -666,21 +676,28 @@ function scheduleBar(c, b, spec, events, t0) {
     else play(c, b.musicIn, e.inst, e.midi, t, e.vel, e.inst === "bass" || e.part === 0 ? 0 : ((e.midi % 7) - 3) * 0.06, e.len * beat + 0.15);
   });
 }
-/* the pad: three soft detuned voices per note, slow in and slow out */
+/* the pad: a bed that breathes. Soft voices (a triangle and two sines a
+   few cents either side, so it shimmers rather than buzzes), a slow swell
+   in and a long release that overlaps the next chord, through a filter
+   that opens a little as it swells */
 function padChord(c, dest, notes, t, len, vel) {
   var g = c.createGain(), f = c.createBiquadFilter();
-  f.type = "lowpass"; f.frequency.setValueAtTime(900, t); f.Q.setValueAtTime(0.5, t);
+  var rise = Math.min(2.6, len * 0.5), hold = Math.max(rise, len * 0.8), tail = 2.2;
+  f.type = "lowpass"; f.Q.setValueAtTime(0.3, t);
+  f.frequency.setValueAtTime(520, t);
+  f.frequency.linearRampToValueAtTime(980, t + rise);
+  f.frequency.linearRampToValueAtTime(600, t + len + tail);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(0.05 * vel, t + Math.min(1.4, len * 0.4));
-  g.gain.setValueAtTime(0.05 * vel, t + len * 0.75);
-  g.gain.linearRampToValueAtTime(0.0001, t + len + 0.6);
+  g.gain.linearRampToValueAtTime(0.055 * vel, t + rise);
+  g.gain.setValueAtTime(0.055 * vel, t + hold);
+  g.gain.linearRampToValueAtTime(0.0001, t + len + tail);
   f.connect(g); g.connect(dest);
   notes.forEach(function (m) {
-    [-7, 0, 7].forEach(function (cents) {
-      var o = c.createOscillator(); o.type = cents ? "sawtooth" : "triangle";
+    [-5, 0, 5].forEach(function (cents) {
+      var o = c.createOscillator(); o.type = cents ? "sine" : "triangle";
       o.frequency.setValueAtTime(hzOf(m) * Math.pow(2, cents / 1200), t);
-      var og = c.createGain(); og.gain.setValueAtTime(cents ? 0.25 : 0.6, t);
-      o.connect(og); og.connect(f); o.start(t); o.stop(t + len + 0.7);
+      var og = c.createGain(); og.gain.setValueAtTime(cents ? 0.32 : 0.55, t);
+      o.connect(og); og.connect(f); o.start(t); o.stop(t + len + tail + 0.1);
     });
   });
 }
@@ -754,7 +771,7 @@ function syncMusic() {
     musicStart(c);
   }
   b.musicGain.gain.setTargetAtTime(want * MUSIC_GAIN, c.currentTime + 0.1, 0.8);
-  b.tone.frequency.setTargetAtTime(mood === "tense" ? 1900 : 9000, c.currentTime, 0.4);
+  b.tone.frequency.setTargetAtTime(mood === "tense" ? 1900 : MUSIC_TONE, c.currentTime, 0.4);
 }
 function watchPage() {
   if (watched || typeof document === "undefined" || !document.addEventListener) return;
