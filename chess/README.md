@@ -2135,7 +2135,8 @@ so it leaves room:
   shimmers rather than buzzes. It swells in, opens a little as it does,
   and lets go slowly into the next chord.
 - The top end is rolled off (5.6 kHz), and every place's music sits a
-  little further back in its room's echo.
+  little further back in its room's echo. While a king is in check it
+  closes in further, to 800 Hz.
 - A tune walks home a step at a time rather than jumping to its last
   note.
 

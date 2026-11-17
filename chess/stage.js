@@ -574,6 +574,9 @@ var chains = { 1: 0, "-1": 0 }, MUSIC_GAIN = 0.20;
 /* the music's top end: soft, so it sits behind the pieces and never
    glitters for attention */
 var MUSIC_TONE = 5600;
+/* and while a king is in check it closes in, by the same proportion as
+   ever, or a little more: the calm music has less top end to lose */
+var MUSIC_TONE_TENSE = 800;
 
 function kit() { S = S || soundKit(); return S && S.kit ? S.kit() : null; }
 /* the notes are computed at 32 kHz: everything these instruments say is
@@ -771,7 +774,7 @@ function syncMusic() {
     musicStart(c);
   }
   b.musicGain.gain.setTargetAtTime(want * MUSIC_GAIN, c.currentTime + 0.1, 0.8);
-  b.tone.frequency.setTargetAtTime(mood === "tense" ? 1900 : MUSIC_TONE, c.currentTime, 0.4);
+  b.tone.frequency.setTargetAtTime(mood === "tense" ? MUSIC_TONE_TENSE : MUSIC_TONE, c.currentTime, 0.4);
 }
 function watchPage() {
   if (watched || typeof document === "undefined" || !document.addEventListener) return;

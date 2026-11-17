@@ -2234,6 +2234,13 @@ function nextLevel() {
   var s = skillOk(Rating.suggestLevel(rating));
   return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s);
 }
+/* why a coach is still a shadow, without giving away who the shadows
+   are: the one to beat is named only if you can already play them */
+function lockWhy(id) {
+  var by = Journey.openedBy(id), ch = Journey.chapterOf(id);
+  return by && coachOpen(by) ? { short: "Beat " + SKILLS[by].name + " to unlock", html: "🔒 Beat " + SKILLS[by].emoji + " <b>" + escHtml(SKILLS[by].name) + "</b> to unlock the next coach." }
+                             : { short: "Chapter " + ch.n + " · further up the road", html: "🔒 Further up the road. Beat <b>" + escHtml(SKILLS[Journey.frontier(ladder)].name) + "</b> first." };
+}
 /* a coach just unlocked and never played yet: it says NEW! until you do */
 function rungNew(id) {
   var r = ladder.rungs[id];
@@ -2250,11 +2257,14 @@ function coachLocked(id) {
   var play = coachOpen(by) ? by : Journey.frontier(ladder), P = SKILLS[play];
   var url = typeof Avatar !== "undefined" && Avatar.portrait ? Avatar.portrait(id, 160) : "";
   hap("nope");
+  var away = levelIndex(id) - levelIndex(play);
   ask('<div class="lockCard"><span class="lkPic">' + (url ? '<img alt="" src="' + url + '">' : "<em>?</em>") +
       '<i class="lkPad" aria-hidden="true">🔒</i></span>' +
       "<b>Chapter " + ch.n + " is still locked</b>" +
-      "<p>Someone is waiting further up the road. Beat " + B.emoji + " <b>" + escHtml(B.name) + "</b> to unlock " +
-      escHtml(ch.title) + " and meet them.</p></div>",
+      (coachOpen(by)
+        ? "<p>Someone is waiting further up the road. Beat " + B.emoji + " <b>" + escHtml(B.name) + "</b> to unlock " + escHtml(ch.title) + " and meet them.</p>"
+        : "<p>Someone is waiting " + away + " chapters up the road. Beat " + P.emoji + " <b>" + escHtml(P.name) + "</b> first, and keep going.</p>") +
+      "</div>",
     [{ label: "▶ Play " + P.name, fn: function () { quickPlay(play); } },
      { label: "🗺️ See the road", ghost: true, fn: function () { openJourney(); } },
      { label: "Not now", ghost: true, fn: function () {} }]);
@@ -2622,7 +2632,7 @@ function renderLobby() {
     var shut = !coachOpen(Lv.id), fresh = !shut && rungNew(Lv.id);
     b.className = "rung" + (Lv.id === nl ? " next" : "") + (r && r.stars[0] ? " done" : "") + (shut ? " locked" : "") + (fresh ? " fresh" : "");
     b.setAttribute("role", "listitem");
-    b.setAttribute("aria-label", shut ? "Locked coach: beat " + SKILLS[Journey.openedBy(Lv.id)].name + " to unlock"
+    b.setAttribute("aria-label", shut ? "Locked coach: " + lockWhy(Lv.id).short
                                       : "Play " + Lv.name + ", rated " + Lv.elo + ", " + n + " of 3 stars");
     b.innerHTML = shut
       ? '<span class="rgE">' + Lv.emoji + '</span><b>???</b><span class="rgElo">🔒</span><span class="rgStars"></span>'
@@ -2682,7 +2692,7 @@ function showProfile() {
     var b = document.createElement("button"), shut = !coachOpen(L.id);
     b.className = "rungRow" + (shut ? " locked" : "");
     b.innerHTML = shut
-      ? '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>Beat ' + escHtml(SKILLS[Journey.openedBy(L.id)].name) + ' to unlock</small></span><span class="rgElo"></span><span class="rgStars"></span>'
+      ? '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>' + escHtml(lockWhy(L.id).short) + '</small></span><span class="rgElo"></span><span class="rgStars"></span>'
       : '<span class="rgE">' + L.emoji + '</span><span class="rgT"><b>' + escHtml(L.name) + "</b><small>" +
       (r.w + r.d + r.l ? r.w + " won · " + r.d + " drawn · " + r.l + " lost" : escHtml(SKILLS[L.id].short)) + '</small></span><span class="rgElo">' + L.elo +
       '</span><span class="rgStars">' + starsHTML(L.id) + "</span>";
@@ -5997,10 +6007,11 @@ function renderStudio() {
     b.addEventListener("click", function () {
       /* a place is travelled to, not picked: the road gets you there */
       if (!placeOpen(sc.id)) {
-        var ch = Journey.chapterOf(Journey.PLACE_FROM[sc.id]), by = SKILLS[Journey.openedBy(ch.id)];
+        var ch = Journey.chapterOf(Journey.PLACE_FROM[sc.id]), byId = Journey.openedBy(ch.id), by = SKILLS[byId];
         hap("nope");
-        toast("🔒 The " + escHtml(sc.label.toLowerCase()) + " is further up the road. Beat " + by.emoji + " <b>" + escHtml(by.name) +
-              "</b> to reach chapter " + ch.n + ", " + escHtml(ch.title) + ", and it opens.", null, 3800);
+        toast("🔒 The " + escHtml(sc.label.toLowerCase()) + " is further up the road, at chapter " + ch.n + ". " +
+              (coachOpen(byId) ? "Beat " + by.emoji + " <b>" + escHtml(by.name) + "</b> to get there."
+                               : "Keep beating coaches to get there: <b>" + escHtml(SKILLS[Journey.frontier(ladder)].name) + "</b> is next."), null, 3800);
         return;
       }
       setScene(sc.id); renderStudio();
@@ -6374,12 +6385,12 @@ function renderRungChoices(selId) {
     b.setAttribute("role", "radio");
     if (!coachOpen(L.id)) {
       /* a shadow on the road: who it is, you find out by getting there */
-      var by = SKILLS[Journey.openedBy(L.id)];
+      var why = lockWhy(L.id);
       b.className = "rungRow locked";
       b.setAttribute("aria-disabled", "true");
       b.setAttribute("aria-checked", "false");
-      b.setAttribute("data-why", "🔒 Beat " + by.emoji + " <b>" + escHtml(by.name) + "</b> to unlock the next coach.");
-      b.innerHTML = '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>Beat ' + escHtml(by.name) + ' to unlock</small></span><span class="rgElo"></span><span class="rgStars"></span>';
+      b.setAttribute("data-why", why.html);
+      b.innerHTML = '<span class="rgE">🔒</span><span class="rgT"><b>???</b><small>' + escHtml(why.short) + '</small></span><span class="rgElo"></span><span class="rgStars"></span>';
       row.appendChild(b);
       return;
     }

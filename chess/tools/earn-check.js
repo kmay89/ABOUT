@@ -132,7 +132,8 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => document.querySelectorAll("#mLadder .rung")[4].click()); await page.waitForTimeout(400);
     const card = await page.evaluate(() => ({ up: !document.getElementById("ovAsk").classList.contains("hide"), lock: !!document.querySelector("#askBody .lockCard"),
       txt: document.getElementById("askBody").textContent, go: document.querySelector("#askRow button").textContent, mode: __cr.mode }));
-    ok("a shadow, tapped, is the padlock card: who to beat, and a button to play them", card.up && card.lock && /Chapter 5 is still locked/.test(card.txt) && /Beat .*Fern/.test(card.txt) && /Play Acorn/.test(card.go), JSON.stringify(card));
+    ok("a shadow, tapped, is the padlock card: how far, who to beat, and a button to play them", card.up && card.lock && /Chapter 5 is still locked/.test(card.txt) && /4 chapters up the road/.test(card.txt) && /Beat .*Acorn/.test(card.txt) && /Play Acorn/.test(card.go), JSON.stringify(card));
+    ok("…and it never names a coach you have not reached", !/Fern|Bamboo|Clover|Sprout/.test(card.txt));
     ok("…and no game starts", card.mode !== "coach");
     await page.evaluate(() => document.querySelector("#askRow button").click()); await page.waitForTimeout(900);
     ok("its button plays the one you can play", await page.evaluate(() => __cr.mode === "coach" && /Acorn/.test(document.getElementById("nameTop").textContent)));
@@ -141,10 +142,11 @@ const server = http.createServer((req, res) => {
     /* the chooser, and your record */
     await page.evaluate(() => document.getElementById("mCoach").click()); await page.waitForTimeout(300);
     const rows = await page.evaluate(() => [...document.querySelectorAll("#skillChips .rungRow")].map((r) => r.className + "|" + r.textContent));
-    ok("the chooser: one coach to choose, seven locked", rows.length === 8 && !/locked/.test(rows[0]) && /sel/.test(rows[0]) && rows.slice(1).every((r) => /locked/.test(r) && /\?\?\?/.test(r) && /to unlock/.test(r)), rows.join(" / "));
+    ok("the chooser: one coach to choose, seven locked", rows.length === 8 && !/locked/.test(rows[0]) && /sel/.test(rows[0]) && rows.slice(1).every((r) => /locked/.test(r) && /\?\?\?/.test(r)), rows.join(" / "));
+    ok("…the next one says who to beat; the shadows past it name nobody", /Beat Acorn to unlock/.test(rows[1]) && rows.slice(2).every((r) => /further up the road/.test(r) && !/Beat/.test(r)), rows.slice(1, 3).join(" / "));
     await page.evaluate(() => document.querySelectorAll("#skillChips .rungRow")[2].click()); await page.waitForTimeout(200);
     ok("…and a locked row cannot be chosen", await page.evaluate(() => document.querySelectorAll("#skillChips .rungRow")[0].classList.contains("sel") &&
-       !document.querySelectorAll("#skillChips .rungRow")[2].classList.contains("sel")) && /Beat .*Sprout/.test(await toast()));
+       !document.querySelectorAll("#skillChips .rungRow")[2].classList.contains("sel")) && /Further up the road.*Acorn/.test(await toast()));
     await page.evaluate(() => { document.getElementById("ovNew").classList.add("hide"); __cr.showMenu(); document.getElementById("mRating").click(); }); await page.waitForTimeout(300);
     const rec = await page.evaluate(() => [...document.querySelectorAll("#pfLadder .rungRow")].map((r) => r.className));
     ok("your record shows the same locks", rec.length === 8 && !/locked/.test(rec[0]) && rec.slice(1).every((c) => /locked/.test(c)), rec.join(" / "));
@@ -155,7 +157,7 @@ const server = http.createServer((req, res) => {
     ok("the Studio's places: the park and the studio open, the rest locked",
        picks.length === 5 && /^(?!.*locked).*Park/.test(picks[0]) && picks.filter((p) => /locked/.test(p)).length === 3 && picks.filter((p) => /locked/.test(p)).every((p) => /🔒/.test(p)), picks.join(" / "));
     await page.evaluate(() => [...document.querySelectorAll("#stScenes .stPick")].find((b) => /Café/.test(b.textContent)).click()); await page.waitForTimeout(200);
-    ok("…and a locked one says how to get there, and does not move you", /Beat .*Clover/.test(await toast()) && /chapter 4/.test(await toast()) && (await scene()) === "park", await toast());
+    ok("…and a locked one says how to get there, and does not move you", /chapter 4/.test(await toast()) && /Acorn.*is next/.test(await toast()) && !/Clover/.test(await toast()) && (await scene()) === "park", await toast());
 
     /* beating Acorn */
     await page.evaluate(() => { __cr.closeStudio && __cr.closeStudio(); });
