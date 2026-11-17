@@ -54,7 +54,7 @@ function chapterOf(id) {
   for (var i = 0; i < CHAPTERS.length; i++) if (CHAPTERS[i].id === id) return CHAPTERS[i];
   return null;
 }
-function fresh() { return { v: 1, cup: { run: 0, won: 0, wonAt: 0, tries: 0, best: 0 }, shown: {}, intro: {}, ending: 0, trueEnding: 0 }; }
+function fresh() { return { v: 1, cup: { run: 0, won: 0, wonAt: 0, tries: 0, best: 0 }, shown: {}, intro: {}, ending: 0, trueEnding: 0, open: {} }; }
 function clean(s) {
   var out = fresh();
   if (!s || typeof s !== "object" || s.v !== 1) return out;
@@ -64,7 +64,7 @@ function clean(s) {
   out.cup.wonAt = +c.wonAt || 0;
   out.cup.tries = Math.max(0, c.tries | 0);
   out.cup.best = Math.max(0, Math.min(CUP.length, c.best | 0));
-  ["shown", "intro"].forEach(function (k) {
+  ["shown", "intro", "open"].forEach(function (k) {
     if (s[k] && typeof s[k] === "object") Object.keys(s[k]).forEach(function (id) { if (chapterOf(id)) out[k][id] = 1; });
   });
   out.ending = s.ending ? 1 : 0;
@@ -88,7 +88,7 @@ function road(ladder, st) {
     cleared: done, count: done.length, of: CHAPTERS.length, next: next,
     /* a chapter is open once the one before it is cleared (or it is the
        first); you can always go back and play one you have cleared */
-    open: CHAPTERS.map(function (c, i) { return i === 0 || cleared(ladder, CHAPTERS[i - 1].id) || cleared(ladder, c.id); }),
+    open: CHAPTERS.map(function (c) { return coachOpen(ladder, c.id, st); }),
     cupOpen: all, cupWon: !!(st && st.cup.won),
     at: st && st.cup.won ? "done" : all ? "cup" : next
   };
@@ -98,11 +98,23 @@ function road(ladder, st) {
    always there, and every other one opens when you beat the one before
    it. A coach you have already beaten stays open whatever else is true. */
 function indexOf(id) { for (var i = 0; i < CHAPTERS.length; i++) if (CHAPTERS[i].id === id) return i; return -1; }
-function coachOpen(ladder, id) {
+function coachOpen(ladder, id, st) {
   var i = indexOf(id);
   if (i < 0) return false;
-  return i === 0 || cleared(ladder, id) || cleared(ladder, CHAPTERS[i - 1].id);
+  return i === 0 || cleared(ladder, id) || cleared(ladder, CHAPTERS[i - 1].id) || !!(st && st.open && st.open[id]);
 }
+/* the road can also be opened ahead of the chapters: a friendly win
+   opens the next coach, and a third-star win the one after that
+   (pace.js). Open is not cleared: a chapter is still cleared only by
+   beating its coach in a rated game, so the map, the stars and the cup
+   stay true. Returns the coach it opened, or null if it was open already */
+function openAhead(ladder, st, id) {
+  if (indexOf(id) < 0 || coachOpen(ladder, id, st)) return null;
+  st.open = st.open || {};
+  st.open[id] = 1;
+  return id;
+}
+function after(id, n) { var i = indexOf(id); return i >= 0 && CHAPTERS[i + (n || 1)] ? CHAPTERS[i + (n || 1)].id : null; }
 /* the one to beat next: the first coach on the road you have not beaten
    (or the last, once you have beaten them all) */
 function frontier(ladder) {
@@ -112,7 +124,7 @@ function frontier(ladder) {
 /* whoever has to be beaten to open `id` (null for the first) */
 function openedBy(id) { var i = indexOf(id); return i > 0 ? CHAPTERS[i - 1].id : null; }
 /* a coach you may play: `id` if it is open, the frontier if not */
-function clampCoach(ladder, id) { return coachOpen(ladder, id) ? id : frontier(ladder); }
+function clampCoach(ladder, id, st) { return coachOpen(ladder, id, st) ? id : frontier(ladder); }
 
 /* and where you may play. The park (and the plain studio) are yours from
    the start; every other place opens with the first chapter set there,
@@ -122,10 +134,10 @@ var PLACE_FROM = (function () {
   CHAPTERS.forEach(function (c) { if (!(c.place in out)) out[c.place] = c.id; });
   return out;
 })();
-function placeOpen(ladder, place) {
+function placeOpen(ladder, place, st) {
   if (!(place in PLACE_FROM)) return true;
   var c = PLACE_FROM[place];
-  return !c || coachOpen(ladder, c);
+  return !c || coachOpen(ladder, c, st);
 }
 /* the places a win just opened: what was shut before the ladder changed
    and is open after it */
@@ -172,7 +184,7 @@ function completion(x) {
 var Journey = { KEY: KEY, CHAPTERS: CHAPTERS, CUP: CUP, WEIGHTS: WEIGHTS,
                 chapterOf: chapterOf, fresh: fresh, clean: clean, load: load, save: save,
                 cleared: cleared, road: road, cupNext: cupNext, cupResult: cupResult, completion: completion,
-                coachOpen: coachOpen, frontier: frontier, openedBy: openedBy, clampCoach: clampCoach,
+                coachOpen: coachOpen, frontier: frontier, openedBy: openedBy, clampCoach: clampCoach, openAhead: openAhead, after: after,
                 PLACE_FROM: PLACE_FROM, placeOpen: placeOpen, placesOpened: placesOpened };
 if (typeof module !== "undefined" && module.exports) module.exports = Journey;
 else root.Journey = Journey;

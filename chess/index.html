@@ -1074,6 +1074,11 @@
   #endCup{--fa:#57c784; --fb:#23845a; --edge:#0f4a31; background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#bff0d3; color:#fff;
     box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
   #endCup small{color:rgba(255,255,255,.88)}
+  /* a friendly game, offered after a run of losses: warm, never a consolation prize */
+  #endFriendly{--fa:#ff9fb8; --fb:#e0607f; --edge:#8a2c45; background:linear-gradient(180deg, var(--fa), var(--fb)); border-color:#ffd3de; color:#fff;
+    text-shadow:0 1px 0 rgba(0,0,0,.18); box-shadow:var(--ring), 0 var(--d) 0 var(--edge), inset 0 1px 0 rgba(255,255,255,.5)}
+  #endFriendly small{color:rgba(255,255,255,.9)}
+  .paceRow .rowbtns{flex-wrap:wrap; justify-content:flex-end}
   #endCup.won{--fa:var(--gold-top); --fb:var(--gold-bot); --edge:var(--gold-edge); border-color:var(--gold-line); color:var(--gold-ink); text-shadow:0 1px 0 rgba(255,255,255,.2)}
   #endCup.won small{color:rgba(36,26,8,.74)}
   .erMile.chapter, .erMile.cup{border-color:#57c784}
@@ -2444,6 +2449,7 @@
       <div class="xpMid"><div class="xpTop"><b>Experience</b><em class="xpUp hide" id="endXpUp">LEVEL UP!</em><span id="endXpNum">+0 XP</span></div><div class="xpBar"><i id="endXpBar"></i></div><small id="endXpWhy"></small></div>
     </div>
     <div class="erMiles hide" id="endMiles" aria-live="polite"></div>
+    <button class="bigbtn friendlyBtn hide" id="endFriendly"><span class="em">🤝</span><span><b id="endFriendlyTx">A friendly game</b><small id="endFriendlySub"></small></span></button>
     <button class="bigbtn cupBtn hide" id="endCup"><span class="em">🗺️</span><span><b id="endCupTx">On to the next chapter</b><small id="endCupSub"></small></span></button>
     <div class="endStory hide" id="endStory">
       <div class="esHead"><b>The story of the game</b><small id="endStoryTx"></small></div>
@@ -2488,6 +2494,8 @@
       <div class="rowbtns" style="margin:0"><button class="chip sel" id="ckSimple">Simple</button><button class="chip" id="ckClassic">Classic</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Move dots &amp; capture rings</b><small>Legal-move dots and capture rings when you pick up a piece.</small></span>
       <button class="chip sw sel" id="setHelpers">On</button></div>
+    <div class="settingRow paceRow"><span class="lbl"><b>Pace</b><small id="setPaceNote">How fast the room goes: the coach's replies, how long words stay up, and the celebrations.</small></span>
+      <div class="rowbtns" style="margin:0"><button class="chip sel" id="paAuto">Auto</button><button class="chip" id="paGentle">Gentle</button><button class="chip" id="paSteady">Steady</button><button class="chip" id="paBrisk">Brisk</button></div></div>
     <div class="settingRow"><span class="lbl"><b>Training wheels</b><small>Shows what's in danger before you move: your pieces that can be won breathe, and a lifted piece shows where it would be lost. Never with a clock. A rated game played with them counts as 75%.</small></span>
       <button class="chip sw" id="setWheels">Off</button></div>
     <div class="settingRow"><span class="lbl"><b>Drawing on the board</b><small>Hold a square and drag to draw your own arrow — or right-drag with a mouse; let go where you started for a circle. Your drawing stays with that position. Turn it off if you like to rest a finger on a piece while you think.</small></span>
@@ -2664,6 +2672,7 @@
 <script src="momentum.js"></script>
 <script src="unlocks.js"></script>
 <script src="journey.js"></script>
+<script src="pace.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

@@ -377,7 +377,7 @@ function toast(html, actions, ms, extras) {
   }
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, ms || (actions ? 9000 : 4200));
+  toastTimer = setTimeout(hideToast, ms || paceWords(actions ? 9000 : 4200));
 }
 function hideToast() { $("toast").classList.remove("show"); }
 var toastExtras = false;   /* the toast on show has buttons, but waits for no answer */
@@ -997,6 +997,7 @@ function animDescriptor(m) {
 
 function commitMove(m, source, animOpts) {
   if (!G || over) return;
+  if (source === "local") paceTurnEnd(true);
   brainTicket++;   /* any search still running is now answering the wrong question */
   var mover = G.turn;
   /* the position as it stood before the move: the review happens on a
@@ -1106,10 +1107,13 @@ function commitMove(m, source, animOpts) {
   if (mode === "coach" && !over && G.turn !== humanSide) {
     scheduleCoach();
   }
+  /* and when it has, yours begins */
+  if (mode === "coach" && !over && G.turn === humanSide && source !== "local") paceTurnStart();
 }
 
 /* ===== the practice opponent ===== */
 function scheduleCoach() {
+  var askedAt = Date.now(), dial = paceDial();
   thinking = true;
   castThinking(true);
   syncTurnStrip(); syncButtons();
@@ -1129,6 +1133,10 @@ function scheduleCoach() {
       if (!G || over || mode !== "coach" || G.turn === humanSide) { thinking = false; syncTurnStrip(); syncBoard(); return; }
       /* you are in the menu: its move waits for you, so you see it land */
       if (clockPaused()) { setTimeout(function () { answer(res); }, 250); return; }
+      /* and at your pace: someone taking their time sees the coach take a
+         breath before it answers; someone quick is not kept waiting */
+      var hold = REDUCED ? 0 : dial.reply - (Date.now() - askedAt);
+      if (hold > 30) { setTimeout(function () { answer(res); }, hold); return; }
       thinking = false;
       castThinking(false);
       /* what the coach thinks of the position, from your side: the
@@ -1148,7 +1156,7 @@ function scheduleCoach() {
     /* exactly the settings the rung was measured with — node budget and
        all — or its rating would be a rating of some other opponent */
     Brain.search(G, persSearchOpts()).then(answer, function () { answer(null); });
-  }, REDUCED ? 60 : 420);
+  }, REDUCED ? 60 : dial.reply <= 200 ? 100 : 420);
 }
 
 /* ===== the gentle coach (the quiet word) =====
@@ -1536,6 +1544,8 @@ function welcomeNew() {
   /* the gentlest start: the rules, then the gentlest coach — with the
      wheels on, said once when they first show */
   if (!prefs.wheels && !prefs.wheelsOffered) { prefs.wheels = true; prefs.wheelsOffered = true; savePrefs(); }
+  /* and a gentle pace, until the room has seen how you play */
+  if (pace && !pace.newDoor) { pace.newDoor = 1; paceSave(); }
   showLearn(0);
 }
 function welcomeKnow() { quickPlay(nextLevel()); }
@@ -2229,10 +2239,10 @@ function ratingText() {
 /* who you may play. The road decides (journey.js): the first coach, any
    you have beaten, and the next one along. The fair fight the rating
    suggests is offered only if it is open; otherwise the coach to beat. */
-function coachOpen(id) { return !!SKILLS[id] && (typeof Journey === "undefined" || Journey.coachOpen(ladder, id)); }
+function coachOpen(id) { return !!SKILLS[id] && (typeof Journey === "undefined" || Journey.coachOpen(ladder, id, jrn)); }
 function nextLevel() {
   var s = skillOk(Rating.suggestLevel(rating));
-  return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s);
+  return typeof Journey === "undefined" ? s : Journey.clampCoach(ladder, s, jrn);
 }
 /* why a coach is still a shadow, without giving away who the shadows
    are: the one to beat is named only if you can already play them */
@@ -2248,7 +2258,7 @@ function rungNew(id) {
 }
 /* and where you may sit: the park from the start, every other place
    once the road has reached it */
-function placeOpen(id) { return typeof Journey === "undefined" || Journey.placeOpen(ladder, id); }
+function placeOpen(id) { return typeof Journey === "undefined" || Journey.placeOpen(ladder, id, jrn); }
 function placeGuard() { if (!placeOpen(prefs.scene)) setScene("park"); }
 /* a locked coach, asked for: a shadow behind a padlock, who to beat to
    meet them, and a button straight to that game */
@@ -2329,14 +2339,20 @@ function fmtDelta(d) { d = Math.round(d); return (d > 0 ? "+" : d < 0 ? "−" : 
 
 /* start a game against the computer. "a" takes turns: the colour you did
    not have last time */
-function startCoachGame(level, sideChoice, clockStr) {
+function startCoachGame(level, sideChoice, clockStr, o) {
   /* the last gate: every way into a coach game comes through here */
   if (!coachOpen(skillOk(level))) { showMenu(); coachLocked(skillOk(level)); return; }
   var side = sideChoice === "w" ? 1 : sideChoice === "b" ? -1 :
              sideChoice === "r" ? (Math.random() < 0.5 ? 1 : -1) : -ladder.lastSide;
   ladder.lastSide = side; saveLadder();
-  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true });
+  startGame("coach", { humanSide: side, skill: skillOk(level), clockStr: clockStr || "none", fresh: true, friendly: !!(o && o.friendly) });
   var L = SKILLS[skill];
+  if (friendly) {
+    toast("🤝 <b>A friendly game</b> with " + L.emoji + " " + escHtml(L.name) + ": they go easy, and nothing is rated. " +
+          (side === 1 ? "You have White." : "You have Black."), null, paceWords(4200));
+    setTimeout(function () { if (friendly && !over) castSay("friendly", "happy"); }, 900);
+    return;
+  }
   toast(L.emoji + " <b>" + escHtml(L.name) + "</b> · " + L.elo + " — " +
         (side === 1 ? "you have White. Your move." : "you have Black; " + escHtml(L.name) + " opens."), null, 3200);
 }
@@ -2485,7 +2501,7 @@ function renderEndRating(rs, cardAt) {
   var me = after;
   if (rs.s === 1 && up) {
     $("endNextTx").textContent = "Next: " + up.emoji + " " + up.name + " · " + up.elo;
-    $("endNextSub").textContent = rs.newStars.indexOf(0) >= 0 && Journey.openedBy(up.id) === rs.level
+    $("endNextSub").textContent = rs.newStars.indexOf(0) >= 0 && Journey.openedBy(up.id) === rs.level && !(jrn && jrn.open && jrn.open[up.id])
       ? "🔓 Just unlocked! You beat " + SKILLS[rs.level].name + " — come and meet them."
       : "You beat " + SKILLS[rs.level].name + " — the next coach up is waiting.";
     $("endNext").onclick = function () { $("ovEnd").classList.add("hide"); startCoachGame(up.id, "a", clockStrOf()); };
@@ -2498,7 +2514,7 @@ function renderEndRating(rs, cardAt) {
   } else goalOnEndCard();
 
   /* the choreography, once the card is up */
-  var startAt = REDUCED ? 120 : (cardAt || 1100) + 450;
+  var startAt = REDUCED ? 120 : (cardAt || 1100) + paceCardMs(450);
   setTimeout(function () {
     if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
@@ -2559,8 +2575,10 @@ function renderEndRating(rs, cardAt) {
         unlBonus("A third star", 40);
         setTimeout(function () { popStar(2, live); }, 700);
       }
+      /* and a win that good, at a quick player's pace, opens the road ahead */
+      if (rs.s === 1 && rs.clean && acc >= 80) paceFastTrack(rs.level, acc);
       progressAfterLook(rs, acc, c);
-    }, REDUCED ? 0 : startAt + 1700);
+    }, REDUCED ? 0 : startAt + paceCardMs(1700));
   });
 }
 function countChips(c) {
@@ -2737,11 +2755,12 @@ function milesReset(cardAt, rs) {
   if (em) em.textContent = "⬆️";
   /* a rated game reveals its number and stars first; what else the game
      did waits until they have landed */
-  var after = REDUCED ? 150 : (cardAt || 1100) + (rs ? 3000 + rs.newStars.length * 420 : 700);
+  var after = REDUCED ? 150 : (cardAt || 1100) + paceCardMs(rs ? 3000 + rs.newStars.length * 420 : 700);
   /* and the number's own milestone, when there is one, keeps its place
      at the top of the stack whatever arrives before it */
   var reserved = !!(rs && rs.out && (rs.out.milestone || (rs.out.levelUp && rs.out.next)));
-  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false };
+  milesFlush(true);
+  miles = { ticket: gameTicket, next: Date.now() + after, n: reserved ? 1 : 0, reserved: reserved, stung: false, q: [] };
 }
 function pushMile(icon, html, o) {
   o = o || {};
@@ -2749,8 +2768,8 @@ function pushMile(icon, html, o) {
   if (o.first && miles.reserved) miles.reserved = false;
   else { if (miles.n >= 3) return false; miles.n++; }
   var now = Date.now(), at = o.first ? now : Math.max(now, miles.next), my = miles.ticket;
-  if (!o.first) miles.next = at + 500;
-  setTimeout(function () {
+  if (!o.first) miles.next = at + paceCardMs(500);
+  var job = { fn: function () {
     if (my !== gameTicket || !over) return;
     var box = $("endMiles"), line = document.createElement("div");
     line.className = "erMile" + (o.cls ? " " + o.cls : "");
@@ -2765,8 +2784,20 @@ function pushMile(icon, html, o) {
       Fx.sparkle(line, { count: 14 });
       if (o.big) { Fx.confetti({ ms: 3200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }
     }
-  }, Math.max(0, at - now));
+  } };
+  var q = miles.q || (miles.q = []);
+  job.t = setTimeout(function () { var i = q.indexOf(job); if (i >= 0) q.splice(i, 1); job.fn(); }, Math.max(0, at - now));
+  q.push(job);
   return true;
+}
+/* the end card's lines, all at once: a tap on the card hurries the
+   celebration along (and says something about the player's pace) */
+function milesPending() { return !!(miles && miles.q && miles.q.length); }
+function milesFlush(drop) {
+  if (!miles || !miles.q) return;
+  var q = miles.q.splice(0);
+  q.forEach(function (j) { clearTimeout(j.t); if (!drop) j.fn(); });
+  if (!drop) miles.next = Date.now();
 }
 
 /* ---- the journal ---- */
@@ -3080,6 +3111,10 @@ function startGame(newMode, opts) {
   hideOpeningCard();
   humanSide = opts.humanSide || 1;
   skill = skillOk(opts.skill || skill);
+  /* a friendly game: the coach goes easy and nothing is rated (pace.js) */
+  friendly = mode === "coach" && !!opts.friendly;
+  if (friendly) ratedDone = true;
+  paceTurnEnd(false); paceNudged = 0;
   clockConfig(opts.clockStr || "none");
   orientation = (mode === "coach") ? humanSide : (mode === "lan" ? lanSide : 1);
   R.setOrientation(orientation);
@@ -3095,6 +3130,7 @@ function startGame(newMode, opts) {
   if (typeof Stage !== "undefined") Stage.newGame();
   moStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
+  else if (mode === "coach") paceTurnStart();
   needFrame();
 }
 /* the engine names an ending in a word; a person deserves a sentence */
@@ -3159,11 +3195,13 @@ function endGame(result, reason, taught) {
   }
   /* a mate gets a moment on the board — the king laid down, the camera
      leaning in — before the card comes up over it */
-  var cardAt = REDUCED ? 100 : (reason === "checkmate" ? 1700 : 1100);
+  var cardAt = REDUCED ? 100 : paceCardMs(reason === "checkmate" ? 1700 : 1100);
+  paceTurnEnd(false);
   var rs = mode === "coach" ? settleRating(result) : null;
   renderEndRating(rs, cardAt);
   moEndCard();
   jrnAtEnd(result, rs);
+  paceAtEnd(result, rs);
   unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
   renderOddsReview();
@@ -3285,6 +3323,7 @@ function saveGame() {
     ev: lastEval, lo: lowEval,
     /* a game played on from a sent position is friendly, and stays so */
     fr: mode === "coach" && ratedDone ? 1 : 0,
+    ez: friendly ? 1 : 0,
     /* what you drew, filed by position */
     ink: Ink.pack(ink)
   }));
@@ -3334,7 +3373,7 @@ function resumeSave(s) {
   catch (e) { lsDel(SAVE_KEY); startGame(s.mode === "coach" ? "coach" : "pass", {}); toast("That saved game couldn't be read back, so here is a fresh board."); }
 }
 function resumeSaveInner(s) {
-  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr, fen: s.fen });
+  startGame(s.mode, { humanSide: s.humanSide, skill: s.skill, clockStr: s.clockStr, fen: s.fen, friendly: s.ez === 1 });
   var g = G;
   for (var i = 0; i < s.sans.length; i++) {
     var m = Chess.fromSAN(g, s.sans[i]);
@@ -3356,6 +3395,7 @@ function resumeSaveInner(s) {
   var st = Chess.status(G);
   if (st.over) { endGame(st.result, st.reason); return; }
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
+  else if (mode === "coach") paceTurnStart();
   toast("🕯️ Welcome back — the board is exactly as you left it.");
 }
 
@@ -6675,6 +6715,7 @@ function syncSettingsUI() {
   $("ckClassic").classList.toggle("sel", prefs.clockSkin === "classic");
   document.body.classList.toggle("clock-classic", prefs.clockSkin === "classic");
   syncHelpSettings();
+  paceSync();
 }
 
 /* the two ways a configured game begins, shared by the menu and the
@@ -6752,6 +6793,7 @@ function wireUI() {
   homeWire();
   moWire();
   jrnWire();
+  paceWire();
   unlWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); });
   $("newStart").addEventListener("click", function () {
@@ -7175,7 +7217,7 @@ function castSay(kind, mood, vars) {
   say.innerHTML = '<span class="who">' + escHtml(who.name) + "</span>" + escHtml(text);
   say.classList.remove("hide");
   clearTimeout(castSayT);
-  var ms = Cast.readMs(text), syl = Cast.syllables(text);
+  var ms = paceWords(Cast.readMs(text)), syl = Cast.syllables(text);
   castSayT = setTimeout(castHush, ms);
   castLastSay = Date.now();
   if (castFace) { castFace.talk(Math.min(ms - 300, 250 + syl * 1000 / who.voice.rate), who.voice.rate); if (mood) castFace.mood(mood, ms); }
@@ -8424,7 +8466,7 @@ function jrnAtEnd(result, rs) {
     var hb = homeJust === skill && Skins.homeOf(skill);
     /* what the win opened: the next coach on the road, and the place
        its chapter is set in, if the road has never been there before */
-    var opened = next && Journey.openedBy(next.id) === skill ? next : null;
+    var opened = next && Journey.openedBy(next.id) === skill && !(jrn.open && jrn.open[next.id]) ? next : null;
     var newPlace = opened && Journey.PLACE_FROM[opened.place] === opened.id ? opened.place : null;
     var placeName = newPlace && Scenes.get(newPlace) ? Scenes.get(newPlace).label : "";
     pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (hb ? escHtml(hb.name) + " is yours. " : "") +
@@ -8511,8 +8553,167 @@ function journeyForTest() {
    it remembers you: how many games you have played it, and what the
    other coaches have been saying. */
 var persSigAt = 0, persStole = -1, persIdleT = 0;
+/* ===== the room's pace: gentle, steady or brisk (pace.js) =====
+   How long the coach waits before it answers, how long words stay up,
+   how long the end card takes, whether to offer a hand to someone who
+   has been thinking a while, when to offer a friendly game, and whether
+   a superb win opens the road ahead. Read from how you play; pinned in
+   Settings if you prefer. */
+var pace = typeof Pace !== "undefined" ? Pace.load(lsGet) : null;
+var paceTurn = null;          /* { at, hid, ticket } while it is your move against the computer */
+var paceNudgeT = 0, paceNudged = 0, paceNudgeMs = 0;    /* paceNudgeMs: a test's shortcut */
+var friendly = false;         /* this coach game is a friendly one: easy, and never rated */
+var paceCardT = -1;           /* the game whose end card has been tapped past already */
+var PACE_STILL = { pace: "steady", auto: "steady", mode: "auto", think: null, tempo: null, why: [] };
+function paceSave() { if (pace) Pace.save(pace, lsSet); }
+function paceRead() { return pace ? Pace.read(pace) : PACE_STILL; }
+function paceDial() { return typeof Pace !== "undefined" ? Pace.dials(paceRead().pace) : { reply: 500, words: 1, card: 1, nudge: null, friendlyAfter: 3, fastTrack: true }; }
+function paceWords(ms) { return Math.round(ms * paceDial().words); }
+function paceCardMs(ms) { return Math.round(ms * paceDial().card); }
+
+/* your turn against the computer: how long you look before you move is
+   the one honest measure of the pace you like. Time the page spends
+   hidden is not thinking, so that turn is not counted at all */
+function paceTurnStart() {
+  paceTurnEnd(false);
+  if (!pace || mode !== "coach" || over || !G || G.turn !== humanSide) return;
+  paceTurn = { at: Date.now(), hid: !!document.hidden, ticket: gameTicket };
+  paceArmNudge();
+}
+function paceTurnEnd(played) {
+  clearTimeout(paceNudgeT);
+  var t = paceTurn;
+  paceTurn = null;
+  if (!played || !t || !pace || t.ticket !== gameTicket || t.hid) return;
+  if (Pace.think(pace, Date.now() - t.at)) paceSave();
+}
+function paceNudgesAllowed() { return paceRead().pace === "gentle" ? 2 : 1; }
+function paceArmNudge() {
+  clearTimeout(paceNudgeT);
+  var natural = Pace.nudgeAfter(paceRead()), wait = paceNudgeMs || natural;
+  /* never with a clock (a hand on the shoulder while time runs is
+     pressure), and never for a brisk player, who has not asked for one */
+  if (!natural || clock.on || paceNudged >= paceNudgesAllowed()) return;
+  paceNudgeT = setTimeout(paceNudge, paceNudged ? wait * 2 : wait);
+}
+/* someone has been looking at the board for a good while: no hurry,
+   says the coach, and here is a clue if you'd like one */
+function paceNudge() {
+  var t = paceTurn;
+  if (!t || t.ticket !== gameTicket || over || mode !== "coach" || !G || G.turn !== humanSide || thinking) return;
+  /* not over anything: a card, a question, a page that is away */
+  if (document.hidden || document.querySelector(".ov:not(.hide)") || studioOpen ||
+      ($("toast").classList.contains("show") && $("toast").classList.contains("acts"))) { paceNudgeT = setTimeout(paceNudge, 8000); return; }
+  paceNudged++;
+  castSay("patient", "happy");
+  toast("🌱 <b>Take your time.</b> There's no clock, and thinking is how it's learned. Would a clue help?",
+    [{ label: "🧭 A clue", fn: function () { thinkPrompt(); } },
+     { label: "I'm fine", ghost: true, fn: function () {} }], paceWords(14000));
+  paceArmNudge();
+}
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", function () { if (document.hidden && paceTurn) paceTurn.hid = true; });
+
+/* the end of a coach game: what it says about the pace, a friendly game
+   for someone who keeps losing to one coach, and the road a friendly win
+   opens */
+function paceAtEnd(result, rs) {
+  var fb = $("endFriendly");
+  if (fb) fb.classList.add("hide");
+  if (!pace || mode !== "coach" || !G) return;
+  var won = result !== "draw" && (result === "white") === (humanSide === 1), lost = result !== "draw" && !won;
+  var helped = !!(assist.takebacks || assist.hints || assist.wheels);
+  Pace.game(pace, { coach: skill, won: won, lost: lost, helped: helped, plies: G.played.length, friendly: friendly });
+  Pace.card(pace, false);
+  paceSave();
+  if (friendly) {
+    $("endRematchTx").textContent = "Play for real";
+    $("endRematchSub").textContent = "The same coach, at full strength, rated — you'll have " + (humanSide === 1 ? "Black" : "White") + ".";
+    if (won) {
+      var nx = Journey.after(skill, 1), opened = nx ? Journey.openAhead(ladder, jrn, nx) : null;
+      if (opened) {
+        jrnSave();
+        var place = Object.keys(Journey.PLACE_FROM).filter(function (k) { return Journey.PLACE_FROM[k] === opened; })[0];
+        pushMile("🤝", "<b>A friendly win!</b> 🔓 " + escHtml(jrnName(opened)) + " is open now." +
+                 (place ? " A new place too: the " + escHtml(Scenes.get(place).label.toLowerCase()) + "." : "") +
+                 " Beat " + escHtml(SKILLS[skill].name) + " in a real game to clear the chapter.",
+                 { cls: "unlock", sting: "levelup", hap: "success" });
+      } else pushMile("🤝", "<b>A friendly win!</b> Ready for a real one?", { cls: "unlock" });
+    }
+    return;
+  }
+  /* a run of losses to one coach: a friendly game, offered, never forced */
+  if (lost && fb && coachOpen(skill) && Pace.friendlyDue(pace, paceRead(), skill)) {
+    var L = SKILLS[skill];
+    $("endFriendlyTx").textContent = "A friendly game with " + L.name;
+    $("endFriendlySub").textContent = L.name + " goes easy and nothing's rated. Win it and the road opens ▶";
+    fb.onclick = function () { $("ovEnd").classList.add("hide"); paceFriendly(skill); };
+    fb.classList.remove("hide");
+  }
+}
+function paceFriendly(id) {
+  if (!coachOpen(id)) { coachLocked(id); return; }
+  leaveGameThen(function () { startCoachGame(id, "a", "none", { friendly: true }); }, "a friendly game");
+}
+/* a win good enough for the third star: for anyone not taking it
+   gently, the road two coaches ahead opens too */
+function paceFastTrack(level, acc) {
+  if (!pace || friendly || !Pace.fastTrack(paceRead(), { won: true, helped: false, acc: acc })) return;
+  var two = Journey.after(level, 2);
+  if (!two || !coachOpen(Journey.after(level, 1))) return;
+  var opened = Journey.openAhead(ladder, jrn, two);
+  if (!opened) return;
+  jrnSave();
+  var line = "<b>Fast track!</b> You played so well that " + escHtml(jrnName(opened)) + " is open too.";
+  if (!pushMile("⚡", line, { cls: "unlock", sting: "levelup", hap: "success" })) toast("⚡ " + line, null, paceWords(5000));
+}
+/* a tap on the end card while it is still celebrating: hurry it along */
+function paceCardTap(e) {
+  if (!over || !milesPending()) return;
+  if (e && e.target && e.target.closest && e.target.closest("button, a, input")) return;
+  milesFlush(false);
+  if (pace && paceCardT !== gameTicket && mode === "coach") { paceCardT = gameTicket; Pace.skip(pace); paceSave(); }
+}
+
+/* Settings: Auto, or pinned */
+var PACE_SAYS = {
+  gentle: "The coach pauses before it answers, words stay up longer, and if you've been thinking a while it offers a clue. Never a clock.",
+  steady: "The room's usual pace. A win good enough for the third star also opens the road two coaches ahead.",
+  brisk: "The coach answers at once, the end card gets out of the way, and a third-star win opens the road two coaches ahead."
+};
+function paceSync() {
+  var r = paceRead();
+  ["auto", "gentle", "steady", "brisk"].forEach(function (m) {
+    var b = $("pa" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (b) b.classList.toggle("sel", r.mode === m);
+  });
+  var note = $("setPaceNote");
+  if (note) note.innerHTML = (r.mode === "auto"
+    ? "Auto: reading you as <b>" + cap(r.pace) + "</b>" + (r.why.length ? ", because " + escHtml(r.why.join(" and ")) : " until it has seen you play") + ". "
+    : "") + escHtml(PACE_SAYS[r.pace]);
+}
+function paceWire() {
+  ["auto", "gentle", "steady", "brisk"].forEach(function (m) {
+    var b = $("pa" + m.charAt(0).toUpperCase() + m.slice(1));
+    if (b) b.addEventListener("click", function () { if (!pace) return; Pace.setMode(pace, m); paceSave(); paceSync(); });
+  });
+  $("ovEnd").addEventListener("click", paceCardTap);
+  paceSync();
+}
+function paceForTest() {
+  return {
+    paceState: function () { return JSON.parse(JSON.stringify(pace)); },
+    paceRead: paceRead, paceDial: paceDial,
+    paceSet: function (st) { pace = Pace.clean(st); paceSave(); paceSync(); },
+    setNudgeMs: function (ms) { paceNudgeMs = ms; if (paceTurn) paceArmNudge(); },
+    friendly: function () { return friendly; }, paceFriendly: paceFriendly,
+    coachSearchOpts: function () { return persSearchOpts(); },
+    paceFastTrackForTest: paceFastTrack, syncSettingsUI: syncSettingsUI
+  };
+}
+
 function persSearchOpts() {
   var o = Rating.searchOpts(skill), who = castWho();
+  if (friendly && typeof Pace !== "undefined") o = Pace.easy(o);
   if (who && who.style && who.style.w) {
     var c = {}, k;
     for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) c[k] = o[k];
@@ -9392,6 +9593,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();

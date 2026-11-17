@@ -53,6 +53,8 @@ var CAST = {
       heard: ["Hi! I'm the first one, so nobody's told me about you yet!"],
       rival: ["You again! Yay! Game number {n}!", "We've played {n} times! You're my best friend."],
       tip: ["Watch my knights. They jump!"],
+      patient: ["Take your time! I'm just watching a ladybird.", "No hurry! Thinking is the best part."],
+      friendly: ["Let's play a friendly one. I'll go easy, promise!", "A friendly game! Just for fun this time."],
       draw:  ["Nobody won? That's okay! That's nice, actually."]
     }
   },
@@ -88,6 +90,8 @@ var CAST = {
       heard: ["Acorn says you're really good! Be gentle?", "Acorn told me all about you!"],
       rival: ["Round {n}! I've been growing since last time.", "You and me again! Game {n}!"],
       tip: ["Leave something loose and I'll take it!"],
+      patient: ["Take as long as you like. I'm growing anyway.", "Slow is good. Seeds are slow too."],
+      friendly: ["How about a friendly game? I'll take it gently.", "Just for fun this time. No scores!"],
       draw:  ["A draw! We both get a sticker."]
     }
   },
@@ -123,6 +127,8 @@ var CAST = {
       heard: ["Sprout says you've got a green thumb for this.", "Word in the meadow is, you're lucky too."],
       rival: ["Game {n}! My clover says this one's mine.", "Back again? That's {n} games. Lucky number?"],
       tip: ["Watch for my forks: one piece, two targets."],
+      patient: ["Take your time. Luck can wait.", "Think it over. I'll count my leaves."],
+      friendly: ["A friendly game? I'll leave my lucky charms at home.", "Let's just play for fun. I'll go easy."],
       draw:  ["Half a lucky day each!"]
     }
   },
@@ -158,6 +164,8 @@ var CAST = {
       heard: ["Clover was grumbling about you. That's a compliment.", "The meadow is quiet. Clover lost, didn't it?"],
       rival: ["Game {n}. I remember how you played last time.", "{n} games now. I'm still noticing things."],
       tip: ["I keep my king safe. Can you keep yours?"],
+      patient: ["Take your time. The shade isn't going anywhere.", "No rush. Look at everything that's loose."],
+      friendly: ["A friendly game, then. I'll be kind.", "Just for practice. I'll ease off."],
       draw:  ["Even. That feels right."]
     }
   },
@@ -193,6 +201,8 @@ var CAST = {
       heard: ["Fern speaks well of you. Fern rarely speaks.", "The ferns whisper your name. Let us see why."],
       rival: ["Bout number {n}. I bow, as always.", "{n} games. Each one, a lesson for both of us."],
       tip: ["My bishops pin. Watch the long diagonals."],
+      patient: ["Patience is a move too. Take your time.", "Breathe. The board will wait."],
+      friendly: ["A friendly bout. I will hold back.", "Practice, then. Gently."],
       draw:  ["Balance. As it should be."]
     }
   },
@@ -228,6 +238,8 @@ var CAST = {
       heard: ["Heard you got past Bamboo. Bamboo's soft.", "So you're the one beating everybody. Sit down."],
       rival: ["Round {n}, partner. Still prickly.", "{n} games and you keep coming back. Respect."],
       tip: ["I check. I capture. I don't back down."],
+      patient: ["Take your time, partner. Desert's got all day.", "No rush. I'll just stand here. Being a cactus."],
+      friendly: ["Friendly round? I'll keep my prickles in.", "Just a practice round, partner. I'll go easy."],
       draw:  ["Standoff. Respect."]
     }
   },
@@ -263,6 +275,8 @@ var CAST = {
       heard: ["Cactus reports you are 'not bad'. From Cactus, that is high praise.", "Data received: you beat Cactus."],
       rival: ["Game {n}. I have updated my model of you.", "Encounter number {n}. Probability of victory: uncertain."],
       tip: ["Count your king's escape squares. I always do."],
+      patient: ["Take your time. I've already counted to a thousand.", "Think it through. Precision takes time."],
+      friendly: ["A friendly game. I'll calculate less.", "Practice. I'll leave a few doors open."],
       draw:  ["Equal. Correctly so."]
     }
   },
@@ -298,12 +312,14 @@ var CAST = {
       heard: ["Pine tells me you counted better than it did. I'm glad.", "Everyone on the road speaks of you. Sit, my friend."],
       rival: ["Game {n} together. I treasure every one.", "{n} games together now. Look how far you've come."],
       tip: ["Every pawn could be a queen. Never forget it."],
+      patient: ["Take all the time you need. That's how it's learned.", "There is no hurry at this table."],
+      friendly: ["A friendly game. I'll go gently, and you watch closely.", "Let's play for the joy of it."],
       draw:  ["A draw. Honour on both sides."]
     }
   }
 };
 
-var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback", "sig", "stolen", "heard", "rival", "tip"];
+var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback", "sig", "stolen", "heard", "rival", "tip", "patient", "friendly"];
 
 function get(id) { return CAST[id] || null; }
 function ids() { return Object.keys(CAST); }

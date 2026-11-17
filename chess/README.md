@@ -1959,6 +1959,74 @@ Nothing on the road can be skipped. The room opens one coach at a time.
 `chess/tools/earn-check.js` checks the rules in node and walks the
 whole of it, from a new player's first visit, in a browser.
 
+## At your pace
+
+A seven-year-old who has never played and a club player on a lunch
+break want different rooms. The child wants a moment to see what the
+coach did, words that stay up long enough to read, and a kind word
+rather than a clock when they have been staring at the board for a
+minute. The club player wants the coach to answer at once, the card to
+get out of the way, and the next coach without five wins against one
+they have already outgrown. Nobody is asked which they are.
+
+**What the room watches** (`pace.js`), all of it things it can see
+honestly:
+- how long you look at the board before you move: the median of your
+  last forty moves, never counting a turn the page was hidden for;
+- your last eight games against the computer: won, lost, helped;
+- whether you let the end card's celebration play, or tap past it;
+- and *I'm new to chess* at the door, for your first games.
+
+From those it reads a pace, and says why in Settings ("Auto: reading
+you as Gentle, because you like to take your time"). Settings can also
+pin it to Gentle, Steady or Brisk.
+
+| | gentle | steady | brisk |
+|---|---|---|---|
+| the coach answers after at least | 1.3 s | 0.65 s | 0.15 s |
+| words stay up | ×1.5 | ×1 | ×0.8 |
+| the end card's celebration | ×1.25 | ×1 | ×0.5 |
+| a clue offered after a long think | yes, twice | yes, once | never |
+| friendly game after losses in a row | 2 | 3 | 3 |
+| a third-star win opens two coaches | no | yes | yes |
+
+**Never rushed.**
+- When you have been thinking a good while, the coach says something
+  kind ("Take your time! I'm just watching a ladybird.") and the room
+  offers 🧭 a clue: the help lamp's Think, which is free.
+- When it comes depends on you: about two and a half times your usual
+  think when you are gentle, three times when steady, with a floor and a
+  ceiling (45 s–2 min; 90 s–4 min).
+- It never comes with a clock running, since a hand on the shoulder
+  while time runs is pressure, and never for a brisk player.
+- It waits for any card or question on screen to go first.
+
+**Never bored.**
+- A brisk player's coach answers at once, and the end card comes up in
+  half the time.
+- A tap anywhere on the card brings all its lines at once. The room
+  remembers you did, as one more sign of the pace you like.
+- A win good enough for the third star (no help at all, 80%+) opens the
+  road two coaches ahead: "⚡ Fast track! You played so well that Clover
+  is open too."
+
+**Stuck on one coach?**
+- After a run of losses to one coach (two at a gentle pace, three
+  otherwise), the end card offers a 🤝 friendly game.
+- The same coach goes easy: a good deal looser, and a ply shallower. It
+  says so, in character ("Friendly round? I'll keep my prickles in.").
+- Nothing in it is rated, so nobody's number becomes a number against
+  some other opponent.
+- A friendly win opens the next coach (and its place) and says so.
+- The chapter, its star and the Cup still need the real win. Open is not
+  cleared: the fast track and the friendly game open the road ahead
+  without clearing anything, so the stars and the map stay true.
+
+`chess/tools/pace-check.js` checks every rule in node and plays it on a
+phone: the coach's answer at each pace, the clue after a long think (and
+not with a clock, or for a brisk player), the end card's timing and the
+tap that hurries it, the friendly game, and the fast track.
+
 ## The journey: a game you can finish
 
 The ladder is also a road. **The Journey** (the bright sign at the top of
@@ -3167,6 +3235,7 @@ node chess/tools/wheels-check.js   # what can be lost is marked on both boards, 
 node chess/tools/sound-check.js    # every material, every weight and every moment has its own voice
 node chess/tools/stage-check.js    # every place has its music, every piece its voice, and none of it wears thin
 node chess/tools/earn-check.js     # every coach and every place is earned, never picked
+node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment
