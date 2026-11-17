@@ -7314,6 +7314,9 @@ function homeOnEnd(rs) {
   if (!h) return;
   homeJust = rs.level;
   var mine = skin.name === h.name;
+  /* on the journey the board is part of clearing the chapter: that line
+     carries it (and its Use it), so the card's three lines go further */
+  if (typeof Journey !== "undefined" && Journey.chapterOf(rs.level)) return;
   pushMile("🎨", "<b>Board won:</b> " + escHtml(h.name) + " — yours to play on anywhere. " +
            (mine ? "" : '<button class="chip erUse" data-home="' + escHtml(rs.level) + '">Use it</button>'),
            { cls: "unlock", sting: "milestone", hap: "success", big: true });
@@ -7626,7 +7629,10 @@ function moEndCard() {
   box.classList.add("hide");
   if (!moStory || !prefs.momentum) return;
   var S = moStory, h = S.hist, n = h.length;
-  if (S.comeback) pushMile("🔥", "<b>Comeback!</b> You were behind, and turned it around.", { cls: "comeback", sting: "milestone", hap: "success", big: true });
+  /* two people on one screen: both chairs are you, so no line says one of
+     you was "never behind" (the COMEBACK! banner still celebrates) */
+  if (mode === "pass") { /* no lines */ }
+  else if (S.comeback) pushMile("🔥", "<b>Comeback!</b> You were behind, and turned it around.", { cls: "comeback", sting: "milestone", hap: "success", big: true });
   else if (S.wire) pushMile("⭐", "<b>Never behind:</b> yours from the first move to the last.", { cls: "wire" });
   if (n < 6) return;
   var mv = function (ply) { return Math.max(1, Math.ceil(ply / 2)); };
@@ -8294,8 +8300,11 @@ function jrnAtEnd(result, rs) {
   var ch = Journey.chapterOf(skill);
   if (ch && rs && rs.s === 1 && rs.newStars.indexOf(0) >= 0) {
     var r = Journey.road(ladder, jrn), next = r.next && Journey.chapterOf(r.next);
-    pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (next ? "Next on the road: " + escHtml(next.title) + "." : "The Grove Cup is open!"),
-             { cls: "chapter", sting: "levelup", hap: "success", big: !next });
+    var hb = homeJust === skill && Skins.homeOf(skill);
+    pushMile("🗺️", "<b>Chapter " + ch.n + " cleared!</b> " + (hb ? escHtml(hb.name) + " is yours. " : "") +
+             (next ? "Next on the road: " + escHtml(next.title) + "." : "The Grove Cup is open!") +
+             (hb && skin.name !== hb.name ? ' <button class="chip erUse" data-home="' + escHtml(skill) + '">Use it</button>' : ""),
+             { cls: "chapter unlock", sting: "levelup", hap: "success", big: !next });
     $("endCupTx").textContent = next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
     $("endCupSub").textContent = "See it on the map ▶";
     btn.onclick = function () { $("ovEnd").classList.add("hide"); openJourney(); };
