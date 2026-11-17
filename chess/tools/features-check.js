@@ -120,7 +120,9 @@ const SIZES = [
       await press("#aboutBack");
 
       /* ---- a game and its buttons ---- */
-      await press("#mPassOpts"); await press("#newStart");
+      /* the passed-back-and-forth seating: the moves and notes are beside
+         the board there (across the table they step aside, table-check.js) */
+      await press("#mPassOpts"); await press('#flipChips [data-flip="1"]'); await press("#newStart");
       await page.waitForTimeout(800);
       for (const s of ["e4", "e5", "Nf3"]) { await play(s); await page.waitForTimeout(60); }
       await settle();

@@ -121,6 +121,11 @@ const server = http.createServer((req, res) => {
       await playOn(pg, ["e4"]); await pg.waitForTimeout(300);
       s = await state(pg);
       ok(T("…and moves to the other bar with the turn"), s.topMove && !s.botMove);
+      await pg.keyboard.press("ArrowLeft"); await pg.waitForTimeout(200);
+      ok(T("looking back says so over the board, with the panel away"), await pg.evaluate(() => getComputedStyle(document.getElementById("turnStrip")).display !== "none" &&
+         /Looking back/.test(document.getElementById("turnStrip").textContent)));
+      await pg.keyboard.press("End"); await pg.waitForTimeout(200);
+      ok(T("…and goes again when you come back"), await pg.evaluate(() => getComputedStyle(document.getElementById("turnStrip")).display === "none"));
       await playOn(pg, ["e5", "Bc4", "Nc6", "Qh5", "Nf6"]); await pg.waitForTimeout(2200);
       s = await state(pg);
       ok(T("the coach keeps its remarks for the notebook"), !/threatens|ask first/.test(s.toast) &&

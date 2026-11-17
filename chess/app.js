@@ -823,6 +823,8 @@ function syncPanelInfo() {
 }
 function showViewBanner(on) {
   $("viewBanner").classList.toggle("hide", !on);
+  /* across a table the panel is away: the strip over the board says it */
+  document.body.classList.toggle("looking", !!on);
   syncPanelInfo();
 }
 function syncTurnStrip() {
