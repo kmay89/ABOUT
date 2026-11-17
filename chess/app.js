@@ -1005,6 +1005,8 @@ function commitMove(m, source, animOpts) {
   var fenBefore = Chess.fen(G);
   /* look at the move while the position is still the "before" one */
   var lessons = (prefs.coach && mode !== "tour") ? Teach.afterMove(G, m) : [];
+  /* what the move shows, for the coach's signature trick */
+  var persL = mode === "coach" ? (prefs.coach ? lessons : Teach.afterMove(G, m)) : null;
   featMove(m, mover, source, lessons);
   var desc = animDescriptor(m);
   var san = Chess.play(G, m);
@@ -1022,6 +1024,7 @@ function commitMove(m, source, animOpts) {
   var st = Chess.status(G);
   accAfterMove(m, san, st);
   castAfterMove(m, st);
+  if (persL) persAfterMove(m, persL);
   moAfterMove(m);
   /* the music closes in a little while a king is in check */
   if (typeof Stage !== "undefined" && !st.over) Stage.mood(st.reason === "check" ? "tense" : "calm");
@@ -1144,7 +1147,7 @@ function scheduleCoach() {
     };
     /* exactly the settings the rung was measured with — node budget and
        all — or its rating would be a rating of some other opponent */
-    Brain.search(G, Rating.searchOpts(skill)).then(answer, function () { answer(null); });
+    Brain.search(G, persSearchOpts()).then(answer, function () { answer(null); });
   }, REDUCED ? 60 : 420);
 }
 
@@ -7077,7 +7080,7 @@ function castPlace() {
 }
 /* one line of a kind, in a bubble, with the mouth moving and a babble
    under it at the coach's own pitch */
-function castSay(kind, mood) {
+function castSay(kind, mood, vars) {
   var who = castWho();
   if (!who) return false;
   if (castFace && mood) castFace.mood(mood, 1600);
@@ -7085,6 +7088,7 @@ function castSay(kind, mood) {
   var n = castSaid[kind] = (castSaid[kind] || 0) + 1;
   var text = Cast.line(skill, kind, n - 1 + castSeed);
   if (!text) return false;
+  if (vars) text = text.replace(/\{(\w+)\}/g, function (all, k) { return vars[k] != null ? String(vars[k]) : all; });
   var say = $("oppSay");
   say.innerHTML = '<span class="who">' + escHtml(who.name) + "</span>" + escHtml(text);
   say.classList.remove("hide");
@@ -7130,8 +7134,13 @@ function castStart() {
   if (!who) return;
   if (castFace) { castFace.mood("happy", 1300); castFace.wake(2400); castFace.lookAt(0, -0.2); }
   if (!prefs.met[skill]) { castMeet(); return; }
-  var t = gameTicket;
-  setTimeout(function () { if (t === gameTicket && castWho() === who && !over) castSay(was ? "again" : "greet", "happy"); }, 950);
+  var t = gameTicket, gr = persGreeting(was);
+  setTimeout(function () {
+    if (t !== gameTicket || castWho() !== who || over) return;
+    castSay(gr.kind, "happy", gr);
+    if (castFace) castFace.quirk();
+  }, 950);
+  persIdle();
 }
 /* meeting a coach for the first time: it comes in large over the board,
    introduces itself (typed out as it is said), and goes to its seat. Not
@@ -7144,6 +7153,10 @@ function castMeet() {
   $("meetName").textContent = (lv ? lv.emoji + " " : "") + who.name;
   $("meetTitle").textContent = who.title.charAt(0).toUpperCase() + who.title.slice(1) + (lv ? " · rated " + lv.elo : "");
   $("meetHint").textContent = humanSide === 1 ? "You have White: your move." : "You have Black: " + who.name + " opens.";
+  /* its tell: what to watch for, in its own words */
+  var tip = Cast.line(skill, "tip", 0);
+  $("meetTip").textContent = tip ? "\u201c" + tip + "\u201d" : "";
+  $("meetTip").classList.toggle("hide", !tip);
   homeSync();
   homeMeetLine();
   var text = Cast.line(skill, "hello", 0), box = $("meetSay"), card = $("castMeet");
@@ -7208,6 +7221,8 @@ function castThinking(on) {
   if (!castFace || !castWho()) return;
   if (on) {
     castFace.mood("think", 0); castFace.wake(30000);
+    /* Pine can't help counting out loud with its eyes */
+    if (castWho().quirk === "tick" && Math.random() < 0.5) castFace.quirk("tick", 1200);
     if (castMoves > 1 && castMoves % 5 === 2 && Date.now() - castLastSay > 6000) castSay("think");
   } else {
     castFace.mood("idle", 1); castFace.sleep();
@@ -7226,6 +7241,12 @@ function castAtEnd(result) {
     if (kind === "lose" && homeJust === lvl) castSay("gift", "lose");
     else if (kind === "lose" && moStory && moStory.comeback) castSay("comeback", "shocked");
     else castSay(kind, kind === "win" ? "win" : kind === "lose" ? "lose" : "happy");
+    /* and its own way of winning or losing: a victory hop or twirl; a
+       sulky tap, a recalculation, a gracious bow */
+    if (castFace) {
+      if (kind === "win") setTimeout(function () { if (castWho() === who && castFace) castFace.quirk(null, 1600); }, 900);
+      else if (kind === "lose" && /tap|tick|bow|nod/.test(who.quirk)) setTimeout(function () { if (castWho() === who && castFace) castFace.quirk(); }, 1400);
+    }
   }, REDUCED ? 100 : 900);
   if (castFace) castFace.wake(3000);
 }
@@ -7738,6 +7759,9 @@ function unlAtEnd(result, rs) {
   var x = Unlocks.xpFor({ mode: mode, result: res, tier: levelIndex(skill), rated: !!rs,
                           stars: rs ? rs.newStars.length : 0,
                           comeback: !!(moStory && moStory.comeback), wire: !!(moStory && moStory.wire) });
+  if (persStole === gameTicket && castWho()) {
+    x.parts.push({ why: "Used " + castWho().name + "\u2019s own trick", xp: 25 }); x.total += 25;
+  }
   unlGameXp = { ticket: gameTicket, parts: x.parts.slice(), shown: 0 };
   $("endGift").classList.add("hide");
   unlGain(x.total, true);
@@ -8208,6 +8232,10 @@ function openChapter(id) {
   $("chTitle").textContent = ch.title;
   $("chWho").textContent = jrnName(id) + " · " + SKILLS[id].elo;
   $("chStory").textContent = done ? ch.outro : ch.intro;
+  var who = typeof Cast !== "undefined" ? Cast.get(id) : null, rec = persRecord(id);
+  $("chPersona").innerHTML = who ? '<span><b>Style</b>' + escHtml(who.style.name) + "<small>" + escHtml(who.style.desc) + "</small></span>" +
+    '<span><b>Signature</b>' + escHtml(who.signature.emoji + " " + who.signature.name) + "<small>" + escHtml(Cast.line(id, "tip", 0) || "") + "</small></span>" +
+    (rec.n ? '<span><b>You vs ' + escHtml(who.name) + "</b>" + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") + "<small>" + rec.n + (rec.n > 1 ? " games" : " game") + "</small></span>" : "") : "";
   var url = jrnPortrait(id, 200);
   $("chPic").innerHTML = url ? '<img alt="" src="' + url + '">' : "<em>" + SKILLS[id].emoji + "</em>";
   card.style.setProperty("--chBg", "url(" + "data:," + ")");
@@ -8361,8 +8389,108 @@ function journeyForTest() {
   };
 }
 
+/* ===== the personas (cast.js) =====
+   Each coach is a player with a style you can feel across the board (its
+   taste among the moves it thinks good enough: Acorn reaches for its
+   knights, Cactus for checks and captures, Fern castles and defends,
+   Clover plays whatever feels lucky), a habit it can't help (a bounce, a
+   wave, a twirl, a bow, a nod), and a signature trick — the one its
+   skill card teaches. When it plays the trick on you, the room names it;
+   when you play it back at the coach, the room makes a fuss of you. And
+   it remembers you: how many games you have played it, and what the
+   other coaches have been saying. */
+var persSigAt = 0, persStole = -1, persIdleT = 0;
+function persSearchOpts() {
+  var o = Rating.searchOpts(skill), who = castWho();
+  if (who && who.style && who.style.w) {
+    var c = {}, k;
+    for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) c[k] = o[k];
+    c.style = who.style.w;
+    return c;
+  }
+  return o;
+}
+/* does this move show the coach's trick? concepts: what teach.js saw */
+function persSigHit(sig, m, concepts, after) {
+  if (!sig || !m) return false;
+  var kind = Math.abs(m.piece);
+  var con = (concepts || []).map(function (l) { return l.concept; });
+  if (sig.concepts && sig.concepts.some(function (c) { return con.indexOf(c) >= 0; }) && (!sig.piece || sig.piece === kind)) return true;
+  if (sig.piece && sig.capture && kind === sig.piece && m.capt) return true;
+  if (sig.free && m.capt && after && !Chess.attacked(after, m.to, m.piece > 0 ? -1 : 1)) return true;
+  if (sig.castle && (m.flags & Chess.F_CASTLE)) return true;
+  if (sig.promo && m.promo) return true;
+  if (sig.check && m.capt && after && Chess.inCheck(after)) return true;
+  return false;
+}
+/* games played against this coach, from the journal */
+function persRecord(id) {
+  var r = { n: 0, w: 0, l: 0, d: 0 };
+  try {
+    (Games.load(lsGet).list || []).forEach(function (g) {
+      if (g.mode !== "coach" || g.skill !== id) return;
+      r.n++;
+      if (g.result === "draw") r.d++;
+      else if ((g.result === "white") === (g.humanSide === 1)) r.w++; else r.l++;
+    });
+  } catch (e) {}
+  return r;
+}
+/* after every move of a coach game */
+function persAfterMove(m, concepts) {
+  var who = castWho();
+  if (!who || !who.signature || over) return;
+  var coachSide = -humanSide, byCoach = m.piece * coachSide > 0;
+  if (!persSigHit(who.signature, m, concepts, G)) return;
+  var t = gameTicket, sig = who.signature;
+  setTimeout(function () {
+    if (t !== gameTicket || !castWho()) return;
+    if (byCoach) {
+      if (Date.now() - persSigAt < 15000) return;
+      persSigAt = Date.now();
+      persBanner(sig.emoji + " " + sig.name, who.name + "’s signature", "sig");
+      if (castFace) { castFace.mood("gleeful", 1300); castFace.quirk(); }
+      castSay("sig", "gleeful");
+    } else {
+      /* you played the coach's own trick back at it */
+      persBanner("🎯 " + sig.name + "!", "You used " + who.name + "’s own trick", "stolen");
+      if (persStole !== gameTicket) { persStole = gameTicket; hap("success"); }
+      if (castFace) { castFace.mood("shocked", 1400); castEmote("❗"); }
+      castSay("stolen", "shocked");
+      if (prefs.sound && typeof Stage !== "undefined") Stage.swing(true);
+    }
+  }, REDUCED ? 80 : 520);
+}
+function persBanner(text, sub, cls) {
+  if (typeof moBanner === "function") moBanner(text, sub, cls, 2100);
+}
+/* the coach's habit, now and then while it waits for you */
+function persIdle() {
+  clearTimeout(persIdleT);
+  var t = gameTicket;
+  persIdleT = setTimeout(function () {
+    if (t !== gameTicket) return;
+    if (castFace && castWho() && !over && !thinking && !castMeetOn && !document.hidden) castFace.quirk();
+    if (castWho() && !over) persIdle();
+  }, 9000 + Math.random() * 8000);
+}
+/* the greeting, as the game begins: hello again, a rivalry, or gossip */
+function persGreeting(was) {
+  var who = castWho();
+  if (!who) return null;
+  var rec = persRecord(skill), idx = levelIndex(skill), prev = idx > 0 ? Rating.LEVELS[idx - 1] : null;
+  var prevBeaten = prev && ladder.rungs[prev.id] && ladder.rungs[prev.id].stars[0];
+  var beatThis = ladder.rungs[skill] && ladder.rungs[skill].stars[0];
+  if (was) return { kind: "again" };
+  if (prevBeaten && !beatThis && rec.n < 2 && !castSaid.heard) return { kind: "heard" };
+  /* a rivalry, two games in three once you have played it a few times */
+  if (rec.n >= 2 && rec.n % 3 !== 1) return { kind: "rival", n: rec.n + 1 };
+  return { kind: "greet" };
+}
+
 function castForTest() {
   return {
+    persRecord: persRecord, persGreeting: persGreeting, persSearchOpts: persSearchOpts,
     castState: function () {
       return { on: !!castWho(), id: skill, face: castFace ? castFace.state() : null, flat: $("oppFaceWrap").classList.contains("flat"),
                shown: !$("oppFaceWrap").classList.contains("hide"), saying: $("oppSay").classList.contains("hide") ? "" : $("oppSay").textContent,

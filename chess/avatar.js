@@ -222,7 +222,7 @@ function create(canvas, opts) {
 
   var A = { canvas: canvas, gl: gl, look: null, id: null };
   var st = {
-    t0: 0, mood: "idle", moodAt: 0, moodMs: 0, talkUntil: 0, talkRate: 10, base: "calm",
+    t0: 0, mood: "idle", moodAt: 0, moodMs: 0, talkUntil: 0, talkRate: 10, base: "calm", quirk: null, quirkAt: 0, quirkMs: 0,
     gx: 0, gy: 0, lx: 0, ly: 0, blinkAt: 0, awakeUntil: 0, raf: 0, timer: 0
   };
 
@@ -256,7 +256,19 @@ function create(canvas, opts) {
       }
     }
     if (m === "sad" || m === "lose") tiltX = 0.22 * ma;
-    var root2 = chain(T(shake, hop, 0), RZ(tiltZ * 0.6));
+    /* the coach's own little habit: a bounce, a wave, a twirl, a bow… */
+    var spin = 0, q = quirkAmount(t), qk = st.quirk;
+    if (q > 0 && !REDUCED) {
+      var qp = Math.min(1, (t * 1000 - st.quirkAt) / st.quirkMs);
+      if (qk === "bounce") { var hb = Math.abs(Math.sin(qp * Math.PI * 4)); hop += hb * 0.11 * q; squash *= 1 - (1 - hb) * 0.06 * q; }
+      else if (qk === "spin") spin = (0.5 - 0.5 * Math.cos(qp * Math.PI)) * Math.PI * 2;
+      else if (qk === "sway") tiltZ += Math.sin(qp * Math.PI * 2) * 0.32 * q;
+      else if (qk === "bow") tiltX += Math.sin(qp * Math.PI) * 0.42;
+      else if (qk === "nod") tiltX += Math.sin(qp * Math.PI * 4) * 0.12 * q;
+      else if (qk === "tap") tiltZ += Math.sin(t * 34) * 0.05 * q;
+      else if (qk === "tick") hop += Math.abs(Math.sin(t * 16)) * 0.02 * q;
+    }
+    var root2 = chain(T(shake, hop, 0), RY(spin), RZ(tiltZ * 0.6));
     /* the pot, which does not breathe */
     put(POT, chain(T(0, hop * 0.3, 0)), pot, 0.5);
     put(SPH, chain(T(0, -0.49 + hop * 0.3, 0), S(0.36, 0.035, 0.36)), mix3(hex3("#3b2a1e"), pot, 0.15), 0);
@@ -268,6 +280,8 @@ function create(canvas, opts) {
   }
   function tops(L, P, c1, c2, t, ma) {
     var w = REDUCED ? 0 : Math.sin(t * 2.6) * 0.06;
+    /* a wave: whatever grows on top flaps hello */
+    if (st.quirk === "wave" && !REDUCED) w += Math.sin(t * 15) * 0.55 * quirkAmount(t);
     var droop = (st.mood === "sad" || st.mood === "lose") ? 0.45 * ma : 0;
     switch (L.top) {
       case "cap": {
@@ -366,6 +380,8 @@ function create(canvas, opts) {
     if (bs === "smug") bl = Math.min(bl, 0.6);
     var lx = st.lx, ly = st.ly;
     if (m === "think") { lx = -0.5; ly = 0.7; }
+    /* calculating eyes flick from side to side */
+    if (st.quirk === "tick" && quirkAmount(t) > 0 && !REDUCED) { lx = Math.sin(t * 14) > 0 ? 0.75 : -0.75; ly = 0.1; }
     /* nervous eyes go to one side and the other, and back */
     if (bs === "nervous" && awake && !REDUCED) { lx = Math.floor(t * 1.8) % 2 ? 0.65 : -0.65; ly = -0.15; }
     var white = [0.98, 0.97, 0.95], dark = [0.1, 0.08, 0.07];
@@ -434,6 +450,13 @@ function create(canvas, opts) {
     }
   }
 
+  /* how far into its habit the face is */
+  function quirkAmount(t) {
+    if (!st.quirk) return 0;
+    var e = t * 1000 - st.quirkAt;
+    if (e < 0 || e > st.quirkMs) return 0;
+    return Math.min(1, e / 160, (st.quirkMs - e) / 220);
+  }
   /* how far into its mood the face is: up quickly, then easing out */
   function moodAmount(t) {
     if (st.mood === "idle") return 0;
@@ -496,7 +519,7 @@ function create(canvas, opts) {
     var k = REDUCED ? 1 : 0.18;
     st.lx += (st.gx - st.lx) * k; st.ly += (st.gy - st.ly) * k;
     var el = ms - st.t0;
-    var moving = ms < st.awakeUntil || el < st.talkUntil ||
+    var moving = ms < st.awakeUntil || el < st.talkUntil || (st.quirk && el - st.quirkAt < st.quirkMs + 100) ||
                  (st.mood !== "idle" && (!st.moodMs || el - st.moodAt < st.moodMs + 450)) ||
                  Math.abs(st.gx - st.lx) + Math.abs(st.gy - st.ly) > 0.01 ||
                  (st.blinkAt && el - st.blinkAt < 160);
@@ -549,6 +572,15 @@ function create(canvas, opts) {
   /* stay lively for a while (breathing, swaying) */
   /* the standing mood: "calm", "nervous" or "smug". It shows whenever no
      reaction is playing, and holds still (sweat and all) while asleep */
+  /* the coach's habit, now: its own kind (from its look) unless told */
+  A.quirk = function (kind, ms) {
+    var who = root.Cast && A.id && root.Cast.get(A.id);
+    st.quirk = kind || (who && who.quirk) || "bounce";
+    st.quirkMs = ms || (st.quirk === "spin" ? 1100 : st.quirk === "bow" ? 1300 : 1500);
+    st.quirkAt = now() - st.t0;
+    A.dirty = true; A.wake(st.quirkMs + 300);
+    return st.quirk;
+  };
   A.base = function (kind) {
     var next = kind === "nervous" || kind === "smug" ? kind : "calm";
     if (next === st.base) return st.base;
@@ -560,7 +592,8 @@ function create(canvas, opts) {
   A.sleep = function () { st.awakeUntil = 0; A.dirty = true; kick(); };
   A.state = function () {
     return { id: A.id, mood: st.mood, talking: now() - st.t0 < st.talkUntil, drawn: A.drawn || 0,
-             sleeping: !st.raf, look: [st.gx, st.gy], base: st.base };
+             sleeping: !st.raf, look: [st.gx, st.gy], base: st.base,
+             quirk: st.quirk && now() - st.t0 - st.quirkAt < st.quirkMs ? st.quirk : null };
   };
   A.destroy = function () {
     A.dead = true; clearTimeout(st.timer);

@@ -584,6 +584,14 @@ tools/              dev-only, never shipped:
                     on paint it moves the paint and nothing outside its
                     region; a flip turns the field round; and three
                     boards' worth paint in under a second
+  persona-check.js  the personas: in node, every coach with a style, a habit
+                    and a signature trick of its own, a trick the room can
+                    see on the board; a knight lover plays more knights,
+                    an aggressive one more checks, and no style ever plays
+                    below the coach's strength; in a browser, the coach
+                    thinking with its style, its tell at the first
+                    meeting, a rival's greeting, the gossip, its habit, its
+                    trick named both ways, and the chapter card
   journey-check.js  the journey: in node, eight chapters in the ladder's
                     order with their stories, the road opening one at a
                     time, the cup (win on, lose back to the start, three
@@ -1876,6 +1884,45 @@ of that piece landing rather than a timer that hopes.
 Everything is synthesized. There are no samples, nothing to download,
 and it works on the train.
 
+## Every coach a player: style, habit, signature
+
+The eight coaches don't just look different; they play differently, and
+each one teaches you its trick by using it on you.
+
+**A style you can feel.** Every coach plays below full strength on purpose,
+choosing among the moves it thinks good enough. A style is its taste
+among those moves, never a weaker one, so a coach's strength is still
+exactly what the ladder says (the check proves it). Acorn loves its
+knights. Sprout pushes pawns. Clover plays whatever feels lucky. Fern
+castles early and defends. Bamboo is patient, with bishops on the long
+diagonals. Cactus checks, captures and charges. Pine trades when it is
+ahead and counts. Oak plays the centre, castles, and loves a pawn that
+walks home.
+
+**A habit it can't help.** Between moves, every so often, and as each game
+begins, the coach does its own little thing. Acorn bounces and Sprout
+waves a leaf. Clover twirls for luck and Fern sways. Bamboo bows and
+Cactus taps, impatient. Pine's eyes flick back and forth, counting (it
+does that while it thinks, too), and Oak nods slowly. When it wins, it
+celebrates its own way; when it loses, Cactus sulks with a tap, Pine
+recalculates, and Bamboo and Oak bow.
+
+**A signature trick, taught by facing it.** Each coach has the trick its
+skill card teaches: Acorn's knight hop, Sprout's free snack, Clover's
+lucky fork, Fern's safe-and-sound castle, Bamboo's still pin, Cactus's
+sting, Pine's back rank, Oak's quiet promotion. Meeting it, the coach
+tells you what to watch for. When it plays the trick on you, the room
+names it in a green banner and the coach is delighted with itself. When
+you play the trick back at the coach, the room makes a fuss of you (a
+pink banner, the coach can't believe it, a harp) and it is worth 25
+experience. The chapter card shows each coach's style and trick.
+
+**It remembers you.** After a few games a coach greets you as a rival and
+counts them ("Round 4, partner. Still prickly."). And the road talks:
+beat one coach and the next has heard ("Acorn says you're really good!
+Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
+your record against each.
+
 ## The journey: a game you can finish
 
 The ladder is also a road. **The Journey** (the bright sign at the top of
@@ -3066,6 +3113,7 @@ node chess/tools/stage-check.js    # every place has its music, every piece its 
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment
+node chess/tools/persona-check.js  # every coach plays like itself, and you can tell them apart with your eyes shut
 node chess/tools/touch-check.js    # a finger on the board moves a piece, 3D and 2D
 node chess/tools/board-check.js    # the board fits the phone and a finger picks what the eye sees
 node chess/tools/play-check.js     # sit down, play, come back — and the playtest bugs stay fixed

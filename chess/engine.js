@@ -1276,6 +1276,10 @@ function search(g, opts) {
       var drop = top - ranked[i].score;
       if (drop > opts.noise) continue;
       w = (opts.noise - drop) + opts.noise * 0.25;
+      /* and a style: which of the moves that are good enough this player
+         likes best. Only ever among moves already inside the slack, so a
+         coach's strength stays what it is and only its taste shows */
+      if (opts.style) w = opts.style.flat ? 1 : w * styleWeight(g, ranked[i].move, opts.style);
       pool.push(ranked[i]); weights.push(w); total += w;
     }
     if (pool.length) {
@@ -1285,6 +1289,34 @@ function search(g, opts) {
     }
   }
   return { move: best, score: bestScore, depth: depth, nodes: searchNodes, ranked: ranked, pv: pv };
+}
+
+/* How much a player of a given style likes a move, as a multiplier on
+   its weight: style is { knight, bishop, rook, queen, king, pawnPush,
+   capture, check, castle, retreat, advance, centre, promo, flat }, each
+   a factor (missing = 1). `flat` makes every good-enough move equally
+   likely: a player who trusts to luck. */
+var CENTRE = { 51: 1, 52: 1, 67: 1, 68: 1 };
+function styleWeight(g, m, st) {
+  if (!m) return 1;
+  var f = 1, kind = m.piece < 0 ? -m.piece : m.piece, side = m.piece > 0 ? 1 : -1;
+  var KINDS = [null, "pawn", "knight", "bishop", "rook", "queen", "king"];
+  if (st[KINDS[kind]]) f *= st[KINDS[kind]];
+  if (kind === 1 && !m.capt && st.pawnPush) f *= st.pawnPush;
+  if (m.capt && st.capture) f *= st.capture;
+  if ((m.flags & F_CASTLE) && st.castle) f *= st.castle;
+  if (m.promo && st.promo) f *= st.promo;
+  var dr = ((m.to >> 4) - (m.from >> 4)) * side;
+  if (dr < 0 && st.retreat) f *= st.retreat;
+  if (dr > 0 && st.advance) f *= st.advance;
+  if (CENTRE[m.to] && st.centre) f *= st.centre;
+  if (st.check) {
+    make(g, m);
+    var chk = inCheck(g, -side);
+    unmake(g);
+    if (chk) f *= st.check;
+  }
+  return f;
 }
 
 function rootSearch(g, depth, alpha, beta, rootMoves, prevBest) {
