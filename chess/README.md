@@ -1923,6 +1923,42 @@ beat one coach and the next has heard ("Acorn says you're really good!
 Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
 your record against each.
 
+## Talent cards: what each coach is gifted at
+
+Every coach has a card that shows its talents, the way a game shows a
+character's skills, so you know who you are sitting down with and what
+you can learn from them.
+
+**Four talents.** 🔥 Bold (goes forward and attacks), 🛡️ Steady (keeps
+its pieces safe), 🎩 Clever (finds tricks and surprises) and 🦉 Wise
+(knows how games end), each out of five, light up one pip at a time.
+They grow along the ladder, from Acorn (six pips in all) to Oak
+(seventeen), and each coach has its own shape: Cactus is the boldest,
+Fern and Bamboo are steady, Clover is mostly clever, and Oak is the
+wisest. No two coaches have the same shape.
+
+**Great at, and still growing.** 🌟 says what the coach is great at
+("Checks and captures, nonstop. Very, very prickly!"). 🌱 says what it
+is still learning, as something you can try ("Learning to keep its own
+king cosy. Try sneaking around the back!"). Like everything a coach
+says, neither is about the board in front of you, and the check keeps
+the words kind: no fighting talk, no failing.
+
+**Where you see it.**
+- Meeting a coach for the first time, its talents come with the
+  introduction, lighting up, along with what it is still learning.
+- A game with a coach you already know opens with a friendly hello:
+  you 🤝 the coach, and one thing it is still learning. It sits over the
+  board without taking a touch, any touch sends it off, it lasts as long
+  as your pace likes words to stay up (shorter for a quick player), and
+  a rematch skips it.
+- Tap the coach's name (the ⓘ) at any time for its whole card: style,
+  talents, great at, still growing and favourite trick, plus your record
+  together. A tap anywhere, or Escape, puts it away.
+- The chapter card on the journey map is the full talent card.
+
+`node chess/tools/talents-check.js` checks the cards and the room.
+
 ## Earned, not chosen: coaches and places
 
 Nothing on the road can be skipped. The room opens one coach at a time.

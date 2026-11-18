@@ -30,6 +30,9 @@ var CAST = {
     style: {"name": "Knight lover", "desc": "Can't resist a knight move, and loves to hop into the middle.", "w": {"knight": 4, "centre": 1.4}},
     quirk: "bounce",
     signature: {"id": "knighthop", "name": "The Knight Hop", "emoji": "🐴", "concepts": ["fork"], "piece": 2, "capture": true},
+    card: {"talents": {"bold": 2, "steady": 1, "clever": 2, "wise": 1},
+           "great": "Big, bouncy knight jumps that pop up out of nowhere.",
+           "growing": "Learning to keep an eye on every piece. Spot one left alone and scoop it up!"},
     lines: {
       hello: ["Oh! Hello! I'm Acorn. I only just learned how the horsey one moves.",
               "Hi, I'm Acorn! I'm small, but I'm going to try really hard."],
@@ -67,6 +70,9 @@ var CAST = {
     style: {"name": "Pawn pusher", "desc": "Marches its pawns forward, one brave step at a time.", "w": {"pawnPush": 2.6, "advance": 1.3}},
     quirk: "wave",
     signature: {"id": "loose", "name": "The Free Snack", "emoji": "🍃", "free": true},
+    card: {"talents": {"bold": 1, "steady": 2, "clever": 1, "wise": 2},
+           "great": "A brave little wall of pawns, marching your way.",
+           "growing": "Learning to guard its pieces while it marches. Free snacks for you!"},
     lines: {
       hello: ["Hi there! I'm Sprout. We're both still growing, so let's learn something together!",
               "Hello! Sprout here. I take what you leave lying about, so watch your pieces!"],
@@ -104,6 +110,9 @@ var CAST = {
     style: {"name": "Lucky", "desc": "Plays whatever feels lucky. You never know what's coming.", "w": {"flat": true, "knight": 1.3}},
     quirk: "spin",
     signature: {"id": "fork", "name": "The Lucky Fork", "emoji": "🍀", "concepts": ["fork"]},
+    card: {"talents": {"bold": 2, "steady": 2, "clever": 3, "wise": 1},
+           "great": "Surprises! Even Clover doesn't know what's next.",
+           "growing": "Learning to plan ahead. Stay calm, keep your pieces safe, and enjoy the ride."},
     lines: {
       hello: ["Hiya! I'm Clover. I know a few tricks, and I've got luck on my side!",
               "Hello, hello! Clover's the name. Four leaves, zero fear."],
@@ -141,6 +150,9 @@ var CAST = {
     style: {"name": "Careful", "desc": "Castles early, defends everything, and waits for you to slip.", "w": {"castle": 4, "retreat": 1.6, "capture": 0.8}},
     quirk: "sway",
     signature: {"id": "castle", "name": "Safe and Sound", "emoji": "🛡️", "castle": true},
+    card: {"talents": {"bold": 2, "steady": 4, "clever": 2, "wise": 2},
+           "great": "Castles early and guards everything, nice and tidy.",
+           "growing": "Learning to be brave and go forward. That gives you time to make a plan!"},
     lines: {
       hello: ["Oh — hello. I'm Fern. I don't give much away, but I do notice things.",
               "Hello. Fern. I'll try to give you a fair game."],
@@ -178,6 +190,9 @@ var CAST = {
     style: {"name": "Patient", "desc": "Quiet, solid moves. Bishops on long diagonals, pins that hold you still.", "w": {"bishop": 2.2, "castle": 2.5, "capture": 0.85, "advance": 0.9}},
     quirk: "bow",
     signature: {"id": "pin", "name": "The Still Pin", "emoji": "📌", "concepts": ["pin"]},
+    card: {"talents": {"bold": 2, "steady": 4, "clever": 3, "wise": 3},
+           "great": "Long bishops and sneaky pins that hold you still.",
+           "growing": "Learning to start quickly. Take the middle early and keep your pieces busy!"},
     lines: {
       hello: ["Greetings. I am Bamboo. I bend with the wind, and I do not break. Let us train.",
               "I am Bamboo. Strong roots, flexible stem. Show me your form."],
@@ -215,6 +230,9 @@ var CAST = {
     style: {"name": "Aggressive", "desc": "Checks, captures, and charges forward. Never backs down.", "w": {"check": 3, "capture": 2, "advance": 1.4, "retreat": 0.6}},
     quirk: "tap",
     signature: {"id": "skewer", "name": "The Sting", "emoji": "🌵", "concepts": ["skewer"], "check": true},
+    card: {"talents": {"bold": 5, "steady": 2, "clever": 3, "wise": 2},
+           "great": "Checks and captures, nonstop. Very, very prickly!",
+           "growing": "Learning to keep its own king cosy. Try sneaking around the back!"},
     lines: {
       hello: ["Well, well. Name's Cactus. Folks who get careless round me get pricked. Sit down.",
               "Cactus. I've seen a lot of players come through this desert. Let's see you."],
@@ -252,6 +270,9 @@ var CAST = {
     style: {"name": "Calculating", "desc": "Precise. Trades when ahead, and counts every escape square.", "w": {"capture": 1.5, "centre": 1.4, "rook": 1.4}},
     quirk: "tick",
     signature: {"id": "backrank", "name": "The Back Rank", "emoji": "🧱", "concepts": ["backRank", "mateThreat"]},
+    card: {"talents": {"bold": 3, "steady": 4, "clever": 4, "wise": 4},
+           "great": "Counts every move, and trades when it's ahead.",
+           "growing": "Learning to enjoy a busy board. Keep lots of pieces in play and see!"},
     lines: {
       hello: ["Good evening. I am Pine. I calculate, and I rarely let an advantage go. Bring a plan.",
               "Pine. Precise, patient, evergreen. Shall we begin?"],
@@ -289,6 +310,9 @@ var CAST = {
     style: {"name": "Classical", "desc": "Centre, castling, and patient endgames. Every move a lesson.", "w": {"centre": 1.6, "castle": 2.5, "promo": 3}},
     quirk: "nod",
     signature: {"id": "promote", "name": "The Quiet Promotion", "emoji": "👑", "promo": true},
+    card: {"talents": {"bold": 3, "steady": 5, "clever": 4, "wise": 5},
+           "great": "Wise in the endgame. Every pawn could be a queen.",
+           "growing": "Still learning too, Oak says! Watch closely and borrow its ideas."},
     lines: {
       hello: ["Ah, welcome, welcome. I'm Oak. I've stood here a long while. Play your best, and keep the notebook open.",
               "Hello, friend. Oak. I've watched a great many games from this spot. Let's make this a good one."],
@@ -341,7 +365,30 @@ function syllables(text) {
   return Math.max(1, Math.min(14, m ? m.length : 1));
 }
 
-var Cast = { CAST: CAST, KINDS: KINDS, get: get, ids: ids, line: line, readMs: readMs, syllables: syllables };
+/* the talent card: what each coach is gifted at, the way a game shows a
+   character's skills. Four talents out of five (they grow along the
+   ladder, and each coach has its own shape: Cactus the boldest, Fern
+   steady, Clover clever, Oak the wisest), what it is great at, and what
+   it is still learning, said as something you can try and learn from.
+   General, like every line here: nothing about the board in front of you. */
+var TALENTS = [
+  { key: "bold",   label: "Bold",   emoji: "\ud83d\udd25", what: "goes forward and attacks" },
+  { key: "steady", label: "Steady", emoji: "\ud83d\udee1\ufe0f", what: "keeps its pieces safe" },
+  { key: "clever", label: "Clever", emoji: "\ud83c\udfa9", what: "finds tricks and surprises" },
+  { key: "wise",   label: "Wise",   emoji: "\ud83e\udd89", what: "knows how games end" }
+];
+var TALENT_MAX = 5;
+function card(id) {
+  var c = CAST[id];
+  if (!c || !c.card) return null;
+  var talents = TALENTS.map(function (t) { return { key: t.key, label: t.label, emoji: t.emoji, what: t.what, v: c.card.talents[t.key] | 0 }; });
+  return { id: id, name: c.name, style: c.style.name, talents: talents,
+           total: talents.reduce(function (a, t) { return a + t.v; }, 0),
+           great: c.card.great, growing: c.card.growing,
+           trick: { emoji: c.signature.emoji, name: c.signature.name } };
+}
+
+var Cast = { CAST: CAST, KINDS: KINDS, TALENTS: TALENTS, TALENT_MAX: TALENT_MAX, get: get, ids: ids, line: line, card: card, readMs: readMs, syllables: syllables };
 if (typeof module !== "undefined" && module.exports) module.exports = Cast;
 else root.Cast = Cast;
 })(typeof self !== "undefined" ? self : this);
