@@ -1049,7 +1049,16 @@
   .jrLeft span i{font-style:normal} .jrLeft span small{margin-left:auto; color:var(--soft)}
   .jrLeft span em{position:absolute; left:0; bottom:0; height:3px; width:var(--f); background:#ffd166}
   .jrLeft span.full{border-color:#ffd166}
-  .chCard{max-width:420px; text-align:center; overflow:hidden}
+  /* a chapter card can be longer than a phone is tall: it scrolls like
+     every other card, and Play and Back stay pinned at the bottom */
+  .chCard{max-width:420px; text-align:center; position:relative; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding-bottom:0}
+  .chFoot{position:sticky; bottom:0; z-index:2; margin:0 -22px; padding:12px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+    background:linear-gradient(180deg, rgba(0,0,0,0), var(--card) 26%); display:flex; flex-direction:column; align-items:stretch}
+  .chFoot .chPlay{margin:6px 0 4px; box-shadow:0 8px 22px rgba(0,0,0,.45)}
+  .chFoot .ghostbtn{align-self:center}
+  .chX{position:absolute; top:10px; right:10px; z-index:3; width:36px; height:36px; border-radius:50%; font-size:16px; font-weight:800;
+    background:rgba(0,0,0,.35); border:1px solid var(--line); color:var(--ink)}
+  @media (max-height:760px){ .chPic{width:108px; height:108px} .chCard h2{font-size:1.45em} .chStory{margin:6px 4px 10px; font-size:.9em} }
   .chPic{width:150px; height:150px; margin:4px auto 6px; border-radius:50%; overflow:hidden; display:grid; place-items:center;
     background:radial-gradient(circle at 40% 30%, #fff, #ffe9b8 55%, #ffc35a); box-shadow:0 0 0 5px #fff, 0 0 30px rgba(255,209,102,.5), 0 10px 20px rgba(0,0,0,.4);
     animation:ulItemIn .7s cubic-bezier(.2,1.6,.4,1)}
@@ -1075,6 +1084,15 @@
   .tcStat{display:grid; grid-template-columns:24px 1fr; grid-template-rows:auto auto; column-gap:6px; align-items:center}
   .tcStat em{grid-row:1 / 3; font-style:normal; font-size:1.2em; text-align:center; filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
   .tcStat b{font-size:.64em; letter-spacing:.14em; text-transform:uppercase; color:var(--soft); font-weight:800}
+  /* tap a talent to hear what it means */
+  .tcStat{cursor:pointer; border-radius:10px; padding:3px 4px; margin:-3px -4px; -webkit-tap-highlight-color:transparent; transition:background .15s}
+  .tcStat:active, .tcStat.sel{background:rgba(255,255,255,.07)}
+  .tcStat:focus-visible{outline:2px solid var(--amber); outline-offset:1px}
+  .tcInfo{grid-column:1 / -1; display:flex; gap:8px; align-items:flex-start; padding:7px 10px; border-radius:12px; font-size:.86em; line-height:1.3; font-weight:600;
+    background:rgba(0,0,0,.28); border:1px solid var(--line); border-left:3px solid var(--sc, var(--amber)); animation:tcInfo .28s cubic-bezier(.2,1.3,.4,1)}
+  .tcInfo em{font-style:normal; font-size:1.2em}
+  .tcInfo b{color:var(--sc, var(--amber))}
+  @keyframes tcInfo{from{opacity:0; transform:translateY(-6px) scale(.97)} to{opacity:1; transform:none}}
   .tcStat:nth-child(1){--sc:#ff7a59} .tcStat:nth-child(2){--sc:#4fb6ff} .tcStat:nth-child(3){--sc:#c38bff} .tcStat:nth-child(4){--sc:#ffd04d}
   .tcPips{display:flex; gap:3px}
   .tcPips i{flex:1; height:10px; border-radius:4px; background:rgba(255,255,255,.1); box-shadow:inset 0 1px 2px rgba(0,0,0,.45)}
@@ -2624,6 +2642,7 @@
 </div>
 <div class="ov hide" id="ovChapter" role="dialog" aria-labelledby="chTitle">
   <div class="card chCard">
+    <button class="chX" id="chX" aria-label="Close: back to the map">✕</button>
     <div class="chPic" id="chPic"></div>
     <div class="chKick" id="chKick">Chapter 1</div>
     <h2 id="chTitle">The Gate</h2>
@@ -2631,8 +2650,11 @@
     <p class="chStory" id="chStory"></p>
     <div class="chPersona" id="chPersona"></div>
     <div class="chStars" id="chStars"></div>
-    <button class="bigbtn primaryBtn chPlay" id="chPlay">▶ Play</button>
-    <button class="ghostbtn" id="chBack">Back to the map</button>
+    <!-- always in reach, however long the card: it scrolls, these stay -->
+    <div class="chFoot">
+      <button class="bigbtn primaryBtn chPlay" id="chPlay">▶ Play</button>
+      <button class="ghostbtn" id="chBack">Back to the map</button>
+    </div>
   </div>
 </div>
 <div class="ov hide" id="ovCredits" role="dialog" aria-labelledby="crTitle">

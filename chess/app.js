@@ -7383,7 +7383,7 @@ function talentHTML(id, o) {
   /* the total, top right: every pip the coach has, counted up as they light */
   h += '<span class="tcTotal" aria-label="' + c.total + ' talent stars"><em aria-hidden="true">✨</em><b aria-hidden="true">' + c.total + "</b></span>";
   if (o.style) h += '<div class="tcStyle"><b>Style</b><span>' + escHtml(c.style) + "</span><small>" + escHtml(who.style.desc) + "</small></div>";
-  h += '<div class="tcStats">' + c.talents.map(function (t) {
+  h += '<div class="tcStats" data-id="' + id + '">' + c.talents.map(function (t) {
     var pips = "", max = t.v >= Cast.TALENT_MAX;
     for (var k = 0; k < Cast.TALENT_MAX; k++) {
       if (k < t.v) { pips += '<i class="on" data-o="' + order + '" style="--d:calc(var(--t0, 0ms) + ' + order * TC_STEP + 'ms)"></i>'; order++; }
@@ -7391,7 +7391,7 @@ function talentHTML(id, o) {
     }
     /* a talent at its very top gets a glint and a star when its last pip lands */
     var md = 'style="--md:calc(var(--t0, 0ms) + ' + ((order - 1) * TC_STEP + 260) + 'ms)"';
-    return '<span class="tcStat' + (max ? " max" : "") + '" ' + (max ? md + " " : "") + 'title="' + escHtml(t.label + ": " + t.what) + '" aria-label="' + t.label + " " + t.v + " out of " + Cast.TALENT_MAX + '"><em aria-hidden="true">' + t.emoji +
+    return '<span class="tcStat' + (max ? " max" : "") + '" ' + (max ? md + " " : "") + 'role="button" tabindex="0" data-k="' + t.key + '" title="' + escHtml(t.label + ": " + t.what) + '" aria-label="' + t.label + " " + t.v + " out of " + Cast.TALENT_MAX + '"><em aria-hidden="true">' + t.emoji +
       "</em><b>" + t.label + (max ? '<small class="tcMaxTag" aria-hidden="true">★MAX</small>' : "") + '</b><span class="tcPips" aria-hidden="true">' + pips + "</span></span>";
   }).join("") + "</div>";
   if (!o.mini) h += '<div class="tcLine great"><em aria-hidden="true">🌟</em><span><b>Great at</b>' + escHtml(c.great) + "</span></div>";
@@ -7399,6 +7399,32 @@ function talentHTML(id, o) {
   if (o.trick) h += '<div class="tcLine trick"><em aria-hidden="true">' + c.trick.emoji + "</em><span><b>Favourite trick</b>" + escHtml(c.trick.name) +
     (o.trick === "tip" && Cast.line(id, "tip", 0) ? "<small>“" + escHtml(Cast.line(id, "tip", 0)) + "”</small>" : "") + "</span></div>";
   return h + "</div>";
+}
+/* a talent, explained: tap it and a line opens under the talents saying
+   what it means and how much of it this coach has, kindly. Tap it again
+   (or another) to change or close it */
+var TC_HOW = ["", "just getting started", "learning it", "good at it", "really good at it", "the very best at it"];
+function talentInfo(stat) {
+  var grid = stat && stat.closest(".tcStats"), id = grid && grid.dataset.id;
+  var c = id && Cast.card ? Cast.card(id) : null;
+  if (!c) return false;
+  var t = c.talents.filter(function (x) { return x.key === stat.dataset.k; })[0];
+  var old = grid.querySelector(".tcInfo"), same = old && old.dataset.k === t.key;
+  if (old) old.remove();
+  Array.prototype.forEach.call(grid.querySelectorAll(".tcStat.sel"), function (x) { x.classList.remove("sel"); x.setAttribute("aria-expanded", "false"); });
+  hap("tick");
+  if (same) return true;
+  var box = document.createElement("div");
+  box.className = "tcInfo";
+  box.dataset.k = t.key;
+  box.setAttribute("role", "status");
+  box.style.setProperty("--sc", getComputedStyle(stat).getPropertyValue("--sc"));
+  box.innerHTML = '<em aria-hidden="true">' + t.emoji + "</em><span><b>" + t.label + "</b> means it " + escHtml(t.what) + ". " +
+    escHtml(c.name) + " is " + TC_HOW[Math.max(1, Math.min(5, t.v))] + " (" + t.v + " of " + Cast.TALENT_MAX + ").</span>";
+  grid.appendChild(box);
+  stat.classList.add("sel");
+  stat.setAttribute("aria-expanded", "true");
+  return true;
 }
 /* the reveal. `t0` is when the first pip lands (ms from now): the card
    rises just before it, the pips light one after another with a tick
@@ -7527,7 +7553,16 @@ function talentWire() {
     if (tcPopOn && !e.target.closest("#tcPop") && !e.target.closest(".ptag.tcTap")) tcPopHide();
   }, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && tcPopOn) tcPopHide(); }, true);
-  $("tcPop").addEventListener("click", tcPopHide);
+  /* a tap on a talent explains it; a tap anywhere else on the card puts it away */
+  $("tcPop").addEventListener("click", function (e) { if (!e.target.closest(".tcStat, .tcInfo")) tcPopHide(); });
+  document.addEventListener("click", function (e) {
+    var st = e.target.closest && e.target.closest(".tcStat");
+    if (st) { e.stopPropagation(); talentInfo(st); }
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    var st = e.target.closest && e.target.closest(".tcStat");
+    if (st && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); talentInfo(st); }
+  });
 }
 /* the coach's tag says it can be tapped */
 function talentTagSync() {
@@ -8706,8 +8741,9 @@ function jrnAtEnd(result, rs) {
              { cls: "chapter unlock", sting: "levelup", hap: "success", big: !next });
     $("endCupTx").textContent = opened ? "🔓 Meet " + jrnName(opened.id) + ": chapter " + opened.n
                               : next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
-    $("endCupSub").textContent = "See it on the map ▶";
-    btn.onclick = function () { $("ovEnd").classList.add("hide"); openJourney(); };
+    /* straight to the next chapter's card, Play and all (Back is the map) */
+    $("endCupSub").textContent = next ? "Their chapter card, and Play ▶" : "See it on the map ▶";
+    btn.onclick = function () { $("ovEnd").classList.add("hide"); if (next) openChapter(next.id); else openJourney(); };
     btn.classList.remove("hide");
   }
 }
@@ -8759,6 +8795,7 @@ function jrnWire() {
   $("mJourney").addEventListener("click", openJourney);
   $("jrClose").addEventListener("click", function () { $("ovJourney").classList.add("hide"); showMenu(); });
   $("chBack").addEventListener("click", function () { $("ovChapter").classList.add("hide"); openJourney(); });
+  $("chX").addEventListener("click", function () { $("ovChapter").classList.add("hide"); openJourney(); });
   $("crDone").addEventListener("click", function () { clearInterval(jrnFwT); $("ovCredits").classList.add("hide"); openJourney(); });
   jrnLobby();
 }

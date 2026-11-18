@@ -156,7 +156,13 @@ const server = http.createServer((req, res) => {
     const cleared = await endCup();
     const mile = await until(() => [...document.querySelectorAll("#endMiles .erMile.chapter")].map((e) => e.textContent).join("") || null, 8000);
     ok("a win clears it, and the card says so", /Chapter 1 cleared/.test(mile || "") && /chapter 2/i.test(cleared || ""), (mile || "") + " | " + cleared);
+    /* the end card's button goes straight to the next chapter's card (Play
+       one tap away); its Back is the map. It used to open the map, and the
+       chapter card was one more tap */
     await page.evaluate(() => document.getElementById("endCup").click()); await page.waitForTimeout(700);
+    const nextCard = await page.evaluate(() => ({ open: !document.getElementById("ovChapter").classList.contains("hide"), kick: document.getElementById("chKick").textContent, play: !!document.getElementById("chPlay").offsetParent }));
+    ok("…and its button opens the next chapter's card, Play and all", nextCard.open && /2/.test(nextCard.kick) && nextCard.play, JSON.stringify(nextCard));
+    await page.evaluate(() => document.getElementById("chBack").click()); await page.waitForTimeout(700);
     nodes = await page.evaluate(() => [...document.querySelectorAll("#jrMap .jrNode")].map((n) => n.className));
     ok("…and on the map it is stamped, and the next chapter opens", /done/.test(nodes[0]) && /stamp/.test(nodes[0]) && /here/.test(nodes[1]) && /locked/.test(nodes[2]), nodes.slice(0, 3).join(" / "));
 

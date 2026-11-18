@@ -229,6 +229,36 @@ const server = http.createServer((req, res) => {
     ok("…and only those", await page.evaluate(() => document.querySelectorAll("#chPersona .tcMaxTag").length) === maxed.length);
     await page.evaluate(() => { document.getElementById("ovChapter").classList.add("hide"); });
 
+    /* a long chapter card on a short phone: it scrolls, Play is always in reach */
+    await page.setViewportSize({ width: 375, height: 600 });
+    await page.evaluate(() => __cr.openChapter("mentor"));
+    await page.waitForTimeout(700);
+    const fit = await page.evaluate(() => {
+      const card = document.querySelector("#ovChapter .chCard"), p = document.getElementById("chPlay").getBoundingClientRect();
+      const at = document.elementFromPoint(p.left + p.width / 2, p.top + p.height / 2);
+      return { scrolls: card.scrollHeight > card.clientHeight && getComputedStyle(card).overflowY !== "hidden", inView: p.top >= 0 && p.bottom <= innerHeight, hit: at && at.closest("#chPlay") ? "chPlay" : (at && (at.id || at.className)) };
+    });
+    ok("a chapter card taller than the phone scrolls, and ▶ Play is on screen and tappable", fit.scrolls && fit.inView && fit.hit === "chPlay", JSON.stringify(fit));
+    const fitEnd = await page.evaluate(() => {
+      const card = document.querySelector("#ovChapter .chCard"); card.scrollTop = card.scrollHeight;
+      const p = document.getElementById("chPlay").getBoundingClientRect(), b = document.getElementById("chBack").getBoundingClientRect();
+      return { play: p.top >= 0 && p.bottom <= innerHeight, back: b.top >= 0 && b.bottom <= innerHeight };
+    });
+    ok("…and still is at the bottom of the card, with Back", fitEnd.play && fitEnd.back, JSON.stringify(fitEnd));
+    /* tap a talent: what it means, kindly */
+    await page.evaluate(() => { const c = document.querySelector("#ovChapter .chCard"); c.scrollTop = 0; document.querySelector('#chPersona .tcStat[data-k="wise"]').scrollIntoView({ block: "center" }); });
+    const wb = await page.evaluate(() => { const r = document.querySelector('#chPersona .tcStat[data-k="wise"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.touchscreen.tap(wb.x, wb.y);
+    const info = await until(() => { const i = document.querySelector("#chPersona .tcInfo"); return i ? i.textContent : null; }, 1000);
+    ok("tapping a talent says what it means and how much the coach has", !!info && /Wise/.test(info) && /knows how games end/.test(info) && /5 of 5/.test(info) && /very best/.test(info), info);
+    await page.touchscreen.tap(wb.x, wb.y);
+    ok("…and tapping it again closes it", !!(await until(() => !document.querySelector("#chPersona .tcInfo"), 800)));
+    await page.evaluate(() => document.getElementById("chX").click());
+    await page.waitForTimeout(400);
+    ok("the ✕ closes the chapter card, back to the map", await page.evaluate(() => document.getElementById("ovChapter").classList.contains("hide") && !document.getElementById("ovJourney").classList.contains("hide")));
+    await page.evaluate(() => document.getElementById("ovJourney").classList.add("hide"));
+    await page.setViewportSize({ width: 390, height: 844 });
+
     /* the hello and the card, coming and going */
     await page.waitForTimeout(500);
     await start({ humanSide: 1, skill: "acorn" });
@@ -245,6 +275,10 @@ const server = http.createServer((req, res) => {
     const early = await page.evaluate(() => +document.querySelector("#tcPop .tcard").dataset.count);
     ok("…and flips up before the talents start to light", early === 0, String(early));
     await page.waitForTimeout(400);
+    /* in the middle of a game too: a talent explains itself, and the card stays */
+    await page.evaluate(() => document.querySelector('#tcPop .tcStat[data-k="bold"]').click());
+    const popInfo = await page.evaluate(() => ({ t: (document.querySelector("#tcPop .tcInfo") || {}).textContent || "", open: __cr.talentState().pop }));
+    ok("tapping a talent on the coach's card explains it, and the card stays open", popInfo.open && /Bold/.test(popInfo.t) && /Acorn/.test(popInfo.t), JSON.stringify(popInfo));
     await page.evaluate(() => __cr.tcPopHide());
     const leaving = await page.evaluate(() => ({ out: document.getElementById("tcPop").classList.contains("out"), hid: document.getElementById("tcPop").classList.contains("hide") }));
     await page.waitForTimeout(350);

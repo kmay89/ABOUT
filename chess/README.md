@@ -1955,7 +1955,13 @@ the words kind: no fighting talk, no failing.
 - Tap the coach's name (the ⓘ) at any time for its whole card: style,
   talents, great at, still growing and favourite trick, plus your record
   together. A tap anywhere, or Escape, puts it away.
-- The chapter card on the journey map is the full talent card.
+- The chapter card on the journey map is the full talent card. It scrolls
+  when it is taller than the phone, with ▶ Play and Back pinned at the
+  bottom and a ✕ at the top. After a chapter is cleared, the end card's
+  "Meet …" button opens the next chapter's card directly.
+- Tap any talent, on any card, for a line on what it means and how much
+  of it the coach has ("Bold means it goes forward and attacks. Sprout
+  is just getting started (1 of 5).").
 
 **The reveal.** A card counts up the way a game's character screen
 does. The card rises in, then every pip lights one after another, row by
