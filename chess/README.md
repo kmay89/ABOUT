@@ -1923,6 +1923,40 @@ beat one coach and the next has heard ("Acorn says you're really good!
 Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
 your record against each.
 
+## Fighter cards: every coach's strengths and weak spot
+
+Every coach has a card, the way a fighter in a game does, so you know
+who you are playing and how to have fun beating them.
+
+**Four chunky bars.** Attack ⚔️, Defence 🛡️, Tricks 🎩 and Endgame 👑,
+each out of five, light up one pip at a time. They rise along the
+ladder, from Acorn (six pips in all) to Oak (seventeen), and each coach
+has its own shape: Cactus hits hardest, Fern and Bamboo dig in, Clover
+is mostly tricks, Pine counts and Oak is the endgame master. No two
+coaches have the same shape.
+
+**A strength and a weak spot.** 💪 says what the coach is good at
+("Checks and captures, nonstop. Very, very prickly!"). 🎯 says how to
+have fun beating it, never what to worry about ("Charges forward and
+leaves its own king alone. Sneak around the back!"). Like everything a
+coach says, neither is about the board in front of you, and the check
+keeps scary words out of a weak spot.
+
+**Where you see it.**
+- Meeting a coach for the first time, its card comes with the
+  introduction: bars filling in, and its weak spot.
+- A game against a coach you already know opens with a quick
+  **YOU VS** banner and its weak spot. It sits over the board without
+  taking a touch, any touch sends it off, it lasts as long as your pace
+  likes words to stay up (shorter for a quick player), and a rematch
+  skips it.
+- Tap the coach's name (the ⓘ) at any time for its whole card: style,
+  bars, strength, weak spot and special move, plus your record against
+  it. A tap anywhere, or Escape, puts it away.
+- The chapter card on the journey map is the full fighter card.
+
+`node chess/tools/fighters-check.js` checks the cards and the room.
+
 ## Earned, not chosen: coaches and places
 
 Nothing on the road can be skipped. The room opens one coach at a time.

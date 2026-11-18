@@ -30,6 +30,9 @@ var CAST = {
     style: {"name": "Knight lover", "desc": "Can't resist a knight move, and loves to hop into the middle.", "w": {"knight": 4, "centre": 1.4}},
     quirk: "bounce",
     signature: {"id": "knighthop", "name": "The Knight Hop", "emoji": "🐴", "concepts": ["fork"], "piece": 2, "capture": true},
+    card: {"stats": {"attack": 2, "defence": 1, "tricks": 2, "endgame": 1},
+           "strong": "Big, bouncy knight jumps that pop up out of nowhere.",
+           "weak": "Forgets about its other pieces. Spot one left all alone and scoop it up!"},
     lines: {
       hello: ["Oh! Hello! I'm Acorn. I only just learned how the horsey one moves.",
               "Hi, I'm Acorn! I'm small, but I'm going to try really hard."],
@@ -67,6 +70,9 @@ var CAST = {
     style: {"name": "Pawn pusher", "desc": "Marches its pawns forward, one brave step at a time.", "w": {"pawnPush": 2.6, "advance": 1.3}},
     quirk: "wave",
     signature: {"id": "loose", "name": "The Free Snack", "emoji": "🍃", "free": true},
+    card: {"stats": {"attack": 1, "defence": 2, "tricks": 1, "endgame": 2},
+           "strong": "A brave little wall of pawns, marching your way.",
+           "weak": "So busy marching that pieces get left unguarded. Free snacks for you!"},
     lines: {
       hello: ["Hi there! I'm Sprout. We're both still growing, so let's learn something together!",
               "Hello! Sprout here. I take what you leave lying about, so watch your pieces!"],
@@ -104,6 +110,9 @@ var CAST = {
     style: {"name": "Lucky", "desc": "Plays whatever feels lucky. You never know what's coming.", "w": {"flat": true, "knight": 1.3}},
     quirk: "spin",
     signature: {"id": "fork", "name": "The Lucky Fork", "emoji": "🍀", "concepts": ["fork"]},
+    card: {"stats": {"attack": 2, "defence": 2, "tricks": 3, "endgame": 1},
+           "strong": "Total surprise! Even Clover doesn't know what's next.",
+           "weak": "Luck runs out in a long game. Stay calm and keep your pieces safe."},
     lines: {
       hello: ["Hiya! I'm Clover. I know a few tricks, and I've got luck on my side!",
               "Hello, hello! Clover's the name. Four leaves, zero fear."],
@@ -141,6 +150,9 @@ var CAST = {
     style: {"name": "Careful", "desc": "Castles early, defends everything, and waits for you to slip.", "w": {"castle": 4, "retreat": 1.6, "capture": 0.8}},
     quirk: "sway",
     signature: {"id": "castle", "name": "Safe and Sound", "emoji": "🛡️", "castle": true},
+    card: {"stats": {"attack": 2, "defence": 4, "tricks": 2, "endgame": 2},
+           "strong": "Castles early and guards everything, nice and tidy.",
+           "weak": "So busy guarding that it forgets to attack. You get time to make a plan!"},
     lines: {
       hello: ["Oh — hello. I'm Fern. I don't give much away, but I do notice things.",
               "Hello. Fern. I'll try to give you a fair game."],
@@ -178,6 +190,9 @@ var CAST = {
     style: {"name": "Patient", "desc": "Quiet, solid moves. Bishops on long diagonals, pins that hold you still.", "w": {"bishop": 2.2, "castle": 2.5, "capture": 0.85, "advance": 0.9}},
     quirk: "bow",
     signature: {"id": "pin", "name": "The Still Pin", "emoji": "📌", "concepts": ["pin"]},
+    card: {"stats": {"attack": 2, "defence": 4, "tricks": 3, "endgame": 3},
+           "strong": "Long bishops and sneaky pins that hold you still.",
+           "weak": "Slow to get going. Grab the middle early and keep your pieces busy!"},
     lines: {
       hello: ["Greetings. I am Bamboo. I bend with the wind, and I do not break. Let us train.",
               "I am Bamboo. Strong roots, flexible stem. Show me your form."],
@@ -215,6 +230,9 @@ var CAST = {
     style: {"name": "Aggressive", "desc": "Checks, captures, and charges forward. Never backs down.", "w": {"check": 3, "capture": 2, "advance": 1.4, "retreat": 0.6}},
     quirk: "tap",
     signature: {"id": "skewer", "name": "The Sting", "emoji": "🌵", "concepts": ["skewer"], "check": true},
+    card: {"stats": {"attack": 5, "defence": 2, "tricks": 3, "endgame": 2},
+           "strong": "Checks and captures, nonstop. Very, very prickly!",
+           "weak": "Charges forward and leaves its own king alone. Sneak around the back!"},
     lines: {
       hello: ["Well, well. Name's Cactus. Folks who get careless round me get pricked. Sit down.",
               "Cactus. I've seen a lot of players come through this desert. Let's see you."],
@@ -252,6 +270,9 @@ var CAST = {
     style: {"name": "Calculating", "desc": "Precise. Trades when ahead, and counts every escape square.", "w": {"capture": 1.5, "centre": 1.4, "rook": 1.4}},
     quirk: "tick",
     signature: {"id": "backrank", "name": "The Back Rank", "emoji": "🧱", "concepts": ["backRank", "mateThreat"]},
+    card: {"stats": {"attack": 3, "defence": 4, "tricks": 4, "endgame": 4},
+           "strong": "Counts every move and trades when it's ahead.",
+           "weak": "Likes a tidy board. Keep lots of pieces in play and it gets flustered!"},
     lines: {
       hello: ["Good evening. I am Pine. I calculate, and I rarely let an advantage go. Bring a plan.",
               "Pine. Precise, patient, evergreen. Shall we begin?"],
@@ -289,6 +310,9 @@ var CAST = {
     style: {"name": "Classical", "desc": "Centre, castling, and patient endgames. Every move a lesson.", "w": {"centre": 1.6, "castle": 2.5, "promo": 3}},
     quirk: "nod",
     signature: {"id": "promote", "name": "The Quiet Promotion", "emoji": "👑", "promo": true},
+    card: {"stats": {"attack": 3, "defence": 5, "tricks": 4, "endgame": 5},
+           "strong": "Wise in the endgame. Every pawn could be a queen.",
+           "weak": "So kind it teaches as it plays. Watch closely and borrow its ideas!"},
     lines: {
       hello: ["Ah, welcome, welcome. I'm Oak. I've stood here a long while. Play your best, and keep the notebook open.",
               "Hello, friend. Oak. I've watched a great many games from this spot. Let's make this a good one."],
@@ -341,7 +365,29 @@ function syllables(text) {
   return Math.max(1, Math.min(14, m ? m.length : 1));
 }
 
-var Cast = { CAST: CAST, KINDS: KINDS, get: get, ids: ids, line: line, readMs: readMs, syllables: syllables };
+/* the fighter card: how each coach plays, as a game would show it. Four
+   bars out of five (they rise along the ladder, and each coach has its
+   own shape: Cactus all attack, Fern all defence), a strength, and a
+   weak spot written as a way to have fun beating it, never as a worry.
+   General, like every line here: nothing about the board in front of you. */
+var STATS = [
+  { key: "attack",  label: "Attack",  emoji: "\u2694\ufe0f" },
+  { key: "defence", label: "Defence", emoji: "\ud83d\udee1\ufe0f" },
+  { key: "tricks",  label: "Tricks",  emoji: "\ud83c\udfa9" },
+  { key: "endgame", label: "Endgame", emoji: "\ud83d\udc51" }
+];
+var STAT_MAX = 5;
+function card(id) {
+  var c = CAST[id];
+  if (!c || !c.card) return null;
+  var stats = STATS.map(function (s) { return { key: s.key, label: s.label, emoji: s.emoji, v: c.card.stats[s.key] | 0 }; });
+  return { id: id, name: c.name, style: c.style.name, stats: stats,
+           power: stats.reduce(function (a, s) { return a + s.v; }, 0),
+           strong: c.card.strong, weak: c.card.weak,
+           special: { emoji: c.signature.emoji, name: c.signature.name } };
+}
+
+var Cast = { CAST: CAST, KINDS: KINDS, STATS: STATS, STAT_MAX: STAT_MAX, get: get, ids: ids, line: line, card: card, readMs: readMs, syllables: syllables };
 if (typeof module !== "undefined" && module.exports) module.exports = Cast;
 else root.Cast = Cast;
 })(typeof self !== "undefined" ? self : this);

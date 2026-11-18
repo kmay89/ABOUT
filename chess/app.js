@@ -763,6 +763,7 @@ function syncTagState() {
   unlEmoteSync();              /* and you can send the coach a face, if you have won some */
   $("nameTop").innerHTML = tagHTML(topSide);
   $("nameBot").innerHTML = tagHTML(botSide);
+  fighterTagSync();            /* and the coach's name opens its card */
   var live = G && !over && viewPly < 0 && mode && mode !== "tour" && mode !== "setup";
   $("nameTop").parentNode.classList.toggle("toMove", !!live && G.turn === topSide);
   $("nameBot").parentNode.classList.toggle("toMove", !!live && G.turn === botSide);
@@ -6538,7 +6539,7 @@ function wireInput() {
     /* anything you can press that happens to sit on the stage — a lesson's
        buttons, the clock, a question — is not the board. Capturing the
        pointer for those used to swallow every mouse click on them. */
-    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, #inkPill, button, a")) return;
+    if (e.target.closest(".clock, #toast, #lessonBar, #netChip, #resultChip, #inkPill, .ptag.fcTap, #fcPop, button, a")) return;
     /* a remark lying over the board goes as soon as the board is
        touched; the notebook has kept it */
     if (!$("toast").classList.contains("acts") || $("toast").classList.contains("lamp")) hideToast();
@@ -6820,6 +6821,7 @@ function wireUI() {
   clkWire();
   aqWire();
   castWire();
+  fighterWire();
   homeWire();
   moWire();
   jrnWire();
@@ -7288,7 +7290,9 @@ function castStart() {
   castRematch = false;
   if (!who) return;
   if (castFace) { castFace.mood("happy", 1300); castFace.wake(2400); castFace.lookAt(0, -0.2); }
+  fcPopHide();
   if (!prefs.met[skill]) { castMeet(); return; }
+  if (!was) vsShow(); else if (vsOn) vsDone();
   var t = gameTicket, gr = persGreeting(was);
   setTimeout(function () {
     if (t !== gameTicket || castWho() !== who || over) return;
@@ -7312,6 +7316,9 @@ function castMeet() {
   var tip = Cast.line(skill, "tip", 0);
   $("meetTip").textContent = tip ? "\u201c" + tip + "\u201d" : "";
   $("meetTip").classList.toggle("hide", !tip);
+  /* and its card: the bars fill in, and its weak spot, said kindly */
+  $("meetCard").innerHTML = fighterHTML(skill, { mini: true });
+  $("castMeet").classList.toggle("hasCard", !!$("meetCard").innerHTML);
   homeSync();
   homeMeetLine();
   var text = Cast.line(skill, "hello", 0), box = $("meetSay"), card = $("castMeet");
@@ -7322,7 +7329,8 @@ function castMeet() {
   castMeetOn = true;
   prefs.met[skill] = 1; savePrefs();
   clearTimeout(castMeetT);
-  castMeetT = setTimeout(castMeetDone, Cast.readMs(text) + 1600);
+  castMeetT = setTimeout(castMeetDone, Cast.readMs(text) + 1600 + Math.round(2400 * paceDial().words));
+  fighterGo($("meetCard"));
   if (!castMeetFace && typeof Avatar !== "undefined") { try { castMeetFace = Avatar.create($("meetFace")); } catch (e) { castMeetFace = null; } }
   if (castMeetFace) { castMeetFace.resize(); castMeetFace.set(skill); castMeetFace.lookAt(0, 0); castMeetFace.mood("happy", 1500); castMeetFace.wake(4000); }
   var syl = Cast.syllables(text);
@@ -7344,6 +7352,119 @@ function castMeetDone() {
   card.classList.add("leave");
   setTimeout(function () { if (!castMeetOn) { card.classList.add("hide"); card.classList.remove("leave"); if (castMeetFace) castMeetFace.sleep(); } }, 560);
   if (castFace) { castFace.mood("happy", 900); castFace.lookAt(0, -0.6); }
+}
+/* ===== fighter cards =====
+   Every coach has a card the way a fighter in a game does: four chunky
+   bars (attack, defence, tricks, endgame), what it is good at, and its
+   weak spot, said as a way to have fun beating it rather than a thing
+   to worry about. It comes with the first meeting, fills the chapter
+   card, flashes up as a friendly "versus" banner when a game with a
+   coach you know begins, and opens any time you tap the coach's name.
+   None of it waits on you or stands in the way of a move. */
+function fighterHTML(id, o) {
+  o = o || {};
+  var c = typeof Cast !== "undefined" && Cast.card ? Cast.card(id) : null;
+  if (!c) return "";
+  var who = Cast.get(id), h = '<div class="fcard' + (o.mini ? " mini" : "") + '" style="--fc:' + who.look.col + '">';
+  if (o.style) h += '<div class="fcStyle"><b>Style</b><span>' + escHtml(c.style) + "</span><small>" + escHtml(who.style.desc) + "</small></div>";
+  h += '<div class="fcStats">' + c.stats.map(function (s, i) {
+    var pips = "";
+    for (var k = 0; k < Cast.STAT_MAX; k++) pips += '<i class="' + (k < s.v ? "on" : "") + '" style="--d:' + (i * 90 + k * 70) + 'ms"></i>';
+    return '<span class="fcStat" aria-label="' + s.label + " " + s.v + " out of " + Cast.STAT_MAX + '"><em aria-hidden="true">' + s.emoji +
+      "</em><b>" + s.label + '</b><span class="fcPips" aria-hidden="true">' + pips + "</span></span>";
+  }).join("") + "</div>";
+  if (!o.mini) h += '<div class="fcLine strong"><em aria-hidden="true">\ud83d\udcaa</em><span><b>Strong at</b>' + escHtml(c.strong) + "</span></div>";
+  h += '<div class="fcLine weak"><em aria-hidden="true">\ud83c\udfaf</em><span><b>Weak spot</b>' + escHtml(c.weak) + "</span></div>";
+  if (o.special) h += '<div class="fcLine special"><em aria-hidden="true">' + c.special.emoji + "</em><span><b>Special move</b>" + escHtml(c.special.name) +
+    (o.special === "tip" && Cast.line(id, "tip", 0) ? "<small>\u201c" + escHtml(Cast.line(id, "tip", 0)) + "\u201d</small>" : "") + "</span></div>";
+  return h + "</div>";
+}
+/* the bars fill one pip at a time, the way a stat screen does */
+function fighterGo(el) {
+  var f = el && el.querySelector(".fcard");
+  if (!f) return;
+  f.classList.remove("go");
+  void f.offsetWidth;
+  f.classList.add("go");
+}
+/* the versus banner: a coach you have met before, a new game. A beat of
+   fun, never a wall: it sits over the middle of the board without taking
+   a touch, any touch sends it off, and it lasts as long as your pace
+   likes words to stay up */
+var vsT = 0, vsOn = false;
+function vsShow() {
+  var who = castWho(), c = who && Cast.card ? Cast.card(skill) : null, ban = $("vsBan");
+  if (!c || !ban) return false;
+  var lv = castLevel();
+  $("vsYou").textContent = sideName(humanSide);
+  $("vsThem").innerHTML = (lv ? lv.emoji + " " : "") + escHtml(who.name) + "<small>" + escHtml(c.style) + "</small>";
+  $("vsWeak").innerHTML = '<em aria-hidden="true">\ud83c\udfaf</em> <b>Weak spot:</b> ' + escHtml(c.weak);
+  ban.classList.remove("leave");
+  ban.classList.remove("hide");
+  void ban.offsetWidth;
+  ban.classList.add("on");
+  vsOn = true;
+  clearTimeout(vsT);
+  vsT = setTimeout(vsDone, Math.round(2800 * paceDial().words));
+  return true;
+}
+function vsDone() {
+  if (!vsOn) return;
+  vsOn = false;
+  clearTimeout(vsT);
+  var ban = $("vsBan");
+  ban.classList.add("leave");
+  setTimeout(function () { if (!vsOn) { ban.classList.add("hide"); ban.classList.remove("on"); ban.classList.remove("leave"); } }, 420);
+}
+/* the coach's own card, any time: tap its name */
+var fcPopOn = false;
+function fcPopShow() {
+  var who = castWho();
+  if (!who) return false;
+  var lv = castLevel(), rec = persRecord(skill);
+  $("fcPopName").textContent = (lv ? lv.emoji + " " : "") + who.name;
+  $("fcPopSub").textContent = who.title.charAt(0).toUpperCase() + who.title.slice(1) + " \u00b7 " + SKILLS[skill].elo +
+    (rec.n ? " \u00b7 you " + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") : "");
+  $("fcPopBody").innerHTML = fighterHTML(skill, { style: true, special: true });
+  var pop = $("fcPop");
+  pop.classList.toggle("below", -humanSide !== -orientation);
+  pop.classList.remove("hide");
+  fcPopOn = true;
+  fighterGo($("fcPopBody"));
+  snd("open");
+  return true;
+}
+function fcPopHide() { if (!fcPopOn) return; fcPopOn = false; $("fcPop").classList.add("hide"); }
+function fighterWire() {
+  ["nameTop", "nameBot"].forEach(function (nid) {
+    var tag = $(nid).parentNode;
+    tag.addEventListener("click", function (e) {
+      if (!tag.classList.contains("fcTap")) return;
+      e.stopPropagation();
+      if (fcPopOn) fcPopHide(); else fcPopShow();
+    });
+    tag.addEventListener("keydown", function (e) {
+      if (tag.classList.contains("fcTap") && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); if (fcPopOn) fcPopHide(); else fcPopShow(); }
+    });
+  });
+  /* any touch elsewhere puts it away (and still does what it was for) */
+  document.addEventListener("pointerdown", function (e) {
+    if (vsOn) vsDone();
+    if (fcPopOn && !e.target.closest("#fcPop") && !e.target.closest(".ptag.fcTap")) fcPopHide();
+  }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && fcPopOn) fcPopHide(); }, true);
+  $("fcPop").addEventListener("click", fcPopHide);
+}
+/* the coach's tag says it can be tapped */
+function fighterTagSync() {
+  var coachSide = castWho() ? -humanSide : 0, who = castWho();
+  [["nameTop", -orientation], ["nameBot", orientation]].forEach(function (p) {
+    var tag = $(p[0]).parentNode, on = !!coachSide && p[1] === coachSide;
+    tag.classList.toggle("fcTap", on);
+    if (on) { tag.setAttribute("role", "button"); tag.tabIndex = 0; tag.setAttribute("aria-label", "About " + who.name + ": open the card"); }
+    else { tag.removeAttribute("role"); tag.removeAttribute("tabindex"); tag.removeAttribute("aria-label"); }
+  });
+  if (!coachSide) { fcPopHide(); if (vsOn) vsDone(); }
 }
 /* after any move: look at it, and say something if there is something to say */
 function castAfterMove(m, st) {
@@ -8404,9 +8525,10 @@ function openChapter(id) {
   $("chWho").textContent = jrnName(id) + " · " + SKILLS[id].elo;
   $("chStory").textContent = done ? ch.outro : ch.intro;
   var who = typeof Cast !== "undefined" ? Cast.get(id) : null, rec = persRecord(id);
-  $("chPersona").innerHTML = who ? '<span><b>Style</b>' + escHtml(who.style.name) + "<small>" + escHtml(who.style.desc) + "</small></span>" +
-    '<span><b>Signature</b>' + escHtml(who.signature.emoji + " " + who.signature.name) + "<small>" + escHtml(Cast.line(id, "tip", 0) || "") + "</small></span>" +
-    (rec.n ? '<span><b>You vs ' + escHtml(who.name) + "</b>" + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") + "<small>" + rec.n + (rec.n > 1 ? " games" : " game") + "</small></span>" : "") : "";
+  /* the coach's fighter card: style, bars, strong at, weak spot, its trick */
+  $("chPersona").innerHTML = who ? fighterHTML(id, { style: true, special: "tip" }) +
+    (rec.n ? '<div class="fcRec"><b>You vs ' + escHtml(who.name) + "</b>" + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") + "<small>" + rec.n + (rec.n > 1 ? " games" : " game") + "</small></div>" : "") : "";
+  fighterGo($("chPersona"));
   var url = jrnPortrait(id, 200);
   $("chPic").innerHTML = url ? '<img alt="" src="' + url + '">' : "<em>" + SKILLS[id].emoji + "</em>";
   card.style.setProperty("--chBg", "url(" + "data:," + ")");
@@ -9224,7 +9346,14 @@ function castForTest() {
                bar: $("oppFaceWrap").parentNode && $("oppFaceWrap").parentNode.className };
     },
     castMaterial: castMaterial,
-    castMeetDone: castMeetDone
+    castMeetDone: castMeetDone,
+    fighterState: function () {
+      var tap = document.querySelector(".ptag.fcTap");
+      return { vs: vsOn, vsText: vsOn ? $("vsBan").textContent : "", pop: fcPopOn, popText: fcPopOn ? $("fcPop").textContent : "",
+               tap: tap ? (tap.querySelector("#nameTop") ? "top" : "bot") : null, meetCard: $("meetCard").textContent,
+               vsMs: Math.round(2800 * paceDial().words) };
+    },
+    fcPopShow: fcPopShow, fcPopHide: fcPopHide, vsDone: vsDone, rematchForTest: rematch
   };
 }
 
