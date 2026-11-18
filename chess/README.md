@@ -1980,6 +1980,43 @@ all simply there.
 
 `node chess/tools/talents-check.js` checks the cards and the room.
 
+## Tales: the story of chess, told by the grove
+
+Every coach has a tale from the real history of chess, and each tale
+suits its coach. Put in the order they happened, the eight tales make a
+timeline from India fifteen hundred years ago to the phone in your hand.
+
+| Coach | Tale | When |
+|---|---|---|
+| 🌰 Acorn | Where chess was born: chaturanga, the four-part army, and the knight's L, one of the oldest moves | India, about 1,500 years ago |
+| 🍀 Clover | The long road west: shatranj, and "shah mat", the root of checkmate | Persia, about 1,300 years ago |
+| 🌿 Fern | The hidden chessmen: the Lewis chessmen, rooks biting their shields | Scotland, found in 1831 |
+| 🎋 Bamboo | The elephant who became a bishop: the alfil that hopped two squares | Europe, about 550 years ago |
+| 🌵 Cactus | The queen gets her power: "mad queen" chess, and Lucena's printed book | Spain, around 1490 |
+| 🌱 Sprout | The soul of chess: Philidor and his pawns | France, 1749 |
+| 🌳 Oak | Champions and grandmasters: Steinitz in 1886, about two thousand grandmasters today | America, 1886 |
+| 🌲 Pine | The thinking machines: Turing on paper, Deep Blue, engines | From 1950 to today |
+
+**How you hear one.** A tale opens after your first game against its
+coach, whatever the result, so it is never a prize for winning. The end
+card offers it ("📜 New tale: …"). It is read like a picture book: the
+coach says hello in its own words and voice, three short pages turn
+(tap Next, or swipe), and a 💡 "Did you know?" closes it. Oak's ends
+with "every grandmaster has lost thousands of games". When the tale
+closes you are back where you opened it.
+
+**Where they live.** Each chapter card has its coach's tale (locked,
+with "Play Acorn once, any result, to hear it", until then). The
+journey map has 📜 **The story of chess**, a timeline of all eight in
+order, heard or not, with NEW on any you have not read yet. Games played
+before tales existed count: anyone you have already played has a tale
+waiting.
+
+The dates are hedged where history is ("about", "around"). Nobody can
+date the first game of chess, and a story for children should not
+pretend otherwise. `node chess/tools/tales-check.js` checks the tales
+and the room.
+
 ## Earned, not chosen: coaches and places
 
 Nothing on the road can be skipped. The room opens one coach at a time.

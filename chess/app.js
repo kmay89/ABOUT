@@ -3220,6 +3220,7 @@ function endGame(result, reason, taught) {
   renderEndRating(rs, cardAt);
   moEndCard();
   jrnAtEnd(result, rs);
+  taleAtEnd();
   paceAtEnd(result, rs);
   unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
@@ -6323,7 +6324,9 @@ var CARDS = [
   { id: "ovUnlock", pause: 1 },
   { id: "ovJourney", hide: 1, pause: 1, back: 1 },
   { id: "ovChapter", hide: 1, pause: 1, back: 1 },
-  { id: "ovCredits", hide: 1, pause: 1 }
+  { id: "ovCredits", hide: 1, pause: 1 },
+  { id: "ovTale", hide: 1, pause: 1, back: 1 },
+  { id: "ovTales", hide: 1, pause: 1, back: 1 }
 ];
 function cardIds(flag) {
   return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
@@ -6825,6 +6828,7 @@ function wireUI() {
   homeWire();
   moWire();
   jrnWire();
+  taleWire();
   paceWire();
   tableWire();
   unlWire();
@@ -8569,6 +8573,7 @@ function openJourney() {
 }
 function renderJourney() {
   var r = Journey.road(ladder, jrn), c = jrnCompletion(), map = $("jrMap");
+  taleJourneySync();
   $("jrPct").textContent = c.pct + "%";
   $("jrPctRing").style.setProperty("--p", c.pct);
   $("jrSub").textContent = r.at === "done" ? "The road is travelled. Now: everything, to a hundred." :
@@ -8649,6 +8654,7 @@ function openChapter(id) {
     return '<div class="chStar' + (st[i] ? " on" : "") + '"><i>★</i><span>' + escHtml(t) + "</span><b>" +
       gift.map(function (g) { return '<em title="' + escHtml(g.name) + '" class="' + (unlOwned(g.id) ? "own" : "") + '">' + g.emoji + "</em>"; }).join("") + "</b></div>";
   }).join("");
+  taleChapterBtn(id);
   $("chPlay").innerHTML = done ? "▶ Play again" : "▶ Play";
   $("chPlay").onclick = function () { jrnPlay(id, false); };
   $("ovJourney").classList.add("hide");
@@ -8658,6 +8664,7 @@ function openChapter(id) {
 }
 function openCup() {
   var card = $("ovChapter"), next = Journey.cupNext(jrn);
+  $("chTale").classList.add("hide");
   $("chKick").textContent = "The finale";
   $("chTitle").textContent = "The Grove Cup";
   $("chWho").textContent = jrn.cup.won ? "Won" : "Match " + (jrn.cup.run + 1) + " of 3";
@@ -8789,6 +8796,157 @@ function showCredits(trueEnding) {
       try { Fx.fireworks({ count: 2, layer: "page" }); } catch (e) {}
     }, 1400);
   }
+}
+/* ===== tales: the story of chess, told by the grove (tales.js) =====
+   Each coach has a tale from the real history of the game. It opens
+   after your first game against that coach, whatever the result (it is
+   a story you are told for sitting down, not a prize), and it is read
+   like a picture book: the coach says hello in its own voice, three
+   short pages turn, and a "did you know?" closes it. The tales you have
+   heard line up on a timeline, "the story of chess", reached from the
+   journey map; each chapter card has its coach's tale on it. */
+var tales = null, taleAt = { id: null, page: 0, back: null };
+function taleSave() { if (tales && typeof Tales !== "undefined") Tales.save(tales, lsSet); }
+function taleLoad() {
+  if (typeof Tales === "undefined") return;
+  tales = Tales.load(lsGet);
+  /* games played before tales existed still count */
+  var changed = false;
+  Rating.LEVELS.forEach(function (Lv) {
+    var r = ladder.rungs[Lv.id];
+    if (r && (r.w + r.d + r.l) > 0 && Tales.open(tales, Lv.id, 1)) changed = true;
+  });
+  if (changed) taleSave();
+}
+function taleOk() { return !!tales && typeof Tales !== "undefined"; }
+function taleName(id) { var c = typeof Cast !== "undefined" && Cast.get(id); return c ? c.name : (SKILLS[id] ? SKILLS[id].name : id); }
+/* the storybook */
+function taleOpen(id, back) {
+  var t = taleOk() && Tales.get(id);
+  if (!t || !Tales.has(tales, id)) return false;
+  taleAt = { id: id, page: 0, back: back || null };
+  var url = jrnPortrait(id, 168), c = typeof Cast !== "undefined" ? Cast.get(id) : null;
+  $("taFace").innerHTML = url ? '<img alt="" src="' + url + '">' : "<em>" + (SKILLS[id] ? SKILLS[id].emoji : "📜") + "</em>";
+  $("taArt").textContent = t.art;
+  $("taKick").textContent = "📜 " + taleName(id) + "'s tale";
+  $("taTitle").textContent = t.title;
+  $("taWhen").textContent = t.when;
+  hideAllOverlays();
+  $("ovTale").classList.remove("hide");
+  taleShow(0, 0);
+  snd("open");
+  return true;
+}
+function talePages(t) { return 2 + t.pages.length; }       /* hello, the pages, did you know */
+function taleShow(p, dir) {
+  var t = Tales.get(taleAt.id), n = talePages(t), id = taleAt.id, c = typeof Cast !== "undefined" ? Cast.get(id) : null;
+  p = Math.max(0, Math.min(n - 1, p));
+  taleAt.page = p;
+  var page = $("taPage"), h;
+  if (p === 0) h = '<div class="taSay"><span><b>' + escHtml(taleName(id)) + " says</b>" + escHtml(t.hello) + "</span></div>";
+  else if (p === n - 1) h = '<div class="taFact"><b>💡 Did you know?</b>' + escHtml(t.fact) + "</div>";
+  else h = '<p class="tap' + p + '" style="margin:0">' + escHtml(t.pages[p - 1]) + "</p>";
+  page.innerHTML = h;
+  page.classList.remove("turn"); page.classList.remove("back");
+  if (dir && !REDUCED) { void page.offsetWidth; page.classList.add(dir > 0 ? "turn" : "back"); }
+  var dots = "";
+  for (var i = 0; i < n; i++) dots += '<i class="' + (i === p ? "on" : "") + '"></i>';
+  $("taDots").innerHTML = dots;
+  $("taPrev").disabled = p === 0;
+  $("taNext").innerHTML = p === n - 1 ? "The end ✓" : p === 0 ? "Tell me ▶" : "Next ▶";
+  /* the coach says hello in its own voice */
+  if (p === 0 && c && prefs.chatter && dir !== -1) {
+    var syl = Cast.syllables(t.hello);
+    snd("babble", { hz: c.voice.hz, n: Math.min(10, syl), rate: c.voice.rate, seed: t.hello.length });
+  } else if (dir) snd("tap", { hz: 880 + p * 110 });
+  if (dir) hap("tick");
+}
+function taleNext() {
+  var t = Tales.get(taleAt.id);
+  if (taleAt.page < talePages(t) - 1) { taleShow(taleAt.page + 1, 1); return; }
+  /* the end: read, and back to wherever it was opened from */
+  Tales.markRead(tales, taleAt.id); taleSave();
+  hap("star");
+  taleClose();
+}
+function taleClose() {
+  $("ovTale").classList.add("hide");
+  var back = taleAt.back;
+  taleAt.back = null;
+  if (typeof back === "function") back(); else openTales();
+}
+/* the timeline: every tale in the order it happened */
+function openTales() {
+  if (!taleOk()) return;
+  hideAllOverlays();
+  var have = Tales.count(tales);
+  $("tsSub").textContent = have === Tales.TALES.length ? "Every tale heard. You know the whole story!" :
+    have + " of " + Tales.TALES.length + " tales heard. Play a coach to hear theirs.";
+  $("tsLine").innerHTML = Tales.timeline().map(function (t) {
+    var got = Tales.has(tales, t.id), nw = got && Tales.unread(tales, t.id);
+    return '<button class="tsNode' + (got ? "" : " locked") + '" data-tale="' + t.id + '"><span class="tsArt" aria-hidden="true">' + (got ? t.art : "📜") +
+      '</span><span><span class="tsYr">' + escHtml(t.when) + "</span><b>" + escHtml(got ? t.title : "A tale not told yet") + "</b><small>" +
+      escHtml(got ? "Told by " + taleName(t.id) : "🔒 Play " + taleName(t.id) + " to hear this one") + "</small></span>" +
+      (nw ? '<span class="taNew">NEW</span>' : "") + "</button>";
+  }).join("");
+  $("ovTales").classList.remove("hide");
+}
+/* the chapter card's button */
+function taleChapterBtn(id) {
+  var b = $("chTale"), t = taleOk() && Tales.get(id);
+  if (!t) { b.classList.add("hide"); return; }
+  var got = Tales.has(tales, id), nm = taleName(id);
+  b.className = "chTale" + (got ? "" : " locked");
+  b.innerHTML = '<span class="em" aria-hidden="true">' + (got ? "📜" : "🔒") + "</span><span>" +
+    (got ? escHtml(nm) + "'s tale: " + escHtml(t.title) + "<small>" + escHtml(t.when) + " · tap to read</small>"
+         : escHtml(nm) + " has a tale to tell<small>Play " + escHtml(nm) + " once, any result, to hear it</small>") + "</span>" +
+    (got && Tales.unread(tales, id) ? '<span class="taNew">NEW</span>' : "");
+  b.onclick = got ? function () { taleOpen(id, function () { openChapter(id); }); } : function () { hap("nope"); };
+}
+/* a game against a coach: its tale opens, the first time */
+function taleAtEnd() {
+  var b = $("endTale");
+  b.classList.add("hide");
+  if (!taleOk() || mode !== "coach" || !Tales.get(skill)) return;
+  if (!Tales.open(tales, skill, Date.now())) return;
+  taleSave();
+  var t = Tales.get(skill), id = skill;
+  $("endTaleTx").textContent = "New tale: " + t.title;
+  $("endTaleSub").textContent = taleName(id) + " has a story for you ▶";
+  b.onclick = function () { $("ovEnd").classList.add("hide"); taleOpen(id, function () { $("ovEnd").classList.remove("hide"); b.classList.add("hide"); }); };
+  b.classList.remove("hide");
+}
+function taleJourneySync() {
+  if (!taleOk() || !$("jrTalesSub")) return;
+  var have = Tales.count(tales), unread = Tales.TALES.filter(function (t) { return Tales.unread(tales, t.id); }).length;
+  $("jrTalesSub").textContent = have + " of " + Tales.TALES.length + " tales heard" + (unread ? " · " + unread + " new!" : "");
+}
+function taleWire() {
+  taleLoad();
+  $("taNext").addEventListener("click", taleNext);
+  $("taPrev").addEventListener("click", function () { if (taleAt.page > 0) taleShow(taleAt.page - 1, -1); });
+  $("taX").addEventListener("click", taleClose);
+  $("jrTales").addEventListener("click", openTales);
+  $("tsClose").addEventListener("click", function () { $("ovTales").classList.add("hide"); openJourney(); });
+  $("tsX").addEventListener("click", function () { $("ovTales").classList.add("hide"); openJourney(); });
+  $("tsLine").addEventListener("click", function (e) {
+    var n = e.target.closest(".tsNode");
+    if (!n) return;
+    if (n.classList.contains("locked")) { hap("nope"); toast("🔒 Play " + escHtml(taleName(n.dataset.tale)) + " once to hear this tale.", null, 2200); return; }
+    taleOpen(n.dataset.tale, openTales);
+  });
+  /* the page turns with a swipe, too */
+  var sx = null;
+  $("taPage").addEventListener("pointerdown", function (e) { sx = e.clientX; });
+  $("taPage").addEventListener("pointerup", function (e) {
+    if (sx == null) return;
+    var dx = e.clientX - sx; sx = null;
+    if (dx < -40) taleNext(); else if (dx > 40 && taleAt.page > 0) taleShow(taleAt.page - 1, -1);
+  });
+}
+function taleForTest() {
+  return { taleState: function () { return { st: tales ? JSON.parse(JSON.stringify(tales)) : null, at: { id: taleAt.id, page: taleAt.page } }; },
+           taleOpen: taleOpen, openTales: openTales, taleReload: taleLoad };
 }
 function jrnWire() {
   jrnLoad();
@@ -10249,6 +10407,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
