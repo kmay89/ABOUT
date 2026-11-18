@@ -59,7 +59,18 @@ var PATTERNS = {
   wood:   { label: "Wood",   note: "long grain along the board" },
   marble: { label: "Marble", note: "soft veins, like a café table" },
   linen:  { label: "Linen",  note: "a fine woven cross-hatch" },
-  inlay:  { label: "Inlay",  note: "a thin bright line around every square" }
+  inlay:  { label: "Inlay",  note: "a thin bright line around every square" },
+  /* the coaches' arenas: places rather than finishes, each with an
+     accent colour of its own (a buttercup, a sprout, a petal). Won with
+     the coach's board, not offered in the Studio's list */
+  grass:     { label: "Lawn",      arena: true, note: "a mown lawn, striped, with chalked squares and buttercups" },
+  soil:      { label: "Seed tray", arena: true, note: "crumbly soil with sprouts coming up, on soft felt" },
+  clover:    { label: "Meadow",    arena: true, note: "a mat of clover leaves, and clover flowers in the grass" },
+  moss:      { label: "Moss",      arena: true, note: "stone slabs and cushions of moss, fireflies over it" },
+  tatami:    { label: "Tatami",    arena: true, note: "woven rush, laid two ways, with sakura petals" },
+  sand:      { label: "Desert",    arena: true, note: "wind-rippled sand and crackled terracotta, a cactus flower" },
+  ice:       { label: "Frost",     arena: true, note: "sparkling snow and cracked blue ice, with snowflakes" },
+  parchment: { label: "Library",   arena: true, note: "parchment and stitched leather, flecked with gold" }
 };
 
 /* ---------- the house gallery ----------
@@ -139,69 +150,69 @@ var PRESETS = [
    in cast.js, the unlocking in app.js. Apostrophes are the curly kind,
    because the text guard strips the straight one from names. */
 var HOME_LIST = [
-  { id: "home-acorn", coach: "acorn", name: "Acorn’s Stump", maker: "Acorn",
-    note: "A fresh-cut stump in the leaf litter, rings and all. Wooden pieces, a little rough.",
-    board: { light: "#ecd4a4", dark: "#9c6a3e", rim: "#3e2716", edge: "#7a5232", coord: "#4a2f1b",
-             pattern: "wood", grain: 0.9, gloss: 0.10 },
-    pieces: { white: "#f3e2bf", black: "#5a3a22", material: "wood", set: "classic", shine: 0.25, rim: 0.15 },
-    room: { bg: "#1a120c" },
-    marks: { select: "#f0b84a", legal: "#6f8f3a", capture: "#c0503f", last: "#f2cf7a", check: "#d43c2e", hint: "#5f8f3a", plan: "#3f86c8" } },
+  { id: "home-acorn", coach: "acorn", name: "Acorn’s Lawn", maker: "Acorn",
+    note: "A freshly mown lawn, striped like a pitch, the light squares chalked white and buttercups in the grass.",
+    board: { light: "#eef9d4", dark: "#4caf3e", rim: "#6b4423", edge: "#9fd66b", coord: "#2b5a1c",
+             pattern: "grass", grain: 0.95, gloss: 0.12, accent: "#ffd23f" },
+    pieces: { white: "#fff6dc", black: "#6b3f1f", material: "wood", set: "classic", shine: 0.3, rim: 0.18 },
+    room: { bg: "#142411" },
+    marks: { select: "#ffcf3a", legal: "#2f6fd6", capture: "#e0483a", last: "#ffe27a", check: "#e3352b", hint: "#1f63c6", plan: "#d43b8f" } },
 
   { id: "home-sprout", coach: "sprout", name: "Sprout’s Seed Tray", maker: "Sprout",
-    note: "The potting bench: new-leaf greens in a terracotta rim, soft porcelain pieces.",
-    board: { light: "#eef3d8", dark: "#93bd6b", rim: "#86452a", edge: "#c87a52", coord: "#3f5a26",
-             pattern: "linen", grain: 0.40, gloss: 0.18 },
-    pieces: { white: "#fdfaee", black: "#3c6a2a", material: "porcelain", set: "nordic", shine: 0.55, rim: 0.30 },
-    room: { bg: "#131a10" },
-    marks: { select: "#f2c14e", legal: "#4f9a3c", capture: "#cf5a40", last: "#f6dc8a", check: "#d9452f", hint: "#3f8f3a", plan: "#c05a8f" } },
+    note: "Rich dark soil with seedlings pushing up through it, soft cream felt between, in a terracotta tray.",
+    board: { light: "#fbf1d6", dark: "#7a4c2c", rim: "#c4572e", edge: "#ef9a66", coord: "#5a3218",
+             pattern: "soil", grain: 0.9, gloss: 0.10, accent: "#86e03c" },
+    pieces: { white: "#fffcf0", black: "#3c7a2a", material: "porcelain", set: "nordic", shine: 0.55, rim: 0.3 },
+    room: { bg: "#1c140d" },
+    marks: { select: "#ffcf3a", legal: "#2f8fd6", capture: "#e0483a", last: "#ffe27a", check: "#e3352b", hint: "#2f7fd0", plan: "#c05a8f" } },
 
   { id: "home-clover", coach: "clover", name: "Clover’s Meadow", maker: "Clover",
-    note: "Four-leaf green and clover-flower pink, with a little shine for luck.",
-    board: { light: "#f1f3e4", dark: "#5f9f70", rim: "#24503a", edge: "#a9cfa8", coord: "#2d5a3d",
-             pattern: "plain", grain: 0.15, gloss: 0.45 },
-    pieces: { white: "#ffffff", black: "#6a3a5c", material: "porcelain", set: "classic", shine: 0.75, rim: 0.45 },
-    room: { bg: "#0f1912" },
-    marks: { select: "#ffd166", legal: "#3c9a5e", capture: "#e0607e", last: "#ffe08f", check: "#e0443a", hint: "#2f8f5a", plan: "#c05aa0" } },
+    note: "A carpet of four-leaf luck on the green squares, and pink clover flowers dotted in the grass.",
+    board: { light: "#f2fbe4", dark: "#38a865", rim: "#1c6a44", edge: "#9be3ab", coord: "#1f5a37",
+             pattern: "clover", grain: 0.95, gloss: 0.30, accent: "#ff6fb0" },
+    pieces: { white: "#ffffff", black: "#7a2f6a", material: "porcelain", set: "classic", shine: 0.75, rim: 0.45 },
+    room: { bg: "#0e1c13" },
+    marks: { select: "#ffd166", legal: "#2f6fd6", capture: "#e0483a", last: "#ffe08f", check: "#e0443a", hint: "#2f6fd6", plan: "#c05aa0" } },
 
-  { id: "home-club", coach: "club", name: "Fern’s Shade", maker: "Fern",
-    note: "Under the ferns: quiet moss and stone greys, and nothing that glares.",
-    board: { light: "#dfe7dc", dark: "#6f8c78", rim: "#2c3c33", edge: "#9fb2a3", coord: "#2f4237",
-             pattern: "linen", grain: 0.50, gloss: 0.12 },
-    pieces: { white: "#f2f4ec", black: "#26352c", material: "porcelain", set: "staunton", shine: 0.35, rim: 0.20 },
-    room: { bg: "#0f1512" },
-    marks: { select: "#e8c35a", legal: "#4f8a62", capture: "#c45a48", last: "#e9d58a", check: "#cf4636", hint: "#3f7f58", plan: "#4f86c0" } },
+  { id: "home-club", coach: "club", name: "Fern’s Grotto", maker: "Fern",
+    note: "Cool stone slabs and deep cushions of moss under the ferns, with fireflies drifting over.",
+    board: { light: "#dfe8e2", dark: "#3f8a55", rim: "#22362b", edge: "#93b8a0", coord: "#23402f",
+             pattern: "moss", grain: 0.95, gloss: 0.15, accent: "#eaff6a" },
+    pieces: { white: "#f6f8ee", black: "#1f3a2a", material: "porcelain", set: "staunton", shine: 0.4, rim: 0.22 },
+    room: { bg: "#0b140f" },
+    marks: { select: "#ffd84a", legal: "#2f7fd6", capture: "#e0483a", last: "#f2e27a", check: "#e3352b", hint: "#2f7fd6", plan: "#4f86c0" } },
 
-  { id: "home-bamboo", coach: "bamboo", name: "Bamboo’s Lacquer", maker: "Bamboo",
-    note: "Pale split cane in a black lacquer frame, with lacquered pieces to match.",
-    board: { light: "#f1e5bd", dark: "#bc9d58", rim: "#100e0d", edge: "#2a2321", coord: "#4a3a1c",
-             pattern: "inlay", grain: 0.35, gloss: 0.55 },
-    pieces: { white: "#f7f0de", black: "#1a1614", material: "metal", set: "modern", shine: 0.80, rim: 0.50 },
-    room: { bg: "#0d0c0b" },
-    marks: { select: "#e8b84a", legal: "#7a8f3a", capture: "#c8402e", last: "#efcf78", check: "#d2382a", hint: "#6a8a2f", plan: "#c0302a" } },
+  { id: "home-bamboo", coach: "bamboo", name: "Bamboo’s Dojo", maker: "Bamboo",
+    note: "Woven tatami laid two ways in a black lacquer frame with a red edge, sakura petals blown across.",
+    board: { light: "#f6e9b8", dark: "#bfa45a", rim: "#141010", edge: "#c8302a", coord: "#3e2f12",
+             pattern: "tatami", grain: 0.9, gloss: 0.30, accent: "#ff9ec4" },
+    pieces: { white: "#fbf4e2", black: "#1a1614", material: "metal", set: "modern", shine: 0.8, rim: 0.5 },
+    room: { bg: "#0f0c0b" },
+    marks: { select: "#ffcf3a", legal: "#2f6fd6", capture: "#e0302a", last: "#ffe27a", check: "#e0302a", hint: "#2f6fd6", plan: "#c0302a" } },
 
   { id: "home-cactus", coach: "cactus", name: "Cactus’s Desert", maker: "Cactus",
-    note: "Sun-baked sand and terracotta. Bone-white pieces against cactus green. Hot.",
-    board: { light: "#f2dbb2", dark: "#c46a3c", rim: "#55291a", edge: "#dcb27e", coord: "#5a2f1c",
-             pattern: "plain", grain: 0.25, gloss: 0.08 },
-    pieces: { white: "#f8ecd4", black: "#2f5a3a", material: "wood", set: "nordic", shine: 0.25, rim: 0.15 },
-    room: { bg: "#1e120b" },
-    marks: { select: "#f2a83a", legal: "#4f8a4a", capture: "#b8402c", last: "#f4c87a", check: "#c8382a", hint: "#3f7f3a", plan: "#3a7fc4" } },
+    note: "Wind-rippled sand and sun-baked terracotta tiles with a crackle glaze. A cactus flower here and there. Hot!",
+    board: { light: "#ffe2a8", dark: "#d4663a", rim: "#6a2c18", edge: "#f4b86a", coord: "#5e2a15",
+             pattern: "sand", grain: 0.9, gloss: 0.10, accent: "#ff3f8e" },
+    pieces: { white: "#fff3dc", black: "#2a6a3a", material: "wood", set: "nordic", shine: 0.25, rim: 0.15 },
+    room: { bg: "#24140b" },
+    marks: { select: "#ffcf3a", legal: "#1f6fd0", capture: "#b8302a", last: "#fff08a", check: "#c8282a", hint: "#1f6fd0", plan: "#3a7fc4" } },
 
   { id: "home-pine", coach: "pine", name: "Pine’s Frost", maker: "Pine",
-    note: "Frost on dark pine. Cold metal pieces, every edge clear as a winter morning.",
-    board: { light: "#eef4f5", dark: "#4f7868", rim: "#18302a", edge: "#c6d6d8", coord: "#21392f",
-             pattern: "marble", grain: 0.30, gloss: 0.65 },
-    pieces: { white: "#ffffff", black: "#2a4a40", material: "metal", set: "modern", shine: 0.90, rim: 0.60 },
-    room: { bg: "#0b1311" },
-    marks: { select: "#7cc4ff", legal: "#3f8f86", capture: "#e05a5a", last: "#a8dcff", check: "#e34a4a", hint: "#2f8f80", plan: "#e0902f" } },
+    note: "Sparkling snow and clear blue ice with cracks running through it, and snowflakes settling. Cold metal pieces.",
+    board: { light: "#f6fbff", dark: "#5fa8d8", rim: "#1c3a52", edge: "#cbe6f6", coord: "#1f4058",
+             pattern: "ice", grain: 0.95, gloss: 0.75, accent: "#ffffff" },
+    pieces: { white: "#ffffff", black: "#24445c", material: "metal", set: "modern", shine: 0.9, rim: 0.6 },
+    room: { bg: "#0a1520" },
+    marks: { select: "#ffcf3a", legal: "#e0782f", capture: "#e0483a", last: "#ffe27a", check: "#e3352b", hint: "#2f8f6a", plan: "#e0902f" } },
 
   { id: "home-mentor", coach: "mentor", name: "Oak’s Library Table", maker: "Oak",
-    note: "Old oak with a gilt inlay, ivory and ebony on top. The board the whole ladder leads to.",
-    board: { light: "#e8cf9c", dark: "#7a4d28", rim: "#2a170c", edge: "#b08a4a", coord: "#3a2412",
-             pattern: "inlay", grain: 0.70, gloss: 0.50 },
-    pieces: { white: "#f6ead2", black: "#1c1410", material: "ivory", set: "staunton", shine: 0.60, rim: 0.35 },
-    room: { bg: "#140d08" },
-    marks: { select: "#e6b94a", legal: "#7d7a34", capture: "#b8452f", last: "#ecc670", check: "#cc3b2a", hint: "#8a7326", plan: "#3b7fb5" } }
+    note: "Old parchment and stitched oxblood leather, flecked with gold leaf. The board the whole ladder leads to.",
+    board: { light: "#f4e4be", dark: "#7c3a22", rim: "#2a170c", edge: "#d0a64a", coord: "#3a2012",
+             pattern: "parchment", grain: 0.9, gloss: 0.45, accent: "#ffc93c" },
+    pieces: { white: "#f8ecd4", black: "#1c1410", material: "ivory", set: "staunton", shine: 0.6, rim: 0.35 },
+    room: { bg: "#160d08" },
+    marks: { select: "#ffcf3a", legal: "#2f7fd6", capture: "#e0483a", last: "#ffdf7a", check: "#e3352b", hint: "#2f7fd6", plan: "#3b7fb5" } }
 ];
 
 /* ---------- guards: nothing from outside is trusted ---------- */
@@ -239,6 +250,9 @@ function clean(s, fallbackName) {
       rim: hex(b.rim, d.board.rim), edge: hex(b.edge, d.board.edge),
       coord: hex(b.coord, d.board.coord),
       pattern: pick(b.pattern, PATTERNS, "wood"),
+      /* an arena's accent colour (its flowers, sprouts, snowflakes); a
+         board without one has none */
+      accent: hex(b.accent, ""),
       grain: num(b.grain, 0, 1, d.board.grain),
       gloss: num(b.gloss, 0, 1, d.board.gloss)
     },
@@ -316,7 +330,8 @@ function unb64u(str) {
    thirteen fields are older codes and still decode — they simply get
    the house set. */
 var MATERIAL_ORDER = ["ivory", "porcelain", "glass", "metal", "wood", "ink"];
-var PATTERN_ORDER = ["plain", "wood", "marble", "linen", "inlay"];
+var PATTERN_ORDER = ["plain", "wood", "marble", "linen", "inlay",
+                     "grass", "soil", "clover", "moss", "tatami", "sand", "ice", "parchment"];
 function pct(v) { return String(Math.round(v * 100)); }
 function unpct(v) { return num(parseInt(v, 10) / 100, 0, 1, 0.5); }
 function bare(h) { return h.charAt(0) === "#" ? h.slice(1) : h; }
@@ -338,6 +353,8 @@ function encode(skin) {
     [s.marks.select, s.marks.legal, s.marks.capture, s.marks.last, s.marks.check, s.marks.hint].map(bare).join(","),
     s.pieces.set
   ];
+  /* an arena's accent rides as a fifteenth field, only when there is one */
+  if (s.board.accent) fields.push(bare(s.board.accent));
   return "SKIN1." + b64u(fields.join("|"));
 }
 
@@ -345,7 +362,8 @@ function parsePayload(payload) {
   var raw;
   try { raw = unb64u(payload); } catch (e) { return null; }
   var f = raw.split("|");
-  if (f.length !== 13 && f.length !== 14) return null;
+  if (f.length < 13 || f.length > 15) return null;
+  if (f.length === 15 && !/^[0-9a-fA-F]{6}$/.test(f[14])) return null;
   var b = f[3].split(","), p = f[7].split(","), k = f[12].split(",");
   if (b.length !== 5 || p.length !== 2 || k.length !== 6) return null;
   /* every colour must really be a colour — this is also what makes a
@@ -355,7 +373,8 @@ function parsePayload(payload) {
   return clean({
     name: f[0], maker: f[1], note: f[2],
     board: { light: hash(b[0]), dark: hash(b[1]), rim: hash(b[2]), edge: hash(b[3]), coord: hash(b[4]),
-             pattern: PATTERN_ORDER[parseInt(f[4], 10)], grain: unpct(f[5]), gloss: unpct(f[6]) },
+             pattern: PATTERN_ORDER[parseInt(f[4], 10)], grain: unpct(f[5]), gloss: unpct(f[6]),
+             accent: f[14] ? hash(f[14]) : "" },
     pieces: { white: hash(p[0]), black: hash(p[1]), material: MATERIAL_ORDER[parseInt(f[8], 10)],
               set: setId(f[13], DEFAULT_SET), shine: unpct(f[9]), rim: unpct(f[10]) },
     room: { bg: hash(f[11]) },

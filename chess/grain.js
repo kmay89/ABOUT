@@ -33,7 +33,8 @@
 (function (root) {
 "use strict";
 
-var PATTERNS = { plain: 1, wood: 1, marble: 1, linen: 1, inlay: 1 };
+var PATTERNS = { plain: 1, wood: 1, marble: 1, linen: 1, inlay: 1,
+                 grass: 1, soil: 1, clover: 1, moss: 1, tatami: 1, sand: 1, ice: 1, parchment: 1 };
 
 /* ---------- noise ---------- */
 /* an integer hash, good enough for texture and the same everywhere */
@@ -148,7 +149,179 @@ function paper(x, y, rnd, seed) {
   T = n * 0.5; RL = n * 0.25;
 }
 
-var RECIPE = { wood: wood, marble: marble, linen: linen, plain: paper, inlay: paper };
+
+/* ---------- the arenas ----------
+   The coaches' own boards are places, not finishes: a mown lawn, a seed
+   tray, a meadow, moss and stone, a dojo's mat, the desert, the frozen
+   ridge, the library. Each recipe leaves the same tone and relief as
+   the finishes above, and may also leave A: how much of the board's
+   accent colour sits on this pixel (a buttercup, a sprout, a petal).
+   They are told where they are on the whole board (o.gx, o.gy, 0..1,
+   a8 top-left), for things that cross squares, like a lawn's mowing
+   stripes, and where they are on their own square, unleaned (o.lx,
+   o.ly), so a flower is never cut in half by a square's edge. */
+var A = 0;
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+/* a sprinkle of little shapes across a square: a 3x3 grid of cells, each
+   holding one with probability `p`, jittered inside its cell so it never
+   touches the edge. `shape` is a polar outline: r(a)/R in 0..1 */
+var SHAPES = {
+  dot: function () { return 1; },
+  clover: function (a) { return 0.55 + 0.45 * Math.abs(Math.cos(1.5 * a)); },
+  sprout: function (a) { var c = Math.cos(a); return 0.25 + 0.75 * c * c; },
+  petal: function (a) { return 0.5 + 0.5 * Math.abs(Math.cos(2.5 * a)); },
+  flake: function (a) { var c = Math.abs(Math.cos(3 * a)); return 0.22 + 0.78 * c * c * c * c; },
+  glint: function (a) { var c = Math.abs(Math.cos(2 * a)); return 0.15 + 0.85 * Math.pow(c, 6); }
+};
+function sprinkle(o, seed, p, size, shape, spin) {
+  var cells = 3, cx = Math.min(cells - 1, Math.floor(o.lx * cells)), cy = Math.min(cells - 1, Math.floor(o.ly * cells));
+  var key = seed + o.sq * 7;
+  if (hash(cx, cy, key) >= p) return 0;
+  var px = (cx + 0.3 + hash(cx, cy, key + 1) * 0.4) / cells, py = (cy + 0.3 + hash(cx, cy, key + 2) * 0.4) / cells;
+  var R = size * (0.75 + hash(cx, cy, key + 3) * 0.5) / cells;
+  var dx = o.lx - px, dy = o.ly - py, r = Math.sqrt(dx * dx + dy * dy);
+  if (r > R * 1.25) return 0;
+  var a = Math.atan2(dy, dx) + (spin ? hash(cx, cy, key + 4) * 6.283 : 0);
+  var edge = R * SHAPES[shape](a), aa = 0.012;
+  return clamp01((edge - r) / aa + 0.5);
+}
+/* the lawn: blades standing in clumps, mown in broad stripes across the
+   whole board; the light squares painted over with white line-marking
+   paint that the grass shows through; buttercups in the green */
+function grass(x, y, rnd, seed, o) {
+  var blades = (vnoise(x * 70, y * 7, seed) - 0.5) * 1.1 + (vnoise(x * 150 + 3, y * 13, seed + 1) - 0.5) * 0.7;
+  var clump = fbm(x * 3.2, y * 3.2, seed + 5, 2) * 1.1;
+  var stripe = (Math.floor(o.gx * 4) % 2 ? 1 : -1) * 0.22;
+  if (o.dk) {
+    T = blades * 0.6 + clump * 0.45 + stripe;
+    RL = blades * 0.55 + clump * 0.25;
+    A = sprinkle(o, seed + 90, 0.2, 0.2, "petal", true);
+  } else {
+    var chalk = fbm(x * 6, y * 6, seed + 9, 2);
+    T = blades * 0.16 + chalk * 0.4 + stripe * 0.45;
+    RL = blades * 0.22 + chalk * 0.1;
+    A = 0;
+  }
+}
+/* the seed tray: crumbly dark soil with grit, sprouts pushing up out of
+   it; the light squares a soft felted cream */
+function soil(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var crumb = (vnoise(x * 34, y * 34, seed) - 0.5) * 1.2 + (vnoise(x * 90, y * 90, seed + 1) - 0.5) * 0.6;
+    var lump = fbm(x * 4, y * 4, seed + 3, 3) * 1.2;
+    var grit = vnoise(x * 160, y * 160, seed + 4) > 0.86 ? 0.5 : 0;
+    T = crumb * 0.5 + lump * 0.5 + grit;
+    RL = crumb * 0.6 + lump * 0.4 + grit * 0.5;
+    A = sprinkle(o, seed + 91, 0.3, 0.25, "sprout", false);
+  } else {
+    var felt = (vnoise(x * 60, y * 60, seed + 5) - 0.5) * 0.5 + fbm(x * 5, y * 5, seed + 6, 2) * 0.5;
+    T = felt * 0.5; RL = felt * 0.3; A = 0;
+  }
+}
+/* the meadow: the green squares are a mat of little three-lobed leaves;
+   the pale ones open grass, with clover flowers on them */
+function clover(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var u = x * 9, v = y * 9, cu = Math.floor(u), cv = Math.floor(v);
+    var du = u - cu - 0.5 + (hash(cu, cv, seed) - 0.5) * 0.3, dv = v - cv - 0.5 + (hash(cu, cv, seed + 1) - 0.5) * 0.3;
+    var r = Math.sqrt(du * du + dv * dv), ang = Math.atan2(dv, du) + hash(cu, cv, seed + 2) * 6.283;
+    var leaf = r < 0.42 * (0.55 + 0.45 * Math.abs(Math.cos(1.5 * ang))) ? 1 : 0;
+    var vein = leaf ? Math.pow(Math.abs(Math.cos(1.5 * ang)), 30) * 0.4 : 0;
+    T = leaf * 0.32 - (1 - leaf) * 0.28 + vein + fbm(x * 3, y * 3, seed + 3, 2) * 0.3;
+    RL = leaf * 0.5 - (1 - leaf) * 0.2;
+    A = 0;
+  } else {
+    var g = (vnoise(x * 60, y * 6, seed + 4) - 0.5) * 0.6 + fbm(x * 4, y * 4, seed + 5, 2) * 0.4;
+    T = g * 0.45; RL = g * 0.35;
+    A = sprinkle(o, seed + 92, 0.22, 0.21, "clover", true);
+  }
+}
+/* the fern shade: pale stone slabs with fine cracks, and deep cushions
+   of moss between them, fireflies over the moss */
+function moss(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var fuzz = (vnoise(x * 110, y * 110, seed) - 0.5) * 0.7 + (vnoise(x * 40, y * 40, seed + 1) - 0.5) * 0.5;
+    var cushion = fbm(x * 3.5, y * 3.5, seed + 2, 3) * 1.4;
+    T = fuzz * 0.5 + cushion * 0.55;
+    RL = cushion * 0.8 + fuzz * 0.3;
+    A = sprinkle(o, seed + 93, 0.16, 0.11, "glint", false);
+  } else {
+    var crack = Math.pow(1 - Math.abs(fbm(x * 2.2, y * 2.2, seed + 3, 3) * 2), 14);
+    var speck = (vnoise(x * 120, y * 120, seed + 4) - 0.5) * 0.4;
+    var slab = fbm(x * 1.5, y * 1.5, seed + 5, 2) * 0.8;
+    T = -crack * 0.5 + speck * 0.5 + slab * 0.4;
+    RL = -crack * 0.8 + slab * 0.2;
+    A = 0;
+  }
+}
+/* the dojo's mat: woven rush, one way on the dark squares and the other
+   on the light, as tatami are laid, with sakura petals blown across */
+function tatami(x, y, rnd, seed, o) {
+  var along = o.dk ? x : y, across = o.dk ? y : x;
+  var strand = Math.sin(across * 46 * Math.PI) * 0.5 + 0.5;
+  var weave = Math.sin(along * 14 * Math.PI + (Math.floor(across * 23) % 2) * Math.PI) * 0.5 + 0.5;
+  var slub = (vnoise(along * 4, across * 46, seed) - 0.5) * 0.6;
+  T = (strand - 0.5) * 0.75 + (weave - 0.5) * 0.35 + slub * 0.4 + fbm(x * 2, y * 2, seed + 1, 2) * 0.25;
+  RL = (strand - 0.5) * 0.6 + (weave - 0.5) * 0.4;
+  A = sprinkle(o, seed + 94, 0.1, 0.19, "petal", true);
+}
+/* the desert: wind ripples across the sand, and sun-baked terracotta
+   tiles with a crackle glaze, with a cactus flower now and then */
+function sand(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var craze = Math.pow(1 - Math.abs(fbm(x * 3.5, y * 3.5, seed, 3) * 2), 18);
+    var clay = fbm(x * 2.5, y * 2.5, seed + 1, 3) * 1.1 + (vnoise(x * 80, y * 80, seed + 2) - 0.5) * 0.3;
+    T = clay * 0.55 - craze * 0.6;
+    RL = clay * 0.3 - craze * 0.5;
+    A = 0;
+  } else {
+    var warp = fbm(x * 1.6, y * 1.6, seed + 3, 2) * 1.8;
+    var ripple = Math.sin((o.gy * 8 * 5.5 + warp) * Math.PI * 2);
+    var grains = (vnoise(x * 170, y * 170, seed + 4) - 0.5) * 0.7;
+    T = ripple * 0.32 + grains * 0.45;
+    RL = ripple * 0.6 + grains * 0.2;
+    A = sprinkle(o, seed + 95, 0.1, 0.2, "petal", true);
+  }
+}
+/* the frozen ridge: soft snow that sparkles on the pale squares; clear
+   blue ice with cracks running through it on the dark, snowflakes on it */
+function ice(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var crack = Math.pow(1 - Math.abs(Math.sin((x * 1.3 - y * 0.8 + fbm(x * 1.8, y * 1.8, seed, 3) * 2.2) * Math.PI * 1.5)), 40) +
+                Math.pow(1 - Math.abs(Math.sin((x * 0.6 + y * 1.4 + fbm(x * 2.4 + 4, y * 2.4, seed + 1, 2) * 1.6) * Math.PI * 2.1)), 60) * 0.7;
+    var depth = fbm(x * 1.4, y * 1.4, seed + 2, 3) * 1.2;
+    T = crack * 0.9 + depth * 0.5;
+    RL = -crack * 0.5 + depth * 0.1;
+    A = sprinkle(o, seed + 96, 0.18, 0.23, "flake", true);
+  } else {
+    var drift = fbm(x * 2.2, y * 2.2, seed + 3, 3);
+    var sparkle = vnoise(x * 140, y * 140, seed + 4) > 0.93 ? 0.55 : 0;
+    T = drift * 0.35 + sparkle;
+    RL = drift * 0.5;
+    A = 0;
+  }
+}
+/* the library: pale parchment with fibres and old foxing; the dark
+   squares tooled leather with a stitched border, flecked with gold leaf */
+function parchment(x, y, rnd, seed, o) {
+  if (o.dk) {
+    var pebble = (vnoise(x * 55, y * 55, seed) - 0.5) * 0.7;
+    var tan = fbm(x * 2, y * 2, seed + 1, 3) * 0.9;
+    var m = Math.min(o.lx, o.ly, 1 - o.lx, 1 - o.ly);
+    var stitch = m > 0.07 && m < 0.1 && (Math.floor((o.lx + o.ly) * 30) % 2 === 0) ? 0.55 : 0;
+    T = pebble * 0.5 + tan * 0.5 + stitch;
+    RL = pebble * 0.5 - (m > 0.06 && m < 0.11 ? 0.4 : 0);
+    A = sprinkle(o, seed + 97, 0.14, 0.12, "glint", true);
+  } else {
+    var fibre = (vnoise(x * 4, y * 120, seed + 2) - 0.5) * 0.5 + (vnoise(x * 120, y * 4, seed + 3) - 0.5) * 0.3;
+    var fox = Math.max(0, fbm(x * 2.5, y * 2.5, seed + 4, 3) - 0.12) * 1.6;
+    T = fibre * 0.4 - fox * 0.6 + fbm(x * 6, y * 6, seed + 5, 2) * 0.2;
+    RL = fibre * 0.3;
+    A = 0;
+  }
+}
+var RECIPE = { wood: wood, marble: marble, linen: linen, plain: paper, inlay: paper,
+               grass: grass, soil: soil, clover: clover, moss: moss, tatami: tatami, sand: sand, ice: ice, parchment: parchment };
 /* the recipes hand their answer back in these rather than in a fresh
    object each pixel: a quarter of a million allocations a field is the
    difference between a skin change you notice and one you do not */
@@ -172,6 +345,7 @@ function field(N, o) {
   var k = key(N, opts), i;
   for (i = 0; i < cache.length; i++) if (cache[i].key === k) return cache[i].field;
   var tone = new Float32Array(N * N), relief = new Float32Array(N * N);
+  var accent = null;
   var recipe = RECIPE[pattern], tiles = opts.tiles, seed = opts.seed;
   var darkOpts = { dark: true, lines: opts.lines, threads: opts.threads };
   var lightOpts = { dark: false, lines: opts.lines, threads: opts.threads };
@@ -190,21 +364,28 @@ function field(N, o) {
       rnd = hash(f, r, seed + 101);
       /* each square's veneer is cut from a different place on the
          plank, and laid a degree or two off square */
-      ang = (hash(f, r, seed + 202) - 0.5) * (pattern === "linen" ? 0.0 : 0.11) + (dark ? 0.05 : -0.05);
+      ang = (hash(f, r, seed + 202) - 0.5) * (pattern === "linen" || pattern === "tatami" ? 0.0 : 0.11) + (dark ? 0.05 : -0.05);
       c = Math.cos(ang); s = Math.sin(ang);
       cx = lx - 0.5; cy = ly - 0.5;
       rx = cx * c - cy * s + 0.5 + rnd * 3.7 + (dark ? 17 : 0);
       ry = cx * s + cy * c + 0.5 + hash(f, r, seed + 303) * 2.9;
-      recipe(rx, ry, rnd, seed + (dark ? 7 : 0), dark ? darkOpts : lightOpts);
+      var oo = dark ? darkOpts : lightOpts;
+      oo.gx = u / tiles; oo.gy = v / tiles; oo.lx = lx; oo.ly = ly; oo.sq = f * 8 + r;
+      /* the arenas need to know which squares really are the dark ones
+         (a8 is a light square; the finishes above never minded) */
+      oo.dk = !dark;
+      A = 0;
+      recipe(rx, ry, rnd, seed + (dark ? 7 : 0), oo);
       /* a square of its own: real veneer is never quite the shade of
          the one beside it */
       var even = (hash(f, r, seed + 404) - 0.5) * 0.14;
       var idx = y * N + x;
       tone[idx] = T + even;
       relief[idx] = RL;
+      if (A > 0) { if (!accent) accent = new Float32Array(N * N); accent[idx] = A; }
     }
   }
-  var out = { n: N, tone: tone, relief: relief, pattern: pattern };
+  var out = { n: N, tone: tone, relief: relief, accent: accent, pattern: pattern };
   cache.push({ key: k, field: out });
   if (cache.length > 6) cache.shift();
   return out;
@@ -219,10 +400,12 @@ function field(N, o) {
    height field and the relief is added to it. `flip` turns the field
    round for a board shown from Black's side. The field is sampled
    bilinearly so a small field on a big board stays smooth. */
-var TONE_GAIN = { wood: 0.30, marble: 0.44, linen: 0.32, plain: 0.08, inlay: 0.12 };
-var RELIEF_GAIN = { wood: 0.24, marble: 0.14, linen: 0.50, plain: 0.06, inlay: 0.06 };
+var TONE_GAIN = { wood: 0.30, marble: 0.44, linen: 0.32, plain: 0.08, inlay: 0.12,
+                  grass: 0.42, soil: 0.46, clover: 0.40, moss: 0.40, tatami: 0.34, sand: 0.30, ice: 0.30, parchment: 0.34 };
+var RELIEF_GAIN = { wood: 0.24, marble: 0.14, linen: 0.50, plain: 0.06, inlay: 0.06,
+                    grass: 0.42, soil: 0.50, clover: 0.40, moss: 0.50, tatami: 0.45, sand: 0.40, ice: 0.22, parchment: 0.30 };
 
-function apply(img, fld, region, amount, mode, flip) {
+function apply(img, fld, region, amount, mode, flip, tint) {
   if (!img || !fld || !region || !(amount > 0)) return img;
   var data = img.data, W = img.width, H = img.height, N = fld.n;
   var src = mode === "height" ? fld.relief : fld.tone;
@@ -231,6 +414,11 @@ function apply(img, fld, region, amount, mode, flip) {
   var x0 = Math.max(0, Math.floor(region.x)), y0 = Math.max(0, Math.floor(region.y));
   var x1 = Math.min(W, Math.ceil(region.x + region.w)), y1 = Math.min(H, Math.ceil(region.y + region.h));
   var sx = N / region.w, sy = N / region.h, x, y;
+  /* the accent: in colour, painted on in the board's accent colour; in
+     height, a flower or a sprout stands a little proud */
+  var acc = fld.accent, tr = 0, tg = 0, tb = 0, accAmt = Math.min(1, amount * 2.4);
+  if (acc && tint && mode !== "height") { tr = tint[0]; tg = tint[1]; tb = tint[2]; }
+  else if (mode !== "height") acc = null;
   for (y = y0; y < y1; y++) {
     var fy = (y + 0.5 - region.y) * sy - 0.5;
     if (flip) fy = N - 1 - fy;
@@ -244,8 +432,10 @@ function apply(img, fld, region, amount, mode, flip) {
       var a = src[ya * N + xa], b = src[ya * N + xb], c = src[yb * N + xa], d = src[yb * N + xb];
       var v = (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
       var o = (y * W + x) * 4;
+      var av = 0;
+      if (acc) av = (acc[ya * N + xa] + (acc[ya * N + xb] - acc[ya * N + xa]) * tx) * (1 - ty) + (acc[yb * N + xa] + (acc[yb * N + xb] - acc[yb * N + xa]) * tx) * ty;
       if (mode === "height") {
-        var hgt = data[o] + v * gain * 255;
+        var hgt = data[o] + v * gain * 255 + av * 70 * amount;
         data[o] = data[o + 1] = data[o + 2] = hgt < 0 ? 0 : hgt > 255 ? 255 : hgt;
       } else {
         /* a multiply rather than an add: a dark square's grain stays
@@ -254,6 +444,12 @@ function apply(img, fld, region, amount, mode, flip) {
         for (k = 0; k < 3; k++) {
           var cv = data[o + k] * m;
           data[o + k] = cv < 0 ? 0 : cv > 255 ? 255 : cv;
+        }
+        if (av > 0) {
+          var w = av * accAmt;
+          data[o] = data[o] + (tr - data[o]) * w;
+          data[o + 1] = data[o + 1] + (tg - data[o + 1]) * w;
+          data[o + 2] = data[o + 2] + (tb - data[o + 2]) * w;
         }
       }
     }

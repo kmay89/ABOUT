@@ -45,6 +45,8 @@
    the board with his shadow under him, for drag-to-move. */
 (function (root) {
 "use strict";
+/* an arena's accent colour (skins.js), as the 0-255 triple grain.js paints with */
+function accentRgb(h) { return typeof h === "string" && /^#[0-9a-fA-F]{6}$/.test(h) ? [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] : null; }
 
 var REDUCED = (typeof matchMedia === "function") && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -91,7 +93,7 @@ function derive(skin, place) {
   var th = {
     /* hex, for painting the board texture on a 2D canvas */
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
-    pattern: b.pattern, grain: b.grain, gloss: b.gloss,
+    pattern: b.pattern, grain: b.grain, gloss: b.gloss, accent: accentRgb(b.accent),
     /* vec3, for the shader */
     bg: room,
     white: vec3(p.white), black: vec3(p.black), rimVec: vec3(b.rim),
@@ -842,7 +844,7 @@ function grainSquares(g, th, S, margin, mode) {
   if (!Gr || !(th.grain > 0.02)) return;
   var m = Math.round(margin), w = S - m * 2;
   var sq = g.getImageData(m, m, w, w);
-  Gr.apply(sq, Gr.field(512, { pattern: th.pattern, seed: GRAIN_SEED }), { x: 0, y: 0, w: w, h: w }, th.grain, mode);
+  Gr.apply(sq, Gr.field(512, { pattern: th.pattern, seed: GRAIN_SEED }), { x: 0, y: 0, w: w, h: w }, th.grain, mode, false, th.accent);
   g.putImageData(sq, m, m);
 }
 
