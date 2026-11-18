@@ -7330,7 +7330,8 @@ function castMeet() {
   prefs.met[skill] = 1; savePrefs();
   clearTimeout(castMeetT);
   castMeetT = setTimeout(castMeetDone, Cast.readMs(text) + 1600 + Math.round(2400 * paceDial().words));
-  talentGo($("meetCard"));
+  /* face, name and words first; the talents rise in as the words are said */
+  talentGo($("meetCard"), REDUCED ? 0 : 1100);
   if (!castMeetFace && typeof Avatar !== "undefined") { try { castMeetFace = Avatar.create($("meetFace")); } catch (e) { castMeetFace = null; } }
   if (castMeetFace) { castMeetFace.resize(); castMeetFace.set(skill); castMeetFace.lookAt(0, 0); castMeetFace.mood("happy", 1500); castMeetFace.wake(4000); }
   var syl = Cast.syllables(text);
@@ -7362,31 +7363,103 @@ function castMeetDone() {
    friendly hello when a game with a coach you know begins, and opens any
    time you tap the coach's name. None of it waits on you or stands in
    the way of a move. */
+/* how the talents light up: one pip after another, across the whole
+   card (row by row), so the card counts up like a stat screen. TC_STEP
+   is the gap between pips; a pip pops TC_POP into its animation, which
+   is when its tick sounds and the total goes up by one */
+var TC_STEP = 62, TC_POP = 120;
+function hexA(hex, a) {
+  var m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "rgba(240,160,32," + a + ")";
+  var v = parseInt(m[1], 16);
+  return "rgba(" + (v >> 16) + "," + ((v >> 8) & 255) + "," + (v & 255) + "," + a + ")";
+}
 function talentHTML(id, o) {
   o = o || {};
   var c = typeof Cast !== "undefined" && Cast.card ? Cast.card(id) : null;
   if (!c) return "";
-  var who = Cast.get(id), h = '<div class="tcard' + (o.mini ? " mini" : "") + '" style="--tc:' + who.look.col + '">';
+  var who = Cast.get(id), order = 0;
+  var h = '<div class="tcard' + (o.mini ? " mini" : "") + '" style="--tc:' + who.look.col + ";--tcGlow:" + hexA(who.look.col, 0.45) + '">';
+  /* the total, top right: every pip the coach has, counted up as they light */
+  h += '<span class="tcTotal" aria-label="' + c.total + ' talent stars"><em aria-hidden="true">✨</em><b aria-hidden="true">' + c.total + "</b></span>";
   if (o.style) h += '<div class="tcStyle"><b>Style</b><span>' + escHtml(c.style) + "</span><small>" + escHtml(who.style.desc) + "</small></div>";
-  h += '<div class="tcStats">' + c.talents.map(function (t, i) {
-    var pips = "";
-    for (var k = 0; k < Cast.TALENT_MAX; k++) pips += '<i class="' + (k < t.v ? "on" : "") + '" style="--d:' + (i * 90 + k * 70) + 'ms"></i>';
-    return '<span class="tcStat" title="' + escHtml(t.label + ": " + t.what) + '" aria-label="' + t.label + " " + t.v + " out of " + Cast.TALENT_MAX + '"><em aria-hidden="true">' + t.emoji +
-      "</em><b>" + t.label + '</b><span class="tcPips" aria-hidden="true">' + pips + "</span></span>";
+  h += '<div class="tcStats" data-id="' + id + '">' + c.talents.map(function (t) {
+    var pips = "", max = t.v >= Cast.TALENT_MAX;
+    for (var k = 0; k < Cast.TALENT_MAX; k++) {
+      if (k < t.v) { pips += '<i class="on" data-o="' + order + '" style="--d:calc(var(--t0, 0ms) + ' + order * TC_STEP + 'ms)"></i>'; order++; }
+      else pips += "<i></i>";
+    }
+    /* a talent at its very top gets a glint and a star when its last pip lands */
+    var md = 'style="--md:calc(var(--t0, 0ms) + ' + ((order - 1) * TC_STEP + 260) + 'ms)"';
+    return '<span class="tcStat' + (max ? " max" : "") + '" ' + (max ? md + " " : "") + 'role="button" tabindex="0" data-k="' + t.key + '" title="' + escHtml(t.label + ": " + t.what) + '" aria-label="' + t.label + " " + t.v + " out of " + Cast.TALENT_MAX + '"><em aria-hidden="true">' + t.emoji +
+      "</em><b>" + t.label + (max ? '<small class="tcMaxTag" aria-hidden="true">★MAX</small>' : "") + '</b><span class="tcPips" aria-hidden="true">' + pips + "</span></span>";
   }).join("") + "</div>";
-  if (!o.mini) h += '<div class="tcLine great"><em aria-hidden="true">\ud83c\udf1f</em><span><b>Great at</b>' + escHtml(c.great) + "</span></div>";
-  h += '<div class="tcLine growing"><em aria-hidden="true">\ud83c\udf31</em><span><b>Still growing</b>' + escHtml(c.growing) + "</span></div>";
+  if (!o.mini) h += '<div class="tcLine great"><em aria-hidden="true">🌟</em><span><b>Great at</b>' + escHtml(c.great) + "</span></div>";
+  h += '<div class="tcLine growing"><em aria-hidden="true">🌱</em><span><b>Still growing</b>' + escHtml(c.growing) + "</span></div>";
   if (o.trick) h += '<div class="tcLine trick"><em aria-hidden="true">' + c.trick.emoji + "</em><span><b>Favourite trick</b>" + escHtml(c.trick.name) +
-    (o.trick === "tip" && Cast.line(id, "tip", 0) ? "<small>\u201c" + escHtml(Cast.line(id, "tip", 0)) + "\u201d</small>" : "") + "</span></div>";
+    (o.trick === "tip" && Cast.line(id, "tip", 0) ? "<small>“" + escHtml(Cast.line(id, "tip", 0)) + "”</small>" : "") + "</span></div>";
   return h + "</div>";
 }
-/* the talents light up one pip at a time */
-function talentGo(el) {
+/* a talent, explained: tap it and a line opens under the talents saying
+   what it means and how much of it this coach has, kindly. Tap it again
+   (or another) to change or close it */
+var TC_HOW = ["", "just getting started", "learning it", "good at it", "really good at it", "the very best at it"];
+function talentInfo(stat) {
+  var grid = stat && stat.closest(".tcStats"), id = grid && grid.dataset.id;
+  var c = id && Cast.card ? Cast.card(id) : null;
+  if (!c) return false;
+  var t = c.talents.filter(function (x) { return x.key === stat.dataset.k; })[0];
+  var old = grid.querySelector(".tcInfo"), same = old && old.dataset.k === t.key;
+  if (old) old.remove();
+  Array.prototype.forEach.call(grid.querySelectorAll(".tcStat.sel"), function (x) { x.classList.remove("sel"); x.setAttribute("aria-expanded", "false"); });
+  hap("tick");
+  if (same) return true;
+  var box = document.createElement("div");
+  box.className = "tcInfo";
+  box.dataset.k = t.key;
+  box.setAttribute("role", "status");
+  box.style.setProperty("--sc", getComputedStyle(stat).getPropertyValue("--sc"));
+  box.innerHTML = '<em aria-hidden="true">' + t.emoji + "</em><span><b>" + t.label + "</b> means it " + escHtml(t.what) + ". " +
+    escHtml(c.name) + " is " + TC_HOW[Math.max(1, Math.min(5, t.v))] + " (" + t.v + " of " + Cast.TALENT_MAX + ").</span>";
+  grid.appendChild(box);
+  stat.classList.add("sel");
+  stat.setAttribute("aria-expanded", "true");
+  return true;
+}
+/* the reveal. `t0` is when the first pip lands (ms from now): the card
+   rises just before it, the pips light one after another with a tick
+   that climbs the scale and a tap in the hand, the total counts up with
+   them, a talent at its top glints, and a sheen crosses the card at the
+   end. With reduced motion it is simply all there. */
+function talentGo(el, t0) {
   var f = el && el.querySelector(".tcard");
   if (!f) return;
-  f.classList.remove("go");
+  t0 = Math.max(0, t0 | 0);
+  (f._tcT || []).forEach(clearTimeout);
+  f._tcT = [];
+  f.style.setProperty("--t0", t0 + "ms");
+  f.classList.remove("go"); f.classList.remove("shine");
   void f.offsetWidth;
   f.classList.add("go");
+  var lit = f.querySelectorAll(".tcPips i.on"), n = lit.length, num = f.querySelector(".tcTotal b");
+  if (!uimOn()) { if (num) num.textContent = String(n); return; }
+  if (num) num.textContent = "0";
+  f.dataset.count = "0";
+  Array.prototype.forEach.call(lit, function (p, k) {
+    f._tcT.push(setTimeout(function () {
+      if (!f.isConnected) return;
+      f.dataset.count = String(k + 1);
+      if (num) { num.textContent = String(k + 1); uimRun(num, [{ transform: "scale(1.45)" }, { transform: "none" }], { duration: 170, easing: "cubic-bezier(.2,1.4,.4,1)" }); }
+      if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick) Sound.countTick(k + 1, n, true);
+      hap("count");
+    }, t0 + k * TC_STEP + TC_POP));
+  });
+  f._tcT.push(setTimeout(function () {
+    if (!f.isConnected) return;
+    if (num) num.textContent = String(n);
+    f.classList.add("shine");
+    if (f.querySelector(".tcStat.max")) hap("star");
+  }, t0 + Math.max(0, n - 1) * TC_STEP + 300));
 }
 /* the hello: a coach you have met before, a new game. You and the coach
    side by side, and one thing it is still learning. A friendly beat,
@@ -7399,7 +7472,11 @@ function hiShow() {
   if (!c || !ban) return false;
   var lv = castLevel();
   $("hiYou").textContent = sideName(humanSide);
-  $("hiThem").innerHTML = (lv ? lv.emoji + " " : "") + escHtml(who.name) + "<small>" + escHtml(c.style) + "</small>";
+  var face = jrnPortrait(skill, 112);
+  $("hiThem").innerHTML = (face ? '<img class="hiFace" alt="" src="' + face + '">' : "") +
+    '<span class="hiName">' + (lv ? lv.emoji + " " : "") + escHtml(who.name) + "<small>" + escHtml(c.style) + "</small></span>";
+  ban.style.setProperty("--tc", who.look.col);
+  ban.style.setProperty("--tcGlow", hexA(who.look.col, 0.55));
   $("hiTip").innerHTML = '<em aria-hidden="true">\ud83c\udf31</em> <b>Still growing:</b> ' + escHtml(c.growing);
   ban.classList.remove("leave");
   ban.classList.remove("hide");
@@ -7415,8 +7492,10 @@ function hiDone() {
   hiOn = false;
   clearTimeout(hiT);
   var ban = $("hiBan");
+  /* the entrance lets go, so the exit's transitions can play */
+  ban.classList.remove("on");
   ban.classList.add("leave");
-  setTimeout(function () { if (!hiOn) { ban.classList.add("hide"); ban.classList.remove("on"); ban.classList.remove("leave"); } }, 420);
+  setTimeout(function () { if (!hiOn) { ban.classList.add("hide"); ban.classList.remove("leave"); } }, 460);
 }
 /* the coach's own card, any time: tap its name */
 var tcPopOn = false;
@@ -7427,16 +7506,35 @@ function tcPopShow() {
   $("tcPopName").textContent = (lv ? lv.emoji + " " : "") + who.name;
   $("tcPopSub").textContent = who.title.charAt(0).toUpperCase() + who.title.slice(1) + " \u00b7 " + SKILLS[skill].elo +
     (rec.n ? " \u00b7 you " + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") : "");
+  var face = jrnPortrait(skill, 144);
+  $("tcPopFace").innerHTML = face ? '<img alt="" src="' + face + '">' : "<em>" + (lv ? lv.emoji : "") + "</em>";
   $("tcPopBody").innerHTML = talentHTML(skill, { style: true, trick: true });
   var pop = $("tcPop");
+  clearTimeout(tcPopT);
+  pop.style.setProperty("--tc", who.look.col);
+  pop.style.setProperty("--tcGlow", hexA(who.look.col, 0.5));
   pop.classList.toggle("below", -humanSide !== -orientation);
+  pop.classList.remove("out");
   pop.classList.remove("hide");
   tcPopOn = true;
-  talentGo($("tcPopBody"));
+  /* the card flips up first; the talents start lighting as it lands */
+  talentGo($("tcPopBody"), 330);
   snd("open");
+  hap("select");
   return true;
 }
-function tcPopHide() { if (!tcPopOn) return; tcPopOn = false; $("tcPop").classList.add("hide"); }
+/* it flips back down rather than vanishing */
+var tcPopT = 0;
+function tcPopHide() {
+  if (!tcPopOn) return;
+  tcPopOn = false;
+  var pop = $("tcPop"), f = pop.querySelector(".tcard");
+  if (f && f._tcT) f._tcT.forEach(clearTimeout);
+  if (!uimOn()) { pop.classList.add("hide"); return; }
+  pop.classList.add("out");
+  clearTimeout(tcPopT);
+  tcPopT = setTimeout(function () { if (!tcPopOn) { pop.classList.add("hide"); pop.classList.remove("out"); } }, 200);
+}
 function talentWire() {
   ["nameTop", "nameBot"].forEach(function (nid) {
     var tag = $(nid).parentNode;
@@ -7455,7 +7553,16 @@ function talentWire() {
     if (tcPopOn && !e.target.closest("#tcPop") && !e.target.closest(".ptag.tcTap")) tcPopHide();
   }, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && tcPopOn) tcPopHide(); }, true);
-  $("tcPop").addEventListener("click", tcPopHide);
+  /* a tap on a talent explains it; a tap anywhere else on the card puts it away */
+  $("tcPop").addEventListener("click", function (e) { if (!e.target.closest(".tcStat, .tcInfo")) tcPopHide(); });
+  document.addEventListener("click", function (e) {
+    var st = e.target.closest && e.target.closest(".tcStat");
+    if (st) { e.stopPropagation(); talentInfo(st); }
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    var st = e.target.closest && e.target.closest(".tcStat");
+    if (st && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); talentInfo(st); }
+  });
 }
 /* the coach's tag says it can be tapped */
 function talentTagSync() {
@@ -8530,7 +8637,8 @@ function openChapter(id) {
   /* the coach's talent card: style, talents, great at, still growing, its trick */
   $("chPersona").innerHTML = who ? talentHTML(id, { style: true, trick: "tip" }) +
     (rec.n ? '<div class="tcRec"><b>You &amp; ' + escHtml(who.name) + "</b>" + rec.w + "\u2013" + rec.l + (rec.d ? "\u2013" + rec.d : "") + "<small>" + rec.n + (rec.n > 1 ? " games" : " game") + "</small></div>" : "") : "";
-  talentGo($("chPersona"));
+  /* the card deals itself in (uimCardIn); the talents light once it has */
+  talentGo($("chPersona"), 520);
   var url = jrnPortrait(id, 200);
   $("chPic").innerHTML = url ? '<img alt="" src="' + url + '">' : "<em>" + SKILLS[id].emoji + "</em>";
   card.style.setProperty("--chBg", "url(" + "data:," + ")");
@@ -8633,8 +8741,9 @@ function jrnAtEnd(result, rs) {
              { cls: "chapter unlock", sting: "levelup", hap: "success", big: !next });
     $("endCupTx").textContent = opened ? "🔓 Meet " + jrnName(opened.id) + ": chapter " + opened.n
                               : next ? "On to chapter " + next.n + ": " + next.title : "The Grove Cup is open!";
-    $("endCupSub").textContent = "See it on the map ▶";
-    btn.onclick = function () { $("ovEnd").classList.add("hide"); openJourney(); };
+    /* straight to the next chapter's card, Play and all (Back is the map) */
+    $("endCupSub").textContent = next ? "Their chapter card, and Play ▶" : "See it on the map ▶";
+    btn.onclick = function () { $("ovEnd").classList.add("hide"); if (next) openChapter(next.id); else openJourney(); };
     btn.classList.remove("hide");
   }
 }
@@ -8686,6 +8795,7 @@ function jrnWire() {
   $("mJourney").addEventListener("click", openJourney);
   $("jrClose").addEventListener("click", function () { $("ovJourney").classList.add("hide"); showMenu(); });
   $("chBack").addEventListener("click", function () { $("ovChapter").classList.add("hide"); openJourney(); });
+  $("chX").addEventListener("click", function () { $("ovChapter").classList.add("hide"); openJourney(); });
   $("crDone").addEventListener("click", function () { clearInterval(jrnFwT); $("ovCredits").classList.add("hide"); openJourney(); });
   jrnLobby();
 }

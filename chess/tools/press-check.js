@@ -283,6 +283,10 @@ const LOOK = `(sel) => {
         await page.evaluate(() => document.getElementById("mSettings").click());
         await page.waitForTimeout(500);
         await page.evaluate(() => { window.__clicked = 0; document.getElementById("setOpenStudio").addEventListener("click", (e) => { window.__clicked++; e.stopImmediatePropagation(); }, true); });
+        /* the card has finished arriving (arrive-check.js) before the key is
+           measured: measured mid-arrival, the edge is still moving, and the
+           press lands where it used to be */
+        await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition)).map((a) => a.finished)));
         const b = await (await page.$("#setOpenStudio")).boundingBox();
         await page.mouse.move(b.x + b.width / 2, b.y + 0.6);
         await page.mouse.down();

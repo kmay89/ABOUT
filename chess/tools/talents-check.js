@@ -14,7 +14,11 @@
    hello that never takes a touch, goes at any touch, lasts as long as
    your pace likes, and does not come back for a rematch; the coach's
    name (and only the coach's) opens its card, and a tap anywhere puts it
-   away; the chapter card is the full talent card; and a game with
+   away; the chapter card is the full talent card; the talents light up
+   one after another with a climbing tick, the total counting with them,
+   a star for a talent at its top and a sheen at the end; the hello and
+   the card come and go with a flourish (and simply appear with reduced
+   motion); and a game with
    nobody across the table has none of it.
 
    Run: node chess/tools/talents-check.js                                 */
@@ -207,6 +211,79 @@ const server = http.createServer((req, res) => {
        ch.t.indexOf(cactus.style) >= 0 && ch.t.indexOf(cactus.great) >= 0 && ch.t.indexOf(cactus.growing) >= 0 && ch.t.indexOf(cactus.trick.name) >= 0 && ch.on === cactus.total, ch.t);
     await page.evaluate(() => { document.getElementById("ovChapter").classList.add("hide"); });
 
+    /* the reveal: one pip after another, across the whole card */
+    await page.evaluate(() => { window.__ticks = []; Sound.countTick = (i, n, up) => window.__ticks.push([i, n, up]); });
+    await page.evaluate(() => __cr.openChapter("mentor"));
+    const oak = Cast.card("mentor");
+    const order = await page.evaluate(() => [...document.querySelectorAll("#chPersona .tcPips i.on")].map((p) => [+p.dataset.o, parseFloat(getComputedStyle(p).animationDelay)]));
+    ok("the talents light one pip after another, row by row, never two at once",
+       order.length === oak.total && order.every((x, i) => x[0] === i && (!i || x[1] > order[i - 1][1])), JSON.stringify(order.slice(0, 6)));
+    const mid = await until(() => { const f = document.querySelector("#chPersona .tcard"), c = +f.dataset.count; return c > 2 && c < 15 ? c + "|" + document.querySelector("#chPersona .tcTotal b").textContent : null; }, 2500);
+    ok("…and the total counts up with them", !!mid && mid.split("|")[0] === mid.split("|")[1], mid);
+    const shone = await until(() => document.querySelector("#chPersona .tcard").classList.contains("shine"), 3000);
+    const ticks = await page.evaluate(() => window.__ticks.filter((t) => t[1] === 17));
+    ok("…each with a tick that climbs the scale, all the way to the top", ticks.length === oak.total && ticks.every((t, i) => t[0] === i + 1 && t[2] === true), JSON.stringify(ticks.slice(-3)));
+    ok("…then a sheen crosses the card, and the total is the whole card", !!shone && (await page.evaluate(() => document.querySelector("#chPersona .tcTotal b").textContent)) === String(oak.total));
+    const maxed = await page.evaluate(() => [...document.querySelectorAll("#chPersona .tcStat.max")].map((x) => x.getAttribute("aria-label")));
+    ok("a talent at its very top gets its star (Oak: steady and wise)", maxed.length === oak.talents.filter((t) => t.v === Cast.TALENT_MAX).length && maxed.every((l) => / 5 out of 5$/.test(l)), JSON.stringify(maxed));
+    ok("…and only those", await page.evaluate(() => document.querySelectorAll("#chPersona .tcMaxTag").length) === maxed.length);
+    await page.evaluate(() => { document.getElementById("ovChapter").classList.add("hide"); });
+
+    /* a long chapter card on a short phone: it scrolls, Play is always in reach */
+    await page.setViewportSize({ width: 375, height: 600 });
+    await page.evaluate(() => __cr.openChapter("mentor"));
+    await page.waitForTimeout(700);
+    const fit = await page.evaluate(() => {
+      const card = document.querySelector("#ovChapter .chCard"), p = document.getElementById("chPlay").getBoundingClientRect();
+      const at = document.elementFromPoint(p.left + p.width / 2, p.top + p.height / 2);
+      return { scrolls: card.scrollHeight > card.clientHeight && getComputedStyle(card).overflowY !== "hidden", inView: p.top >= 0 && p.bottom <= innerHeight, hit: at && at.closest("#chPlay") ? "chPlay" : (at && (at.id || at.className)) };
+    });
+    ok("a chapter card taller than the phone scrolls, and ▶ Play is on screen and tappable", fit.scrolls && fit.inView && fit.hit === "chPlay", JSON.stringify(fit));
+    const fitEnd = await page.evaluate(() => {
+      const card = document.querySelector("#ovChapter .chCard"); card.scrollTop = card.scrollHeight;
+      const p = document.getElementById("chPlay").getBoundingClientRect(), b = document.getElementById("chBack").getBoundingClientRect();
+      return { play: p.top >= 0 && p.bottom <= innerHeight, back: b.top >= 0 && b.bottom <= innerHeight };
+    });
+    ok("…and still is at the bottom of the card, with Back", fitEnd.play && fitEnd.back, JSON.stringify(fitEnd));
+    /* tap a talent: what it means, kindly */
+    await page.evaluate(() => { const c = document.querySelector("#ovChapter .chCard"); c.scrollTop = 0; document.querySelector('#chPersona .tcStat[data-k="wise"]').scrollIntoView({ block: "center" }); });
+    const wb = await page.evaluate(() => { const r = document.querySelector('#chPersona .tcStat[data-k="wise"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.touchscreen.tap(wb.x, wb.y);
+    const info = await until(() => { const i = document.querySelector("#chPersona .tcInfo"); return i ? i.textContent : null; }, 1000);
+    ok("tapping a talent says what it means and how much the coach has", !!info && /Wise/.test(info) && /knows how games end/.test(info) && /5 of 5/.test(info) && /very best/.test(info), info);
+    await page.touchscreen.tap(wb.x, wb.y);
+    ok("…and tapping it again closes it", !!(await until(() => !document.querySelector("#chPersona .tcInfo"), 800)));
+    await page.evaluate(() => document.getElementById("chX").click());
+    await page.waitForTimeout(400);
+    ok("the ✕ closes the chapter card, back to the map", await page.evaluate(() => document.getElementById("ovChapter").classList.contains("hide") && !document.getElementById("ovJourney").classList.contains("hide")));
+    await page.evaluate(() => document.getElementById("ovJourney").classList.add("hide"));
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    /* the hello and the card, coming and going */
+    await page.waitForTimeout(500);
+    await start({ humanSide: 1, skill: "acorn" });
+    await until(() => __cr.talentState().hi, 1500);
+    ok("the hello brings the coach's own face", await page.evaluate(() => { const i = document.querySelector("#hiThem .hiFace"); return !!i && /^data:image/.test(i.src); }));
+    ok("…with a burst and sparkles where you meet", await page.evaluate(() => document.querySelectorAll("#hiBan .hiSpark").length === 6 && !!document.querySelector("#hiBan .hiBurst")));
+    await page.evaluate(() => __cr.hiDone());
+    const parting = await page.evaluate(() => new Promise((res) => setTimeout(() => res(getComputedStyle(document.getElementById("hiYou")).transform), 150)));
+    ok("…and goes by parting, not by blinking out", parting !== "none" && !/matrix\(1, 0, 0, 1, 0, 0\)/.test(parting), parting);
+    await page.waitForTimeout(600);
+    ok("…and is gone soon after", await page.evaluate(() => document.getElementById("hiBan").classList.contains("hide")));
+    await page.evaluate(() => __cr.tcPopShow());
+    ok("the card has the coach's face at the top", await page.evaluate(() => !!document.querySelector("#tcPopFace img")));
+    const early = await page.evaluate(() => +document.querySelector("#tcPop .tcard").dataset.count);
+    ok("…and flips up before the talents start to light", early === 0, String(early));
+    await page.waitForTimeout(400);
+    /* in the middle of a game too: a talent explains itself, and the card stays */
+    await page.evaluate(() => document.querySelector('#tcPop .tcStat[data-k="bold"]').click());
+    const popInfo = await page.evaluate(() => ({ t: (document.querySelector("#tcPop .tcInfo") || {}).textContent || "", open: __cr.talentState().pop }));
+    ok("tapping a talent on the coach's card explains it, and the card stays open", popInfo.open && /Bold/.test(popInfo.t) && /Acorn/.test(popInfo.t), JSON.stringify(popInfo));
+    await page.evaluate(() => __cr.tcPopHide());
+    const leaving = await page.evaluate(() => ({ out: document.getElementById("tcPop").classList.contains("out"), hid: document.getElementById("tcPop").classList.contains("hide") }));
+    await page.waitForTimeout(350);
+    ok("…and flips away when it is put down", leaving.out && !leaving.hid && (await page.evaluate(() => document.getElementById("tcPop").classList.contains("hide"))), JSON.stringify(leaving));
+
     /* nobody across the table: none of it */
     await start({ humanSide: 1 }, "local");
     await page.waitForTimeout(500);
@@ -215,6 +292,20 @@ const server = http.createServer((req, res) => {
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the check itself fell over", false, String(e && e.stack || e).split("\n").slice(0, 3).join(" "));
+  }
+  /* with reduced motion: no count, no flip, it is simply all there */
+  try {
+    const rctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+    await rctx.addInitScript(() => localStorage.setItem("chessroom_prefs", JSON.stringify({ welcomed: true, tips: { notes: 1, price: 1, undo: 1, why: 1, wheels: 1 }, met: { acorn: 1 } })));
+    const rp = await rctx.newPage();
+    await rp.goto(base + "/chess/#force2d");
+    await rp.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 120000 });
+    await rp.evaluate(() => __cr.openChapter("mentor"));
+    const r = await rp.evaluate(() => ({ n: document.querySelector("#chPersona .tcTotal b").textContent, a: document.querySelector("#chPersona .tcPips i.on").getAnimations().length }));
+    ok("with reduced motion the card is simply all there: the whole total, nothing moving", r.n === String(Cast.card("mentor").total) && r.a === 0, JSON.stringify(r));
+    await rctx.close();
+  } catch (e) {
+    ok("the reduced-motion check fell over", false, String(e && e.stack || e).split("\n").slice(0, 3).join(" "));
   }
   await browser.close();
   server.close();

@@ -1955,7 +1955,28 @@ the words kind: no fighting talk, no failing.
 - Tap the coach's name (the ⓘ) at any time for its whole card: style,
   talents, great at, still growing and favourite trick, plus your record
   together. A tap anywhere, or Escape, puts it away.
-- The chapter card on the journey map is the full talent card.
+- The chapter card on the journey map is the full talent card. It scrolls
+  when it is taller than the phone, with ▶ Play and Back pinned at the
+  bottom and a ✕ at the top. After a chapter is cleared, the end card's
+  "Meet …" button opens the next chapter's card directly.
+- Tap any talent, on any card, for a line on what it means and how much
+  of it the coach has ("Bold means it goes forward and attacks. Sprout
+  is just getting started (1 of 5).").
+
+**The reveal.** A card counts up the way a game's character screen
+does. The card rises in, then every pip lights one after another, row by
+row. Each pip pops with a flash, a tick that climbs the scale, and a tap
+in the hand, and the ✨ total in the corner counts up with them. A talent
+at its very top glints gold and earns a ★MAX. When the count is done, a
+sheen crosses the card and it glows in the coach's own colour. The
+coach's card flips up with the coach's portrait at the top, and flips
+away when it is put down. The hello brings the coach's face: the two
+sides slide in and meet, the 🤝 lands with a burst and a ring of
+sparkles, a light runs along the band, and on the way out the two sides
+part. Each moment is timed to the one before it: at the first meeting
+the talents rise in while the coach is talking, and on the chapter card
+they light once the card has dealt itself in. With reduced motion it is
+all simply there.
 
 `node chess/tools/talents-check.js` checks the cards and the room.
 
