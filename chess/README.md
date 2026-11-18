@@ -1923,39 +1923,41 @@ beat one coach and the next has heard ("Acorn says you're really good!
 Be gentle?", "Data received: you beat Cactus."). The chapter card keeps
 your record against each.
 
-## Fighter cards: every coach's strengths and weak spot
+## Talent cards: what each coach is gifted at
 
-Every coach has a card, the way a fighter in a game does, so you know
-who you are playing and how to have fun beating them.
+Every coach has a card that shows its talents, the way a game shows a
+character's skills, so you know who you are sitting down with and what
+you can learn from them.
 
-**Four chunky bars.** Attack ⚔️, Defence 🛡️, Tricks 🎩 and Endgame 👑,
-each out of five, light up one pip at a time. They rise along the
-ladder, from Acorn (six pips in all) to Oak (seventeen), and each coach
-has its own shape: Cactus hits hardest, Fern and Bamboo dig in, Clover
-is mostly tricks, Pine counts and Oak is the endgame master. No two
-coaches have the same shape.
+**Four talents.** 🔥 Bold (goes forward and attacks), 🛡️ Steady (keeps
+its pieces safe), 🎩 Clever (finds tricks and surprises) and 🦉 Wise
+(knows how games end), each out of five, light up one pip at a time.
+They grow along the ladder, from Acorn (six pips in all) to Oak
+(seventeen), and each coach has its own shape: Cactus is the boldest,
+Fern and Bamboo are steady, Clover is mostly clever, and Oak is the
+wisest. No two coaches have the same shape.
 
-**A strength and a weak spot.** 💪 says what the coach is good at
-("Checks and captures, nonstop. Very, very prickly!"). 🎯 says how to
-have fun beating it, never what to worry about ("Charges forward and
-leaves its own king alone. Sneak around the back!"). Like everything a
-coach says, neither is about the board in front of you, and the check
-keeps scary words out of a weak spot.
+**Great at, and still growing.** 🌟 says what the coach is great at
+("Checks and captures, nonstop. Very, very prickly!"). 🌱 says what it
+is still learning, as something you can try ("Learning to keep its own
+king cosy. Try sneaking around the back!"). Like everything a coach
+says, neither is about the board in front of you, and the check keeps
+the words kind: no fighting talk, no failing.
 
 **Where you see it.**
-- Meeting a coach for the first time, its card comes with the
-  introduction: bars filling in, and its weak spot.
-- A game against a coach you already know opens with a quick
-  **YOU VS** banner and its weak spot. It sits over the board without
-  taking a touch, any touch sends it off, it lasts as long as your pace
-  likes words to stay up (shorter for a quick player), and a rematch
-  skips it.
+- Meeting a coach for the first time, its talents come with the
+  introduction, lighting up, along with what it is still learning.
+- A game with a coach you already know opens with a friendly hello:
+  you 🤝 the coach, and one thing it is still learning. It sits over the
+  board without taking a touch, any touch sends it off, it lasts as long
+  as your pace likes words to stay up (shorter for a quick player), and
+  a rematch skips it.
 - Tap the coach's name (the ⓘ) at any time for its whole card: style,
-  bars, strength, weak spot and special move, plus your record against
-  it. A tap anywhere, or Escape, puts it away.
-- The chapter card on the journey map is the full fighter card.
+  talents, great at, still growing and favourite trick, plus your record
+  together. A tap anywhere, or Escape, puts it away.
+- The chapter card on the journey map is the full talent card.
 
-`node chess/tools/fighters-check.js` checks the cards and the room.
+`node chess/tools/talents-check.js` checks the cards and the room.
 
 ## Earned, not chosen: coaches and places
 

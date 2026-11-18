@@ -1,22 +1,23 @@
-/* fighters-check.js — dev-only. Does every coach have a fighter card, and
-   is it fun rather than a test?
+/* talents-check.js — dev-only. Does every coach have a talent card, and
+   is it kind and fun rather than a test?
 
-   In node, the cards themselves (cast.js): every coach has four bars out
-   of five, a strength and a weak spot; the bars rise along the ladder and
-   each coach has a shape of its own (Cactus is the attacker, Fern and Oak
-   the defenders, Oak the endgame master); the words are short, kind (a
-   weak spot is a way to have fun beating it, never a worry), and say
+   In node, the cards themselves (cast.js): every coach has four talents
+   out of five (bold, steady, clever, wise), something it is great at and
+   something it is still learning; talents grow along the ladder and each
+   coach has a shape of its own (Cactus the boldest, Fern steady, Clover
+   clever, Oak the wisest); the words are short and kind (what a coach is
+   still learning is something you can try, never a worry), and say
    nothing about the board in front of you.
 
-   In a real browser: meeting a coach brings its card, bars and weak spot;
-   a game with a coach you know opens with a "versus" banner that never
-   takes a touch, goes at any touch, lasts as long as your pace likes, and
-   does not come back for a rematch; the coach's name (and only the
-   coach's) opens its card, and a tap anywhere puts it away; the chapter
-   card is the full fighter card; and a game with nobody across the table
-   has none of it.
+   In a real browser: meeting a coach brings its talents and what it is
+   still learning; a game with a coach you know opens with a friendly
+   hello that never takes a touch, goes at any touch, lasts as long as
+   your pace likes, and does not come back for a rematch; the coach's
+   name (and only the coach's) opens its card, and a tap anywhere puts it
+   away; the chapter card is the full talent card; and a game with
+   nobody across the table has none of it.
 
-   Run: node chess/tools/fighters-check.js                                */
+   Run: node chess/tools/talents-check.js                                 */
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -36,34 +37,34 @@ const Rating = require("../rating.js");
 const ladder = Rating.LEVELS.map((L) => L.id);
 const cards = ladder.map((id) => Cast.card(id));
 
-ok("every coach on the ladder has a fighter card", cards.every(Boolean), ladder.filter((id, i) => !cards[i]).join(", "));
-ok("…with the same four bars, in the same order", cards.every((c) => c.stats.map((s) => s.key).join() === "attack,defence,tricks,endgame"));
-ok("…each one a whole number from one to five", cards.every((c) => c.stats.every((s) => Number.isInteger(s.v) && s.v >= 1 && s.v <= Cast.STAT_MAX)),
-   cards.map((c) => c.id + ":" + c.stats.map((s) => s.v).join("")).join(" "));
-ok("the bars add up to more as you climb the ladder (never less)", cards.every((c, i) => !i || c.power >= cards[i - 1].power),
-   cards.map((c) => c.id + " " + c.power).join(", "));
-ok("…from a gentle first coach to a mighty last one", cards[0].power <= 8 && cards[cards.length - 1].power >= 15);
-const sig = (c) => c.stats.map((s) => s.v).join("");
-ok("no two coaches have the same shape", new Set(cards.map(sig)).size === cards.length);
-const st = (id, k) => Cast.card(id).stats.find((s) => s.key === k).v;
-ok("Cactus is the attacker: no one hits harder", ladder.every((id) => st(id, "attack") <= st("cactus", "attack")) && st("cactus", "attack") > st("cactus", "defence"));
-ok("Fern (careful) defends better than it attacks", st("club", "defence") > st("club", "attack"));
-ok("Clover (lucky) is more tricks than anything", st("clover", "tricks") >= Math.max(st("clover", "attack"), st("clover", "defence"), st("clover", "endgame")));
-ok("Oak is the endgame master", ladder.every((id) => st(id, "endgame") <= st("mentor", "endgame")));
-ok("every card has its style and its special move, from its own character",
-   cards.every((c) => c.style === Cast.get(c.id).style.name && c.special.name === Cast.get(c.id).signature.name));
+ok("every coach on the ladder has a talent card", cards.every(Boolean), ladder.filter((id, i) => !cards[i]).join(", "));
+ok("…with the same four talents, in the same order", cards.every((c) => c.talents.map((t) => t.key).join() === "bold,steady,clever,wise"));
+ok("…each one a whole number from one to five", cards.every((c) => c.talents.every((t) => Number.isInteger(t.v) && t.v >= 1 && t.v <= Cast.TALENT_MAX)),
+   cards.map((c) => c.id + ":" + c.talents.map((t) => t.v).join("")).join(" "));
+ok("…and each talent says what it means", Cast.TALENTS.every((t) => t.label && t.emoji && t.what && t.what.length < 40));
+ok("talents grow as you climb the ladder (never shrink)", cards.every((c, i) => !i || c.total >= cards[i - 1].total),
+   cards.map((c) => c.id + " " + c.total).join(", "));
+ok("…from a little seed to a wise old tree", cards[0].total <= 8 && cards[cards.length - 1].total >= 15);
+const shape = (c) => c.talents.map((t) => t.v).join("");
+ok("no two coaches have the same shape", new Set(cards.map(shape)).size === cards.length);
+const tv = (id, k) => Cast.card(id).talents.find((t) => t.key === k).v;
+ok("Cactus is the boldest of them all", ladder.every((id) => tv(id, "bold") <= tv("cactus", "bold")) && tv("cactus", "bold") > tv("cactus", "steady"));
+ok("Fern (careful) is steadier than it is bold", tv("club", "steady") > tv("club", "bold"));
+ok("Clover (lucky) is cleverer than anything else", tv("clover", "clever") >= Math.max(tv("clover", "bold"), tv("clover", "steady"), tv("clover", "wise")));
+ok("Oak is the wisest", ladder.every((id) => tv(id, "wise") <= tv("mentor", "wise")));
+ok("every card has its style and its favourite trick, from its own character",
+   cards.every((c) => c.style === Cast.get(c.id).style.name && c.trick.name === Cast.get(c.id).signature.name));
 const words = [];
-cards.forEach((c) => { words.push({ id: c.id, k: "strong", t: c.strong }); words.push({ id: c.id, k: "weak", t: c.weak }); });
-ok("a strength and a weak spot for each, short enough to read at a glance",
+cards.forEach((c) => { words.push({ id: c.id, k: "great", t: c.great }); words.push({ id: c.id, k: "growing", t: c.growing }); });
+ok("something it is great at and something it is still learning, each short enough to read at a glance",
    words.every((w) => typeof w.t === "string" && w.t.length >= 20 && w.t.length <= 90), words.filter((w) => !w.t || w.t.length > 90 || w.t.length < 20).map((w) => w.id + ":" + w.k).join(", "));
 ok("nobody's words are anybody else's", new Set(words.map((w) => w.t)).size === words.length);
 const telling = words.filter((w) => /\b[a-h][1-8]\b|mate in|best move|blunder|\bwinning\b|\bwins\b/i.test(w.t));
 ok("nothing on a card tells you about the position", telling.length === 0, telling.map((w) => w.id + ":" + w.t).join(" | "));
-/* a weak spot is an invitation, not a worry: no scary words, and it ends
-   on something to try */
-const scary = words.filter((w) => /\b(lose|losing|lost|fail|bad|wrong|mistake|careful|danger|scared|hard)\b/i.test(w.t) && w.k === "weak");
-ok("a weak spot is said kindly: no scary words", scary.length === 0, scary.map((w) => w.id + ":" + w.t).join(" | "));
-ok("…and each one ends on something fun to try", cards.every((c) => /[!.]$/.test(c.weak)) && cards.filter((c) => /!$/.test(c.weak)).length >= cards.length - 1);
+/* growing is kind: about learning, never a fight or a failing */
+const harsh = words.filter((w) => /\b(weak|weakness|beat|beating|attack them|defeat|lose|losing|lost|fail|bad|wrong|mistake|danger|scared|hard|stupid|dumb)\b/i.test(w.t));
+ok("the words are kind: no fighting talk, no failing", harsh.length === 0, harsh.map((w) => w.id + ":" + w.t).join(" | "));
+ok("…and what it is still learning is about learning", cards.every((c) => /learning/i.test(c.growing)));
 ok("an unknown coach has no card, rather than someone else's", Cast.card("nobody") === null);
 
 /* ---------------- a browser ---------------- */
@@ -100,7 +101,7 @@ const server = http.createServer((req, res) => {
   page.on("pageerror", (e) => errs.push(e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/404/.test(m.text())) errs.push(m.text()); });
   const until = async (fn, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await page.evaluate(fn); if (v) return v; await page.waitForTimeout(60); } return null; };
-  const fs_ = () => page.evaluate(() => __cr.fighterState());
+  const fs_ = () => page.evaluate(() => __cr.talentState());
   const start = (o, m) => page.evaluate(([o2, m2]) => {
     document.getElementById("ovMenu").classList.add("hide");
     __cr.startGame(m2 || "coach", Object.assign({ clockStr: "none", fresh: true }, o2));
@@ -115,26 +116,26 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(400);
     let s = await fs_();
     const acorn = Cast.card("acorn");
-    ok("meeting a coach, its card comes too: the bars and its weak spot", (await page.evaluate(() => __cr.castState().meeting)) &&
-       s.meetCard.indexOf("Attack") >= 0 && s.meetCard.indexOf(acorn.weak) >= 0, s.meetCard);
-    const pips = await page.evaluate(() => document.querySelectorAll("#meetCard .fcPips i.on").length);
-    ok("…with as many lit pips as it has points", pips === acorn.power, pips + " vs " + acorn.power);
-    ok("…and the bars fill in, one pip at a time", await page.evaluate(() => {
-      const f = document.querySelector("#meetCard .fcard"), on = document.querySelectorAll("#meetCard .fcPips i.on");
+    ok("meeting a coach, its talents come too, and what it is still learning", (await page.evaluate(() => __cr.castState().meeting)) &&
+       s.meetCard.indexOf("Bold") >= 0 && s.meetCard.indexOf(acorn.growing) >= 0, s.meetCard);
+    const pips = await page.evaluate(() => document.querySelectorAll("#meetCard .tcPips i.on").length);
+    ok("…with as many lit pips as its talents add up to", pips === acorn.total, pips + " vs " + acorn.total);
+    ok("…and the talents light up, one pip at a time", await page.evaluate(() => {
+      const f = document.querySelector("#meetCard .tcard"), on = document.querySelectorAll("#meetCard .tcPips i.on");
       return f.classList.contains("go") && getComputedStyle(on[on.length - 1]).animationDelay !== getComputedStyle(on[0]).animationDelay;
     }));
-    ok("…and no versus banner on top of an introduction", !s.vs);
+    ok("…and no hello banner on top of an introduction", !s.hi);
     const box = await page.evaluate(() => { const a = document.getElementById("castMeet").getBoundingClientRect(), b = document.getElementById("cv2").getBoundingClientRect(); return [a.top, a.bottom, b.top, b.bottom]; });
     ok("…and the introduction, card and all, stays on the board's stage", box[0] >= box[2] - 1 && box[1] <= box[3] + 1, box.map(Math.round).join(","));
     await page.evaluate(() => __cr.castMeetDone());
     await page.waitForTimeout(700);
 
-    /* a coach you know: the versus banner */
+    /* a coach you know: a friendly hello */
     await start({ humanSide: 1, skill: "sprout" });
-    s = await until(() => { const x = __cr.fighterState(); return x.vs ? x : null; }, 1500);
-    ok("a game with a coach you know opens with a versus banner", !!s && /VS/.test(s.vsText) && s.vsText.indexOf("Sprout") >= 0 && s.vsText.indexOf("You") >= 0, s && s.vsText);
-    ok("…that says its weak spot, kindly", !!s && s.vsText.indexOf(Cast.card("sprout").weak) >= 0);
-    ok("…and never takes a touch meant for the board", await page.evaluate(() => getComputedStyle(document.getElementById("vsBan")).pointerEvents === "none"));
+    s = await until(() => { const x = __cr.talentState(); return x.hi ? x : null; }, 1500);
+    ok("a game with a coach you know opens with a friendly hello: you and the coach, side by side", !!s && /\u{1F91D}/u.test(s.hiText) && s.hiText.indexOf("Sprout") >= 0 && s.hiText.indexOf("You") >= 0, s && s.hiText);
+    ok("…and one thing it is still learning", !!s && s.hiText.indexOf(Cast.card("sprout").growing) >= 0);
+    ok("…and never takes a touch meant for the board", await page.evaluate(() => getComputedStyle(document.getElementById("hiBan")).pointerEvents === "none"));
     const tapped = await page.evaluate(() => {
       const c = document.getElementById("cv2").getBoundingClientRect();
       const el = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
@@ -144,51 +145,51 @@ const server = http.createServer((req, res) => {
     /* any touch sends it off, and the board still gets the touch */
     const c = await page.evaluate(() => { const r = document.getElementById("cv2").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height * 0.8 }; });
     await page.touchscreen.tap(c.x, c.y);
-    const gone = await until(() => !__cr.fighterState().vs, 800);
+    const gone = await until(() => !__cr.talentState().hi, 800);
     ok("…and goes at a touch", !!gone);
     /* it goes by itself, in the time the player's pace likes */
     await page.evaluate(() => __cr.paceSet({ v: 1, mode: "brisk" }));
-    const brisk = (await fs_()).vsMs;
+    const brisk = (await fs_()).hiMs;
     await page.evaluate(() => __cr.paceSet({ v: 1, mode: "gentle" }));
-    const gentle = (await fs_()).vsMs;
+    const gentle = (await fs_()).hiMs;
     await page.evaluate(() => __cr.paceSet({ v: 1, mode: "auto" }));
-    ok("…a quick player gets a quick banner, a gentle one has time to read it", brisk < gentle && brisk >= 1500 && gentle <= 6000, brisk + " / " + gentle);
+    ok("…a quick player gets a quick hello, a gentle one has time to read it", brisk < gentle && brisk >= 1500 && gentle <= 6000, brisk + " / " + gentle);
     /* Acorn, met a moment ago (and the one coach a new player can rematch) */
     await start({ humanSide: 1, skill: "acorn" });
-    await until(() => __cr.fighterState().vs, 1500);
+    await until(() => __cr.talentState().hi, 1500);
     const t0 = Date.now();
-    await until(() => !__cr.fighterState().vs, 8000);
-    const lasted = Date.now() - t0, want = (await fs_()).vsMs;
+    await until(() => !__cr.talentState().hi, 8000);
+    const lasted = Date.now() - t0, want = (await fs_()).hiMs;
     ok("…and goes on its own after that", lasted <= want + 1200, lasted + "ms for " + want);
     /* a rematch: you have just seen it */
     await page.evaluate(() => __cr.rematchForTest());
     await page.waitForTimeout(500);
-    ok("a rematch skips the banner: you have just seen it", !(await fs_()).vs && (await page.evaluate(() => __cr.castState().id)) === "acorn" &&
+    ok("a rematch skips the hello: you have just seen it", !(await fs_()).hi && (await page.evaluate(() => __cr.castState().id)) === "acorn" &&
        (await page.evaluate(() => document.getElementById("ovAsk").classList.contains("hide"))));
 
     /* the name opens the card */
     await page.waitForTimeout(400);
     s = await fs_();
-    const coachTag = await page.evaluate(() => { const t = document.querySelector(".ptag.fcTap"); return t ? t.textContent : ""; });
+    const coachTag = await page.evaluate(() => { const t = document.querySelector(".ptag.tcTap"); return t ? t.textContent : ""; });
     ok("the coach's name tag (and only the coach's) can be tapped for its card", s.tap !== null && /Acorn/.test(coachTag) && !/You/.test(coachTag), s.tap + " " + coachTag);
-    ok("…and only one tag offers it", await page.evaluate(() => document.querySelectorAll(".ptag.fcTap").length === 1));
-    const tagBox = await page.evaluate(() => { const r = document.querySelector(".ptag.fcTap").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    ok("…and only one tag offers it", await page.evaluate(() => document.querySelectorAll(".ptag.tcTap").length === 1));
+    const tagBox = await page.evaluate(() => { const r = document.querySelector(".ptag.tcTap").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     await page.touchscreen.tap(tagBox.x, tagBox.y);
-    s = await until(() => { const x = __cr.fighterState(); return x.pop ? x : null; }, 1200);
-    ok("tapping the coach's name opens its fighter card", !!s && s.popText.indexOf("Acorn") >= 0 && s.popText.indexOf(acorn.strong) >= 0 &&
-       s.popText.indexOf(acorn.weak) >= 0 && s.popText.indexOf(acorn.special.name) >= 0 && s.popText.indexOf(acorn.style) >= 0, s && s.popText);
-    ok("…its bars as many as its points", await page.evaluate(() => document.querySelectorAll("#fcPop .fcPips i.on").length) === acorn.power);
+    s = await until(() => { const x = __cr.talentState(); return x.pop ? x : null; }, 1200);
+    ok("tapping the coach's name opens its talent card", !!s && s.popText.indexOf("Acorn") >= 0 && s.popText.indexOf(acorn.great) >= 0 &&
+       s.popText.indexOf(acorn.growing) >= 0 && s.popText.indexOf(acorn.trick.name) >= 0 && s.popText.indexOf(acorn.style) >= 0, s && s.popText);
+    ok("…its pips as many as its talents add up to", await page.evaluate(() => document.querySelectorAll("#tcPop .tcPips i.on").length) === acorn.total);
     ok("…and it is a dialog a screen reader can name", await page.evaluate(() => {
-      const t = document.querySelector(".ptag.fcTap"), p = document.getElementById("fcPop");
+      const t = document.querySelector(".ptag.tcTap"), p = document.getElementById("tcPop");
       return t.getAttribute("role") === "button" && t.tabIndex === 0 && /Acorn/.test(t.getAttribute("aria-label")) && p.getAttribute("role") === "dialog";
     }));
     await page.touchscreen.tap(tagBox.x, tagBox.y + 300);
-    ok("a tap anywhere puts it away", !!(await until(() => !__cr.fighterState().pop, 800)));
-    await page.evaluate(() => { const t = document.querySelector(".ptag.fcTap"); t.focus(); });
+    ok("a tap anywhere puts it away", !!(await until(() => !__cr.talentState().pop, 800)));
+    await page.evaluate(() => { const t = document.querySelector(".ptag.tcTap"); t.focus(); });
     await page.keyboard.press("Enter");
-    const kOpen = await until(() => __cr.fighterState().pop, 800);
+    const kOpen = await until(() => __cr.talentState().pop, 800);
     await page.keyboard.press("Escape");
-    const kShut = await until(() => !__cr.fighterState().pop, 800);
+    const kShut = await until(() => !__cr.talentState().pop, 800);
     ok("…and the keyboard can open it (Enter) and close it (Escape)", !!kOpen && !!kShut);
     /* the board turns: the tag that opens it follows the coach */
     const before = (await fs_()).tap;
@@ -197,26 +198,26 @@ const server = http.createServer((req, res) => {
     const after = (await fs_()).tap;
     ok("…and when the board turns, the coach's own tag still opens it", after && after !== before, before + " → " + after);
 
-    /* the chapter card is the full fighter card */
+    /* the chapter card is the full talent card */
     await page.evaluate(() => __cr.openChapter("cactus"));
     await page.waitForTimeout(300);
-    const ch = await page.evaluate(() => ({ t: document.getElementById("chPersona").textContent, on: document.querySelectorAll("#chPersona .fcPips i.on").length }));
+    const ch = await page.evaluate(() => ({ t: document.getElementById("chPersona").textContent, on: document.querySelectorAll("#chPersona .tcPips i.on").length }));
     const cactus = Cast.card("cactus");
-    ok("the chapter card is the coach's fighter card: style, bars, strong, weak, special",
-       ch.t.indexOf(cactus.style) >= 0 && ch.t.indexOf(cactus.strong) >= 0 && ch.t.indexOf(cactus.weak) >= 0 && ch.t.indexOf(cactus.special.name) >= 0 && ch.on === cactus.power, ch.t);
+    ok("the chapter card is the coach's talent card: style, talents, great at, still growing, favourite trick",
+       ch.t.indexOf(cactus.style) >= 0 && ch.t.indexOf(cactus.great) >= 0 && ch.t.indexOf(cactus.growing) >= 0 && ch.t.indexOf(cactus.trick.name) >= 0 && ch.on === cactus.total, ch.t);
     await page.evaluate(() => { document.getElementById("ovChapter").classList.add("hide"); });
 
     /* nobody across the table: none of it */
     await start({ humanSide: 1 }, "local");
     await page.waitForTimeout(500);
     s = await fs_();
-    ok("a game with nobody across the table has no card, banner, or tappable tag", !s.vs && !s.pop && s.tap === null, JSON.stringify(s));
+    ok("a game with nobody across the table has no card, hello, or tappable tag", !s.hi && !s.pop && s.tap === null, JSON.stringify(s));
     ok("nothing shouted at the console", errs.length === 0, errs.slice(0, 3).join(" | "));
   } catch (e) {
     ok("the check itself fell over", false, String(e && e.stack || e).split("\n").slice(0, 3).join(" "));
   }
   await browser.close();
   server.close();
-  console.log(failed ? `\n${failed} FAILURE(S)` : "\nevery coach has a card worth collecting");
+  console.log(failed ? `\n${failed} FAILURE(S)` : "\nevery coach has talents worth learning from");
   process.exit(failed ? 1 : 0);
 })();
