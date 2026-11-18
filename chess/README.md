@@ -1959,6 +1959,33 @@ Nothing on the road can be skipped. The room opens one coach at a time.
 `chess/tools/earn-check.js` checks the rules in node and walks the
 whole of it, from a new player's first visit, in a browser.
 
+## How things arrive
+
+The board already moves like a thing with weight: the hit-stop, the
+settle, the camera's swoop. The room around it now gets the same care,
+from one rule in one place (app.js, "the room's motion"), so every card
+in the game arrives the same way.
+
+- **A card springs into place.** The room dims in over a fifth of a
+  second. The card comes up from a little below, overshoots a touch and
+  settles, the way a real card is put down on a table.
+- **Its contents follow on a beat**, one after another, so the eye reads
+  them in order. The beat follows the pace (`pace.js`): about 60 ms
+  between items for a gentle player, 46 for a steady one, 25 for a brisk
+  one.
+- **The lobby deals its coaches** onto the ladder one by one, each
+  tipping in and landing.
+- **A game opens out of the tap that started it.** An iris with a gold
+  rim widens from your finger onto the new board. The game is already
+  there underneath, so nothing waits on the animation, and a tap goes
+  straight through it.
+- **Words** arrive with a spring and leave quickly.
+
+All of it is done with Web Animations layered over the styles, so a card
+can never be left half-shown. With reduced motion none of it runs.
+`chess/tools/arrive-check.js` watches it happen, and checks that it all
+ends exactly as styled and stays out of the way with reduced motion.
+
 ## Setting up the board
 
 Before anyone can play chess they need to know which piece is which and
@@ -3318,6 +3345,7 @@ node chess/tools/earn-check.js     # every coach and every place is earned, neve
 node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/table-check.js    # two people, one device: fair to both
 node chess/tools/setup-check.js    # every piece has a name and a home
+node chess/tools/arrive-check.js   # everything in the room arrives well
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment

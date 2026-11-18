@@ -118,10 +118,12 @@
     position:absolute; left:50%; bottom:64px; transform:translateX(-50%) translateY(8px);
     max-width:min(480px, 92vw); background:rgba(24,19,14,.94); border:1px solid var(--line);
     border-radius:14px; padding:10px 14px; z-index:6; box-shadow:var(--shadow);
-    opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; text-align:center;
+    opacity:0; transition:opacity .16s ease-in, transform .18s ease-in; pointer-events:none; text-align:center;
     font-size:.95em;
   }
-  #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  /* words arrive with a little spring, and leave quickly */
+  #toast:not(.show){transform:translateX(-50%) translateY(12px) scale(.94)}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0); transition:opacity .2s ease-out, transform .44s cubic-bezier(.2,1.45,.35,1)}
   /* a toast that only says something is see-through to a finger: on a
      phone it sits over the near ranks, and a word about the opening must
      never stand between a player and their own bishop. One that asks
@@ -1076,6 +1078,9 @@
   #endCup small{color:rgba(255,255,255,.88)}
 
 
+  /* ===== the room's motion: a game opens out of the tap that started it ===== */
+  .uimIris{position:fixed; z-index:80; border-radius:50%; transform:translate(-50%,-50%); pointer-events:none;
+    box-shadow:0 0 0 300vmax #120d08, inset 0 0 0 3px rgba(255,209,102,.55), 0 0 30px 6px rgba(255,209,102,.35)}
   /* ===== setting up the board ===== */
   .lessonBar.setup{display:flex; flex-direction:column; gap:8px}
   .suCard{display:flex; align-items:center; gap:12px; position:relative}
@@ -1933,6 +1938,7 @@
   @media (orientation:landscape) and (max-height:500px){
     #toast{position:fixed; left:auto; right:calc(80px + env(safe-area-inset-right, 0px)); bottom:8px;
       max-width:204px; font-size:.85em; z-index:12; transform:translateY(8px)}
+    #toast:not(.show){transform:translateY(10px) scale(.94)}
     #toast.show{transform:none}
     #app{padding-left:env(safe-area-inset-left, 0px)}
   }

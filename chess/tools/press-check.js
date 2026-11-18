@@ -240,6 +240,8 @@ const LOOK = `(sel) => {
       /* held: it has travelled; let go: it comes back */
       await page.evaluate(() => document.getElementById("mPass").scrollIntoView({ block: "center" }));
       await page.waitForTimeout(500);
+      /* the lobby has finished arriving (arrive-check.js) before the key is measured */
+      await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition)).map((a) => a.finished)));
       const box = await (await page.$("#mPass")).boundingBox();
       const at = { x: box.x + box.width * 0.25, y: box.y + box.height * 0.5 };
       const rest = await look("#mPass");
