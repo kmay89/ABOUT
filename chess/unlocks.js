@@ -63,7 +63,7 @@ var COLORS = {
    `use` is what equipping it does, read by app.js. */
 var ITEMS = [
   /* ---- the coaches ---- */
-  { id: "board-acorn", kind: "board", name: "Acorn’s Stump", emoji: "🪵", from: { coach: "acorn", star: 0 }, use: { home: "acorn" } },
+  { id: "board-acorn", kind: "board", name: "Acorn’s Lawn", emoji: "🌼", from: { coach: "acorn", star: 0 }, use: { home: "acorn" } },
   { id: "skill-acorn", kind: "skill", name: "The knight’s hop", emoji: "🐴", from: { coach: "acorn", star: 0 }, use: { lesson: "knight-L" },
     note: "Acorn’s favourite piece jumps where nothing else can. Learn to see its L." },
   { id: "col-acorn", kind: "colors", name: "Acorn & Oak", emoji: "🌰", from: { coach: "acorn", star: 1 } },
@@ -81,13 +81,13 @@ var ITEMS = [
   { id: "col-clover", kind: "colors", name: "Lucky Clover", emoji: "🍀", from: { coach: "clover", star: 1 } },
   { id: "burst-clover", kind: "burst", name: "Four-leaf burst", emoji: "🍀", from: { coach: "clover", star: 2 } },
 
-  { id: "board-club", kind: "board", name: "Fern’s Shade", emoji: "🌿", from: { coach: "club", star: 0 }, use: { home: "club" } },
+  { id: "board-club", kind: "board", name: "Fern’s Grotto", emoji: "🌿", from: { coach: "club", star: 0 }, use: { home: "club" } },
   { id: "skill-club", kind: "skill", name: "Notice, then defend", emoji: "🛡️", from: { coach: "club", star: 0 }, use: { lesson: "defend-it" },
     note: "Fern sees a threat before it lands. A defended piece is a safe piece." },
   { id: "col-club", kind: "colors", name: "Moss & Stone", emoji: "🪨", from: { coach: "club", star: 1 } },
   { id: "set-modern", kind: "pieces", name: "Modern pieces", emoji: "♝", from: { coach: "club", star: 2 }, use: { set: "modern" } },
 
-  { id: "board-bamboo", kind: "board", name: "Bamboo’s Lacquer", emoji: "🎋", from: { coach: "bamboo", star: 0 }, use: { home: "bamboo" } },
+  { id: "board-bamboo", kind: "board", name: "Bamboo’s Dojo", emoji: "🎋", from: { coach: "bamboo", star: 0 }, use: { home: "bamboo" } },
   { id: "skill-bamboo", kind: "skill", name: "The still pin", emoji: "📌", from: { coach: "bamboo", star: 0 }, use: { lesson: "pin-bishop" },
     note: "Bamboo holds a piece where it stands: it cannot move without losing what is behind it." },
   { id: "col-bamboo", kind: "colors", name: "Jade & Lacquer", emoji: "🎍", from: { coach: "bamboo", star: 1 } },

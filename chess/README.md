@@ -2778,13 +2778,36 @@ the tag shows the coach's emoji instead.
 
 ## Their boards
 
-Each coach plays you on its own board. Acorn's is a fresh-cut stump with
-wooden pieces; Sprout's a seed tray in a terracotta rim; Clover's a
-meadow with clover-pink pieces; Fern's moss and stone; Bamboo's pale
-cane in black lacquer; Cactus's sand and terracotta; Pine's frost on
-dark pine with metal pieces; Oak's an old library table with a gilt
-inlay, ivory and ebony on top. The first meeting says whose board it is
-and that it can be won.
+Each coach plays you in an arena of its own: a place rather than a
+finish, in colours that pop.
+
+| Coach | Arena | The surface | Scattered over it |
+|---|---|---|---|
+| 🌰 Acorn | Acorn's Lawn | grass mown in stripes, light squares chalked white | buttercups |
+| 🌱 Sprout | Sprout's Seed Tray | crumbly soil in a terracotta tray, cream felt | sprouts |
+| 🍀 Clover | Clover's Meadow | a mat of clover leaves, open grass | pink clover flowers |
+| 🌿 Fern | Fern's Grotto | moss cushions and cracked stone slabs | fireflies |
+| 🎋 Bamboo | Bamboo's Dojo | tatami woven two ways, in black lacquer with a red edge | sakura petals |
+| 🌵 Cactus | Cactus's Desert | wind-rippled sand, crackled terracotta | cactus flowers |
+| 🌲 Pine | Pine's Frost | sparkling snow, cracked blue ice | snowflakes |
+| 🌳 Oak | Oak's Library Table | parchment, stitched oxblood leather | gold leaf |
+
+Each surface is a recipe in `grain.js`, the same field both boards use.
+The flat board paints its colour, and the carved board paints its
+colour and the relief its light reads, so the grass has blades, the
+ice its cracks and the leather its stitching. Every arena also has an
+**accent colour** (`board.accent` in `skins.js`), painted where its
+flowers and petals fall and standing a little proud on the carved board.
+The scattered things keep to the squares they belong on (buttercups in
+the green, not on the chalk) and never sit across a square's edge.
+
+The arenas are won with their coach's board, so the Studio's pattern
+list keeps them to themselves. An arena travels in a share code, accent
+and all; every older code still reads. `arena-check.js` checks the
+surfaces and the accents in node, and checks the drawn board's actual
+pixels and that the carved board builds every arena.
+
+The first meeting says whose board it is and that it can be won.
 
 **Beat a coach once, in a rated game, and its board is yours** (the
 first star on the ladder, made into something you can see). The end
@@ -3346,6 +3369,7 @@ node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/table-check.js    # two people, one device: fair to both
 node chess/tools/setup-check.js    # every piece has a name and a home
 node chess/tools/arrive-check.js   # everything in the room arrives well
+node chess/tools/arena-check.js    # every coach plays in a place of its own
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment
 node chess/tools/journey-check.js  # the Chess Room can be beaten, and beating it is a moment

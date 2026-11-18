@@ -6195,7 +6195,8 @@ function renderStudio() {
 
   var pats = $("stPatterns");
   pats.innerHTML = "";
-  Object.keys(Skins.PATTERNS).forEach(function (id) {
+  /* the arenas (grass, ice…) are won with a coach's board, not picked here */
+  Object.keys(Skins.PATTERNS).filter(function (id) { return !Skins.PATTERNS[id].arena || skin.board.pattern === id; }).forEach(function (id) {
     var b = document.createElement("button");
     b.className = "stPick" + (skin.board.pattern === id ? " sel" : "");
     b.textContent = Skins.PATTERNS[id].label;

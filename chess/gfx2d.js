@@ -13,6 +13,8 @@
    lets a man be carried by hand with the same calls as the carved one. */
 (function (root) {
 "use strict";
+/* an arena's accent colour (skins.js), as the 0-255 triple grain.js paints with */
+function accentRgb(h) { return typeof h === "string" && /^#[0-9a-fA-F]{6}$/.test(h) ? [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] : null; }
 
 /* The pieces move with the same character they do on the carved board —
    same file, same curves, same timings — so the safety net is a simpler
@@ -145,7 +147,7 @@ function derive(skin) {
      together — a light piece gets a dark line, a dark piece a darker one */
   return {
     light: b.light, dark: b.dark, rim: b.rim, margin: b.edge, coord: b.coord,
-    pattern: b.pattern, grain: b.grain, gloss: b.gloss,
+    pattern: b.pattern, grain: b.grain, gloss: b.gloss, accent: accentRgb(b.accent),
     selected: rgba(m.select, 0.55),
     hoverFill: rgba(m.select, 0.20), hoverEdge: rgba(m.select, 0.92),
     lastA: rgba(m.last, 0.50), lastB: rgba(m.last, 0.36),
@@ -825,7 +827,8 @@ function create(canvas) {
        same cut reads louder, so the drawn board takes it at half
        strength and with the rings a little further apart */
     Gr.apply(sq, Gr.field(512, { pattern: pal.pattern, seed: GRAIN_SEED, lines: 7 }), { x: 0, y: 0, w: w, h: w },
-             pal.grain * 0.5, "colour", R.orientation !== 1);
+             /* an arena is a place, not a finish: its surface is the point, so it is laid on nearly full */
+             pal.grain * (pal.accent ? 0.85 : 0.5), "colour", R.orientation !== 1, pal.accent);
     g.putImageData(sq, x0, x0);
   }
 
