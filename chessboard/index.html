@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Make your own chess board · kmay89.com</title>
+<meta name="description" content="A folding travel chess set you print yourself: a 218 × 109 × 24 mm case that holds all 32 pieces, opens into a 25 mm-square board printed face-down in two colours, with a printed hinge, an engineered twin-spring snap latch and no supports anywhere. Watch it unpack and set itself up in 3D, plan the five plates, explore every part and download the Bambu Studio project and STLs.">
+<meta name="theme-color" content="#14110e">
+<link rel="canonical" href="https://kmay89.com/chessboard/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Make your own chess board">
+<meta property="og:description" content="A folding travel chess set for a 3D printer: two filaments, five plates, no supports, a hinge and a snap latch. Watch it unpack, then print it.">
+<meta property="og:url" content="https://kmay89.com/chessboard/">
+<meta property="og:image" content="https://kmay89.com/chessboard/img/board.webp">
+<link rel="modulepreload" href="vendor/three.module.js">
+<link rel="preload" href="kit.bin" as="fetch" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#stage">Skip to the 3D case</a>
+
+<header class="top wrap">
+  <a class="brand" href="/" aria-label="Back to the desk">
+    <svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#241d16"/><g transform="translate(12 12)"><rect width="40" height="40" rx="5" fill="#e9e4da"/><path fill="#1b1b1d" d="M0 0h10v10H0zM20 0h10v10H20zM10 10h10v10H10zM30 10h10v10H30zM0 20h10v10H0zM20 20h10v10H20zM10 30h10v10H10zM30 30h10v10H30z"/></g><path d="M12 32h40" stroke="#e8a06a" stroke-width="2.4"/></svg>
+    <span><strong>Make your own chess board</strong><small>The workshop × the chess room</small></span>
+  </a>
+  <nav class="nav" aria-label="Site">
+    <a href="/">← The desk</a>
+    <a href="/workshop/">The workshop</a>
+    <a href="/chess/">The chess room</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <div class="heroTx">
+      <p class="eyebrow">A folding travel set · two filaments · no supports</p>
+      <h1>Make your own<br><em>chess board.</em></h1>
+      <p class="lede">A case the size of a paperback that holds all thirty-two pieces, and opens into a tournament-style board. Print it on a home 3D printer in five plates, with a printed hinge, a snap latch that clicks, and nothing to buy but a little filament.</p>
+    </div>
+    <div class="heroCta">
+      <a class="btn primary" href="files/Folding_Chess_Case_Standard.3mf" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16"/></svg>
+        <span><b>Download the Bambu Studio project</b><small>.3mf · 7.3 MB · five plates, colours set</small></span>
+      </a>
+      <a class="btn" href="#downloads"><span><b>STLs for any printer</b><small>and the source, docs and guide</small></span></a>
+    </div>
+  </section>
+
+  <section class="stageWrap wrap" id="stage" aria-label="The case in 3D">
+    <div class="stage">
+      <canvas id="storyCanvas" aria-label="A 3D model of the folding chess case. Drag to turn it."></canvas>
+      <div class="loading" id="storyLoading"><div class="spin" aria-hidden="true"></div><span>Unpacking the model… <b id="storyPct">0%</b></span></div>
+      <div class="caption" aria-live="polite">
+        <span class="capStep" id="capStep">1 / 6</span>
+        <b id="capTitle">Closed</b>
+        <span id="capText">A case 218 × 109 × 24 mm. All thirty-two pieces are inside it.</span>
+      </div>
+      <div class="hint" id="dragHint">Drag to turn · pinch or scroll to zoom</div>
+    </div>
+    <div class="transport">
+      <button class="playBtn" id="playBtn" type="button" aria-label="Pause">
+        <svg class="icPause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        <svg class="icPlay" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+      </button>
+      <div class="scrub">
+        <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Story position">
+        <div class="ticks" id="ticks"></div>
+      </div>
+      <button class="packBtn" id="packBtn" type="button" title="Play it backwards: pack it all away">Pack it away</button>
+    </div>
+    <div class="chapters" id="chapters" role="group" aria-label="Chapters"></div>
+  </section>
+
+  <section class="facts wrap" aria-label="At a glance">
+    <div><b>218 × 109 × 24</b><span>mm, closed</span></div>
+    <div><b>25 mm</b><span>squares</span></div>
+    <div><b>32</b><span>pieces inside · 44 mm king</span></div>
+    <div><b>2</b><span>filaments: marble &amp; black</span></div>
+    <div><b>0</b><span>supports, anywhere</span></div>
+    <div><b>220 × 220</b><span>mm bed is enough</span></div>
+    <div><b id="factHours">≈ 12½ h</b><span>printer time, all plates</span></div>
+    <div><b id="factGrams">≈ 500 g</b><span>of PLA</span></div>
+  </section>
+
+  <!-- ============================================================ the plan -->
+  <section class="sec wrap" id="plan" aria-labelledby="planH">
+    <div class="secHead">
+      <p class="eyebrow">01 · The print plan</p>
+      <h2 id="planH">Five plates, in order.</h2>
+      <p>Print the fit test first: it is two little coupons with the real hinge, the real latch and a corner peg, so you know your printer gets the fits right before you commit to the long prints. Then the lid, the tray, and a set of pieces in each colour.</p>
+    </div>
+
+    <div class="planBar">
+      <div class="seg" role="radiogroup" aria-label="Board style">
+        <button type="button" role="radio" aria-checked="true" data-kit="two">Two-colour board <small>AMS · MMU · toolchanger</small></button>
+        <button type="button" role="radio" aria-checked="false" data-kit="mono">Single-colour board <small>one extruder + inlay tiles</small></button>
+      </div>
+      <label class="startAt">Start the first plate at
+        <input type="datetime-local" id="startAt">
+      </label>
+    </div>
+
+    <ol class="plates" id="plates"></ol>
+
+    <div class="ribbon" aria-hidden="true"><div class="ribbonTrack" id="ribbon"></div><div class="ribbonScale" id="ribbonScale"></div></div>
+
+    <div class="totals">
+      <div class="tot"><span>Printer time</span><b id="totTime">—</b><small id="totFinish"></small></div>
+      <div class="tot"><span>Marble (light)</span><b id="totLight">—</b><small>body, light squares, white pieces</small></div>
+      <div class="tot"><span>Black</span><b id="totDark">—</b><small>dark squares, rules, stars, black pieces</small></div>
+      <div class="tot"><span>Filament cost</span><b id="totCost">—</b>
+        <small><label>at <input type="number" id="perKg" min="5" max="120" step="1" value="20" inputmode="decimal" aria-label="Price per kilogram"> per kg</label></small></div>
+    </div>
+    <p class="fine">Times and weights are estimates for a Bambu Lab P2S with a 0.4 mm nozzle at the project's own settings (0.20 mm Standard; pieces at 0.16 mm and 100 % infill), worked out from the volume and surface of the actual parts. Bambu Studio gives the exact figure once it has sliced each plate; other printers will differ. Purge for the colour swaps is included.</p>
+  </section>
+
+  <!-- ============================================================ the parts -->
+  <section class="sec wrap" id="parts" aria-labelledby="partsH">
+    <div class="secHead">
+      <p class="eyebrow">02 · Look closer</p>
+      <h2 id="partsH">Every part, as it prints.</h2>
+      <p>Each one is shown the way it sits on the plate. The board halves print face-down, so the plate itself forms the playing surface; turn them over to see it.</p>
+    </div>
+    <div class="partsGrid">
+      <div class="partStage">
+        <canvas id="partCanvas" aria-label="The selected part in 3D. Drag to turn it."></canvas>
+        <div class="partTools">
+          <button type="button" class="chip" id="faceBtn" aria-pressed="false">Turn it over</button>
+          <button type="button" class="chip" id="spinBtn" aria-pressed="true">Turntable</button>
+        </div>
+      </div>
+      <div class="partInfo">
+        <div class="partList" id="partList" role="listbox" aria-label="Parts"></div>
+        <div class="partCard" id="partCard"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ the latch -->
+  <section class="sec wrap" id="latch" aria-labelledby="latchH">
+    <div class="secHead">
+      <p class="eyebrow">03 · How it works</p>
+      <h2 id="latchH">A latch you can feel.</h2>
+      <p>A tongue on the lid drops between two pairs of springs in the tray. A 27° ramp pushes the springs apart, a flat crest holds them, and then a 45° shoulder lets them close behind it, so the lid pulls itself shut. Drag the lid down, or press play, and watch the real section at true scale.</p>
+    </div>
+    <div class="latchGrid">
+      <figure class="latchFig">
+        <svg id="latchSvg" viewBox="0 0 640 440" role="img" aria-label="Cross-section of the centre latch"></svg>
+        <figcaption>Section through the latch at its centre, in millimetres. Green: the twin bridge-beam springs, 0.8 mm thick (exactly two extrusion lines), 44 mm long, flexing sideways in the plane of the layers.</figcaption>
+      </figure>
+      <div class="latchSide">
+        <div class="latchCtl">
+          <button type="button" class="playBtn small" id="latchPlay" aria-label="Play the latch"><svg class="icPlay" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg><svg class="icPause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg></button>
+          <label class="latchRange"><span>Lid height above closed</span>
+            <input type="range" id="latchS" min="-0.05" max="3" step="0.005" value="3">
+          </label>
+          <div class="seg mini" role="radiogroup" aria-label="Direction">
+            <button type="button" role="radio" aria-checked="true" data-dir="close">Closing</button>
+            <button type="button" role="radio" aria-checked="false" data-dir="open">Opening</button>
+          </div>
+        </div>
+        <div class="readouts">
+          <div><span>Lid</span><b id="roS">3.00 mm</b></div>
+          <div><span>Spring deflection</span><b id="roD">0.00 mm</b></div>
+          <div><span id="roFLabel">Push needed</span><b id="roF">0 g</b></div>
+        </div>
+        <p class="latchState" id="latchState">Lid open: the tongue hasn't reached the springs.</p>
+        <svg id="forceSvg" viewBox="0 0 420 210" role="img" aria-label="Force against lid travel"></svg>
+        <ul class="numbers">
+          <li><b>~330 g</b> to close, at the latch</li>
+          <li><b>~640 g</b> to pull it open</li>
+          <li><b>0.6 mm</b> spring travel, <b>0.41 %</b> strain</li>
+          <li><b>0.08 mm</b> preload when shut: no rattle</li>
+          <li><b>~1 mJ</b> released at the snap: an audible click</li>
+          <li>Hundreds of thousands of cycles in PLA at 12 MPa</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ideas">
+      <article><h3>Grip from both sides</h3><p>The tongue is squeezed from left and right at once. Lid play from the hinge and pegs (±0.25 mm) only moves load from one side to the other; the total grip stays the same. One-sided snaps felt random from print to print.</p></article>
+      <article><h3>Long, soft springs</h3><p>0.6 mm of travel instead of 0.3, so a ±0.1 mm print error changes the force by ±17 % rather than ±33 %. It works on any reasonably tuned printer.</p></article>
+      <article><h3>Bend in the layer plane</h3><p>The beams flex sideways, so the stress runs along the extruded lines: the strongest, most fatigue-proof direction in an FDM part.</p></article>
+      <article><h3>A hinge that just worked</h3><p>Ten teardrop knuckles, printed in place, pinned with 22 cm of ordinary 1.75 mm filament. Swept 0–180° in simulation: zero collisions over 2.3 million sampled points.</p></article>
+      <article><h3>Design to the nozzle</h3><p>Springs exactly two lines wide, star points ≥ 0.6 mm, the ERRERLabs letters thickened to 0.5 mm hairlines and checked at one nozzle width. Every overhang 45° or less.</p></article>
+      <article><h3>One colour swap a layer</h3><p>The dark squares, coordinates, double rule and compass stars all live in the first four layers, so the AMS changes colour once a layer and then prints marble to the top.</p></article>
+    </div>
+  </section>
+
+  <!-- ============================================================ the gallery -->
+  <section class="sec wrap" id="gallery" aria-labelledby="galH">
+    <div class="secHead">
+      <p class="eyebrow">04 · Renders</p>
+      <h2 id="galH">The details.</h2>
+    </div>
+    <div class="gallery" id="galleryList">
+      <button type="button" class="shot wide" data-src="img/board.webp"><img src="img/board.webp" alt="The board set up for play, marble against black" loading="lazy" width="1400" height="1000"><span>Set up for play</span></button>
+      <button type="button" class="shot wide" data-src="img/open-storage.webp"><img src="img/open-storage.webp" alt="The case opened tray-side up with every piece in its nest" loading="lazy" width="1400" height="1000"><span>Every piece in its nest</span></button>
+      <button type="button" class="shot" data-src="img/closed.webp"><img src="img/closed.webp" alt="The closed case" loading="lazy" width="1400" height="900"><span>Closed</span></button>
+      <button type="button" class="shot" data-src="img/corner-star.webp"><img src="img/corner-star.webp" alt="A compass star in the corner of the board, inside a thick-and-thin double rule" loading="lazy" width="1400" height="900"><span>Compass-star corner, double rule</span></button>
+      <button type="button" class="shot" data-src="img/errerlabs-panel.webp"><img src="img/errerlabs-panel.webp" alt="The ERRERLabs maker's panel inside the lid" loading="lazy" width="1400" height="900"><span>The maker's mark inside the lid</span></button>
+      <button type="button" class="shot" data-src="img/tray-ornament.webp"><img src="img/tray-ornament.webp" alt="The star ornament on the tray" loading="lazy" width="1400" height="900"><span>The tray's star</span></button>
+      <button type="button" class="shot wide" data-src="img/pieces.webp"><img src="img/pieces.webp" alt="The Staunton-style pieces" loading="lazy" width="1400" height="760"><span>Staunton-style pieces</span></button>
+      <button type="button" class="shot wide" data-src="img/knight.webp"><img src="img/knight.webp" alt="The knight, close up" loading="lazy" width="1000" height="760"><span>The knight</span></button>
+    </div>
+  </section>
+
+  <!-- ============================================================ assembly -->
+  <section class="sec wrap" id="assemble" aria-labelledby="asmH">
+    <div class="secHead">
+      <p class="eyebrow">05 · Assembly</p>
+      <h2 id="asmH">Two minutes, no tools.</h2>
+    </div>
+    <ol class="steps">
+      <li><b>Lay both halves tray-side up</b> so the hinge knuckles interleave.</li>
+      <li><b>Push a 1.75 mm filament pin</b> in from the h-file end until it stops. Cut it flush and add a drop of thin CA.</li>
+      <li><b>Lay the pieces in their nests:</b> marble on the left, black on the right, bases toward the hinge.</li>
+      <li><b>Close the lid</b> until the latch clicks. To open it, pull up at the finger notch.</li>
+    </ol>
+  </section>
+
+  <!-- ============================================================ settings -->
+  <section class="sec wrap" id="settings" aria-labelledby="setH">
+    <div class="secHead">
+      <p class="eyebrow">06 · Settings</p>
+      <h2 id="setH">If you're not using the project file.</h2>
+      <p>The Bambu Studio project already carries all of this. For any other slicer, load the STLs and use these. Each half is 218 × 113 mm and fits any 220 × 220 mm bed.</p>
+    </div>
+    <div class="tableWrap">
+      <table class="settings">
+        <thead><tr><th scope="col"></th><th scope="col">Board halves</th><th scope="col">Pieces</th><th scope="col">Inlay tiles</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Layer / first layer</th><td>0.20 / <b>0.20</b> mm</td><td>0.16 / <b>0.20</b> mm</td><td>0.20 / 0.20 mm</td></tr>
+          <tr><th scope="row">Walls / infill</th><td>3 / 15 % gyroid</td><td><b>100 %</b></td><td>100 %</td></tr>
+          <tr><th scope="row">Bottom</th><td>5 layers, monotonic line</td><td>—</td><td>—</td></tr>
+          <tr><th scope="row">Supports</th><td>none</td><td>none</td><td>none</td></tr>
+          <tr><th scope="row">Plate</th><td>textured PEI (matte face) or smooth PEI (gloss)</td><td>any</td><td>smooth PEI</td></tr>
+          <tr><th scope="row">Seam</th><td>default</td><td>scarf, or aligned at the back</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="faq">
+      <details><summary>Two colours on another slicer</summary><p>Load both STLs of a half as <b>one object with multiple parts</b>. Assign light → Marble (or White) and dark → Black. Every colour change happens in the first four layers, so there is one swap per layer and very little purge. Turn on <i>Flush into object infill</i>.</p></details>
+      <details><summary>Single-colour printer</summary><p>Print <code>mono_half_A/B</code> in a light colour and <code>mono_inlay_tiles</code> in a dark one. The board has 0.8 mm pockets; press each tile in with a drop of CA. The tiles print face-down too, so they match the board's surface.</p></details>
+      <details><summary>The pin won't go in</summary><p>Twist a 2 mm drill bit through the knuckles by hand.</p></details>
+      <details><summary>A peg won't seat</summary><p>You're over-extruding. Calibrate flow, or sand the peg lightly. (<a href="/swatch/">Swatch</a> prints the coupons that find the right flow.)</p></details>
+      <details><summary>The latch is too stiff or too loose</summary><p>Set <code>LATCH_DELTA</code> in <code>source/case.py</code>: 0.5 is softer (~535 g hold), 0.6 the default (~640 g), 0.7 firmer (~750 g). Don't go above 0.75. Then rebuild with <code>python3 make_3mf.py --no-hardware</code>.</p></details>
+      <details><summary>The halves rock when open</summary><p>That's elephant's foot. Turn on its compensation (0.1–0.15 mm).</p></details>
+      <details><summary>Pieces too loose or tight in the nests</summary><p><code>C_NEST</code> in <code>source/case.py</code>, 0.35 mm by default.</p></details>
+      <details><summary>Magnets and weighted pieces</summary><p>The generator can also build a <b>Magnets + Weights</b> edition: four 6 × 3 mm magnets in the corners and pieces with a hollow core for ~110 g of tungsten putty, with the print pauses set. Run <code>python3 make_3mf.py</code> (without <code>--no-hardware</code>) from the source download. The pauses: 7.80 mm and 15.60 mm on each half (magnets), and the first layer above 5.00 mm on the pieces (ballast).</p></details>
+    </div>
+  </section>
+
+  <!-- ============================================================ downloads -->
+  <section class="sec wrap" id="downloads" aria-labelledby="dlH">
+    <div class="secHead">
+      <p class="eyebrow">07 · Downloads</p>
+      <h2 id="dlH">Take it to your printer.</h2>
+      <p>The STLs are ordinary files at 100 % scale; the folders are numbered in print order.</p>
+    </div>
+    <div class="dls">
+      <a class="dl hero" href="files/Folding_Chess_Case_Standard.3mf" download>
+        <span class="dlIc">3MF</span>
+        <span><b>Bambu Studio project</b><small>All five plates, both colours mapped, settings in place. File → Open Project. If it says "load geometry only", click OK and pick <i>P2S 0.4 · 0.20 mm Standard</i> with two PLA filaments.</small></span>
+        <span class="dlSz">7.3 MB</span>
+      </a>
+      <a class="dl" href="files/fit_test.zip" download><span class="dlIc">1</span><span><b>Fit test</b><small>fit_test_A / B: hinge, latch, corner peg and socket</small></span><span class="dlSz">0.4 MB</span></a>
+      <a class="dl" href="files/board_two_colour.zip" download><span class="dlIc">2</span><span><b>Board, two colours</b><small>half_A / half_B, light + dark parts</small></span><span class="dlSz">5.9 MB</span></a>
+      <a class="dl" href="files/board_single_colour.zip" download><span class="dlIc">3</span><span><b>Board, single colour</b><small>mono_half_A / B and 32 inlay tiles</small></span><span class="dlSz">5.8 MB</span></a>
+      <a class="dl" href="files/pieces.zip" download><span class="dlIc">4</span><span><b>Pieces</b><small>pieces_marble, pieces_black: 16 each</small></span><span class="dlSz">2.2 MB</span></a>
+      <a class="dl" href="files/docs_and_source.zip" download><span class="dlIc">{ }</span><span><b>Docs &amp; source</b><small>START_HERE, the print guide, design and latch notes, and the parametric Python generator that rebuilds everything</small></span><span class="dlSz">0.1 MB</span></a>
+    </div>
+    <p class="fine">You'll also need about 22 cm of 1.75 mm filament for the hinge pin, and a drop of thin CA glue.</p>
+  </section>
+</main>
+
+<footer class="foot wrap">
+  <div class="cols">
+    <a href="/">The desk</a>
+    <a href="/workshop/">The workshop</a>
+    <a href="/chess/">The chess room</a>
+    <a href="/privacy/">Privacy</a>
+    <a href="/terms/">Terms</a>
+    <a href="/accessibility/">Accessibility</a>
+    <a href="https://github.com/kmay89/ABOUT">Source</a>
+  </div>
+  <span>© 2026 Karl Meves · ERRER Labs — built by hand, no frameworks, no trackers.</span>
+</footer>
+
+<dialog class="lightbox" id="lightbox">
+  <form method="dialog"><button class="lbClose" aria-label="Close">×</button></form>
+  <img id="lbImg" alt="">
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

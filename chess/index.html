@@ -1394,6 +1394,7 @@
     .tileRow.three{grid-template-columns:1fr 1fr}
     .tileRow.three .tile:last-child{grid-column:1 / -1}
   }
+  a.bigbtn.makeBoard{color:inherit; text-decoration:none; margin-top:12px}
   .lobbyFoot{display:flex; justify-content:center; gap:18px; margin-top:6px}
   /* iOS keeps :hover after a tap, which used to leave whichever card you
      last touched outlined in amber as if it were selected */
@@ -2397,6 +2398,7 @@
       <button class="tile" id="mLearn"><span class="em">🐣</span><span><b>New to chess?</b><small>Set up the board, then the rules, gently.</small></span></button>
       <button class="tile" id="mOpenings"><span class="em">📖</span><span><b>Opening stories</b><small>Famous openings, told plainly.</small></span></button>
     </div>
+    <a class="bigbtn makeBoard" id="mMakeBoard" href="/chessboard/"><span class="em">🖨️</span><span><b>Make your own chess board</b><small>A folding travel set for a 3D printer: the case holds all 32 pieces.</small></span></a>
 
     <div class="lobbyFoot">
       <button class="ghostbtn" id="mSettings">Settings</button>

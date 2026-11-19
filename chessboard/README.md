@@ -1,0 +1,47 @@
+# Make your own chess board
+
+A folding travel chess set for a 3D printer, presented as a page: live at
+<https://kmay89.com/chessboard/>, reached from the workshop and from the
+chess room's lobby.
+
+The case is 218 × 109 × 24 mm closed, holds all 32 pieces in contoured
+nests, and opens into a 25 mm-square board printed face-down in two
+colours. Printed teardrop-knuckle hinge with a 1.75 mm filament pin,
+twin-spring snap latch, no supports anywhere, fits a 220 × 220 mm bed.
+
+## What's here
+
+- `index.html`, `styles.css`, `app.js` — the page: the story transport,
+  the print planner, the parts table, the latch explorer, the gallery.
+- `viewer.js` — Three.js (vendored, r170) for the two 3D stages. The story
+  (closed → open → unpack → flip → set up → the Italian Game) is one pure
+  function of time, so the scrubber, chapters and autoplay agree.
+- `kit.bin` — the real print files thinned for a browser (≈ 710 KB, from
+  ≈ 65 MB of STL): board halves decimated by quadric error to 0.03 mm
+  (Hollow's `decimate.js`), everything quantised to 16 bits, plus the
+  nest layout computed by the case generator's own `layout()`.
+- `files/` — the downloads: the Bambu Studio project, the STLs zipped per
+  print step, and the docs + parametric Python source.
+- `img/` — the renders and the 3MF's plate thumbnails, as WebP.
+
+## Rebuilding kit.bin
+
+```
+python3 chessboard/tools/layout.py <kit>/source          # → layout.json, piece_*.stl
+node chessboard/tools/make-kit.mjs <kit>/STL/Standard .  # → kit.bin
+```
+
+## The numbers
+
+The latch explorer recomputes the force–travel curve from the latch
+geometry in `source/case.py` (27° ramp, 0.2 mm crest, 45° shoulder, beams
+at 1.45 mm, 0.6 mm deflection, 0.08 mm preload) with a combined spring
+rate and friction angle that reproduce `snapfit_model.py`: 329 g peak to
+close, 633 g to open. `tools/page-check.js` asserts both.
+
+Print times and filament weights are estimates for a P2S at the project's
+settings, from the volume and surface area of each part; the page says so.
+
+`npm run check:chessboard` — downloads exist, the model loads in headless
+Chromium on desktop and phone sizes, every chapter is reachable, no
+sideways scroll, no console errors, and the latch numbers hold.
