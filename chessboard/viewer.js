@@ -98,33 +98,117 @@ function creased(P, I, deg) {
 
 /* ------------------------------------------------------------------ materials */
 
-/** Marble PLA: a warm off-white with the dark flecks the real filament carries, placed in model space so they stay put. */
-export function marbleMaterial(color = 0xe9e4da) {
-  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0 });
+/**
+ * One material per role ("light" and "dark"), shared by every mesh in both stages, so a new
+ * filament changes everything at once with no shader rebuild. The finish decides how the
+ * surface takes light; the colour is the filament's own code (filaments.js). Marble and wood
+ * carry their flecks and grain in model space, so they stay put on the part; sparkle and
+ * galaxy glint.
+ */
+const FINISH = {
+  basic:   { roughness: 0.48, metalness: 0,    clearcoat: 0.25, ccRough: 0.5,  fleck: 0,    grain: 0,    sparkle: 0 },
+  matte:   { roughness: 0.92, metalness: 0,    clearcoat: 0,    ccRough: 1,    fleck: 0,    grain: 0,    sparkle: 0 },
+  silk:    { roughness: 0.3,  metalness: 0.55, clearcoat: 0.6,  ccRough: 0.25, fleck: 0,    grain: 0,    sparkle: 0 },
+  marble:  { roughness: 0.62, metalness: 0,    clearcoat: 0,    ccRough: 1,    fleck: 0.85, grain: 0,    sparkle: 0 },
+  wood:    { roughness: 0.82, metalness: 0,    clearcoat: 0,    ccRough: 1,    fleck: 0.35, grain: 1,    sparkle: 0 },
+  sparkle: { roughness: 0.42, metalness: 0,    clearcoat: 0.3,  ccRough: 0.4,  fleck: 0,    grain: 0,    sparkle: 1 },
+  galaxy:  { roughness: 0.38, metalness: 0,    clearcoat: 0.4,  ccRough: 0.3,  fleck: 0,    grain: 0,    sparkle: 0.8 },
+  metal:   { roughness: 0.38, metalness: 0.7,  clearcoat: 0.2,  ccRough: 0.4,  fleck: 0,    grain: 0,    sparkle: 0.15 },
+};
+const ROLES = {
+  light: { mats: [], uniforms: null, finish: 'marble', hex: '#F7F3F0' },
+  dark:  { mats: [], uniforms: null, finish: 'basic', hex: '#1C1C1E' },
+};
+for (const r of Object.values(ROLES)) {
+  r.uniforms = { uFleck: { value: 0 }, uFleckCol: { value: new THREE.Color(0x0d0d0e) }, uGrain: { value: 0 }, uSparkle: { value: 0 } };
+}
+
+function applyRole(m, role) {
+  const r = ROLES[role], f = FINISH[r.finish] || FINISH.basic;
+  m.color.set(r.hex);
+  m.roughness = f.roughness; m.metalness = f.metalness;
+  m.clearcoat = f.clearcoat; m.clearcoatRoughness = f.ccRough;
+  // silk and metal: the shine takes the colour of the filament, as it does on the real thing
+  m.specularColor.set(f.metalness > 0.3 ? r.hex : '#ffffff');
+}
+
+export function filamentMaterial(role) {
+  const r = ROLES[role];
+  const m = new THREE.MeshPhysicalMaterial({ envMapIntensity: 0.85 });
+  applyRole(m, role);
   m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, r.uniforms);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vObj;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vObj;
+uniform float uFleck; uniform vec3 uFleckCol; uniform float uGrain; uniform float uSparkle;
+float hash3(vec3 c){ return fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float fleck(vec3 p, float scale, float keep){
   vec3 c = floor(p * scale);
-  float h = fract(sin(dot(c, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  float h = hash3(c);
   vec3 o = vec3(fract(h * 13.1), fract(h * 71.7), fract(h * 33.3)) * 0.5 + 0.25;
   float r = length(fract(p * scale) - o);
   return step(keep, h) * smoothstep(0.24, 0.12, r);
 }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-float f = max(fleck(vObj, 0.75, 0.80), fleck(vObj + 17.0, 1.3, 0.90) * 0.7);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.05, 0.055), f * 0.85);`);
+if (uFleck > 0.0) {
+  float f = max(fleck(vObj, 0.75, 0.80), fleck(vObj + 17.0, 1.3, 0.90) * 0.7);
+  diffuseColor.rgb = mix(diffuseColor.rgb, uFleckCol, f * uFleck);
+}
+if (uGrain > 0.0) {
+  float g = sin(vObj.x * 1.7 + sin(vObj.y * 0.23 + vObj.z * 0.4) * 2.6) * 0.5 + 0.5;
+  diffuseColor.rgb *= 1.0 - uGrain * 0.12 * smoothstep(0.55, 1.0, g);
+}`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+if (uSparkle > 0.0) {
+  float s = fleck(vObj * 1.0 + 3.0, 2.6, 0.955);
+  float tw = 0.55 + 0.45 * sin(dot(vViewPosition, vec3(0.9, 1.3, 0.7)) * 0.08 + hash3(floor(vObj * 2.6)) * 6.28);
+  totalEmissiveRadiance += vec3(s * uSparkle * tw * 0.75);
+}`);
   };
-  m.customProgramCacheKey = () => 'marble';
+  m.customProgramCacheKey = () => 'filament';
+  r.mats.push(m);
   return m;
 }
 
-export function blackMaterial() {
-  return new THREE.MeshPhysicalMaterial({ color: 0x18181a, roughness: 0.42, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45 });
+/** Give a role a filament: { hex, finish } (and the marble/wood fleck colour follows the body). */
+export function setFilament(role, { hex, finish }) {
+  const r = ROLES[role];
+  r.hex = hex; r.finish = finish;
+  const f = FINISH[finish] || FINISH.basic;
+  const base = new THREE.Color(hex);
+  const hsl = {}; base.getHSL(hsl);
+  r.uniforms.uFleck.value = f.fleck;
+  // marble flecks are dark on light stone and light on dark stone; wood flecks are darker wood
+  r.uniforms.uFleckCol.value.copy(finish === 'wood' ? base.clone().multiplyScalar(0.55)
+    : hsl.l > 0.45 ? new THREE.Color(0x0d0d0e) : new THREE.Color(0xd8d4cc));
+  r.uniforms.uGrain.value = f.grain;
+  r.uniforms.uSparkle.value = f.sparkle;
+  for (const m of r.mats) applyRole(m, role);
+}
+
+/** A soft studio for reflections: a warm room with a big window and two softboxes. */
+function studio(renderer) {
+  const scene = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshBasicMaterial({ color: 0x3a3129, side: THREE.BackSide }));
+  room.position.y = 2;
+  scene.add(room);
+  const panel = (w, h, c, x, y, z, rx, ry) => {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+    p.position.set(x, y, z); p.rotation.set(rx, ry, 0);
+    scene.add(p);
+  };
+  panel(5, 2.2, new THREE.Color(3.2, 3.0, 2.7), -2, 4.9, 1.5, Math.PI / 2, 0);   // overhead window
+  panel(2.4, 2.4, new THREE.Color(2.2, 2.1, 2.0), 4.9, 2.2, -1, 0, -Math.PI / 2); // softbox right
+  panel(2.4, 1.6, new THREE.Color(1.5, 1.4, 1.3), -4.9, 1.8, 2, 0, Math.PI / 2);  // softbox left
+  panel(10, 10, 0x1c1712, 0, -0.99, 0, -Math.PI / 2, 0);                           // dark table
+  const pm = new THREE.PMREMGenerator(renderer);
+  const env = pm.fromScene(scene, 0.035).texture;
+  pm.dispose();
+  return env;
 }
 
 /* ------------------------------------------------------------------ a stage */
@@ -133,15 +217,17 @@ export function makeStage(canvas, { fov = 32, shadows = true } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  // Khronos PBR Neutral: keeps a base colour looking like its code, where ACES shifts hues
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 0.92;
   renderer.shadowMap.enabled = shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(fov, 1, 5, 6000);
-  scene.add(new THREE.HemisphereLight(0xfff1dc, 0x2a2018, 1.25));
-  const key = new THREE.DirectionalLight(0xfff0dc, 2.4);
+  scene.environment = studio(renderer);
+  scene.add(new THREE.HemisphereLight(0xfff6ea, 0x2a2018, 0.55));
+  const key = new THREE.DirectionalLight(0xfff4e6, 2.1);
   key.position.set(-260, 520, 260);
   key.castShadow = shadows;
   key.shadow.mapSize.set(2048, 2048);
@@ -150,10 +236,10 @@ export function makeStage(canvas, { fov = 32, shadows = true } = {}) {
   key.shadow.camera.near = 50; key.shadow.camera.far = 1600;
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.6;
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xe6e2dc, 0.7);
+  const rim = new THREE.DirectionalLight(0xeceae6, 0.5);
   rim.position.set(300, 220, -420);
   scene.add(rim);
-  const fill = new THREE.DirectionalLight(0xffe2c4, 0.45);
+  const fill = new THREE.DirectionalLight(0xfff0e0, 0.3);
   fill.position.set(380, 160, 300);
   scene.add(fill);
 
@@ -230,7 +316,7 @@ const BACK = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', '
 
 export function buildStory(stage, kit) {
   const { geoms, layout } = kit;
-  const marble = marbleMaterial(), black = blackMaterial();
+  const marble = filamentMaterial('light'), black = filamentMaterial('dark');
   // Z-up model frame → Y-up world, centred on the board.
   const root = new THREE.Group();
   root.rotation.x = -Math.PI / 2;
@@ -358,7 +444,7 @@ export function buildStory(stage, kit) {
 /** Show one printed part at a time, laid as it prints (or turned over to show its face). */
 export function buildParts(stage, kit) {
   const { geoms } = kit;
-  const marble = marbleMaterial(), black = blackMaterial();
+  const marble = filamentMaterial('light'), black = filamentMaterial('dark');
   const root = new THREE.Group();
   root.rotation.x = -Math.PI / 2;
   stage.scene.add(root);

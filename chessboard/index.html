@@ -70,6 +70,37 @@
       <button class="packBtn" id="packBtn" type="button" title="Play it backwards: pack it all away">Pack it away</button>
     </div>
     <div class="chapters" id="chapters" role="group" aria-label="Chapters"></div>
+
+    <div class="colours" id="colours" aria-labelledby="colH">
+      <div class="colHead">
+        <h2 id="colH">Pick your two filaments</h2>
+        <p>Every Bambu Lab PLA, in its official colour code, rendered with its own finish: matte is flat, silk shines in its own colour, marble is flecked, wood has grain, sparkle glints. Filament 1 is the case, the light squares and one army; filament 2 is the dark squares, the rules, the stars and the other army.</p>
+      </div>
+      <div class="roles">
+        <button type="button" class="role" data-role="light" aria-expanded="false" aria-controls="picker">
+          <span class="fsw big" id="roleLightSw"></span>
+          <span class="roleTx"><small>Filament 1 · slot 1</small><b id="roleLightName">White Marble</b><i id="roleLightLine">PLA Marble</i></span>
+          <span class="roleCh" aria-hidden="true">Change</span>
+        </button>
+        <button type="button" class="role" data-role="dark" aria-expanded="false" aria-controls="picker">
+          <span class="fsw big" id="roleDarkSw"></span>
+          <span class="roleTx"><small>Filament 2 · slot 2</small><b id="roleDarkName">Black</b><i id="roleDarkLine">PLA Basic</i></span>
+          <span class="roleCh" aria-hidden="true">Change</span>
+        </button>
+      </div>
+      <div class="picker" id="picker" hidden>
+        <div class="pickTop">
+          <b id="pickTitle">Filament 1</b>
+          <button type="button" class="pickClose" id="pickClose" aria-label="Close the colour picker">Done</button>
+        </div>
+        <div class="lineTabs" id="lineTabs" role="tablist" aria-label="Filament line"></div>
+        <div class="swGrid" id="swGrid" role="listbox" aria-label="Colours"></div>
+        <p class="pickFine" id="pickFine"></p>
+      </div>
+      <div class="pairsHead"><b>Great pairings</b><small>tap one to try it on the board</small></div>
+      <div class="pairs" id="pairs"></div>
+      <p class="mapNote" id="mapNote"></p>
+    </div>
   </section>
 
   <section class="facts wrap" aria-label="At a glance">
@@ -107,8 +138,8 @@
 
     <div class="totals">
       <div class="tot"><span>Printer time</span><b id="totTime">—</b><small id="totFinish"></small></div>
-      <div class="tot"><span>Marble (light)</span><b id="totLight">—</b><small>body, light squares, white pieces</small></div>
-      <div class="tot"><span>Black</span><b id="totDark">—</b><small>dark squares, rules, stars, black pieces</small></div>
+      <div class="tot"><span id="totLightLbl">Filament 1</span><b id="totLight">—</b><small>body, light squares, white pieces</small></div>
+      <div class="tot"><span id="totDarkLbl">Filament 2</span><b id="totDark">—</b><small>dark squares, rules, stars, black pieces</small></div>
       <div class="tot"><span>Filament cost</span><b id="totCost">—</b>
         <small><label>at <input type="number" id="perKg" min="5" max="120" step="1" value="20" inputmode="decimal" aria-label="Price per kilogram"> per kg</label></small></div>
     </div>

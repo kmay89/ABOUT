@@ -69,6 +69,11 @@ const server = http.createServer((req, res) => {
     ok(await page.$$eval("#plates .plate", (e) => e.length) === 5, `${vp.name}: five plates`);
     ok(await page.$$eval("#partList button", (e) => e.length) === 6, `${vp.name}: six parts`);
     ok(await page.$$eval("#chapters button", (e) => e.length) === 6, `${vp.name}: six chapters`);
+    ok(await page.$$eval("#pairs button", (e) => e.length) === 12, `${vp.name}: twelve pairings, every filament found`);
+    await page.click('.role[data-role="light"]');
+    const swatches = await page.$$eval("#swGrid button", (e) => e.length);
+    ok(swatches >= 2 && !(await page.$eval("#picker", (e) => e.hidden)), `${vp.name}: the picker opens on filament 1 (${swatches} colours in its line)`);
+    await page.click("#pickClose");
 
     if (vp.name === "desktop") {
       // the latch, driven through its own slider
@@ -97,6 +102,15 @@ const server = http.createServer((req, res) => {
       await shot(`story-${name}`);
     }
     if (SHOTS) {
+      for (const [i, name] of [[1, "tournament"], [2, "club"], [3, "wood"], [5, "gilded"], [7, "harbour"], [10, "starlight"]]) {
+        await page.click(`#pairs button:nth-child(${i + 1})`);
+        await page.waitForTimeout(300);
+        await page.locator(".stage").screenshot({ path: path.join(SHOTS, `${vp.name}-pair-${name}.png`) });
+      }
+      await page.click("#pairs button:nth-child(1)");
+      await page.click('.role[data-role="dark"]');
+      await page.locator("#colours").screenshot({ path: path.join(SHOTS, `${vp.name}-picker.png`) });
+      await page.click("#pickClose");
       await page.screenshot({ path: path.join(SHOTS, `${vp.name}-full.png`), fullPage: true });
       for (const id of ["fit", "lid", "tray", "marble", "tiles"]) {
         await page.locator("#parts").scrollIntoViewIfNeeded();

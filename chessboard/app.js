@@ -1,4 +1,5 @@
-import { loadKit, makeStage, buildStory, buildParts, CHAPTERS, STORY_END } from './viewer.js';
+import { loadKit, makeStage, buildStory, buildParts, setFilament, CHAPTERS, STORY_END } from './viewer.js';
+import { LINES, FILAMENTS } from './filaments.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -59,7 +60,7 @@ function renderPlan() {
         <p>${p.note}</p>
         <div class="pmeta">
           <span><b>≈ ${fmtDur(p.min)}</b></span>
-          <span class="swatches">${p.light ? `<i class="sw l" title="Marble"></i><b>${fmtG(p.light)}</b>` : ''}${p.dark ? `<i class="sw d" title="Black"></i><b>${fmtG(p.dark)}</b>` : ''}</span>
+          <span class="swatches">${p.light ? `<i class="sw l" title="Filament 1"></i><b>${fmtG(p.light)}</b>` : ''}${p.dark ? `<i class="sw d" title="Filament 2"></i><b>${fmtG(p.dark)}</b>` : ''}</span>
           <span>${p.layer} mm layers</span>
         </div>
         <span class="pdone${night ? ' night' : ''}">${night ? '☾ ' : '✓ '}done ${clock.format(end)}</span>
@@ -73,7 +74,7 @@ function renderPlan() {
   // the ribbon: each plate's share of the printer's time
   const rib = $('#ribbon');
   rib.innerHTML = plates.map((p) => {
-    const bg = p.light && p.dark ? 'linear-gradient(180deg,#e9e4da 0 70%,#1b1b1d 70%)' : p.dark ? '#2a2a2e' : '#e9e4da';
+    const bg = p.light && p.dark ? 'linear-gradient(180deg,var(--fil-l) 0 70%,var(--fil-d) 70%)' : p.dark ? 'var(--fil-d)' : 'var(--fil-l)';
     return `<span style="flex:${p.min};background:${bg}" title="${p.name}: ${fmtDur(p.min)}"></span>`;
   }).join('');
   const total = mins + PLATE_GAP * (plates.length - 1);
@@ -434,6 +435,123 @@ function initLatch() {
   }
 }
 
+
+/* ======================================================================= the filaments
+   Real colours: each is the code Bambu Studio itself uses for that spool (filaments.js),
+   drawn with the finish it really has. */
+const LINE = Object.fromEntries(LINES.map((l) => [l.id, l]));
+const FIL = Object.fromEntries(FILAMENTS.map((f) => [f.id, f]));
+const PAIRS = [
+  { name: 'Marble & black', note: 'the design, as drawn', light: 'marble:white-marble', dark: 'basic:black' },
+  { name: 'Tournament', note: 'ivory and charcoal, all matte', light: 'matte:ivory-white', dark: 'matte:charcoal' },
+  { name: 'Club green', note: 'the roll-up board at every club', light: 'matte:desert-tan', dark: 'basic:mistletoe-green' },
+  { name: 'Oak & walnut', note: 'a wooden set, in wood PLA', light: 'wood:white-oak', dark: 'wood:black-walnut' },
+  { name: 'Café', note: 'latte and dark chocolate', light: 'matte:latte-brown', dark: 'matte:dark-chocolate' },
+  { name: 'Gilded', note: 'silk gold against onyx sparkle', light: 'silkplus:gold', dark: 'sparkle:onyx-black-sparkle' },
+  { name: 'Stone', note: 'white marble and red granite', light: 'marble:white-marble', dark: 'marble:red-granite' },
+  { name: 'Harbour', note: 'ice blue and navy', light: 'matte:ice-blue', dark: 'matte:dark-blue' },
+  { name: 'Terracotta', note: 'bone and fired clay', light: 'matte:bone-white', dark: 'matte:terracotta' },
+  { name: 'Blossom', note: 'sakura and plum', light: 'matte:sakura-pink', dark: 'matte:plum' },
+  { name: 'Starlight', note: 'silk silver and a galaxy', light: 'silk:silver', dark: 'galaxy:nebulae' },
+  { name: 'Copper', note: 'bone and metallic copper', light: 'matte:bone-white', dark: 'metal:copper-brown-metallic' },
+];
+const DEFAULT_PICK = { light: 'marble:white-marble', dark: 'basic:black' };
+
+function luminance(hex) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+function swatch(f, big = false) {
+  const fin = LINE[f.line].finish;
+  const k = luminance(f.hex) > 0.25 ? '#151515' : '#d9d4cb';
+  return `<span class="fsw${big ? ' big' : ''}" data-finish="${fin}" style="--c:${f.hex};--k:${k}"></span>`;
+}
+function paintSwatch(el, f) {
+  el.dataset.finish = LINE[f.line].finish;
+  el.style.setProperty('--c', f.hex);
+  el.style.setProperty('--k', luminance(f.hex) > 0.25 ? '#151515' : '#d9d4cb');
+}
+
+function initColours() {
+  let pick = { ...DEFAULT_PICK };
+  try { const saved = JSON.parse(localStorage.getItem('chessboard.filaments') || 'null'); if (saved && FIL[saved.light] && FIL[saved.dark]) pick = saved; } catch { /* private mode */ }
+  let editing = null, tab = null;
+
+  const picker = $('#picker'), tabs = $('#lineTabs'), grid = $('#swGrid');
+  const roleBtns = [...document.querySelectorAll('.role')];
+
+  function apply() {
+    for (const role of ['light', 'dark']) {
+      const f = FIL[pick[role]];
+      setFilament(role, { hex: f.hex, finish: LINE[f.line].finish });
+      const R = role === 'light' ? 'Light' : 'Dark';
+      paintSwatch($(`#role${R}Sw`), f);
+      $(`#role${R}Name`).textContent = f.name;
+      $(`#role${R}Line`).textContent = `${LINE[f.line].name} · ${f.code ? `shown as printed (code ${f.code})` : f.hex}`;
+      document.documentElement.style.setProperty(role === 'light' ? '--fil-l' : '--fil-d', f.hex);
+      $(role === 'light' ? '#totLightLbl' : '#totDarkLbl').textContent = `${LINE[f.line].name} ${f.name}`;
+    }
+    const L = FIL[pick.light], D = FIL[pick.dark];
+    const cr = contrast(L.hex, D.hex);
+    let note = `To print it: in Bambu Studio's print dialog, map <b>slot 1 → ${LINE[L.line].name} ${L.name}</b> and <b>slot 2 → ${LINE[D.line].name} ${D.name}</b>. Nothing else in the project changes.`;
+    if (cr < 2.2) note += '<span class="warn">These two are close in tone, so the squares will be hard to tell apart across the table. A lighter filament 1 or a darker filament 2 reads better.</span>';
+    else if (luminance(L.hex) < luminance(D.hex)) note += '<span class="warn">Filament 1 is the darker one here. That works: the case and its army just take the darker colour.</span>';
+    $('#mapNote').innerHTML = note;
+    document.querySelectorAll('#pairs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.light === pick.light && b.dataset.dark === pick.dark)));
+    [...grid.children].forEach((b) => b.setAttribute('aria-selected', String(editing && b.dataset.id === pick[editing])));
+    try { localStorage.setItem('chessboard.filaments', JSON.stringify(pick)); } catch { /* private mode */ }
+  }
+
+  function showTab(id) {
+    tab = id;
+    [...tabs.children].forEach((b) => b.setAttribute('aria-selected', String(b.dataset.line === id)));
+    grid.innerHTML = '';
+    for (const f of FILAMENTS.filter((x) => x.line === id)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.id = f.id; b.setAttribute('role', 'option');
+      b.setAttribute('aria-selected', String(f.id === pick[editing]));
+      b.innerHTML = `${swatch(f, true)}<span>${f.name}</span><small>${f.code || f.hex}</small>`;
+      b.title = f.code ? `${f.name}: official code ${f.code}, shown as it looks printed (${f.hex})` : `${f.name}: ${f.hex}`;
+      b.addEventListener('click', () => { pick[editing] = f.id; apply(); });
+      grid.appendChild(b);
+    }
+    $('#pickFine').textContent = 'Colour codes from Bambu Studio\'s own filament table, the same codes the AMS reads off each spool. Pure white and pure black codes are shown as the plastic really looks; a screen can only get close to a spool in your hand.';
+  }
+  LINES.forEach((l) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.line = l.id; b.setAttribute('role', 'tab');
+    b.textContent = `${l.name.replace('PLA ', '')} · ${FILAMENTS.filter((f) => f.line === l.id).length}`;
+    b.addEventListener('click', () => showTab(l.id));
+    tabs.appendChild(b);
+  });
+
+  function open(role) {
+    if (editing === role && !picker.hidden) { close(); return; }
+    editing = role;
+    roleBtns.forEach((b) => b.setAttribute('aria-expanded', String(b.dataset.role === role)));
+    $('#pickTitle').textContent = role === 'light' ? 'Filament 1: case, light squares, one army' : 'Filament 2: dark squares, rules, stars, the other army';
+    picker.hidden = false;
+    showTab(FIL[pick[role]].line);
+  }
+  function close() { picker.hidden = true; editing = null; roleBtns.forEach((b) => b.setAttribute('aria-expanded', 'false')); }
+  roleBtns.forEach((b) => b.addEventListener('click', () => open(b.dataset.role)));
+  $('#pickClose').addEventListener('click', close);
+
+  const pairs = $('#pairs');
+  for (const p of PAIRS) {
+    const L = FIL[p.light], D = FIL[p.dark];
+    if (!L || !D) continue;
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.light = p.light; b.dataset.dark = p.dark;
+    b.innerHTML = `<span class="duo">${swatch(L)}${swatch(D)}</span><span><b>${p.name}</b><small>${p.note}</small></span>`;
+    b.title = `${LINE[L.line].name} ${L.name} + ${LINE[D.line].name} ${D.name}`;
+    b.addEventListener('click', () => { pick = { light: p.light, dark: p.dark }; if (editing) showTab(FIL[pick[editing]].line); apply(); });
+    pairs.appendChild(b);
+  }
+  apply();
+}
+
 /* ======================================================================= gallery */
 function initGallery() {
   const dlg = $('#lightbox'), img = $('#lbImg');
@@ -446,6 +564,7 @@ function initGallery() {
 
 /* ======================================================================= go */
 initPlan();
+initColours();
 initLatch();
 initGallery();
 
