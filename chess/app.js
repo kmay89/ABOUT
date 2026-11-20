@@ -2102,6 +2102,331 @@ function exitView() {
   syncLookBack();
 }
 
+/* ===== after the game, a beat at a time =====
+   The best games don't hand you a results screen; they hand you the
+   result, then let each thing it earned have its moment: the result,
+   then your rating, then how you played, then your experience, then each
+   thing unlocked, then the presents, and only then the card with what to
+   do next. So the end card is told over, as beats:
+     result   you won / good game, and how it ended
+     rating   the number counting to its new place, the stars slamming in
+     look     how you played: accuracy, the brilliant and the slips
+     xp       experience filling the bar, LEVEL UP if it did
+     (one beat for each thing the game did: a chapter cleared, a coach
+      unlocked, a new level, a feat, a personal best)
+     tale     a new tale to read, now or later
+     gifts    presents to open
+   and then the card, everything on it already settled.
+   A beat arrives, plays, and waits for you: the first tap finishes what
+   is still moving, the next goes on, and Skip goes straight to the card.
+   The end card is under the beats all along, quietly doing its sums, so
+   nothing it earns is lost if you skip. */
+var beatsOn = false, beatList = [], beatAt = -1, beatCur = null, beatCtx = null, beatTicket = 0, endLook = null;
+function beatsStart(result, reason, rs, iWon) {
+  if (!G || !(mode === "coach" || mode === "pass" || mode === "lan") || G.startFen) return false;
+  beatTicket++;
+  beatCtx = { ticket: gameTicket, result: result, reason: reason, rs: rs, won: iWon, shownMiles: 0 };
+  beatList = ["result"];
+  if (rs) beatList.push("rating", "look");
+  beatList.push("xp", "miles", "tale", "gifts");
+  beatAt = -1;
+  beatsOn = true;
+  $("ovBeat").classList.remove("hide");
+  beatNext();
+  return true;
+}
+function beatLive() { return beatsOn && beatCtx && beatCtx.ticket === gameTicket; }
+/* is there anything to say for this kind of beat, now? */
+function beatHas(kind) {
+  var c = beatCtx;
+  if (kind === "result" || kind === "rating" || kind === "look") return true;
+  if (kind === "xp") return !!(unlGameXp && unlGameXp.ticket === gameTicket && unlGameXp.from && unlGameXp.to);
+  if (kind === "mile") return true;
+  if (kind === "tale") return !$("endTale").classList.contains("hide");
+  if (kind === "gifts") return unlQueue.length > 0;
+  return false;
+}
+function beatNext() {
+  if (!beatLive()) { beatsEnd(); return; }
+  if (beatCur && beatCur.busy) { beatCur.finish(); return; }
+  for (;;) {
+    beatAt++;
+    if (beatAt >= beatList.length) { beatsEnd(); return; }
+    var k = beatList[beatAt];
+    if (k === "miles") {
+      /* what the game did, each its own beat: whatever has been told so
+         far on the card, and whatever was still waiting to be */
+      milesFlush();
+      var lines = [].slice.call($("endMiles").querySelectorAll(".erMile")).slice(beatCtx.shownMiles);
+      beatCtx.shownMiles += lines.length;
+      var add = lines.map(function (l) { return { kind: "mile", html: l.innerHTML, cls: l.className }; });
+      beatList.splice.apply(beatList, [beatAt + 1, 0].concat(add));
+      continue;
+    }
+    if (typeof k === "object" || beatHas(k)) break;
+  }
+  beatShow(beatList[beatAt]);
+}
+function beatsEnd() {
+  if (!beatsOn) return;
+  beatsOn = false; beatTicket++;
+  if (beatCur && beatCur.stop) beatCur.stop();
+  beatCur = null;
+  var ov = $("ovBeat");
+  if (uimOn() && !ov.classList.contains("hide")) {
+    ov.classList.add("out");
+    setTimeout(function () { ov.classList.add("hide"); ov.classList.remove("out"); }, 260);
+  } else ov.classList.add("hide");
+  /* the card the beats were telling: hurry it to where it would be */
+  milesFlush();
+}
+function beatsSkip() { if (beatsOn) { hap("tick"); beatsEnd(); } }
+/* one beat on the screen */
+function beatShow(b) {
+  var kind = typeof b === "object" ? b.kind : b, my = beatTicket, timers = [];
+  /* this beat, and only while it is the one on the screen */
+  var alive = function () { return beatsOn && my === beatTicket && beatCur === cur; };
+  var later = function (fn, ms) { timers.push(setTimeout(function () { if (alive()) fn(); }, REDUCED ? 0 : ms)); };
+  var body = $("btBody"), ov = $("ovBeat"), head = $("btHead"), kick = $("btKick"), sub = $("btSub"), acts = $("btActs");
+  acts.innerHTML = ""; sub.textContent = ""; body.innerHTML = "";
+  ov.className = "ov beatOv b-" + kind;
+  /* how far through: a dot per beat still to come */
+  var rest = beatList.slice(beatAt).filter(function (x) { return typeof x === "object" || x === "miles" || beatHas(x); }).length;
+  var done = beatAt;
+  $("btDots").innerHTML = new Array(Math.min(12, done + rest)).fill(0).map(function (_, i) { return '<i class="' + (i <= done ? "on" : "") + '"></i>'; }).join("");
+  var cur;
+  cur = { busy: true, finishers: [], finish: null, stop: function () { timers.forEach(clearTimeout); } };
+  cur.finish = function () { timers.forEach(clearTimeout); cur.finishers.forEach(function (f) { f(); }); beatReady(cur); };
+  beatCur = cur;
+  var hint = $("btHint");
+  hint.classList.remove("on");
+  var c = beatCtx, rs = c.rs;
+  if (kind === "result") {
+    var em = $("endEmoji").textContent, t = $("endTitle").textContent;
+    kick.textContent = c.reason ? c.reason.charAt(0).toUpperCase() + c.reason.slice(1).replace(/-/g, " ") : "Game over";
+    head.textContent = t;
+    sub.textContent = $("endSub").textContent;
+    body.innerHTML = '<div class="btBig" aria-hidden="true">' + escHtml(em) + "</div>";
+    ov.classList.add(c.won ? "win" : c.result === "draw" ? "draw" : mode === "pass" ? "win" : "loss");
+    snd(c.won ? "open" : "tap");
+    later(function () { beatReady(cur); }, 900);
+  } else if (kind === "rating") {
+    var out = rs.out, before = Math.round(out.before), after = Math.round(out.after), tt = Rating.title(after);
+    kick.textContent = "Your rating";
+    head.textContent = tt.emoji + " " + tt.name;
+    body.innerHTML = '<div class="btNum"><b id="btRate">' + before + '</b><span class="btDelta ' + (after > before ? "up" : after < before ? "down" : "flat") + '" id="btDelta">' +
+      fmtDelta(after - before) + (out.provisional ? " ?" : "") + "</span></div>" +
+      '<div class="btStars" id="btStars">' + [0, 1, 2].map(function (i) { var r = rungOf(rs.level); return '<i class="' + (r.stars[i] && rs.newStars.indexOf(i) < 0 ? "on" : "") + '">★</i>'; }).join("") + "</div>";
+    sub.textContent = rs.newStars.length ? (rs.newStars.length === 1 ? "A new star against " : rs.newStars.length + " new stars against ") + SKILLS[rs.level].name + "!" :
+      out.provisional ? "Still finding your level: every game tells it more." : "Against " + SKILLS[rs.level].name + ".";
+    var finalRate = function () {
+      $("btRate").textContent = after; $("btDelta").classList.add("show");
+      rs.newStars.forEach(function (si) { $("btStars").children[si].classList.add("on"); });
+    };
+    cur.finishers.push(finalRate);
+    later(function () {
+      countUp($("btRate"), before, after, Math.min(1500, 500 + Math.abs(after - before) * 14), function (k, n) {
+        if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick) Sound.countTick(k, n, after >= before);
+        hap("count");
+      }).then(function () {
+        if (!alive()) return;
+        $("btDelta").classList.add("show");
+        sting(after > before ? "rating-up" : after < before ? "rating-down" : "tap");
+        rs.newStars.forEach(function (si, k) {
+          later(function () {
+            var el = $("btStars").children[si];
+            el.classList.add("on", "pop"); sting("lesson-right"); hap("star");
+            if (FX) Fx.sparkle(el, { count: 20 });
+          }, 380 + k * 420);
+        });
+        later(function () { finalRate(); beatReady(cur); }, 500 + rs.newStars.length * 420);
+      });
+    }, 450);
+  } else if (kind === "look") {
+    kick.textContent = "How you played";
+    head.textContent = "Looking back over your moves…";
+    body.innerHTML = '<div class="btRing" id="btRing" style="--p:0"><b id="btAcc">…</b></div><div class="btChips" id="btChips"></div>';
+    var shown = false;
+    var fill = function (animate) {
+      if (shown) return;
+      var L = endLook;
+      if (!L || L.ticket !== c.ticket || !L.done) return false;
+      shown = true;
+      if (L.acc == null) {
+        head.textContent = L.moves ? "Too short to measure" : "Nothing to look back on";
+        $("btAcc").textContent = "—";
+        sub.textContent = L.moves ? "Accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own after the opening." : "";
+      } else {
+        var acc = Math.round(L.acc);
+        head.textContent = acc >= 90 ? "Superb!" : acc >= 80 ? "Really well played" : acc >= 65 ? "Nicely played" : acc >= 50 ? "Some good moves" : "Every game teaches something";
+        sub.textContent = L.perf ? "You played like about " + Math.round(L.perf) + "." : "";
+        if (animate && !REDUCED) {
+          countUp($("btAcc"), 0, acc, 900).then(function () { if (alive()) $("btAcc").textContent = acc + "%"; });
+          var t0 = performance.now();
+          (function ring() {
+            if (!alive()) return;
+            var f = Math.min(1, (performance.now() - t0) / 900);
+            $("btRing").style.setProperty("--p", (acc * (1 - Math.pow(1 - f, 3))).toFixed(1));
+            if (f < 1) requestAnimationFrame(ring);
+          })();
+        } else { $("btAcc").textContent = acc + "%"; $("btRing").style.setProperty("--p", acc); }
+        if (L.third) { later(function () { var x = document.createElement("div"); x.className = "btThird"; x.textContent = "★ Third star: no help, and played well!"; body.appendChild(x); sting("lesson-right"); hap("star"); }, animate ? 1000 : 0); }
+      }
+      if (L.counts) $("btChips").innerHTML = countChips(L.counts);
+      later(function () { beatReady(cur); }, animate ? 1100 : 0);
+      return true;
+    };
+    /* the look-back may still be counting: show it counting, and the
+       answer when it comes; a tap meanwhile moves on */
+    cur.finishers.push(function () { fill(false); });
+    if (!fill(true)) {
+      var wait = function () {
+        if (!alive()) return;
+        if (endLook && endLook.n) $("btAcc").textContent = endLook.k + "/" + endLook.n;
+        if (!fill(true)) timers.push(setTimeout(wait, 120));
+      };
+      wait();
+    }
+  } else if (kind === "xp") {
+    var X = unlGameXp, from = X.from, to = X.to, total = 0;
+    X.parts.forEach(function (p) { total += p.xp; });
+    kick.textContent = "Experience";
+    head.textContent = "+" + total + " XP";
+    sub.textContent = X.parts.map(function (p) { return p.why + " +" + p.xp; }).join(" · ");
+    body.innerHTML = '<div class="btXp"><span class="btLv" id="btLv">' + from.level + '</span><div class="btBar"><i id="btBar" style="width:' + (from.frac * 100).toFixed(1) + '%"></i></div></div><div class="btUp hide" id="btUp">LEVEL UP!</div>';
+    var steps = [];
+    for (var lv = from.level; lv < to.level; lv++) steps.push(lv + 1);
+    var xpFinal = function () {
+      var bar = $("btBar");
+      bar.style.transition = "none"; bar.style.width = (to.frac * 100).toFixed(1) + "%";
+      $("btLv").textContent = to.level;
+      if (to.level > from.level) $("btUp").classList.remove("hide");
+    };
+    cur.finishers.push(xpFinal);
+    var fillXp = function () {
+      if (!alive()) return;
+      var bar = $("btBar");
+      if (!steps.length) {
+        bar.style.transition = "width .8s cubic-bezier(.2,.8,.3,1)"; bar.style.width = (to.frac * 100).toFixed(1) + "%";
+        later(function () { beatReady(cur); }, 850);
+        return;
+      }
+      var nx = steps.shift();
+      bar.style.transition = "width .6s cubic-bezier(.3,.6,.4,1)"; bar.style.width = "100%";
+      later(function () {
+        var lvEl = $("btLv");
+        lvEl.textContent = nx; lvEl.classList.remove("up"); void lvEl.offsetWidth; lvEl.classList.add("up");
+        var up = $("btUp"); up.classList.add("hide"); void up.offsetWidth; up.classList.remove("hide");
+        sting("levelup"); hap("success");
+        if (FX) { try { Fx.sparkle(lvEl, { count: 30 }); Fx.confetti({ ms: 1600, layer: "page" }); } catch (e) {} }
+        bar.style.transition = "none"; bar.style.width = "0%"; void bar.offsetWidth;
+        later(fillXp, 260);
+      }, 640);
+    };
+    later(fillXp, 450);
+  } else if (kind === "mile") {
+    var tmp = document.createElement("div");
+    tmp.innerHTML = b.html;
+    var icon = tmp.querySelector(".em"), iconTx = icon ? icon.textContent : "✨";
+    if (icon) icon.remove();
+    /* its own buttons (Use it, Sit there) still work from here */
+    var btns = [].slice.call(tmp.querySelectorAll("button"));
+    btns.forEach(function (x) { x.remove(); });
+    var big = /levelup|chapter|cupwon|unlock/.test(b.cls || "");
+    kick.textContent = /chapter/.test(b.cls || "") ? "Chapter cleared" : /levelup/.test(b.cls || "") ? "Level up" : /feat/.test(b.cls || "") ? "Achievement" : "Well done";
+    /* the line's bold part is the headline; a "Feat:" label is the kicker
+       and what follows it the headline; a line with no bold part is all
+       headline */
+    var strong = tmp.querySelector("b"), st = strong ? strong.textContent.trim() : "";
+    if (strong && /:$/.test(st)) {
+      kick.textContent = st.replace(/:$/, "");
+      strong.remove();
+      head.textContent = tmp.textContent.trim();
+      sub.textContent = "";
+    } else if (strong) {
+      head.textContent = st;
+      strong.remove();
+      sub.innerHTML = tmp.innerHTML.trim();
+    } else {
+      head.textContent = tmp.textContent.trim();
+      sub.textContent = "";
+    }
+    body.innerHTML = '<div class="btRays" aria-hidden="true"></div><div class="btBig btIcon" aria-hidden="true">' + escHtml(iconTx) + "</div>";
+    btns.forEach(function (x) {
+      var y = x.cloneNode(true);
+      y.classList.add("btAct");
+      /* a tap here is a tap on the card's own button (the card does the work) */
+      y.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var key = x.getAttribute("data-home") != null ? '[data-home="' + x.getAttribute("data-home") + '"]' : '[data-place="' + x.getAttribute("data-place") + '"]';
+        var orig = $("endMiles").querySelector(key);
+        if (orig) { orig.click(); y.textContent = orig.textContent; y.disabled = orig.disabled; }
+      });
+      acts.appendChild(y);
+    });
+    sting(big ? "milestone" : "lesson-right"); hap("success");
+    if (FX && big) { later(function () { Fx.confetti({ ms: 2200, layer: "page" }); Fx.fireworks({ count: 2, layer: "page" }); }, 250); }
+    later(function () { beatReady(cur); }, 700);
+  } else if (kind === "tale") {
+    var tid = skill, tl = typeof Tales !== "undefined" && Tales.get(tid);
+    kick.textContent = "A new tale";
+    head.textContent = tl ? tl.title : $("endTaleTx").textContent;
+    sub.textContent = taleName(tid) + " has a story for you, from the history of chess.";
+    body.innerHTML = '<div class="btBig" aria-hidden="true">' + escHtml(tl ? tl.art : "📜") + "</div>";
+    var read = document.createElement("button");
+    read.className = "bigbtn primaryBtn btAct"; read.innerHTML = "📜 Read it now";
+    read.addEventListener("click", function (e) { e.stopPropagation(); beatsEnd(); $("endTale").click(); });
+    var lat = document.createElement("button");
+    lat.className = "ghostbtn btAct"; lat.textContent = "Later";
+    lat.addEventListener("click", function (e) { e.stopPropagation(); cur.busy = false; beatNext(); });
+    acts.appendChild(read); acts.appendChild(lat);
+    snd("open");
+    later(function () { beatReady(cur); }, 600);
+  } else if (kind === "gifts") {
+    var n = unlQueue.length;
+    kick.textContent = "Prizes";
+    head.textContent = n > 1 ? "You won " + n + " prizes!" : "You won a prize!";
+    sub.textContent = "Something new for your collection.";
+    body.innerHTML = '<div class="btBig btGift" aria-hidden="true">🎁</div>';
+    var openB = document.createElement("button");
+    openB.className = "bigbtn primaryBtn btAct"; openB.innerHTML = "🎁 Open " + (n > 1 ? "them" : "it") + "!";
+    openB.addEventListener("click", function (e) { e.stopPropagation(); beatsEnd(); unlOpenBoxes(); });
+    var lat2 = document.createElement("button");
+    lat2.className = "ghostbtn btAct"; lat2.textContent = "Later";
+    lat2.addEventListener("click", function (e) { e.stopPropagation(); cur.busy = false; beatNext(); });
+    acts.appendChild(openB); acts.appendChild(lat2);
+    hap("tick");
+    later(function () { beatReady(cur); }, 600);
+  }
+  /* the beat arrives: the panel springs up, its parts follow on a beat */
+  var stage = ov.querySelector(".btStage");
+  stage.classList.remove("in"); void stage.offsetWidth; stage.classList.add("in");
+}
+function beatReady(cur) {
+  if (beatCur !== cur || !cur.busy) return;
+  cur.busy = false;
+  $("btHint").classList.add("on");
+}
+function beatsWire() {
+  var ov = $("ovBeat");
+  ov.addEventListener("click", function (e) {
+    if (e.target.closest("#btSkip")) { beatsSkip(); return; }
+    if (e.target.closest(".btAct")) return;
+    beatNext();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!beatsOn || ov.classList.contains("hide")) return;
+    if (e.key === "Escape") { e.preventDefault(); beatsSkip(); }
+    else if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") { if (!(e.target.closest && e.target.closest(".btAct"))) { e.preventDefault(); beatNext(); } }
+  }, true);
+}
+function beatsForTest() {
+  return { beatState: function () { var k = beatList[beatAt]; return { on: beatsOn, at: beatAt, kind: typeof k === "object" ? k.kind : k, busy: !!(beatCur && beatCur.busy),
+             list: beatList.map(function (x) { return typeof x === "object" ? x.kind : x; }), head: $("btHead").textContent, kick: $("btKick").textContent,
+             sub: $("btSub").textContent, body: $("btBody").textContent, acts: [].map.call($("btActs").children, function (x) { return x.textContent; }) }; },
+           beatNext: beatNext, beatsSkip: beatsSkip, endLook: function () { return endLook; } };
+}
+
 /* ===== replay the last move (again, with feeling) ===== */
 function replayLast() {
   if (!G || !G.played.length || thinking || (R.isAnimating && R.isAnimating())) return;
@@ -2477,8 +2802,10 @@ function sting(kind, o) {
 }
 function popStar(i, live) {
   var el = $("endStars").children[i];
-  if (!el || (live && !live())) return;
-  el.classList.add("on", "pop");
+  if (!el) return;
+  el.classList.add("on");
+  if (live && !live()) return;
+  el.classList.add("pop");
   sting("lesson-right");                 /* each star lands with the ding of a right answer */
   hap("star");
   if (FX) Fx.sparkle(el, { count: 18 });
@@ -2487,7 +2814,7 @@ function renderEndRating(rs, cardAt) {
   var box = $("endRate"), myGame = gameTicket;
   /* what is earned is kept whatever happens; what is shown and heard
      only happens while this game's card is the one on screen */
-  var live = function () { return myGame === gameTicket && !$("ovEnd").classList.contains("hide"); };
+  var live = function () { return myGame === gameTicket && !$("ovEnd").classList.contains("hide") && !beatsOn; };
   box.classList.toggle("hide", !rs);
   $("endNext").classList.add("hide");
   milesReset(cardAt, rs);
@@ -2531,7 +2858,11 @@ function renderEndRating(rs, cardAt) {
   /* the choreography, once the card is up */
   var startAt = REDUCED ? 120 : (cardAt || 1100) + paceCardMs(450);
   setTimeout(function () {
-    if (!over || $("ovEnd").classList.contains("hide")) { $("endRateNum").textContent = after; dEl.classList.add("show"); return; }
+    if (!over || $("ovEnd").classList.contains("hide")) {
+      $("endRateNum").textContent = after; dEl.classList.add("show");
+      rs.newStars.forEach(function (si) { popStar(si, live); });
+      return;
+    }
     countUp($("endRateNum"), before, after, Math.min(1600, 500 + Math.abs(after - before) * 14), function (k, n) {
       if (prefs.sound && typeof Sound !== "undefined" && Sound.countTick && live()) Sound.countTick(k, n, after >= before);
       if (live()) hap("count");
@@ -2543,7 +2874,7 @@ function renderEndRating(rs, cardAt) {
       var mile = out.milestone, up2 = out.levelUp && Rating.levelById(out.next);
       if (mile || up2) {
         setTimeout(function () {
-          if (!live()) return;
+          if (myGame !== gameTicket) return;
           var was = out.levelUp && Rating.levelById(out.levelUp);
           /* the number's own milestone heads the stack, whatever else this game did */
           if (mile) pushMile(escHtml(mile.emoji || "🏅"), escHtml((mile.kind === "settled" ? "Your rating has settled" :
@@ -2556,18 +2887,22 @@ function renderEndRating(rs, cardAt) {
     });
   }, startAt);
 
-  /* and the look-back, alongside */
+  /* and the look-back, alongside (kept in endLook for the beats too) */
+  endLook = { ticket: myGame, done: false, k: 0, n: 0, acc: null, perf: null, counts: null, moves: 0, third: false };
   analyseGame(function (k, n) {
+    if (endLook.ticket === myGame) { endLook.k = k; endLook.n = n; }
     $("endAccBar").style.width = Math.round(k / Math.max(1, n) * 100) + "%";
     $("endAccTx").textContent = "Looking back over your moves… " + k + "/" + n;
   }).then(function (moves) {
     if (!moves || myGame !== gameTicket) return;
-    if (!moves.length) { $("endAccTx").textContent = "No moves of yours to look back on."; $("endAccBar").style.width = "0%"; return; }
+    if (!moves.length) { endLook.done = true; $("endAccTx").textContent = "No moves of yours to look back on."; $("endAccBar").style.width = "0%"; return; }
     var acc = Rating.gameAccuracy(moves);
     var c = qualityCounts(moves);
+    endLook.counts = c; endLook.moves = moves.length; endLook.acc = acc;
     if (acc == null) {
       /* a handful of moves is not a game's worth of evidence: say so,
          and still say what the moves were */
+      endLook.done = true;
       $("endAccTx").textContent = "Too short to measure — accuracy needs " + (Rating.ACCURACY_MIN_MOVES || 8) + " moves of your own after the opening.";
       $("endAccBar").style.width = "0%";
       $("endCounts").innerHTML = countChips(c);
@@ -2577,6 +2912,9 @@ function renderEndRating(rs, cardAt) {
        game's estimate is held within reach of the coach it was against */
     var perf = Math.min(Rating.perfFromAccuracy(acc), SKILLS[rs.level].elo + (Rating.PERF_ABOVE || 400));
     rememberAccuracy(acc, perf);
+    endLook.perf = moves.length >= 10 ? perf : null;
+    endLook.third = rs.s === 1 && rs.clean && acc >= 80 && !rungOf(rs.level).stars[2];
+    endLook.done = true;
     setTimeout(function () {
       /* a performance read off four moves is a guess, so it waits for a game */
       $("endAccTx").innerHTML = moves.length >= 10 ? "Accuracy · you played like <b>~" + Math.round(perf) + "</b>" : "Accuracy";
@@ -2791,8 +3129,9 @@ function pushMile(icon, html, o) {
     line.innerHTML = '<span class="em">' + icon + "</span> " + html;
     if (o.first) box.insertBefore(line, box.firstChild); else box.appendChild(line);
     box.classList.remove("hide");
-    /* kept for when the card comes back, but only heard while it is up */
-    if ($("ovEnd").classList.contains("hide")) return;
+    /* kept for when the card comes back, but only heard while it is up
+       (and not while the beats are telling it, one at a time) */
+    if ($("ovEnd").classList.contains("hide") || beatsOn) return;
     if (!miles.stung) { miles.stung = true; sting(o.sting || "lesson-right"); }
     hap(o.hap || "star");
     if (FX) {
@@ -3236,6 +3575,8 @@ function endGame(result, reason, taught) {
     if (tableFacing()) { tableEnd(result, reason); return; }
     $("ovEnd").classList.remove("hide");
     syncTurnStrip();
+    /* and over it, the result told a beat at a time (see beatsStart) */
+    beatsStart(result, reason, rs, iWon);
     /* the room celebrates with you — and for two people on one board, a
        decisive result is everyone's */
     if (FX && result !== "draw" && (iWon || mySide === 0)) {
@@ -6326,12 +6667,14 @@ var CARDS = [
   { id: "ovChapter", hide: 1, pause: 1, back: 1 },
   { id: "ovCredits", hide: 1, pause: 1 },
   { id: "ovTale", hide: 1, pause: 1, back: 1 },
-  { id: "ovTales", hide: 1, pause: 1, back: 1 }
+  { id: "ovTales", hide: 1, pause: 1, back: 1 },
+  { id: "ovBeat", hide: 1 }
 ];
 function cardIds(flag) {
   return CARDS.filter(function (c) { return c[flag]; }).map(function (c) { return c.id; });
 }
 function hideAllOverlays() {
+  if (beatsOn) beatsEnd();
   cardIds("hide").forEach(function (id) {
     $(id).classList.add("hide");
   });
@@ -6828,6 +7171,7 @@ function wireUI() {
   homeWire();
   moWire();
   jrnWire();
+  beatsWire();
   taleWire();
   paceWire();
   tableWire();
@@ -8199,6 +8543,8 @@ function unlXpRow(ch, first) {
   $("endXpWhy").textContent = unlGameXp.parts.map(function (p) { return p.why + " +" + p.xp; }).join(" · ");
   var lvEl = $("endXpLv"), bar = $("endXpBar"), num = $("endXpNum");
   var from = ch.before, to = ch.after, my = gameTicket;
+  if (first || !unlGameXp.from) unlGameXp.from = from;
+  unlGameXp.to = to;
   if (first) { lvEl.textContent = from.level; bar.style.width = (from.frac * 100).toFixed(1) + "%"; num.textContent = "+0 XP"; $("endXpUp").classList.add("hide"); }
   var go = function () {
     if (my !== gameTicket) return;
@@ -8218,8 +8564,10 @@ function unlXpRow(ch, first) {
         lvEl.classList.remove("up"); void lvEl.offsetWidth; lvEl.classList.add("up");
         var upEl = $("endXpUp");
         upEl.classList.add("hide"); void upEl.offsetWidth; upEl.classList.remove("hide");
-        sting("levelup"); hap("success");
-        if (FX) { try { Fx.sparkle(lvEl, { count: 24 }); } catch (e) {} }
+        if (!beatsOn) {
+          sting("levelup"); hap("success");
+          if (FX) { try { Fx.sparkle(lvEl, { count: 24 }); } catch (e) {} }
+        }
         pushMile("🆙", "<b>Level " + next + "!</b> " + escHtml(unlLevelGift(next)), { cls: "levelup", sting: "levelup", hap: "success", big: true });
         bar.style.transition = "none"; bar.style.width = "0%"; void bar.offsetWidth;
         setTimeout(fill, 160);
@@ -9201,7 +9549,7 @@ function setupForTest() {
    All of it is Web Animations on top of the styles, so nothing here can
    leave a card stuck half-shown, and none of it runs with reduced motion. */
 var uimTap = null;
-var UIM_SKIP = { ovCredits: 1, ovUnlock: 1, ovPromo: 1 };   /* these have entrances of their own */
+var UIM_SKIP = { ovCredits: 1, ovUnlock: 1, ovPromo: 1, ovBeat: 1 };   /* these have entrances of their own */
 function uimOn() { return !REDUCED && typeof Element !== "undefined" && !!Element.prototype.animate; }
 function uimRun(el, frames, o) { if (!el || !uimOn()) return null; try { return el.animate(frames, o); } catch (e) { return null; } }
 function uimBeat() { return Math.round(46 * Math.max(0.55, Math.min(1.3, paceDial().card))); }
@@ -10407,6 +10755,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), beatsForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
