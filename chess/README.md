@@ -1699,6 +1699,52 @@ so the flat board asks the same questions and gets the same answers, and
 `tools/feel-check.js` checks that each one starts, and that each one
 stops.
 
+## What a screen can do that a board can't
+
+A wooden board is beautiful, and it can't do three things that a screen
+can.
+
+**The men are alive.** When nobody has touched the board for a few
+seconds, a man now and then does his own small thing (`Motion.life`).
+A pawn bounces, a knight tosses its head twice, a bishop or a queen
+sways, a rook or a king turns to look about and back. While the coach
+thinks, it is the coach's men who fidget. The men beside a capture flinch
+away from the blow. When a king is mated, the winning army jumps for joy
+and spins, in a wave out from the piece that did it, while the other
+side sinks a little. Every gesture is short and then still, and after
+about a minute and a half of nobody touching anything they settle and
+wait, so a board left alone is one the phone may sleep on. None of it
+says anything about the position. Settings has **Pieces come alive** to
+turn it off, and reduced motion turns it off too. Both boards ask the
+same pure function, so the flat board does the same gesture (a look is a
+small lean there, since a flat piece can't turn).
+
+**Board sight.** The 👁 beside your name tints every square that either
+side's men could move to or take on: yours in blue, theirs in red,
+deeper the more men bear on it. A square both sides watch equally gets a
+light neutral tint. It is counted the way a player counts: pawns take
+diagonally, knights jump, and a rook, bishop or queen is stopped by the
+first man in its way. It is the picture strong players carry in their
+heads, made visible. It is what any man could take, never what the
+coach would play, so it is the same for everybody and is not a hint.
+"Yours" is your side against the coach or a friend; at a shared board it
+is whoever is to move. It follows the game move by move, explains itself
+the first time, and goes with a second tap.
+
+**The highlights.** When a game is over, the end card offers 🎬 **Watch
+the highlights**, a sports-broadcast replay. The screen goes widescreen
+with a blinking ● REPLAY, and each moment is set up from the position
+just before it. The camera leans in, a caption says what happened
+("Move 12 · ♞ Knight takes ♛ queen!", "Check!", "A pawn becomes a
+queen!", "Checkmate!"), and the move plays slowly with a glow. The
+moments come from what happened, not from an engine: the three biggest
+(captures by value, checks, promotions), then always the last move. A
+mate ends with the king laid down again and the victory wave, which on
+the night played behind the end card. Any tap ends the replay and
+brings the card back.
+
+`node chess/tools/depth-check.js` checks all three.
+
 ## The big moments
 
 Most of a game of chess is quiet, and should be: a piece is picked up,
