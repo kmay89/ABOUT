@@ -15,6 +15,11 @@
 
    Run: node chess/tools/welcome-check.js                                 */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -166,7 +171,7 @@ const LISTEN = `(() => {
     }
     await page.waitForFunction(() => !document.getElementById("ovEnd").classList.contains("hide"), null, { timeout: 10000 }).catch(() => {});
     ok("a finished game against the computer retires the welcome", (await prefs()).welcomed === true);
-    await page.click("#endMenu");
+    await skipBeats(page); await page.click("#endMenu");
     await page.waitForTimeout(400);
     ok("…and the lobby shows the first number instead", (await shown("mRating")) && !(await shown("mWelcome")));
 
