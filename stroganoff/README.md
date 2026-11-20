@@ -8,8 +8,8 @@ forty minutes, one skillet and one pot.
 | file | what it is |
 | --- | --- |
 | `recipe.js` | **the recipe.** Every amount, written once, per one pound of steak (which feeds about four). The only file to edit when the dish changes. |
-| `index.html` | the page and its styles, a copy of the chili's with its own words and colour. |
-| `../chili/app.js` | the calculator, shared with the chili. See `chili/README.md` for the recipe format and the fields this one uses (`dial`, `yield.serves`, `pans`). |
+| `index.html` | the page: the shared styles plus its own words and colour. |
+| `../recipes/app.js` | the calculator every recipe in [the book](../recipes/) shares. See `chili/README.md` for the recipe format and the fields this one uses (`dial`, `yield.serves`, `pans`). |
 
 Live at [kmay89.com/stroganoff](https://kmay89.com/stroganoff/).
 
