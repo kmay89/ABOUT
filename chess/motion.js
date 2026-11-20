@@ -599,6 +599,72 @@ function hold(ms) {
   return HOLD_LIFT * (ms < HOLD_RISE ? easeOutQuart(ms / HOLD_RISE) : 1);
 }
 
+/* ---------- life: the men between moves ----------
+   A real set is still; a set on a screen can be alive, and a little life
+   is what makes a board feel like a place rather than a diagram. Every
+   gesture here is short and then still again (a board nobody is touching
+   is a board the phone may sleep on), and each man's gesture is his own:
+     hop    a pawn bounces on the spot
+     nod    a knight tosses its head, twice
+     sway   a bishop or a queen leans one way and the other
+     look   a rook or a king turns to look about, and back
+     flinch a man beside a capture recoils from it
+     cheer  the winning side jumps and spins, a wave across the army
+     sigh   the other side sinks a little, and straightens
+   life(kind, ms) answers, for that many ms into the gesture:
+     y      how far off the board (squares)
+     tilt   a lean (radians): forward for nod and flinch, sideways for sway
+     ry     a turn about the upright (radians; the flat board has none and
+            takes `flat`, a small lean, instead)
+     squash height, against 1
+     live   whether it is still going */
+var LIFE = {
+  hop:    { ms: 540 },
+  nod:    { ms: 760 },
+  sway:   { ms: 940 },
+  look:   { ms: 1100 },
+  flinch: { ms: 400 },
+  cheer:  { ms: 820 },
+  sigh:   { ms: 1100 }
+};
+/* which gesture is whose, when nothing is happening */
+var FIDGET = {};
+FIDGET[P] = "hop"; FIDGET[N] = "nod"; FIDGET[B] = "sway"; FIDGET[R] = "look"; FIDGET[Q] = "sway"; FIDGET[K] = "look";
+function fidgetOf(kind) { return FIDGET[Math.abs(kind)] || "hop"; }
+function life(kind, ms) {
+  var L = LIFE[kind], rest = { y: 0, tilt: 0, ry: 0, flat: 0, squash: 1, live: false };
+  if (!L || !(ms >= 0)) return ms < 0 && L ? { y: 0, tilt: 0, ry: 0, flat: 0, squash: 1, live: true } : rest;
+  if (ms >= L.ms) return rest;
+  var t = ms / L.ms, out = { y: 0, tilt: 0, ry: 0, flat: 0, squash: 1, live: true }, u;
+  if (kind === "hop" || kind === "cheer") {
+    var high = kind === "cheer" ? 0.42 : 0.2;
+    /* crouch, spring, hang, land and give */
+    if (t < 0.18) out.squash = 1 - 0.14 * Math.sin(Math.PI * t / 0.18);
+    else if (t < 0.8) { u = (t - 0.18) / 0.62; out.y = high * Math.sin(Math.PI * u); out.squash = 1 + 0.06 * Math.sin(Math.PI * u); }
+    else { u = (t - 0.8) / 0.2; out.squash = 1 - 0.1 * Math.sin(Math.PI * u); }
+    if (kind === "cheer") { u = Math.min(1, Math.max(0, (t - 0.18) / 0.62)); out.ry = 2 * Math.PI * (u * u * (3 - 2 * u)); }
+  } else if (kind === "nod") {
+    out.tilt = 0.17 * Math.sin(4 * Math.PI * t) * (1 - t);
+    out.y = 0.03 * Math.abs(Math.sin(4 * Math.PI * t)) * (1 - t);
+  } else if (kind === "sway") {
+    out.tilt = 0.11 * Math.sin(3 * Math.PI * t) * (1 - t * 0.6) * (t < 0.92 ? 1 : (1 - t) / 0.08);
+  } else if (kind === "look") {
+    /* a turn one way, a pause, back: the head-turn of someone checking */
+    var e = t < 0.35 ? Math.sin(Math.PI / 2 * t / 0.35) : t < 0.6 ? 1 : Math.cos(Math.PI / 2 * (t - 0.6) / 0.4);
+    out.ry = 0.85 * e;
+    out.flat = 0.05 * e;
+  } else if (kind === "flinch") {
+    var k = Math.sin(Math.PI * t);
+    out.tilt = -0.24 * k * (1 - t * 0.3);
+    out.squash = 1 - 0.07 * k;
+  } else if (kind === "sigh") {
+    var s = Math.sin(Math.PI * t);
+    out.squash = 1 - 0.09 * s;
+    out.tilt = 0.07 * s;
+  }
+  return out;
+}
+
 var Motion = {
   CHARACTER: CHARACTER, MIN_DUR: MIN_DUR, MAX_DUR: MAX_DUR, PULSE_MS: PULSE_MS,
   FALL_MS: FALL_MS, FALL_IMPACT: FALL_IMPACT, DROP: DROP, DROP_MS: DROP_MS,
@@ -608,6 +674,7 @@ var Motion = {
   cascade: cascade, cascadeEnd: cascadeEnd, dropAt: dropAt,
   spring: spring, springAtRest: springAtRest, impactAt: impactAt,
   thud: thud, THUD_MS: THUD_MS, swoop: swoop, SWOOP_MS: SWOOP_MS, settle: settle, SETTLE_MS: SETTLE_MS,
+  LIFE: LIFE, life: life, fidgetOf: fidgetOf,
   ripple: ripple, rippleEnd: rippleEnd, hold: hold, HOLD_LIFT: HOLD_LIFT, HOLD_RISE: HOLD_RISE,
   REVEAL: REVEAL, SELECT_MS: SELECT_MS, AFTERGLOW_MS: AFTERGLOW_MS, LAND: LAND,
   reveal: reveal, selectPulse: selectPulse, afterglow: afterglow, landPower: landPower, landRing: landRing

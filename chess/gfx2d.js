@@ -1162,6 +1162,18 @@ function create(canvas) {
     R.dirty = true;
   };
   var kicks = [], hand = { sq: -1, shownAt: 0 }, settles = {};
+  /* lives: the men's own little gestures between moves (Motion.life);
+     the flat board has no turn about the upright, so a look is a lean */
+  var lives = {};
+  R.life = function (sq, kind, o) {
+    if (REDUCED || !onBoard(sq) || !R.board[sq] || !Move.LIFE[kind]) return false;
+    o = o || {};
+    lives[sq] = { kind: kind, piece: R.board[sq], t0: performance.now() + (o.delay || 0), dir: o.dir || 1 };
+    R.dirty = true;
+    return true;
+  };
+  R.lifeState = function () { var out = {}; for (var k in lives) out[k] = lives[k].kind; return out; };
+  R.lifeClear = function () { lives = {}; R.dirty = true; };
   R.kick = function (power, sq) {
     if (REDUCED || !(power > 0)) return;
     kicks.push({ t0: performance.now(), power: Math.min(1, power) });
@@ -1367,7 +1379,7 @@ function create(canvas) {
       var ht = R.heat[hti];
       if (!ht || !onBoard(ht.sq)) continue;
       var hv = Math.max(-1, Math.min(1, +ht.v || 0));
-      fillSq(ht.sq, rgba(hv >= 0 ? th.captureHex : th.planHex, 0.12 + 0.30 * Math.abs(hv)), th);
+      fillSq(ht.sq, rgba(ht.col || (hv >= 0 ? th.captureHex : th.planHex), (ht.a0 != null ? ht.a0 : 0.12) + (ht.a1 != null ? ht.a1 : 0.30) * Math.abs(hv)), th);
     }
     if (R.hi.last) {
       fillSq(R.hi.last[0], th.lastB, th);
@@ -1510,6 +1522,19 @@ function create(canvas) {
         paintPiece(ctx, piece, q.x, q.y - selLift * R.cell * 0.55, R.cell, th, 1, 1 + selLift * 0.32, 0, 1,
                    { noShadow: true });
         continue;
+      }
+      var lv = !a && !settles[sq2] && lives[sq2];
+      if (lv) {
+        if (lv.piece !== piece) delete lives[sq2];
+        else {
+          var lp = Move.life(lv.kind, now - lv.t0);
+          if (!lp.live) delete lives[sq2];
+          else {
+            animating = true;
+            paintPiece(ctx, piece, q.x, q.y - lp.y * R.cell * 0.6, R.cell, th, 1, 1, lv.dir * (lp.tilt + lp.flat), lp.squash);
+            continue;
+          }
+        }
       }
       if (settles[sq2]) {
         var se = settles[sq2];
