@@ -25,6 +25,11 @@
 
    Run: node chess/tools/play-check.js                                  */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -160,7 +165,7 @@ const PLAY = `([san, src]) => {
     ok("…and still counts the slips", await page.evaluate(() => document.getElementById("endCounts").children.length > 0));
     ok("…and offers the next coach up", await page.isVisible("#endNext"));
 
-    await page.click("#endMenu");
+    await skipBeats(page); await page.click("#endMenu");
     await page.waitForTimeout(500);
     const after = await page.evaluate(() => ({
       num: document.getElementById("mRateNum").textContent,
@@ -262,7 +267,7 @@ const PLAY = `([san, src]) => {
     ok("…and a performance estimate held within reach of the coach", (() => {
       const m = acc2[0].match(/~(\d+)/); return !m || +m[1] <= 400 + 400;
     })(), acc2[0]);
-    await page.click("#endMenu"); await page.waitForTimeout(300);
+    await skipBeats(page); await page.click("#endMenu"); await page.waitForTimeout(300);
 
     /* ---- Undo as Black before you have moved ---- */
     await fresh();

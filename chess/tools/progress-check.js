@@ -24,6 +24,11 @@
 
    Run: node chess/tools/progress-check.js [--phone|--desk]             */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -153,7 +158,7 @@ const SIZES = [
       ok(T("…and its card has no stack of lines"), !(await visible("endMiles")));
 
       /* ---- the coach: kept, feats said once, the step done ---- */
-      await page.click("#endMenu"); await page.waitForTimeout(300);
+      await skipBeats(page); await page.click("#endMenu"); await page.waitForTimeout(300);
       await page.evaluate(() => { __cr.startGame("coach", { humanSide: 1, skill: Rating.LEVELS[0].id, clockStr: "none", fresh: true }); });
       for (const [i, san] of SCHOLAR.entries()) {
         await play(san, i % 2 ? "coach" : "local");
@@ -179,7 +184,7 @@ const SIZES = [
       ok(T("the end card's next button still offers the next coach up"), await visible("endNext"));
 
       /* ---- the lobby moves on, quietly ---- */
-      await page.click("#endMenu"); await page.waitForTimeout(400);
+      await skipBeats(page); await page.click("#endMenu"); await page.waitForTimeout(400);
       const goal2 = await page.evaluate(() => document.getElementById("mGoalTx").textContent);
       ok(T("the lobby shows the next step, not the one just taken"), goal2 && !/first game/i.test(goal2), goal2);
 
