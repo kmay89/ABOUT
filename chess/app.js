@@ -205,12 +205,16 @@ function hapMove(desc, plan, took, withCapture) {
    shows the whole press); the look is the stylesheet's ("the keys").
    Anything that already has its own feel says so with data-feel="own". */
 var PRESS_KEYS = ".bigbtn, .tile, .rung, .rungRow, .lrow2, .gameRow, .preset, .abtn, .chip, .lchip, .stPick, .askRow button, .tact, " +
-  "#inkPill button, #promoRow button, .playBtn, .ptab, .pftab, .linkish, .ghostbtn";
+  "#inkPill button, #promoRow button, .playBtn, .ptab, .pftab, .linkish, .ghostbtn, .hubTab, .hubMe, .hhFace";
 var PRESS_HZ = { key: 1320, bright: 1568, play: 1175, tab: 1480, quiet: 988 };
 function wirePress() {
   if (typeof Press === "undefined") return;
   Press.attach(document, { selector: PRESS_KEYS, onDown: function (el, kind) {
     if (el.getAttribute("data-feel") !== "own") hap("tick");
+    /* a door in the lobby's dock says its own note (the hub) */
+    if (el.classList.contains("hubTab") && typeof Hub !== "undefined") { snd("door", { n: Hub.page(Hub.index(el.getAttribute("data-page"))).note }); return; }
+    /* the host answers for itself */
+    if (el.classList.contains("hhFace")) return;
     /* a switch speaks once it has flipped, and says which way */
     if (kind !== "switch") snd("tap", { hz: PRESS_HZ[kind] || PRESS_HZ.key });
   } });
@@ -1554,7 +1558,6 @@ function isNewcomer() {
 function syncWelcome() {
   var fresh = isNewcomer();
   $("mWelcome").classList.toggle("hide", !fresh);
-  $("mRating").classList.toggle("hide", fresh);
 }
 function welcomeNew() {
   /* the gentlest start: the rules, then the gentlest coach — with the
@@ -3419,6 +3422,8 @@ function startGame(newMode, opts) {
   moStart();
   if (mode === "coach" && G.turn !== humanSide) scheduleCoach();
   else if (mode === "coach") paceTurnStart();
+  hubPlayed = true;
+  moreSet(false, true);
   uimGameStarted(!!opts.fresh);
   needFrame();
 }
@@ -6677,6 +6682,7 @@ function showMenu() {
   gameOpsSend(ops, hasLive);
   notationOps(ops, hasLive);
   $("ovMenu").classList.remove("hide");
+  hubShown();
   snd("open");
 }
 function chipBtn(label, fn) {
@@ -7105,6 +7111,8 @@ function wireUI() {
   taleWire();
   paceWire();
   tableWire();
+  hubWire();
+  moreWire();
   unlWire();
   wireChips("flipChips", "flip", function (v) { prefs.autoFlip = v === "1"; savePrefs(); tableSync(); });
   $("newStart").addEventListener("click", function () {
@@ -9460,6 +9468,364 @@ function setupForTest() {
            startSetup: startSetup, setupTap: setupTap, setupBusy: function () { return setupBusy; } };
 }
 
+/* ===== the bar on a phone: four keys, and a tray for the rest =====
+   On a phone held upright the action bar is Menu, Undo, Help and More;
+   More lifts a tray with New game, Last move, Flip, 2D/3D and Look on
+   it (the stylesheet decides where that is true: wherever all eight
+   fit in a row, the tray is simply the rest of the row and More is not
+   there). The tray puts itself away: when one of its keys is used, on a
+   tap anywhere else, on Escape, when the window grows wide enough not
+   to need it, and whenever a game starts or a card arrives. */
+function moreIsTray() { var b = $("btnMore"); return !!b && getComputedStyle(b).display !== "none"; }
+function moreOpen() { return $("actions").classList.contains("more"); }
+function moreSet(on, quiet) {
+  on = !!on && moreIsTray();
+  if (on === moreOpen()) return;
+  $("actions").classList.toggle("more", on);
+  $("btnMore").setAttribute("aria-expanded", on ? "true" : "false");
+  if (!quiet) snd("tap", { hz: on ? 1760 : 1047 });
+}
+function moreWire() {
+  if (!$("btnMore")) return;
+  $("btnMore").addEventListener("click", function () { moreSet(!moreOpen()); });
+  $("moreTray").addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest(".abtn")) moreSet(false, true);
+  });
+  document.addEventListener("pointerdown", function (e) {
+    if (moreOpen() && !(e.target.closest && e.target.closest("#moreTray, #btnMore"))) moreSet(false, true);
+  }, true);
+  /* Escape shuts the tray and nothing else: heard on the way down, so
+     the room's own Escape (which backs out of a look-back, or rubs out a
+     drawing) is not also answered by the same key */
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || !moreOpen()) return;
+    e.stopPropagation();
+    moreSet(false);
+    try { $("btnMore").focus({ preventScroll: true }); } catch (err) {}
+  }, true);
+  window.addEventListener("resize", function () { if (moreOpen() && !moreIsTray()) moreSet(false, true); });
+  /* a card in front, or a new game: the tray is not left hanging over it */
+  if (typeof MutationObserver !== "undefined") {
+    var mo = new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) if (!list[i].target.classList.contains("hide")) { moreSet(false, true); return; }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("body > .ov"), function (ov) {
+      mo.observe(ov, { attributes: true, attributeFilter: ["class"] });
+    });
+  }
+}
+function moreForTest() { return { moreSet: moreSet, moreOpen: moreOpen, moreIsTray: moreIsTray }; }
+
+/* ===== the hub: the lobby as a place with four doors (hub.js) =====
+   hub.js says what the front door is: four pages, which key lives on
+   which, what a newcomer sees, where it opens, what is waiting behind
+   each door. This is the doing of it:
+   - the pages are a row a thumb can drag, snapped a page at a time; the
+     dock's light is tied to how far along the row you are, so it moves
+     under the finger rather than after it;
+   - a door pressed in the dock says its note out loud and the pages
+     slide there; a page reached by a swipe says the same note softly.
+     Left to right the four notes are the room's home chord;
+   - arriving on a page, the pictures on its keys say hello one after
+     another (the stylesheet moves them; this only says when);
+   - whoever is next on the road stands at the top of the play page as
+     the host: a live face that looks where you point, says something
+     when you walk in, and answers a tap;
+   - a first visit is the greeting, and "Look around first" unfolds the
+     rest of the room, door by door, with the chord played up the dock.
+   Nothing here decides anything about the game: it only moves the
+   lobby. Without hub.js the pages are still there to swipe between,
+   every key on them, with the letters the pictures were drawn over. */
+var hubAt = 0, hubLast = "play", hubPlayed = true, hubGoing = -1, hubGoT = 0, hubHiT = 0,
+    hubFace = null, hubFaceFailed = false, hubHostId = null, hubTypeT = 0, hubSaidAt = 0,
+    hubSaidN = Math.floor(Date.now() / 864e5), hubPokes = 0, hubLookAt = 0, hubHoverAt = 0;
+(function () {
+  var p = {};
+  try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
+  prefs.looked = p.looked === true;
+})();
+function hubOn() { return typeof Hub !== "undefined" && !!$("hubPages"); }
+function hubOpen() { return hubOn() && !$("ovMenu").classList.contains("hide"); }
+function hubDoor() { return Hub.door({ newcomer: isNewcomer(), looked: prefs.looked }); }
+function hubWidth() { return $("hubPages").clientWidth || 1; }
+function hubPageEl(i) { return document.querySelector('.hubPage[data-page="' + Hub.page(i).id + '"]'); }
+function hubTabEl(i) { return document.querySelector('.hubTab[data-page="' + Hub.page(i).id + '"]'); }
+/* the pictures: every .hubIc is drawn from hub.js, over the letter it
+   was written with */
+function hubIcons() {
+  Array.prototype.forEach.call(document.querySelectorAll(".hubIc[data-ic]"), function (el) {
+    var svg = Hub.icon(el.getAttribute("data-ic"));
+    if (!svg) return;
+    el.innerHTML = svg;
+    el.classList.add("drawn");
+    el.setAttribute("aria-hidden", "true");
+  });
+  /* the order a page's pictures say hello in */
+  Array.prototype.forEach.call(document.querySelectorAll(".hubPage"), function (pg) {
+    Array.prototype.forEach.call(pg.querySelectorAll(".door, .welcome .bigbtn"), function (d, k) { d.style.setProperty("--k", k); });
+  });
+}
+/* which door is lit, and which page is the one in view */
+function hubMark(i) {
+  hubAt = i;
+  Hub.PAGES.forEach(function (p, k) {
+    var tab = hubTabEl(k), pg = hubPageEl(k);
+    if (tab) { tab.classList.toggle("on", k === i); if (k === i) tab.setAttribute("aria-current", "page"); else tab.removeAttribute("aria-current"); }
+    if (pg) pg.classList.toggle("cur", k === i);
+  });
+}
+function hubTrack() {
+  var pg = $("hubPages");
+  $("hubDock").style.setProperty("--p", Hub.progress(pg.scrollLeft, hubWidth()).toFixed(3));
+}
+/* straight there, no journey: the lobby opening, or the window changing size */
+function hubJump(i) {
+  i = Hub.index(Hub.page(i).id);
+  var pg = $("hubPages");
+  hubGoing = -1;
+  pg.scrollLeft = i * hubWidth();
+  hubMark(i);
+  hubTrack();
+}
+/* the pictures on this page say hello */
+function hubHello(i) {
+  var pg = hubPageEl(i);
+  if (!pg || REDUCED) return;
+  Array.prototype.forEach.call(document.querySelectorAll(".hubPage.hi"), function (el) { el.classList.remove("hi"); });
+  void pg.offsetWidth;
+  pg.classList.add("hi");
+  clearTimeout(hubHiT);
+  hubHiT = setTimeout(function () { pg.classList.remove("hi"); }, 1700);
+}
+/* a new page is the one in view */
+function hubArrive(i, how) {
+  if (i === hubAt) return;
+  hubMark(i);
+  hubLast = Hub.page(i).id;
+  if (how === "swipe") { snd("door", { n: Hub.page(i).note, soft: true }); hap("tick"); }
+  hubHello(i);
+  if (hubFace) { hubFace.lookAt(i === 0 ? 0 : Math.min(1, 0.45 + i * 0.2), -0.5); hubFace.wake(1200); }
+}
+/* a door in the dock, pressed: go there */
+function hubGo(i, quiet) {
+  i = Hub.index(Hub.page(i).id);
+  if (!hubDoor().dock) i = 0;
+  var pg = $("hubPages"), left = i * hubWidth();
+  if (!quiet) snd("door", { n: Hub.page(i).note });
+  if (i === hubAt && Math.abs(pg.scrollLeft - left) < 2) { hubHello(i); return; }
+  hubGoing = i;
+  clearTimeout(hubGoT);
+  /* and if the journey was cut short (a thumb took over, or the scroll
+     never came), the dock is put right about where the pages ended up */
+  hubGoT = setTimeout(function () {
+    hubGoing = -1;
+    /* (a lobby that has been put away has no pages to measure) */
+    if (hubOpen()) hubArrive(Hub.nearest($("hubPages").scrollLeft, hubWidth()), "settle");
+  }, 1400);
+  hubArrive(i, "go");
+  if (pg.scrollTo && !REDUCED) pg.scrollTo({ left: left, behavior: "smooth" });
+  else pg.scrollLeft = left;
+}
+function hubScrolled() {
+  var pg = $("hubPages");
+  if (!hubOpen()) return;
+  hubTrack();
+  if (hubGoing >= 0) {
+    /* on the way to a door that was pressed: the pages in between are
+       passed, not arrived at */
+    if (Math.abs(pg.scrollLeft - hubGoing * hubWidth()) < 2) hubGoing = -1;
+    return;
+  }
+  hubArrive(Hub.nearest(pg.scrollLeft, hubWidth()), "swipe");
+}
+/* what is waiting behind each door, worn on the dock */
+function hubBadges() {
+  var due = 0, boxes = 0, fresh = 0;
+  try { due = Learn.stats(Learn.load()).due || 0; } catch (e) {}
+  if (typeof unl !== "undefined" && unl) { boxes = unlQueue.length + (unlShowing ? 1 : 0); fresh = Object.keys(unl.fresh || {}).length; }
+  var b = Hub.badges({ resume: !$("mResume").classList.contains("hide"), openBoard: !$("mOpenBoard").classList.contains("hide"),
+                       due: due, boxes: boxes, fresh: fresh });
+  Hub.PAGES.forEach(function (p, k) {
+    var tab = hubTabEl(k), dot = tab && tab.querySelector(".hubBadge"), it = b[p.id];
+    if (!tab || !dot) return;
+    tab.setAttribute("aria-label", Hub.sayDoor(p.id, it));
+    dot.className = "hubBadge" + (it ? " " + it.kind : " hide");
+    dot.textContent = it && it.kind !== "dot" ? (it.text || String(it.n)) : "";
+  });
+}
+/* who you are, in the head of the card */
+function hubMe() {
+  var lv = unlLevel(), sm = Rating.summary(rating);
+  $("hubMeLv").textContent = lv.level;
+  $("hubMe").style.setProperty("--lv", Math.max(0, Math.min(1, lv.frac || 0)).toFixed(3));
+  $("hubMeNum").textContent = sm.games ? sm.rating + (sm.provisional ? "?" : "") : "—";
+  $("hubMe").setAttribute("aria-label", "Level " + lv.level + (sm.games ? ", rated " + sm.rating : ", not rated yet") + " — your record and collection");
+}
+
+/* ---- the host ---- */
+function hubHostWho() { return typeof Cast !== "undefined" ? Cast.get(hubHostId) : null; }
+function hubHostSync(walkedIn) {
+  var id = nextLevel(), host = $("hubHost");
+  var who = typeof Cast !== "undefined" ? Cast.get(id) : null, L = SKILLS[id];
+  host.classList.toggle("hide", !who);
+  if (!who) return;
+  if (!hubFace && !hubFaceFailed && typeof Avatar !== "undefined") {
+    try { hubFace = Avatar.create($("hubFace")); } catch (e) { hubFace = null; }
+    if (!hubFace) hubFaceFailed = true;
+  }
+  host.classList.toggle("flat", !hubFace);
+  $("hubHostEmoji").textContent = L ? L.emoji : "";
+  $("hubHostBtn").setAttribute("aria-label", who.name + ", your next opponent. Say hello");
+  var changed = hubHostId !== id;
+  hubHostId = id;
+  if (hubFace) {
+    hubFace.resize();
+    if (hubFace.id !== id) hubFace.set(id);
+    hubFace.lookAt(0, 0); hubFace.mood("happy", 1400); hubFace.wake(3200);
+  }
+  /* something said as you walk in: when the host is new, when the room
+     has been quiet a while, and always on the way back from a game */
+  if (changed || walkedIn || !hubSaidAt || Date.now() - hubSaidAt > 40000) hubHostSay("door");
+}
+function hubHostSay(kind) {
+  var who = hubHostWho();
+  if (!who) return;
+  var text = Cast.line(hubHostId, kind, hubSaidN++) || Cast.line(hubHostId, "greet", hubSaidN) || "";
+  var box = $("hubSayTx");
+  $("hubSayWho").textContent = who.name;
+  $("hubSay").setAttribute("data-line", text);
+  hubSaidAt = Date.now();
+  clearTimeout(hubTypeT);
+  var syl = Cast.syllables(text);
+  if (hubFace) { hubFace.talk(300 + syl * 1000 / who.voice.rate, who.voice.rate); hubFace.wake(2600); }
+  if (prefs.chatter) snd("babble", { hz: who.voice.hz, n: Math.min(10, syl), rate: who.voice.rate, seed: text.length });
+  if (REDUCED) { box.textContent = text; return; }
+  var i = 0;
+  (function type() {
+    i = Math.min(text.length, i + 2);
+    box.textContent = text.slice(0, i);
+    if (i < text.length) hubTypeT = setTimeout(type, 30);
+  })();
+}
+/* a tap on the host: it does its own little thing, and says something
+   else — a hello, then a word about how it plays, and round again */
+function hubHostPoke() {
+  if (!hubHostWho()) return;
+  hap("tick");
+  if (hubFace) { hubFace.quirk(); hubFace.mood("happy", 1500); }
+  hubHostSay(hubPokes++ % 2 ? "door" : "tip");
+}
+function hubHostLook(e) {
+  if (!hubFace || e.pointerType === "touch") return;
+  var t = Date.now();
+  if (t - hubLookAt < 70) return;
+  hubLookAt = t;
+  var r = $("hubFace").getBoundingClientRect();
+  if (!r.width) return;
+  hubFace.lookAt((e.clientX - (r.left + r.width / 2)) / 260, -(e.clientY - (r.top + r.height / 2)) / 260);
+}
+function hubSleep() {
+  clearTimeout(hubTypeT); clearTimeout(hubGoT); hubGoing = -1;
+  var line = $("hubSay") && $("hubSay").getAttribute("data-line");
+  if (line) $("hubSayTx").textContent = line;
+  if (hubFace) hubFace.sleep();
+}
+
+/* ---- the lobby is shown ---- */
+function hubShown() {
+  if (!hubOn()) return;
+  var d = hubDoor();
+  $("hub").classList.toggle("greeting", d.greeting);
+  hubBadges();
+  hubMe();
+  var to = Hub.index(Hub.landing({ greeting: d.greeting, played: hubPlayed, last: hubLast }));
+  var walkedIn = hubPlayed;
+  hubPlayed = false;
+  hubJump(to);
+  hubLast = Hub.page(to).id;
+  hubHello(to);
+  hubHostSync(walkedIn);
+}
+/* "Look around first": the rest of the room unfolds, door by door */
+function hubLook() {
+  if (!prefs.looked) { prefs.looked = true; savePrefs(); }
+  var el = $("hub");
+  if (!el.classList.contains("greeting")) return;
+  el.classList.remove("greeting");
+  hubBadges(); hubMe();
+  hubJump(0);
+  hubHostSync(false);
+  renderLobby();
+  if (hubFace) { hubFace.quirk(); hubFace.mood("happy", 1600); }
+  var dock = $("hubDock");
+  uimRun(dock, [{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 420, easing: "cubic-bezier(.2,.9,.3,1.1)" });
+  snd("doors", { ns: Hub.PAGES.map(function (p) { return p.note; }) });
+  Hub.PAGES.forEach(function (p, k) {
+    uimRun(hubTabEl(k), [{ transform: "translateY(18px) scale(.5)", opacity: 0 }, { transform: "translateY(-4px) scale(1.12)", opacity: 1, offset: 0.65 }, { transform: "none", opacity: 1 }],
+           { duration: 380, delay: 160 + k * 100, easing: "cubic-bezier(.25,.8,.3,1)", fill: "backwards" });
+  });
+  var kids = Array.prototype.filter.call(hubPageEl(0).children, uimShown);
+  kids.forEach(function (kid, k) {
+    if (kid.id === "hubHost") return;
+    uimRun(kid, [{ transform: "translateY(14px)", opacity: 0 }, { transform: "none", opacity: 1 }],
+           { duration: 360, delay: 120 + k * uimBeat(), easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" });
+  });
+  uimRun($("hubMe"), [{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1.08)", opacity: 1, offset: 0.7 }, { transform: "none", opacity: 1 }],
+         { duration: 380, delay: 300, easing: "cubic-bezier(.25,.8,.3,1)", fill: "backwards" });
+  accSay("The whole room is open: Play, Friends, Learn and You.");
+}
+function hubWire() {
+  if (!hubOn()) return;
+  hubIcons();
+  var pages = $("hubPages"), dock = $("hubDock");
+  pages.addEventListener("scroll", hubScrolled, { passive: true });
+  Array.prototype.forEach.call(dock.querySelectorAll(".hubTab"), function (tab) {
+    tab.addEventListener("click", function () { hubGo(Hub.index(tab.getAttribute("data-page")), true); });
+  });
+  /* the dock under the arrow keys */
+  dock.addEventListener("keydown", function (e) {
+    if (["ArrowLeft", "ArrowRight", "Left", "Right", "Home", "End"].indexOf(e.key) < 0) return;
+    /* from the door the focus is on, which a Tab may have moved */
+    var on = e.target && e.target.closest ? e.target.closest(".hubTab") : null;
+    var from = on ? Hub.index(on.getAttribute("data-page")) : hubAt;
+    var to = Hub.key(from < 0 ? hubAt : from, e.key);
+    e.preventDefault();
+    hubGo(to);
+    var tab = hubTabEl(to);
+    if (tab) try { tab.focus({ preventScroll: true }); } catch (err) { tab.focus(); }
+  });
+  $("hubMe").addEventListener("click", function () { hubGo(Hub.index("you")); });
+  $("mLook").addEventListener("click", hubLook);
+  $("hubHostBtn").addEventListener("click", hubHostPoke);
+  $("hub").addEventListener("pointermove", hubHostLook, { passive: true });
+  /* a mouse coming to rest on a door is heard, very quietly */
+  $("hub").addEventListener("pointerover", function (e) {
+    if (e.pointerType !== "mouse" || !e.target.closest) return;
+    var d = e.target.closest(".door, .hubTab, .playBtn, .rung, .welcome .bigbtn, .journeyBtn");
+    if (!d || (e.relatedTarget && d.contains(e.relatedTarget))) return;
+    var t = Date.now();
+    if (t - hubHoverAt < 60) return;
+    hubHoverAt = t;
+    snd("hover");
+  });
+  window.addEventListener("resize", function () { if (hubOpen()) hubJump(hubAt); });
+  /* asleep when the lobby is not the card in front */
+  if (typeof MutationObserver !== "undefined") {
+    new MutationObserver(function () { if ($("ovMenu").classList.contains("hide")) hubSleep(); })
+      .observe($("ovMenu"), { attributes: true, attributeFilter: ["class"] });
+  }
+}
+function hubForTest() {
+  return { Hub: typeof Hub !== "undefined" ? Hub : null, hubGo: hubGo, hubJump: hubJump, hubLook: hubLook, hubShown: hubShown,
+           /* (a function, not a getter: Object.assign would copy a getter's value once) */
+           hubState: function () {
+             return { at: hubAt, page: Hub.page(hubAt).id, last: hubLast, going: hubGoing, host: hubHostId, face: !!hubFace,
+                      faceState: hubFace ? hubFace.state() : null, said: $("hubSay").getAttribute("data-line") || "",
+                      door: hubDoor() };
+           },
+           hubHostPoke: hubHostPoke };
+}
+
 /* ===== the room's motion: how cards, words and games arrive =====
    The board already moves like a thing with weight (motion.js, the
    renderers); this is the same care for everything around it. One rule,
@@ -9494,6 +9860,11 @@ function uimCardIn(ov) {
     { transform: "none", opacity: 1 }
   ], { duration: 460, easing: "cubic-bezier(.25,.8,.3,1)" });
   var kids = Array.prototype.filter.call(card.children, uimShown).slice(0, 16);
+  /* the lobby: its head, what is on the page in view, then the dock */
+  if (ov.id === "ovMenu" && hubOn()) {
+    var cur = hubPageEl(hubAt);
+    kids = [card.querySelector(".lobbyHead")].concat(cur ? Array.prototype.slice.call(cur.children) : [], [$("hubDock")]).filter(uimShown).slice(0, 16);
+  }
   kids.forEach(function (k, i) {
     uimRun(k, [{ transform: "translateY(12px)", opacity: 0 }, { transform: "none", opacity: 1 }],
            { duration: 340, delay: 90 + i * beat, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" });
@@ -10684,4 +11055,5 @@ Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
 Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), depthForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
+Object.assign(window.__cr, hubForTest(), moreForTest());
 })();

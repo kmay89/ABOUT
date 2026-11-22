@@ -195,6 +195,15 @@ const LOOK = `(sel) => {
            trans: cs.transitionDuration, pos: cs.position };
 }`;
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -218,6 +227,7 @@ const LOOK = `(sel) => {
       await page.goto(base + "/chess/index.html");
       await page.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 90000 });
       await page.waitForTimeout(900);
+      await lookAround(page);
 
       /* every kind of key the room is built from stands proud of an edge */
       const kinds = await page.evaluate(() => {
@@ -374,6 +384,7 @@ const LOOK = `(sel) => {
       await page.goto(base + "/chess/index.html");
       await page.waitForFunction(() => window.__cr && document.getElementById("splash").classList.contains("gone"), null, { timeout: 90000 });
       await page.waitForTimeout(600);
+      await lookAround(page);
       await page.evaluate(() => { __cr.showMenu(); document.getElementById("mPass").scrollIntoView({ block: "center" }); });
       await page.waitForTimeout(300);
       const box = await (await page.$("#mPass")).boundingBox();

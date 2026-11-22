@@ -110,7 +110,7 @@ with a printed hinge and a snap latch, shown unpacking itself in 3D.
   over this one.
 - `games/` — the games room: one page listing everything here that is a
   game, split by how many people it needs. It exists because the desk is
-  a scene rather than an index, and seventeen games do not fit on a desk.
+  a scene rather than an index, and eighteen games do not fit on a desk.
 - `checkers/ othello/ halma/ hearts/ euchre/` — five rooms built off the
   domino table, sharing its four-letter front door. Checkers is English
   draughts, where jumping is compulsory and that one rule is the whole
@@ -145,6 +145,25 @@ with a printed hinge and a snap latch, shown unpacking itself in 3D.
   research can and can't say — and it makes no health claim. Reached
   from the desk by a small stone well with a faint glow coming up out of
   it, and from the games room. Notes in `well/README.md`.
+- `hive/` — *Hive Mind*, rethought from nothing. The game at
+  [hive-mind-game.com](https://hive-mind-game.com) is a full beekeeping
+  year: comb to zone, a forage dial, a tray of controls. This is the same
+  hive with one verb. You are not the keeper and not a bee; you are the
+  hive's attention, and a tap is what it notices. Tap a flower and one
+  bee goes, then the rest follow once she has been there; tap the hive
+  and the queen lays an egg, paid for in honey; tap a hornet and the
+  nearest bees ball her. The comb and the meadow are one picture, so a
+  drop of nectar is watched from the flower to the cell it lands in. A
+  year is six short days, each night the hive learns one thing from
+  three (each with a true fact under it), and winter asks for two
+  numbers that are on screen from the first minute: enough bees to hold
+  the cluster's heat, and enough honey to feed it. The rules have no
+  screen in them, so `tools/hive-check.js` plays six kinds of player
+  through a few hundred years and holds the game to a contract: doing
+  nothing loses, both lazy extremes lose, a newcomer who follows the
+  screen sees spring, and a careful keeper brings home more honey.
+  Reached from the Game Boy on the desk and from the games room. Notes
+  in `hive/README.md`.
 - `sunlight/` — *Borrowed Sunlight: The Back of the World*, an
   open-world adventure through the novel, opened by the Game Boy on the
   desk (a second cartridge beside Hive Mind) and the book itself.
