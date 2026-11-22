@@ -86,6 +86,15 @@ const PLAY = `([san, src]) => {
   return true;
 }`;
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -115,6 +124,7 @@ const PLAY = `([san, src]) => {
     await page.waitForFunction(() => document.getElementById("splash").classList.contains("gone") &&
       !document.getElementById("ovMenu").classList.contains("hide"), null, { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(300);
+    await lookAround(page);
   };
   const state = () => page.evaluate(() => ({
     mode: __cr.mode, sans: __cr.game.played.map((r) => r.san),

@@ -73,6 +73,15 @@ const WHERE = `(sq) => {
 }`;
 const SQ = (name) => (name.charCodeAt(1) - 49) * 16 + (name.charCodeAt(0) - 97);
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -89,6 +98,7 @@ const SQ = (name) => (name.charCodeAt(1) - 49) * 16 + (name.charCodeAt(0) - 97);
       page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
       await page.goto(base + "/chess/" + (dim === "2d" ? "#force2d" : ""), { waitUntil: "networkidle" });
       await page.waitForTimeout(1400);
+      await lookAround(page);
       /* one tap sits two people down at the table (table-check.js) */
       await page.tap("#mPass");
       await page.waitForTimeout(1900);

@@ -1,0 +1,63 @@
+/* sw.js — Hive Mind works in a field with no signal, which is where the bees are.
+
+   Cache-first over a fixed shell, because none of it changes between
+   releases: the whole game is five scripts, a stylesheet and a page. Bump
+   VERSION on every release or installed players keep the old one forever.
+
+   The update is taken quietly on the next visit rather than forced — swapping
+   the code out from under somebody mid-summer would lose the day. */
+var VERSION = "hive-v1";
+
+/* Cache Storage belongs to the whole origin, not to this room: every room
+   on kmay89.com keeps its offline copy in the same place. So only this
+   room's own older caches are cleared. */
+var MINE = VERSION.replace(/v\d+$/, "");
+var SHELL = [
+  "./", "./index.html", "./hive.css",
+  "./data.js", "./sim.js", "./gfx.js", "./sound.js",
+  "./app.js",
+  "./manifest.webmanifest",
+  "./icons/icon-192.png", "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png", "./icons/apple-touch-icon.png"
+];
+
+self.addEventListener("install", function (e) {
+  e.waitUntil(caches.open(VERSION).then(function (c) {
+    /* one missing file must not fail the whole install — the game still runs
+       without an icon */
+    return Promise.all(SHELL.map(function (u) { return c.add(u).catch(function () { return null; }); }));
+  }));
+});
+
+self.addEventListener("activate", function (e) {
+  e.waitUntil(caches.keys().then(function (keys) {
+    return Promise.all(keys.map(function (k) { return (k === VERSION || k.indexOf(MINE) !== 0) ? null : caches.delete(k); }));
+  }).then(function () { return self.clients.claim(); }));
+});
+
+self.addEventListener("fetch", function (e) {
+  var req = e.request;
+  if (req.method !== "GET") return;
+  var url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  if (url.pathname.indexOf("/api/") === 0) return;
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then(function (hit) {
+    if (hit) {
+      fetch(req).then(function (res) {
+        if (res && res.ok) caches.open(VERSION).then(function (c) { c.put(req, res.clone()); });
+      }).catch(function () {});
+      return hit;
+    }
+    return fetch(req).then(function (res) {
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(VERSION).then(function (c) { c.put(req, copy); });
+      }
+      return res;
+    }).catch(function () { return caches.match("./index.html"); });
+  }));
+});
+
+self.addEventListener("message", function (e) {
+  if (e.data === "skipWaiting") self.skipWaiting();
+});

@@ -13,7 +13,8 @@
    file instead of a dozen. The well is the exception, and says why where it
    is drawn: its icon is a small lit scene, still entirely formulas.
 
-   Run: node tools/make-game-icons.js                                       */
+   Run: node tools/make-game-icons.js          every room
+        node tools/make-game-icons.js hive     just the ones named         */
 "use strict";
 const zlib = require("zlib");
 const fs = require("fs");
@@ -408,8 +409,41 @@ const ICONS = {
     s.paint("#8d857a", rect(0.28, 0.83, 0.44, 0.07));
     s.paint("#e8e2d6", rect(0.28, 0.83, 0.44, 0.035));
   },
-  well: wellIcon
+  well: wellIcon,
+  hive: (s) => {
+    /* the comb in its hollow, seen from above, and one bee coming home */
+    s.fillAll("#74b458");
+    s.paint("#8fcb68", disc(0.24, 0.2, 0.3), 0.55);
+    s.paint("#5f9f4a", disc(0.84, 0.86, 0.34), 0.55);
+    s.paint("#000000", disc(0.52, 0.56, 0.4), 0.22);
+    s.paint("#6b4521", disc(0.5, 0.53, 0.4));
+    s.paint("#8a5d2e", ring(0.5, 0.53, 0.385, 0.03));
+    s.paint("#27170a", disc(0.5, 0.53, 0.335));
+    const R = 0.098, six = (cx, cy, r) => poly(Array.from({ length: 6 }, (_, i) => {
+      const a = Math.PI / 3 * i - Math.PI / 2; return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    }));
+    const cells = [[0, 0, "#fff0c2"]];
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 3 * i;
+      cells.push([Math.cos(a) * R * 1.86, Math.sin(a) * R * 1.86, i === 4 ? "#f3deb0" : "#ffc23a"]);
+    }
+    for (const [dx, dy, col] of cells) {
+      s.paint("#c97f0a", six(0.5 + dx, 0.53 + dy, R));
+      s.paint(col, six(0.5 + dx, 0.53 + dy, R * 0.86));
+      if (col === "#ffc23a") s.paint("#ffe9a0", disc(0.5 + dx - R * 0.25, 0.53 + dy - R * 0.3, R * 0.17));
+    }
+    /* the bee: wings, a striped body, a dark head, flying in from the top right */
+    s.paint("#000000", disc(0.8, 0.25, 0.085), 0.2);
+    s.paint("#ffffff", disc(0.715, 0.135, 0.07), 0.85);
+    s.paint("#ffffff", disc(0.835, 0.115, 0.07), 0.85);
+    s.paint("#3a2410", disc(0.79, 0.215, 0.092));
+    s.paint("#f6b93b", disc(0.79, 0.215, 0.078));
+    s.paint("#3a2410", poly([[0.722, 0.19], [0.858, 0.19], [0.865, 0.215], [0.715, 0.215]]));
+    s.paint("#3a2410", poly([[0.726, 0.243], [0.854, 0.243], [0.838, 0.268], [0.742, 0.268]]));
+    s.paint("#3a2410", disc(0.735, 0.3, 0.05));
+  }
 };
+ICONS.hive.letterbox = "#74b458";
 
 /* a speech bubble: a rounded body with a tail off the bottom left */
 function bubble(cx, cy) {
@@ -753,8 +787,11 @@ const SIZES = [
   { file: "icon-maskable-512.png", n: 512, inset: 0.12 }
 ];
 
+/* name some rooms to draw only those: `node tools/make-game-icons.js hive` */
+const ONLY = process.argv.slice(2);
 let made = 0;
 for (const game of Object.keys(ICONS)) {
+  if (ONLY.length && ONLY.indexOf(game) < 0) continue;
   const dir = path.join(ROOT, game, "icons");
   if (!fs.existsSync(path.join(ROOT, game))) {
     console.log("  – no " + game + "/ folder, skipping");
@@ -772,7 +809,7 @@ for (const game of Object.keys(ICONS)) {
       /* draw at full size into a scratch sheet, then letterbox it */
       const inner = new Sheet(size.n);
       ICONS[game](inner, 0.02);
-      s.fillAll("#12100e");
+      s.fillAll(ICONS[game].letterbox || "#12100e");
       const k = 1 - size.inset * 2, off = size.inset;
       for (let y = 0; y < size.n; y++) for (let x = 0; x < size.n; x++) {
         const sx = Math.floor((x / size.n - off) / k * size.n);

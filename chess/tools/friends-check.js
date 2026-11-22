@@ -245,6 +245,8 @@ async function browserHalf() {
     await page.goto(base + "/chess/" + (hash || ""), { waitUntil: "load" });
     await until(page, () => !!window.__cr && document.getElementById("splash").classList.contains("gone"), 30000);
     await wait(300);
+    /* a link opens what it carries; a plain visit opens the lobby */
+    if (!hash) await lookAround(page);
   };
   const clickText = (page, sel, re) => page.evaluate(([s, src]) => {
     const b = [...document.querySelectorAll(s)].find((x) => new RegExp(src).test(x.textContent));
@@ -390,6 +392,15 @@ async function browserHalf() {
   await browser.close();
   srv.close();
 }
+
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
 
 (async () => {
   nodeHalf();

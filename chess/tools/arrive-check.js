@@ -81,7 +81,9 @@ const server = http.createServer((req, res) => {
     el.classList.remove("hide");
     return new Promise((res) => setTimeout(() => {
       const mine = (e) => e.getAnimations().filter((x) => !(x instanceof CSSAnimation) && !(x instanceof CSSTransition)).length;
-      const card = el.firstElementChild, kids = [...card.children].filter((k) => k.offsetParent !== null);
+      /* the lobby's contents are its head, what is on the page in view, and its dock (the hub) */
+      const inside = (c) => c.id === "hub" ? [c.querySelector(".lobbyHead"), ...c.querySelector(".hubPage.cur").children, c.querySelector(".hubDock")] : [...c.children];
+      const card = el.firstElementChild, kids = inside(card).filter((k) => k.offsetParent !== null);
       const last = kids[kids.length - 1];
       res({ card: mine(card), kids: kids.filter((k) => mine(k)).length, n: kids.length,
             lastOpacity: +getComputedStyle(last).opacity, cardT: getComputedStyle(card).transform,
@@ -92,7 +94,8 @@ const server = http.createServer((req, res) => {
     const card = document.getElementById(ov).firstElementChild;
     /* only the arrivals: the room's own looping styles (a glow, a pulse) are not ours to count */
     const mine = (e) => e.getAnimations().filter((x) => !(x instanceof CSSAnimation) && !(x instanceof CSSTransition)).length;
-    const all = [card, ...card.children, ...document.querySelectorAll("#mLadder .rung")].map(mine).reduce((a, b) => a + b, 0);
+    const inside = card.id === "hub" ? [...card.children, ...card.querySelector(".hubPage.cur").children] : [...card.children];
+    const all = [card, ...inside, ...document.querySelectorAll("#mLadder .rung")].map(mine).reduce((a, b) => a + b, 0);
     res({ all, t: getComputedStyle(card).transform, o: +getComputedStyle(card).opacity });
   }, 3200)), id);
   try {

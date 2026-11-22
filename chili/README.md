@@ -1,13 +1,15 @@
 # The chili — a recipe written as code
 
-Three files, no build step, no dependencies, same as everything else on
-this desk:
+No build step, no dependencies, same as everything else on this desk.
+The chili was the first recipe in [the recipe book](../recipes/), and
+this is where the recipe format is written down in full:
 
 | file | what it is |
 | --- | --- |
 | `recipe.js` | **the recipe.** Every amount, written once, per one pound of ground beef. This is the only file to edit when the pot changes. |
-| `app.js` | the calculator: the unit engine, the whole-can arithmetic, and cook mode. It knows nothing about chili, and the stroganoff page (`/stroganoff/`) runs on it too. |
-| `index.html` | the page and its styles. |
+| `index.html` | the page. |
+| `../recipes/app.js` | the calculator: the unit engine, the whole-can arithmetic, and cook mode. It knows nothing about chili; every recipe in the book runs on it. |
+| `../recipes/kitchen.css` | the styles every recipe page shares. |
 
 Live at [kmay89.com/chili](https://kmay89.com/chili/).
 
@@ -111,11 +113,12 @@ address bar (`&veg=1`), so a link carries it.
 
 ## Another recipe on the same calculator
 
-`app.js` reads `window.RECIPE` (or `window.CHILI`), so a new dish is a
-new folder with its own `recipe.js` and a copy of this `index.html`
-that loads `../chili/app.js`. The stroganoff is the worked example. The
-few things that were the chili's alone are now recipe fields, with the
-chili's values as the defaults so this page never has to name them:
+`recipes/app.js` reads `window.RECIPE` (or `window.CHILI`), so a new
+dish is a new folder with its own `recipe.js` and a copy of a recipe
+page. The step-by-step is in [`recipes/README.md`](../recipes/README.md),
+and the stroganoff is the worked example. The few things that were the
+chili's alone are recipe fields, with the chili's values as the
+defaults so this page never has to name them:
 
 | field | meaning |
 | --- | --- |

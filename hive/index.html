@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>Hive Mind — you are not a bee, you are all of them</title>
+<meta name="description" content="A game about being a whole beehive at once. Tap a flower and the bees go; tap the hive and the queen lays; tap a hornet and they ball her. Get enough bees and enough honey in before winter. One verb, no reading, real bee biology underneath. No accounts, no ads, nothing tracked, works offline.">
+<meta name="theme-color" content="#2a1a08">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="Hive Mind">
+<meta property="og:description" content="You are not a bee. You are all of them. Tap a flower and the hive goes. Free, offline, nothing tracked.">
+<link rel="stylesheet" href="hive.css">
+</head>
+<body>
+
+<canvas id="meadow" tabindex="0" role="application" aria-label="The meadow. Tab moves between the hive, the flowers and any hornet; Enter or Space taps."></canvas>
+
+<header id="hud" class="hide">
+  <button class="chip" id="clock" aria-label="Season and day">
+    <svg class="sun" viewBox="0 0 36 36" aria-hidden="true">
+      <circle cx="18" cy="18" r="15" class="track"/>
+      <circle cx="18" cy="18" r="15" class="arc" id="clockArc" pathLength="100"/>
+      <circle cx="18" cy="18" r="6.5" class="disc" id="clockDisc"/>
+    </svg>
+    <span class="tx"><b id="clockSeason">Spring</b><span id="clockPips" class="pips"></span></span>
+  </button>
+  <button class="chip" id="goal" aria-label="What winter needs">
+    <svg class="ic snow" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-snow"/></svg>
+    <span class="meter" id="mBees">
+      <span class="row"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bee"/></svg><b>4</b><i>/12</i></span>
+      <span class="bar"><span></span></span>
+    </span>
+    <span class="meter" id="mHoney">
+      <span class="row"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-honey"/></svg><b>0</b><i>/300</i></span>
+      <span class="bar"><span></span></span>
+    </span>
+  </button>
+  <button class="chip round" id="btnMenu" aria-label="Pause and menu">
+    <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+  </button>
+</header>
+
+<div id="banner" aria-hidden="true"><div class="bn"></div><div class="sub"></div></div>
+<div id="hint" class="off" aria-hidden="true"></div>
+<div id="hand" class="off" aria-hidden="true">
+  <svg viewBox="0 0 64 64"><circle class="tapring" cx="22" cy="13" r="10"/><g class="glove-edge"><rect x="18.5" y="9" width="7" height="30" rx="3.5"/><rect x="14" y="30" width="30" height="26" rx="9"/><rect x="26" y="26" width="6.5" height="14" rx="3.2"/><rect x="32" y="27.5" width="6.5" height="14" rx="3.2"/><rect x="38" y="29.5" width="6" height="13" rx="3"/><rect x="8" y="34" width="7" height="16" rx="3.5" transform="rotate(-35 11.5 42)"/></g><g class="glove"><rect x="18.5" y="9" width="7" height="30" rx="3.5"/><rect x="14" y="30" width="30" height="26" rx="9"/><rect x="26" y="26" width="6.5" height="14" rx="3.2"/><rect x="32" y="27.5" width="6.5" height="14" rx="3.2"/><rect x="38" y="29.5" width="6" height="13" rx="3"/><rect x="8" y="34" width="7" height="16" rx="3.5" transform="rotate(-35 11.5 42)"/></g></svg>
+</div>
+<button id="note" class="off" aria-live="polite">
+  <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>
+  <span class="tx"><b>Field note</b><span class="ti"></span><span class="bd"></span></span>
+</button>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<!-- the front door: the meadow is already alive behind it -->
+<section id="title">
+  <div class="mark">
+    <h1>Hive Mind</h1>
+    <p class="tag">You are not a bee.<br>You are all of them.</p>
+  </div>
+  <div class="door">
+    <button class="big primary" id="goPlay">Play</button>
+    <button class="big hide" id="goNew">New hive</button>
+    <div class="small">
+      <button class="pill" id="tGentle" aria-pressed="false">Gentle game</button>
+      <button class="pill" id="tHow">How to play</button>
+    </div>
+    <p class="best" id="titleBest"></p>
+  </div>
+</section>
+
+<!-- night: the day's tally, and one thing to learn -->
+<section class="ov hide" id="night" aria-labelledby="nightTitle"><div class="sheet dark">
+  <h2 id="nightTitle">Night</h2>
+  <div class="tally" id="nightTally"></div>
+  <p class="lead" id="nightLead">The hive learns one thing. Choose.</p>
+  <div class="cards" id="nightCards"></div>
+  <button class="pill hide" id="nightNotes"></button>
+  <button class="big primary" id="nightGo" disabled>Choose one</button>
+</div></section>
+
+<section class="ov hide" id="yearStart" aria-labelledby="ysTitle"><div class="sheet dark center">
+  <p class="over" id="ysOver">Year 2</p>
+  <h2 id="ysTitle"></h2>
+  <p class="lead" id="ysBlurb"></p>
+  <div class="tally" id="ysGoals"></div>
+  <button class="big primary" id="ysGo">Begin</button>
+</div></section>
+
+<section class="ov hide" id="yearEnd" aria-labelledby="yeTitle"><div class="sheet spring center">
+  <p class="over" id="yeOver">Spring</p>
+  <h2 id="yeTitle">The hive lived.</h2>
+  <div class="jars" id="yeJars"></div>
+  <p class="lead" id="yeLine"></p>
+  <div id="yeKeep" class="hide">
+    <p class="lead strong" id="yeKeepLead"></p>
+    <div class="keeps" id="yeKeeps"></div>
+  </div>
+  <button class="big primary" id="yeGo">Next year</button>
+</div></section>
+
+<section class="ov hide" id="lost" aria-labelledby="lostTitle"><div class="sheet dark center">
+  <h2 id="lostTitle">The hive went quiet.</h2>
+  <p class="lead" id="lostWhy"></p>
+  <p class="lead strong" id="lostTip"></p>
+  <p class="note" id="lostStats"></p>
+  <button class="big primary" id="lostRewind">Try autumn again</button>
+  <button class="big" id="lostNew">Start a new hive</button>
+</div></section>
+
+<section class="ov hide" id="menu" aria-labelledby="menuTitle"><div class="sheet dark">
+  <button class="close" id="menuClose" data-close="menu" aria-label="Close">✕</button>
+  <h2 id="menuTitle">Paused</h2>
+  <nav class="tabs" id="menuTabs">
+    <button data-tab="how" id="mHow" class="on">How to play</button>
+    <button data-tab="notes" id="mNotes">Notes</button>
+    <button data-tab="cellar" id="mCellar">Cellar</button>
+    <button data-tab="set" id="mSet">Settings</button>
+  </nav>
+
+  <div class="tab" id="tab-how">
+    <ol class="how">
+      <li><svg class="ic" viewBox="0 0 24 24"><use href="#i-flower"/></svg><span><b>Tap a flower.</b> The bees go and bring its nectar home. Tap it again to call them off.</span></li>
+      <li><svg class="ic" viewBox="0 0 24 24"><use href="#i-egg"/></svg><span><b>Tap the hive.</b> The queen lays an egg. It costs honey, and it hatches into a bee.</span></li>
+      <li><svg class="ic" viewBox="0 0 24 24"><use href="#i-shield"/></svg><span><b>Tap a hornet.</b> The bees nearby drop what they are doing and ball her.</span></li>
+      <li><svg class="ic" viewBox="0 0 24 24"><use href="#i-snow"/></svg><span><b>Be ready for winter.</b> The snowflake at the top says how many bees and how much honey it will take. In winter, tap when the wind lands.</span></li>
+    </ol>
+    <p class="note">That is all of it. A year is six days: two of spring, two of summer, two of autumn. Each night the hive learns one new thing, and in spring it remembers two of them.</p>
+    <p class="note">Bees decide the rest themselves. One finds a flower, the others follow once she has been there, and they share themselves out between everything you are paying attention to. More flowers than bees means everything goes slowly; choosing is the game.</p>
+  </div>
+
+  <div class="tab hide" id="tab-notes">
+    <p class="lead" id="notesLead"></p>
+    <div class="notes" id="notesList"></div>
+  </div>
+
+  <div class="tab hide" id="tab-cellar">
+    <p class="lead" id="cellarLead"></p>
+    <div class="shelf" id="cellarShelf"></div>
+  </div>
+
+  <div class="tab hide" id="tab-set">
+    <div class="sets">
+      <button class="set" id="sSound" aria-pressed="true"><b>Sound</b><span>Every load of nectar is a note.</span></button>
+      <button class="set" id="sMusic" aria-pressed="true"><b>Music</b><span>A held chord under the day.</span></button>
+      <button class="set" id="sHaptic" aria-pressed="true"><b>Buzz</b><span>A small tap in the hand, where the phone can.</span></button>
+      <button class="set" id="sCalm" aria-pressed="false"><b>Calm motion</b><span>No shake, fewer sparks, nothing that flickers.</span></button>
+      <button class="set" id="sGentle" aria-pressed="false"><b>Gentle game</b><span>One mild hornet at a time, an easier winter, and the hive is never lost. For the next hive you start.</span></button>
+    </div>
+    <button class="big" id="sNew">Start a new hive</button>
+    <p class="note">Nothing here leaves your device: no account, no ads, nothing counted. Your hive, your notes and your cellar are kept in this browser only.</p>
+    <p class="note">This is Hive Mind rethought from the ground up. The original, a full beekeeping year with comb to plan and a party mode for eight, is still at <a href="https://hive-mind-game.com" rel="noopener">hive-mind-game.com</a>. More games in <a href="/games/">the games room</a>.</p>
+  </div>
+
+  <button class="big primary" id="menuResume">Back to the hive</button>
+</div></section>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-bee" viewBox="0 0 24 24"><ellipse cx="8.5" cy="7.5" rx="4.5" ry="2.8" transform="rotate(-28 8.5 7.5)" class="d"/><ellipse cx="15.5" cy="7.5" rx="4.5" ry="2.8" transform="rotate(28 15.5 7.5)" class="d"/><ellipse cx="12" cy="14" rx="5.2" ry="6.2"/><path d="M7.3 12h9.4M7 15.5h10"/></symbol>
+    <symbol id="i-honey" viewBox="0 0 24 24"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M3.8 13.5c3-2 5.5 1.5 8.2 0s5.2-2 8.2 0v3.25L12 21.5l-8.2-4.75z" class="d"/></symbol>
+    <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7L3.3 17M12 5.5l-2.3-2M12 5.5l2.3-2M12 18.5l-2.3 2M12 18.5l2.3 2M6.4 8.8l-3-.6M6.4 8.8l-1 2.9M17.6 15.2l3 .6M17.6 15.2l1-2.9M17.6 8.8l3-.6M17.6 8.8l1 2.9M6.4 15.2l-3 .6M6.4 15.2l-1-2.9"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5C6.5 4 9.5 4 12 5.5v14C9.5 18 6.5 18 4 19.5zM20 5.5C17.5 4 14.5 4 12 5.5v14c2.5-1.5 5.5-1.5 8 0z"/></symbol>
+    <symbol id="i-jar" viewBox="0 0 24 24"><path d="M7 3h10v3H7zM6 6h12c1.5 1 2 2.5 2 4v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-8c0-1.5.5-3 2-4z"/><path d="M4.2 12h15.6v6a3 3 0 0 1-3 3H7.2a3 3 0 0 1-3-3z" class="d"/></symbol>
+    <symbol id="i-wings" viewBox="0 0 24 24"><ellipse cx="7.5" cy="12" rx="6" ry="3.6" transform="rotate(-32 7.5 12)" class="d"/><ellipse cx="16.5" cy="12" rx="6" ry="3.6" transform="rotate(32 16.5 12)" class="d"/><path d="M12 9v9"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s-6.5 7.5-6.5 12a6.5 6.5 0 0 0 13 0C18.5 10.5 12 3 12 3z" class="d"/><path d="M9 15.5a3 3 0 0 0 3 3"/></symbol>
+    <symbol id="i-flower" viewBox="0 0 24 24"><circle cx="12" cy="6.5" r="3.2" class="d"/><circle cx="17.2" cy="10.3" r="3.2" class="d"/><circle cx="15.2" cy="16.5" r="3.2" class="d"/><circle cx="8.8" cy="16.5" r="3.2" class="d"/><circle cx="6.8" cy="10.3" r="3.2" class="d"/><circle cx="12" cy="12" r="2.6"/></symbol>
+    <symbol id="i-dance" viewBox="0 0 24 24"><path d="M12 12c-2.5-5-8-4.5-8 0s5.5 5 8 0 8-5 8 0-5.5 5-8 0z" class="d"/><path d="M10.5 9.5l3 1.2-3 1.3 3 1.2-3 1.3"/></symbol>
+    <symbol id="i-egg" viewBox="0 0 24 24"><path d="M12 3c3.5 0 6.5 5.5 6.5 10.5a6.5 6.5 0 0 1-13 0C5.5 8.5 8.5 3 12 3z" class="d"/></symbol>
+    <symbol id="i-cradle" viewBox="0 0 24 24"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" class="d"/><path d="M15 9.5a4 4 0 1 1-5.5 5.2"/></symbol>
+    <symbol id="i-twin" viewBox="0 0 24 24"><path d="M8 6c2.3 0 4.3 3.6 4.3 7a4.3 4.3 0 0 1-8.6 0C3.7 9.6 5.7 6 8 6z" class="d"/><path d="M16 9c2.3 0 4.3 3.6 4.3 7a4.3 4.3 0 0 1-8.6 0c0-3.4 2-7 4.3-7z" class="d"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 2.5v6c0 4.5-3 8-7.5 9.5C7.5 19.5 4.5 16 4.5 11.5v-6z" class="d"/><path d="M9 12l2.2 2.2L15.2 10"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" class="d"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-seed" viewBox="0 0 24 24"><path d="M12 21V11"/><path d="M12 12c0-4-3-6.5-7.5-6.5 0 4.5 3 6.5 7.5 6.5z" class="d"/><path d="M12 15c0-3 3-5.5 7.5-5.5 0 4.5-3 5.5-7.5 5.5z" class="d"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" class="d"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></symbol>
+    <symbol id="i-dawn" viewBox="0 0 24 24"><path d="M6.5 17a5.5 5.5 0 0 1 11 0z" class="d"/><path d="M2.5 17h19M5 20.5h14M12 5v3.5M4.8 9.8l2.3 2.3M19.2 9.8l-2.3 2.3"/></symbol>
+    <symbol id="i-resin" viewBox="0 0 24 24"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M12 8s-3 3.5-3 5.7a3 3 0 0 0 6 0C15 11.5 12 8 12 8z" class="d"/></symbol>
+  </defs>
+</svg>
+
+<script src="data.js"></script>
+<script src="sim.js"></script>
+<script src="gfx.js"></script>
+<script src="sound.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -6,6 +6,8 @@
    app.js's business ("the cast" block), and it never lets a coach say
    anything about the position that is not true — the lines here are
    about how it feels to be in the game, not about what is on the board.
+   (One kind is said outside a game: `door`, what a coach calls across
+   the lobby to whoever has just walked in.)
 
    Pure, so chess/tools/cast-check.js can read every line in node.
 
@@ -57,6 +59,7 @@ var CAST = {
       rival: ["You again! Yay! Game number {n}!", "We've played {n} times! You're my best friend."],
       tip: ["Watch my knights. They jump!"],
       patient: ["Take your time! I'm just watching a ladybird.", "No hurry! Thinking is the best part."],
+      door: ["Over here! I saved you a seat!", "Want to play? I've been practising my horsey!"],
       friendly: ["Let's play a friendly one. I'll go easy, promise!", "A friendly game! Just for fun this time."],
       draw:  ["Nobody won? That's okay! That's nice, actually."]
     }
@@ -97,6 +100,7 @@ var CAST = {
       rival: ["Round {n}! I've been growing since last time.", "You and me again! Game {n}!"],
       tip: ["Leave something loose and I'll take it!"],
       patient: ["Take as long as you like. I'm growing anyway.", "Slow is good. Seeds are slow too."],
+      door: ["Come and play! We'll both grow a bit.", "The board's all set. Shall we?"],
       friendly: ["How about a friendly game? I'll take it gently.", "Just for fun this time. No scores!"],
       draw:  ["A draw! We both get a sticker."]
     }
@@ -137,6 +141,7 @@ var CAST = {
       rival: ["Game {n}! My clover says this one's mine.", "Back again? That's {n} games. Lucky number?"],
       tip: ["Watch for my forks: one piece, two targets."],
       patient: ["Take your time. Luck can wait.", "Think it over. I'll count my leaves."],
+      door: ["Pull up a chair. I'm feeling lucky today!", "Fancy a game? My leaves are tingling."],
       friendly: ["A friendly game? I'll leave my lucky charms at home.", "Let's just play for fun. I'll go easy."],
       draw:  ["Half a lucky day each!"]
     }
@@ -177,6 +182,7 @@ var CAST = {
       rival: ["Game {n}. I remember how you played last time.", "{n} games now. I'm still noticing things."],
       tip: ["I keep my king safe. Can you keep yours?"],
       patient: ["Take your time. The shade isn't going anywhere.", "No rush. Look at everything that's loose."],
+      door: ["I kept the board warm. Sit down?", "It's quiet in here today. Good for a game."],
       friendly: ["A friendly game, then. I'll be kind.", "Just for practice. I'll ease off."],
       draw:  ["Even. That feels right."]
     }
@@ -217,6 +223,7 @@ var CAST = {
       rival: ["Bout number {n}. I bow, as always.", "{n} games. Each one, a lesson for both of us."],
       tip: ["My bishops pin. Watch the long diagonals."],
       patient: ["Patience is a move too. Take your time.", "Breathe. The board will wait."],
+      door: ["The board is ready when you are, student.", "Come. Sit. We train."],
       friendly: ["A friendly bout. I will hold back.", "Practice, then. Gently."],
       draw:  ["Balance. As it should be."]
     }
@@ -257,6 +264,7 @@ var CAST = {
       rival: ["Round {n}, partner. Still prickly.", "{n} games and you keep coming back. Respect."],
       tip: ["I check. I capture. I don't back down."],
       patient: ["Take your time, partner. Desert's got all day.", "No rush. I'll just stand here. Being a cactus."],
+      door: ["Well? You playing, or just looking, partner?", "Pull up a chair. If you dare."],
       friendly: ["Friendly round? I'll keep my prickles in.", "Just a practice round, partner. I'll go easy."],
       draw:  ["Standoff. Respect."]
     }
@@ -297,6 +305,7 @@ var CAST = {
       rival: ["Game {n}. I have updated my model of you.", "Encounter number {n}. Probability of victory: uncertain."],
       tip: ["Count your king's escape squares. I always do."],
       patient: ["Take your time. I've already counted to a thousand.", "Think it through. Precision takes time."],
+      door: ["I have set the pieces. Whenever you are ready.", "A clear head, a quiet room. Shall we?"],
       friendly: ["A friendly game. I'll calculate less.", "Practice. I'll leave a few doors open."],
       draw:  ["Equal. Correctly so."]
     }
@@ -337,13 +346,14 @@ var CAST = {
       rival: ["Game {n} together. I treasure every one.", "{n} games together now. Look how far you've come."],
       tip: ["Every pawn could be a queen. Never forget it."],
       patient: ["Take all the time you need. That's how it's learned.", "There is no hurry at this table."],
+      door: ["Ah, there you are. Come, sit by the board.", "No hurry. The pieces will wait for you."],
       friendly: ["A friendly game. I'll go gently, and you watch closely.", "Let's play for the joy of it."],
       draw:  ["A draw. Honour on both sides."]
     }
   }
 };
 
-var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback", "sig", "stolen", "heard", "rival", "tip", "patient", "friendly"];
+var KINDS = ["hello", "greet", "again", "think", "took", "lost", "check", "checked", "ahead", "behind", "win", "lose", "draw", "gift", "slipping", "rally", "comeback", "sig", "stolen", "heard", "rival", "tip", "patient", "friendly", "door"];
 
 function get(id) { return CAST[id] || null; }
 function ids() { return Object.keys(CAST); }

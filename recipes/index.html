@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="The recipe book from the kitchen table: recipes that do their own arithmetic. Pick one, set how much you've got, and every amount follows, in American or metric, with a cook-along mode.">
+<meta name="theme-color" content="#fbf5ea">
+<link rel="canonical" href="https://kmay89.com/recipes/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Karl Meves">
+<meta property="og:title" content="The Recipe Book — recipes that do their own arithmetic">
+<meta property="og:description" content="Pick a recipe, set how much you've got, and every amount follows. American or metric, a vegetarian swap, and a cook mode built for tired hands.">
+<meta property="og:url" content="https://kmay89.com/recipes/">
+<meta name="twitter:card" content="summary">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>The Recipe Book — from the kitchen table</title>
+<link rel="stylesheet" href="/recipes/kitchen.css">
+<style>
+  /* the book page: the recipe pages' paper and type, laid out as a contents page */
+  .count{font-family:var(--mono);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-top:1.4rem}
+  .filters{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+  .filters[hidden]{display:none}
+  .chip{
+    min-height:3rem;padding:.5rem 1.1rem;border:2px solid var(--line);border-radius:999px;
+    background:var(--card);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer;
+  }
+  .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .book{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,22rem),1fr));gap:1.2rem;margin:1rem 0 2rem}
+  .entry{--a:var(--al,var(--chili))}
+  @media (prefers-color-scheme: dark){.entry{--a:var(--ad,var(--chili))}}
+  .entry[hidden]{display:none}
+  .entry > a{
+    display:flex;flex-direction:column;height:100%;padding:var(--pad);
+    background:var(--card);border:2px solid var(--line);border-top:8px solid var(--a);border-radius:18px;
+    box-shadow:var(--shadow);color:var(--ink);text-decoration:none;
+  }
+  .entry > a:hover,.entry > a:focus-visible{border-color:var(--a)}
+  .entry .em{
+    width:4.6rem;height:4.6rem;border-radius:50%;font-size:2.6rem;
+    display:flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb,var(--a) 16%,transparent);
+  }
+  .entry h2{font-size:clamp(1.4rem,4vw,1.75rem);line-height:1.15;margin:.9rem 0 .3rem}
+  .entry .tl{color:var(--soft)}
+  .entry .meta{font-family:var(--mono);font-size:.8rem;color:var(--faint);margin-top:.7rem}
+  .entry .tags{list-style:none;display:flex;flex-wrap:wrap;gap:.35rem;margin:.7rem 0 1.2rem}
+  .entry .tags li{font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+    padding:.2rem .6rem;border-radius:999px;border:1px solid var(--line);color:var(--soft)}
+  .entry .go{
+    margin-top:auto;display:flex;align-items:center;justify-content:center;min-height:3.6rem;
+    gap:.45rem;border-radius:14px;background:var(--a);color:var(--paper);font-weight:600;font-size:1.1rem;
+  }
+  .entry .new{
+    display:inline-block;vertical-align:.25em;margin-left:.3rem;font-family:var(--mono);font-size:.62rem;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--paper);background:var(--a);border-radius:999px;padding:.12rem .55rem;
+  }
+
+  .how{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:1rem;margin-top:.8rem}
+  .how b{display:block;font-size:1.05em}
+  .how span{color:var(--soft);font-size:.95em}
+</style>
+</head>
+<body>
+<a class="skip" href="#bookList">Skip to the recipes</a>
+
+<div class="wrap">
+<header>
+  <a class="back" href="/">&larr; Back to the desk</a>
+  <p class="eyebrow">The kitchen table</p>
+  <h1>The Recipe Book</h1>
+  <p class="tagline">Recipes that do their own arithmetic.</p>
+  <p class="intro">Pick one and set how much you&rsquo;ve got. Every amount follows, in American or
+  metric, down to the size of pan. Then cook it one step at a time, in big type, read out loud if you like.</p>
+  <p class="count" id="bookCount" aria-live="polite"></p>
+  <div class="filters" id="bookFilters" role="group" aria-label="Show recipes tagged" hidden></div>
+</header>
+
+<main>
+  <ul class="book" id="bookList">
+    <!-- filled from book.js; the links below are here for anyone without JavaScript -->
+    <li class="entry"><a href="/stroganoff/"><h2>Weeknight Beef Stroganoff</h2></a></li>
+    <li class="entry"><a href="/chili/"><h2>Kitchen Table Chili</h2></a></li>
+  </ul>
+
+  <section class="card" aria-labelledby="howTitle">
+    <h2 id="howTitle">How every recipe here works</h2>
+    <ul class="how">
+      <li><b>Set the size</b><span>Turn the dial to what you have. Spoons, cups, cans, plates and the pan all follow.</span></li>
+      <li><b>Cook with me</b><span>One step at a time, two big buttons, nothing to drag or hold. It can read each step aloud.</span></li>
+      <li><b>Taste, then control</b><span>Every recipe ends with a card: what it tastes like, and the one change that fixes it.</span></li>
+    </ul>
+  </section>
+</main>
+</div>
+
+<footer>
+  <a href="/">The desk</a>
+  <a href="/accessibility/">Accessibility</a>
+  <a href="https://github.com/kmay89/ABOUT/blob/main/recipes/README.md" rel="noopener">How a recipe is written</a>
+  <p style="margin-top:.8rem">Every recipe is a single data file; nothing here tracks you or needs an account.
+  &copy; 2026 Karl Meves &middot; ERRER Labs</p>
+</footer>
+
+<script src="/recipes/book.js"></script>
+</body>
+</html>

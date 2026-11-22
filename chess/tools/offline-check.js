@@ -65,9 +65,8 @@ const html = fs.readFileSync(path.join(ROOT, "chess/index.html"), "utf8");
 const shell = (sw.match(/const SHELL = \[([\s\S]*?)\];/) || [])[1] || "";
 const shellFiles = (shell.match(/'\.\/[^']*'/g) || []).map((s) => s.slice(3, -1)).filter(Boolean);
 const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])
-  /* a link to another page of the site ("../", or from the site root,
-     like the 3D-printed board's "/chessboard/") is somewhere you go, not
-     something this page loads, so it is that page's own business offline */
+  /* a link to another room on the site (/chessboard/) is somewhere to go,
+     not a file this page loads */
   .filter((u) => !/^(https?:|data:|mailto:|#)/.test(u) && !u.startsWith("../") && !u.startsWith("/"));
 /* A worker is pulled in by script rather than by a tag, and importScripts
    pulls in more again — none of it visible in the markup, all of it
@@ -499,6 +498,15 @@ async function handoverCheck(browser, base) {
   }
 }
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await whoWaits;   /* the sandbox cases above, settled before the browser starts */
   await new Promise((r) => server.listen(0, r));
@@ -547,6 +555,7 @@ async function handoverCheck(browser, base) {
     ok("the openings and the Academy are there offline", boot.openings && boot.lessons);
 
     /* and a game actually plays */
+    await lookAround(page);
     await page.click("#mPassOpts");
     await page.waitForTimeout(400);
     const start = await page.$("#newStart");
