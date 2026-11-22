@@ -2270,6 +2270,7 @@ function create(canvas, opts) {
     if (f !== sketchFrom) { sketchFrom = f; sketchAt = clock(); }
     R.dirty = true;
   };
+  var heatCols = {};
   R.setHeat = function (list) { R.heat = list || []; R.dirty = true; };
 
   R.setSkin = function (skin) {
@@ -2645,6 +2646,22 @@ function create(canvas, opts) {
      (Motion.settle) — a capture lands harder than a quiet move. */
   var hand = { sq: -1, shownAt: 0, lift: 0 };
   var settles = {};
+  /* lives: men doing a little something of their own between moves
+     (Motion.life) — a pawn's hop, a knight's nod, a flinch beside a
+     capture, the winning army's wave. Keyed by square, and only for the
+     man who was standing there when it began, so a move simply ends it */
+  var lives = {};
+  R.life = function (sq, kind, o) {
+    if (REDUCED || !onSq(sq) || !R.board[sq] || !Move.LIFE[kind]) return false;
+    o = o || {};
+    var ax = o.ax, az = o.az;
+    if (ax == null) { ax = kind === "sway" ? 0 : 1; az = kind === "sway" ? 1 : 0; }
+    lives[sq] = { kind: kind, piece: R.board[sq], t0: performance.now() + (o.delay || 0), ax: ax, az: az };
+    R.dirty = true;
+    return true;
+  };
+  R.lifeState = function () { var out = {}; for (var k in lives) out[k] = lives[k].kind; return out; };
+  R.lifeClear = function () { lives = {}; R.dirty = true; };
   /* ---------- the men that have been taken ----------
      On a table there is somewhere to put them: in a row beside the board
      on the right hand of whoever took them, smallest first, the way
@@ -3287,6 +3304,19 @@ function create(canvas, opts) {
       if (sq === hand.sq && selLift) lift = selLift;
       var sett = settles[sq];
       if (sett) still = { lean: Move.settle(nowMs - sett.t0, sett.amt).tilt, ax: sett.ax, az: sett.az };
+      var lv = !sett && !a && lives[sq];
+      if (lv) {
+        if (lv.piece !== piece) delete lives[sq];
+        else {
+          var lp = Move.life(lv.kind, nowMs - lv.t0);
+          if (!lp.live) delete lives[sq];
+          else {
+            touchLive = true;
+            lift += lp.y;
+            still = { squash: lp.squash, lean: lp.tilt, ax: lv.ax, az: lv.az, ry: lp.ry };
+          }
+        }
+      }
       if (casc && casc.delay[sq] != null) {
         /* set down rank by rank from the player's side, with a hop as
            each one lands — the schedule is the one flourishPlan() hands
@@ -3566,7 +3596,10 @@ function create(canvas, opts) {
       var ht = R.heat[hti];
       if (!ht || ht.sq == null || (ht.sq & 0x88)) continue;
       var hv = Math.max(-1, Math.min(1, +ht.v || 0));
-      drawFlatSq(ht.sq, hv >= 0 ? th.tone.threat : th.tone.plan, 0.12 + 0.30 * Math.abs(hv), null, null, 0.013);
+      /* a caller may name its own colour (board sight: blue for yours,
+         red for theirs, whatever the board's own marks are) */
+      var hcol = ht.col ? (heatCols[ht.col] || (heatCols[ht.col] = vec3(ht.col))) : (hv >= 0 ? th.tone.threat : th.tone.plan);
+      drawFlatSq(ht.sq, hcol, (ht.a0 != null ? ht.a0 : 0.12) + (ht.a1 != null ? ht.a1 : 0.30) * Math.abs(hv), null, null, 0.013);
     }
     if (R.hi.last) {
       drawFlatSq(R.hi.last[0], th.last, 0.26);

@@ -254,6 +254,7 @@ function fxCapture(desc, took, plan) {
        than for a pawn */
     if (R.hitStop) R.hitStop(45 + 50 * power);
     if (R.kick) R.kick(0.35 + 0.65 * power, sq);
+    lifeFlinch(sq);
     if (!FX) return;
     Fx.capture(sq, { piece: took, power: power, color: took > 0 ? look().pieces.white : look().pieces.black });
     hap("capture", { power: power, soft: hapTheirs(desc.piece) });
@@ -300,6 +301,8 @@ function fxMate(kingSq, attackerSq, win) {
   var at = gameTicket;
   setTimeout(function () { if (R && at === gameTicket && R.kick) { R.kick(0.9, kingSq); needFrame(); } },
              typeof Motion !== "undefined" && Motion.kingFallKnock ? Motion.kingFallKnock() : 600);
+  setTimeout(function () { if (R && at === gameTicket) lifeVictory(attackerSq, kingSq); },
+             (typeof Motion !== "undefined" && Motion.kingFallKnock ? Motion.kingFallKnock() : 600) + 450);
   if (R.drift) R.drift(true);
   needFrame();
   if (!FX) return;
@@ -892,6 +895,7 @@ function syncBoard() {
   }
   helpMarks(hi);
   syncInk();
+  sightPaint();
   R.setHighlights(hi);
   needFrame();
 }
@@ -1483,7 +1487,7 @@ function pieceName(p) {
 
 /* the parts of the preferences this block owns: read and checked here,
    so a hand-edited store cannot name a tip nobody gives */
-var TIP_IDS = ["notes", "price", "undo", "why", "wheels", "move", "reply"];
+var TIP_IDS = ["notes", "price", "undo", "why", "wheels", "move", "reply", "sight"];
 (function () {
   var p = {};
   try { p = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) { p = {}; }
@@ -2100,6 +2104,272 @@ function exitView() {
   fxRelay();
   syncBoard(); syncMoveList(); syncBars(); syncTurnStrip();
   syncLookBack();
+}
+
+/* ===== the men are alive =====
+   A wooden set waits; a set on a screen can live a little. When nobody
+   has touched the board for a few seconds, one man now and then does his
+   own small thing (Motion.life): a pawn bounces, a knight tosses its head,
+   a bishop or a queen sways, a rook or a king looks about. While the
+   coach thinks, it is the coach's men who fidget. The men beside a
+   capture flinch from the blow. And when a king is mated, the winning
+   army jumps for joy in a wave out from the piece that did it, while the
+   other side sinks a little.
+   Every gesture is short and then still, and after a minute and a half
+   of nobody touching anything the men settle and wait, so a board left
+   alone is a board the phone may sleep on. None of it says anything
+   about the position; with reduced motion, or "Pieces come alive" off in
+   Settings, there is none of it. */
+var lifeNext = 0, lifeQuietSince = Date.now(), lifeCount = 0, lifePly = -1;
+var LIFE_QUIET = 3500, LIFE_MAX = 14;
+function lifeOk() {
+  return !!(prefs.alive && !REDUCED && R && R.life && G && document.visibilityState === "visible" &&
+            mode && mode !== "setup" && mode !== "tour" && mode !== "review" && !document.body.classList.contains("lesson-on"));
+}
+function lifePoke() { lifeQuietSince = Date.now(); lifeCount = 0; lifeNext = 0; }
+function lifeTick() {
+  if (!lifeOk() || over || viewPly >= 0 || reelOn) return;
+  var now = Date.now();
+  if (G.played.length !== lifePly) { lifePly = G.played.length; lifePoke(); return; }
+  if (now - lifeQuietSince < LIFE_QUIET || lifeCount >= LIFE_MAX) return;
+  if (!lifeNext) { lifeNext = now + 400 + Math.random() * 1600; return; }
+  if (now < lifeNext) return;
+  if ((R.isAnimating && R.isAnimating()) || sel >= 0 || (R.dragging && R.dragging() >= 0)) { lifeNext = now + 1500; return; }
+  /* whose men: the coach's while it thinks, otherwise the side to move */
+  var side = thinking ? -humanSide : G.turn, men = [];
+  for (var sq = 0; sq < 128; sq++) if (!(sq & 0x88) && G.board[sq] * side > 0) men.push(sq);
+  if (!men.length) return;
+  var pick = men[Math.floor(Math.random() * men.length)];
+  if (R.life(pick, Motion.fidgetOf(G.board[pick]))) { lifeCount++; needFrame(); }
+  lifeNext = now + 2600 + Math.random() * 3200;
+}
+/* the men beside a blow recoil from it */
+function lifeFlinch(at) {
+  if (!lifeOk() || !G) return;
+  [-17, -16, -15, -1, 1, 15, 16, 17].forEach(function (d) {
+    var sq = at + d;
+    if (sq & 0x88 || !G.board[sq]) return;
+    var df = (sq & 7) - (at & 7), dr = (sq >> 4) - (at >> 4);
+    /* the 3D board leans about an axis across the push (see gfx3d); the
+       flat one only leans left or right */
+    var vx = df, vz = -dr, vl = Math.hypot(vx, vz) || 1;
+    R.life(sq, "flinch", { ax: -vz / vl, az: vx / vl, dir: df ? -Math.sign(df) : 1, delay: 30 + Math.random() * 60 });
+  });
+  needFrame();
+}
+/* mate: the winners jump for joy, in a wave out from the piece that did it */
+function lifeVictory(fromSq, kingSq) {
+  if (!lifeOk() || !G || !over) return;
+  var win = -Math.sign(G.board[kingSq] || 0);
+  if (!win) return;
+  for (var sq = 0; sq < 128; sq++) {
+    if (sq & 0x88 || !G.board[sq] || sq === kingSq) continue;
+    var dist = Math.max(Math.abs((sq & 7) - (fromSq & 7)), Math.abs((sq >> 4) - (fromSq >> 4)));
+    if (G.board[sq] * win > 0) R.life(sq, "cheer", { delay: dist * 90 });
+    else R.life(sq, "sigh", { delay: 200 + dist * 40 });
+  }
+  needFrame();
+}
+function lifeWire() {
+  document.addEventListener("pointerdown", lifePoke, true);
+  document.addEventListener("keydown", lifePoke, true);
+  setInterval(lifeTick, 500);
+  var b = $("setAlive");
+  if (b) {
+    var sync = function () { b.classList.toggle("sel", !!prefs.alive); b.textContent = prefs.alive ? "On" : "Off"; };
+    b.addEventListener("click", function () { prefs.alive = !prefs.alive; savePrefs(); sync(); if (!prefs.alive && R && R.lifeClear) R.lifeClear(); });
+    sync();
+  }
+}
+
+/* ===== board sight =====
+   The one thing a screen can show that a wooden board never can: who
+   controls each square. Tap the eye and every square either side's men
+   could move to or take on is tinted, yours blue and theirs red, deeper
+   the more men bear on it; a square both sides watch shows whoever has
+   more there. It is what strong players see without looking, made
+   visible, and it is the same for everyone: what any man could take, not
+   what the coach would play. "Yours" is your side against the coach or a
+   friend; at a shared board it is whoever is to move. */
+var sightOn = false, SIGHT_MINE = "#2f8be8", SIGHT_THEIRS = "#e8483a";
+function sightSide() {
+  if (mode === "coach") return humanSide;
+  if (mode === "lan") return lanSide;
+  return G ? G.turn : 1;
+}
+var SIGHT_N = [-33, -31, -18, -14, 14, 18, 31, 33], SIGHT_K = [-17, -16, -15, -1, 1, 15, 16, 17];
+var SIGHT_B = [-17, -15, 15, 17], SIGHT_R = [-16, -1, 1, 16];
+/* how many of `side`'s men bear on each square */
+function sightMap(board, side) {
+  var n = new Array(128).fill(0);
+  function ray(from, dirs) {
+    dirs.forEach(function (d) { for (var t = from + d; !(t & 0x88); t += d) { n[t]++; if (board[t]) break; } });
+  }
+  for (var sq = 0; sq < 128; sq++) {
+    if (sq & 0x88) continue;
+    var p = board[sq] * side;
+    if (p <= 0) continue;
+    if (p === 1) [side === 1 ? 15 : -15, side === 1 ? 17 : -17].forEach(function (d) { if (!((sq + d) & 0x88)) n[sq + d]++; });
+    else if (p === 2) SIGHT_N.forEach(function (d) { if (!((sq + d) & 0x88)) n[sq + d]++; });
+    else if (p === 6) SIGHT_K.forEach(function (d) { if (!((sq + d) & 0x88)) n[sq + d]++; });
+    else { if (p === 3 || p === 5) ray(sq, SIGHT_B); if (p === 4 || p === 5) ray(sq, SIGHT_R); }
+  }
+  return n;
+}
+function sightHeat() {
+  if (!G) return [];
+  var me = sightSide(), mine = sightMap(G.board, me), theirs = sightMap(G.board, -me), out = [];
+  for (var sq = 0; sq < 128; sq++) {
+    if (sq & 0x88 || (!mine[sq] && !theirs[sq])) continue;
+    var d = theirs[sq] - mine[sq];
+    var v = d === 0 ? 0.15 : Math.min(1, Math.abs(d) / 2.5);
+    /* a square both sides watch equally is shown, lightly, in neither colour */
+    out.push({ sq: sq, v: v, col: d > 0 ? SIGHT_THEIRS : d < 0 ? SIGHT_MINE : "#f2e6c8", a0: 0.2, a1: 0.32,
+               mine: mine[sq], theirs: theirs[sq] });
+  }
+  return out;
+}
+function sightPaint() {
+  if (!R || !R.setHeat) return;
+  R.setHeat(sightOn && G && viewPly < 0 && !reelOn ? sightHeat() : []);
+}
+function sightSet(on) {
+  sightOn = !!on;
+  var b = $("sightBtn");
+  if (b) { b.classList.toggle("on", sightOn); b.setAttribute("aria-pressed", sightOn ? "true" : "false"); }
+  sightPaint(); needFrame();
+  if (sightOn && !prefs.tips.sight) {
+    prefs.tips.sight = 1; savePrefs();
+    toast("👁 <b>Board sight</b>: <span style=\"color:#7fc4ff\">blue</span> squares are yours to reach, <span style=\"color:#ff8a7a\">red</span> are theirs. Deeper means more pieces are watching. Tap 👁 again to hide it.", null, 6500);
+  }
+}
+function sightWire() {
+  var b = $("sightBtn");
+  if (!b) return;
+  b.addEventListener("click", function () { sightSet(!sightOn); });
+  sightSet(false);
+}
+
+/* ===== the highlights =====
+   A game is over and the end card is up: 🎬 plays its best moments back
+   the way a sports broadcast does. The screen goes widescreen, each
+   moment is set up from the position just before it and played slowly
+   with a glow, a caption says what happened, the camera leans in on it,
+   and the last move ends it, with the king laid down again if it was a
+   mate. The moments are chosen from what happened, not from an engine:
+   the biggest captures, checks, a pawn made queen, and always the end.
+   Any tap ends the replay and brings the card back. */
+var reelOn = false, reelT = 0, reelTicket = 0;
+var REEL_VAL = { 1: 1, 2: 3, 3: 3, 4: 5, 5: 9, 6: 0 };
+function reelMoments(g) {
+  var n = g.played.length, out = [];
+  g.played.forEach(function (rec, i) {
+    if (!rec.m) return;
+    var m = rec.m, took = m.capt || ((m.flags & Chess.F_EP) ? -Math.sign(m.piece) : 0), sc = 0;
+    if (took) sc += 10 * REEL_VAL[Math.abs(took)];
+    if (/\+/.test(rec.san)) sc += 6;
+    if (m.promo) sc += 14;
+    if (i === n - 1) sc += /#/.test(rec.san) ? 200 : 4;
+    if (sc >= 6 || i === n - 1) out.push({ i: i, sc: sc });
+  });
+  var last = out.filter(function (x) { return x.i === n - 1; });
+  var rest = out.filter(function (x) { return x.i !== n - 1; }).sort(function (a, b) { return b.sc - a.sc; }).slice(0, 3);
+  return rest.concat(last).sort(function (a, b) { return a.i - b.i; }).map(function (x) { return x.i; });
+}
+var REEL_EMOJI = { 1: "♟", 2: "♞", 3: "♝", 4: "♜", 5: "♛", 6: "♚" };
+function reelCaption(rec, i) {
+  var m = rec.m, nm = function (p) { var w = pieceName(p); return w.charAt(0).toUpperCase() + w.slice(1); };
+  var took = m.capt || ((m.flags & Chess.F_EP) ? 1 : 0), t;
+  if (/#/.test(rec.san)) t = "Checkmate!";
+  else if (m.promo) t = "A pawn becomes a " + pieceName(m.promo) + "!";
+  else if (took) t = REEL_EMOJI[Math.abs(m.piece)] + " " + nm(m.piece) + " takes " + REEL_EMOJI[Math.abs(took)] + " " + pieceName(took) + "!";
+  else if (/\+/.test(rec.san)) t = "Check!";
+  else if (m.flags & Chess.F_CASTLE) t = "Castles to safety";
+  else t = "The last move";
+  return { move: "Move " + (Math.floor(i / 2) + 1) + (i % 2 ? " · Black" : " · White") + " · " + rec.san, text: t };
+}
+function reelPlay() {
+  if (!G || !over || reelOn || !R || !R.animateMove) return false;
+  var list = reelMoments(G);
+  if (!list.length) return false;
+  reelOn = true; reelTicket++;
+  var my = reelTicket, k = 0;
+  $("ovEnd").classList.add("hide");
+  document.body.classList.add("reel");
+  $("reelBox").classList.remove("hide");
+  sightPaint();
+  snd("open");
+  (function next() {
+    if (my !== reelTicket || !reelOn) return;
+    if (k >= list.length) { reelEnd(true); return; }
+    var i = list[k++], rec = G.played[i], t = Chess.create(G.startFen);
+    for (var j = 0; j < i; j++) Chess.make(t, G.played[j].m);
+    var before = Chess.create(G.startFen);
+    for (j = 0; j < i; j++) Chess.make(before, G.played[j].m);
+    Chess.make(t, rec.m);
+    if (R.untopple) R.untopple();
+    R.setPosition(before.board);
+    R.setHighlights({ last: null });
+    if (R.focus) R.focus(rec.m.to, R.kind === "3d" ? { amount: 0.55 } : undefined);
+    var cap = reelCaption(rec, i);
+    $("reelMove").textContent = cap.move;
+    $("reelText").textContent = cap.text;
+    $("reelDots").innerHTML = list.map(function (_, q) { return '<i class="' + (q < k ? "on" : "") + '"></i>'; }).join("");
+    var box = $("reelCap");
+    box.classList.remove("go"); void box.offsetWidth; box.classList.add("go");
+    needFrame();
+    reelT = setTimeout(function () {
+      if (my !== reelTicket) return;
+      var desc = animDescriptor(rec.m), took = rec.m.capt || ((rec.m.flags & Chess.F_EP) ? -Math.sign(rec.m.piece) : 0);
+      if (took) setTimeout(function () { if (my === reelTicket && R.kick) { R.kick(0.5, desc.epSq != null ? desc.epSq : desc.to); needFrame(); } }, 520);
+      R.animateMove(desc, t.board, { scale: 2.4, glow: true }, function () {
+        if (my !== reelTicket) return;
+        R.setHighlights({ last: [rec.m.from, rec.m.to] });
+        if (i === G.played.length - 1 && fxDown && R.topple) {
+          R.topple(fxDown.king, { from: fxDown.from });
+          /* and the victory wave again: on the night it played behind the card */
+          var fd = fxDown;
+          setTimeout(function () { if (my === reelTicket) lifeVictory(fd.from, fd.king); },
+                     (typeof Motion !== "undefined" && Motion.kingFallKnock ? Motion.kingFallKnock() : 600) + 200);
+        }
+        needFrame();
+        reelT = setTimeout(next, i === G.played.length - 1 ? 2600 : 1000);
+      });
+      needFrame();
+    }, 650);
+  })();
+  return true;
+}
+function reelEnd(finished) {
+  if (!reelOn) return;
+  reelOn = false; reelTicket++;
+  clearTimeout(reelT);
+  document.body.classList.remove("reel");
+  $("reelBox").classList.add("hide");
+  if (R && R.focus) R.focus(null);
+  syncBoard();
+  fxRelay();
+  if (over) $("ovEnd").classList.remove("hide");
+}
+function reelWire() {
+  $("endReel").addEventListener("click", function () { reelPlay(); });
+  /* any touch ends it */
+  document.addEventListener("pointerdown", function (e) { if (reelOn && !e.target.closest("#endReel")) { e.stopPropagation(); e.preventDefault(); reelEnd(false); } }, true);
+  document.addEventListener("keydown", function (e) { if (reelOn) { e.preventDefault(); reelEnd(false); } }, true);
+}
+function reelAtEnd() {
+  var b = $("endReel");
+  if (!b) return;
+  var ok = !!(G && G.played.length >= 4 && R && R.animateMove && reelMoments(G).length);
+  b.classList.toggle("hide", !ok);
+}
+function depthForTest() {
+  return { lifeState: function () { return { ok: lifeOk(), count: lifeCount, quiet: Date.now() - lifeQuietSince, on: R && R.lifeState ? R.lifeState() : {} }; },
+           lifeTickForTest: function (o) { lifePly = G ? G.played.length : -1; if (o && o.quiet) lifeQuietSince = Date.now() - o.quiet; lifeCount = 0; lifeNext = 1; lifeTick(); },
+           lifeFlinch: lifeFlinch, lifeVictory: lifeVictory, sightSet: sightSet, sightHeat: sightHeat, sightMap: sightMap,
+           sightState: function () { return { on: sightOn, heat: R && R.stats ? null : null, painted: (R && R.heat || []).length }; },
+           reelMoments: function () { return G ? reelMoments(G) : []; }, reelPlay: reelPlay, reelEnd: reelEnd,
+           reelState: function () { return { on: reelOn, caption: $("reelText").textContent, move: $("reelMove").textContent }; } };
 }
 
 /* ===== replay the last move (again, with feeling) ===== */
@@ -3221,6 +3491,7 @@ function endGame(result, reason, taught) {
   moEndCard();
   jrnAtEnd(result, rs);
   taleAtEnd();
+  reelAtEnd();
   paceAtEnd(result, rs);
   unlAtEnd(result, rs);
   progressAtEnd(result, reason, rs);
@@ -6828,6 +7099,9 @@ function wireUI() {
   homeWire();
   moWire();
   jrnWire();
+  lifeWire();
+  sightWire();
+  reelWire();
   taleWire();
   paceWire();
   tableWire();
@@ -7685,6 +7959,7 @@ var homeJust = null;            /* the coach whose board this game has just won 
   var stored = {};
   try { stored = JSON.parse(lsGet(PREF_KEY) || "{}") || {}; } catch (e) {}
   prefs.homeBoards = !(stored.homeBoards === false || stored.homeBoards === "false");
+  prefs.alive = !(stored.alive === false || stored.alive === "false");
 })();
 function homeUnlocked(id) { var r = ladder.rungs[id]; return !!(r && r.stars[0]); }
 function homesWon() { return Rating.LEVELS.filter(function (Lv) { return homeUnlocked(Lv.id); }).length; }
@@ -10407,6 +10682,6 @@ helpTestHooks(window.__cr);
 Object.assign(window.__cr, progressionForTest());
 Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
-Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
+Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), depthForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
 })();
