@@ -188,6 +188,7 @@ async function openGame(browser, w, h, dim) {
   page.on("console", (m) => { if (m.type() === "error" && !/favicon|404/.test(m.text())) errs.push(m.text()); });
   await page.goto(base + "/chess/" + (dim === "2d" ? "#force2d" : ""), { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
+  await lookAround(page);
   await page.click("#mPassOpts");
   await page.waitForTimeout(250);
   await page.click("#newStart");
@@ -198,6 +199,15 @@ async function openGame(browser, w, h, dim) {
   return { ctx, page, errs, kind };
 }
 let base = "";
+
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
 
 (async () => {
   await new Promise((r) => server.listen(0, r));
@@ -582,6 +592,7 @@ async function pickTruth(browser) {
   page.on("pageerror", (e) => errs.push("" + e.message));
   await page.goto(base + "/chess/", { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
+  await lookAround(page);
   await page.click("#mPassOpts"); await page.waitForTimeout(250);
   await page.click("#newStart"); await page.waitForTimeout(400);
   await settle(page);
