@@ -61,7 +61,11 @@ second colour from a pattern, text or a logo, all in one Bambu Studio file;
 and [Tuck](https://kmay89.com/tuck/) — a fold-up box studio: a box printed
 flat with living hinges, corner flaps whose tongues lock through the side
 walls, a tuck lid, and a name on the first layer that reads right once it
-is closed.
+is closed; and
+[Make your own chess board](https://kmay89.com/chessboard/) — a folding
+travel chess set to print, reached from both the workshop and the chess
+room: a case that holds all 32 pieces and opens into a two-colour board,
+with a printed hinge and a snap latch, shown unpacking itself in 3D.
 
 **Live:** <https://kmay89.com>
 
