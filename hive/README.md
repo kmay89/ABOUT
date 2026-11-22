@@ -111,7 +111,7 @@ app.js       taps in, pictures and sound out
 sw.js, manifest.webmanifest, icons/
 ```
 
-## Four things worth explaining
+## Five things worth explaining
 
 **The rules have no screen in them.** `sim.js` is a function from a state
 and a slice of time to a state and a list of things that happened. It runs
@@ -144,6 +144,14 @@ can be followed from the comb to a flower and back. The first Hive Mind
 showed "4,500 bees" for fifteen simulated cohorts. This one would rather
 show twelve and mean it.
 
+**The front door is timed.** `tools/hive-door-check.js` is a brand-new
+player on a phone who presses Play and then taps only where the pointing
+hand is. It fails if there is nothing to tap within three seconds, if the
+first honey takes more than twelve, if the hand alone does not reach a new
+bee inside forty-five, or if more than sixteen words are ever on screen
+while it happens. As measured: honey at seven seconds, an egg at about
+twelve, a bee at about twenty, nine words.
+
 ## For everybody
 
 Every target is a tap, never a drag, a hold or a double-tap, and nothing
@@ -167,6 +175,7 @@ python3 -m http.server 8000
 node tools/hive-check.js              # the contract
 node tools/hive-check.js --table      # every player, every year
 node tools/hive-check.js --trace=newcomer
+node tools/hive-door-check.js         # the first minute, following only the hand
 node tools/room-parity.js
 node tools/open-check.js hive         # opens it in a real browser and plays it
 ```

@@ -490,18 +490,21 @@ function create(canvas) {
       G.eggLit = lerp(G.eggLit || 0, G.egg.can ? 1 : 0, Math.min(1, dt * 6));
       const lit = G.eggLit, by = cy + R * 1.17 - 12, txt = String(G.egg.cost), hop = lit * Math.max(0, Math.sin(G.t * 4)) * 3;
       ctx.font = "800 13px ui-rounded, 'SF Pro Rounded', system-ui, sans-serif";
-      const tw = ctx.measureText(txt).width, w = tw + 34, h = 22, bx = cx - w / 2, yy = by - hop;
+      const tw = ctx.measureText(txt).width, w = tw + 38, h = 22, bx = cx - w / 2, yy = by - hop;
       ctx.globalAlpha = 0.6 + 0.4 * lit;
       ctx.fillStyle = lit > 0.5 ? "#fff3c8" : "rgba(42,26,8,.82)";
       /* a pill by hand: roundRect is too new for a phone a few years old */
       ctx.beginPath(); ctx.arc(bx + h / 2, yy + h / 2, h / 2, Math.PI / 2, Math.PI * 1.5); ctx.arc(bx + w - h / 2, yy + h / 2, h / 2, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = lit > 0.5 ? "#e8950f" : "rgba(255,222,150,.3)"; ctx.lineWidth = 1.5; ctx.stroke();
       const ink = lit > 0.5 ? "#3a2104" : "#e3cfa0";
-      /* an egg, then the honey it takes */
-      ctx.fillStyle = lit > 0.5 ? "#ffffff" : "#e3cfa0"; ctx.strokeStyle = ink; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.ellipse(bx + 11, yy + h / 2, 3.6, 5.2, 0.3, 0, TAU); ctx.fill(); ctx.stroke();
+      /* an egg, then the honey it takes. The egg is solid and egg-shaped:
+         an outlined oval beside a number reads as a nought */
+      const ex = bx + 11, ey = yy + h / 2;
+      ctx.fillStyle = lit > 0.5 ? "#ffffff" : "#f3e6c6";
+      ctx.beginPath(); ctx.moveTo(ex, ey - 6); ctx.bezierCurveTo(ex + 5.4, ey - 5, ex + 5.6, ey + 6, ex, ey + 6); ctx.bezierCurveTo(ex - 5.6, ey + 6, ex - 5.4, ey - 5, ex, ey - 6); ctx.fill();
+      ctx.strokeStyle = lit > 0.5 ? "rgba(120,70,0,.55)" : "rgba(0,0,0,.25)"; ctx.lineWidth = 1; ctx.stroke();
       ctx.fillStyle = ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-      ctx.fillText(txt, bx + 19, yy + h / 2 + 0.5);
+      ctx.fillText(txt, bx + 21, yy + h / 2 + 0.5);
       hexPath(bx + w - 9, yy + h / 2, 4.6); ctx.fillStyle = "#f5a81c"; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke();
       ctx.globalAlpha = 1;
     }

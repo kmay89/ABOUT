@@ -430,13 +430,15 @@ function pickCard(s, id) {
 
 /* ---------- winter ---------- */
 function startWinter(s) {
+  /* an egg already in the nursery is counted as a bee all autumn, so it is
+     one: the last brood hatches into the cluster */
+  for (const e of s.brood) { void e; s.bees.push(newBee(s)); }
+  s.brood = [];
   const g = goals(s);
   s.day = CFG.SEASONS.length - 1;
   s.phase = "winter"; s.pt = 0;
   s.flowers = []; s.hornets = []; s.clouds = [];
   for (const b of s.bees) { b.st = "home"; b.x = 0; b.y = 0; b.f = 0; b.h = 0; b.carry = 0; }
-  /* eggs laid too late are not raised */
-  s.brood = [];
   const n = 4 + Math.min(2, Math.floor(s.year / 3));
   const gusts = [];
   for (let i = 0; i < n; i++) gusts.push({ t: CFG.WINTER * (0.16 + 0.68 * (i + between(s, 0.15, 0.85)) / n), hit: null, told: false });
@@ -538,7 +540,8 @@ function stepOnce(s, dt) {
       /* before the first tap there is one flower, on the doorstep, and it waits */
       if (!s.flowers.length) {
         const r = hiveR(s) + 0.12, a = 0.62;
-        addFlower(s, s.year === 1 ? "crocus" : "dandelion", r * Math.cos(a), r * Math.sin(a), { held: true });
+        const sn = CFG.SEASONS[s.day], sp = sn === "summer" ? "clover" : sn === "autumn" ? "aster" : s.year === 1 ? "crocus" : "dandelion";
+        addFlower(s, sp, r * Math.cos(a), r * Math.sin(a), { held: true });
       }
     } else {
       s.clock += dt;
@@ -692,7 +695,7 @@ function spawnHornet(s) {
           : side === 2 ? { x: between(s, -hw, hw) * 0.7, y: hh } : { x: -hw, y: between(s, -hh, hh) * 0.7 };
   const h = {
     id: s.nextId++, x: p.x * 0.97, y: p.y * 0.97, ex: p.x * 1.25, ey: p.y * 1.25, a: Math.atan2(-p.y, -p.x),
-    st: "warn", t: CFG.HORNET_WARN, heat: 0, took: 0, target: 0, called: false,
+    st: "warn", t: CFG.HORNET_WARN, heat: 0, took: 0, target: 0, called: false, retarget: 4, ball: 0,
     need: Math.min(9, 3 + Math.ceil(s.year / 1.5)), greed: s.gentle ? 1 : Math.min(5, 1 + s.year)
   };
   s.hornets.push(h);

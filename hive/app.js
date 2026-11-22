@@ -184,7 +184,7 @@ function onEvent(st, e, quiet) {
       const p = Sim.cellXY(e.slot);
       gfx.popCell(e.slot); gfx.burst(gfx.sx(p.x), gfx.sy(p.y), "#ffffff", 7, 60, { life: 0.45, r: 2 });
       play1("lay");
-      if (!quiet) { buzz(14); fileNote("lay"); layT = 0; if (!store.tut.queen) { store.tut.queen = 1; goalHintT = 7; save(); } }
+      if (!quiet) { buzz(14); fileNote("lay"); layT = 0; if (!store.tut.queen) { store.tut.queen = 1; goalHintT = 7; save(); setTimeout(flash, 500); } }
       break;
     }
     case "hatch": {
@@ -459,6 +459,9 @@ function openNight(e) {
   let t = chip("honey", "+" + Math.round(e.today.honey));
   if (e.today.hatched) t += chip("bee", "+" + e.today.hatched);
   if (e.today.lost) t += chip("bee", "−" + e.today.lost, "bad");
+  /* where the hive stands against winter, every night, in one chip */
+  const gl = Sim.goals(s), ready = s.honey >= gl.need && s.bees.length + s.brood.length >= gl.bees;
+  t += chip("snow", Math.floor(s.honey) + " of " + gl.need, ready ? "ice" : "ice");
   /* the one comparison worth making is with yourself */
   if (e.today.honey > (s.bestDay || 0) && s.bestDay) t += '<span class="star">Best day yet</span>';
   s.bestDay = Math.max(s.bestDay || 0, e.today.honey);
@@ -469,7 +472,10 @@ function openNight(e) {
     $("nightLead").textContent = "The hive knows all it can learn this year.";
     go.disabled = false; go.textContent = e.last ? "Into winter" : "Sleep";
   } else {
-    $("nightLead").textContent = e.last ? "Winter comes in the morning. One last thing to learn." : "The hive learns one thing. Choose.";
+    const shortBy = Math.ceil(gl.need - s.honey);
+    $("nightLead").textContent = !e.last ? "The hive learns one thing. Choose."
+      : shortBy > 0 ? "Winter comes in the morning, and the comb is " + shortBy + " honey short. Hold tight when the wind comes. One last thing to learn."
+      : "Winter comes in the morning, and the hive is ready. One last thing to learn.";
     go.disabled = true; go.textContent = "Choose one";
     box.setAttribute("role", "radiogroup");
     for (const id of e.offers) {
@@ -497,6 +503,7 @@ $("nightNotes").addEventListener("click", function () { openMenu("notes"); });
 $("nightGo").addEventListener("click", function () {
   snd.boot(); snd.play("learn"); buzz([12, 30, 12]);
   closeSheet("night");
+  freshNotes.length = 0;
   Sim.pickCard(s, nightPick);
 });
 
@@ -507,6 +514,8 @@ function openYearEnd(e) {
   for (let i = 0; i < Math.min(10, e.jars); i++) h += '<span class="jar' + (e.label.pure ? " pure" : "") + '" style="animation-delay:' + (0.3 + i * 0.09) + 's">' + jarSvg(col) + "</span>";
   if (e.jars > 10) h += '<span class="more">+' + (e.jars - 10) + "</span>";
   $("yeJars").innerHTML = h;
+  /* each jar lands with its own clink */
+  for (let i = 0; i < Math.min(10, e.jars); i++) setTimeout(function () { snd.play("jar"); buzz(8); }, 380 + i * 90);
   $("yeOver").textContent = "Spring · year " + (e.year + 1);
   $("yeTitle").textContent = e.thin ? "The hive came through, thin." : "The hive lived.";
   const kind = (e.label.pure ? "pure " : "") + e.label.name.toLowerCase();
