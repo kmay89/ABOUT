@@ -91,8 +91,10 @@ const lookAround = async (page) => {
     /* on a phone the bar is four keys, and the rest are on a tray behind
        More (bar-check.js): a key on the tray is reached as a thumb reaches it */
     const press = async (sel) => {
-      const shut = await page.evaluate((s) => { const el = document.querySelector(s); return !!el && !!el.closest("#moreTray") && getComputedStyle(el).visibility === "hidden"; }, sel);
-      if (shut) { await page.click("#btnMore"); await page.waitForTimeout(250); }
+      /* (shut is what the bar says, not what the eye still sees: a tray on
+         its way down is as good as gone) */
+      const shut = /^#btn[A-Za-z]+$/.test(sel) && await page.evaluate((s) => { const el = document.querySelector(s); return !!el && !!el.closest("#moreTray") && __cr.moreIsTray() && !__cr.moreOpen(); }, sel);
+      if (shut) { await page.waitForTimeout(200); await page.click("#btnMore"); await page.waitForTimeout(350); }
       return page.click(sel);
     };
     const play = (san, src) => page.evaluate(([f, a]) => eval(f)(a), [PLAY, [san, src]]);
