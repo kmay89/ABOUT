@@ -2446,14 +2446,18 @@ function beatsForTest() {
    about the position; with reduced motion, or "Pieces come alive" off in
    Settings, there is none of it. */
 var lifeNext = 0, lifeQuietSince = Date.now(), lifeCount = 0, lifePly = -1;
+/* the men come alive once somebody has sat down at the board: a page
+   nobody has touched (opened in the background, left on a stand, driven
+   by a script) keeps its men still and its board asleep */
+var lifeTouched = false;
 var LIFE_QUIET = 3500, LIFE_MAX = 14;
 function lifeOk() {
   return !!(prefs.alive && !REDUCED && R && R.life && G && document.visibilityState === "visible" &&
             mode && mode !== "setup" && mode !== "tour" && mode !== "review" && !document.body.classList.contains("lesson-on"));
 }
-function lifePoke() { lifeQuietSince = Date.now(); lifeCount = 0; lifeNext = 0; }
+function lifePoke(e) { if (e && e.isTrusted) lifeTouched = true; lifeQuietSince = Date.now(); lifeCount = 0; lifeNext = 0; }
 function lifeTick() {
-  if (!lifeOk() || over || viewPly >= 0 || reelOn) return;
+  if (!lifeTouched || !lifeOk() || over || viewPly >= 0 || reelOn) return;
   var now = Date.now();
   if (G.played.length !== lifePly) { lifePly = G.played.length; lifePoke(); return; }
   if (now - lifeQuietSince < LIFE_QUIET || lifeCount >= LIFE_MAX) return;
@@ -2690,7 +2694,7 @@ function reelAtEnd() {
 }
 function depthForTest() {
   return { lifeState: function () { return { ok: lifeOk(), count: lifeCount, quiet: Date.now() - lifeQuietSince, on: R && R.lifeState ? R.lifeState() : {} }; },
-           lifeTickForTest: function (o) { lifePly = G ? G.played.length : -1; if (o && o.quiet) lifeQuietSince = Date.now() - o.quiet; lifeCount = 0; lifeNext = 1; lifeTick(); },
+           lifeTickForTest: function (o) { lifeTouched = true; lifePly = G ? G.played.length : -1; if (o && o.quiet) lifeQuietSince = Date.now() - o.quiet; lifeCount = 0; lifeNext = 1; lifeTick(); },
            lifeFlinch: lifeFlinch, lifeVictory: lifeVictory, sightSet: sightSet, sightHeat: sightHeat, sightMap: sightMap,
            sightState: function () { return { on: sightOn, heat: R && R.stats ? null : null, painted: (R && R.heat || []).length }; },
            reelMoments: function () { return G ? reelMoments(G) : []; }, reelPlay: reelPlay, reelEnd: reelEnd,

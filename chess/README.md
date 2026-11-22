@@ -1713,7 +1713,8 @@ away from the blow. When a king is mated, the winning army jumps for joy
 and spins, in a wave out from the piece that did it, while the other
 side sinks a little. Every gesture is short and then still, and after
 about a minute and a half of nobody touching anything they settle and
-wait, so a board left alone is one the phone may sleep on. None of it
+wait, so a board left alone is one the phone may sleep on. They only start once somebody has touched the page at all, so a
+board opened and left untouched never stirs. None of it
 says anything about the position. Settings has **Pieces come alive** to
 turn it off, and reduced motion turns it off too. Both boards ask the
 same pure function, so the flat board does the same gesture (a look is a

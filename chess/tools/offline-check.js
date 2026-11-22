@@ -65,7 +65,10 @@ const html = fs.readFileSync(path.join(ROOT, "chess/index.html"), "utf8");
 const shell = (sw.match(/const SHELL = \[([\s\S]*?)\];/) || [])[1] || "";
 const shellFiles = (shell.match(/'\.\/[^']*'/g) || []).map((s) => s.slice(3, -1)).filter(Boolean);
 const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])
-  .filter((u) => !/^(https?:|data:|mailto:|#)/.test(u) && !u.startsWith("../"));
+  /* a link to another page of the site ("../", or from the site root,
+     like the 3D-printed board's "/chessboard/") is somewhere you go, not
+     something this page loads, so it is that page's own business offline */
+  .filter((u) => !/^(https?:|data:|mailto:|#)/.test(u) && !u.startsWith("../") && !u.startsWith("/"));
 /* A worker is pulled in by script rather than by a tag, and importScripts
    pulls in more again — none of it visible in the markup, all of it
    needed on a train. */
