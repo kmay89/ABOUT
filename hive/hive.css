@@ -333,6 +333,17 @@ button:focus-visible,.card:focus-visible{outline:3px solid #fff; outline-offset:
 @media (max-height:520px){
   #banner{top:16%}
   #title{gap:3vh}
+  /* a phone on its side: the sheets give up their air so the button stays in reach */
+  .ov{padding:8px}
+  .sheet{padding:12px 16px 12px; border-radius:20px}
+  .sheet h2{font-size:1.2rem; display:inline-block; margin:0 12px 6px 0; vertical-align:middle}
+  .sheet .tally{display:inline-flex; margin:0 0 6px; vertical-align:middle}
+  #night .lead{display:none}
+  .card{padding:8px 10px}
+  .card .art{width:38px; height:38px}
+  .card .art .ic{width:22px; height:22px}
+  .sheet .big{min-height:46px; margin-top:8px; font-size:1.05rem}
+  #nightNotes{margin-top:8px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01s !important; transition-duration:.01s !important}

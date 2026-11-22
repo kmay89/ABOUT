@@ -47,7 +47,7 @@ let nightAmt = 0, winterAmt = 0, last = 0, mixT = 0, snap = true;
 /* ?speed=4 runs the world fast. It is for tools/hive-open-check.js and for
    looking at winter without waiting for it; nothing in the game sets it. */
 const SPEED = Math.max(0.25, Math.min(12, +(new URLSearchParams(location.search).get("speed")) || 1));
-let flowerTaps = 0, layT = 0, enterT = 0, goalHintT = 0, pendingSheet = null, focusIx = -1;
+let flowerTaps = 0, layT = 0, enterT = 0, idleT = 0, thinT = 0, goalHintT = 0, pendingSheet = null, focusIx = -1;
 const shown = {};
 
 /* ---------- small helpers ---------- */
@@ -330,6 +330,7 @@ function hints(dt) {
     const canLay = (s.phase === "day") && s.honey >= cost && s.brood.length < C.NURSERY;
     const under = s.bees.length + s.brood.length < g.bees;
     gfx.G.queenPulse = canLay ? (under ? 1 : 0.3) : 0;
+    gfx.G.egg = { show: s.phase === "day" || s.phase === "dusk", cost: cost, can: canLay };
     if (s.phase === "winter" && s.w) {
       for (const gu of s.w.gusts) if (gu.hit === null && s.w.t > gu.t - 1.1) { if (!store.tut.gust) text = "Tap when the wind lands"; break; }
     } else if (s.phase === "day") {
@@ -344,8 +345,22 @@ function hints(dt) {
         if (f) { at = f; text = "Tap flowers to send bees"; }
       } else if (goalHintT > 0) text = "Winter needs bees and honey";
       else if (canLay && under && layT > 16 && s.year === 1 && s.day < 4) { at = { x: 0, y: 0 }; }
+      else if (s.year === 1 && s.started) {
+        /* two things a first-year player cannot see for themselves yet: bees
+           sitting at home with a flower nobody has tapped, and so many
+           flowers tapped that none of them gets worked properly */
+        const c = Sim.counts(s);
+        let seats = 0, onN = 0;
+        for (const f of s.flowers) if (f.on && f.st === "open") { seats += Math.min(f.seats, f.n); onN++; }
+        const free = s.flowers.find(function (q) { return !q.on && q.st === "open" && !q.wet; });
+        idleT = (s.idle >= 3 && free) ? idleT + dt : 0;
+        thinT = (onN >= 3 && seats > s.bees.length * 2.2) ? thinT + dt : 0;
+        if (idleT > 4 && s.day < 3) at = free;
+        else if (thinT > 5 && !store.tut.thin) { text = "More flowers than bees? Tap one to drop it"; if (thinT > 11) { store.tut.thin = 1; save(); } }
+        void c;
+      }
     }
-  } else gfx.G.queenPulse = 0;
+  } else { gfx.G.queenPulse = 0; if (gfx.G.egg) gfx.G.egg.show = false; }
   if (at) {
     hand.style.transform = "translate(" + gfx.sx(at.x).toFixed(1) + "px," + gfx.sy(at.y).toFixed(1) + "px)";
     hand.classList.remove("off");
@@ -362,11 +377,21 @@ function targets() {
   for (const f of fl) out.push({ kind: "flower", id: f.id, x: f.x, y: f.y, r: gfx.flowerRadius(f), f: f });
   return out;
 }
+let lastFlower = 0, lastFlowerT = 0;
 function act(t) {
   if (t.kind === "hive") { Sim.tapQueen(s); return; }
   if (t.kind === "hornet") { Sim.tapHornet(s, t.id); return; }
   if (t.kind === "flower") {
+    /* a flower is a switch, and an excited finger taps twice: the second of
+       two quick taps on the same flower is the same tap */
+    const now = performance.now();
+    if (t.id === lastFlower && now - lastFlowerT < 420) return;
+    lastFlower = t.id; lastFlowerT = now;
     if (Sim.tapFlower(s, t.id)) { flowerTaps++; if (flowerTaps >= 4 && !store.tut.flower) { store.tut.flower = 1; save(); } }
+    else {
+      /* closed for the night: it still answers */
+      gfx.ring(gfx.sx(t.x), gfx.sy(t.y), "rgba(255,255,255,.7)", 6, 22, 0.35, 2); snd.play("miss");
+    }
   }
 }
 function tapAt(px, py) {

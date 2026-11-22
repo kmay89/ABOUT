@@ -57,7 +57,7 @@ function create(canvas) {
     ground: {}, groundFrom: null, groundTo: "spring", groundMix: 1,
     sprites: { scale: 0, bee: null, flowers: {} },
     bees: {}, flowers: {}, cellFill: [], cellPop: {},
-    parts: [], rings: [], floats: [], ambient: [], flies: [],
+    parts: [], rings: [], floats: [], ambient: [], flies: [], flutter: [], egg: null,
     shake: 0, hiveR: 0, focus: null, queenPulse: 0, frost: 0, glow: 0, snow: 0, night: 0, warm: 0, gust: 0, squeeze: 0
   };
 
@@ -485,6 +485,26 @@ function create(canvas) {
       ctx.globalAlpha = 1;
     }
     stamp(G.sprites.queen, cx, cy, Math.sin(G.t * 0.5) * 1.2 + 0.4, 1 + 0.06 * Math.sin(G.t * 3));
+    /* what an egg costs, on the rim: lit when the hive can pay for one */
+    if (G.egg && G.egg.show) {
+      G.eggLit = lerp(G.eggLit || 0, G.egg.can ? 1 : 0, Math.min(1, dt * 6));
+      const lit = G.eggLit, by = cy + R * 1.17 - 12, txt = String(G.egg.cost), hop = lit * Math.max(0, Math.sin(G.t * 4)) * 3;
+      ctx.font = "800 13px ui-rounded, 'SF Pro Rounded', system-ui, sans-serif";
+      const tw = ctx.measureText(txt).width, w = tw + 34, h = 22, bx = cx - w / 2, yy = by - hop;
+      ctx.globalAlpha = 0.6 + 0.4 * lit;
+      ctx.fillStyle = lit > 0.5 ? "#fff3c8" : "rgba(42,26,8,.82)";
+      /* a pill by hand: roundRect is too new for a phone a few years old */
+      ctx.beginPath(); ctx.arc(bx + h / 2, yy + h / 2, h / 2, Math.PI / 2, Math.PI * 1.5); ctx.arc(bx + w - h / 2, yy + h / 2, h / 2, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = lit > 0.5 ? "#e8950f" : "rgba(255,222,150,.3)"; ctx.lineWidth = 1.5; ctx.stroke();
+      const ink = lit > 0.5 ? "#3a2104" : "#e3cfa0";
+      /* an egg, then the honey it takes */
+      ctx.fillStyle = lit > 0.5 ? "#ffffff" : "#e3cfa0"; ctx.strokeStyle = ink; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(bx + 11, yy + h / 2, 3.6, 5.2, 0.3, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(txt, bx + 19, yy + h / 2 + 0.5);
+      hexPath(bx + w - 9, yy + h / 2, 4.6); ctx.fillStyle = "#f5a81c"; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 
   /* ================= bees ================= */
@@ -519,7 +539,7 @@ function create(canvas) {
     const sh = sc * 0.018;
     for (let i = 0; i < s.bees.length; i++) {
       const b = s.bees[i], v = beeLook(b);
-      let x, y, a, img, k = 1;
+      let x, y, a, img, k = 1, lift = 1;
       v.born = Math.max(0, v.born - dt * 1.6);
       if (b.st === "home") {
         homeSpot(s, v, dt, winter, s.bees.length);
@@ -543,9 +563,13 @@ function create(canvas) {
         const wob = Math.sin(G.t * 5.2 + v.ph) * 0.011, nx = -Math.sin(b.a), ny = Math.cos(b.a);
         x = sx(b.x + nx * wob); y = sy(b.y + ny * wob);
         a = b.a + Math.cos(G.t * 5.2 + v.ph) * 0.22; img = G.sprites.bee[frame];
-        v.x = 0; v.y = 0;
+        /* over the comb she is taking off or coming in to land: lower, so
+           smaller, and her shadow closes up under her */
+        lift = clamp(Math.hypot(b.x, b.y) / Math.max(0.03, G.hiveR * 0.95), 0, 1);
+        k = 0.72 + 0.28 * lift;
+        v.x = b.x * 0.55; v.y = b.y * 0.55;
         if (shadows) {
-          ctx.beginPath(); ctx.ellipse(x + sh * 0.7, y + sh, G.sprites.len * 0.42, G.sprites.len * 0.24, a, 0, TAU); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(x + sh * 0.7 * lift, y + sh * lift, G.sprites.len * 0.42 * k, G.sprites.len * 0.24 * k, a, 0, TAU); ctx.fill();
           continue;
         }
         if (b.carry > 0) {
@@ -557,7 +581,7 @@ function create(canvas) {
           ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.beginPath(); ctx.arc(bx - rr * 0.3, by - rr * 0.3, rr * 0.35, 0, TAU); ctx.fill();
         }
       }
-      if (v.born > 0) k = 1 + 0.9 * v.born;
+      if (v.born > 0) k *= 1 + 0.9 * v.born;
       stamp(img, x, y, a, k);
     }
   }
@@ -739,6 +763,29 @@ function create(canvas) {
       if (p.x < -8) p.x = G.W + 8;
     }
     ctx.globalAlpha = 1;
+    /* a butterfly or two, in the warm half of the year: nothing to do with
+       the game, which is the point of them */
+    if ((season === "spring" || season === "summer") && night < 0.3 && !G.calm) {
+      while (G.flutter.length < 2) G.flutter.push({ x: Math.random() * G.W, y: Math.random() * G.H, a: Math.random() * TAU, ph: Math.random() * TAU, col: ["#ffffff", "#ffe07a", "#ffb3d1", "#bcd7ff"][Math.floor(Math.random() * 4)] });
+      for (const b of G.flutter) {
+        b.a += Math.sin(G.t * 0.9 + b.ph) * 1.6 * dt;
+        b.x += Math.cos(b.a) * 26 * dt; b.y += Math.sin(b.a) * 26 * dt + Math.sin(G.t * 7 + b.ph) * 14 * dt;
+        if (b.x < -20) b.x = G.W + 20; if (b.x > G.W + 20) b.x = -20;
+        if (b.y < -20) b.y = G.H + 20; if (b.y > G.H + 20) b.y = -20;
+        const flap = Math.abs(Math.sin(G.t * 11 + b.ph));
+        ctx.fillStyle = "rgba(20,30,10,.14)"; ctx.beginPath(); ctx.ellipse(b.x + 5, b.y + 9, 6 * flap + 1, 3, b.a, 0, TAU); ctx.fill();
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a + Math.PI / 2);
+        ctx.globalAlpha = 0.92 * (1 - night * 3);
+        for (const side of [-1, 1]) {
+          ctx.save(); ctx.scale(side * (0.25 + 0.75 * flap), 1);
+          ctx.fillStyle = b.col; ctx.beginPath(); ctx.ellipse(4.5, -2.5, 5, 4.2, 0.5, 0, TAU); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(3.6, 3.4, 3.6, 3, -0.4, 0, TAU); ctx.fill();
+          ctx.restore();
+        }
+        ctx.fillStyle = "#3a2a18"; ctx.beginPath(); ctx.ellipse(0, 0, 1, 4.6, 0, 0, TAU); ctx.fill();
+        ctx.restore(); ctx.globalAlpha = 1;
+      }
+    }
     if (night > 0.05 && season !== "winter") {
       while (G.flies.length < (G.calm ? 5 : 14)) G.flies.push({ x: Math.random() * G.W, y: Math.random() * G.H, ph: Math.random() * TAU, v: 0.4 + Math.random() });
       ctx.globalCompositeOperation = "lighter";
