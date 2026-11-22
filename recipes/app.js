@@ -1,11 +1,12 @@
 /* app.js — the calculator. It knows nothing about chili.
 
    Everything it does is driven by recipe.js: scale one number (how much
-   beef), then render. The same file runs the stroganoff page too —
-   that page loads its own recipe.js and then this one, and everything
-   that differs between the two (the dial's words, the presets, the pan,
+   beef), then render. Every recipe page in the book runs on this one
+   file: the page loads its own recipe.js and then this, and everything
+   that differs between dishes (the dial's words, the presets, the pan,
    how servings are counted) is read from the recipe, with the chili's
-   values as the defaults. The three pieces worth reading are:
+   values as the defaults. See recipes/README.md. The three pieces
+   worth reading are:
 
      1. the unit engine, which picks the unit a cook would actually say
         out loud — "1⅓ cups", not "315.3 ml", and "1 medium onion",
@@ -389,6 +390,9 @@ function renderDial() {
   $("more").setAttribute("aria-label", "More " + proteinWord());
   setToggle("potBeef", !state.veg);
   setToggle("potVeg", state.veg);
+  /* no vegetarian version in the recipe, no switch for one */
+  var pick = document.querySelector(".pot-pick");
+  if (pick) pick.style.display = BASE.swaps && BASE.swaps.veg ? "" : "none";
   $("beefAmount").textContent = beefLabel();
   $("yieldLine").textContent = yieldText();
 
@@ -691,6 +695,7 @@ function load() {
     });
   }
   state.grams = clampBeef(state.grams);
+  if (!(BASE.swaps && BASE.swaps.veg)) state.veg = false;
 }
 
 /* ---------------------------------------------------------------- *
