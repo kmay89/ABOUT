@@ -47,7 +47,7 @@ let nightAmt = 0, winterAmt = 0, last = 0, mixT = 0, snap = true;
 /* ?speed=4 runs the world fast. It is for tools/hive-open-check.js and for
    looking at winter without waiting for it; nothing in the game sets it. */
 const SPEED = Math.max(0.25, Math.min(12, +(new URLSearchParams(location.search).get("speed")) || 1));
-let flowerTaps = 0, layT = 0, goalHintT = 0, pendingSheet = null, focusIx = -1;
+let flowerTaps = 0, layT = 0, enterT = 0, goalHintT = 0, pendingSheet = null, focusIx = -1;
 const shown = {};
 
 /* ---------- small helpers ---------- */
@@ -75,7 +75,11 @@ function fit() {
 function camFor(st, dt) {
   const base = Math.min(play.w / st.view.w, play.h / st.view.h);
   let scale = base, cx = play.x + play.w / 2, cy = play.y + play.h / 2;
-  if (mode === "title") { cy = H * 0.5; scale = base * 1.5; }
+  if (mode === "title") {
+    /* the front door: the hive is the picture. Tall screens put it between
+       the name and the button; wide ones put it beside them. */
+    if (W > H * 1.15) { cx = W * 0.7; cy = H * 0.5; scale = base * 1.25; } else { cy = H * 0.5; scale = base * 1.5; }
+  }
   if (winterAmt > 0.001) {
     /* in winter there is only the cluster, so come in close */
     const close = Math.max(base, Math.min(play.w, play.h) / (Sim.hiveR(st) * 4.4));
@@ -319,8 +323,9 @@ function hud() {
 function hints(dt) {
   const hand = $("hand"), hint = $("hint");
   let text = "", at = null;
-  layT += dt; goalHintT = Math.max(0, goalHintT - dt);
-  if (mode === "play" && !paused && s) {
+  layT += dt; goalHintT = Math.max(0, goalHintT - dt); enterT += dt;
+  /* nothing points at anything until the front door has finished opening */
+  if (mode === "play" && !paused && s && enterT > 0.9) {
     const g = Sim.goals(s), cost = Sim.eggCost(s);
     const canLay = (s.phase === "day") && s.honey >= cost && s.brood.length < C.NURSERY;
     const under = s.bees.length + s.brood.length < g.bees;
@@ -429,6 +434,9 @@ function openNight(e) {
   let t = chip("honey", "+" + Math.round(e.today.honey));
   if (e.today.hatched) t += chip("bee", "+" + e.today.hatched);
   if (e.today.lost) t += chip("bee", "−" + e.today.lost, "bad");
+  /* the one comparison worth making is with yourself */
+  if (e.today.honey > (s.bestDay || 0) && s.bestDay) t += '<span class="star">Best day yet</span>';
+  s.bestDay = Math.max(s.bestDay || 0, e.today.honey);
   $("nightTally").innerHTML = t;
   const box = $("nightCards"), go = $("nightGo");
   box.innerHTML = "";
@@ -622,7 +630,7 @@ function enter() {
   $("title").classList.add("gone"); $("hud").classList.remove("hide");
   for (const k in shown) delete shown[k];
   fit(); snap = false;
-  nightAmt = 0; winterAmt = 0; flowerTaps = store.tut.flower ? 9 : 0; layT = 0; focusIx = -1;
+  nightAmt = 0; winterAmt = 0; flowerTaps = store.tut.flower ? 9 : 0; layT = 0; enterT = 0; focusIx = -1;
   snd.setSeason(Sim.season(s));
   canvas.focus({ preventScroll: true });
 }

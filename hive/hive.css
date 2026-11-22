@@ -213,6 +213,8 @@ a{color:var(--gold)}
 .tally .ice .ic{color:var(--ice)}
 .tally .bad{color:var(--bad)}
 .tally .bad .ic{color:var(--bad)}
+.tally .star{background:var(--gold); color:var(--gold-ink)}
+.tally .star::before{content:"★"}
 
 .cards{display:flex; flex-direction:column; gap:9px}
 .card{
@@ -278,6 +280,34 @@ a{color:var(--gold)}
 
 button:focus-visible,.card:focus-visible{outline:3px solid #fff; outline-offset:2px}
 
+/* a phone: the strip has to fit three chips in under four hundred pixels,
+   in every season and with three-digit honey on both sides of the slash */
+#hud > *{min-width:0}
+@media (max-width:430px){
+  #hud{left:6px; right:6px; gap:5px}
+  .chip{padding:6px 9px; gap:6px; border-radius:15px}
+  .chip.round{width:44px}
+  #clock .sun{width:29px; height:29px}
+  #clock b{font-size:.9rem}
+  .pips{gap:3px} .pips i{width:6px; height:6px}
+  #goal{gap:7px}
+  #goal .snow{width:19px; height:19px}
+  .meter b{font-size:1rem}
+  .meter i{font-size:.76rem}
+  .meter .ic{width:15px; height:15px}
+  .tabs button{padding:6px 11px; font-size:.86rem}
+}
+@media (max-width:380px){
+  #goal .snow{display:none}
+  #clock b{font-size:.84rem}
+}
+/* the smallest phones: the ground and the banner say what season it is */
+@media (max-width:340px){
+  #clock b{display:none}
+  .pips{margin-top:0; gap:2px} .pips i{width:5px; height:5px}
+  .chip{padding:6px 7px} .chip.round{width:40px}
+  .meter b{font-size:.94rem}
+}
 @media (min-width:700px){
   .ov{align-items:center; padding:20px}
   .sheet{border-radius:26px; border-bottom:1px solid rgba(190,180,255,.2); padding-bottom:22px}
@@ -289,10 +319,20 @@ button:focus-visible,.card:focus-visible{outline:3px solid #fff; outline-offset:
   .sheet{width:min(700px,100%)}
   #menu .sheet, #lost .sheet, #yearStart .sheet{width:min(520px,100%)}
 }
+/* a wide screen: the name and the door down the left, the hive beside them */
+@media (min-aspect-ratio:23/20){
+  #title{
+    align-items:flex-start; justify-content:center; gap:5vh; text-align:left;
+    padding:calc(20px + var(--safe-top)) 20px calc(20px + var(--safe-bot)) max(5vw, 24px);
+    background:linear-gradient(90deg, rgba(50,28,4,.66) 0%, rgba(50,28,4,.3) 34%, rgba(50,28,4,0) 56%);
+  }
+  #title h1{font-size:clamp(2.6rem,8vw,5.6rem)}
+  #title .door{width:min(340px,40vw)}
+  #title .small{justify-content:flex-start}
+}
 @media (max-height:520px){
-  #title{padding-top:calc(3vh + var(--safe-top)); flex-direction:row; align-items:center; gap:24px}
-  #title .mark{flex:1}
   #banner{top:16%}
+  #title{gap:3vh}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01s !important; transition-duration:.01s !important}

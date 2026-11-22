@@ -192,12 +192,17 @@ function create(canvas) {
       for (let i = 0; i < 9; i++) { const a = i * TAU / 9; g.fillStyle = i % 2 ? L.core : "#fff3b0"; g.beginPath(); g.arc(Math.cos(a) * R * 0.17, Math.sin(a) * R * 0.17, R * 0.05, 0, TAU); g.fill(); }
       g.fillStyle = "#d9b23a"; g.beginPath(); g.arc(0, 0, R * 0.07, 0, TAU); g.fill();
     } else if (L.shape === "ball") {
-      for (let ring = 2; ring >= 0; ring--) {
-        const n = ring === 2 ? 12 : ring === 1 ? 7 : 1, rr = ring * R * 0.36;
+      /* a clover head: a soft ball of florets, palest at the tips */
+      const bg = g.createRadialGradient(0, 0, R * 0.1, 0, 0, R * 0.82);
+      bg.addColorStop(0, L.c2); bg.addColorStop(1, mix(L.c2, L.c1, 0.5));
+      g.fillStyle = bg; g.beginPath(); g.arc(0, 0, R * 0.8, 0, TAU); g.fill();
+      for (let ring = 3; ring >= 0; ring--) {
+        const n = [1, 6, 11, 16][ring], rr = ring * R * 0.26;
         for (let i = 0; i < n; i++) {
-          const a = i * TAU / n + ring;
+          const a = i * TAU / n + ring * 0.6;
           g.save(); g.translate(Math.cos(a) * rr, Math.sin(a) * rr); g.rotate(a);
-          petal(g, R * 0.34, R * 0.13); g.fillStyle = ring === 2 ? L.c2 : L.c1; g.fill();
+          petal(g, R * 0.3, R * 0.1); g.fillStyle = ring > 1 ? L.c1 : mix(L.c1, L.c2, 0.45); g.fill();
+          g.strokeStyle = "rgba(190,110,150,.35)"; g.lineWidth = R * 0.018; g.stroke();
           g.restore();
         }
       }
@@ -300,7 +305,8 @@ function create(canvas) {
     const len = clamp(0.047 * sc, 12, 30);
     G.sprites.len = len;
     G.sprites.bee = [paintBee(len, "bee", 0), paintBee(len, "bee", 1)];
-    G.sprites.walk = paintBee(len * 0.92, "bee", -1);
+    /* on the comb a bee is one cell long, so a dozen of them are a crowd and not a heap */
+    G.sprites.walk = paintBee(Math.min(len * 0.8, C.HEX * sc * 1.25), "bee", -1);
     G.sprites.queen = paintBee(Math.min(len * 1.45, C.HEX * sc * 2.05), "queen", -1);
     G.sprites.hornet = [paintBee(len * 2.3, "hornet", 0), paintBee(len * 2.3, "hornet", 1)];
   }
@@ -691,13 +697,18 @@ function create(canvas) {
     }
   }
   function drawCloudTops(s) {
+    /* seen from above a cloud would hide what is under it, and what is under
+       it is the game. So it is a few soft puffs you can see straight through. */
     const sc = G.cam.scale;
     for (const c of s.clouds) {
-      const x = sx(c.x) - 14, y = sy(c.y) - c.r * sc * 0.3, R = c.r * sc;
-      ctx.fillStyle = "rgba(244,248,255,.42)";
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + c.id, rr = R * 0.5; ctx.moveTo(x + Math.cos(a) * rr + R * 0.5, y + Math.sin(a) * rr * 0.5); ctx.arc(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.5, R * 0.5, 0, TAU); }
-      ctx.fill();
+      const R = c.r * sc;
+      for (let i = 0; i < 7; i++) {
+        const a = i * TAU / 7 + c.id, rr = i ? R * 0.52 : 0, pr = R * (i ? 0.5 : 0.62);
+        const x = sx(c.x) + Math.cos(a) * rr - R * 0.08, y = sy(c.y) + Math.sin(a) * rr * 0.62 - R * 0.22;
+        const pg = ctx.createRadialGradient(x, y - pr * 0.2, pr * 0.1, x, y, pr);
+        pg.addColorStop(0, "rgba(255,255,255,.34)"); pg.addColorStop(0.6, "rgba(236,243,252,.2)"); pg.addColorStop(1, "rgba(220,232,248,0)");
+        ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(x, y, pr, 0, TAU); ctx.fill();
+      }
     }
   }
 
