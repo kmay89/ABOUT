@@ -215,6 +215,8 @@ const VARIANTS = {
   promote: [{ piece: 5 }, { piece: 4 }, { piece: 3 }, { piece: -2 }, {}],
   "low-time": [{}, { left: 0 }, { left: 5 }, { left: 10 }, { left: 99 }],
   tick: [{}, { tock: true }],
+  door: [{}, { n: 12 }, { n: 16, soft: true }, { n: 24 }, { n: 999 }, { n: "x" }],
+  doors: [{}, { ns: [12, 16, 19, 24] }, { ns: [0] }, { ns: "x" }],
   count: [{ i: 0, n: 10, up: true }, { i: 10, n: 10, up: true }, { i: 3, n: 10, up: false }, { i: 0, n: 0 }]
 };
 const variantsOf = (k) => VARIANTS[k] || [{}];
@@ -236,7 +238,7 @@ const meanHz = (sc) => {
      OLD.every((k) => Sound.STINGS[k]), OLD.filter((k) => !Sound.STINGS[k]).join(", "));
   const ASKED = ["start", "check", "capture-big", "promote", "mate-win", "mate-lose", "win", "lose",
                  "draw", "hint", "lesson-right", "lesson-wrong", "lesson-done", "levelup", "rating-up",
-                 "rating-down", "milestone", "tap", "open", "close", "low-time", "tick", "link"];
+                 "rating-down", "milestone", "tap", "open", "close", "low-time", "tick", "link", "door", "doors", "hover"];
   ok("every moment the room asks for is written down",
      ASKED.every((k) => Sound.STINGS[k]), ASKED.filter((k) => !Sound.STINGS[k]).join(", "));
   ok("an unknown moment scores as nothing rather than throwing", Sound.score("fireworks") === null);

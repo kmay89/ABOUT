@@ -100,6 +100,12 @@ games.js            the journal: every finished game — coach, one screen,
 feats.js            feats: things done on the board that the rules or the
                     teaching eyes can vouch for, each earned once and kept
                     with the game it happened in. Pure
+hub.js              the front door as a place: four pages (Play, Friends,
+                    Learn, You) and which key lives on which, what a
+                    newcomer sees first, where the lobby opens, what is
+                    waiting behind each door, the note each door sings —
+                    and the pictures on the keys, drawn as plain SVG with
+                    named parts for the stylesheet to move. Pure
 goals.js            the next step: one line, picked from your state by a
                     fixed order of plain rules, said done once, and moved
                     aside after five days without changing. Pure
@@ -431,6 +437,24 @@ tools/              dev-only, never shipped:
                     from a hand-made state, the highest rung within reach
                     rather than the lowest, "done" once, five days and
                     then the subject changes
+  hub-check.js      the front door: every key the lobby ever had on
+                    exactly one page, in the markup where the map says; a
+                    first visit that is a face, a question and two
+                    answers; the dock by tap, by a real dragged finger and
+                    by arrow keys, its light where the pages are; a swipe
+                    along the ladder that stays the ladder's; each door's
+                    note out loud for a press and under the breath for a
+                    swipe; badges only for what is waiting; the host that
+                    answers a tap and sleeps when the lobby is away; every
+                    picture closed, 48 square and nothing but shapes; and
+                    none of it moving with reduced motion. Three sizes:
+                    a phone, a small phone, a laptop
+  bar-check.js      the action bar on a phone: four keys a thumb wide, the
+                    other five on a tray behind More that cannot be hit or
+                    tabbed to while shut, opens with their names written
+                    out, and puts itself away (a key used, a tap
+                    elsewhere, Escape, a card, a new game); and all eight
+                    in a row, with no More, wherever there is room
   progress-check.js in a real browser, phone and laptop: the lobby's one
                     line, a friend game kept and counted as a day but not
                     as rating, a coach game's feats said once and kept
@@ -756,6 +780,102 @@ tools/              dev-only, never shipped:
                     hand-rolled PNG writer)
 ```
 
+## The front door
+
+The lobby was one card as long as three phones: a question, a number, a
+gold button, a road, a ladder, a collection, six tiles, a link to a 3D
+printer and two more links, top to bottom. Everything on it was worth
+having and nothing on it said where to look. It is the same room now,
+arranged the way a games console arranges its home (`hub.js`, and "the
+hub" in `app.js`).
+
+**Four doors.** A dock along the bottom, and a page behind each door:
+
+| | what is behind it |
+|---|---|
+| **Play** | who is waiting, the one gold button, the next step, the Journey, the ladder |
+| **Friends** | two players on one device, a friend far away, a game somebody sent |
+| **Learn** | the Academy, the rules from the start, the opening stories |
+| **You** | your rating and record, your collection, the board to print, Settings, About |
+
+Each page is a screen and no more: on a phone held upright only the road
+ever needs a scroll. Nothing was taken away and nothing was renamed —
+every key has the id it always had, on exactly one page — so a link, a
+habit or a test that knew where something was still finds it.
+
+**One question for a newcomer.** A first visit — no games, no lessons,
+nothing waiting — is not shown the room at all. Whoever is first on the
+road is standing there (Acorn, alive, saying hello), the room asks *Do
+you know how the pieces move?*, and there are two answers. No dock, no
+ladder, no numbers. *Look around first* unfolds the rest for anyone who
+would rather: the dock stands up door by door with its four notes run up
+it. So does starting a game. Once open it is never shut again.
+
+**You can walk it.** The pages sit side by side and a thumb drags
+between them; they stop a page at a time. The dock's light is tied to
+how far along you are, so it moves under the finger rather than after
+it. A door tapped in the dock slides the pages there; the arrow keys
+walk it too, Home and End to the ends. The ladder scrolls for itself and
+never hands a swipe on to the page.
+
+**The dock is an instrument.** Each door has a note of the room's home
+chord, low to high, left to right: D, F♯, A and the D above. A door
+pressed says its note out loud; a page reached by a swipe says the same
+note under its breath; walk along the dock and it plays D major. A mouse
+coming to rest on a key makes the smallest sound in the room.
+
+**The pictures move.** The emoji on the keys are gone; in their place
+are sixteen small pictures drawn for this room, in its own colours —
+ivory and walnut men, the gold of the play button, one colour a door.
+Each has a part that can move: the mortarboard's tassel swings, the
+gift's lid lifts, the chick looks out of its egg, the two pawns nod to
+each other, the candle on *Continue your game* flickers, the pin on the
+map bobs. Arriving on a page, its pictures say hello one after another;
+a mouse or a finger on a key makes that one say it again. They are plain
+SVG with named parts (`hub.js`, `ICONS`), and the stylesheet decides
+what moving means — so with reduced motion they are simply pictures.
+
+**Somebody is at the door.** At the top of Play stands whoever is next
+on your road — the same live face that sits across the board. It looks
+where the mouse is, says something as you walk in (a new kind of line in
+`cast.js`, `door`: Acorn has saved you a seat, Cactus wants to know
+whether you are playing or just looking), and answers a tap with its
+own little habit and another line: a hello, then a word about how it
+plays, and round again. It sleeps when the lobby is not in front.
+
+**A badge is a fact.** A door wears one only when something behind it
+is really waiting: a game to go back to, ideas due in the Academy, a box
+to open. Never more than one a door, and never a lure.
+
+**It opens where it makes sense.** On Play after a game; otherwise on
+the page you left it from, so *Back* from the Academy puts you on Learn,
+where the Academy's key is. Your level, in its ring, and your rating
+sit in the head of the card on every page, and lead to You.
+
+`node chess/tools/hub-check.js` holds it to all of this, in node and
+then on a phone, a small phone and a laptop.
+
+## The bar on a phone
+
+Under the board there were eight keys in a row: Menu, New, Undo, Help,
+Replay, Flip, 2D and Look. On a laptop that is a toolbar. Across a
+phone it was eight small things to read before a first move, each forty
+pixels wide.
+
+A game needs three of them within reach: the way out, the take-back and
+the lamp. So on a phone held upright the bar is **Menu, Undo, Help** and
+a fourth key, **More**, each a proper thumb wide. More lifts a tray with
+the other five on it — *New game, Last move, Flip, 2D/3D, Look* — their
+names written out in full, arriving one after another. The tray puts
+itself away: when one of its keys is used, on a tap anywhere else, on
+Escape (with the focus back on More), when a card arrives and when a new
+game starts. While it is shut nothing on it can be hit by a finger or
+reached by Tab.
+
+Where there is room for all eight — a laptop, a phone on its side —
+nothing changed: the tray is not a tray there, just the rest of the row,
+and there is no More. `node chess/tools/bar-check.js` checks both.
+
 ## Play the computer, and a reason to
 
 The menu used to offer six equal doors and never say which one meant
@@ -764,15 +884,16 @@ computer ended leaving nothing behind, so there was no reason to play
 another. Most people who open a chess app want one thing first, and the
 room now leads with it.
 
-**One tap.** The lobby opens on one amber button — *Play the computer* —
+**One tap.** The lobby's first page opens on one amber button — *Play the computer* —
 at a strength chosen for you: the coach nearest your score, and while
 the room is still finding your level, one a step gentler, because a
 first win teaches more than a first even game. You take turns with the
 colours. *Choose your opponent, colour & clock* is a line underneath,
 for when you want to choose.
 
-**A number that is yours.** Above the button sits a card with your
-rating, your title and a small line of where the score has been. Tap
+**A number that is yours.** Your rating sits in the head of the lobby,
+and behind the *You* door is a card with the number, your title and a
+small line of where the score has been. Tap
 it and *Your record* opens: the full chart, your games won, drawn and
 lost, your best, your recent accuracy, the stars you hold, and the
 ladder with your score against every rung. How the number is worked
@@ -2113,8 +2234,9 @@ in the game arrives the same way.
   them in order. The beat follows the pace (`pace.js`): about 60 ms
   between items for a gentle player, 46 for a steady one, 25 for a brisk
   one.
-- **The lobby deals its coaches** onto the ladder one by one, each
-  tipping in and landing.
+- **The lobby** arrives as its head, whatever is on the page in view,
+  then its dock; and it **deals its coaches** onto the ladder one by
+  one, each tipping in and landing.
 - **A game opens out of the tap that started it.** An iris with a gold
   rim widens from your finger onto the new board. The game is already
   there underneath, so nothing waits on the animation, and a tap goes
@@ -2814,7 +2936,8 @@ bar without a browser; `lamp-check.js` checks the till in a real one.
 A newcomer used to meet a rating card that said *Not rated yet* and
 twelve tiles, with *New to chess?* on the third row. Now a first visit
 — no games, no lessons solved, no game waiting — finds one question
-where the rating card will be: **do you know how the pieces move?**
+and nothing else (see *The front door*): **do you know how the pieces
+move?**
 
 - **🐣 I'm new to chess** opens the twelve rules pages, whose last
   button already starts a game against the gentlest coach — with the
@@ -2822,10 +2945,9 @@ where the rating card will be: **do you know how the pieces move?**
 - **▶ I know how the pieces move** goes straight into a game against
   the coach the ladder suggests.
 
-Under them, one line on why playing alone here is worth it: every game
-against the computer moves a number that's yours, the coach says what
-it sees, and the Academy makes it stick. There is no tour, no arrows
-pointing at buttons and no mascot. During the first two games against
+There is no tour and no arrows
+pointing at buttons, and the only face is the coach you are about to
+play. During the first two games against
 the computer the room says four things, each once, at the moment it
 helps: that the coach keeps what it notices in **Notes** (the first time
 it writes one), that **help is free when you're behind** (the first
@@ -3509,6 +3631,8 @@ node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/table-check.js    # two people, one device: fair to both
 node chess/tools/setup-check.js    # every piece has a name and a home
 node chess/tools/arrive-check.js   # everything in the room arrives well
+node chess/tools/hub-check.js      # the front door is a place, and everything is still in it
+node chess/tools/bar-check.js      # four keys under a phone's board, and the rest a tap away
 node chess/tools/arena-check.js    # every coach plays in a place of its own
 node chess/tools/momentum-check.js # the bar leans with the game, the coach feels it, and a comeback is a comeback
 node chess/tools/unlocks-check.js  # there is always something to win, it is given when it is won, and getting it is a moment

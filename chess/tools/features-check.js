@@ -64,6 +64,15 @@ const SIZES = [
   { name: "desk", viewport: { width: 1280, height: 820 }, touch: false }
 ].filter((s) => !process.argv.includes(s.name === "phone" ? "--desk" : "--phone"));
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -79,7 +88,15 @@ const SIZES = [
        lines for a null; the first line of where it happened is kept */
     page.on("pageerror", (e) => errs.push("" + e.message + (e.stack ? " @ " + String(e.stack).split("\n").slice(1, 3).join(" ").trim() : "")));
     page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
-    const press = (sel) => page.click(sel);
+    /* on a phone the bar is four keys, and the rest are on a tray behind
+       More (bar-check.js): a key on the tray is reached as a thumb reaches it */
+    const press = async (sel) => {
+      /* (shut is what the bar says, not what the eye still sees: a tray on
+         its way down is as good as gone) */
+      const shut = /^#btn[A-Za-z]+$/.test(sel) && await page.evaluate((s) => { const el = document.querySelector(s); return !!el && !!el.closest("#moreTray") && __cr.moreIsTray() && !__cr.moreOpen(); }, sel);
+      if (shut) { await page.waitForTimeout(200); await page.click("#btnMore"); await page.waitForTimeout(350); }
+      return page.click(sel);
+    };
     const play = (san, src) => page.evaluate(([f, a]) => eval(f)(a), [PLAY, [san, src]]);
     const settle = () => page.waitForFunction(() => !__cr.renderer.isAnimating(), null, { timeout: 6000 }).catch(() => {});
     const visible = (id) => page.isVisible("#" + id);
@@ -89,6 +106,8 @@ const SIZES = [
       await page.waitForFunction(() => document.getElementById("splash").classList.contains("gone") &&
         !document.getElementById("ovMenu").classList.contains("hide"), null, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(250);
+      /* a link opens what it carries; a plain visit opens the lobby */
+      if (!hash) await lookAround(page);
     };
 
     try {

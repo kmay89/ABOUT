@@ -100,8 +100,11 @@ const LISTEN = `(() => {
 
     /* ---- a first visit ---- */
     ok("a first visit is welcomed with one question", await shown("mWelcome"));
-    ok("…in place of a rating that isn't there yet", !(await shown("mRating")));
-    ok("…and Play is still the one amber thing", await page.isVisible("#mPlay"));
+    /* the greeting (hub.js): the question is the whole of a first visit */
+    ok("…and nothing else: no rating, no dock, no ladder",
+       !(await page.isVisible("#mRating")) && !(await page.isVisible("#hubDock")) && !(await page.isVisible("#mLadder")));
+    ok("…its two answers the only keys (the gold button comes with the room)",
+       (await page.isVisible("#mNew")) && (await page.isVisible("#mKnow")) && !(await page.isVisible("#mPlay")));
 
     await page.click("#mNew");
     await page.waitForTimeout(400);
@@ -168,7 +171,9 @@ const LISTEN = `(() => {
     ok("a finished game against the computer retires the welcome", (await prefs()).welcomed === true);
     await page.click("#endMenu");
     await page.waitForTimeout(400);
-    ok("…and the lobby shows the first number instead", (await shown("mRating")) && !(await shown("mWelcome")));
+    ok("…and the lobby shows the first number instead",
+       (await shown("mRating")) && !(await shown("mWelcome")) && (await page.isVisible("#mPlay")) &&
+       /\d/.test(await page.evaluate(() => document.getElementById("hubMeNum").textContent)));
 
     /* ---- the take-back pointer rides inside the blunder toast ----
        (tipsResetForTest also un-says the once-only offer of the wheels:

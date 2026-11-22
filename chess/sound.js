@@ -889,6 +889,31 @@ var STINGS = {
     N(s, 0.16, "marimba", 0, 0.14, { ring: 0.5 });
   } },
 
+  /* The lobby's dock is an instrument (hub.js): each of its doors has
+     a note of the home chord, low to high, so walking along it plays D
+     major. `n` is the note. Pressed, a door says it out loud with a
+     glint an octave up; reached by a swipe (`soft`), the same note
+     under the breath. Dry, so four in a row never smear; and never
+     below the D above middle C, where a bar rings too long for a door. */
+  door: { len: 0.6, send: 0, gain: 0.85, score: function (s, o) {
+    var n = clamp(Math.round(+(o && o.n)) || 12, 12, 31), soft = !!(o && o.soft);
+    N(s, 0, "marimba", n, soft ? 0.26 : 0.5);
+    if (!soft) N(s, 0.012, "chime", n + 12, 0.1, { fl: true, ring: 0.3 });
+  } },
+  /* …and the whole dock at once, the first time it is shown: its notes
+     run up one after another as the doors stand up (`ns`), and the
+     last one rings */
+  doors: { len: 3.9, send: 0.16, gain: 0.9, score: function (s, o) {
+    var ns = o && Array.isArray(o.ns) && o.ns.length ? o.ns.slice(0, 6) : [12, 16, 19, 24];
+    ns = ns.map(function (n) { return clamp(Math.round(+n) || 12, 12, 31); });
+    RUN(s, 0.16, 0.1, "marimba", ns, 0.4, 0.6, { sway: true });
+    N(s, 0.16 + (ns.length - 1) * 0.1, "chime", ns[ns.length - 1] + 7, 0.2, { fl: true });
+  } },
+  /* a mouse coming to rest on a key: the smallest sound in the room */
+  hover: { len: 0.15, send: 0, gain: 0.3, score: function (s) {
+    N(s, 0, "tick", 0, 0.3, { hz: 2093, ring: 0.5, cut: 3200 });
+  } },
+
   /* The last seconds on a clock: a heartbeat rather than an alarm.
      `left` is the seconds remaining; as it runs down the second beat
      comes sooner and the whole thing sits a little higher and harder,

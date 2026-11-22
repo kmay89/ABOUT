@@ -95,6 +95,15 @@ const PLAY = `([san, src]) => {
 }`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* A first visit is the greeting (hub.js): a face, a question and two
+   answers. A check that is here for the rest of the room looks around
+   first, the way a person would. */
+const lookAround = async (page) => {
+  await page.waitForFunction(() => ["mLook", "hubDock"].some((id) => { const e = document.getElementById(id); return !!e && e.getClientRects().length > 0; }),
+                             null, { timeout: 30000 }).catch(() => {});
+  if (await page.isVisible("#mLook")) { await page.click("#mLook"); await page.waitForTimeout(600); }
+};
+
 (async () => {
   await new Promise((r) => server.listen(0, r));
   const base = "http://127.0.0.1:" + server.address().port;
@@ -163,6 +172,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ok("auto-queen is off by default", pr.aq === false);
 
     /* ---- the custom clock on the new-game card ---- */
+    await lookAround(page);
     await page.click("#mPassOpts"); await page.waitForTimeout(250);
     const card = await page.evaluate(() => ({ sel: document.querySelector("#clockChips .sel") && document.querySelector("#clockChips .sel").getAttribute("data-clock"),
       shown: !document.getElementById("clkCustom").classList.contains("hide"), min: document.getElementById("clkMin").value, inc: document.getElementById("clkInc").value,
