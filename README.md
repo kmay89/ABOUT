@@ -424,6 +424,31 @@ on, is made of the one question that switch can ask.
 Escape turns the lights back on, for anyone who'd rather not hunt for
 the switch in the dark.
 
+## The cartridge
+
+The desk is a game, so it starts like one. A fresh tab opens on a
+power-on self-test — every number in it counted from the page as it
+stands: the shapes in the scene, the worlds, the secrets, the images
+(none) — and then a title screen with three buttons: **Start**, a
+ninety-second **Quick tour**, and the one-page **Résumé** for the reader
+in a hurry. Walking in switches the tube off, and the lamp in the room
+behind it catches. It shows once a session, never on a link (`#hive`
+lands on Hive Mind), goes straight to the title for someone who has been
+before, walks in by itself after half a minute, and without motion is
+simply a still screen with a button.
+
+While the year is 1999 the page is seen through glass: scanlines, a
+falling-off at the corners, hard-cornered controls. Flip the year and
+the interface comes forward with the desk — round corners, no glass.
+Finding a world drops a card from the top edge; the count beside the
+headline is also a progress bar. Finding the last one brings up the
+staff roll, which is also `#credits` and a line in the footer. Long
+stories open on a short version with the whole of it folded underneath.
+And ↑ ↑ ↓ ↓ ← → ← → B A does what it should.
+
+`node tools/desk-check.js --only=title` checks the title screen and the
+staff roll.
+
 ## How it's made
 
 By hand, on purpose. The site is raw HTML, CSS and JavaScript — the

@@ -44,7 +44,8 @@
         --only=visual,dom,perf              just those parts (--only=light: the lamp's tests alone,
                                             --only=sky: the moon's and the quiet clocks',
                                             --only=camera: the room holding still, --only=torch: the torch's,
-                                            --only=arrival: the lamp catching on a first visit)
+                                            --only=arrival: the lamp catching on a first visit,
+                                            --only=title: the title screen and the staff roll)
         --art                               report crop diffs, don't fail on them
         --out=DIR                           where this run's photographs go
 
@@ -88,11 +89,13 @@ if (!pw) {
 /* ---------------------------------------------------------------- budgets
    Section 0.1 of the rethink's spec, in one place. Each is a merge gate. */
 const BUDGET = {
-  lines: 7450,                 // index.html, wc -l. The spec guessed 5,850; the hero reactions
+  lines: 8000,                 // index.html, wc -l. The spec guessed 5,850; the hero reactions
                                // alone took it past that, and the room still has its light,
                                // its sky and its commentary to come. The gate is here to catch
                                // a runaway, not to ration comments. (7,200 until the torch:
-                               // the camera left 14 lines for A14, A15 and A16 together.)
+                               // the camera left 14 lines for A14, A15 and A16 together.
+                               // 7,450 until the cartridge: the title screen, the staff roll,
+                               // the glass and the short versions of the stories took 540.)
   idleTop: 95,                 // ms/s of main-thread render work, desk in view, 1×
   idleTopSlow: 120,            // the same at 4× CPU throttle and DPR 2
   idleAway: 10,                // ms/s, desk scrolled away or under a sheet: the dust is asleep
@@ -240,7 +243,7 @@ async function openDesk(browser, o) {
     deviceScaleFactor: o.dpr || DESK.dpr, hasTouch: !!o.touch, isMobile: !!o.touch,
     reducedMotion: o.reduced ? "reduce" : "no-preference", timezoneId: "UTC"
   });
-  await ctx.addInitScript(([t0, dawn]) => {
+  await ctx.addInitScript(([t0, dawn, title]) => {
     const D = Date, shift = t0 - D.now();
     class FixedDate extends D {
       constructor(...a) { if (a.length) super(...a); else super(D.now() + shift); }
@@ -248,6 +251,9 @@ async function openDesk(browser, o) {
     }
     window.Date = FixedDate;
     if (!dawn) try { sessionStorage.setItem("km_lit", "1"); } catch (e) {}
+    /* the title screen stands in front of a fresh tab; every check but its
+       own (o.title) starts past it, in the room */
+    if (!title) try { sessionStorage.setItem("km_boot", "1"); } catch (e) {}
     /* o.dawn "held": a first visit in a tab nobody is looking at yet, so the
        arrival waits in the dark until the check calls __show() */
     if (dawn === "held") {
@@ -256,7 +262,7 @@ async function openDesk(browser, o) {
       Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (shown ? "visible" : "hidden") });
       window.__show = () => { shown = true; document.dispatchEvent(new Event("visibilitychange")); };
     }
-  }, [o.now || FIXED_NOW, o.dawn || ""]);
+  }, [o.now || FIXED_NOW, o.dawn || "", !!o.title]);
   const page = await ctx.newPage();
   const tag = o.name || "page";
   page.on("console", (m) => {
@@ -1548,6 +1554,54 @@ async function arrival(browser) {
   await ctx.close();
 }
 
+/* A16: the title screen. A fresh tab opens behind it (html.boot, from the
+   head): the self-test, then three buttons with the first one chosen. The
+   room behind is inert and stays dark until someone walks in, and then the
+   lamp catches as in A15. A link never sees it, a second look in the same
+   session doesn't either, and without motion the title is there at once.
+   #credits is the same screen's other face. */
+async function title(browser) {
+  console.log("\n──  the title screen");
+  let { ctx, page } = await openDesk(browser, { name: "title", dpr: 1, dawn: "fresh", title: true });
+  const st = () => page.evaluate(() => ({ cls: document.documentElement.className.trim(),
+    post: !document.getElementById("bootPost").hidden, card: !document.getElementById("bootCard").hidden, roll: !document.getElementById("rollCard").hidden,
+    shown: getComputedStyle(document.getElementById("boot")).display !== "none",
+    focus: document.activeElement ? document.activeElement.textContent.trim() : "", inert: document.getElementById("scene").inert,
+    boot: sessionStorage.getItem("km_boot"), hash: location.hash, out: document.body.classList.contains("lights-out"),
+    lines: document.getElementById("bootPost").textContent.split("\n").length }));
+  const s0 = await st();
+  if (!/\bboot\b/.test(s0.cls)) { notYet("A16 the title screen", "html.boot"); await ctx.close(); return; }
+  ok("A16 a fresh tab opens on the self-test, the room dark and inert behind it", s0.shown && s0.post && !s0.card && s0.inert && /\bdawn\b/.test(s0.cls), s0.cls);
+  await page.waitForFunction(() => !document.getElementById("bootCard").hidden, null, { timeout: 8000 });
+  const s1 = await st();
+  ok("A16 the self-test gives way to the title, Start already chosen", s1.card && !s1.post && /^Start/.test(s1.focus) && /\bdawn\b/.test(s1.cls), s1.focus);
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
+  const wrap = (await st()).focus;
+  await page.keyboard.press("Escape");            // on the title Escape walks in; it must not reach the room's own Escape
+  await page.waitForFunction(() => !/\b(boot|dawn|waking)\b/.test(document.documentElement.className), null, { timeout: 5000 });
+  const s2 = await st();
+  ok("A16 the arrows go round the menu, and walking in lights the room and is remembered", /^Start/.test(wrap) && !s2.shown && !s2.inert && s2.boot === "1" && !s2.out, wrap + " · " + (s2.cls || "lit"));
+  await page.reload({ waitUntil: "load" });
+  ok("A16 a second look in the same session goes straight to the room", !(await st()).shown);
+  await page.evaluate(() => { location.hash = "#credits"; });
+  await page.waitForFunction(() => !document.getElementById("rollCard").hidden, null, { timeout: 3000 });
+  const s3 = await st(), rollW = await page.evaluate(() => document.getElementById("rollW").textContent);
+  ok("A16 #credits is the staff roll, counted from the page", s3.shown && s3.roll && s3.inert && /^0 \/ \d+$/.test(rollW), rollW);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.documentElement.classList.contains("boot"), null, { timeout: 3000 });
+  const s4 = await st();
+  ok("A16 Escape puts the staff roll away and clears its address", !s4.shown && !s4.inert && s4.hash === "", s4.hash || "no hash");
+  await ctx.close();
+  ({ ctx, page } = await openDesk(browser, { name: "title", dpr: 1, dawn: "fresh", title: true, query: "#hive" }));
+  ok("A16 a link (#hive) never sees the title", !(await st()).shown); await ctx.close();
+  ({ ctx, page } = await openDesk(browser, { name: "title", dpr: 1, dawn: "fresh", title: true, reduced: true }));
+  const s5 = await st();
+  ok("A16 without motion the title is simply there", s5.shown && s5.card && !s5.post && /^Start/.test(s5.focus), s5.focus);
+  await page.keyboard.press("Enter");
+  ok("A16 ...and gone at once when Start is pressed", !(await st()).shown);
+  await ctx.close();
+}
+
 /* ================================================================== main */
 (async () => {
   await new Promise((r) => server.listen(PORT, r));
@@ -1562,7 +1616,7 @@ async function arrival(browser) {
   const t0 = Date.now();
   try {
     if (ONLY.includes("visual")) await visual(browser);
-    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await torch(browser); await arrival(browser); await voices(browser); }
+    if (ONLY.includes("dom")) { await dom(browser); await light(browser); await sky(browser); await commentary(browser); await camera(browser); await torch(browser); await arrival(browser); await title(browser); await voices(browser); }
     else {
       if (ONLY.includes("light")) await light(browser);         // --only=light: just the lamp's tests
       if (ONLY.includes("sky")) await sky(browser);             // --only=sky: the moon and the quiet clocks
@@ -1570,6 +1624,7 @@ async function arrival(browser) {
       if (ONLY.includes("camera")) await camera(browser);           // --only=camera: the room holds still
       if (ONLY.includes("torch")) await torch(browser);             // --only=torch: the torch in the dark
       if (ONLY.includes("arrival")) await arrival(browser);         // --only=arrival: the room waking up
+      if (ONLY.includes("title")) await title(browser);             // --only=title: the title screen and the staff roll
     }
     if (ONLY.includes("perf")) await perf(browser);
   } finally {
