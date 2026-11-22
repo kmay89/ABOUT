@@ -102,6 +102,13 @@ const ROOMS = [
   { game: "breaker", start: "#goPlay", canvas: "#field",
     taps: [[0.5, 0.8], [0.5, 0.8]],
     menu: [] },
+  /* Hive Mind opens on one flower by the hive and waits: the first tap is on
+     where that flower is on a phone this size, the second on the hive, the
+     third on bare grass, which has to answer too. Its menu is one sheet with
+     tabs, so each "sheet" here is a tab, shut and reopened. */
+  { game: "hive", start: "#goPlay", canvas: "#meadow",
+    taps: [[0.84, 0.62], [0.5, 0.52], [0.2, 0.9]],
+    menu: ["#mNotes", "#mCellar", "#mSet", "#mHow"], wait: 900 },
   /* The two party rooms have no canvas at all — the whole interface is one
      word as large as the phone will draw it, which a real element does far
      better. So they are checked on the element that has to have text in it,

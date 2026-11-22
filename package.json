@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dev-only tooling for kmay89.com, plus the one dependency of the serverless room mailbox (netlify/functions/) \u2014 never a runtime dependency of any game, which all stay dependency-free static pages. See tools/room-check.js.",
   "scripts": {
-    "check": "npm run check:parity && npm run check:well && npm run check:guide && npm run check:room && npm run check:chess && npm run check:luma && npm run check:hollow && npm run check:cubby && npm run check:swatch && npm run check:cameo && npm run check:knurl && npm run check:tuck",
+    "check": "npm run check:parity && npm run check:well && npm run check:hive && npm run check:guide && npm run check:room && npm run check:chess && npm run check:luma && npm run check:hollow && npm run check:cubby && npm run check:swatch && npm run check:cameo && npm run check:knurl && npm run check:tuck",
     "check:parity": "node tools/room-parity.js",
     "check:rules": "node tools/rules-check.js",
     "check:ai": "node tools/ai-check.js",
@@ -12,6 +12,8 @@
     "check:room": "node tools/room-check.js",
     "check:join": "node tools/join-check.js",
     "check:well": "node tools/well-check.js",
+    "check:hive": "node tools/hive-check.js",
+    "check:hive:door": "node tools/hive-door-check.js",
     "check:guide": "node tools/guide-check.js",
     "check:luma": "node --test luma/tests/mesh.test.mjs luma/tests/image-processing.test.mjs luma/tests/export-worker.test.mjs luma/tests/accessories.test.mjs luma/tests/frames.test.mjs luma/tests/light.test.mjs",
     "check:hollow": "node --test hollow/tests/mesh.test.mjs hollow/tests/sdf.test.mjs hollow/tests/surface.test.mjs hollow/tests/threemf.test.mjs hollow/tests/mold.test.mjs hollow/tests/verdict.test.mjs",

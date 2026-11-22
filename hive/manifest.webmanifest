@@ -1,0 +1,16 @@
+{
+  "name": "Hive Mind",
+  "short_name": "Hive Mind",
+  "description": "You are not a bee. You are all of them. Tap a flower and the hive goes; get enough bees and enough honey in before winter.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#74b458",
+  "theme_color": "#2a1a08",
+  "categories": ["games", "entertainment", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
