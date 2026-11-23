@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<!--
+  You opened the back of the set. Hello.
+
+  This is the whole desk: one hand-written file, no frameworks, no build
+  step, no image files, no trackers. The room is drawn in SVG by the script at
+  the bottom; every sound is synthesized as it plays. The comments are the
+  director's cut. If you would rather be shown round, the page has a tour
+  (#tour), a commentary (#notes) and a one-page version (#cv).
+
+  Karl Meves
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -23,6 +34,8 @@
 <title>Karl Meves — The Desk of Worlds</title>
 <!-- a fresh tab arrives in the dark (the lamp catches a beat later); set before first paint, so there is never a lit frame first -->
 <script>try{if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&!location.hash&&!sessionStorage.getItem('km_lit'))document.documentElement.className+=' dawn'}catch(e){}</script>
+<!-- ...and behind a title screen, once a session, never on a link (it lands somewhere). If the script below never gets as far as running it, the screen takes itself away: a title screen nobody can get past is a locked door -->
+<script>try{if(!location.hash&&!sessionStorage.getItem('km_boot')){document.documentElement.className+=' boot';setTimeout(function(){if(!window.kmBoot)document.documentElement.classList.remove('boot')},5000)}}catch(e){}</script>
 <style>
   :root{
     --room:#0e0a07;
@@ -64,7 +77,12 @@
     --ease-settle:cubic-bezier(.3,.7,.2,1);
     --t-rx:.32s;
     --t-settle:.48s;
+    /* the interface is from a year too: hard corners and a hard shadow in
+       1999, the pill it had before in 2026 (body.y2026, from eraLand) */
+    --r:3px;
+    --hud-shadow:2px 2px 0 rgba(0,0,0,.55);
   }
+  body.y2026{--r:999px;--hud-shadow:0 0 0 transparent}
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   /* buttons and links act on first tap — no double-tap zoom surprises */
@@ -170,8 +188,11 @@
     font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
     color:var(--ink-faint);
     border:1px dashed rgba(126,111,91,.5);
-    border-radius:999px;
+    border-radius:var(--r);
     padding:.48em 1em;
+    /* the count is also a bar: --p is how much of the desk has been found,
+       filled with a hard edge the way a cartridge draws one */
+    background:linear-gradient(90deg,rgba(255,201,122,.17) var(--p,0%),transparent var(--p,0%));
     white-space:nowrap; /* the deck column is narrow just past 1100px: keep "1 / 3 secrets" whole */
   }
   .found-count.done{color:var(--lamp);border-color:var(--lamp);border-style:solid}
@@ -436,7 +457,7 @@
     transform:translate(-50%,-100%);
     background:rgba(22,15,9,.9);
     border:1px solid color-mix(in srgb, var(--a,#ffc97a) 70%, transparent);
-    border-radius:999px;
+    border-radius:var(--r);
     box-shadow:0 10px 30px rgba(0,0,0,.45), 0 0 18px color-mix(in srgb, var(--a,#ffc97a) 25%, transparent), inset 0 1px 0 rgba(255,255,255,.08);
     padding:.5em 1em .5em 1.7em;
     font-family:var(--mono);
@@ -473,7 +494,7 @@
     color:var(--ink-dim);
     background:color-mix(in srgb, var(--a) 8%, transparent);
     border:1px solid color-mix(in srgb, var(--a) 38%, transparent);
-    border-radius:999px;
+    border-radius:var(--r);
     padding:.42em .95em;
     cursor:pointer;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
@@ -689,7 +710,8 @@
     color:var(--lamp);
     background:rgba(255,201,122,.08);
     border:1px solid rgba(255,201,122,.35);
-    border-radius:999px;
+    border-radius:var(--r);
+    box-shadow:var(--hud-shadow);
     padding:.45em 1em;
     cursor:pointer;
     transition:background .25s ease,color .25s ease;
@@ -1171,6 +1193,111 @@
   }
   .lt-text b,.lt-text i{color:var(--ink)}
 
+  /* ---------- the cartridge: a title screen, a tube, and a count ----------
+     The room is a game, so it starts like one. A fresh tab opens on a
+     power-on self-test and a title screen (html.boot, set in the head
+     before first paint, once a session and never on a link), and the same
+     screen comes back at the other end as the staff roll. In front of
+     everything is the glass (.crtv): scanlines and a falling-off at the
+     corners while the year is 1999, gone in 2026, when the interface also
+     gets its round corners back (--r). Nothing here animates outside the
+     motion gate; without motion the title screen is simply there, and the
+     way in is simply a button. */
+  #boot{
+    display:none;position:fixed;inset:0;z-index:85;
+    flex-direction:column;align-items:center;
+    background:#050403;color:var(--lamp);font-family:var(--mono);
+    padding:clamp(1rem,4vw,3rem);overflow:auto;text-align:center;
+    transform-origin:50% 50%;
+  }
+  html.boot #boot{display:flex}
+  html.boot body{overflow:hidden}
+  /* phosphor green, the colour of the self-test on the tube in the room */
+  .boot-post{
+    position:absolute;left:clamp(1rem,5vw,4rem);right:1rem;top:clamp(1rem,6vh,4rem);
+    text-align:left;white-space:pre-wrap;
+    font:clamp(.62rem,1.7vw,.85rem)/1.75 var(--mono);letter-spacing:.08em;
+    color:#63e6a9;text-shadow:0 0 8px rgba(99,230,169,.45);
+  }
+  .boot-post:empty::after,.boot-post .cur{content:"\2588";display:inline-block}
+  .boot-card{display:flex;flex-direction:column;align-items:center;gap:1.05rem;max-width:40rem;margin:auto}
+  .boot-card[hidden]{display:none}
+  .boot-pre{font-size:.64rem;letter-spacing:.42em;text-indent:.42em;text-transform:uppercase;color:var(--ink-faint)}
+  #bootLogo{width:min(86vw,33rem)}
+  #bootLogo svg{display:block;width:100%;height:auto;filter:drop-shadow(0 0 16px rgba(255,170,80,.32))}
+  .boot-tag{font-family:var(--serif);font-style:italic;font-size:clamp(.98rem,2.3vw,1.16rem);line-height:1.5;color:var(--ink-dim);max-width:30rem;text-wrap:balance}
+  .boot-menu{display:flex;flex-direction:column;gap:.1rem;margin-top:.5rem;width:min(21rem,82vw)}
+  .boot-menu :is(button,a){
+    all:unset;box-sizing:border-box;cursor:pointer;position:relative;
+    display:flex;align-items:baseline;gap:.8em;padding:.72em .9em .72em 2.3em;
+    font:clamp(.8rem,2.1vw,.94rem) var(--mono);letter-spacing:.2em;text-transform:uppercase;text-align:left;
+    color:var(--ink-dim);touch-action:manipulation;
+  }
+  .boot-menu [hidden]{display:none}
+  .boot-menu small{margin-left:auto;font-size:.7em;letter-spacing:.14em;color:var(--ink-faint);white-space:nowrap}
+  /* the cursor is the focus: one item is always chosen, and a pointer
+     over another one moves it there (the script gives it the focus) */
+  .boot-menu :is(button,a)::before{content:"\25B6";position:absolute;left:.75em;color:var(--lamp);opacity:0}
+  .boot-menu :is(button,a):focus{color:#fff3dc;background:rgba(255,201,122,.09);text-shadow:0 0 12px rgba(255,201,122,.55);outline:1px solid rgba(255,201,122,.35)}
+  .boot-menu :is(button,a):focus::before{opacity:1}
+  .boot-foot{margin-top:.6rem;font-size:.58rem;line-height:1.8;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);text-wrap:balance}
+  .roll-h{font:600 clamp(1.5rem,4.4vw,2.2rem)/1.1 var(--serif);color:var(--ink);text-wrap:balance}
+  .roll{width:min(24rem,84vw);font-size:clamp(.66rem,1.8vw,.76rem);letter-spacing:.16em;text-transform:uppercase}
+  .roll div{display:flex;align-items:baseline;gap:.6em;padding:.34em 0}
+  .roll dt{color:var(--ink-faint);white-space:nowrap}
+  .roll div::after{content:"";order:1;flex:1;border-bottom:1px dotted rgba(126,111,91,.6);transform:translateY(-.25em)}
+  .roll dd{order:2;color:var(--lamp);text-align:right}
+  /* the glass. It takes no clicks and no colour of its own; one layer,
+     in front of the sheets and the title screen alike */
+  .crtv{
+    position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;
+    will-change:transform;contain:strict;   /* a layer of its own, drawn once: what moves under it is never redrawn through it */
+    background:
+      repeating-linear-gradient(to bottom,transparent 0 2px,rgba(0,0,0,.2) 2px 3px),
+      radial-gradient(140% 125% at 50% 50%,transparent 60%,rgba(0,0,0,.36) 100%);
+  }
+  body.y2026 .crtv{opacity:0}
+  /* ↑↑↓↓←→←→BA: the whole page on one green gun */
+  body.phosphor .crtv{opacity:1;-webkit-backdrop-filter:grayscale(1) sepia(1) hue-rotate(72deg) saturate(2.6) contrast(1.15) brightness(1.2);backdrop-filter:grayscale(1) sepia(1) hue-rotate(72deg) saturate(2.6) contrast(1.15) brightness(1.2)}
+  @media (prefers-contrast:more){ .crtv{display:none} }
+  /* misconvergence: a 1999 tube never quite lands its three guns on the same dot */
+  .intro h1{text-shadow:-1px 0 rgba(255,70,70,.3),1px 0 rgba(70,200,255,.3),0 2px 24px rgba(0,0,0,.55)}
+  body.y2026 .intro h1{text-shadow:0 2px 24px rgba(0,0,0,.55)}
+  .intro h1{font-size:clamp(2.5rem,6.4vw,4.4rem)}
+  /* the lede is spoken, so it sits in a speech box: two hard rules and a
+     cursor waiting for you. In 2026 it is a paragraph again. */
+  body:not(.y2026) .intro .lede{
+    max-width:35rem;padding:.8rem 1rem .85rem;
+    background:rgba(8,6,4,.62);
+    border:1px solid rgba(255,201,122,.5);
+    box-shadow:inset 0 0 0 3px #0e0a07,inset 0 0 0 4px rgba(255,201,122,.22),var(--hud-shadow);
+  }
+  body:not(.y2026) .intro .lede::after{content:" \25BC";font-size:.7em;color:var(--lamp)}
+  /* found: a card drops in from the top edge, hard-edged, in the colour of the thing */
+  .toast{
+    position:fixed;left:50%;top:.9rem;z-index:70;transform:translate(-50%,-160%);visibility:hidden;
+    display:flex;flex-direction:column;align-items:center;gap:.3em;
+    max-width:calc(100vw - 1.5rem);padding:.7em 1.3em .75em;pointer-events:none;text-align:center;
+    font:.6rem var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);
+    background:#120d08;border:2px solid var(--a,#ffc97a);
+    box-shadow:4px 4px 0 rgba(0,0,0,.6),0 0 26px color-mix(in srgb,var(--a,#ffc97a) 28%,transparent);
+  }
+  .toast b{font-weight:400;font-size:.8rem;letter-spacing:.14em;color:var(--a,#ffc97a)}
+  .toast.show{transform:translate(-50%,0);visibility:visible}
+  /* the long version of a story, folded under its short one */
+  .d-more{margin-top:.7rem;max-width:60ch}
+  .d-more[hidden]{display:none}
+  .d-more summary{
+    display:inline-flex;gap:.6em;cursor:pointer;list-style:none;padding:.3em 0;
+    font:.66rem var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--a,#ffc97a);
+  }
+  .d-more summary::-webkit-details-marker{display:none}
+  .d-more summary::before{content:"\25B8"}
+  .d-more[open] summary::before{content:"\25BE"}
+  .d-more summary:focus-visible{outline:2px solid var(--a,#ffc97a);outline-offset:3px}
+  .d-more p{margin-top:.5rem;color:var(--ink-dim);line-height:1.62;font-size:1rem}
+  @media print{ #boot,.crtv,.toast{display:none !important} }
+
   /* ---------- footer ---------- */
   footer{
     border-top:1px solid rgba(255,201,122,.14);
@@ -1186,6 +1313,16 @@
   footer .cols{display:flex;flex-wrap:wrap;gap:.4rem 1.6rem}
   footer .cols.small a{color:var(--ink-faint);border-bottom-color:rgba(126,111,91,.35)}
   footer .cols.small a:hover{color:var(--lamp);border-color:var(--lamp)}
+  /* every room has a door down here; they are folded into one so the foot
+     of the page is a line, not a wall (the links are all still in the page) */
+  footer .warp{flex-basis:100%}
+  footer .warp summary{cursor:pointer;list-style:none;display:inline-flex;gap:.6em;color:var(--ink-dim);letter-spacing:.16em;text-transform:uppercase}
+  footer .warp summary::-webkit-details-marker{display:none}
+  footer .warp summary::before{content:"\25B8";color:var(--lamp)}
+  footer .warp[open] summary::before{content:"\25BE"}
+  footer .warp summary:hover{color:var(--lamp)}
+  footer .warp summary:focus-visible{outline:2px solid var(--lamp);outline-offset:3px}
+  footer .warp .cols{margin-top:.9rem}
 
   @media (prefers-reduced-motion:reduce){
     #iso{transform:none !important;will-change:auto}
@@ -1410,6 +1547,51 @@
     @keyframes wake{0%{opacity:1}22%{opacity:.82}34%{opacity:.82}100%{opacity:0}}
     @keyframes wakeIn{0%,28%{opacity:0}}
     @keyframes wakeMouth{0%,30%{fill:#2a231c}}
+    /* the cartridge. The title arrives a row at a time, the way a slow
+       machine draws; the chosen line's arrow blinks; walking in switches
+       the tube off (a line, then a dot) with the room behind it */
+    .boot-post .cur,.boot-post:empty::after{animation:blink 1s step-end infinite}
+    #bootCard:not([hidden]) #bootLogo{animation:logoIn .7s steps(8) both}
+    #bootCard:not([hidden]) > :not(#bootLogo){animation:cardIn .01s linear both}
+    #bootCard:not([hidden]) .boot-pre{animation-delay:.1s}
+    #bootCard:not([hidden]) .boot-tag{animation-delay:.85s}
+    #bootCard:not([hidden]) .boot-menu{animation-delay:1.15s}
+    #bootCard:not([hidden]) .boot-foot{animation-delay:1.35s}
+    #rollCard:not([hidden]) .roll div{animation:cardIn .01s linear both;animation-delay:calc(.25s + var(--i,0) * .11s)}
+    #rollCard:not([hidden]) :is(.boot-tag,.boot-menu){animation:cardIn .01s linear 1.3s both}
+    @keyframes logoIn{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+    @keyframes cardIn{from{opacity:0}}   /* opacity, not visibility: the menu has to be able to take the focus at once */
+    .boot-menu :is(button,a):focus::before{animation:blink .8s step-end infinite}
+    #boot.off{animation:tubeOff .44s cubic-bezier(.5,0,.8,.4) forwards}
+    #boot.off > *{animation:none;opacity:0;transition:opacity .08s}
+    @keyframes tubeOff{
+      0%{transform:scale(1,1);background-color:#050403}
+      30%{transform:scale(1,.25);background-color:#1c140c}   /* still dark while it is still big: a line of light, never a flash */
+      50%{transform:scale(1,.005);background-color:#fff3dc}
+      85%{transform:scale(.004,.005);background-color:#fff}
+      100%{transform:scale(0,0);background-color:#fff}}
+    /* one slow band of brighter glass rolls down the tube, the way a
+       camera sees a CRT; it sleeps with the room */
+    .crtv::after{
+      content:"";position:absolute;left:0;right:0;top:0;height:24vh;transform:translateY(-30vh);
+      background:linear-gradient(transparent,rgba(255,240,210,.03) 40%,rgba(255,240,210,.055) 50%,transparent);
+      animation:roll 9s linear infinite;
+    }
+    @keyframes roll{to{transform:translateY(112vh)}}
+    body:has(#iso.asleep) .crtv::after{animation-play-state:paused}
+    body.modal-open .crtv::after{animation-play-state:paused}
+    html.boot .crtv::after{display:none}   /* on a black screen the band is a stripe */
+    .crtv{transition:opacity .8s ease}
+    /* the card drops in four hard steps, not a glide */
+    .toast{transition:transform .26s steps(4),visibility 0s linear .26s}
+    .toast.show{transition:transform .26s steps(4)}
+    /* a sheet is read in: one line of its colour runs down it as it opens */
+    .dossier.show::after{
+      content:"";position:absolute;left:0;right:0;top:0;height:2px;pointer-events:none;
+      background:var(--a,#ffc97a);opacity:0;animation:dScan .5s steps(12) .12s;
+    }
+    @keyframes dScan{0%{opacity:.85;transform:translateY(0)}100%{opacity:0;transform:translateY(34vh)}}
+    body:not(.y2026) .intro .lede::after{animation:blink 1.2s step-end infinite}
   }
   /* the first Tab stop: straight past the headline to the desk. It lands
      on top of the eyebrow line on any screen narrower than about 1000 px,
@@ -1427,6 +1609,49 @@
 </style>
 </head>
 <body>
+<!-- The cartridge: a title screen in front of the room (html.boot, from the
+     head), and the same screen again at the other end as the staff roll.
+     Without script neither is ever shown. The power-on lines are theatre and
+     say so by being aria-hidden; the menu is three real buttons. -->
+<div id="boot" role="dialog" aria-modal="true" aria-label="The Desk of Worlds">
+  <pre class="boot-post" id="bootPost" aria-hidden="true"></pre>
+  <div class="boot-card" id="bootCard" hidden>
+    <p class="boot-pre">ERRER Labs presents</p>
+    <div id="bootLogo" role="img" aria-label="The Desk of Worlds"></div>
+    <p class="boot-tag">This room has been left running since 1989.</p>
+    <div class="boot-menu" id="bootMenu" role="group" aria-label="Start">
+      <button data-go="start">Start <small>walk in</small></button>
+      <button data-go="tour">Quick tour <small>90 sec</small></button>
+      <button data-go="cv">R&eacute;sum&eacute; <small>1 page</small></button>
+    </div>
+    <p class="boot-foot">&copy; 1989&ndash;2026 Karl Meves &middot; 1 player &middot; no coins, no accounts, no trackers</p>
+  </div>
+  <div class="boot-card" id="rollCard" hidden>
+    <p class="boot-pre" id="rollPre">Staff roll</p>
+    <h2 class="roll-h" id="rollH">Thank you for playing.</h2>
+    <dl class="roll">
+      <div><dt>Made by</dt><dd>Karl Meves</dd></div>
+      <div><dt>Worlds found</dt><dd id="rollW"></dd></div>
+      <div><dt>Secrets found</dt><dd id="rollS"></dd></div>
+      <div><dt>Rank</dt><dd id="rollR"></dd></div>
+      <div><dt>Shapes drawn</dt><dd id="rollN"></dd></div>
+      <div><dt>Images loaded</dt><dd id="rollI"></dd></div>
+      <div><dt>Frameworks</dt><dd>None</dd></div>
+      <div><dt>Trackers</dt><dd>None</dd></div>
+    </dl>
+    <p class="boot-tag" id="rollTag"></p>
+    <div class="boot-menu" id="rollMenu" role="group" aria-label="What next">
+      <button data-go="cv">Read the r&eacute;sum&eacute; <small>1 page</small></button>
+      <a id="rollHello" hidden></a>
+      <a href="https://github.com/kmay89" target="_blank" rel="noopener">See the source <small>GitHub</small></a>
+      <button data-go="back">Back to the desk</button>
+    </div>
+  </div>
+</div>
+<!-- the glass the page is seen through: scanlines in 1999, nothing in 2026 -->
+<div class="crtv" aria-hidden="true"></div>
+<!-- a found world says so once; the count in the deck is what a screen reader hears -->
+<div class="toast" id="toast" aria-hidden="true"><span class="t-k" id="toastK"></span><b id="toastN"></b></div>
 <a class="skip chip" href="#iso">Skip to the desk</a>
 
 <main class="scene" id="scene">
@@ -1434,15 +1659,14 @@
 
   <header class="intro">
     <p class="eyebrow">Karl Meves · ERRER Labs — est. 1989</p>
-    <h1>Welcome to my desk — every trinket here is a <em>little world</em> I got to make.</h1>
-    <p class="lede">Born in &rsquo;89 — raised on beige plastic, dial-up, and CRT glow.
-    I&rsquo;ve worn a lot of hats: <button class="hat" data-hat="engineer">engineer</button>,
+    <h1>The Desk of <em>Worlds</em></h1>
+    <p class="lede">I&rsquo;m Karl:
+    <button class="hat" data-hat="engineer">engineer</button>,
     <button class="hat" data-hat="author">author</button>,
     <button class="hat" data-hat="toymaker">toymaker</button>,
     <button class="hat" data-hat="game designer">game designer</button>,
     <button class="hat" data-hat="founder">founder</button>.
-    None of it felt like a career so much as a string of things I couldn&rsquo;t resist
-    making. Pick something up; each one has its own light, sound, and pulse.</p>
+    I made everything on this desk, and all of it opens. Pick something up.</p>
     <!-- the tour needs the script to walk anywhere, and the one-page
          version needs its sheet, so both wait hidden until the script shows
          them; Say hello stays hidden until there's a real address to say it to -->
@@ -1601,6 +1825,7 @@
   <div class="d-nav top"><button class="chip" data-walk="-1">← Previous</button><button class="chip" data-walk="1">Next on the desk →</button></div>
   <h2 id="dTitle"></h2>
   <p class="story" id="dStory"></p>
+  <details class="d-more" id="dMore" hidden><summary>The long version</summary><p id="dMoreText"></p></details>
   <ul class="chips" id="dChips"></ul>
   <div class="d-links" id="dLinks"></div>
   <div class="d-nav"><button class="chip" id="dPrev" data-walk="-1" aria-keyshortcuts="ArrowLeft">← Previous</button><button class="chip" id="dNext" data-walk="1" aria-keyshortcuts="ArrowRight">Next on the desk →</button></div>
@@ -1629,40 +1854,46 @@
     <a href="https://scqcs.com">scqcs.com</a>
     <a href="https://github.com/kmay89">github.com/kmay89</a>
     <a href="/games/">The games room</a>
-    <a href="/cube/">The solving room</a>
-    <a href="/chess/">The chess room</a>
-    <a href="/sudoku/">The sudoku room</a>
-    <a href="/domino/">The domino table</a>
-    <a href="/checkers/">The checkers board</a>
-    <a href="/othello/">The othello board</a>
-    <a href="/halma/">The star</a>
-    <a href="/stratego/">The field</a>
-    <a href="/hearts/">The hearts table</a>
-    <a href="/euchre/">The euchre table</a>
-    <a href="/viuda/">La viuda</a>
-    <a href="/yahtzee/">The sheet</a>
-    <a href="/catchphrase/">The hot potato</a>
-    <a href="/guesstures/">The charades clock</a>
-    <a href="/solitaire/">The card table</a>
-    <a href="/minesweeper/">The minefield</a>
-    <a href="/breaker/">The wall</a>
-    <a href="/well/">well</a>
-    <a href="/hive/">Hive Mind</a>
-    <a href="/sunlight/">Borrowed Sunlight — the game</a>
-    <a href="/library/">The reading room</a>
-    <a href="/chili/">The chili</a>
-    <a href="/recipes/">The recipe book</a>
-    <a href="/vantage/">Vantage</a>
-    <a href="/luma/">Luma — lithophanes</a>
-    <a href="/hollow/">Hollow — molds</a>
     <a href="/workshop/">The workshop</a>
-    <a href="/cubby/">Cubby — drawer organizers</a>
-    <a href="/swatch/">Swatch — surface tests</a>
-    <a href="/cameo/">Cameo — photo figurines</a>
-    <a href="/knurl/">Knurl — surface textures</a>
-    <a href="/tuck/">Tuck — fold-up boxes</a>
-    <a href="/chessboard/">Make your own chess board</a>
+    <a href="#credits">Credits</a>
   </div>
+  <details class="warp">
+    <summary>Warp zone &middot; 32 more rooms</summary>
+    <div class="cols">
+      <a href="/cube/">The solving room</a>
+      <a href="/chess/">The chess room</a>
+      <a href="/sudoku/">The sudoku room</a>
+      <a href="/domino/">The domino table</a>
+      <a href="/checkers/">The checkers board</a>
+      <a href="/othello/">The othello board</a>
+      <a href="/halma/">The star</a>
+      <a href="/stratego/">The field</a>
+      <a href="/hearts/">The hearts table</a>
+      <a href="/euchre/">The euchre table</a>
+      <a href="/viuda/">La viuda</a>
+      <a href="/yahtzee/">The sheet</a>
+      <a href="/catchphrase/">The hot potato</a>
+      <a href="/guesstures/">The charades clock</a>
+      <a href="/solitaire/">The card table</a>
+      <a href="/minesweeper/">The minefield</a>
+      <a href="/breaker/">The wall</a>
+      <a href="/well/">well</a>
+      <a href="/hive/">Hive Mind</a>
+      <a href="/sunlight/">Borrowed Sunlight — the game</a>
+      <a href="/library/">The reading room</a>
+      <a href="/chili/">The chili</a>
+      <a href="/recipes/">The recipe book</a>
+      <a href="/vantage/">Vantage</a>
+      <a href="/luma/">Luma — lithophanes</a>
+      <a href="/hollow/">Hollow — molds</a>
+      <a href="/cubby/">Cubby — drawer organizers</a>
+      <a href="/swatch/">Swatch — surface tests</a>
+      <a href="/cameo/">Cameo — photo figurines</a>
+      <a href="/knurl/">Knurl — surface textures</a>
+      <a href="/tuck/">Tuck — fold-up boxes</a>
+      <a href="/chessboard/">Make your own chess board</a>
+    </div>
+  </details>
   <div class="cols small">
     <a href="/privacy/">Privacy</a>
     <a href="/terms/">Terms</a>
@@ -4102,6 +4333,10 @@
   /* ================================================================
      WORLDS — dossier content
      ================================================================ */
+  /* A world may carry a blurb: its story in two or three sentences. Where
+     there is one the sheet opens on it, with the whole story folded under
+     "The long version"; the one-page version and its plain-text copy still
+     read the story. A story that is already short has no blurb. */
   var WORLDS = {
     board: {
       kicker: "Electrical & Computer Engineering",
@@ -4127,6 +4362,7 @@
     hive: {
       kicker: "Game Design",
       title: "Hive Mind",
+      blurb: "A game about what a group of minds can do that one mind can't. I designed and produced it myself — box, rules, and all. There's a new way to play it now, rethought from nothing: you are the whole hive at once, and all you ever do is tap. And a second cartridge: an open-world adventure through my novel, where every key is real science.",
       story: "A game about what a group of minds can do that one mind can't. I designed and produced it myself — box, rules, and all — and learned as much from making it as from playing it. There's a new way to play it now: Hive Mind rethought from nothing, where you are not the keeper and not a bee but the whole hive at once, and the only thing you ever do is tap — a flower, the hive, a hornet — and get ready for winter. And there's a second cartridge in this one now: Borrowed Sunlight — The Back of the World, an open-world adventure through my novel. Gran's hilltop house, the glowing cellar, Dad and his packing tape, Beck, the woods, the pit, the pond, and a week to save a slime mold that might be talking. Every key is real science — your own eyes adapting to the dark, a crank dynamo, a drop of water for a lens, oats, roots, sand, water bears — and every pixel and sound is made by code as it runs.",
       chips: ["Original game","Designed & produced","New: Hive Mind, rethought","New: Borrowed Sunlight — the game"],
       links: [
@@ -4161,6 +4397,7 @@
     chess: {
       kicker: "The Solving Room · New",
       title: "The Chess Room — Chess, Taught Kindly",
+      blurb: "A whole chess app in your browser that asks nothing of you: no account, no ads, nothing tracked. A 3D board, a ladder of eight coaches, a patient teacher, and two-device play for people in the same room. The set on this desk is paused mid-Italian Game.",
       story: "The newest door in the solving room: a whole chess app that runs in your browser and asks nothing of you — no account, no ads, nothing tracked. Press one button and play the computer: a ladder of eight coaches from a gentle Acorn to a stubborn Oak, each with three stars to earn, and a rating of your own that moves with every game and shows how accurately you played. A full 3D board (a lovely flat one is one tap away) that celebrates a checkmate by laying the king down, a patient coach who hints in plain words and lets you take moves back, the famous openings told as little stories you can pause and step through, a real tournament clock, and two-device play for people in the same room: a pasted or scanned code links the boards directly, no server anywhere. The rules engine is proven against millions of known-good positions. The set on this desk is paused a few moves into the Italian Game — the oldest opening in the book, and still lovely.",
       chips: ["Play the computer","Your own rating","3D & 2D boards","A patient coach","Opening stories","Nearby 2-player","Works offline"],
       links: [
@@ -4171,6 +4408,7 @@
     sudoku: {
       kicker: "The Solving Room · New",
       title: "The Sudoku Room — Puzzles That Show Their Working",
+      blurb: "Sudoku that shows its working. You watch each puzzle being forged from a blank grid, its difficulty is measured by solving it the way a person would, and a hint names the technique and explains the argument instead of filling in a square.",
       story: "Every sudoku app hands you a grid and a difficulty label and asks you to take both on trust. This one hands you the label and the argument behind it. Press forge and you watch a puzzle being made: a blank grid filling itself by constraint propagation, then clues taken away one at a time, each removal tested twice — does this still have exactly one answer, and can a person still finish it with the techniques this difficulty promises? Fail either and the clue goes back, in front of you. The difficulty is measured rather than guessed: the room solves each puzzle the way a person would, simplest step first, out of nineteen named techniques, and the hardest thing it needed gives the puzzle its name. That same solver is the hint button, which is why a hint can name a technique, show you where it lives and explain the argument in plain words instead of just filling in a square — and why every technique it uses on your behalf joins your codex with a real position to practise on. Two promises hold: every puzzle has exactly one answer, and every puzzle can be reasoned to the end, never guessed. The page on the desk is a real Gentle puzzle from its own forge.",
       chips: ["Nineteen techniques","Watch it being made","Hints that teach","Five difficulties","A daily","Zen mode","Works offline","Free, no accounts"],
       links: [
@@ -4181,6 +4419,7 @@
     domino: {
       kicker: "The Solving Room · New",
       title: "The Domino Table — Four Chairs, Cantina Style",
+      blurb: "Dominoes the way they are actually played: four chairs, two partnerships, seven bones each and nothing left in the pile. Play three who count every bone, or put four phones around one table.",
       story: "Dominoes the way they are actually played, which is not the way most apps play them: four people, partners sitting opposite each other, seven bones each and nothing left in the pile. That empty boneyard is the whole game — nothing is drawn and nothing is held back, so every bone you cannot see is in somebody's hand, and working out whose is the entire skill. When a player says paso, they have neither open number and they never will again; it is the loudest thing said all evening, and good players never forget it. The room keeps that count in front of you until you are keeping it yourself. Play alone against three who count the bones and hear every pass, or put four phones around one table — the invite is a code you hold up to a camera, and the empty chairs are played by the house until somebody sits down in them. On the desk they are only a pile: four squared up with the six-six on top, the way it always ends up, and a few loose ones face up beside them, waiting for somebody to shuffle.",
       chips: ["Four seats, two parejas","Nothing in the boneyard","Four phones, one table","Hints that count","Capicúa & tranca","A 3D table","Works offline","Free, no accounts"],
       links: [
@@ -4191,6 +4430,7 @@
     library: {
       kicker: "The Solving Room · New",
       title: "The Reading Room — A Block World, and an Engine That Reads Real Ones",
+      blurb: "A voxel engine written from scratch — raw WebGL, with its own readers for Minecraft's world formats — that opens on a library to walk through, built in tribute to The Uncensored Library. Drop the real one on the page and you walk that instead.",
       story: "In 2020 Reporters Without Borders and the build studio BlockWorks put a library inside Minecraft. Journalism that had been censored in Russia, Saudi Arabia, Egypt, Mexico and Vietnam was reprinted into books on its shelves, in a game that was not blocked in any of those countries — so the writing could be read where the websites could not. They called it The Uncensored Library. This room is a voxel engine written from scratch that renders block worlds in a browser: an NBT reader and an Anvil region reader built from the documented formats, our own palette of materials, a greedy mesher, and raw WebGL. It ships with an original library of its own — a hall, two galleries of shelves, a rotunda under a dome — built in tribute, so there is somewhere to walk the moment it opens. Nothing of Mojang's is in it: a Minecraft world stores block names rather than pictures, so this one looks them up in its own palette and paints every texture as the page loads. Which means you can download the real Uncensored Library, drop it on the page, and walk the actual building in the same engine. Keyboard, touch, or a controller — the console on the desk is not decoration, the pad works.",
       chips: ["A voxel engine from scratch","Walk a real Minecraft world","Reads NBT & Anvil","Greedy meshing","Controller support","No game assets","Works offline","Open source"],
       links: [
@@ -4202,6 +4442,7 @@
     chili: {
       kicker: "The Kitchen Table · New",
       title: "Kitchen Table Chili — A Recipe That Does Its Own Arithmetic",
+      blurb: "The pot I actually make, on a page that resizes it: say how much beef you have and every can, spoon and bowl follows. Cook mode is one step at a time, read aloud, built for a cook who tires.",
       story: "The pot I actually make, on a page that resizes it. Every amount is written once, per pound of beef, so you set how much you have and everything follows: cans, spoons, broth, bowls, and the pot you'll need, in American or metric. The beans round to whole cans without throwing off the total. One tap swaps in a vegetarian pot. Cook mode shows one step at a time in big type, with two large buttons, every step read aloud, and nothing to drag, hold or race — built for a cook who tires, and for a teenager making chili for the first time. The last step is the real recipe: taste, then adjust.",
       chips: ["Scales from ½ lb to 12","Vegetarian swap","American & metric","Whole-can bean math","One step at a time","Reads itself aloud","Prints for the fridge","No accounts, no tracking"],
       links: [
@@ -4213,6 +4454,7 @@
     vantage: {
       kicker: "Vantage · New",
       title: "Vantage — A Year Over One Site, in One Scroll",
+      blurb: "An engine that turns a year of drone flights over one changing site into a story you scroll on a phone: every flight locked to one camera, the months going by under your thumb. Open source.",
       story: "Anyone who builds something big spends a year watching one piece of ground change, and ends up with a folder of a thousand drone photos nobody opens twice. In 1999 it was an envelope of aerial prints and a loupe. Vantage is the engine I wrote to do better. Fly the same route every few weeks and it finds the same view in every flight, locks them all to one camera, and builds a page you scroll on a phone: the months going by under your thumb, a curtain to drag between before and after, notes pinned to the ground, the real dates down the side. The same command cuts the films and an offline copy. It's open source, and the demo is a made-up park flown by a simulated drone.",
       chips: ["Scroll-scrubbed time-lapse","Every flight, one camera","Before & after curtains","Notes pinned to the ground","Real dates","16:9 & 9:16 films","Works offline","Open source"],
       links: [
@@ -4224,6 +4466,7 @@
     luma: {
       kicker: "Luma · New",
       title: "Luma — Your Photo, in a Different Light",
+      blurb: "A lithophane is a picture made of nothing but thickness. Luma turns any photo into one you can 3D print — a framed picture, a nightlight shade, a lamp — with a live preview lit from behind. Your photo never leaves your device.",
       story: "A lithophane is a picture made of nothing but thickness. Thin plastic lets the light through, thick plastic holds the shadow, and when you put a light behind it a photo appears out of a plain white tile — the trick porcelain makers worked out two hundred years ago, which a home 3D printer can now do overnight. Luma makes the file. Drop in a photo and it becomes a picture for a frame, a curved nightlight shade, or a lamp that goes all the way round a tea light, with a live 3D preview lit from behind so you see the glow before you print a thing. Auto-enhance stretches a dull photo to the full range of light, Detail keeps eyes and fur crisp through the plastic, and a seven-step test strip tells you how your own filament and your own light behave. It checks the model fits your printer, tells you how much plastic it takes, and hands you a guide to the slicer. Your photo never leaves your device — the page has nowhere to send it. When it's printed, Luma makes the rest too: a gallery frame with an even border that the picture and an LED board slide into, a showcase frame that keeps a year of pictures behind the light, or a four-sided lantern — with a name or a date in one of seven fonts, and seasonal patterns for the other sides. The one on the wall is lit from behind, so it's the last thing to go dark.",
       chips: ["Pictures, shades & lamps","Live lit 3D preview","Gallery & showcase frames","Four-sided lanterns","Words in seven fonts","Seasonal patterns","Light calculator","Your photo stays on your device"],
       links: [
@@ -4234,6 +4477,7 @@
     cubby: {
       kicker: "Cubby · New",
       title: "Cubby — Every Drawer, Exactly Organized",
+      blurb: "A drawer-organizer studio for a 3D printer: type the inside of any drawer, drag bins across a grid that fills it to the millimetre, and download one file ready to print. No screws, no glue. The drawer under this desk was the first one it tidied.",
       story: "Every desk has the drawer. The one with the batteries and the hex keys, the four pens that work and the nine that don't. I kept buying organizers that almost fit, so I made the one that does. Cubby is a drawer-organizer studio for a 3D printer: type the inside of any drawer — kitchen, desk, garage, bathroom — and it lays a grid across it that fills it to the millimetre. Drag across cells to make a bin; click one to split it inside, make it low, or give it a finger scoop. The very solids that will print turn in 3D as you work, and when you are done you download one file that opens in Bambu Studio with every part already standing on the plate, named and the right way up, no supports. No screws, no glue, no magnets: the bins hold each other with a printed dovetail clip, or simply by filling the drawer edge to edge. Every wall is a whole number of nozzle lines and every floor a whole number of layers, so they print fast and come out solid, and every setting says what it does and why. The drawer under this desk was the first one it tidied.",
       chips: ["Any drawer, to the millimetre","Drag to draw bins","Compartments, low bins, scoops","One 3MF, ready to slice","No screws, no glue","Printed dovetail clips","Every setting explained","Nothing uploaded"],
       links: [
@@ -4244,6 +4488,7 @@
     well: {
       kicker: "The Games Room · New",
       title: "well — a falling-blocks game",
+      blurb: "Falling blocks, made as kindly as I could: the real modern rules, pieces of glass and stone in a lit shaft, and every move plays a note in the key of the world you're in. It never punishes you and never nags.",
       story: "You know this game: pieces fall, you turn them and fit them, and every full row melts away. I wanted to make the kindest version of it I could. The rules are the real modern ones — a fair shuffled bag, wall kicks, a forgiving lock, a piece you can keep for later, Quads and Twists worth chasing — and the room explains every one of them honestly, score table and all. Everything you see and hear is new. The pieces are fused bodies of glass, stone or paper in a lit shaft, and every move you make plays a note in the key of the world you're in, so clearing lines slowly plays that world's tune. Ten worlds take you down the well, from Dawn to the Starfield at the bottom, and back up to the surface. Steady is a quiet twenty minutes: slow, even, nothing sudden. It never punishes you, never nags, always lets you stop, and nothing is tracked: your bests and settings stay on your device and go nowhere else. The little one on the desk is deeper than it looks.",
       chips: ["Ten worlds, Dawn to the stars","Music in the key of each world","A quiet Steady mode","The real rules, explained","Lessons, never required","Touch, keys or a controller","Works offline","Nothing tracked"],
       links: [
@@ -4280,6 +4525,7 @@
     offhours: {
       kicker: "Off the Clock",
       title: "The Maker Hours",
+      blurb: "The same hands, off duty: rides, runs, a garden, sourdough scored like sheet metal, and a 3D printer I built from scratch — then wrote seven free browser tools for. The printer on the side table opens the workshop.",
       story: "The same hands, off duty. I ride, run, garden, cook, and bake sourdough that gets scored like sheet metal. The house is one long DIY project that never quite admits it's finished. And because buying a 3D printer felt like skipping the good part, I built my own from scratch around a Merlin board — then gave my Ender 3 Pro v2 a full set of home-grown upgrades anyway. The printer on the side table opens the workshop: the tools I wrote for it, Luma for lithophanes, Hollow for molds, Cubby for drawer organizers, Swatch for finding the settings that make a surface look right, Cameo for turning a photo into a figurine, Knurl for texturing a part so it prints better and looks like it was meant to, and Tuck for a box that prints flat and folds up with your name on it, all free and all running entirely in your browser. There's a pool back there too, kept balanced the engineer way: pool-test-app.com is my water-chemistry lab for it — test science, readings, and maintenance math. Off hours is also where the writing happens, and the movies, and the music.",
       chips: ["Bike rides","Running","Gardening","Sourdough","Cooking","Home DIY","Scratch-built Merlin 3D printer","Ender 3 Pro v2 upgrades","The workshop: Luma, Hollow, Cubby, Swatch, Cameo, Knurl & Tuck","Pool chemistry","Writing","Movies","Music"],
       links: [
@@ -4794,7 +5040,10 @@
     el.textContent = all ? "every world found ✦" :
       n + " / " + PILL_IDS.length + " worlds" + (s ? " · " + s + " / " + SECRET_IDS.length + " secrets" : "");
     el.classList.toggle("done", all);
+    el.style.setProperty("--p", Math.round(100 * (n + s) / (PILL_IDS.length + SECRET_IDS.length)) + "%");
   }
+  /* the cartridge, near the end of the file, says so when something is found */
+  var onFound = null;
   function markFound(id){
     if (foundSet[id]) return;
     foundSet[id] = 1;
@@ -4802,7 +5051,9 @@
     updateFoundUI();
     var n = PILL_IDS.filter(function(k){ return foundSet[k]; }).length;
     var s = SECRET_IDS.filter(function(k){ return foundSet[k]; }).length;
-    if (n === PILL_IDS.length && s === SECRET_IDS.length && SOUNDS.toy) SOUNDS.toy();
+    var all = n === PILL_IDS.length && s === SECRET_IDS.length;
+    if (all && SOUNDS.toy) SOUNDS.toy();
+    if (onFound) onFound(id, n, s, all);
   }
   function setActivePill(id){
     PILL_IDS.forEach(function(k){
@@ -4814,6 +5065,7 @@
   updateFoundUI();
 
   var dossier = document.getElementById("dossier");
+  var dMore   = document.getElementById("dMore");
   var scrim   = document.getElementById("scrim");
   var tour    = document.getElementById("tour");
   var lastFocus = null;
@@ -5048,7 +5300,10 @@
     dossier.style.setProperty("--a", accent || "#ffc97a");
     document.getElementById("dKicker").textContent = w.kicker;
     document.getElementById("dTitle").textContent = w.title;
-    document.getElementById("dStory").textContent = w.story;
+    /* a long story opens on its short one; the whole of it is a tap away */
+    document.getElementById("dStory").textContent = w.blurb || w.story;
+    dMore.hidden = !w.blurb; dMore.open = false;
+    document.getElementById("dMoreText").textContent = w.blurb ? w.story : "";
     var chips = document.getElementById("dChips");
     chips.innerHTML = "";
     w.chips.forEach(function(c){
@@ -5426,6 +5681,7 @@
     document.getElementById("dKicker").textContent = "Director's commentary";
     document.getElementById("dTitle").textContent = nt.title;
     document.getElementById("dStory").textContent = nt.story;
+    dMore.hidden = true;
     var chips = document.getElementById("dChips");
     chips.innerHTML = "";
     nt.chips.forEach(function(c){
@@ -6916,6 +7172,7 @@
      through the boot screens, and an address (#2026) just arrives */
   function eraLand(now){
     isoEl.classList.toggle("now", now);
+    document.body.classList.toggle("y2026", now);   // the interface and the glass change year with the desk
     eraBtn.setAttribute("aria-pressed", String(now));
     eraBtn.textContent = now ? "Year: 2026 ⇄" : "Year: 1999 ⇄";
     eraBtn.classList.add("used");
@@ -7001,7 +7258,10 @@
     });
     setTimeout(function(){ root.classList.remove("waking"); }, 1200);   // the lamp's and the tube's own flicker back
   }
-  if (DAWN){
+  /* ...and not while the title screen is up: the room behind it stays
+     dark until someone walks in, and then the lamp catches as before */
+  function armDawn(){
+    if (!DAWN || dawnLit) return;
     var dawnGo = function(){   // a tab opened in the background waits until it's looked at
       if (document.hidden) return;
       document.removeEventListener("visibilitychange", dawnGo);
@@ -7011,6 +7271,7 @@
     dawnGo();
     ["pointerdown", "keydown"].forEach(function(ev){ addEventListener(ev, ignite, {once: true, capture: true}); });
   }
+  if (!document.documentElement.classList.contains("boot")) armDawn();
 
   /* ---------------- sound toggle ---------------- */
   var sndBtn = document.getElementById("sndBtn");
@@ -7332,6 +7593,284 @@
     });
   }
 
+  /* ---------------- the cartridge ----------------
+     The title screen, the staff roll, the card that says a world was
+     found, and one cheat code. The screen is html.boot (the head sets it
+     for a fresh tab; the staff roll sets it again), and SCREEN says which
+     one is up: "post" (the self-test lines), "title", "credits", "off"
+     (switching off), or null. While one is up the page behind it is inert
+     and the keys are its own; nothing else on the page hears them.
+     The self-test is theatre, but every number in it is counted from the
+     page as it stands. Somebody who has been here before goes straight to
+     the title; nobody is ever held at it (it walks in by itself after half
+     a minute), and a link never sees it at all. */
+  var rootEl = document.documentElement;
+  var bootEl = document.getElementById("boot"), bootPost = document.getElementById("bootPost");
+  var bootCard = document.getElementById("bootCard"), rollCard = document.getElementById("rollCard");
+  var bootMenu = document.getElementById("bootMenu"), rollMenu = document.getElementById("rollMenu");
+  var SCREEN = rootEl.classList.contains("boot") ? "post" : null;
+  var screenBack = null, postT = [], attractT = 0;
+  window.kmBoot = 1;   // the head's fail-safe stands down: the script got here
+
+  /* square waves: the one voice a cartridge had. Each is a beat late,
+     so it lands after the thing's own sound instead of on top of it */
+  SOUNDS.blip = function(){ tone(880, {type:"square", dur:0.03, g:0.025}); };
+  SOUNDS.start = function(){
+    [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ tone(f, {type:"square", at:i * 0.07, dur:0.1, g:0.04}); });
+    noise({filter:"lowpass", freq:1400, freqEnd:120, dur:0.3, g:0.1, at:0.3});   // the tube collapsing
+  };
+  SOUNDS.found = function(){ tone(1174.66, {type:"square", at:0.3, dur:0.06, g:0.035}); tone(1567.98, {type:"square", at:0.36, dur:0.16, g:0.035}); };
+  SOUNDS.secret = function(){ [440, 554.37, 659.25, 880, 1108.73].forEach(function(f, i){ tone(f, {type:"square", at:0.3 + i * 0.075, dur:i === 4 ? 0.3 : 0.08, g:0.035}); }); };
+  SOUNDS.fanfare = function(){
+    [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5].forEach(function(f, i){ tone(f, {type:"square", at:i * 0.11, dur:i === 6 ? 0.5 : 0.11, g:0.04}); });
+    tone(261.63, {type:"triangle", at:0.66, dur:0.5, g:0.08});
+  };
+
+  /* the title, in a 5 × 7 face drawn here a dot at a time: only the eleven
+     letters it needs, each row five bits. A lit dot is a square a little
+     smaller than its cell, so the grid shows, over the same dot in shadow */
+  var GLYPH = {
+    T:[31,4,4,4,4,4,4], H:[17,17,17,31,17,17,17], E:[31,16,16,30,16,16,31], D:[30,17,17,17,17,17,30],
+    S:[15,16,16,14,1,1,30], K:[17,18,20,24,20,18,17], O:[14,17,17,17,17,17,14], F:[31,16,16,30,16,16,16],
+    W:[17,17,17,21,21,27,17], R:[30,17,17,30,20,18,17], L:[16,16,16,16,16,16,31]
+  };
+  function pixelLogo(lines){
+    var ROWS = ["#fff3d6","#ffe6b4","#ffd894","#ffc97a","#f9b262","#f39a4c","#dd7c36"];
+    var W = Math.max.apply(null, lines.map(function(l){ return l.length * 6 - 1; }));
+    var lit = "", sh = "";
+    lines.forEach(function(line, li){
+      var x0 = Math.floor((W - (line.length * 6 - 1)) / 2), y0 = li * 9;
+      line.split("").forEach(function(ch, ci){
+        var g = GLYPH[ch]; if (!g) return;
+        for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] >> (4 - c) & 1){
+          var x = x0 + ci * 6 + c, y = y0 + r;
+          sh += '<rect x="' + (x + .45) + '" y="' + (y + .45) + '" width=".9" height=".9"/>';
+          lit += '<rect x="' + x + '" y="' + y + '" width=".9" height=".9" fill="' + ROWS[r] + '"/>';
+        }
+      });
+    });
+    return '<svg viewBox="-1 -1 ' + (W + 2.4) + " " + (lines.length * 9 + .4) + '" shape-rendering="crispEdges" aria-hidden="true"><g fill="#4a230d">' + sh + "</g>" + lit + "</svg>";
+  }
+
+  function screenInert(on){ bgEls.forEach(function(el){ el.inert = on; }); if (skipA) skipA.inert = on; }
+  function foundNow(){
+    var n = PILL_IDS.filter(function(k){ return foundSet[k]; }).length;
+    var sc = SECRET_IDS.filter(function(k){ return foundSet[k]; }).length;
+    return {n: n, s: sc, all: n === PILL_IDS.length && sc === SECRET_IDS.length};
+  }
+  function attract(){   // half a minute with nobody there, and it walks in by itself
+    clearTimeout(attractT);
+    if (SCREEN === "title") attractT = setTimeout(function(){
+      if (document.hidden){ attract(); return; }
+      if (SCREEN === "title") go("start", true);
+    }, 30000);
+  }
+  function postRun(){
+    var iso = document.getElementById("iso"), shown = [], i = 0, BAR = 18;
+    var L = [
+      "ERRER LABS SYSTEM BIOS  v19.89",
+      "(C) 1989-2026 K. MEVES",
+      "",
+      "MEMORY ............ 640K OK",
+      "LAMP .............. FOUND, " + (rootEl.classList.contains("dawn") ? "OFF" : "ON"),
+      "DESK .............. " + iso.getElementsByTagName("*").length + " SHAPES, " + iso.getElementsByTagName("image").length + " IMAGES",
+      "WORLDS ............ " + PILL_IDS.length + " DETECTED",
+      "SECRETS ........... " + SECRET_IDS.length + " [REDACTED]",
+      "FRAMEWORKS ........ NONE",
+      "TRACKERS .......... NONE",
+      "",
+      "> VISITOR ON LINE 1"
+    ];
+    function draw(last){
+      bootPost.textContent = shown.concat(last ? [last] : []).join("\n") + (last ? " " : "\n");
+      var cur = document.createElement("span"); cur.className = "cur"; cur.textContent = "█";
+      bootPost.appendChild(cur);
+    }
+    function bar(k){
+      if (SCREEN !== "post") return;
+      draw("> LOADING ROOM " + new Array(k + 1).join("█") + new Array(BAR - k + 1).join("░") + (k === BAR ? " OK" : ""));
+      postT.push(setTimeout(k < BAR ? function(){ bar(k + 1); } : showTitle, k < BAR ? 36 : 340));
+    }
+    (function line(){
+      if (SCREEN !== "post") return;
+      if (i >= L.length){ bar(0); return; }
+      shown.push(L[i++]); draw();
+      postT.push(setTimeout(line, L[i - 1] ? 80 : 150));
+    })();
+  }
+  function showTitle(){
+    postT.forEach(clearTimeout); postT = [];
+    SCREEN = "title";
+    bootPost.hidden = true;
+    var logo = document.getElementById("bootLogo");
+    if (!logo.firstChild) logo.innerHTML = pixelLogo(["THE DESK", "OF WORLDS"]);
+    rollCard.hidden = true; bootCard.hidden = false;
+    bootEl.setAttribute("aria-label", "The Desk of Worlds — title screen");
+    bootMenu.querySelector("button").focus({preventScroll: true});
+    attract();
+  }
+  function screenClose(then){
+    clearTimeout(attractT);
+    SCREEN = "off";
+    var done = function(){
+      rootEl.classList.remove("boot"); bootEl.classList.remove("off");
+      bootCard.hidden = true; rollCard.hidden = true;
+      SCREEN = null; screenInert(false);
+      then();
+    };
+    if (REDUCED) done(); else { bootEl.classList.add("off"); setTimeout(done, 450); }
+  }
+  /* what: "start" walks in, "tour" walks in and is shown round, "cv" walks
+     in and picks the floppy up, "back" puts the staff roll away. quiet is
+     the screen leaving on its own: nobody pressed anything, so it makes no
+     sound (and may not start one) */
+  function go(what, quiet){
+    if (!SCREEN || SCREEN === "off") return;
+    var was = SCREEN;
+    if (!quiet){ ac(true); if (what === "back") SOUNDS.blip(); else SOUNDS.start(); }
+    if (was !== "credits") try { sessionStorage.setItem("km_boot", "1"); localStorage.setItem("km_seen", "1"); } catch(e){}
+    screenClose(function(){
+      if (was === "credits") address(null);
+      if (what === "tour") startTour();
+      else if (what === "cv"){ ignite(); activate("cv"); }
+      else if (was === "credits"){ if (screenBack && screenBack.focus && document.contains(screenBack)) screenBack.focus({preventScroll: true}); }
+      else armDawn();
+    });
+  }
+  /* the staff roll: the title screen's other face. It is a world address
+     (#credits) and a line in the footer, and it comes up by itself, once,
+     when the last thing on the desk has been found */
+  function showCredits(){
+    if (SCREEN || eraBusy) return;
+    endTour(true);
+    if (activeModal()){ handoff = true; closeModal(); handoff = false; }
+    hideTip();
+    var f = foundNow(), iso = document.getElementById("iso");
+    var left = PILL_IDS.length - f.n, sl = SECRET_IDS.length - f.s;
+    var part = (f.n + f.s) / (PILL_IDS.length + SECRET_IDS.length);
+    document.getElementById("rollW").textContent = f.n + " / " + PILL_IDS.length;
+    document.getElementById("rollS").textContent = f.s + " / " + SECRET_IDS.length;
+    document.getElementById("rollR").textContent = f.all ? "Keeper of the desk" : part >= .6 ? "Regular" : part >= .25 ? "Explorer" : part > 0 ? "Visitor" : "Passer-by";
+    document.getElementById("rollN").textContent = iso.getElementsByTagName("*").length.toLocaleString("en-US");
+    document.getElementById("rollI").textContent = iso.getElementsByTagName("image").length;
+    document.getElementById("rollPre").textContent = f.all ? "★ 100% ★" : "Staff roll";
+    document.getElementById("rollH").textContent = f.all ? "You found everything." : "Thank you for playing.";
+    document.getElementById("rollTag").textContent = f.all
+      ? "Every world and every secret. Thank you for looking that closely."
+      : !f.n && !f.s ? "Nothing found yet. Everything on the desk opens."
+      : (left ? left + (left === 1 ? " world is" : " worlds are") + " still on the desk, unopened" : "Every world is open")
+        + (sl ? (left ? ", and " : ". ") + sl + (sl === 1 ? " secret" : " secrets") + " nobody will point out to you." : ".");
+    [].forEach.call(rollCard.querySelectorAll(".roll div"), function(d, i){ d.style.setProperty("--i", i); });
+    var a = document.activeElement;
+    screenBack = a && a !== document.body ? a : null;
+    bootPost.hidden = true; bootCard.hidden = true; rollCard.hidden = false;
+    bootEl.setAttribute("aria-label", "Staff roll");
+    bootEl.scrollTop = 0;
+    rootEl.classList.add("boot"); SCREEN = "credits"; screenInert(true);
+    address("credits");
+    rollMenu.querySelector("button").focus({preventScroll: true});
+    if (f.all) SOUNDS.fanfare();
+  }
+  if (CONTACT){
+    var rollHello = document.getElementById("rollHello");
+    rollHello.href = CONTACT.href; rollHello.textContent = CONTACT.label; rollHello.hidden = false;
+    if (/^https?:/.test(CONTACT.href)){ rollHello.target = "_blank"; rollHello.rel = "noopener"; }
+  }
+  [bootMenu, rollMenu].forEach(function(menu){
+    menu.addEventListener("click", function(e){
+      var b = e.target.closest("[data-go]");
+      if (b) go(b.dataset.go);
+    });
+    /* the cursor follows the pointer, so there is only ever one chosen line */
+    menu.addEventListener("pointerover", function(e){
+      var b = e.target.closest("button, a");
+      if (b && b !== document.activeElement && e.pointerType !== "touch"){ b.focus({preventScroll: true}); SOUNDS.blip(); }
+    });
+  });
+  bootEl.addEventListener("click", function(){ if (SCREEN === "post") showTitle(); });   // a tap skips the self-test
+  addEventListener("keydown", function(e){
+    if (!SCREEN) return;
+    e.stopPropagation();                       // the room behind hears nothing
+    if (SCREEN === "off"){ e.preventDefault(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (SCREEN === "post"){ if (!/^(Shift|Control|Alt|Meta)$/.test(e.key)){ e.preventDefault(); showTitle(); } return; }
+    ac(true); attract();
+    var menu = SCREEN === "credits" ? rollMenu : bootMenu;
+    var items = [].filter.call(menu.querySelectorAll("button, a[href]"), function(el){ return !el.hidden; });
+    var i = items.indexOf(document.activeElement), tab = e.key === "Tab";
+    var d = e.key === "ArrowDown" || (tab && !e.shiftKey) ? 1 : e.key === "ArrowUp" || (tab && e.shiftKey) ? -1 : 0;
+    if (d){
+      e.preventDefault();
+      items[i < 0 ? 0 : (i + d + items.length) % items.length].focus({preventScroll: true});
+      if (!tab) SOUNDS.blip();
+    }
+    else if (e.key === "Escape"){ e.preventDefault(); go(SCREEN === "credits" ? "back" : "start"); }
+  }, true);
+  bootEl.addEventListener("pointermove", attract);
+  if (SCREEN){
+    screenInert(true);
+    var seen = false;
+    try { seen = !!localStorage.getItem("km_seen"); } catch(e){}
+    if (REDUCED || seen) showTitle(); else postRun();
+  }
+
+  /* a world found says so, once: a card from the top edge in the thing's
+     own colour, and two notes. The last one brings up the staff roll, after
+     whatever is open has been put down */
+  var toastEl = document.getElementById("toast"), toastT = 0;
+  function toast(kicker, name, accent){
+    document.getElementById("toastK").textContent = kicker;
+    document.getElementById("toastN").textContent = name;
+    toastEl.style.setProperty("--a", accent || "#ffc97a");
+    toastEl.classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(function(){ toastEl.classList.remove("show"); }, 3200);
+  }
+  onFound = function(id, n, sc, all){
+    var secret = SECRET_IDS.indexOf(id) >= 0;
+    if (!secret && PILL_IDS.indexOf(id) < 0) return;
+    toast(secret ? "Secret found · " + sc + " / " + SECRET_IDS.length : "World discovered · " + n + " / " + PILL_IDS.length,
+          secret ? SECRET_NAMES[id] : legendBtns[id].textContent, ACCENT[id]);
+    if (secret) SOUNDS.secret(); else SOUNDS.found();
+    if (all) setTimeout(function(){
+      var t = setInterval(function(){
+        if (activeModal() || tourI >= 0 || eraBusy || SCREEN) return;
+        clearInterval(t); showCredits();
+      }, 500);
+    }, 2600);
+  };
+
+  /* up up down down left right left right B A */
+  var KON = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"], konI = 0;
+  document.addEventListener("keydown", function(e){
+    var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    konI = k === KON[konI] ? konI + 1 : k === KON[0] ? 1 : 0;
+    if (konI < KON.length) return;
+    konI = 0;
+    var on = document.body.classList.toggle("phosphor");
+    toast("Cheat code accepted", on ? "One green gun" : "Three guns again", "#63e6a9");
+    SOUNDS.secret();
+  });
+
+  /* a tab left open in the background keeps one small light on */
+  var pageTitle = document.title;
+  document.addEventListener("visibilitychange", function(){
+    document.title = document.hidden ? "\u2026the lamp is still on" : pageTitle;
+  });
+
+  /* and for whoever opens the back of the set */
+  try {
+    console.log("%c THE DESK OF WORLDS %c\n" +
+      "You opened the back of the set. Hello.\n" +
+      "One hand-written HTML file: " + document.getElementById("iso").getElementsByTagName("*").length + " shapes, no frameworks, no images, no trackers.\n" +
+      "Source     https://github.com/kmay89/ABOUT\n" +
+      "Résumé     https://kmay89.com/#cv\n" +
+      "Commentary https://kmay89.com/#notes\n" +
+      "Three things on the desk are on no list. One of them only exists in 2026.\n" +
+      "↑ ↑ ↓ ↓ ← → ← → B A",
+      "background:#ffc97a;color:#0e0a07;font:700 13px ui-monospace,Menlo,Consolas,monospace;padding:3px 0", "font:12px ui-monospace,Menlo,Consolas,monospace");
+  } catch(e){}
+
   /* ---------------- addresses: a link lands on the thing ----------------
      #hive opens Hive Mind, #lights-out arrives in the dark, #2026 in
      today's rig. Last in the file because a landing can touch anything
@@ -7340,11 +7879,12 @@
      cube go through their own doors; #web is 2026's, so it lands there
      first. Anything else after the # (the skip link's #iso, an old anchor)
      is left alone. #tour starts the walk; #notes turns the director's
-     commentary on, and #notes-7 opens its seventh note. */
+     commentary on, and #notes-7 opens its seventh note; #credits is the
+     staff roll. */
   var SPECIAL = {
     web: function(){ eraLand(true); openBrowser(); },
     cube: openCubeGame, mandel: openMandel, prism: openLight,
-    tour: startTour
+    tour: startTour, credits: showCredits
   };
   function route(){
     var h;
