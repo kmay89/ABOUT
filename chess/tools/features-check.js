@@ -95,6 +95,9 @@ const lookAround = async (page) => {
          its way down is as good as gone) */
       const shut = /^#btn[A-Za-z]+$/.test(sel) && await page.evaluate((s) => { const el = document.querySelector(s); return !!el && !!el.closest("#moreTray") && __cr.moreIsTray() && !__cr.moreOpen(); }, sel);
       if (shut) { await page.waitForTimeout(200); await page.click("#btnMore"); await page.waitForTimeout(350); }
+      /* the end card is told over as beats first (app.js beatsStart); a player
+         taps Skip to reach the card, so the check does too */
+      if (/^#end[A-Z]/.test(sel) && await page.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await page.click("#btSkip"); await page.waitForTimeout(350); }
       return page.click(sel);
     };
     const play = (san, src) => page.evaluate(([f, a]) => eval(f)(a), [PLAY, [san, src]]);
