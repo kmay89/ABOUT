@@ -1097,6 +1097,76 @@
   .tcRec{display:flex; align-items:baseline; gap:8px; margin-top:6px; padding:6px 10px; border-radius:12px; background:var(--card2); border:1px solid var(--line); font-weight:800; font-size:.86em}
   .tcRec b{font-size:.74em; letter-spacing:.14em; text-transform:uppercase; color:var(--amber)}
   .tcRec small{color:var(--soft); font-weight:400}
+  /* ---- after the game, a beat at a time ---- */
+  .beatOv{z-index:30; flex-direction:column; padding:20px 18px calc(20px + env(safe-area-inset-bottom, 0px)); background:rgba(8,6,4,.9); backdrop-filter:blur(8px);
+    cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; overflow:hidden}
+  .beatOv.out{animation:btOut .26s ease-in both}
+  @keyframes btOut{to{opacity:0}}
+  .btGlow{position:absolute; inset:-20%; pointer-events:none; opacity:.55;
+    background:radial-gradient(closest-side at 50% 42%, var(--btc, rgba(255,209,102,.35)), transparent 70%); animation:btGlow 4s ease-in-out infinite}
+  @keyframes btGlow{50%{transform:scale(1.08); opacity:.75}}
+  .beatOv.loss{--btc:rgba(120,160,220,.28)} .beatOv.draw{--btc:rgba(200,200,200,.22)} .beatOv.b-look{--btc:rgba(110,200,255,.3)}
+  .beatOv.b-xp{--btc:rgba(190,130,255,.32)} .beatOv.b-mile{--btc:rgba(255,190,80,.42)} .beatOv.b-tale{--btc:rgba(251,240,212,.3)} .beatOv.b-gifts{--btc:rgba(255,93,143,.35)}
+  .btTop{position:absolute; top:calc(12px + env(safe-area-inset-top, 0px)); left:16px; right:12px; display:flex; align-items:center; justify-content:space-between; z-index:2}
+  .btDots{display:flex; gap:5px} .btDots i{width:18px; height:4px; border-radius:2px; background:rgba(255,255,255,.18); transition:background .3s}
+  .btDots i.on{background:#ffd166}
+  .btSkip{background:none; border:1px solid rgba(255,255,255,.2); color:rgba(255,255,255,.75); border-radius:999px; padding:6px 12px; font-weight:700; font-size:.82em}
+  .btStage{position:relative; z-index:1; width:min(460px, 100%); text-align:center; display:flex; flex-direction:column; align-items:center}
+  .btKick{font-size:.76em; font-weight:900; letter-spacing:.22em; text-transform:uppercase; color:var(--amber)}
+  .btHead{margin:6px 0 4px; font-size:2.1em; line-height:1.12; font-weight:900; letter-spacing:-.01em}
+  .beatOv.win.b-result .btHead{background:linear-gradient(180deg, #fff6c8, #ffc94d 55%, #ff9d2e); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(0,0,0,.4)); font-size:2.6em}
+  .btSub{color:var(--soft); margin:2px 0 0; font-size:1em; line-height:1.4; max-width:30em}
+  .btSub b{color:var(--ink)}
+  .btBody{display:flex; flex-direction:column; align-items:center; position:relative; margin:14px 0 10px; width:100%}
+  .btBig{font-size:5.2em; line-height:1; filter:drop-shadow(0 8px 16px rgba(0,0,0,.45))}
+  .btRays{position:absolute; left:50%; top:50%; width:260px; height:260px; margin:-130px; border-radius:50%; pointer-events:none;
+    background:repeating-conic-gradient(rgba(255,214,110,.22) 0 10deg, transparent 10deg 24deg); -webkit-mask:radial-gradient(closest-side, #000 30%, transparent 72%);
+    mask:radial-gradient(closest-side, #000 30%, transparent 72%); animation:btSpin 12s linear infinite}
+  @keyframes btSpin{to{transform:rotate(360deg)}}
+  .btIcon{position:relative}
+  .btNum{display:flex; align-items:baseline; gap:10px}
+  .btNum b{font-size:4.4em; font-weight:900; color:#ffe08a; font-variant-numeric:tabular-nums; text-shadow:0 4px 0 rgba(0,0,0,.35)}
+  .btDelta{font-size:1.5em; font-weight:900; opacity:0; transform:scale(.4); transition:opacity .3s, transform .4s cubic-bezier(.3,1.8,.5,1)}
+  .btDelta.show{opacity:1; transform:none} .btDelta.up{color:#7deca6} .btDelta.down{color:#ff8a7a} .btDelta.flat{color:var(--soft)}
+  .btStars{display:flex; gap:10px; margin-top:6px}
+  .btStars i{font-style:normal; font-size:2.6em; color:rgba(255,255,255,.14); transition:color .2s}
+  .btStars i.on{color:#ffd166; text-shadow:0 0 18px rgba(255,209,102,.7)}
+  .btStars i.pop{animation:btStar .6s cubic-bezier(.3,1.8,.5,1)}
+  @keyframes btStar{from{transform:scale(2.6) rotate(-30deg); opacity:0} to{transform:none; opacity:1}}
+  .btRing{--p:0; width:150px; height:150px; border-radius:50%; display:grid; place-items:center;
+    background:radial-gradient(closest-side, var(--card) 74%, transparent 75% 100%), conic-gradient(#6ec8ff calc(var(--p) * 1%), rgba(255,255,255,.1) 0)}
+  .btRing b{font-size:2.3em; font-weight:900; font-variant-numeric:tabular-nums}
+  .btChips{display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:12px}
+  .btChips span{padding:4px 10px; border-radius:999px; background:var(--card2); border:1px solid var(--line); font-size:.86em}
+  .btChips .k{margin-right:4px}
+  .btThird{margin-top:10px; font-weight:900; color:#ffd166; animation:btStar .6s cubic-bezier(.3,1.8,.5,1)}
+  .btXp{display:flex; align-items:center; gap:12px; width:min(340px, 90%)}
+  .btLv{flex:none; width:64px; height:64px; border-radius:50%; display:grid; place-items:center; font-size:1.8em; font-weight:900; color:#3a2600;
+    background:radial-gradient(circle at 40% 30%, #fff3b0, #ffb32e); box-shadow:0 0 0 4px rgba(255,255,255,.85), 0 0 20px rgba(255,200,60,.5)}
+  .btLv.up{animation:btStar .6s cubic-bezier(.3,1.8,.5,1)}
+  .btBar{flex:1; height:16px; border-radius:999px; background:rgba(255,255,255,.12); overflow:hidden; box-shadow:inset 0 2px 3px rgba(0,0,0,.4)}
+  .btBar i{display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, #b07cff, #ff7ad9)}
+  .btUp{margin-top:10px; font-size:1.6em; font-weight:900; font-style:italic; color:#fff; text-shadow:0 0 18px rgba(255,122,217,.8); animation:btStar .6s cubic-bezier(.3,1.8,.5,1)}
+  .btGift{animation:btShake 1.2s ease-in-out infinite}
+  @keyframes btShake{0%,60%,100%{transform:none} 70%{transform:rotate(-9deg) scale(1.05)} 80%{transform:rotate(8deg) scale(1.05)} 90%{transform:rotate(-4deg)}}
+  .btActs{display:flex; flex-direction:column; align-items:stretch; gap:6px; width:min(340px, 100%); margin-top:14px}
+  .btActs:empty{display:none}
+  .btActs .chip{align-self:center}
+  .btHint{position:absolute; bottom:calc(22px + env(safe-area-inset-bottom, 0px)); left:0; right:0; text-align:center; color:rgba(255,255,255,.6); font-weight:700;
+    letter-spacing:.06em; opacity:0; transform:translateY(6px); transition:opacity .35s, transform .35s}
+  .btHint.on{opacity:1; transform:none; animation:btNudge 1.6s ease-in-out .4s infinite}
+  @keyframes btNudge{50%{transform:translateY(-3px)}}
+  /* each beat arrives: the panel springs up, its parts on a beat */
+  .btStage.in > *{animation:btIn .5s cubic-bezier(.2,1.3,.4,1) both}
+  .btStage.in > .btKick{animation-delay:.02s} .btStage.in > .btBody{animation-delay:.08s} .btStage.in > .btHead{animation-delay:.2s}
+  .btStage.in > .btSub{animation-delay:.32s} .btStage.in > .btActs{animation-delay:.44s}
+  @keyframes btIn{from{opacity:0; transform:translateY(18px) scale(.9)} to{opacity:1; transform:none}}
+  .beatOv.b-result .btStage.in > .btBody{animation:btSlam .7s cubic-bezier(.3,1.6,.5,1) .05s both}
+  .beatOv.b-mile .btStage.in > .btBody{animation:btSlam .7s cubic-bezier(.3,1.6,.5,1) .05s both}
+  @keyframes btSlam{from{opacity:0; transform:scale(2.4) rotate(-10deg)} 60%{opacity:1} to{opacity:1; transform:none}}
+  @media (prefers-reduced-motion: reduce){ .btGlow, .btRays, .btGift, .btHint.on, .btStage.in > *, .btStars i.pop, .btLv.up, .btUp, .btThird,
+    .beatOv.b-result .btStage.in > .btBody, .beatOv.b-mile .btStage.in > .btBody, .beatOv.out{animation:none} }
   /* ---- tales: the story of chess, told by the grove (tales.js) ---- */
   .chTale{display:flex; align-items:center; gap:10px; width:100%; margin:0 0 12px; padding:10px 12px; border-radius:14px; text-align:left;
     background:linear-gradient(180deg, #fbf0d4, #efd9a6); color:#3b2a14; border:1px solid #fff2c6; font-weight:800; box-shadow:0 4px 0 #a9824a}
@@ -3112,6 +3182,19 @@
     </div>
     <button class="ghostbtn" id="endMenu">Back to the menu</button>
   </div>
+</div>
+<!-- after the game, a beat at a time, over the end card; after it, so it is the card on top (accOverlayTop) (see beatsStart) -->
+<div class="ov hide beatOv" id="ovBeat" role="dialog" aria-labelledby="btHead">
+  <div class="btGlow" aria-hidden="true"></div>
+  <div class="btTop"><span class="btDots" id="btDots" aria-hidden="true"></span><button class="btSkip" id="btSkip">Skip ››</button></div>
+  <div class="btStage">
+    <div class="btKick" id="btKick"></div>
+    <div class="btBody" id="btBody"></div>
+    <h2 class="btHead" id="btHead">Game over</h2>
+    <p class="btSub" id="btSub"></p>
+    <div class="btActs" id="btActs"></div>
+  </div>
+  <div class="btHint" id="btHint">Tap to continue ▶</div>
 </div>
 
 <!-- ===== settings ===== -->

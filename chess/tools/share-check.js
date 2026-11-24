@@ -22,6 +22,11 @@
 
    Run: node chess/tools/share-check.js [--phone|--desk] [--node]       */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -208,7 +213,7 @@ async function browserHalf() {
       await page.waitForSelector("#ovEnd:not(.hide)", { timeout: 8000 }).catch(() => {});
       ok(T("the game ends and the card comes up"), await page.isVisible("#ovEnd"));
       ok(T("…offering to send the game"), await page.isVisible("#endSend"));
-      await page.click("#endSend");
+      await skipBeats(page); await page.click("#endSend");
       await page.waitForSelector("#ovShare:not(.hide)", { timeout: 6000 }).catch(() => {});
       ok(T("the share card opens"), await page.isVisible("#ovShare"));
       const sheet = await page.evaluate(() => document.getElementById("shareTx").value);

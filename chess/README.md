@@ -1834,7 +1834,8 @@ away from the blow. When a king is mated, the winning army jumps for joy
 and spins, in a wave out from the piece that did it, while the other
 side sinks a little. Every gesture is short and then still, and after
 about a minute and a half of nobody touching anything they settle and
-wait, so a board left alone is one the phone may sleep on. None of it
+wait, so a board left alone is one the phone may sleep on. They only start once somebody has touched the page at all, so a
+board opened and left untouched never stirs. None of it
 says anything about the position. Settings has **Pieces come alive** to
 turn it off, and reduced motion turns it off too. Both boards ask the
 same pure function, so the flat board does the same gesture (a look is a
@@ -2428,6 +2429,44 @@ lesson, everything in the collection. That is your **completion**, out of
 a hundred (stars 40, collection 30, lessons 20, the Cup 10), shown on the
 map with what is left of each. It is a hundred only when everything is
 done, and a hundred has its own ending, and the Golden Acorn.
+
+## After the game, a beat at a time
+
+The best games don't hand you a results screen. They hand you the result,
+then let each thing it earned have its own moment. So after a game
+against a coach, or with a friend, the end card is told over as beats,
+one at a time, each filling the screen:
+
+1. **The result.** You won, with the confetti; or good game; and how it
+   ended.
+2. **Your rating.** The number counts to its new place with a tick that
+   climbs the scale, the change pops in, and each new star slams into
+   its slot.
+3. **How you played.** The accuracy ring fills and counts up, with a
+   word for it ("Really well played"), the brilliant moves and the
+   slips, and the third star if the game earned it. If the look-back is
+   still counting, the beat shows it counting.
+4. **Experience.** The bar fills, and if it goes all the way round,
+   LEVEL UP with a burst.
+5. **Each thing the game did, on its own.** A chapter cleared and the
+   coach it unlocked, a level, a feat, a personal best. Each gets its
+   own beat, with sunburst rays, and its own button where it has one
+   ("Use it" for a board just won).
+6. **A new tale.** Read it now, or later.
+7. **Presents.** A box shakes: open them now, or later.
+
+Then comes the card, with everything on it already settled and what to
+do next.
+
+A beat arrives, plays, and waits for you. The first tap finishes
+whatever is still moving and the next goes on, the way a good game never
+skips the thing you were watching. Enter goes on too. **Skip ››**
+(or Escape) goes straight to the card, and nothing earned is lost by
+skipping: the card was under the beats all along, quietly doing its
+sums. Two people across a table keep their own two-sided card, the right
+way up for each.
+
+`node chess/tools/beats-check.js` checks it.
 
 ## The collection: something to win
 

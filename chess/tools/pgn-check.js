@@ -26,6 +26,11 @@
 
    Run: node chess/tools/pgn-check.js [--phone|--desk] [--node]       */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -480,7 +485,7 @@ async function browserHalf() {
       ok(T("a mate from a set-up position ends the game"), c.end, JSON.stringify(c));
       ok(T("…and the card says it isn't rated or kept"), /isn't rated or kept in your journal/.test(c.sub) && !c.rate, c.sub);
       ok(T("…and nothing was: the rating and the journal are as they were"), c.rating === ratingBefore && c.games === gamesBefore, JSON.stringify([c.games, gamesBefore]));
-      await page.click("#endSend");
+      await skipBeats(page); await page.click("#endSend");
       await page.waitForTimeout(200);
       const sent = await lastCopied();
       ok(T("Send on that card copies the PGN, since a link can't carry the position"), /\[FEN "6k1\/5ppp\/8\/8\/8\/8\/5PPP\/R5K1 w - - 0 1"\]/.test(sent) &&

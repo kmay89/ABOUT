@@ -187,7 +187,13 @@ const server = http.createServer((req, res) => {
       const t = document.querySelector(".ptag.tcTap"), p = document.getElementById("tcPop");
       return t.getAttribute("role") === "button" && t.tabIndex === 0 && /Acorn/.test(t.getAttribute("aria-label")) && p.getAttribute("role") === "dialog";
     }));
-    await page.touchscreen.tap(tagBox.x, tagBox.y + 300);
+    /* a tap well outside the card (one inside it, on a talent, explains
+       the talent instead, which is the point of talents) */
+    const away = await page.evaluate(() => {
+      const r = document.getElementById("tcPop").getBoundingClientRect();
+      return { x: 12, y: r.bottom + 30 < innerHeight - 10 ? r.bottom + 30 : Math.max(10, r.top - 30) };
+    });
+    await page.touchscreen.tap(away.x, away.y);
     ok("a tap anywhere puts it away", !!(await until(() => !__cr.talentState().pop, 800)));
     await page.evaluate(() => { const t = document.querySelector(".ptag.tcTap"); t.focus(); });
     await page.keyboard.press("Enter");
@@ -251,6 +257,9 @@ const server = http.createServer((req, res) => {
     await page.touchscreen.tap(wb.x, wb.y);
     const info = await until(() => { const i = document.querySelector("#chPersona .tcInfo"); return i ? i.textContent : null; }, 1000);
     ok("tapping a talent says what it means and how much the coach has", !!info && /Wise/.test(info) && /knows how games end/.test(info) && /5 of 5/.test(info) && /very best/.test(info), info);
+    /* a moment apart, as a person would: two taps in the same place in
+       quick succession are a double-tap to a phone, not two taps */
+    await page.waitForTimeout(450);
     await page.touchscreen.tap(wb.x, wb.y);
     ok("…and tapping it again closes it", !!(await until(() => !document.querySelector("#chPersona .tcInfo"), 800)));
     await page.evaluate(() => document.getElementById("chX").click());
