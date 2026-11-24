@@ -465,6 +465,17 @@ staff roll, which is also `#credits` and a line in the footer. Long
 stories open on a short version with the whole of it folded underneath.
 And ↑ ↑ ↓ ↓ ← → ← → B A does what it should.
 
+The title screen is smoked glass: the room it belongs to is behind it,
+dark, with the moon in the window. Someone who has been before gets a
+three-line self-test about the save it found (what they opened is kept
+on their own device and nowhere else) and a first button that says
+**Continue**. Walking in, the headline and the controls come up one
+after another once the lamp has caught. On the desk, the thing under the
+pointer is bracketed in its own colour, and a sheet's story is typed in
+under a second — all of it is in the page from the first frame, and a
+tap finishes it. The staff roll also says how long you have been at the
+desk.
+
 `node tools/desk-check.js --only=title` checks the title screen and the
 staff roll.
 

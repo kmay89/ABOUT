@@ -1211,6 +1211,13 @@
     transform-origin:50% 50%;
   }
   html.boot #boot{display:flex}
+  /* the title is smoked glass, not a wall: the room it belongs to is behind
+     it, dark, with the moon in the window (the self-test and the staff roll
+     stay opaque: they are read). The headline waits out of sight, and comes
+     up a piece at a time once someone has walked in (html.entering) */
+  #boot.see{background:rgba(5,4,3,.78)}
+  html:not(.dawn) #boot.see{background:rgba(5,4,3,.88)}   /* a lit room behind it needs darker glass */
+  html.boot .intro{opacity:0}
   html.boot body{overflow:hidden}
   /* phosphor green, the colour of the self-test on the tube in the room */
   .boot-post{
@@ -1273,6 +1280,22 @@
     box-shadow:inset 0 0 0 3px #0e0a07,inset 0 0 0 4px rgba(255,201,122,.22),var(--hud-shadow);
   }
   body:not(.y2026) .intro .lede::after{content:" \25BC";font-size:.7em;color:var(--lamp)}
+  /* the thing you are pointing at is bracketed, the way a cartridge marks
+     what the cursor is on: four corners in the thing's own colour. 1999
+     only, and never in the dark (the torch is the cursor there) */
+  .reticle{
+    --s:12px;position:absolute;z-index:5;pointer-events:none;visibility:hidden;
+    background:
+      linear-gradient(var(--a),var(--a)) 0 0/var(--s) 2px,linear-gradient(var(--a),var(--a)) 0 0/2px var(--s),
+      linear-gradient(var(--a),var(--a)) 100% 0/var(--s) 2px,linear-gradient(var(--a),var(--a)) 100% 0/2px var(--s),
+      linear-gradient(var(--a),var(--a)) 0 100%/var(--s) 2px,linear-gradient(var(--a),var(--a)) 0 100%/2px var(--s),
+      linear-gradient(var(--a),var(--a)) 100% 100%/var(--s) 2px,linear-gradient(var(--a),var(--a)) 100% 100%/2px var(--s);
+    background-repeat:no-repeat;filter:drop-shadow(0 0 4px var(--a));
+  }
+  .reticle.show{visibility:visible}
+  body.y2026 .reticle,body.lights-out .reticle{display:none}
+  /* a story being typed: what is still to come holds its place, unseen */
+  .story .todo{visibility:hidden}
   /* found: a card drops in from the top edge, hard-edged, in the colour of the thing */
   .toast{
     position:fixed;left:50%;top:.9rem;z-index:70;transform:translate(-50%,-160%);visibility:hidden;
@@ -1282,6 +1305,7 @@
     background:#120d08;border:2px solid var(--a,#ffc97a);
     box-shadow:4px 4px 0 rgba(0,0,0,.6),0 0 26px color-mix(in srgb,var(--a,#ffc97a) 28%,transparent);
   }
+  .toast .t-k{white-space:nowrap}
   .toast b{font-weight:400;font-size:.8rem;letter-spacing:.14em;color:var(--a,#ffc97a)}
   .toast.show{transform:translate(-50%,0);visibility:visible}
   /* the long version of a story, folded under its short one */
@@ -1560,6 +1584,19 @@
     #rollCard:not([hidden]) .roll div{animation:cardIn .01s linear both;animation-delay:calc(.25s + var(--i,0) * .11s)}
     #rollCard:not([hidden]) :is(.boot-tag,.boot-menu){animation:cardIn .01s linear 1.3s both}
     @keyframes logoIn{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+    /* a glint crosses the title a letter at a time, every six seconds */
+    #bootLogo .lt{animation:glint 6s linear calc(2.2s + var(--i) * .07s) infinite}
+    @keyframes glint{0%{filter:brightness(1.9)}4%,100%{filter:none}}
+    /* walking in: the tube goes, the lamp catches, and then the headline
+       and the controls come up one after another, each in three hard steps */
+    html.entering .intro > :not(.deck),html.entering .deck > *{animation:hudIn .2s steps(3) both}
+    html.entering .eyebrow{animation-delay:.95s}
+    html.entering .intro h1{animation-delay:1.2s}
+    html.entering .lede{animation-delay:1.5s}
+    html.entering .deck > *{animation-delay:calc(1.75s + var(--k,0) * .09s)}
+    @keyframes hudIn{from{opacity:0;transform:translateY(4px)}}
+    .reticle.show{animation:lockOn .16s steps(3)}
+    @keyframes lockOn{from{transform:scale(1.3);opacity:0}}
     @keyframes cardIn{from{opacity:0}}   /* opacity, not visibility: the menu has to be able to take the focus at once */
     .boot-menu :is(button,a):focus::before{animation:blink .8s step-end infinite}
     #boot.off{animation:tubeOff .44s cubic-bezier(.5,0,.8,.4) forwards}
@@ -1634,6 +1671,7 @@
       <div><dt>Worlds found</dt><dd id="rollW"></dd></div>
       <div><dt>Secrets found</dt><dd id="rollS"></dd></div>
       <div><dt>Rank</dt><dd id="rollR"></dd></div>
+      <div><dt>Time on the desk</dt><dd id="rollT"></dd></div>
       <div><dt>Shapes drawn</dt><dd id="rollN"></dd></div>
       <div><dt>Images loaded</dt><dd id="rollI"></dd></div>
       <div><dt>Frameworks</dt><dd>None</dd></div>
@@ -1686,6 +1724,7 @@
     <div class="pan-cue" id="panCue" aria-hidden="true"><span class="cl">‹</span>slide the desk<span class="cr">›</span></div>
   </div>
   <div class="tip" id="tip" aria-hidden="true"></div>
+  <div class="reticle" id="reticle" aria-hidden="true"></div>
 
   <!-- Every world on the desk, by what it was: the map of the room. The
        one-page version waits hidden until its sheet exists (the script
@@ -5042,6 +5081,31 @@
     el.classList.toggle("done", all);
     el.style.setProperty("--p", Math.round(100 * (n + s) / (PILL_IDS.length + SECRET_IDS.length)) + "%");
   }
+  /* A sheet's story is typed, the way a cartridge speaks: all of it in
+     under a second, with the part still to come holding its place so
+     nothing below it moves. The whole text is in the page from the first
+     frame (a screen reader and a copy get all of it); a tap on it, no
+     motion, or `plain` (a commentary note is read, not spoken) and it is
+     simply there. One soft tick every few letters, if the sound is on. */
+  var typeRaf = 0;
+  function typeOut(el, text, plain){
+    cancelAnimationFrame(typeRaf);
+    el.onclick = null;
+    if (REDUCED || plain){ el.textContent = text; return; }
+    var done = document.createElement("span"), todo = document.createElement("span");
+    todo.className = "todo"; todo.textContent = text;
+    el.textContent = ""; el.appendChild(done); el.appendChild(todo);
+    /* by the clock, not by the frame: a slow machine types as fast as a quick one */
+    var i = 0, t0 = performance.now(), dur = Math.min(850, text.length * 4), ticked = 0;
+    el.onclick = function(){ dur = 0; };
+    (function tick(){
+      var now = performance.now();
+      i = dur ? Math.min(text.length, Math.ceil(text.length * (now - t0) / dur)) : text.length;
+      done.textContent = text.slice(0, i); todo.textContent = text.slice(i);
+      if (now - ticked > 70 && i < text.length){ ticked = now; tone(1500, {type:"square", dur:0.012, g:0.006}); }
+      if (i < text.length) typeRaf = requestAnimationFrame(tick); else { el.textContent = text; el.onclick = null; }
+    })();
+  }
   /* the cartridge, near the end of the file, says so when something is found */
   var onFound = null;
   function markFound(id){
@@ -5301,7 +5365,7 @@
     document.getElementById("dKicker").textContent = w.kicker;
     document.getElementById("dTitle").textContent = w.title;
     /* a long story opens on its short one; the whole of it is a tap away */
-    document.getElementById("dStory").textContent = w.blurb || w.story;
+    typeOut(document.getElementById("dStory"), w.blurb || w.story);
     dMore.hidden = !w.blurb; dMore.open = false;
     document.getElementById("dMoreText").textContent = w.blurb ? w.story : "";
     var chips = document.getElementById("dChips");
@@ -5680,7 +5744,7 @@
     dossier.style.setProperty("--a", "#ffc97a");
     document.getElementById("dKicker").textContent = "Director's commentary";
     document.getElementById("dTitle").textContent = nt.title;
-    document.getElementById("dStory").textContent = nt.story;
+    typeOut(document.getElementById("dStory"), nt.story, true);
     dMore.hidden = true;
     var chips = document.getElementById("dChips");
     chips.innerHTML = "";
@@ -6957,8 +7021,16 @@
     tip.style.left = (r.left - s.left + r.width / 2) + "px";
     tip.style.top  = (r.top - s.top - 10 - (COARSE.matches ? 28 : 0)) + "px";
     tip.classList.add("show");
+    /* brackets round a thing on the desk (not a hat, not a note) */
+    if (btn.classList.contains("iso-obj")){
+      var pad = 7;
+      reticle.style.cssText = "--a:" + accent + ";left:" + (r.left - s.left - pad) + "px;top:" + (r.top - s.top - pad) +
+        "px;width:" + (r.width + pad * 2) + "px;height:" + (r.height + pad * 2) + "px";
+      reticle.classList.remove("show"); void reticle.offsetWidth; reticle.classList.add("show");
+    }
   }
-  function hideTip(){ tip.classList.remove("show"); }
+  var reticle = document.getElementById("reticle");
+  function hideTip(){ tip.classList.remove("show"); reticle.classList.remove("show"); }
 
   /* each world's colour, read once from the first copy of it on the desk
      (or, for a world with no object, from its legend pill), so a sheet
@@ -7642,11 +7714,13 @@
       var x0 = Math.floor((W - (line.length * 6 - 1)) / 2), y0 = li * 9;
       line.split("").forEach(function(ch, ci){
         var g = GLYPH[ch]; if (!g) return;
+        lit += '<g class="lt" style="--i:' + (x0 + ci * 6) + '">';   // a group a letter, for the glint; --i is how far across it is
         for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] >> (4 - c) & 1){
           var x = x0 + ci * 6 + c, y = y0 + r;
           sh += '<rect x="' + (x + .45) + '" y="' + (y + .45) + '" width=".9" height=".9"/>';
           lit += '<rect x="' + x + '" y="' + y + '" width=".9" height=".9" fill="' + ROWS[r] + '"/>';
         }
+        lit += "</g>";
       });
     });
     return '<svg viewBox="-1 -1 ' + (W + 2.4) + " " + (lines.length * 9 + .4) + '" shape-rendering="crispEdges" aria-hidden="true"><g fill="#4a230d">' + sh + "</g>" + lit + "</svg>";
@@ -7665,9 +7739,20 @@
       if (SCREEN === "title") go("start", true);
     }, 30000);
   }
-  function postRun(){
-    var iso = document.getElementById("iso"), shown = [], i = 0, BAR = 18;
-    var L = [
+  /* back: somebody who has been here before. Their self-test is three
+     lines about the save it found (what they had opened is kept on their
+     own device, and nowhere else), and the title offers to continue */
+  function postRun(back){
+    var iso = document.getElementById("iso"), shown = [], i = 0, BAR = back ? 10 : 18, fn = foundNow();
+    var L = back ? [
+      "ERRER LABS SYSTEM BIOS  v19.89",
+      "",
+      "SAVE FILE ......... FOUND",
+      "WORLDS ............ " + fn.n + " / " + PILL_IDS.length,
+      "SECRETS ........... " + fn.s + " / " + SECRET_IDS.length,
+      "",
+      "> WELCOME BACK"
+    ] : [
       "ERRER LABS SYSTEM BIOS  v19.89",
       "(C) 1989-2026 K. MEVES",
       "",
@@ -7691,12 +7776,22 @@
       draw("> LOADING ROOM " + new Array(k + 1).join("█") + new Array(BAR - k + 1).join("░") + (k === BAR ? " OK" : ""));
       postT.push(setTimeout(k < BAR ? function(){ bar(k + 1); } : showTitle, k < BAR ? 36 : 340));
     }
-    (function line(){
+    /* the memory is counted, as it was: 0 to 640K in eight steps */
+    function mem(k){
       if (SCREEN !== "post") return;
-      if (i >= L.length){ bar(0); return; }
+      var head = L[i].split("640K")[0];
+      if (k < 8){ draw(head + k * 80 + "K"); postT.push(setTimeout(function(){ mem(k + 1); }, 34)); }
+      else { shown.push(L[i++]); draw(); postT.push(setTimeout(line, 110)); }
+    }
+    function line(){
+      if (SCREEN !== "post") return;
+      if (i >= L.length){ postT.push(setTimeout(function(){ bar(0); }, 180)); return; }
+      if (/^MEMORY/.test(L[i])){ mem(0); return; }
       shown.push(L[i++]); draw();
-      postT.push(setTimeout(line, L[i - 1] ? 80 : 150));
-    })();
+      /* a beat after a blank line, a longer one before the visitor is noticed */
+      postT.push(setTimeout(line, !L[i - 1] ? 170 : /^>/.test(L[i] || "") ? 260 : 70));
+    }
+    line();
   }
   function showTitle(){
     postT.forEach(clearTimeout); postT = [];
@@ -7704,6 +7799,11 @@
     bootPost.hidden = true;
     var logo = document.getElementById("bootLogo");
     if (!logo.firstChild) logo.innerHTML = pixelLogo(["THE DESK", "OF WORLDS"]);
+    /* a save found: the first line continues it. And the room knows the hour */
+    var fn = foundNow(), first = bootMenu.querySelector("button"), hr = new Date().getHours();
+    if (fn.n + fn.s){ first.firstChild.nodeValue = "Continue "; first.querySelector("small").textContent = (fn.n + fn.s) + " / " + (PILL_IDS.length + SECRET_IDS.length) + " found"; }
+    if (hr >= 23 || hr < 5) bootCard.querySelector(".boot-tag").textContent = "It\u2019s late where you are. This room doesn\u2019t mind.";
+    bootEl.classList.add("see");
     rollCard.hidden = true; bootCard.hidden = false;
     bootEl.setAttribute("aria-label", "The Desk of Worlds — title screen");
     bootMenu.querySelector("button").focus({preventScroll: true});
@@ -7713,7 +7813,12 @@
     clearTimeout(attractT);
     SCREEN = "off";
     var done = function(){
-      rootEl.classList.remove("boot"); bootEl.classList.remove("off");
+      /* from the title, the headline comes up in pieces (see html.entering) */
+      if (bootEl.classList.contains("see") && !REDUCED){
+        rootEl.classList.add("entering");
+        setTimeout(function(){ rootEl.classList.remove("entering"); }, 3200);
+      }
+      rootEl.classList.remove("boot"); bootEl.classList.remove("off", "see");
       bootCard.hidden = true; rollCard.hidden = true;
       SCREEN = null; screenInert(false);
       then();
@@ -7751,6 +7856,8 @@
     document.getElementById("rollW").textContent = f.n + " / " + PILL_IDS.length;
     document.getElementById("rollS").textContent = f.s + " / " + SECRET_IDS.length;
     document.getElementById("rollR").textContent = f.all ? "Keeper of the desk" : part >= .6 ? "Regular" : part >= .25 ? "Explorer" : part > 0 ? "Visitor" : "Passer-by";
+    var secs = Math.max(0, Math.round((Date.now() - deskT0) / 1000));
+    document.getElementById("rollT").textContent = Math.floor(secs / 60) + ":" + ("0" + secs % 60).slice(-2);
     document.getElementById("rollN").textContent = iso.getElementsByTagName("*").length.toLocaleString("en-US");
     document.getElementById("rollI").textContent = iso.getElementsByTagName("image").length;
     document.getElementById("rollPre").textContent = f.all ? "★ 100% ★" : "Staff roll";
@@ -7811,8 +7918,12 @@
     screenInert(true);
     var seen = false;
     try { seen = !!localStorage.getItem("km_seen"); } catch(e){}
-    if (REDUCED || seen) showTitle(); else postRun();
+    if (REDUCED) showTitle(); else postRun(seen);
   }
+  [].forEach.call(document.querySelectorAll(".deck > *"), function(el, k){ el.style.setProperty("--k", k); });
+  /* how long this tab has been at the desk, for the staff roll */
+  var deskT0 = Date.now();
+  try { deskT0 = +sessionStorage.getItem("km_t0") || deskT0; sessionStorage.setItem("km_t0", deskT0); } catch(e){}
 
   /* a world found says so, once: a card from the top edge in the thing's
      own colour, and two notes. The last one brings up the staff roll, after
