@@ -845,6 +845,7 @@ function syncTurnStrip() {
   if (mode === "tour" && tourLine) { el.innerHTML = "<b>📖 " + escHtml(tourLine.name) + "</b>"; return; }
   if (mode === "lesson" && lesson) { el.innerHTML = lessonWorked && lessonPaused ? "<b>Watch</b> — then it's yours" : "<b>🎓 " + escHtml(lesson.title) + "</b>"; return; }
   if (mode === "setup") { el.innerHTML = "<b>🧩 Setting up the board</b>"; return; }
+  if (mode === "rules" && rulesSt) { el.innerHTML = "<b>" + escHtml(rulesScene().name) + "</b>"; return; }
   if (over) { el.innerHTML = "<b>" + endShort() + "</b>"; return; }
   var st = Chess.status(G);
   var who = sideName(G.turn);
@@ -884,7 +885,7 @@ function syncBoard() {
   if (R.setTaken) R.setTaken(takenSoFar());
   var hi = { selected: sel, legal: [], legalCapt: [], last: null, check: -1 };
   if (viewPly < 0) {
-    if (prefs.helpers) legalMoves.forEach(function (m) {
+    if (prefs.helpers || mode === "rules") legalMoves.forEach(function (m) {
       var isCapt = m.capt || (m.flags & Chess.F_EP);
       (isCapt ? hi.legalCapt : hi.legal).push(m.to);
     });
@@ -915,6 +916,7 @@ function canActNow(evenWhileMoving) {
   if (mode === "coach") return G.turn === humanSide && !thinking;
   if (mode === "lan") return G.turn === lanSide && Net.linked();
   if (mode === "lesson") return !!lesson && !lessonDone && !lessonPaused && G.turn === lesson.side;
+  if (mode === "rules") return rulesCanAct();
   return false; /* tour or menu */
 }
 
@@ -925,6 +927,8 @@ function whenLanded(fn) {
 function tapSquare(sq) {
   if (!G) return;
   if (mode === "setup") { setupTap(sq); return; }
+  /* a show is watched: a tap during one must not rub out what is lit */
+  if (mode === "rules" && !rulesCanAct()) return;
   if (viewPly >= 0) { exitView(); return; }
   if (sel < 0 && !G.board[sq] && clearInkHere()) return;
   if (!canActNow(true)) { clearSel(); syncBoard(); return; }
@@ -945,6 +949,13 @@ function tapSquare(sq) {
         if ((c.flags & Chess.F_CASTLE) && ((c.to > c.from) === (sq > sel))) { mv = c; break; }
       }
     }
+    if (mv && mode === "rules") {
+      /* a pawn that gets there becomes a queen: the choosing is for games */
+      if (mv.promo) for (i = 0; i < legalMoves.length; i++) if (legalMoves[i].to === sq && Math.abs(legalMoves[i].promo) === Chess.Q) mv = legalMoves[i];
+      rulesAttempt(mv);
+      return;
+    }
+    if (!mv && mode === "rules" && !(p && (p > 0 ? 1 : -1) === G.turn) && rulesStray(sq)) return;
     if (mv) {
       if (mv.promo && !(mv = aqChoose(sel, sq))) return;   /* the picker, or a queen at once */
       clearSel();
@@ -1595,6 +1606,7 @@ function lampLabel() {
 }
 function giveHint() {
   if (mode === "setup") { setupHint(); return; }
+  if (mode === "rules") { rulesHint(); return; }
   if (mode === "lesson" || !G || over || !canActNow() || hintPending) { giveMoveHint(); return; }
   /* notation voice: the person who asked for one line per remark wants
      the move, not a menu */
@@ -2563,6 +2575,8 @@ function sightHeat() {
 }
 function sightPaint() {
   if (!R || !R.setHeat) return;
+  /* in the rules the tint is the lesson's: the squares a king may not step on */
+  if (mode === "rules") { R.setHeat(rulesHeat()); return; }
   R.setHeat(sightOn && G && viewPly < 0 && !reelOn ? sightHeat() : []);
 }
 function sightSet(on) {
@@ -5795,35 +5809,361 @@ function tourNext() {
 }
 function stopTour() {
   clearTimeout(tourTimer); tourLine = null; tourPaused = false;
+  /* and a rules scene still showing is over too: its timers, its marks, its red squares */
+  if (rulesSt) rulesEnd();
   if (mode === "tour") { $("lessonBar").classList.add("hide"); document.body.classList.remove("lesson-on"); reflow(); }
 }
 
-/* ===== learn (the rules, gently) ===== */
-var LEARN = [
-  ["The idea of the game", "Chess is a conversation between two armies. The whole game is about one piece: the <b>king</b>. Trap the other king so it cannot escape capture — that's <b>checkmate</b> — and the game is over. Nothing else wins. You never actually capture the king; you corner it."],
-  ["The board", "64 squares, 8×8. A square's name is its file (a–h, left to right from White's side) plus its rank (1–8, from White's side). White's queen starts on d1 — <i>queen on her own colour</i>. The board always sits with a light square in each player's right-hand corner."],
-  ["The pawn ♙", "Walks one square forward, but <b>captures diagonally</b> — one square, forward-left or forward-right. On its very first move it may walk two. It can never go backward. Reach the far side, and it <b>promotes</b> — it becomes a queen (or knight, rook, or bishop). The humblest piece, with the biggest dream."],
-  ["The knight ♘", "Moves in an L: two squares one way, then one square sideways. It is the only piece that <b>jumps over</b> others. Knights love the middle of the board and crowded positions where nothing else can move."],
-  ["The bishop ♗", "Slides any distance along diagonals. Each bishop lives its whole life on one colour of squares. Your two bishops together cover everything — they work best as a pair, on open diagonals."],
-  ["The rook ♖", "Slides any distance along ranks and files. Worth about five pawns. Rooks start in the corners and wake up late — give them open files and they win endgames."],
-  ["The queen ♕", "Rook and bishop combined — the strongest piece, worth about nine pawns. Because she's so precious, bringing her out early lets your opponent develop pieces <i>while attacking her</i>. Let her enter like royalty: a little late, and decisively."],
-  ["The king ♔", "One square in any direction. He can never move onto an attacked square. When he's attacked, that's <b>check</b> — and you must fix it immediately: move him, block the attack, or capture the attacker. If none of those exist, it's checkmate."],
-  ["Castling", "Once per game, if neither piece has moved and the way is clear and safe: the king steps <b>two squares</b> toward a rook, and the rook hops to the far side of him. The only move where two of your pieces move at once. Castle early — a tucked-in king wins games."],
-  ["En passant", "The strangest rule, and real: if an enemy pawn uses its two-square first move to land <i>beside</i> your pawn, you may capture it as if it had moved only one — but only on the very next move. The name is French for 'in passing'."],
-  ["Draws", "Not every game has a winner. It's a draw when: the side to move has no legal move but isn't in check (<b>stalemate</b>); the same position occurs three times; fifty moves pass with no capture or pawn move; or neither side has enough pieces left to ever mate. Half a point each."],
-  ["How to start well", "Three habits beat most beginners' tricks: <b>1.</b> Take a share of the centre. <b>2.</b> Develop knights and bishops before adventures. <b>3.</b> Castle. Then look at every enemy move and ask the magic question: <i>what does that threaten?</i> You're ready — go play."]
-];
-var learnAt = 0;
-function showLearn(n) {
+/* ===== the rules, shown (rules.js) =====
+   The rules used to be twelve cards of words over a blurred board. Now
+   the board is the lesson. rules.js says what each scene is; this shows
+   it and listens for the answer:
+   - a show step lights where a piece can go (dots on every square, a
+     thin ray along every line it runs on), then plays the moves, one
+     after another, with their own weight and sound; where a king may
+     not step is tinted red; a mate or a stalemate lights the bars of
+     the cage round him;
+   - a do step is yours: the same taps and drags as a game. Pawns to
+     take are counted off as they go, an answer that is not it is said
+     in one line (and a stalemate is played out, then taken back), and
+     Help draws the next move of a shortest way home;
+   - shows run on by themselves, at the room's pace, and stop before it
+     is your turn; the dots along the bottom are the thirteen scenes,
+     and any of them can be tapped.
+   Nothing in here is a game: no clock, no rating, nothing saved but
+   which scenes you have finished. */
+var rulesSt = null, rulesT = 0, rulesRun = 0;
+var rulesRec = typeof Rules !== "undefined" ? Rules.load(lsGet) : null;
+var RULES_RED = "#ff5a4a", RULES_GOLD = "#ffd166";
+function rulesOn() { return mode === "rules" && !!rulesSt; }
+function rulesStep() { return Rules.step(rulesSt.scene, rulesSt.n); }
+function rulesScene() { return Rules.scene(rulesSt.scene); }
+function rulesCanAct() { return rulesOn() && !rulesSt.busy && !rulesSt.done && !!rulesStep().goal && G.turn === 1; }
+function rulesBeat(ms) { return REDUCED ? Math.min(ms, 260) : Math.round(ms * Math.max(0.6, Math.min(1.5, paceDial().words))); }
+function rulesMark(mark) { return typeof mark === "number" ? GLYPH[mark] : escHtml(mark); }
+function startRules(i) {
+  if (typeof Rules === "undefined") { showMenu(); return; }
+  stopTour();
+  quietBoard();
   hideAllOverlays();
-  learnAt = Math.max(0, Math.min(LEARN.length - 1, n));
-  $("learnBody").innerHTML = "<h2 style='margin-top:0'>" + LEARN[learnAt][0] + "</h2><p>" + LEARN[learnAt][1] + "</p>" +
-    "<p style='text-align:center;color:var(--soft)'>" + (learnAt + 1) + " / " + LEARN.length + "</p>";
-  $("learnPrev").style.visibility = learnAt === 0 ? "hidden" : "visible";
-  $("learnNext").textContent = learnAt === LEARN.length - 1 ? "Play your first game →" : "Next →";
-  $("ovLearn").classList.remove("hide");
+  closeStudio();
+  lesson = null; lessonQueue = []; over = null; thinking = false;
+  mode = "rules";
+  clockConfig("none");
+  orientation = 1;
+  R.setOrientation(1);
+  tableSync();
+  hideOpeningCard();
+  showViewBanner(false);
+  rulesSt = { scene: i == null ? Rules.resume(rulesRec) : Rules.index(Rules.scene(i).id), n: 0 };
+  rulesEnter(true);
 }
-
+/* a step begins: its position on the board, its marks, its one line */
+function rulesEnter(fresh) {
+  var st = rulesStep();
+  clearTimeout(rulesT);
+  rulesRun++; gameTicket++;
+  fxCalm();
+  clearLines();
+  var same = !fresh && rulesSt.fen === st.fen;
+  rulesSt.fen = st.fen; rulesSt.busy = false; rulesSt.done = false; rulesSt.shown = false; rulesSt.moved = false;
+  rulesSt.misses = 0; rulesSt.caged = null; rulesSt.hint = null; rulesSt.said = ""; rulesSt.tone = "";
+  G = Chess.create(st.fen);
+  over = null; viewPly = -1;
+  clearSel();
+  if (!same) R.setPosition(G.board, fresh && !REDUCED && st.fen === Chess.START_FEN ? { flourish: true } : {});
+  rulesPaint();
+  rulesBar();
+  syncAll();
+  accSay(rulesScene().name + ". " + st.say);
+  if (st.show) rulesShow();
+  needFrame();
+}
+/* what is drawn on the board for this step: rings, arrows, the rays of a
+   reach, and (through sightPaint) the squares in red */
+function rulesRays(from, list) {
+  var kind = Math.abs(G.board[from]), out = [], far = {};
+  list.forEach(function (to) {
+    var df = (to & 7) - (from & 7), dr = (to >> 4) - (from >> 4);
+    if (kind === Chess.N) {
+      /* the L itself: two along, then one to the side */
+      var corner = Math.abs(dr) === 2 ? from + dr * 16 : from + df;
+      out.push({ from: from, to: corner, kind: "sight", tone: "plan" }, { from: corner, to: to, kind: "sight", tone: "plan" });
+      return;
+    }
+    var key = (df > 0 ? 1 : df < 0 ? -1 : 0) + ":" + (dr > 0 ? 1 : dr < 0 ? -1 : 0), d = Math.max(Math.abs(df), Math.abs(dr));
+    if (!far[key] || d > far[key].d) far[key] = { to: to, d: d };
+  });
+  for (var k in far) out.push({ from: from, to: far[k].to, kind: "sight", tone: "plan" });
+  return out;
+}
+function rulesPaint() {
+  if (!rulesOn()) return;
+  var st = rulesStep(), lines = [];
+  st.rings.forEach(function (name) { lines.push({ sq: Chess.sqIndex(name), kind: "ring", tone: "hint" }); });
+  if (!rulesSt.moved) st.arrows.forEach(function (a) {
+    var f = Chess.sqIndex(a[0]), t = Chess.sqIndex(a[1]);
+    lines.push({ from: f, to: t, kind: a[2] === "threat" ? "threat" : "run", tone: a[2] || "hint", knight: knightHop(f, t) });
+  });
+  if (st.show && st.reach && !rulesSt.moved) {
+    var r = Rules.reach(rulesSt.fen, st.reach);
+    lines = lines.concat(rulesRays(r.from, r.to.concat(r.takes)));
+    sel = r.from; legalMoves = Chess.movesFrom(G, r.from);
+  }
+  if (rulesSt.hint) lines.push({ from: rulesSt.hint.from, to: rulesSt.hint.to, kind: "run", tone: "hint", knight: knightHop(rulesSt.hint.from, rulesSt.hint.to) });
+  showLines(lines, 0, "lesson");
+  syncBoard();
+}
+/* the red squares: where a king may not step, and the bars of a cage */
+function rulesHeat() {
+  if (!rulesOn()) return [];
+  var st = rulesStep(), list = [];
+  if (st.danger) list = list.concat(Rules.danger(rulesSt.fen));
+  if (rulesSt.caged != null) list = list.concat(Rules.cage(rulesSt.fen, rulesSt.caged));
+  return list.map(function (sq) { return { sq: sq, v: 1, col: RULES_RED, a0: 0.3, a1: 0.46 }; });
+}
+/* ---- the bar: the scene, its one line, and what to press ---- */
+function rulesLeft() {
+  var st = rulesStep();
+  if (!st.goal || !st.goal.clear) return "";
+  var all = Rules.left(st.fen), now = Rules.left(rulesSt.fen), out = "";
+  for (var i = 0; i < all; i++) out += '<i class="' + (i < all - now ? "got" : "") + '">' + GLYPHB[1] + "</i>";
+  return '<span class="rlLeft" aria-label="' + now + " of " + all + ' still to take">' + out + "</span>";
+}
+function rulesBar() {
+  var sc = rulesScene(), st = rulesStep(), last = rulesSt.n === Rules.steps(rulesSt.scene).length - 1;
+  var end = rulesSt.scene === Rules.COURSE.length - 1;
+  var say = rulesSt.said || st.say, tone = rulesSt.tone;
+  var dots = '<div class="rlDots" role="group" aria-label="The rules, scene by scene">' + Rules.COURSE.map(function (c, i) {
+    return '<button class="rlDot' + (i === rulesSt.scene ? " now" : rulesRec.done[c.id] ? " on" : "") + '" data-scene="' + i + '" aria-label="' + escHtml(c.name) +
+      (rulesRec.done[c.id] ? ", done" : "") + '"' + (i === rulesSt.scene ? ' aria-current="step"' : "") + ">" + rulesMark(c.mark) + "</button>";
+  }).join("") + "</div>";
+  lessonUI('<div class="rlCard"><span class="rlPiece' + (typeof sc.mark === "number" ? "" : " sign") + '" aria-hidden="true">' + rulesMark(sc.mark) + "</span>" +
+    '<div class="rlTx"><small>' + (st.show ? "Watch" : rulesSt.done ? "Well done!" : "Your turn") + " · " + escHtml(sc.name) + "</small>" +
+    '<b id="rlSay"' + (tone ? ' class="' + tone + '"' : "") + ">" + escHtml(say) + "</b>" + rulesLeft() + "</div></div>", "rules" + (tone === "good" ? " good" : ""));
+  var chips = [];
+  if (st.show) {
+    if (rulesSt.shown) {
+      chips.push(lessonChip(!last ? "My turn →" : end ? "▶ Play your first game" : "Next →", rulesNext, true));
+      chips.push(lessonChip("↻ Again", function () { rulesAgain(); }));
+    }
+  } else if (rulesSt.done) {
+    chips.push(lessonChip(!last ? "Next →" : end ? "▶ Play your first game" : "Next →", rulesNext, true));
+  } else {
+    chips.push(lessonChip("💡 Show me", rulesHint));
+    chips.push(lessonChip("↻ Watch again", function () { rulesAgain(); }));
+  }
+  chips.push(lessonChip("Leave", rulesLeave));
+  lessonRow(chips);
+  $("lessonBar").insertAdjacentHTML("beforeend", dots);
+  Array.prototype.forEach.call($("lessonBar").querySelectorAll(".rlDot"), function (b) {
+    b.addEventListener("click", function () { rulesGo(+b.getAttribute("data-scene")); });
+  });
+}
+function rulesSay(text, tone) {
+  rulesSt.said = text || ""; rulesSt.tone = tone || "";
+  rulesBar();
+  if (text) accSay(text);
+}
+/* ---- a move on the board, with everything a move in a game has ---- */
+function rulesMove(m, done) {
+  var desc = animDescriptor(m), took = m.capt || ((m.flags & Chess.F_EP) ? (m.piece > 0 ? -1 : 1) : 0);
+  var g2 = Chess.create(rulesSt.fen);
+  Chess.play(g2, m);
+  var run = rulesRun, st = Chess.inCheck(g2) ? g2.kings[g2.turn === 1 ? 0 : 1] : -1;
+  clearSel();
+  rulesSt.moved = true;
+  rulesPaint();
+  var plan = R.animateMove(desc, g2.board, {}, function () {
+    if (run !== rulesRun) return;
+    if (done) done(g2, st);
+  });
+  sndMove(desc, plan, took);
+  hapMove(desc, plan, took);
+  fxCapture(desc, took, plan);
+  feelLand(desc, took, plan);
+  fxPromote(desc, plan);
+  needFrame();
+  return g2;
+}
+/* what a position says once a move has landed: a check, a mate, a draw */
+function rulesLanded(g2, from) {
+  var both = /k/.test(rulesSt.fen.split(" ")[0]) && /K/.test(rulesSt.fen.split(" ")[0]);
+  if (!both) return "";
+  var s = Chess.status(g2), king = g2.kings[g2.turn === 1 ? 0 : 1];
+  if (s.reason === "checkmate") { fxMate(king, from, g2.turn !== 1); sting(g2.turn !== 1 ? "mate-win" : "mate-lose"); }
+  else if (s.reason === "check") { snd("check", { against: g2.turn === 1 }); fxCheck(king); }
+  else if (s.reason === "stalemate") sting("draw");
+  return s.reason || "";
+}
+/* ---- show: the board does it ---- */
+function rulesShow() {
+  var st = rulesStep(), run = rulesRun, i = 0;
+  rulesSt.busy = true; rulesSt.shown = false; rulesSt.moved = false;
+  function ended() {
+    if (run !== rulesRun) return;
+    rulesSt.busy = false;
+    if (st.cage) { rulesSt.caged = Chess.sqIndex(st.cage); sightPaint(); needFrame(); }
+    var list = Rules.steps(rulesSt.scene), next = list[rulesSt.n + 1];
+    /* shows run on into each other; before your turn, and at the end of a scene, the room waits */
+    if (next && next.show) { rulesT = setTimeout(function () { if (run === rulesRun) { rulesSt.n++; rulesEnter(); } }, rulesBeat(1500 + st.say.length * 28)); return; }
+    rulesSt.shown = true;
+    if (!next) rulesFinish(true);
+    rulesBar();
+  }
+  function next() {
+    if (run !== rulesRun) return;
+    if (i >= st.line.length) { rulesT = setTimeout(ended, rulesBeat(st.line.length ? 500 : 1100)); return; }
+    var step = st.line[i++], g = Chess.create(rulesSt.fen), m = null;
+    Chess.moves(g).forEach(function (x) { if (!m && x.from === step.from && x.to === step.to && (!x.promo || Math.abs(x.promo) === Chess.Q)) m = x; });
+    if (!m) { ended(); return; }
+    rulesMove(m, function (g2) {
+      var from = m.to;
+      rulesSt.fen = step.next;
+      G = Chess.create(step.next);
+      rulesLanded(g2, from);
+      syncBoard();
+      rulesT = setTimeout(next, rulesBeat(650));
+    });
+  }
+  /* a breath to see the position and what is lit before anything moves */
+  rulesT = setTimeout(next, rulesBeat(st.reach || st.arrows.length || st.rings.length ? 1500 : 800));
+}
+/* ---- do: your turn ---- */
+function rulesAttempt(m) {
+  if (!rulesCanAct()) return;
+  var st = rulesStep(), res = Rules.attempt(st, rulesSt.fen, m), run = rulesRun;
+  rulesSt.hint = null;
+  if (!res.ok && !res.undo) {
+    /* not it, and nothing to see by playing it: the piece stays, the bar says why */
+    rulesNope(res.say);
+    return;
+  }
+  rulesSt.busy = true;
+  rulesMove(m, function (g2) {
+    if (!res.ok) {
+      /* a stalemate: shown, said, and taken back */
+      rulesSt.misses++;
+      var keep = rulesSt.fen;
+      rulesSt.fen = res.shown; rulesSt.caged = g2.kings[g2.turn === 1 ? 0 : 1];
+      sightPaint(); sting("draw"); hap("nope");
+      rulesSay(res.say, "bad");
+      rulesT = setTimeout(function () {
+        if (run !== rulesRun) return;
+        rulesSt.fen = keep; rulesSt.caged = null; rulesSt.busy = false; rulesSt.moved = false;
+        G = Chess.create(keep); R.setPosition(G.board, {});
+        rulesPaint(); rulesSay("", ""); needFrame();
+      }, rulesBeat(2600));
+      return;
+    }
+    rulesSt.fen = res.fen; rulesSt.moved = false;
+    G = Chess.create(res.fen);
+    var why = rulesLanded(g2, m.to);
+    if (!res.done) {
+      /* one more taken, more to go */
+      rulesSt.busy = false;
+      if (FX) { try { Fx.flair(m.to, { style: "stars" }); } catch (e) {} }
+      snd("lesson-right");
+      rulesSay("", ""); rulesPaint();
+      return;
+    }
+    rulesSt.done = true; rulesSt.busy = false;
+    if (FX) { try { Fx.flair(m.to, { style: "stars" }); } catch (e) {} }
+    if (why !== "checkmate") sting("lesson-right");
+    hap("success");
+    var way = { away: "You stepped away. Safe!", took: "You took the attacker. Safe!", blocked: "You blocked it. Safe!" }[res.way];
+    rulesSay(way || res.say || (why === "checkmate" ? "Checkmate! That is how you win." : "That's it!"), "good");
+    rulesPaint();
+    if (rulesSt.n === Rules.steps(rulesSt.scene).length - 1) rulesFinish(false);
+  });
+}
+/* an answer that is not it: one line, a shake, and after two the way is shown */
+function rulesNope(say) {
+  rulesSt.misses++;
+  hap("nope"); snd("lesson-wrong");
+  rulesSay(say || "Not that one. Try another.", "bad");
+  var bar = $("lessonBar");
+  bar.classList.remove("suNope"); void bar.offsetWidth; bar.classList.add("suNope");
+  clearSel(); rulesPaint();
+  if (rulesSt.misses >= 2) rulesHint(true);
+}
+/* a tap, with a man in hand, on a square he may not go to: said where
+   the step has a reason to give */
+function rulesStray(sq) {
+  var st = rulesStep();
+  if (!st.goal || !st.no) return false;
+  /* the king and a red square; or a task with one answer, and a square that man cannot go to at all */
+  var red = st.danger && Rules.danger(rulesSt.fen).indexOf(sq) >= 0;
+  if (!red && !(st.goal.play || st.goal.mate)) return false;
+  rulesNope(st.no);
+  return true;
+}
+/* Help: the next move of a shortest way to finish, drawn on the board */
+function rulesHint(quiet) {
+  if (!rulesOn()) return;
+  var st = rulesStep();
+  if (!st.goal || rulesSt.done || rulesSt.busy) return;
+  var h = Rules.hint(st, rulesSt.fen);
+  if (!h) return;
+  rulesSt.hint = h;
+  if (!quiet) snd("hint");
+  rulesPaint();
+}
+function rulesAgain() {
+  /* back to where the board last began showing: the first of the shows
+     this step is one of, or that came before your turn */
+  var list = Rules.steps(rulesSt.scene), n = rulesSt.n;
+  while (n > 0 && !list[n].show) n--;
+  while (n > 0 && list[n - 1].show) n--;
+  rulesSt.n = n;
+  rulesEnter(true);
+}
+function rulesFinish(shownOnly) {
+  var id = rulesScene().id, was = rulesRec.done[id];
+  rulesRec = Rules.finish(rulesRec, id);
+  Rules.save(rulesRec, lsSet);
+  if (!was && !shownOnly) {
+    sting("lesson-done");
+    if (FX && rulesSt.scene === Rules.COURSE.length - 1) { try { Fx.confetti({ ms: 2000, layer: "page" }); } catch (e) {} }
+  }
+}
+function rulesNext() {
+  if (!rulesOn()) return;
+  var list = Rules.steps(rulesSt.scene);
+  rulesSt.hint = null;
+  if (rulesSt.n < list.length - 1) { rulesSt.n++; rulesEnter(); return; }
+  if (rulesSt.scene < Rules.COURSE.length - 1) { rulesSt.scene++; rulesSt.n = 0; rulesEnter(true); return; }
+  /* the rules end where they are for: a first game, against the gentlest coach */
+  rulesEnd();
+  quickPlay(Rating.LEVELS[0].id);
+}
+function rulesGo(i) {
+  if (!rulesOn()) return;
+  rulesSt.scene = Rules.index(Rules.scene(i).id); rulesSt.n = 0; rulesSt.hint = null;
+  rulesEnter(true);
+}
+function rulesEnd() {
+  clearTimeout(rulesT);
+  rulesRun++; gameTicket++;
+  rulesSt = null;
+  fxCalm(); clearLines(); clearSel();
+  if (R && R.setHeat) R.setHeat([]);
+  $("lessonBar").classList.add("hide");
+  document.body.classList.remove("lesson-on");
+  reflow();
+}
+function rulesLeave() { rulesEnd(); mode = null; showMenu(); }
+function rulesForTest() {
+  return { Rules: typeof Rules !== "undefined" ? Rules : null, startRules: startRules, rulesGo: rulesGo, rulesNext: rulesNext, rulesHint: rulesHint,
+           rulesState: function () {
+             if (!rulesSt) return null;
+             var st = rulesStep();
+             return { scene: rulesScene().id, n: rulesSt.n, show: st.show, fen: rulesSt.fen, busy: !!rulesSt.busy, done: !!rulesSt.done, shown: !!rulesSt.shown,
+                      misses: rulesSt.misses | 0, lit: legalMoves.map(function (m) { return m.to; }), sel: sel, hint: rulesSt.hint ? { from: rulesSt.hint.from, to: rulesSt.hint.to } : null,
+                      heat: rulesHeat().map(function (h) { return h.sq; }), lines: (lineLayers.lesson || []).map(function (l) { return { kind: l.kind, tone: l.tone, from: l.from, to: l.to, sq: l.sq }; }),
+                      said: $("rlSay") ? $("rlSay").textContent : "", rec: JSON.parse(JSON.stringify(rulesRec)) };
+           } };
+}
 
 
 /* ===================== odds =====================
@@ -6479,10 +6819,12 @@ function showWorkedExample() {
     var wPlan = R.animateMove(desc, g2.board, { scale: 1.8, glow: true }, function () {
       /* Leave was tapped while the man was still moving: nothing to show */
       if (mode !== "lesson" || lesson !== L0) return;
+      lessonPicture(g2, m);
       lessonUI('<div class="lkick">Watch first</div>' +
         '<div class="lask">' + esc(lesson.best) + '</div>' +
         '<div class="lsay">' + lesson.why + '</div>');
       lessonRow([lessonChip("Now let me try →", function () {
+        clearLines("lesson");
         G = Chess.create(lesson.fen);
         R.setPosition(G.board);
         lessonPaused = false;
@@ -6561,6 +6903,7 @@ function lessonAttempt(m) {
     var okPlan = R.animateMove(desc, g2.board, { scale: 1.0 }, function () {
       G = g2;
       syncBoard();
+      lessonPicture(g2, m);
       celebrateLesson(verdict);
     });
     sndMove(desc, okPlan, m.capt);
@@ -6594,6 +6937,34 @@ function lessonAttempt(m) {
   needFrame();
 }
 
+/* What an answer does, drawn rather than only said: an arrow from the
+   man that moved to each enemy man he now attacks, the biggest first,
+   and a ring round each. The engine finds them, so the picture can
+   only show what is true. */
+function lessonPicture(g2, m) {
+  var lines = [];
+  try {
+    var side = m.piece > 0 ? 1 : -1, p = Chess.fen(g2).split(" ");
+    p[1] = side === 1 ? "w" : "b"; p[3] = "-";
+    var g3 = Chess.create(p.join(" ")), ek = g3.kings[side === 1 ? 1 : 0], seen = {}, hits = [];
+    /* the king cannot be taken, so the engine would never list him: a pawn
+       stands in to be seen (a pawn, because it attacks nothing that
+       would make the mover's own moves illegal: kings never stand that close) */
+    if (g3.board[ek] === -side * Chess.K) g3.board[ek] = -side * Chess.P;
+    Chess.movesFrom(g3, m.to).forEach(function (x) {
+      if (!x.capt || seen[x.to]) return;
+      seen[x.to] = 1;
+      hits.push({ to: x.to, v: x.to === ek ? 99 : Chess.VAL[Math.abs(x.capt)] || 0 });
+    });
+    hits.sort(function (a, b) { return b.v - a.v; });
+    hits.slice(0, 3).forEach(function (h) {
+      lines.push({ from: m.to, to: h.to, kind: "run", tone: "plan", knight: knightHop(m.to, h.to) });
+      lines.push({ sq: h.to, kind: "ring", tone: "hint" });
+    });
+  } catch (e) { lines = []; }
+  if (lines.length) showLines(lines, 0, "lesson");
+  return lines.length / 2;
+}
 function celebrateLesson(verdict) {
   snd("lesson-right");
   hap("lessonRight");
@@ -6932,7 +7303,6 @@ var CARDS = [
   { id: "ovLinked", hide: 1, pause: 1 },
   { id: "ovEnd", hide: 1 },
   { id: "ovSettings", hide: 1, pause: 1, back: 1 },
-  { id: "ovLearn", hide: 1, pause: 1, back: 1 },
   { id: "ovOpenings", hide: 1, pause: 1, back: 1 },
   { id: "ovAbout", hide: 1, pause: 1, back: 1 },
   { id: "ovAcademy", hide: 1, pause: 1, back: 1 },
@@ -6968,6 +7338,7 @@ function showMenu() {
   closeStudio();
   if (FX) Fx.clear();
   if (mode === "lesson") { lesson = null; mode = null; }
+  if (mode === "rules") { rulesEnd(); mode = null; }
   if (mode === "review") { keptGame = null; reviewNames = null; }
   leaveSharedView();
   if (mode === "review") mode = null;
@@ -6985,7 +7356,7 @@ function showMenu() {
      used to be offered as "0 moves in" */
   var s = loadSave();
   if (s && !s.sans.length) s = null;
-  var hasLive = G && !over && mode && mode !== "tour" && mode !== "lesson";
+  var hasLive = G && !over && mode && mode !== "tour" && mode !== "lesson" && mode !== "rules";
   $("mResume").classList.toggle("hide", !s && !hasLive);
   function against(m, sk) { return m === "coach" ? "Against " + SKILLS[skillOk(sk)].label : "Two players"; }
   function movesIn(n) { return n ? Math.ceil(n / 2) + (Math.ceil(n / 2) === 1 ? " move" : " moves") + " in" : "not started yet"; }
@@ -7312,7 +7683,7 @@ function syncButtons() {
   /* Undo needs a move of yours to take back; after the end of a game
      between two people on one screen it stays, because that is exactly
      when a person playing both sides wants to try the other line */
-  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" && mode !== "review" &&
+  var canUndo = !!G && G.played.length > 0 && mode !== "tour" && mode !== "lesson" && mode !== "review" && mode !== "rules" &&
     (!over || (mode === "pass" && !/out of time/.test(over.reason))) && (mode !== "coach" || humanMovesMade() > 0);
   $("btnUndo").toggleAttribute("disabled", !canUndo);
   $("btnHint").toggleAttribute("disabled", !G || !!over || mode === "tour" || mode === "review" || hintPending);
@@ -7323,7 +7694,7 @@ function syncButtons() {
 function syncOddsUI() {
   var lbl = $("hintCost");
   if (!lbl) return;
-  if (!G || over || mode === "lesson" || mode === "tour" || !canActNow()) {
+  if (!G || over || mode === "lesson" || mode === "tour" || mode === "rules" || !canActNow()) {
     lbl.textContent = ""; lbl.className = "hintCost"; return;
   }
   var o = oddsFor(G.turn);
@@ -7381,7 +7752,7 @@ function coachBegin(o) { leaveGameThen(function () { startCoachGame(o.skill, o.s
    when there is something to lose — moves on the board, or a rated game
    that is properly under way. */
 function newGameButton() {
-  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review" || mode === "setup") { showMenu(); return; }
+  if (!G || !mode || mode === "tour" || mode === "lesson" || mode === "lan" || mode === "review" || mode === "setup" || mode === "rules") { showMenu(); return; }
   var kind = mode;
   var again = function () {
     if (kind === "coach") startCoachGame(skill, "a", clockStrOf());
@@ -7584,14 +7955,6 @@ function wireUI() {
   $("ckClassic").addEventListener("click", function () { prefs.clockSkin = "classic"; savePrefs(); syncSettingsUI(); });
   $("setBack").addEventListener("click", showMenu);
 
-  /* learn */
-  $("learnPrev").addEventListener("click", function () { showLearn(learnAt - 1); });
-  $("learnNext").addEventListener("click", function () {
-    /* the rules end where they are for: a first game, against the gentlest coach */
-    if (learnAt === LEARN.length - 1) { hideAllOverlays(); quickPlay(Rating.LEVELS[0].id); }
-    else showLearn(learnAt + 1);
-  });
-  $("learnClose").addEventListener("click", showMenu);
 
   /* openings */
   $("openingsBack").addEventListener("click", showMenu);
@@ -9614,7 +9977,7 @@ var persSigAt = 0, persStole = -1, persIdleT = 0;
 /* ===== setting up the board (setup.js) =====
    The first lesson there is: which piece is which, and where it starts.
    Your pieces are handed to you one kind at a time, each named with a
-   line on how it moves; you put them down, each flies from your hand to
+   few words on which it is; you put them down, each flies from your hand to
    its square and lands with a sparkle, and Black then sets up across the
    board by itself. From memory (the Academy) it is the same with no
    words, no glow, a clock and a best time. */
@@ -9664,7 +10027,7 @@ function setupShow(say) {
   lessonUI('<div class="suCard"><span class="suPiece" id="suPiece">' + GLYPH[s.kind] + "</span>" +
     '<div class="suTx"><b>' + (mem ? escHtml(s.plural) : s.emoji + " " + escHtml(title)) + "</b>" +
     (mem ? '<small>Where do they go? <span class="suClock">⏱ <span id="suClock">' + Setup.fmt(Date.now() - setupT0) + "</span></span></small>"
-         : "<small>" + escHtml(s.is) + "</small>") +
+         : "<small>" + escHtml(s.what) + "</small>") +
     (mem && !say ? "" : '<em id="suSay">' + escHtml(say || s.where) + (left > 1 && !s.group && !say ? " (" + left + " to place)" : "") + "</em>") +
     "</div>" + (mem ? "" : '<button class="suSkip" id="suSkip">Skip ›</button>') + "</div>" + setupDots(), "setup");
   var sk = $("suSkip");
@@ -9675,7 +10038,7 @@ function setupShow(say) {
 function setupSkip() {
   var then = setupThen;
   setupEnd();
-  if (then === "rules") showLearn(0);
+  if (then === "rules") startRules();
   else if (then === "academy") openAcademy();
   else showMenu();
 }
@@ -9796,7 +10159,7 @@ function setupDone() {
   }
   lessonUI(html, "setup done");
   var on = function (id, fn) { var b = $(id); if (b) b.addEventListener("click", fn); };
-  on("suRules", function () { setupEnd(); showLearn(0); });
+  on("suRules", function () { setupEnd(); startRules(); });
   on("suPlay", function () { setupEnd(); quickPlay(nextLevel()); });
   on("suAgain", function () { startSetup({ memory: true, then: setupThen }); });
   on("suBack", function () { setupEnd(); openAcademy(); });
@@ -11407,5 +11770,6 @@ Object.assign(window.__cr, notationForTest());
 Object.assign(window.__cr, accForTest());
 Object.assign(window.__cr, castForTest(), homeForTest(), momentumForTest(), unlocksForTest(), journeyForTest(), taleForTest(), beatsForTest(), depthForTest(), paceForTest(), tableForTest(), setupForTest(), uimForTest());
 Object.assign(window.__cr, edgeTestHooks());
-Object.assign(window.__cr, hubForTest(), moreForTest());
+Object.assign(window.__cr, hubForTest(), moreForTest(), rulesForTest());
+window.__cr.lessonLinesForTest = function () { return (lineLayers.lesson || []).map(function (l) { return { kind: l.kind, tone: l.tone, from: l.from, to: l.to, sq: l.sq }; }); };
 })();

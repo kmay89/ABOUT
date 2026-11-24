@@ -117,14 +117,16 @@ const LISTEN = `(() => {
        Skip goes on to the rules, where it was leading */
     ok("“I'm new” starts by setting up the board", await page.evaluate(() => __cr.mode === "setup" && /Your rooks/.test(document.getElementById("lessonBar").textContent)));
     await page.click("#suSkip"); await page.waitForTimeout(250);
-    ok("…and goes on to the rules", await shown("ovLearn"));
+    /* the rules are shown on the board now (rules-check.js): a scene, not a card of words */
+    ok("…and goes on to the rules, on the board", await page.evaluate(() => __cr.mode === "rules" && __cr.rulesState().scene === "goal" &&
+       document.getElementById("lessonBar").classList.contains("rules")));
     ok("…and puts the training wheels on for the first games", (await prefs()).wheels === true);
-    for (let i = 0; i < 20 && /Next/.test(await page.evaluate(() => document.getElementById("learnNext").textContent)); i++) {
-      await page.click("#learnNext"); await page.waitForTimeout(80);
-    }
-    await page.click("#learnNext");
+    /* to the last scene by its dot, and through it */
+    await page.click(".rlDot:last-child");
+    await page.waitForFunction(() => { const s = __cr.rulesState(); return s && s.scene === "start" && s.shown; }, null, { timeout: 60000 }).catch(() => {});
+    await page.click("#lessonBar .lchip.go");
     await page.waitForTimeout(900);
-    ok("…and the last page starts a first game against the gentlest coach",
+    ok("…and the last scene starts a first game against the gentlest coach",
        await page.evaluate(() => __cr.mode === "coach" && __cr.game.played.length <= 1));
     ok("the wheels say once that they are on", await waitToast(/Training wheels are on/, 15000), JSON.stringify(await toasts()));
 

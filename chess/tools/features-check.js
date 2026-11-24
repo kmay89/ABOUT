@@ -95,6 +95,9 @@ const lookAround = async (page) => {
          its way down is as good as gone) */
       const shut = /^#btn[A-Za-z]+$/.test(sel) && await page.evaluate((s) => { const el = document.querySelector(s); return !!el && !!el.closest("#moreTray") && __cr.moreIsTray() && !__cr.moreOpen(); }, sel);
       if (shut) { await page.waitForTimeout(200); await page.click("#btnMore"); await page.waitForTimeout(350); }
+      /* the end card is told over as beats first (app.js beatsStart); a player
+         taps Skip to reach the card, so the check does too */
+      if (/^#end[A-Z]/.test(sel) && await page.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await page.click("#btSkip"); await page.waitForTimeout(350); }
       return page.click(sel);
     };
     const play = (san, src) => page.evaluate(([f, a]) => eval(f)(a), [PLAY, [san, src]]);
@@ -240,12 +243,17 @@ const lookAround = async (page) => {
       /* "New to chess?" sets up the board first (setup-check.js); Skip goes on to the rules */
       ok(T("New to chess? starts by setting up the board"), await page.evaluate(() => __cr.mode === "setup"));
       await press("#suSkip");
-      let pages = 1;
-      while (pages < 40 && !/first game/i.test(await page.evaluate(() => document.getElementById("learnNext").textContent))) {
-        await press("#learnNext"); pages++;
+      /* the rules are scenes on the board (rules-check.js plays every one):
+         here every scene is opened from its dot and watched as far as it shows */
+      const scenes = await page.evaluate(() => __cr.Rules.COURSE.map((c) => c.id));
+      let watched = 0;
+      for (let i = 0; i < scenes.length; i++) {
+        await press(".rlDot:nth-child(" + (i + 1) + ")");
+        const got = await page.waitForFunction((id) => { const s = __cr.rulesState(); return s && s.scene === id && s.shown && !s.busy; }, scenes[i], { timeout: 60000 }).then(() => true, () => false);
+        if (got) watched++;
       }
-      ok(T("the rules can be read to the end"), pages > 5, pages + " pages");
-      await press("#learnNext"); await page.waitForTimeout(900);
+      ok(T("every scene of the rules can be watched"), watched === scenes.length && scenes.length >= 10, watched + " of " + scenes.length);
+      await press("#lessonBar .lchip.go"); await page.waitForTimeout(900);
       ok(T("…and end in a first game against the gentlest coach"),
          await page.evaluate(() => __cr.mode === "coach" && document.getElementById("nameTop").textContent + document.getElementById("nameBot").textContent).then((t) => /Acorn/.test(String(t))));
 
