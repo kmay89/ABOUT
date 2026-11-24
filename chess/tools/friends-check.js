@@ -30,6 +30,11 @@
 
    Run: node chess/tools/friends-check.js [--node] [--verbose]          */
 "use strict";
+/* the end card is told over as beats first (app.js beatsStart); a player
+   taps Skip to reach the card, so the check does too */
+const skipBeats = async (p) => {
+  if (await p.evaluate(() => !!(window.__cr && __cr.beatState && __cr.beatState().on))) { await p.click("#btSkip"); await p.waitForTimeout(350); }
+};
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -334,7 +339,7 @@ async function browserHalf() {
     ok("the shelved computer game survives the friend game's end", shelf2 && shelf2.mode === "coach");
 
     /* ---- your people ---- */
-    await A.click("#endPeople");
+    await skipBeats(A); await A.click("#endPeople");
     ok("Your people opens from the end card", await A.isVisible("#ovPeople"));
     const prow = await A.evaluate(() => document.getElementById("peopleList").innerText);
     ok("…with Sam, the score and the run", /Sam/.test(prow) && /1–0–0/.test(prow) && /You lead 1–0/.test(prow), prow.replace(/\n/g, " | "));
@@ -345,7 +350,7 @@ async function browserHalf() {
     /* ---- the rematch, and the decider ---- */
     await A.evaluate(() => { document.getElementById("ovMenu").classList.add("hide"); document.getElementById("ovEnd").classList.add("hide"); });
     /* back to the finished game: the menu dropped the viewer, the link is still up */
-    await S.click("#endRematch");
+    await skipBeats(S); await S.click("#endRematch");
     ok("a rematch is offered across", !!(await until(A, () => /offers a rematch/.test(document.getElementById("toast").innerText), 10000)));
     await clickText(A, "#toast .tact", /^Play$/);
     ok("…and taken, colours swapped", !!(await until(A, () => __cr.mode === "lan" && __cr.lanSide === -1 && __cr.game.played.length === 0, 10000)) &&
