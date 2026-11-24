@@ -100,6 +100,13 @@ games.js            the journal: every finished game — coach, one screen,
 feats.js            feats: things done on the board that the rules or the
                     teaching eyes can vouch for, each earned once and kept
                     with the game it happened in. Pure
+rules.js            the rules, shown: thirteen short scenes, each a show
+                    step (a reach lit, moves played, one line) and a do
+                    step (take the pawns, walk the king, castle, mate in
+                    one). Every shown move found by the engine at load,
+                    every task solved by search, what counts as an
+                    answer, Help as the next move of a shortest way, and
+                    which scenes you have finished. Pure
 hub.js              the front door as a place: four pages (Play, Friends,
                     Learn, You) and which key lives on which, what a
                     newcomer sees first, where the lobby opens, what is
@@ -437,6 +444,17 @@ tools/              dev-only, never shipped:
                     from a hand-made state, the highest rung within reach
                     rather than the lowest, "done" once, five days and
                     then the subject changes
+  rules-check.js    the rules are shown, and what is shown is true: one
+                    short line a step, something on the board at every
+                    show, each lit reach exactly that piece's move, each
+                    red square really attacked, a cage only round a king
+                    who cannot move; every lone-piece position a task can
+                    reach moving by the piece's own rule and still
+                    finishable; every task solved, refused when wrong,
+                    stalemate caught. Then every task in the course
+                    played by real taps on a phone, flat and carved, with
+                    wrong answers, Help, the dots, leaving, and a game
+                    started halfway through a show
   hub-check.js      the front door: every key the lobby ever had on
                     exactly one page, in the markup where the map says; a
                     first visit that is a face, a question and two
@@ -2248,6 +2266,82 @@ can never be left half-shown. With reduced motion none of it runs.
 `chess/tools/arrive-check.js` watches it happen, and checks that it all
 ends exactly as styled and stays out of the way with reduced motion.
 
+## The rules, shown
+
+The rules used to be twelve cards of words laid over a blurred board:
+*"The knight moves in an L: two squares one way, then one square
+sideways. It is the only piece that jumps over others."* Nobody learns a
+knight from that sentence. They learn it by seeing one jump, and then by
+jumping one themselves. So the cards are gone, and the board is the
+lesson (`rules.js`, and "the rules, shown" in `app.js`).
+
+**Thirteen short scenes:** the idea of the game, the rook, the bishop,
+the queen, the knight, the king, the pawn, check, checkmate, castling,
+en passant, the draw, and a good start. Each is made of two kinds of
+step.
+
+**Show: the board does it.**
+- A piece's reach lights up: a dot on every square it can go to and a
+  thin ray along every line it runs on. The knight's is drawn as eight
+  Ls, two along and one across.
+- Then the piece moves, by itself, with the weight and sound it has in
+  a game: the rook up the file and along the rank, the knight over a
+  wall of its own pawns, the king castling with the rook hopping over.
+- Where a king may not step is tinted red on the board. A checkmate or
+  a stalemate lights the bars of the cage round the king. Check is a
+  red king and an arrow from the piece attacking him, and then its
+  three ways out, each played from the same position: step away, block,
+  take.
+- One line says what was just seen. The longest is seventy-two
+  characters, and the whole course is under 350 words where the cards
+  took over 600. Shows run on into each other at the room's pace and
+  stop before it is your turn.
+
+**Do: your turn.** The same taps and drags as a game.
+- *Take all three pawns* with the rook, the bishop, the queen, the
+  knight; the pawns are counted off under the line as they go, each
+  with a burst of stars.
+- *Walk the king to the ring and keep out of the red.* Sent onto a red
+  square he stays put and the bar says what is watching it.
+- *Take the knight* with a pawn, then *march to the far side*, where
+  the pawn becomes a queen.
+- *You are in check: get safe*, any of the three ways, and the bar says
+  which one you used. *Checkmate in one. Castle. Catch the pawn that
+  just ran past.*
+- *Checkmate, don't let it be a draw:* the move that stalemates is
+  played, the cage lights up, the bar says *no moves and no check: a
+  draw*, and the move is taken back.
+- An answer that is not it is one line and a small shake, never a
+  buzzer; after two, the way is drawn on the board. **Help** draws it
+  whenever asked: the next move of a shortest way to finish from
+  wherever you are. It costs nothing here.
+
+**A piece on its own is on its own.** To learn the rook there is a rook,
+three pawns to take, and nothing else: no kings in the corner to wonder
+about. White simply moves again.
+
+**Everything shown is true.** Every demonstration is found and replayed
+by the engine when the page loads, and a move that is not legal is an
+error there rather than a piece that does not move in front of a child.
+Every task is solved by search before it ships; and for every position a
+lone-piece task can reach, the checker confirms the piece moves exactly
+by its own rule and the task can still be finished.
+
+Thirteen dots along the bottom are the scenes; any can be tapped, the
+finished ones stay lit, and *New to chess?* picks up at the first one
+not done. The last scene's gold key is a first game against the gentlest
+coach, as the last card's was.
+
+**The Academy draws its answers too.** When an answer is played there
+(the worked example, or your own), an arrow runs from the piece that
+moved to each enemy piece it now attacks, biggest first, with a ring
+round each: a fork is two arrows before it is a paragraph. The engine
+finds them, so the picture can only show what is true.
+
+`node chess/tools/rules-check.js` checks all of it in node and then
+plays every task in the course by tap, on the flat board and the carved
+one.
+
 ## Setting up the board
 
 Before anyone can play chess they need to know which piece is which and
@@ -2258,10 +2352,10 @@ start here (with a **Skip ›** to the rules for anyone who'd rather not).
 **Learning** (`setup.js`):
 - **One kind at a time,** in the order people set a board up: rooks,
   knights, bishops, the queen, the king, the pawns.
-- **Each piece is introduced** with what it is and how it moves ("The
-  knight is the horse. It jumps in an L shape…") and where it goes ("The
-  queen goes on her own colour: the white queen on the light square in
-  the middle.").
+- **Each piece is introduced** with which it is, in a few words ("The
+  knight is the horse.") and where it goes ("The queen goes on her own
+  colour: the white queen on the light square in the middle."). How it
+  moves is the next lesson, and is shown there rather than said.
 - **Putting one down:** tap its square. The piece leaves the card in your
   hand, arcs across to the square, and lands with a sparkle and a note.
   One pawn is put down by hand and the other seven march in.
@@ -2939,9 +3033,10 @@ twelve tiles, with *New to chess?* on the third row. Now a first visit
 and nothing else (see *The front door*): **do you know how the pieces
 move?**
 
-- **🐣 I'm new to chess** opens the twelve rules pages, whose last
-  button already starts a game against the gentlest coach — with the
-  training wheels on, said once when they first show.
+- **🐣 I'm new to chess** sets up the board with you, then shows the
+  rules on it, scene by scene (*The rules, shown*); the last scene's
+  key starts a game against the gentlest coach — with the training
+  wheels on, said once when they first show.
 - **▶ I know how the pieces move** goes straight into a game against
   the coach the ladder suggests.
 
@@ -3630,6 +3725,7 @@ node chess/tools/earn-check.js     # every coach and every place is earned, neve
 node chess/tools/pace-check.js     # the room goes at the player's pace
 node chess/tools/table-check.js    # two people, one device: fair to both
 node chess/tools/setup-check.js    # every piece has a name and a home
+node chess/tools/rules-check.js    # the rules are shown, and everything shown is true
 node chess/tools/arrive-check.js   # everything in the room arrives well
 node chess/tools/hub-check.js      # the front door is a place, and everything is still in it
 node chess/tools/bar-check.js      # four keys under a phone's board, and the rest a tap away

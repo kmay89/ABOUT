@@ -2446,6 +2446,35 @@
     #btnMore .ic{display:inline-block; transition:transform .3s var(--spring)}
   }
 
+  /* ---------- the rules, shown (rules.js) ----------
+     The lesson is on the board; this is only its caption: which scene,
+     one line about what the board has just done or is asking for, what
+     to press, and the thirteen scenes as dots. */
+  .lessonBar.rules{display:flex; flex-direction:column; gap:8px}
+  .rlCard{display:flex; align-items:center; gap:12px}
+  .rlPiece{flex:none; width:56px; height:56px; display:grid; place-items:center; font-size:40px; line-height:1; border-radius:16px;
+    background:radial-gradient(circle at 50% 35%, #fff8e6, #e9d3a6); color:#2a1d10; box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.12)}
+  .rlPiece.sign{font-size:30px; font-weight:900}
+  .rlTx{min-width:0; flex:1; display:flex; flex-direction:column; gap:2px}
+  .rlTx small{font-size:.66em; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); font-weight:800}
+  .rlTx b{font-size:1.08em; line-height:1.3; font-weight:700}
+  .rlTx b.bad{color:var(--bad)} .rlTx b.good{color:var(--good)}
+  .rlLeft{display:flex; gap:4px; margin-top:2px}
+  .rlLeft i{font-style:normal; font-size:20px; line-height:1; color:var(--ink); transition:opacity .25s, transform .3s var(--spring)}
+  .rlLeft i.got{opacity:.22; transform:scale(.8) rotate(-18deg)}
+  .lessonBar.rules .lrow{margin-top:0}
+  .rlDots{display:flex; gap:3px; justify-content:center}
+  .rlDot{flex:1 1 0; max-width:24px; aspect-ratio:1; min-width:0; padding:0; display:grid; place-items:center; border-radius:50%; font-size:14px; line-height:1; font-weight:800;
+    background:rgba(255,255,255,.06); color:rgba(255,255,255,.4); letter-spacing:-.04em; overflow:hidden; transition:transform .26s var(--spring), background .15s}
+  .rlDot.on{background:rgba(255,209,102,.25); color:var(--glow)}
+  .rlDot.now{background:var(--amber); color:#241a08; transform:scale(1.15)}
+  .rlDot:active{transform:scale(.9)}
+  .rlDot:focus-visible{outline:2px solid var(--glow); outline-offset:1px}
+  @media (prefers-reduced-motion: no-preference){
+    .rlPiece{animation:suBob 2.4s ease-in-out infinite}
+    .lessonBar.rules.good .rlPiece{animation:suWin .7s ease-out both}
+  }
+
   /* what moves */
   @keyframes icHop{0%{transform:none} 30%{transform:translateY(-9px) scale(.94, 1.08)} 55%{transform:translateY(0) scale(1.1, .9)} 75%{transform:translateY(-2px) scale(.98, 1.02)} 100%{transform:none}}
   @keyframes icNodL{0%, 100%{transform:none} 35%{transform:rotate(11deg)} 65%{transform:rotate(-4deg)}}
@@ -3161,18 +3190,6 @@
 </div>
 
 <!-- ===== learn ===== -->
-<div class="ov hide" id="ovLearn">
-  <div class="card" id="learnCard">
-    <h2>🐣 The rules, gently</h2>
-    <div id="learnBody"></div>
-    <div class="rowbtns" style="justify-content:space-between">
-      <button class="chip" id="learnPrev">← Back</button>
-      <button class="chip sel" id="learnNext">Next →</button>
-    </div>
-    <button class="ghostbtn" id="learnClose">Close</button>
-  </div>
-</div>
-
 <!-- ===== openings browser ===== -->
 <div class="ov hide" id="ovOpenings">
   <div class="card">
@@ -3322,6 +3339,7 @@
 <script src="tales.js"></script>
 <script src="pace.js"></script>
 <script src="setup.js"></script>
+<script src="rules.js"></script>
 <script src="stage.js"></script>
 <script src="book.js"></script>
 <script src="eco.js"></script>

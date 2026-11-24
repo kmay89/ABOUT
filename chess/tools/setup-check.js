@@ -15,7 +15,7 @@
 
    In a browser, on a phone:
      - "I'm new" at the door starts with setting up the board;
-     - the first piece is named, with how it moves and where it goes;
+     - the first piece is named, with which it is and where it goes;
      - a miss says where it lives, and the right squares glow;
      - a tap on the right square puts the piece there;
      - the rest goes in, Black sets up by itself, and the board ends on
@@ -47,7 +47,9 @@ const Chess = require("../engine.js");
 {
   const order = S.STEPS.map((s) => s.name).join(" ");
   ok("the steps go the way people set a board up", order === "Rook Knight Bishop Queen King Pawn", order);
-  ok("every piece is named, with how it moves, where it goes and what a miss says", S.STEPS.every((s) => s.name && s.plural && s.is && s.where && s.miss && s.emoji));
+  ok("every piece is named, with which it is, where it goes and what a miss says", S.STEPS.every((s) => s.name && s.plural && s.what && s.where && s.miss && s.emoji));
+  /* how a piece moves is the next lesson, and is shown on the board there (rules.js) */
+  ok("…in a few words: the card is not where anything is explained", S.STEPS.every((s) => s.what.length <= 40 && !s.is));
   const st = S.begin();
   let n = 0;
   S.STEPS.forEach((s) => { s.squares.forEach((q) => { if (!st.placed[q] && st.at === S.STEPS.indexOf(s)) { S.place(st, q); n++; } }); });
@@ -142,10 +144,10 @@ const server = http.createServer((req, res) => {
     await p2.evaluate(() => document.getElementById("mNew").click()); await p2.waitForTimeout(700);
     let s = await st(p2);
     ok("\"I'm new\" at the door starts with setting up the board", s.mode === "setup" && s.s && s.s.at === 0 && !s.s.memory, s.mode);
-    ok("…the first piece is named, with how it moves and where it goes", /Your rooks/.test(s.bar) && /castle tower/.test(s.bar) && /corners/.test(s.bar), s.bar);
+    ok("…the first piece is named, with which it is and where it goes", /Your rooks/.test(s.bar) && /castle tower/.test(s.bar) && /corners/.test(s.bar), s.bar);
     ok("…and an \"I'm new\" player is gentle: the squares glow from the start", JSON.stringify(s.legal) === "[0,7]", JSON.stringify(s.legal));
     await p2.evaluate(() => document.getElementById("suSkip").click()); await p2.waitForTimeout(300);
-    ok("…and Skip goes on to the rules", await p2.evaluate(() => !document.getElementById("ovLearn").classList.contains("hide") && document.getElementById("lessonBar").classList.contains("hide")));
+    ok("…and Skip goes on to the rules, shown on the board", await p2.evaluate(() => __cr.mode === "rules" && __cr.rulesState().scene === "goal" && document.getElementById("lessonBar").classList.contains("rules")));
     await ctx2.close();
 
     /* learning, tapped for real */
@@ -169,10 +171,10 @@ const server = http.createServer((req, res) => {
     ok("…the card offers the rules, a game, and trying it from memory",
        await page.evaluate(() => ["suRules", "suPlay", "suAgain"].every((id) => !!document.getElementById(id))) && s.rec.learned === 1);
     await page.evaluate(() => document.getElementById("suRules").click()); await page.waitForTimeout(400);
-    ok("…and the rules follow", await page.evaluate(() => !document.getElementById("ovLearn").classList.contains("hide") && document.getElementById("lessonBar").classList.contains("hide")));
+    ok("…and the rules follow", await page.evaluate(() => __cr.mode === "rules" && !!__cr.rulesState() && document.getElementById("lessonBar").classList.contains("rules")));
 
     /* from memory, from the Academy */
-    await page.evaluate(() => { document.getElementById("ovLearn").classList.add("hide"); document.getElementById("mAcademy").click(); }); await page.waitForTimeout(400);
+    await page.evaluate(() => { __cr.showMenu(); document.getElementById("mAcademy").click(); }); await page.waitForTimeout(400);
     const sub = await page.evaluate(() => document.getElementById("aSetupSub").textContent);
     ok("the Academy offers it, from memory once learned", /From memory, against the clock/.test(sub), sub);
     await page.evaluate(() => document.getElementById("aSetup").click()); await page.waitForTimeout(500);
